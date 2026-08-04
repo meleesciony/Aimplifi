@@ -377,6 +377,10 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     scheduledFixed,
     trailingMonthlyFixedCents,
     categoryFixedCents: categoryFixed.totalCents,
+    // C.11 / audit P1-14: the Glass-Box provenance gate — a budget target
+    // pricing a Fixed category is the reader's own number, so the panel must
+    // not certify "computed from your own data" while one is in the term.
+    categoryFixedHasReaderInput: categoryFixed.hasReaderInput,
     categoryFixedCoveredIds,
     // C.24 critic F2: a loan-payment series whose category the reader priced
     // themselves is NOT added on top of the reader's own number.

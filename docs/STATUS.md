@@ -6,6 +6,63 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-04 — C.11: the Glass-Box certification is split into the claim it can stand behind and the one it can't (audit P1-14, DECISIONS #407)
+
+The audit's trust-surface finding: every Glass-Box panel ended "…matched to
+the penny. Every amount is computed from your own data; nothing is invented",
+and both halves overclaimed. `reconciles` compared two readings of the SAME
+plan fields (`income − fixed − savings` vs `leftToSpendCents`, which
+`plan.ts:707` computes from the same three; the bucket panels against
+`conscious.ts` copies of the identical fields) — true for every input,
+including every defect in the audit, while the comments called it "a real
+cross-module check". And the provenance clause was false whenever a figure was
+reader-typed: an income/fixed override, a goal or savings-% target above $0,
+a budget target pricing a Fixed category — or, found by critic cycle 2, a
+reader-ADDED card whose statement or balance is a typed figure. Fix:
+`NumberTrace` gains a REQUIRED `dataDerived` flag, per-panel: cash-needed is
+true iff no row comes from a manual card (`Account.provider` →
+`CardSnapshot.manual` → `CardObligation.isManual`, both statement and estimate
+paths); the fixed bucket answers for the fixed term alone; savings never; the
+full identity requires all three terms clean, unknown budget-pricing treated
+conservatively as reader-set. One-row panels say "This amount is the whole
+figure." — no penny-match and no completeness claim (cycle 2 P1-1: the Fixed
+row is itself an aggregate); multi-row panels keep the arithmetic sentence and
+the fail-loud mismatch branch; the clause renders only under the flag in all
+four copy authors (panel, share text, /spending-plan's fused sentence, plus
+the zero-income basis and Ask's two copies reworded to the app's state: "no
+income has been detected"). `reconciles` is restated everywhere as what it is
+— a drift alarm, not a certification. The same one-row rule now applies in
+breakdown-panel.tsx.
+
+**Locks:** S8 in glass-box.test.ts (gate cases incl. cash-needed feed-true /
+manual-false on both paths + mixed, and the reconciles/dataDerived
+independence), per-bucket locks in conscious-trace.test.ts, redact locks for
+both branches, and e2e on /budgets (no penny-match on the one-row panels, no
+clause on savings). Mutation-proven in both directions: four mutations (delete
+savings condition → 5 tests kill it; flip the unknown-default → 2; force flag
+off → 4; force the fixed predicate true → 5), all reverted green.
+
+**Critic cycles:** 2 (DECISIONS #407). Cycle 2 (fresh context, two lenses)
+refuted the first cut's cash-needed `true` (wrong source checked — manual
+cards exist, DECISIONS #45) and the one-row sentence's completeness claim;
+both fixed same cycle, the overclaiming test rewritten with them.
+
+**Gate:** `bash scripts/verify.sh` → **VERIFY GREEN** (tsc 0, eslint 0,
+**5930 unit / 360 files**, build clean). E2e serially on that build:
+glass-box, conscious-buckets, spending-plan-month-edge, month-flow-drilldown,
+category-breakdown. Pre-existing red
+fixed on the way: DECISIONS_INDEX.md had stopped at #405 while DECISIONS.md
+carried #406 — `ledger.ts reindex` regenerated it (395 entries, drop-guarded).
+
+**Honest residuals (DECISIONS #407):** the clause-render FALSE branch is
+e2e-reached only via the savings panel (the seed has no overrides, budget
+targets, or manual accounts); override/budget/manual readers are unit-locked
+at the flag only (no RTL in the repo). Month-flow / category-breakdown panels
+keep their MULTI-row penny-match as product behaviour — their check is the
+same drift-alarm shape (rows are the figure's own input transactions), not a
+re-certification. `AccountLike.provider` is optional: only the demo provider
+exists, and it emits full Prisma rows.
+
 ## ✅ BUILT 2026-08-04 — C.10: the wealth-target pace line branches on the contribution's basis, and a plan the history doesn't back gets no date (audit P0-8, DECISIONS #406)
 
 The last open P0 of the calc audit. #375 made the years dial compound the settings

@@ -54,6 +54,14 @@ export interface CardSnapshot {
    *  of the false claim was left standing). Each surface now carries its own sentence, and
    *  `CardObligation.frozenSince` is what lets them. The engine adjusts nothing either way. */
   frozenSince?: string | null;
+  /**
+   * TRUE when the account is reader-added (`Account.provider === 'manual'`):
+   * its statement and its balance are figures the reader TYPED (DECISIONS #45,
+   * `setManualCardStatement`), so no panel may certify them as "computed from
+   * your own data" (audit P1-14 / C.11 critic P0-1). Absent/false on every
+   * hand-built fixture, which describes feed accounts unless it says otherwise.
+   */
+  manual?: boolean;
 }
 
 export interface ScheduledItem {
@@ -128,6 +136,14 @@ export interface CardObligation {
    * making `RadarAccountLike.feedDroppedAt` required).
    */
   frozenSince: string | null;
+  /**
+   * TRUE when the money comes from a reader-added card: the statement (or, on
+   * the estimate path, the balance it was derived from) is a figure the reader
+   * TYPED, not one computed from account data (audit P1-14 / C.11 critic P0-1).
+   * The Glass-Box provenance gate reads it; REQUIRED for the same reason as
+   * `frozenSince` — a forgotten flag would certify a typed figure.
+   */
+  isManual: boolean;
 }
 
 /**

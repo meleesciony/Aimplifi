@@ -211,10 +211,13 @@ export default async function SpendingPlanPage() {
           </div>
         </dl>
         {trace.reconciles ? (
+          /* Audit P1-14: "from your own data" is a provenance claim — printed
+             only when no term is reader-typed (override, goal, savings target,
+             budget-priced category); the engine's `dataDerived` gates it. */
           <p className="mt-3 text-xs text-muted-foreground" data-testid="plan-reconciled">
             These {rows.length}{' '}
             lines add up to exactly the &ldquo;Guilt-free to spend&rdquo;
-            amount — matched to the penny from your own data.
+            amount — matched to the penny{trace.dataDerived ? ' from your own data' : ''}.
           </p>
         ) : (
           <p className="mt-3 text-xs" data-testid="plan-mismatch">

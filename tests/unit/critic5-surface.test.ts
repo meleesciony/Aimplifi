@@ -116,6 +116,7 @@ describe('critic5: calendar places weekend due dates on the effective day', () =
     isEstimated: false,
     notes: [],
     frozenSince: null,
+    isManual: false,
   };
 
   it('Freedom (issuer Sun 06-28) shows on Fri 06-26 and NOT on 06-28', () => {

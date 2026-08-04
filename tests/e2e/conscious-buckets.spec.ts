@@ -98,6 +98,25 @@ test('each bucket amount opens a panel whose rows sum to exactly that amount', a
     await expect(savingsAction).toHaveCount(0);
   }
 
+  // C.11 / audit P1-14: a one-row panel certifies nothing, so it prints no
+  // penny-match — one amount beside the figure it IS. And the provenance
+  // clause appears only where every amount is data-derived: the demo's Fixed
+  // term is (no overrides, no budget targets in the seed); the savings term
+  // never is — goals and targets are chosen by the reader, not computed, and
+  // the unset $0 asserts nothing either.
+  await expect(page.getByTestId('conscious-fixed-reconciled')).toContainText(
+    'This amount is the whole figure',
+  );
+  await expect(page.getByTestId('conscious-fixed-reconciled')).not.toContainText(
+    'matched to the penny',
+  );
+  await expect(page.getByTestId('conscious-savings-reconciled')).not.toContainText(
+    'nothing is invented',
+  );
+  await expect(page.getByTestId('conscious-guilt-free-reconciled')).toContainText(
+    'matched to the penny',
+  );
+
   // Collapse works and does not disturb the figure (a stale-render tell).
   await page.getByTestId('conscious-fixed-toggle').click();
   await expect(page.getByTestId('conscious-fixed-panel')).toBeHidden();

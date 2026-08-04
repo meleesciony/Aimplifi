@@ -4,11 +4,11 @@
  * The strip's three figures come from `mapToConsciousBuckets`, a strict
  * re-partition of the plan (#93). The panels behind them come from
  * `traceConsciousBuckets`, which RESHAPES `traceSafeToSpend`'s own rows (the
- * glass-box cardinal rule: never recompute). Each bucket's `reconciles` is
- * therefore a real CROSS-MODULE check: the partition module and the trace
- * module read the same plan fields through different code, and this suite is
- * the executable form of the #93 invariant — change either side's formula and
- * these tests name the drift.
+ * glass-box cardinal rule: never recompute). The partition currently reads
+ * each plan field VERBATIM, so each bucket's `reconciles` cannot fail on any
+ * current input — it is a DRIFT ALARM: change either side's formula and these
+ * tests name the drift (audit P1-14 restated the contract without the old
+ * "real check" overclaim).
  *
  * Anchored on real computeSpendingPlan output, never hand-built plans (the
  * conscious.test.ts house rule). Expected values hand-computed inline.
@@ -295,5 +295,55 @@ describe('traceConsciousBuckets — each bucket panel reconciles to the strip fi
       'card',
       'savings',
     ]);
+  });
+});
+
+describe('provenance gate per bucket — each panel answers only for the rows it shows (C.11 / audit P1-14)', () => {
+  it('fixed panel: an income override leaves the flag true — the fixed term is untouched', () => {
+    const base = traceConsciousBuckets(plan(), D);
+    expect(base.fixed.dataDerived).toBe(true); // detected-series fixed, no reader input
+    const overridden = traceConsciousBuckets(plan({ incomeOverrideCents: 600_000 }), D);
+    expect(overridden.fixed.dataDerived).toBe(true);
+  });
+
+  it('fixed panel: a typed fixed figure turns the flag off', () => {
+    const t = traceConsciousBuckets(plan({ fixedOverrideCents: 150_000 }), D);
+    expect(t.fixed.dataDerived).toBe(false);
+    // The arithmetic claim is untouched — only the provenance claim moves.
+    expect(t.fixed.reconciles).toBe(true);
+  });
+
+  it('fixed panel: budget-priced categories turn the flag off; typical-spend keeps it', () => {
+    const rollup = { categoryFixedCents: 100_000 };
+    expect(traceConsciousBuckets(plan({ ...rollup, categoryFixedHasReaderInput: true }), D).fixed.dataDerived).toBe(false);
+    expect(traceConsciousBuckets(plan({ ...rollup, categoryFixedHasReaderInput: false }), D).fixed.dataDerived).toBe(true);
+    // Unknown (omitted) ⇒ conservatively reader-priced — never certify on a guess.
+    expect(traceConsciousBuckets(plan(rollup), D).fixed.dataDerived).toBe(false);
+  });
+
+  it('savings panel: never data-derived — goals and targets are chosen, and $0 asserts nothing', () => {
+    expect(traceConsciousBuckets(plan(), D).savings.dataDerived).toBe(false); // goals $500.00
+    const unset = traceConsciousBuckets(plan({ goalContributionsCents: 0, savingsTargetBps: null }), D);
+    expect(unset.savings.dataDerived).toBe(false); // unset $0
+  });
+
+  it('guilt-free panel mirrors the full identity — reader input anywhere in the term turns it off', () => {
+    const withGoals = traceConsciousBuckets(plan(), D);
+    expect(withGoals.guiltFree.dataDerived).toBe(false); // goals $500.00 > $0
+    const clean = traceConsciousBuckets(plan({ goalContributionsCents: 0 }), D);
+    expect(clean.guiltFree.dataDerived).toBe(true);
+    expect(traceConsciousBuckets(plan({ goalContributionsCents: 0, incomeOverrideCents: 600_000 }), D).guiltFree.dataDerived).toBe(false);
+  });
+
+  it('the share text follows the panel: one-row panels carry no penny-match', () => {
+    const t = traceConsciousBuckets(plan(), D);
+    const fixedShare = formatShareText(t.fixed);
+    expect(fixedShare).toContain('This amount is the whole figure.');
+    expect(fixedShare).not.toContain('matched to the penny');
+    // Critic cycle 2 P1-1: the Fixed row is an aggregate — no completeness claim.
+    expect(fixedShare).not.toContain('nothing else is inside it');
+    const guiltFreeShare = formatShareText(t.guiltFree);
+    expect(guiltFreeShare).toContain('matched to the penny'); // three rows
+    expect(guiltFreeShare).not.toContain('nothing invented'); // goals make it reader-typed
   });
 });

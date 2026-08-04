@@ -1,9 +1,11 @@
 /**
  * Glass-Box number (DECISIONS #178) — tap a headline amount to see the rows
- * it is made of, reconciled to the penny. Pure display: every value comes
- * from a NumberTrace built by the engine layer (engine/glass-box/trace.ts);
- * nothing is recomputed here, and the shown Total is the trace's own row sum
- * displayed verbatim — never a clamped or prettified value.
+ * it is made of. Pure display: every value comes from a NumberTrace built by
+ * the engine layer (engine/glass-box/trace.ts); nothing is recomputed here,
+ * and the shown Total is the trace's own row sum displayed verbatim — never
+ * a clamped or prettified value. The footnote says only what the trace can
+ * stand behind (audit P1-14): no penny-match on a one-row panel, and the
+ * "computed from your own data" clause only when `dataDerived` is true.
  */
 'use client';
 
@@ -159,9 +161,22 @@ export function GlassBoxPanelBody({
           className="mt-1.5 text-xs font-normal text-muted-foreground"
           data-testid={`${testIdPrefix}-reconciled`}
         >
-          {trace.rows.length === 1 ? 'This row adds' : `These ${trace.rows.length} rows add`} up
-          to exactly the number above — matched to the penny. Every amount is computed from your
-          own data; nothing is invented.
+          {/* Audit P1-14: a one-row panel is one amount next to the figure it
+              IS — there is nothing to match, so no penny-match prints, and no
+              COMPLETENESS claim either: the single row may itself be an
+              aggregate (the Fixed term is a rollup union), so the sentence
+              says only what the panel shows — one amount, equal to the figure
+              (critic cycle 2 P1-1 killed "nothing else is inside it"). The
+              "computed from your own data" clause is a PROVENANCE claim, true
+              only when no reader-typed figure (override, goal, savings target,
+              budget-priced category, typed card statement) entered; the
+              engine's `dataDerived` gates it. */}
+          {trace.rows.length === 1
+            ? 'This amount is the whole figure.'
+            : `These ${trace.rows.length} rows add up to exactly the number above — matched to the penny.`}
+          {trace.dataDerived && (
+            <> Every amount is computed from your own data; nothing is invented.</>
+          )}
         </p>
       ) : (
         <p className="mt-1.5 text-xs font-normal" data-testid={`${testIdPrefix}-mismatch`}>

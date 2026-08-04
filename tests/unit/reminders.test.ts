@@ -50,6 +50,7 @@ function ob(p: {
   isEstimated?: boolean;
   notes?: string[];
   frozenSince?: string | null;
+  isManual?: boolean;
 }): CardObligation {
   return {
     cardId: p.cardId,
@@ -64,6 +65,7 @@ function ob(p: {
     isEstimated: p.isEstimated ?? false,
     notes: p.notes ?? [],
     frozenSince: p.frozenSince ?? null,
+    isManual: p.isManual ?? false,
   };
 }
 

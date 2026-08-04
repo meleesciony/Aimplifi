@@ -1190,7 +1190,7 @@ export function answerSafeToSpend(
           }`
         : plan.incomeBasis === 'detected-series'
           ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses and your planned savings. A deposit on a rhythm longer than monthly — quarterly, twice a year, or yearly — is not counted here — one long gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows such a deposit at a share of a month; this figure leaves it out. '
-          : 'There is no income pattern yet — nothing here is invented. ';
+          : 'There is no income pattern yet — no income has been detected. ';
     return {
       kind: 'safe_to_spend',
       headline: `You're ${fmt(-plan.leftToSpendCents)} over your plan for this month.`,
@@ -1215,7 +1215,7 @@ export function answerSafeToSpend(
           } Discretionary spending is never subtracted.`
         : plan.incomeBasis === 'detected-series'
           ? 'That is your detected recurring income at a monthly rate, minus fixed and recurring expenses and your planned savings. A deposit on a rhythm longer than monthly — quarterly, twice a year, or yearly — is not counted here — one long gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows such a deposit at a share of a month; this figure leaves it out.'
-          : 'There is no income pattern yet — nothing here is invented. Once a complete month of income posts, the figure comes from that pattern.',
+          : 'There is no income pattern yet — no income has been detected. Once a complete month of income posts, the figure comes from that pattern.',
     ),
     facts,
     source,

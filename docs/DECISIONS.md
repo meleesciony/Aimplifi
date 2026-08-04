@@ -3775,3 +3775,104 @@ guardrail sweep. Wealth-target engine untouched.
 360 files** (+1 predicate lock), build clean). `wealth-target.spec.ts` 2/2
 serially on that build — the demo seed carries no `savingsTargetBps`, so e2e
 exercises the byte-identical surplus branch; the settings branch is unit-locked only.
+
+## #407 — C.11: the Glass-Box certification is split into the claim it can stand behind and the one it can't — `reconciles` stays a drift alarm, `dataDerived` gates the provenance sentence, one-row panels print no penny-match (built, critic-cycled, 2 cycles)
+
+**Context.** CALC_AUDIT_2026-08-02 P1-14, the audit's trust-surface finding.
+Every Glass-Box panel ended with "…matched to the penny. Every amount is
+computed from your own data; nothing is invented." Both halves were overclaims.
+(1) `assembleSafeToSpend` compared `income − fixed − savings` against
+`plan.leftToSpendCents` — the SAME expression (`plan.ts:707` computes it from
+the same three fields), so `reconciles` was true for every input, including
+every defect in the audit; the Fixed/Savings bucket panels compared a one-row
+sum against a headline `conscious.ts` copies from the identical field. The
+code comments called these "real cross-module checks" — disproved by reading
+both modules: neither side derives anything the other does not hand it. What
+the check CAN still catch is one-sided FORMULA drift (a term added to
+`leftToSpendCents` or to a bucket without its trace row), which is real but
+narrow, and is not what the copy claimed. (2) "Every amount is computed from
+your own data; nothing is invented" is false whenever a figure is reader-typed:
+an income/fixed override, a savings goal or savings-% target above $0, or a
+Fixed category priced from a budget target (the rollup's `hasReaderInput`).
+The same two sentences also lived in the share snapshot (`redact.ts`).
+
+**Decision.**
+1. `NumberTrace` gains `dataDerived: boolean` — REQUIRED, no default (the L.15
+   lesson): true iff every amount in the panel was computed by the app from
+   observed account data. Builders set it per panel, because the panels show
+   different row sets. Cash-needed is true iff NO row comes from a
+   reader-added card — critic cycle 2 P0-1 refuted the first cut's hardcoded
+   `true` (it had checked ScheduledTransaction, the wrong source: a manual
+   card's statement balance/minimum are figures the reader TYPES via
+   `setManualCardStatement`, and its estimate path derives from the typed
+   balance). The fact now rides `Account.provider` → `AccountLike.provider` →
+   `CardSnapshot.manual` → `CardObligation.isManual` (REQUIRED, the
+   frozenSince rationale) → the trace. The fixed bucket answers for the fixed
+   TERM alone (`fixedTermDataDerived`: false on a `'user-set'` basis or a
+   budget-priced category — an income override leaves it true); the savings
+   bucket is NEVER true (above $0 the figure is chosen, at $0 no reader-set
+   AMOUNT is printed); the full identity and the guilt-free panel require all
+   three terms clean.
+2. Unknown is conservative: the budget-pricing fact arrives as
+   `SpendingPlanInput.categoryFixedHasReaderInput` (the rollup's
+   `hasReaderInput`, plumbed by the server); ABSENT ⇒ treated as reader-priced
+   — never certify on a guess. Only the server caller passes the measured flag.
+3. Copy: one-row panels print "This amount is the whole figure." and NO
+   penny-match and NO completeness claim (one amount beside the figure it IS
+   certifies nothing; cycle 2 P1-1 killed "nothing else is inside it" — the
+   one row may itself be an aggregate, and the Fixed row's own label and basis
+   say "sum of … plus …"); the same one-row rule now applies in
+   breakdown-panel.tsx too. Multi-row panels keep the arithmetic sentence (the
+   reader can check it on screen, and the mismatch branch still fails loud on
+   drift); the provenance clause renders only under `dataDerived` in all four
+   authors — panel, share text, and the /spending-plan page's fused sentence
+   ("matched to the penny from your own data" splits on the flag). The
+   zero-income basis sentence states the APP's state only ("no income has been
+   detected") — cycle 2 P2-1 killed a rewrite that claimed no income had
+   POSTED, which the app cannot know — and Ask's two copies of the retired
+   "nothing here is invented" wording were scrubbed to match.
+4. The overclaim comments were rewritten where they lived: `trace.ts` header
+   (reconciles is internal-consistency, not correctness), the conscious-bucket
+   builder ("drift alarm, not a certification"), the test-suite headers, and
+   EDGE_CASES §Glass-Box (which carries the hand-verified gate table).
+
+**Locks.** S8 in glass-box.test.ts (flag cases: overrides, goal, target,
+budget-priced/typical/unknown rollup, empty reader, cash-needed feed-true /
+manual-false on BOTH the statement path and the estimate path plus the mixed
+case, and the reconciles/dataDerived independence case); the conscious-trace
+per-bucket suite (fixed flag ignores income overrides; savings never;
+guilt-free mirrors; share text follows the panel); redact locks for the
+one-row sentence and both provenance branches. E2e: conscious-buckets asserts
+the one-row panels print no penny-match and the savings panel no clause,
+guilt-free still does. Mutation-proven in BOTH directions, four mutations:
+deleting the savings condition kills 5; flipping the unknown-default kills 2;
+forcing the flag off kills 4; forcing `fixedTermDataDerived` true kills 5. All
+reverted green.
+
+**Critic cycles.** Cycle 1: two fresh-context critics (copy-truthfulness +
+engine-gate). Engine lens: P0-1 — the cash-needed flag hardcoded true was
+refuted by `setManualCardStatement`/manual accounts (fixed per decision 1;
+the S8 test that had locked the falsehood was rewritten the same cycle). Copy
+lens: P1-1 — the one-row replacement's completeness claim falsified by the
+composite Fixed term (fixed per decision 3); P2-1 the zero-income rewrite
+overreached (fixed); P2-2 the breakdown-panel one-row tautology + this
+entry's residual (3) overclaim (both fixed); engine P2-3 the $0-savings
+comment overclaim (fixed). Zero P0/P1 remain open.
+
+**Honest residuals.** (1) The component copy branches (clause rendered when the
+flag is true, withheld when false) have no RTL in this repo — the engine flag
+is locked both directions; the false-branch RENDER is e2e-covered only for the
+savings panel (demo reaches it), not for an override/budget/manual-card reader
+(unit-locked flag only — the seed has no manual accounts). (2) The month-flow /
+category-breakdown panels keep their multi-row penny-match: their rows are the
+figure's own input transactions, so their check is the SAME drift-alarm shape
+this change de-certified for traces (the module docblock says so) — retained
+as product behaviour, not re-certified as independent verification; their
+one-row case now prints the same one-row sentence. (3) `AccountLike.provider`
+is optional: a future snapshot producer that omits it would mark its manual
+cards non-manual — the demo provider (the only one) emits full Prisma rows.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, eslint 0, **5930
+unit / 360 files**, build clean. E2e run serially on that build:
+glass-box.spec.ts, conscious-buckets.spec.ts, spending-plan-month-edge.spec.ts,
+month-flow-drilldown.spec.ts, category-breakdown.spec.ts.

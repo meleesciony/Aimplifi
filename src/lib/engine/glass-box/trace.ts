@@ -6,11 +6,23 @@
  * only RESHAPES the engine result it is handed, so the rows shown are — by
  * construction — the exact values the engine already summed into the headline.
  * The one thing computed here is the plain row sum, which makes `reconciles`
- * a real check rather than an assumption: if an engine result were ever
- * internally inconsistent, the trace reports the mismatch (fail loud) instead
- * of hiding it. This is the guard against the sharpest failure mode a trust
- * feature has — a false "can't reconcile" on a correct number — because there
- * is no parallel derivation that can drift from the engine.
+ * a check on the engine's INTERNAL consistency: if a formula ever drifts from
+ * the rows that feed it (a new term added to one side only), the trace reports
+ * the mismatch (fail loud) instead of hiding it. This is the guard against the
+ * sharpest failure mode a trust feature has — a false "can't reconcile" on a
+ * correct number — because there is no parallel derivation that can drift from
+ * the engine.
+ *
+ * What `reconciles` is NOT (audit P1-14 / C.11): a certification that the
+ * figures are RIGHT. It compares two readings of the same plan fields, so no
+ * wrong input, wrong basis, or wrong price can fail it — and the panel used to
+ * follow it with "Every amount is computed from your own data; nothing is
+ * invented", which is false the moment a figure is a number the reader typed
+ * (an income/fixed override, a savings goal or target) or a budget target
+ * pricing a category. `dataDerived` carries that provenance fact now, and the
+ * surfaces gate the sentence on it; single-row panels no longer print the
+ * penny-match at all, because one row equal to the figure it IS certifies
+ * nothing.
  *
  * Pure: no I/O, no Date, integer cents only. Copy strings here follow the
  * coaching guardrails (educational, assumption stated inline, no shame).
@@ -66,6 +78,16 @@ export interface NumberTrace {
   sumCents: Cents;
   /** True iff sumCents === headlineCents exactly (integer cents). */
   reconciles: boolean;
+  /**
+   * True iff EVERY amount in this panel was computed by the app from observed
+   * account data — false when any figure is a number the reader provided: an
+   * income or fixed override, a savings goal or savings-% target above $0, or
+   * a Fixed category priced from a budget target (audit P1-14). Gates the
+   * "Every amount is computed from your own data; nothing is invented" clause:
+   * `reconciles` says the rows agree with the headline; only this field says
+   * where the amounts came from, and the two claims must not be printed as one.
+   */
+  dataDerived: boolean;
   /** What the rows include/exclude, stated inline (assumption transparency). */
   basis: string[];
 }
@@ -101,6 +123,9 @@ export function traceCashNeeded(
   partnerCardIds: ReadonlySet<string> = new Set(),
 ): NumberTrace {
   const notesById = new Map(result.cards.map((c) => [c.cardId, c.notes]));
+  // C.11 critic P0-1: which cards carry reader-TYPED figures. Joined by id
+  // because the per-due-date points carry a five-field projection.
+  const manualById = new Map(result.cards.map((c) => [c.cardId, c.isManual]));
   const rows: TraceRow[] = result.perDueDate.flatMap((point) =>
     point.cards.map((c, i) => ({
       // Position in the id keeps keys unique even under (API-level) duplicate
@@ -179,6 +204,16 @@ export function traceCashNeeded(
     rows,
     sumCents: sum,
     reconciles: sum === result.headline.requiredCents,
+    // False the moment a reader-typed figure enters the rows (C.11 critic
+    // P0-1 — the first cut hardcoded true on the strength of a check against
+    // the WRONG source): a reader-added card's statement balance and minimum
+    // are figures the reader typed (`setManualCardStatement`), and its
+    // estimate path derives from the typed current balance. Feed cards stay
+    // true: their amounts come from statements, autopay configs and observed
+    // balances, estimated rows badged "est." beside the row.
+    dataDerived: result.perDueDate.every((point) =>
+      point.cards.every((c) => !manualById.get(c.cardId)),
+    ),
     basis,
   };
 }
@@ -198,6 +233,15 @@ interface SafeToSpendParts {
     fixed: TraceRow;
     savings: TraceRow;
   };
+  /**
+   * True iff every term of the identity is data-derived (audit P1-14): no
+   * income or fixed override, no budget target pricing a Fixed category, and
+   * no planned savings above $0 (a goal or savings-% target is a number the
+   * reader chose, not one computed from their data). The guilt-free bucket
+   * panel and the full identity share it; the single-bucket panels compute
+   * their OWN narrower flags because each shows only its own row.
+   */
+  dataDerived: boolean;
   basis: {
     income: string[];
     fixedRate: string[];
@@ -208,6 +252,21 @@ interface SafeToSpendParts {
     card: string[];
     savings: string[];
   };
+}
+
+/**
+ * Is the FIXED TERM itself data-derived (audit P1-14)? False when the reader
+ * typed the figure (an override) or priced a Fixed category from a budget
+ * target. The rollup's `hasReaderInput` arrives as `categoryFixedHasReaderInput`;
+ * when it is ABSENT the answer is conservatively false — never certify on a
+ * guess (the L.15 lesson), and only the server caller passes the measured flag.
+ */
+function fixedTermDataDerived(plan: SpendingPlan): boolean {
+  if (plan.fixedBasis === 'user-set') return false;
+  if (plan.fixedBasis === 'category-designations') {
+    return (plan.categoryFixedHasReaderInput ?? true) === false;
+  }
+  return true;
 }
 
 function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): SafeToSpendParts {
@@ -263,7 +322,7 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
             // median needs no such clause: it counts a bonus in the month it
             // actually arrived.
             'Income is your detected recurring income at a monthly rate — there is no complete month of history to take the pattern from yet. A deposit on a rhythm longer than monthly — quarterly, twice a year, or yearly — is not counted here: one long gap is not enough to say when the next one lands, and counting money that may not arrive would make this figure too big. Your recurring list shows such a deposit at a share of a month; this figure leaves it out.'
-          : 'There is no income pattern yet — nothing here is invented; once a complete month of income posts, the figure comes from that pattern.',
+          : 'There is no income pattern yet — no income has been detected; the figure is $0 until a complete month of income posts, and then it comes from that pattern.',
     ],
     // BIWEEKLY is named too (L.23 copy critic P2-4): ×26/12 is the largest
     // multiplier in the table and the commonest real cadence in this app.
@@ -341,7 +400,21 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
         : [],
   };
 
-  return { rows, basis };
+  // Audit P1-14: the panel may call its amounts "computed from your own data"
+  // only when no term is reader-provided. Overrides name themselves through
+  // their basis; planned savings above $0 is a goal or a savings-% target — a
+  // number the reader chose, not one derived from their history; budget-priced
+  // Fixed categories are the reader's own typed figure (fixedTermDataDerived).
+  // At exactly $0 planned savings no reader-set AMOUNT is printed — the row
+  // shows $0 and names what is missing (a target can be set and still compute
+  // to $0 at $0 income, but nothing typed appears as an amount), so the flag
+  // can stay true.
+  const dataDerived =
+    plan.incomeBasis !== 'user-set' &&
+    fixedTermDataDerived(plan) &&
+    plan.plannedSavingsCents === 0;
+
+  return { rows, dataDerived, basis };
 }
 
 /**
@@ -373,6 +446,7 @@ function assembleSafeToSpend(plan: SpendingPlan, parts: SafeToSpendParts): Numbe
     rows,
     sumCents: sum,
     reconciles: sum === plan.leftToSpendCents,
+    dataDerived: parts.dataDerived,
     basis: [
       ...b.income,
       ...b.fixedRate,
@@ -409,10 +483,14 @@ export function traceSafeToSpend(
  * The Conscious Spending strip's per-bucket panels (O.18b). Each bucket's rows
  * are the safe-to-spend trace's OWN rows — reshaped, sign-flipped where the
  * bucket states a cost as a positive amount — and each bucket's headline is
- * `mapToConsciousBuckets`' figure for it. That makes `reconciles` a real
- * CROSS-MODULE check of the #93 partition: the partition module and this one
- * read the same plan fields through different code, and a formula change on
- * either side surfaces here as a reported mismatch, never a silent drift.
+ * `mapToConsciousBuckets`' figure for it. Today the partition reads each plan
+ * field VERBATIM (conscious.ts), so `reconciles` cannot fail on any current
+ * input — it is a drift alarm, not a certification: if either module ever
+ * redefines its figure (a clamp, a new term, a different field), the panel
+ * reports a mismatch instead of hiding the drift. The panel copy says only
+ * what is true under that contract (audit P1-14): a single-row panel prints
+ * no "matched to the penny" at all, and the "computed from your own data"
+ * clause is gated on `dataDerived`.
  *
  * Guilt-free is a REMAINDER, not a sum of costs, so its honest panel is the
  * whole subtraction — the safe-to-spend trace itself, key and all: its
@@ -451,14 +529,12 @@ export function traceConsciousBuckets(
   const savingsRows = [flip(parts.rows.savings)];
   const savingsSum = sumCents(savingsRows.map((r) => r.amountCents));
 
-  // O.18b critic P2-5: for fixed and savings, `reconciles` really is a runtime
-  // cross-module check (headline from the partition, sum from the trace rows).
-  // Guilt-free's headline and sum both read `plan.leftToSpendCents`, so its
-  // agreement with the partition's cell is checked HERE instead: a future
-  // conscious.ts change (say, clamping guiltFree at zero) turns this panel
-  // into a visible "can't reconcile" rather than a strip whose bar and panel
-  // drift silently. The line is also held by the unit partition suite and the
-  // e2e painted-money sum.
+  // O.18b critic P2-5, restated honestly (audit P1-14): the partition module
+  // currently reads each plan field VERBATIM, so these comparisons are drift
+  // alarms that cannot fail on today's inputs — they catch a future redefiner
+  // (say, conscious.ts clamping guilt-free at zero, or adding a reserves term
+  // to one side only), not a defect in the numbers themselves. The line is
+  // also held by the unit partition suite and the e2e painted-money sum.
   const guiltFree = assembleSafeToSpend(plan, parts);
   const guiltFreeCell = figure.get('guiltFree');
   return {
@@ -468,6 +544,10 @@ export function traceConsciousBuckets(
       rows: fixedRows,
       sumCents: fixedSum,
       reconciles: fixedSum === figure.get('fixed'),
+      // This panel shows ONE row — the fixed term — so the flag answers for
+      // that term alone: an income override leaves it true; a typed fixed
+      // figure or a budget-priced category turns it off (audit P1-14).
+      dataDerived: fixedTermDataDerived(plan),
       // Shortfall included (critic P1-2): the missing-bill alarm qualifies this
       // bucket's own arithmetic, and the share snapshot exports only `basis`.
       basis: [
@@ -484,6 +564,10 @@ export function traceConsciousBuckets(
       rows: savingsRows,
       sumCents: savingsSum,
       reconciles: savingsSum === figure.get('savings'),
+      // Never data-derived: above $0 the figure is a goal or a savings-%
+      // target the reader chose, and at $0 there is no amount to certify —
+      // the row itself says the input is missing (audit P1-14).
+      dataDerived: false,
       basis: [...b.savings],
     },
     guiltFree:

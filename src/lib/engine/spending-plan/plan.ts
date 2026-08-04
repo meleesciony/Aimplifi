@@ -149,6 +149,16 @@ export interface SpendingPlanInput {
    */
   categoryFixedCents?: number;
   /**
+   * True when the Fixed-category rollup priced any category from a budget
+   * target the reader set (the rollup's `hasReaderInput`). Read only by the
+   * Glass-Box provenance gate (C.11 / audit P1-14): a budget-priced category
+   * is a reader-typed figure, so the "computed from your own data" clause
+   * must not print while one is in the Fixed term. Unknown ⇒ the gate treats
+   * it as TRUE (conservative — never certify on a guess; the L.15 lesson);
+   * only the server caller passes the measured flag.
+   */
+  categoryFixedHasReaderInput?: boolean;
+  /**
    * Category ids that already contribute > 0 to `categoryFixedCents`. Fixed-
    * category recurring for these ids is skipped (in typical|budget). Fixed-
    * category recurring NOT in this set is kept — e.g. auto-loan ACH with

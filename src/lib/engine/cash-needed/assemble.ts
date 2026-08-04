@@ -22,6 +22,14 @@ export interface AccountLike {
   id: string;
   /** The FEED's name. Every comparison reads this one — see engine/account/display-name.ts. */
   name: string;
+  /**
+   * `Account.provider` ('demo' | 'plaid' | 'manual' | …). Optional because
+   * engine fixtures hand-build this shape and describe feed accounts; every
+   * row a provider emits carries it (Prisma rows satisfy it structurally).
+   * Read ONLY to mark manual cards — whose statement/balance figures are
+   * reader-TYPED — for the Glass-Box provenance gate (C.11 critic P0-1).
+   */
+  provider?: string | null;
   /** The user's own name for this account (TASKS L.7), null/absent when he never set one.
    *  Carried on the snapshot shape itself, exactly like `feedDroppedAt` below, because the
    *  label leaves this assembler for ~20 surfaces and only the assembler can resolve it. */
@@ -259,6 +267,9 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
         hasSettledStatement: !current && own.length > 0,
         postCloseCreditCents: postCloseCredit > 0 ? cents(postCloseCredit) : undefined,
         frozenSince: card.feedDroppedAt ?? null,
+        // C.11 critic P0-1: a manual card's statement/balance is a typed figure;
+        // the provenance gate must be able to see it all the way to the panel.
+        manual: card.provider === 'manual',
       };
     });
 

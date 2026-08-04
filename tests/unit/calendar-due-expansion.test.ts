@@ -38,6 +38,7 @@ function card(over: Partial<ProjectableObligation> = {}): ProjectableObligation 
     isEstimated: false,
     notes: [],
     frozenSince: null,
+    isManual: false,
     ...over,
   };
 }

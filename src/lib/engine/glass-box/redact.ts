@@ -59,9 +59,13 @@ export function formatShareText(trace: NumberTrace): string {
   lines.push(`Total: ${formatCentsPlain(redacted.sumCents)}`);
   if (redacted.reconciles) {
     const n = redacted.rows.length;
+    // Audit P1-14 — the SAME gate as the panel: a one-row snapshot carries no
+    // penny-match and no completeness claim (the one row may itself be an
+    // aggregate), and the provenance clause prints only when every amount is
+    // data-derived.
     lines.push(
       n === 1
-        ? 'This row adds up to exactly the number above — matched to the penny.'
+        ? 'This amount is the whole figure.'
         : `These ${n} rows add up to exactly the number above — matched to the penny.`,
     );
   } else {
@@ -69,7 +73,11 @@ export function formatShareText(trace: NumberTrace): string {
   }
   for (const b of redacted.basis) lines.push(b);
   lines.push('');
-  lines.push('Names redacted. Amounts from your own data; nothing invented. Nothing left this device.');
+  lines.push(
+    redacted.dataDerived
+      ? 'Names redacted. Amounts from your own data; nothing invented. Nothing left this device.'
+      : 'Names redacted. Nothing left this device.',
+  );
   return lines.join('\n');
 }
 

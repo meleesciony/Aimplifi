@@ -46,6 +46,9 @@ function cashTrace(over?: Partial<NumberTrace>): NumberTrace {
     rows,
     sumCents,
     reconciles: true,
+    // Cash-needed amounts are all detected/seed rows — no reader-typed figure
+    // can enter that trace (C.11).
+    dataDerived: true,
     basis: ['Rows marked "est." use the current card balance.'],
     ...over,
   };
@@ -80,6 +83,7 @@ describe('redactTraceForShare', () => {
       headlineCents: cents(100),
       sumCents: cents(100),
       reconciles: true,
+      dataDerived: true,
       basis: [],
       rows: [
         {
@@ -114,5 +118,40 @@ describe('formatShareText', () => {
     expect(text).toContain('matched to the penny');
     expect(text).toContain('Nothing left this device');
     expect(text).not.toMatch(/Amex|Chase|Sapphire|Checking|\*\*\*\*1234/i);
+  });
+
+  // C.11 / audit P1-14: the snapshot carries the SAME gate as the panel.
+  it('a data-derived multi-row trace carries the provenance clause', () => {
+    const text = formatShareText(cashTrace());
+    expect(text).toContain('Amounts from your own data; nothing invented.');
+  });
+
+  it('a reader-typed figure (dataDerived false) drops the provenance clause but keeps the device clause', () => {
+    const text = formatShareText(cashTrace({ dataDerived: false }));
+    expect(text).not.toContain('nothing invented');
+    expect(text).toContain('Names redacted. Nothing left this device.');
+  });
+
+  it('a one-row trace prints no penny-match and no completeness claim — one amount beside the figure it is certifies nothing', () => {
+    const oneRow = cashTrace({
+      key: 'conscious_fixed',
+      rows: [
+        {
+          id: 'fixed',
+          label: 'Fixed costs',
+          amountCents: cents(202356),
+          isEstimated: false,
+          notes: [],
+        },
+      ],
+      headlineCents: cents(202356),
+      sumCents: cents(202356),
+    });
+    const text = formatShareText(oneRow);
+    expect(text).toContain('This amount is the whole figure.');
+    expect(text).not.toContain('matched to the penny');
+    // Critic cycle 2 P1-1: no completeness claim — the one row may itself be
+    // an aggregate (the Fixed term is a rollup union).
+    expect(text).not.toContain('nothing else is inside it');
   });
 });

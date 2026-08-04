@@ -189,6 +189,8 @@ function buildObligation(
     // Rides out with the money (TASKS L.18). Every surface that prints one of the amounts above
     // reads it from this object, and none of them renders `assumptions`.
     frozenSince: card.frozenSince ?? null,
+    // C.11 critic P0-1: the provenance gate must be able to see a typed figure.
+    isManual: card.manual === true,
   };
 }
 

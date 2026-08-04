@@ -914,9 +914,35 @@ exactly "1 catch … $2.50/mo in total." (e2e-pinned).
 ## §Glass-Box (DECISIONS #178 — Gap 4 §1, `traceCashNeeded` / `traceSafeToSpend`)
 
 A trace never recomputes a number: it reshapes the engine result's OWN rows and computes their
-plain sum, so `reconciles` (sum === headline, integer cents) is a real check with no parallel
-derivation that can drift. Pinned in `tests/unit/glass-box.test.ts`; e2e reconciliation in
-`tests/e2e/glass-box.spec.ts` parses the RENDERED row amounts off the DOM and sums them.
+plain sum, so `reconciles` (sum === headline, integer cents) is a check on the engine's INTERNAL
+consistency — a drift alarm (a formula term added to one side only fails it), never a
+certification that the figures are RIGHT: it compares two readings of the same plan fields, so
+no wrong input or price can fail it (audit P1-14 / C.11). Pinned in
+`tests/unit/glass-box.test.ts`; e2e reconciliation in `tests/e2e/glass-box.spec.ts` parses the
+RENDERED row amounts off the DOM and sums them.
+
+`dataDerived` is the separate PROVENANCE claim ("Every amount is computed from your own data;
+nothing is invented"), and the panel prints it only when it is true. Hand-verified cases
+(mirrored in `tests/unit/glass-box.test.ts` S8 and `tests/unit/conscious-trace.test.ts`):
+
+| Reader state | safe-to-spend flag | Fixed panel | Savings panel |
+|---|---|---|---|
+| median income, median/series fixed, no goals/targets/overrides | **true** | true | false ($0 asserts nothing; >$0 is chosen) |
+| income override (`incomeBasis: 'user-set'`) | false | still **true** — the fixed term is untouched | false |
+| fixed override (`fixedBasis: 'user-set'`) | false | false | false |
+| goal $500.00 or savings-% target yielding > $0 | false | true | false |
+| category-designations + a budget target priced any Fixed category | false | false | false |
+| category-designations, all typical spend (`hasReaderInput` false) | **true** | true | false |
+| category-designations, flag ABSENT (unknown) | false — never certify on a guess | false | false |
+| empty reader (no income pattern, no fixed, $0 terms) | **true** | true | false |
+| cash-needed off feed cards (statements, autopay configs, observed balances) | **true** | — | — |
+| cash-needed including a reader-ADDED card — its statement balance/minimum or its estimated-from balance are typed figures (critic cycle 2 P0-1) | false | — | — |
+
+A one-row panel prints NO penny-match at all — "This amount is the whole figure." and nothing
+more: one amount beside the figure it IS certifies nothing, whatever `reconciles` says, and no
+completeness claim follows it because the single row may itself be an aggregate (the Fixed term
+is a rollup union — critic cycle 2 P1-1). `reconciles` and `dataDerived` are independent — a
+reader-typed figure still sums.
 
 ### G. Cash-Needed rows (today 2026-06-10, PAY_IN_FULL unless noted)
 - **G1** Amex $2,100.00 (autopay STATEMENT_BALANCE) + Chase $2,712.33, both due 06-15:

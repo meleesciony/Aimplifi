@@ -155,6 +155,7 @@ describe('projectCardDues — case D: future-cycle synthesis, July-4 walk-back, 
     isEstimated: false,
     notes: [],
     frozenSince: null,
+    isManual: false,
   };
   const holidays = [d('2026-07-03')];
 

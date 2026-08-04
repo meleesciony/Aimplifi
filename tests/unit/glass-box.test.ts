@@ -11,6 +11,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
+import { assembleCashNeededInput } from '@/lib/engine/cash-needed/assemble';
 import type { CardSnapshot, CashNeededInput } from '@/lib/engine/cash-needed/types';
 import { traceCashNeeded, traceSafeToSpend } from '@/lib/engine/glass-box/trace';
 import { answerSafeToSpend } from '@/lib/engine/assistant/answer';
@@ -732,5 +733,135 @@ describe('S7 — a true zero and a broken zero must not print the same line (TAS
     expect(working.rows).toHaveLength(3);
     expect(working.rows.map((r) => r.action).filter(Boolean)).toEqual([]);
     expect(working.reconciles).toBe(true);
+  });
+});
+
+describe('S8 — the provenance gate: "computed from your own data" is a claim a trace can LOSE (C.11 / audit P1-14)', () => {
+  // The old panel printed the clause beside every reconciled trace, including
+  // ones whose figures the READER typed. The flag must flip on exactly those.
+  const planWith = (over: Partial<Parameters<typeof computeSpendingPlan>[0]> = {}) =>
+    computeSpendingPlan({
+      today: d('2026-07-27'),
+      trailingMonthlyIncomeCents: [500000, 500000, 500000],
+      scheduledIncome: [],
+      scheduledFixed: [],
+      trailingMonthlyFixedCents: [200000, 200000],
+      cardObligationsCents: 0,
+      cardObligationsEstimated: false,
+      obligationsBeyondMonthCents: 0,
+      obligationsBeyondMonthThroughDate: null,
+      obligationsBeyondMonthEstimated: false,
+      goalContributionsCents: 0,
+      savingsTargetBps: null,
+      ...over,
+    });
+  const flag = (over: Partial<Parameters<typeof computeSpendingPlan>[0]> = {}) =>
+    traceSafeToSpend(planWith(over), NO_CARDS_OR_GOALS).dataDerived;
+
+  it('a reader whose figures all come from observed data keeps the claim', () => {
+    expect(flag()).toBe(true); // median income, median fixed, no goals, no targets
+  });
+
+  it('an income override is a typed figure — the claim goes', () => {
+    expect(planWith({ incomeOverrideCents: 600000 }).incomeBasis).toBe('user-set');
+    expect(flag({ incomeOverrideCents: 600000 })).toBe(false);
+  });
+
+  it('a fixed override is a typed figure — the claim goes', () => {
+    expect(planWith({ fixedOverrideCents: 150000 }).fixedBasis).toBe('user-set');
+    expect(flag({ fixedOverrideCents: 150000 })).toBe(false);
+  });
+
+  it('a goal above $0 is a chosen figure, not a computed one — the claim goes', () => {
+    expect(flag({ goalContributionsCents: 50000 })).toBe(false);
+  });
+
+  it('a savings-% target above $0 is a chosen figure — the claim goes', () => {
+    expect(flag({ savingsTargetBps: 2000 })).toBe(false); // 20% of $5,000 = $1,000
+  });
+
+  it('budget-priced Fixed categories are typed figures — the claim goes', () => {
+    const over = { categoryFixedCents: 100000 };
+    expect(planWith(over).fixedBasis).toBe('category-designations');
+    expect(flag({ ...over, categoryFixedHasReaderInput: true })).toBe(false);
+  });
+
+  it('typical-spend Fixed categories keep the claim — until any budget target is unknown or present', () => {
+    const over = { categoryFixedCents: 100000 };
+    expect(flag({ ...over, categoryFixedHasReaderInput: false })).toBe(true);
+    // Omitted ⇒ unknown ⇒ conservatively treated as reader-priced (L.15 lesson).
+    expect(flag(over)).toBe(false);
+  });
+
+  it('an empty reader keeps the claim — $0 terms assert no reader-typed amount', () => {
+    const empty = flag({ trailingMonthlyIncomeCents: [], trailingMonthlyFixedCents: [] });
+    expect(empty).toBe(true);
+  });
+
+  it('cash-needed off feed cards is data-derived', () => {
+    const trace = traceCashNeeded(computeCashNeeded(input({ cards: [amex, chase] })));
+    expect(trace.dataDerived).toBe(true);
+  });
+
+  it('a reader-added card is a TYPED figure — the claim goes (statement path and estimate path)', () => {
+    // Critic cycle 2 P0-1: the first cut hardcoded true after checking the
+    // wrong source. `setManualCardStatement` lets the reader type the balance
+    // and minimum, and the estimate path derives from the typed balance.
+    const manual = card({
+      id: 'manual-card',
+      name: 'Store Card (added by hand)',
+      statement: statement(123456, '2026-06-15'),
+      manual: true,
+    });
+    const withStatement = traceCashNeeded(computeCashNeeded(input({ cards: [manual] })));
+    expect(withStatement.reconciles).toBe(true); // the arithmetic is intact
+    expect(withStatement.dataDerived).toBe(false); // the provenance is not
+
+    const manualEstimated = card({
+      id: 'manual-est',
+      name: 'Manual (no statement yet)',
+      currentBalanceCents: cents(50000),
+      nextCycleCloseDate: d('2026-06-18'),
+      nextDueDate: d('2026-06-25'),
+      manual: true,
+    });
+    const estimated = traceCashNeeded(computeCashNeeded(input({ cards: [manualEstimated] })));
+    expect(estimated.dataDerived).toBe(false);
+
+    // A feed card beside the manual one loses the claim too — the clause is
+    // all-or-nothing for the panel.
+    const mixed = traceCashNeeded(computeCashNeeded(input({ cards: [amex, manual] })));
+    expect(mixed.dataDerived).toBe(false);
+  });
+
+  it('the manual flag survives the ASSEMBLER — provider "manual" accounts certify nothing, "demo" keeps the claim', () => {
+    // The plumbing under the CardSnapshot fixtures above: Account.provider →
+    // CardSnapshot.manual → CardObligation.isManual → the trace's flag.
+    const assembled = (provider: string) =>
+      assembleCashNeededInput({
+        today: d('2026-06-10'),
+        scenario: 'PAY_IN_FULL',
+        paymentAccountId: 'checking',
+        accounts: [
+          { id: 'checking', name: 'Checking', type: 'CHECKING', currentBalanceCents: 500000, aprBps: null, dueDayOfMonth: null, cycleCloseDayOfMonth: null, provider: 'demo' },
+          { id: 'store-card', name: 'Store Card', type: 'CREDIT', currentBalanceCents: 0, aprBps: 2400, dueDayOfMonth: 15, cycleCloseDayOfMonth: 5, provider },
+        ],
+        autopays: [],
+        statements: [
+          { id: 's1', accountId: 'store-card', cycleEnd: '2026-05-28', dueDate: '2026-06-15', statementBalanceCents: 123456, minimumPaymentCents: 3500 },
+        ],
+        cardPayments: [],
+        transactions: [],
+        scheduled: [],
+        holidayTable: HOLIDAYS,
+      });
+    expect(traceCashNeeded(computeCashNeeded(assembled('manual'))).dataDerived).toBe(false);
+    expect(traceCashNeeded(computeCashNeeded(assembled('demo'))).dataDerived).toBe(true);
+  });
+
+  it('reconciles and dataDerived are INDEPENDENT claims — a reader-typed figure still sums', () => {
+    const t = traceSafeToSpend(planWith({ goalContributionsCents: 50000 }), NO_CARDS_OR_GOALS);
+    expect(t.reconciles).toBe(true); // the arithmetic is intact
+    expect(t.dataDerived).toBe(false); // the provenance is not
   });
 });

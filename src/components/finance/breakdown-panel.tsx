@@ -219,8 +219,17 @@ export function BreakdownPanel({
               className="mt-1.5 text-xs font-normal text-muted-foreground"
               data-testid={`${testIdPrefix}-reconciled-${id}`}
             >
-              {count === 1 ? 'This row adds' : `These ${count} rows add`} up to exactly{' '}
-              {formatCents(subject.headlineCents)} — matched to the penny.
+              {count === 1 ? (
+                // C.11 critic cycle 2 (P2-2): the same one-row rule as the
+                // Glass-Box panels — one amount beside the figure it is adds
+                // nothing, so no penny-match prints on a single row.
+                'This amount is the whole figure.'
+              ) : (
+                <>
+                  These {count} rows add up to exactly{' '}
+                  {formatCents(subject.headlineCents)} — matched to the penny.
+                </>
+              )}
             </p>
           ) : subject.clampedByNetRefund ? (
             /* Not a mismatch to apologise for — a documented clamp. Saying
