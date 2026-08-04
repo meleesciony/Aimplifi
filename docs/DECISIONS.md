@@ -3876,3 +3876,10 @@ cards non-manual — the demo provider (the only one) emits full Prisma rows.
 unit / 360 files**, build clean. E2e run serially on that build:
 glass-box.spec.ts, conscious-buckets.spec.ts, spending-plan-month-edge.spec.ts,
 month-flow-drilldown.spec.ts, category-breakdown.spec.ts.
+
+**Deploy-verified 2026-08-04.** Pushed `4b5c43c` (no prisma diff → database
+untouched); deployment `aimplifi-53qi3p5bv` ● Ready, aliased to
+www.aimplifi.app; `scripts/c11-live-deploy-check.mjs` → DEPLOY PROOF: PASS
+(7/7) — the Fixed panel renders the new one-row sentence with the clause, no
+penny-match; Savings withholds the clause; guilt-free keeps the arithmetic
+sentence; the served client bundle carries the C.11-only literal.

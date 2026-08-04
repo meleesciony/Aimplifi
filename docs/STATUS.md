@@ -54,6 +54,17 @@ category-breakdown. Pre-existing red
 fixed on the way: DECISIONS_INDEX.md had stopped at #405 while DECISIONS.md
 carried #406 — `ledger.ts reindex` regenerated it (395 entries, drop-guarded).
 
+**Deploy-verified 2026-08-04:** pushed `4b5c43c` (no prisma diff → database
+untouched). Deployment `aimplifi-53qi3p5bv` ● Ready, aliased to
+www.aimplifi.app. Proof is `scripts/c11-live-deploy-check.mjs` → **DEPLOY
+PROOF: PASS (7/7)** on the live site: signed into the shared demo, the Fixed
+panel (one row) renders the C.11 sentence with the provenance clause (the
+demo's Fixed term is data-derived) and NO penny-match; the Savings panel
+withholds the clause; the guilt-free panel keeps the arithmetic sentence; the
+served client bundle carries the C.11-only literal. (The zero-income sentence
+is a server-chunk literal and demo-unreachable — freshness rides the DOM
+states, which the old build cannot render.)
+
 **Honest residuals (DECISIONS #407):** the clause-render FALSE branch is
 e2e-reached only via the savings panel (the seed has no overrides, budget
 targets, or manual accounts); override/budget/manual readers are unit-locked
