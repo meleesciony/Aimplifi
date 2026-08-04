@@ -2,6 +2,33 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-04 — C.10: the wealth-target pace line names the plan as a plan, and refuses it when the history doesn't back it (audit P0-8, DECISIONS #406)
+
+The last open P0 of the calc audit. #375 made the years dial compound the settings
+savings-% target whenever one is set, but the pace line kept saying "what was left
+after spending, averaged over the N months", and the refusal tested only the figure
+the dial was handed — a positive PLAN cleared it, so an overspender with a savings %
+set got a confident 20-year arrival beside the FI card refusing one.
+
+- **Decision moved out of the card**: `COACH_COPY.wealthTargetPaceLine` (pure
+  selector, node-env-locked) branches on the contribution basis. `recent-surplus`
+  routing byte-identical to the old card logic (locked); `settings-savings-pct`
+  gated on the OBSERVED surplus (`wealthTargetPlanUnproven`, one exported predicate).
+- **New copy**: `wealthTargetAtPlannedPace` ("what your plan has you setting aside"
+  — no window claim, and not "your settings savings rate": the planned figure can be
+  goal-driven) and `wealthTargetPlanNotSaving` (zero complete months = absence; a
+  real window says "nothing has been left over after spending" — accurate at an
+  exact tie, phrased in the surplus line's own words).
+- **Critic cycle 1 caught the sibling**: a refused plan still SEEDED the horizon
+  slider ("your current pace lands it" under the refusal). The same predicate now
+  gates the seed — fallback to the unchosen 25-year default, like a floored surplus.
+- Engine (`solveWealthTarget`) untouched; card routes through the selector.
+
+Gate at ship: `bash scripts/verify.sh` GREEN (tsc 0, eslint 0, **5909 unit / 360
+files**, build clean); `wealth-target.spec.ts` 2/2 serially on that build (demo seed
+carries no savingsTargetBps → e2e exercises the byte-identical surplus branch; the
+settings branch is unit-locked only). Two P2 residuals in DECISIONS #406.
+
 ## 2026-08-04 — history-windows: 3y SimpleFIN pull, Plaid deep-history backfill, period presets (commit 18b6ad6)
 
 Owner request 2026-08-04: "why are we only pulling 6 months of data, can we get

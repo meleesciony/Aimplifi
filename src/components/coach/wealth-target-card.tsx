@@ -31,7 +31,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import { COACH_COPY, wealthTargetPlanUnproven } from '@/lib/engine/fi/coach-copy';
 import {
   proposeDiscretionaryCuts,
   type DiscretionaryCategorySpend,
@@ -143,6 +143,14 @@ export function WealthTargetCard({
    */
   const [chosenHorizonYears, setChosenHorizonYears] = useState<number | null>(null);
 
+  /**
+   * C.10 (audit P0-8) — the plan-vs-history gate, computed ONCE (the exported predicate) and
+   * read by both the horizon seed below and the pace line: a settings contribution the history
+   * does not back must not seed the slider either, or the control's caption calls the refused
+   * plan "your current pace" one line under the refusal.
+   */
+  const planUnproven = wealthTargetPlanUnproven(contributionBasis, historicalMonthlySavingsCents);
+
   const { result, horizonYears, horizonBasis } = useMemo(() => {
     if (targetCents === null) {
       return { result: null, horizonYears: FALLBACK_HORIZON_YEARS, horizonBasis: 'fallback' as const };
@@ -167,7 +175,9 @@ export function WealthTargetCard({
     // per keystroke is still far cheaper than the render around it — but the honest figure is
     // four, and a comment nobody checked is how a wrong one survives.
     const pace = solveWealthTarget({ ...shared, deadlineMonths: null });
-    const seed = seededHorizon(pace.monthsAtCurrentRate, pace.contributionFloored);
+    // C.10: a refused plan must not seed the horizon either — seed only an OBSERVED pace, so an
+    // unproven settings contribution falls back to the unchosen default like a floored surplus.
+    const seed = seededHorizon(pace.monthsAtCurrentRate, pace.contributionFloored || planUnproven);
     const years = chosenHorizonYears ?? seed.years;
     return {
       result: solveWealthTarget({ ...shared, deadlineMonths: years * 12 }),
@@ -191,6 +201,7 @@ export function WealthTargetCard({
     safeToSpendCents,
     expectedReturnBps,
     inflationBps,
+    planUnproven,
   ]);
 
   const basisLine =
@@ -215,19 +226,21 @@ export function WealthTargetCard({
         result.targetAmountCents as Cents,
       );
     }
-    // Nothing is going in. The FI card refuses to project here and so does this one — a
-    // date computed from a floored $0 would turn that refusal into a number.
-    if (result.contributionFloored) return COACH_COPY.wealthTargetNotSaving(monthlySavingsMonths);
-    if (result.monthsAtCurrentRate === null) {
-      return COACH_COPY.wealthTargetBeyondHorizon(result.realReturnBps);
-    }
-    return COACH_COPY.wealthTargetAtCurrentPace(
-      Math.floor(result.monthsAtCurrentRate / 12),
-      result.monthsAtCurrentRate % 12,
-      result.currentMonthlyContributionCents as Cents,
-      result.realReturnBps,
-      monthlySavingsMonths,
-    );
+    // C.10 (audit P0-8): the pace sentence — and whether the card may print one at all — is
+    // decided in the copy module from the contribution's BASIS plus the OBSERVED history, so the
+    // decision is pure and locked like the strings. The old check tested only the figure the dial
+    // was handed; since #375 that can be a PLAN, and a positive plan cleared the check for a
+    // reader overspending in every month on record. Nothing is going in → no date, the way the
+    // FI card does it.
+    return COACH_COPY.wealthTargetPaceLine({
+      basis: contributionBasis,
+      contributionCents: result.currentMonthlyContributionCents as Cents,
+      contributionFloored: result.contributionFloored,
+      historicalCents: historicalMonthlySavingsCents,
+      averagedOverMonths: monthlySavingsMonths,
+      arrivalMonths: result.monthsAtCurrentRate,
+      realBps: result.realReturnBps,
+    });
   })();
 
   const requiredLine = (() => {

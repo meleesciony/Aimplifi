@@ -3722,3 +3722,56 @@ against the $18,000/$450,000 half-values, plus the FI sentence naming
 "your last 3 full months × 4". Copy locks pin the N=3/1/0 branches and the
 byte-identical N=6 forms. Verify green; phase3-coach e2e passes with the demo's
 six-month window (pinned strings unchanged).
+
+## #406 — C.10: the pace line branches on the contribution's BASIS, and a plan the history doesn't back refuses the date — the decision lives in the pure copy module, the gate is ONE exported predicate (built, critic-cycled, 2 cycles)
+
+**Context.** CALC_AUDIT_2026-08-02 P0-8. #375 made the years dial compound the
+settings savings-% target whenever one is set (`wealthContributionBasis`), but the
+pace line kept calling the figure "what was left after spending, averaged over the
+N months" — a claim about history the line beneath falsifies ("Recent surplus
+averaged −$450.00/month"). Worse: the refusal tested `contributionFloored` only —
+the figure the dial was HANDED — and a positive plan clears that by construction,
+so a reader overspending in every month on record got a confident 20-year arrival
+beside the FI card refusing to give one.
+
+**Decision.**
+1. The pace-line DECISION — which sentence, and whether one is printed at all —
+   moved from the card into `COACH_COPY.wealthTargetPaceLine`, a pure selector over
+   (basis, contribution, contributionFloored, observed surplus, window, arrival,
+   real rate). On `recent-surplus` the routing is byte-for-byte the old card logic
+   (locked as such); on `settings-savings-pct` the OBSERVED surplus gates the date.
+2. New strings: `wealthTargetAtPlannedPace` — "what your plan has you setting
+   aside", same two assumptions inline, NO window (no window produced the figure),
+   and deliberately NOT "your settings savings rate": `plannedSavingsCents =
+   max(goalContributions, target)` can be goal-driven while the rate names a
+   smaller number. And `wealthTargetPlanNotSaving` — two branches keeping the
+   `wealthTargetNotSaving` split: zero complete months is an ABSENCE, not
+   behaviour; a real window says "nothing has been left over after spending"
+   (accurate across the whole ≤0 set — "spending is ahead" overclaims an exact
+   tie — and phrased in the surplus pace line's own words so it is checkable).
+3. The gate is ONE exported predicate, `wealthTargetPlanUnproven(basis,
+   historicalCents)` = settings basis ∧ surplus ≤ 0, read by BOTH sites: the
+   selector's refusal and the horizon seed. Critic cycle 1 found the seed defect:
+   a refused plan still seeded the slider (`contributionFloored` was false), and
+   the caption said "your current pace lands it" one line under the refusal. Now
+   `contributionFloored || planUnproven` falls back to the unchosen 25-year
+   default exactly the way a floored surplus does.
+
+**Residuals (P2, noted, not fixed).** (1) `wealthTargetBeyondHorizon`'s "At
+what's going in now" is now reachable on the settings basis via the
+positive-history route — the shared string also serves the surplus basis;
+rewrite out of scope. (2) The seed OR line sits in the card memo without a
+node-env lock (repo has no RTL); both inputs are locked (predicate tests + the
+pre-existing `seededHorizon` refusal pins).
+
+**Locks.** coach-copy.test.ts: byte-identical surplus pace and refusal routing
+through the selector; planned-line naming (no "left after spending", no window);
+settings + negative history → refusal; exact zero refuses; the zero-month refusal
+names absence, not overspending; beyond-horizon under both bases; the predicate
+locked in all five directions; new strings + a selector row registered in the
+guardrail sweep. Wealth-target engine untouched.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN (tsc 0, eslint 0, **5909 unit /
+360 files** (+1 predicate lock), build clean). `wealth-target.spec.ts` 2/2
+serially on that build — the demo seed carries no `savingsTargetBps`, so e2e
+exercises the byte-identical surplus branch; the settings branch is unit-locked only.

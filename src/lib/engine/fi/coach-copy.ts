@@ -72,6 +72,21 @@ const inflationClause = (inflationBps: number, owner: DialOwnership) =>
 /** Capitalize a clause that has become the start of a sentence. */
 const sentenceCase = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`;
 
+/**
+ * C.10 (audit P0-8) — the plan-vs-history gate, computed ONCE and read by every site that
+ * decides what the settings contribution may claim: the pace-line refusal inside `COACH_COPY`
+ * and the horizon seed in the card (which must not call an aspirational plan "your current
+ * pace" one line under the refusal). A settings basis with a non-positive OBSERVED surplus is
+ * a plan the history does not back — an exact zero included: nothing is going in either way.
+ * Exported (not a method) so the predicate is unit-lockable in the node env.
+ */
+export function wealthTargetPlanUnproven(
+  basis: 'settings-savings-pct' | 'recent-surplus',
+  historicalCents: number,
+): boolean {
+  return basis === 'settings-savings-pct' && historicalCents <= 0;
+}
+
 export const COACH_COPY = {
   savingsRateHeadline: (rateBps: number, monthLabel: string) =>
     rateBps >= 0
@@ -354,6 +369,26 @@ export const COACH_COPY = {
     `At ${formatCents(monthlyCents)}/month — what was left after spending, averaged over the ${averagedOverMonths} month${averagedOverMonths === 1 ? '' : 's'} of yours Aimplifi has — you'd get there in about ${years} year${years === 1 ? '' : 's'}${months > 0 ? ` ${months} month${months === 1 ? '' : 's'}` : ''}, assuming ${pct(realBps)} growth after inflation and that what you put away keeps pace with inflation.`,
 
   /**
+   * C.10 (audit P0-8) — the pace sentence when the dial compounds the SETTINGS plan instead of
+   * the surplus. The sentence above is a claim about the reader's HISTORY ("what was left after
+   * spending, averaged over …"); #375 made the dial's figure the settings savings-% target
+   * whenever one is set, and printing the history sentence under a planned figure is exactly the
+   * lie the audit traced — the paragraph below the card then names the real surplus and
+   * falsifies it in the reader's own view. This one names the figure as the plan and carries NO
+   * window, because no window of history produced it. It may NOT say "your settings savings
+   * rate" either: `plannedSavingsCents` is `Math.max(goalContributionsCents, targetCents)`, so
+   * the figure can be goal-driven while the rate names a smaller number — "your plan" is true on
+   * both sub-cases and the contribution-basis line beneath owns the specifics.
+   */
+  wealthTargetAtPlannedPace: (
+    years: number,
+    months: number,
+    monthlyCents: Cents,
+    realBps: number,
+  ) =>
+    `At ${formatCents(monthlyCents)}/month — what your plan has you setting aside — you'd get there in about ${years} year${years === 1 ? '' : 's'}${months > 0 ? ` ${months} month${months === 1 ? '' : 's'}` : ''}, assuming ${pct(realBps)} growth after inflation and that what you put away keeps pace with inflation.`,
+
+  /**
    * Where the horizon slider's OPENING position came from. Two branches, because a seeded
    * position and a fallback default are different claims: one is a fact about the reader's own
    * trajectory, the other is a number nobody chose. The old card printed "25 years" in the same
@@ -419,6 +454,73 @@ export const COACH_COPY = {
     averagedOverMonths <= 0
       ? `There isn't a complete month of activity here yet, so there's nothing to work a pace out from — this fills in once a full month has gone by. What the target needs is below either way.`
       : `Spending is running ahead of income right now, so there's nothing going in to project from — a date here wouldn't be honest. What the target needs is below; the gap between that and today is the real answer.`,
+
+  /**
+   * C.10 (audit P0-8) — the refusal for a SETTINGS contribution the history does not back. A
+   * plan is not an observation: `contributionFloored` tests the figure the dial was handed, and
+   * since #375 that figure is the planned amount whenever one is set, so it can never catch an
+   * overspender who set a savings %. The observed surplus gates the date instead. The two
+   * branches keep the `wealthTargetNotSaving` split: zero complete months is an ABSENCE and may
+   * not be read as behaviour. A real window says "nothing has been left over after spending" —
+   * accurate across the whole ≤0 set (an exact tie included, which "spending is ahead" would
+   * overclaim), and phrased in the surplus pace sentence's own words so the reader can check it.
+   */
+  wealthTargetPlanNotSaving: (plannedCents: Cents, averagedOverMonths: number) =>
+    averagedOverMonths <= 0
+      ? `Your plan has you setting aside ${formatCents(plannedCents)}/month, but there isn't a complete month of activity here yet to show it happening — a date here wouldn't be honest. What the target needs is below either way.`
+      : `Your plan has you setting aside ${formatCents(plannedCents)}/month, but over the ${averagedOverMonths} month${averagedOverMonths === 1 ? '' : 's'} of yours Aimplifi has, nothing has been left over after spending, so there's nothing going in to project from yet — a date here wouldn't be honest. What the target needs is below; the gap between that and today is the real answer.`,
+
+  /**
+   * C.10 (audit P0-8) — the pace-line DECISION, held here rather than in the card so the pure
+   * module can lock it: which sentence the pace gets, and whether it gets one at all.
+   *
+   * Before this, the card branched on the engine's `contributionFloored` alone — a test of the
+   * figure the dial was handed, which #375 made the settings plan whenever one is set. A reader
+   * overspending in every month on record cleared that check and got a confident arrival date
+   * printed beside the paragraph naming their negative surplus, six inches below the FI card
+   * refusing to give one. On the settings basis the OBSERVED surplus now gates the date; on the
+   * recent-surplus basis the routing is byte-for-byte what the card did before (the figure and
+   * the surplus are the same number there, so `contributionFloored` already caught it).
+   */
+  wealthTargetPaceLine: (input: {
+    /** Which source produced `contributionCents` (#375, via `wealthContributionBasis`). */
+    basis: 'settings-savings-pct' | 'recent-surplus';
+    /** The monthly figure the years dial compounds (the engine's `currentMonthlyContributionCents`). */
+    contributionCents: Cents;
+    /** The engine's own flag: the figure it was handed floors at $0. */
+    contributionFloored: boolean;
+    /** The OBSERVED surplus — carried even when the plan's figure won the dial. */
+    historicalCents: Cents;
+    /** How many complete months `historicalCents` averages over. */
+    averagedOverMonths: number;
+    /** Arrival at the compounded figure, or null past the 100-year horizon. */
+    arrivalMonths: number | null;
+    realBps: number;
+  }): string => {
+    if (input.basis === 'recent-surplus') {
+      if (input.contributionFloored) return COACH_COPY.wealthTargetNotSaving(input.averagedOverMonths);
+      if (input.arrivalMonths === null) return COACH_COPY.wealthTargetBeyondHorizon(input.realBps);
+      return COACH_COPY.wealthTargetAtCurrentPace(
+        Math.floor(input.arrivalMonths / 12),
+        input.arrivalMonths % 12,
+        input.contributionCents,
+        input.realBps,
+        input.averagedOverMonths,
+      );
+    }
+    // A positive planned figure clears `contributionFloored` by construction — the observed
+    // history is the guard that can actually fail here (the same predicate the horizon seed
+    // reads, so the two sites cannot drift).
+    if (wealthTargetPlanUnproven(input.basis, input.historicalCents))
+      return COACH_COPY.wealthTargetPlanNotSaving(input.contributionCents, input.averagedOverMonths);
+    if (input.arrivalMonths === null) return COACH_COPY.wealthTargetBeyondHorizon(input.realBps);
+    return COACH_COPY.wealthTargetAtPlannedPace(
+      Math.floor(input.arrivalMonths / 12),
+      input.arrivalMonths % 12,
+      input.contributionCents,
+      input.realBps,
+    );
+  },
 
   wealthTargetAlreadyThere: (portfolioCents: Cents, targetCents: Cents) =>
     `You have ${formatCents(portfolioCents)}, which is already past the ${formatCents(targetCents)} you named. Worth deciding what the number is for — a target you've passed is a good moment to name the next one.`,

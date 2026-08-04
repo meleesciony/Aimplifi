@@ -6,6 +6,32 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-04 — C.10: the wealth-target pace line branches on the contribution's basis, and a plan the history doesn't back gets no date (audit P0-8, DECISIONS #406)
+
+The last open P0 of the calc audit. #375 made the years dial compound the settings
+savings-% target whenever one is set, but the pace line kept calling the figure
+"what was left after spending, averaged over the N months" — a history claim the
+line beneath falsified ("Recent surplus averaged −$450.00/month") — and the refusal
+tested only the figure the dial was HANDED, which a positive plan clears by
+construction: an overspender with a savings % set got a confident 20-year arrival
+beside the FI card refusing one. Fix: the pace-line decision moved into a pure
+selector (`COACH_COPY.wealthTargetPaceLine`) that branches on the basis and gates a
+settings contribution on the OBSERVED surplus; new planned-pace sentence ("what your
+plan has you setting aside", no window claim); refusal with the
+`wealthTargetNotSaving` split (zero complete months = absence, not behaviour;
+otherwise "nothing has been left over after spending", accurate at an exact tie).
+Critic cycle 1 caught the sibling defect: a refused plan still SEEDED the horizon
+slider ("your current pace lands it" under the refusal) — now one exported
+predicate (`wealthTargetPlanUnproven`) gates BOTH the refusal and the seed, which
+falls back to the unchosen 25-year default like a floored surplus. Surplus-basis
+rendering is byte-identical, locked as such.
+
+**Gate:** `bash scripts/verify.sh` → **VERIFY GREEN** (tsc 0, eslint 0, **5909
+unit / 360 files** (+1 predicate lock), build clean). `wealth-target.spec.ts` 2/2
+serially on that build. **P2 residuals noted in DECISIONS #406** (beyond-horizon
+"what's going in now" now reachable on the settings basis; the seed's OR line has
+no node-env lock — repo has no RTL — its two inputs are locked).
+
 ## ✅ BUILT 2026-08-04 — scenario engine speaks the coach's REAL window (closes the C.9 residual)
 
 The C.9 OPEN residual is closed. `ScenarioBase` now carries a REQUIRED

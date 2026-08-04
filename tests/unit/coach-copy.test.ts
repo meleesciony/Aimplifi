@@ -6,7 +6,7 @@
  * Scans EVERY string COACH_COPY can produce, with representative args.
  */
 import { describe, expect, it } from 'vitest';
-import { COACH_COPY, generateMoneyReview } from '@/lib/engine/fi/coach-copy';
+import { COACH_COPY, generateMoneyReview, wealthTargetPlanUnproven } from '@/lib/engine/fi/coach-copy';
 import type { CreepResult, MonthlyFlow, Opportunity } from '@/lib/engine/fi/insights';
 import { type PaymentReminder, reminderLine } from '@/lib/engine/reminders/select';
 import { cents } from '@/lib/money';
@@ -258,6 +258,38 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     label: 'wealthTargetNotSaving:no-months',
     text: COACH_COPY.wealthTargetNotSaving(0),
     isProjection: false,
+  },
+  // C.10 (audit P0-8) — the settings-% pace sentence and its refusal. The planned pace is a
+  // projection; both refusals are not.
+  {
+    label: 'wealthTargetAtPlannedPace',
+    text: COACH_COPY.wealthTargetAtPlannedPace(44, 5, cents(500000), 450),
+    isProjection: true,
+  },
+  {
+    label: 'wealthTargetPlanNotSaving',
+    text: COACH_COPY.wealthTargetPlanNotSaving(cents(500000), 6),
+    isProjection: false,
+  },
+  {
+    label: 'wealthTargetPlanNotSaving:no-months',
+    text: COACH_COPY.wealthTargetPlanNotSaving(cents(500000), 0),
+    isProjection: false,
+  },
+  {
+    // The selector emits only its building blocks; registered so the completeness check below
+    // sees the key, scanning the planned-pace routing as its representative string.
+    label: 'wealthTargetPaceLine',
+    text: COACH_COPY.wealthTargetPaceLine({
+      basis: 'settings-savings-pct',
+      contributionCents: cents(500000),
+      contributionFloored: false,
+      historicalCents: cents(400000),
+      averagedOverMonths: 6,
+      arrivalMonths: 533,
+      realBps: 450,
+    }),
+    isProjection: true,
   },
   // Registered so the guardrail sweeps below actually SEE them. All three shipped invisible to
   // the scan in the first pass of this slice, and one of them ("which is what grows at 7.50%")
@@ -863,6 +895,132 @@ describe('wealth target — every figure names where it came from', () => {
       expect(s).not.toMatch(/every figure/i);
       expect(s).toMatch(/how long the target takes, and what it costs a month/i);
     }
+  });
+});
+
+/**
+ * C.10 (audit P0-8) — the pace line must name WHERE the contribution came from, and a PLAN is
+ * not an observation. #375 made the years dial compound the settings savings-% target whenever
+ * one is set, but the sentence kept calling it "what was left after spending", and the refusal
+ * kept testing only the figure the dial was handed — so a reader overspending in every month on
+ * record was handed a confident 20-year arrival beside the paragraph naming their negative
+ * surplus. The decision now lives in `wealthTargetPaceLine`, pure and locked here.
+ */
+describe('C.10 — the pace line branches on the contribution basis, and a plan refuses on real history', () => {
+  /** 154 months = 12 years 10 months; the fixture the surplus pins above already use. */
+  const SURPLUS_ARGS = {
+    basis: 'recent-surplus' as const,
+    contributionCents: cents(23_888_10),
+    contributionFloored: false,
+    historicalCents: cents(23_888_10),
+    averagedOverMonths: 3,
+    arrivalMonths: 154,
+    realBps: 750,
+  };
+
+  it('keeps the recent-surplus pace byte-identical through the selector', () => {
+    expect(COACH_COPY.wealthTargetPaceLine(SURPLUS_ARGS)).toBe(
+      COACH_COPY.wealthTargetAtCurrentPace(12, 10, cents(23_888_10), 750, 3),
+    );
+  });
+
+  it('keeps the recent-surplus refusal byte-identical through the selector', () => {
+    expect(
+      COACH_COPY.wealthTargetPaceLine({
+        ...SURPLUS_ARGS,
+        contributionCents: cents(0),
+        contributionFloored: true,
+        historicalCents: cents(-450_00),
+      }),
+    ).toBe(COACH_COPY.wealthTargetNotSaving(3));
+  });
+
+  it('names a settings-% pace as the plan, never as leftover history', () => {
+    const s = COACH_COPY.wealthTargetAtPlannedPace(12, 10, cents(23_888_10), 750);
+    expect(s).toContain('$23,888.10');
+    expect(s).toContain('12 years 10 months');
+    expect(s).toContain('7.50% growth after inflation');
+    expect(s).toMatch(/your plan/i);
+    expect(s).not.toMatch(/left after spending/i);
+    // The window belongs to the SURPLUS sentence; the planned sentence carries none of it.
+    expect(s).not.toContain('3 months');
+  });
+
+  it('routes a settings-% pace with positive history to the planned sentence', () => {
+    expect(
+      COACH_COPY.wealthTargetPaceLine({ ...SURPLUS_ARGS, basis: 'settings-savings-pct' }),
+    ).toBe(COACH_COPY.wealthTargetAtPlannedPace(12, 10, cents(23_888_10), 750));
+  });
+
+  it('refuses a settings-% pace when the observed history is negative', () => {
+    // The exact audit shape: a positive PLANNED figure beside a NEGATIVE surplus. The old card
+    // floored only the figure it was handed and printed the arrival.
+    const refused = COACH_COPY.wealthTargetPaceLine({
+      ...SURPLUS_ARGS,
+      basis: 'settings-savings-pct',
+      contributionCents: cents(100_000_00),
+      historicalCents: cents(-450_00),
+    });
+    expect(refused).toBe(COACH_COPY.wealthTargetPlanNotSaving(cents(100_000_00), 3));
+    expect(refused).not.toMatch(/you'd get there/i);
+    expect(refused).toContain('$100,000.00');
+    // Phrased in the surplus pace sentence's own words ("what was left after spending") so the
+    // reader can check it — and accurate at an exact tie, which "spending is ahead" would not be.
+    expect(refused).toMatch(/nothing has been left over after spending/i);
+    expect(refused).toContain('3 months');
+  });
+
+  it('an exactly-zero history refuses a settings-% pace too', () => {
+    const s = COACH_COPY.wealthTargetPaceLine({
+      ...SURPLUS_ARGS,
+      basis: 'settings-savings-pct',
+      historicalCents: cents(0),
+    });
+    expect(s).not.toMatch(/you'd get there/i);
+  });
+
+  it('names the zero-history refusal as absence, not overspending', () => {
+    // 0 complete months divides 0 by 1 — the same shape `wealthTargetNotSaving` separates, and
+    // the same `an-empty-set-is-not-a-fact-about-money` rule: no behaviour claim from nothing.
+    const none = COACH_COPY.wealthTargetPlanNotSaving(cents(100_000_00), 0);
+    expect(none).toMatch(/complete month/i);
+    expect(none).not.toMatch(/ahead of income/i);
+    expect(none).toContain('$100,000.00');
+    const viaSelector = COACH_COPY.wealthTargetPaceLine({
+      ...SURPLUS_ARGS,
+      basis: 'settings-savings-pct',
+      contributionCents: cents(100_000_00),
+      historicalCents: cents(0),
+      averagedOverMonths: 0,
+    });
+    expect(viaSelector).toBe(none);
+    // Singular window is reachable, not a typo.
+    expect(COACH_COPY.wealthTargetPlanNotSaving(cents(100_00), 1)).toContain('1 month ');
+  });
+
+  it('the plan-vs-history gate is one exported predicate both sites read', () => {
+    // The card's horizon seed and the pace-line refusal must never drift: a fix that re-wrote
+    // either comparison inline (`a-fence-by-construction-not-per-call-site`) is what this locks.
+    expect(wealthTargetPlanUnproven('settings-savings-pct', cents(-450_00))).toBe(true);
+    // An exact tie refuses too: nothing is going in either way.
+    expect(wealthTargetPlanUnproven('settings-savings-pct', cents(0))).toBe(true);
+    expect(wealthTargetPlanUnproven('settings-savings-pct', cents(1))).toBe(false);
+    // The recent-surplus routing has its own guard (the figure IS the history, so
+    // `contributionFloored` catches it); the predicate must not fire there.
+    expect(wealthTargetPlanUnproven('recent-surplus', cents(-450_00))).toBe(false);
+    expect(wealthTargetPlanUnproven('recent-surplus', cents(0))).toBe(false);
+  });
+
+  it('keeps the beyond-horizon line under both bases when a pace exists to name', () => {
+    const beyond = COACH_COPY.wealthTargetBeyondHorizon(750);
+    expect(COACH_COPY.wealthTargetPaceLine({ ...SURPLUS_ARGS, arrivalMonths: null })).toBe(beyond);
+    expect(
+      COACH_COPY.wealthTargetPaceLine({
+        ...SURPLUS_ARGS,
+        basis: 'settings-savings-pct',
+        arrivalMonths: null,
+      }),
+    ).toBe(beyond);
   });
 });
 
