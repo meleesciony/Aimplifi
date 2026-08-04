@@ -8,14 +8,19 @@ import { describe, expect, it } from 'vitest';
 import {
   classifySpendClass,
   guessSpendClass,
+  outOfScopeChipLabel,
+  outOfScopeExplanation,
+  outOfScopeReason,
   summarizeSpendClassCategories,
   suggestedCategoryIsFixed,
+  type OutOfScopeReason,
 } from '@/lib/engine/spending-plan/spend-class';
 import {
   isGuiltFreeFixedSpendRow,
   monthlyNonDiscretionaryCents,
 } from '@/lib/engine/spending-plan/fixed-pattern';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { PROVENANCE_LABELS } from '@/lib/engine/categorize/provenance';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { overrideKey } from '@/lib/engine/recurring/override';
 import type { TxnLike } from '@/lib/engine/fi/insights';
@@ -98,6 +103,115 @@ describe('classifySpendClass', () => {
         }),
       ),
     ).toBe('out-of-scope');
+  });
+
+  it('test_regression__out_of_scope_names_its_own_reason_instead_of_one_label', () => {
+    // Owner screenshot 2026-08-03: an `Interest Paid +$0.10` row read
+    // "Not counted" and nothing in the app said what that meant — the second
+    // time this chip was renamed rather than explained ("Neither" → #397).
+    // Ten different facts reached one label; each now states its own.
+    const reasonOf = (t: Parameters<typeof txn>[0]) => {
+      const row = txn(t);
+      return outOfScopeReason(row, classifySpendClass(row));
+    };
+
+    expect(
+      reasonOf({ date: '2026-07-31', amountCents: 10, categoryId: 'interest' }),
+    ).toBe('money-in');
+    expect(
+      reasonOf({ date: '2026-07-01', amountCents: -5000, categoryId: 'transfer', isTransfer: true }),
+    ).toBe('transfer');
+    expect(
+      reasonOf({ date: '2026-07-01', amountCents: -5000, categoryId: 'credit-card-payment' }),
+    ).toBe('card-payment');
+    expect(reasonOf({ date: '2026-07-01', amountCents: -5000, categoryId: 'cash' })).toBe('cash');
+    expect(reasonOf({ date: '2026-07-01', amountCents: -5000, categoryId: 'investment' })).toBe(
+      'investment',
+    );
+    expect(reasonOf({ date: '2026-07-01', amountCents: -5000, categoryId: null })).toBe(
+      'uncategorized',
+    );
+    // The register view fills an unfiled row with the placeholder id, not null —
+    // both spellings must land on the same reason.
+    expect(reasonOf({ date: '2026-07-01', amountCents: -5000, categoryId: 'uncategorized' })).toBe(
+      'uncategorized',
+    );
+    expect(
+      reasonOf({
+        date: '2026-07-01',
+        amountCents: -5000,
+        categoryId: 'dining',
+        excludeFromTotals: true,
+      }),
+    ).toBe('excluded');
+    expect(
+      reasonOf({
+        date: '2026-07-01',
+        amountCents: -5000,
+        categoryId: 'dining',
+        isSplitParent: true,
+      }),
+    ).toBe('split-parent');
+    expect(
+      reasonOf({
+        date: '2026-07-01',
+        amountCents: -5000,
+        categoryId: 'dining',
+        status: 'CANCELLED',
+      }),
+    ).toBe('unsettled');
+  });
+
+  it('never prints a reason beside a row that has a working dial', () => {
+    // The guard that keeps the chip honest in the other direction: a row the
+    // SERVER classified (with the reader's custom categories and bill merchants)
+    // must not be explained away by a UI that re-derived the verdict without them.
+    const dining = txn({ date: '2026-07-01', amountCents: -5000, categoryId: 'dining' });
+    expect(outOfScopeReason(dining, 'guilt-free')).toBeNull();
+    expect(outOfScopeReason(dining, 'fixed')).toBeNull();
+    // A custom category the client's static map has never heard of: the server
+    // says guilt-free, so the chip stays a dial rather than claiming "not spending".
+    const custom = txn({ date: '2026-07-01', amountCents: -5000, categoryId: 'cus_horse_feed' });
+    expect(classifySpendClass(custom)).toBe('out-of-scope'); // what a bare re-derive would say
+    expect(outOfScopeReason(custom, 'guilt-free')).toBeNull();
+  });
+
+  it('every reason has a chip label and an explanation that names the scope', () => {
+    // The exhaustiveness lock: a reason added without copy would render `undefined`
+    // in the chip, which is how the label lost its meaning twice already.
+    const all: OutOfScopeReason[] = [
+      'split-parent',
+      'transfer',
+      'money-in',
+      'excluded',
+      'unsettled',
+      'uncategorized',
+      'card-payment',
+      'cash',
+      'investment',
+      'not-spending',
+    ];
+    for (const r of all) {
+      const chip = outOfScopeChipLabel(r);
+      expect(chip.length).toBeGreaterThan(0);
+      // Short enough to sit in the Details / Rule… row chrome.
+      expect(chip.length).toBeLessThanOrEqual(14);
+      // And never the two words the owner has now asked about twice.
+      expect(chip).not.toBe('Neither');
+      expect(chip).not.toBe('Not counted');
+      // Nor a word the row already prints beside it: the provenance pill and
+      // the exclusion badge own these, and a chip that echoes its neighbour is
+      // clutter rather than disclosure (caught by screenshot, 2026-08-03).
+      expect(Object.values(PROVENANCE_LABELS)).not.toContain(chip);
+      expect(chip).not.toBe('Excluded from totals');
+      const why = outOfScopeExplanation(r);
+      expect(why.length).toBeGreaterThan(40);
+      expect(why).toMatch(/\.$/);
+    }
+    // Distinct copy per reason — the whole point is that one pixel stopped
+    // standing for ten different facts.
+    expect(new Set(all.map(outOfScopeChipLabel)).size).toBe(all.length);
+    expect(new Set(all.map(outOfScopeExplanation)).size).toBe(all.length);
   });
 
   it('test_regression__flipping_one_transaction_leaves_category_siblings_alone', () => {

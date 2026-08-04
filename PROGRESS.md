@@ -1,4 +1,18 @@
-﻿## 2026-08-03 - Pending at top + Fixed/Discretionary dial on pending
+﻿## 2026-08-03 - "Not counted" says why (owner asked what it meant)
+
+Owner screenshot: an `Interest Paid +$0.10` row read "Not counted" and nothing
+in the app said what that meant - the SECOND time this chip was renamed rather
+than explained ("Neither" -> #397 -> now). Two defects, not one: ten different
+facts printed one label, and the explanation lived in a `title` attribute that a
+phone cannot open. Fix: `outOfScopeReason` names the row's own fact (Money in /
+Own accounts / Cash out / No class yet / You excluded / ...), the chip is a real
+button, and the panel says what the row is NOT part of ("Not part of Fixed or
+Discretionary") plus where it still counts. Labels are pinned against
+`PROVENANCE_LABELS` after a screenshot caught the first cut printing "Transfer"
+three times on one row; the panel is clamped to the viewport after it overflowed
+first the right edge and then the left. verify GREEN (5798).
+
+## 2026-08-03 - Pending at top + Fixed/Discretionary dial on pending
 
 Owner: pending (Hair Capital etc.) showed Not counted with no dial, and sat
 under their auth date instead of at the top like Mint/Simplifi. Fix:

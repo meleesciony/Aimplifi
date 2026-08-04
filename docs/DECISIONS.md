@@ -3484,3 +3484,65 @@ flag would put one credit in both sentences at once.
 a missing intake — which is how P0-1 survived to the audit. The new integration tests run
 transaction rows → the REAL assembler → the REAL engine → `remainingDueCents`, on the
 owner's measured live shape.
+
+## #402 — The register chip that has no Fixed/Discretionary side NAMES ITS REASON; renaming it a third time was refused
+
+**The owner asked, twice, what one word meant.** #395 shipped "Neither" on the
+register's spend-class chip. The owner asked what "Neither" meant, so #397 renamed it
+"Not counted". On 2026-08-03 the owner sent a screenshot of an `Interest Paid +$0.10`
+row and asked what "Not counted" meant. Two renames, same question — so the defect is
+not the word.
+
+**Two separate failures were behind it, and a third rename would have fixed neither.**
+
+1. **One pixel stood for ten different facts.** `classifySpendClass` returns
+   `out-of-scope` for a split container, a transfer, any inflow, a reader-excluded row,
+   an unsettled row, an unfiled row, a card payment, cash out, an investment transfer,
+   and any non-budgetable category — and all ten printed the same chip. This is exactly
+   the identical-pixel failure `row-labels.ts` exists to prevent ("Card payments due
+   this month — $0.00" true for three different readers), applied to the register.
+2. **The explanation existed and was unreachable.** It lived in a `title` attribute, so
+   it opened on hover — and the owner is on a phone. There was no way, anywhere in the
+   app, to find out what the chip meant. A tooltip only a mouse can open is not a
+   disclosure.
+
+**Also: "not counted" named no SCOPE.** It reads as "this money is ignored", when the
+row still moves the balance, still counts as income, and is absent from exactly one
+thing. Every explanation now sits under one heading — "Not part of Fixed or
+Discretionary" — and says where the row *does* still count.
+
+**Decision 1 — `outOfScopeReason` takes the class AS GIVEN, and never re-derives it.**
+The verdict is computed once on the server WITH the reader's custom-category meta and
+recurring-bill merchant set. A UI calling `classifySpendClass` again would run it
+without either, and a custom category missing from the client's static map resolves to
+`out-of-scope` — so the chip would have explained away a dial the server had granted.
+Locked by a test that classifies `cus_horse_feed` as out-of-scope on a bare re-derive
+and still returns `null` when the server says guilt-free.
+
+**Decision 2 — every chip label is a word the row does not already print.** Caught by
+screenshot, not by reading the source: the first cut labelled a transfer "Transfer",
+and that row already carries the provenance pill "Transfer" (`PROVENANCE_LABELS`)
+beside the category name "Transfer" — the fix for one confusing chip printed the same
+word three times on one row. Same collision existed for the unfiled case against
+provenance's "Needs a category", and the excluded case against the amber "Excluded from
+totals" badge. Now: "Own accounts", "No class yet", "You excluded". Locked by a unit
+test asserting no chip label appears in `PROVENANCE_LABELS` — which is why that map is
+now exported rather than copied into the test.
+
+**Decision 3 — the panel is CLAMPED to the viewport, not anchored to the chip.**
+Measured failing twice, both times only visible in a screenshot: left-anchored it ran
+off the right edge of the 380px register; flipped to right-anchored it ran off the LEFT
+edge by 55px, because the panel is wider than the space either side of a chip near an
+edge. The chip's x position is not fixed — it follows however wide the merchant name and
+the Details / Rule… links ahead of it happen to be. `panelOffset` is pure and pinned
+across every chip position from 0 to 380px.
+
+**Decision 4 — the demo fence is untouched.** Only the out-of-scope chip becomes a
+button; a Fixed / Discretionary badge stays an inert span. What the demo is fenced away
+from is WRITING the class, and there is nothing to explain about a working dial. The
+disclosure button carries its own testid inside the labelled span, so the e2e lock
+("the demo's Groceries row has no `button[data-testid="txn-spend-class"]`") still holds.
+
+**Decision 5 — the detail view stops describing a control that isn't there.** Its "For
+your Plan" paragraph said "Change the selector if the guess is wrong" beside rows that
+have no selector. Out-of-scope rows get the reason sentence instead.

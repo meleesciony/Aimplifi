@@ -71,6 +71,10 @@ import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { provenanceBadgeView } from '@/components/finance/provenance-badge';
 import { SpendClassSelect } from '@/components/finance/spend-class-select';
 import {
+  outOfScopeExplanation,
+  outOfScopeReason,
+} from '@/lib/engine/spending-plan/spend-class';
+import {
   PROJECTIONS_STALE_PARAM,
   UNCONFIRMED_PARAM,
 } from '@/components/finance/transaction-detail-params';
@@ -264,6 +268,24 @@ export function TransactionDetailView({
     descriptorOrigin: row.descriptorOrigin,
   });
   const statusAction = actions.find((a) => a.kind === 'status')!;
+  // Why this row has no Fixed/Discretionary dial — named once here, because both
+  // the chip and the paragraph under it print from it. This page CAN load a split
+  // container, so `isSplitParent` is real here rather than the register's `false`.
+  const spendClassReason = outOfScopeReason(
+    {
+      accountId: row.accountId,
+      date: row.date,
+      amountCents: row.amountCents,
+      categoryId: row.categoryId,
+      isTransfer: row.isTransfer,
+      status: row.status,
+      rawDescriptor: row.rawDescriptor,
+      excludeFromTotals: row.excludeFromTotals,
+      isSplitParent: detail.isSplitParent,
+      splitParentId: detail.splitParentId,
+    },
+    row.spendClass,
+  );
   /**
    * O.16 — this page is a WAYPOINT, not only a destination: from here the reader
    * can go on to `/rules`, and losing his place at the second hop is the same
@@ -763,14 +785,25 @@ export function TransactionDetailView({
         <SpendClassSelect
           transactionId={row.id}
           spendClass={row.spendClass}
+          reason={spendClassReason}
           canEdit={canEditSpendClass}
           merchantName={row.merchantName}
           bulkCount={detail.spendClassSiblingCount ?? undefined}
         />
+        {/* The guess-and-change copy describes a control this row may not have.
+            An out-of-scope row gets its own reason instead — telling a reader to
+            "change the selector" beside no selector is the same dead end as the
+            chip that would not say why. */}
         <p className="basis-full text-xs text-muted-foreground">
-          We guess recurring bills as Fixed and everything else from its category. Change the
-          selector if the guess is wrong — you can apply it to this transaction only or to every
-          transaction from this payee.
+          {spendClassReason === null ? (
+            <>
+              We guess recurring bills as Fixed and everything else from its category. Change the
+              selector if the guess is wrong — you can apply it to this transaction only or to every
+              transaction from this payee.
+            </>
+          ) : (
+            outOfScopeExplanation(spendClassReason)
+          )}
         </p>
       </div>
 

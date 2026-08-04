@@ -48,7 +48,146 @@ export type SpendClass = 'fixed' | 'guilt-free' | 'out-of-scope';
 export function spendClassLabel(c: SpendClass): string {
   if (c === 'fixed') return 'Fixed';
   if (c === 'guilt-free') return 'Discretionary';
-  return 'Not counted';
+  return 'Not spending';
+}
+
+/**
+ * WHY a row has no Fixed/Discretionary side — the reason, not just its absence.
+ *
+ * THIS IS THE SECOND RENAME OF THIS CHIP, AND RENAMING IT IS NOT THE FIX.
+ * #395 shipped "Neither"; the owner asked what it meant, so #397 shipped
+ * "Not counted"; the owner asked what THAT meant (screenshot 2026-08-03, an
+ * `Interest Paid +$0.10` row). Both words are true and neither is an answer,
+ * because ten different facts reach `out-of-scope` and all ten printed one
+ * chip — the identical-pixel failure `row-labels.ts` exists to prevent, here
+ * applied to the register. "Not counted" also names no SCOPE: it reads as "this
+ * money is ignored", when the row still moves the balance, still counts as
+ * income, and is missing from exactly one thing — the Fixed/Discretionary split.
+ * So the chip now states the row's own fact, and the reason carries the
+ * sentence that says what it is not part of.
+ *
+ * ORDERED BY WHAT THE READER CAN ACT ON, not by `classifySpendClass`'s
+ * short-circuit order. The intrinsic facts (split container, transfer, money in)
+ * come before `excluded`, because a transfer the reader also excluded is still a
+ * transfer, and the exclusion already has its own amber badge on the same row —
+ * the chip's job is to explain the missing dial, not to repeat the badge.
+ *
+ * TAKES THE CLASS AS GIVEN rather than re-deriving it. The verdict is computed
+ * once on the server, WITH the reader's custom-category meta and their
+ * recurring-bill merchant set; a UI that called `classifySpendClass` again would
+ * be re-running it without either, and a custom category missing from the
+ * client's static map resolves to `out-of-scope` — so the chip would explain
+ * away a dial the server had in fact granted. One verdict, one author; this
+ * function only names the reason behind it.
+ *
+ * Returns null for a row that HAS a class, so a caller cannot print a reason
+ * beside a working Fixed/Discretionary dial.
+ */
+export type OutOfScopeReason =
+  | 'split-parent'
+  | 'transfer'
+  | 'money-in'
+  | 'excluded'
+  | 'unsettled'
+  | 'uncategorized'
+  | 'card-payment'
+  | 'cash'
+  | 'investment'
+  | 'not-spending';
+
+export function outOfScopeReason(t: TxnLike, spendClass: SpendClass): OutOfScopeReason | null {
+  if (spendClass !== 'out-of-scope') return null;
+  if (t.isSplitParent) return 'split-parent';
+  if (t.isTransfer) return 'transfer';
+  if (t.amountCents >= 0) return 'money-in';
+  if (isExcludedFromTotals(t)) return 'excluded';
+  if (t.status !== 'POSTED' && t.status !== 'PENDING') return 'unsettled';
+  // The register view fills an unfiled row's id with the 'uncategorized'
+  // placeholder rather than null (server/transactions.ts), so both spellings of
+  // "no category yet" must reach the same reason — one of them silently falling
+  // through to the generic tail is how this chip lost its meaning the first time.
+  const id = t.categoryId;
+  if (!id || id === 'uncategorized') return 'uncategorized';
+  if (id === 'transfer') return 'transfer';
+  if (id === 'credit-card-payment') return 'card-payment';
+  if (id === 'cash') return 'cash';
+  if (id === 'investment') return 'investment';
+  return 'not-spending';
+}
+
+/**
+ * The chip text — short, because it sits in the Details / Rule… row chrome.
+ *
+ * EVERY LABEL HERE IS A WORD THE ROW DOES NOT ALREADY SAY. Checked against the
+ * register by screenshot, not by eye over the source: the first cut labelled a
+ * transfer "Transfer", and that row already carries the provenance pill
+ * "Transfer" (provenance.ts LABELS) beside the category name "Transfer", so the
+ * fix for one confusing chip printed the same word three times on one row. The
+ * unfiled case had the same collision with provenance's "Needs a category", and
+ * the excluded case with the amber "Excluded from totals" badge. A chip that
+ * repeats its neighbour is not a disclosure, it is clutter — so each of these
+ * states the one fact the rest of the row leaves out: why there is no dial.
+ */
+export function outOfScopeChipLabel(r: OutOfScopeReason): string {
+  switch (r) {
+    case 'split-parent':
+      return 'Split';
+    case 'transfer':
+      return 'Own accounts';
+    case 'money-in':
+      return 'Money in';
+    case 'excluded':
+      return 'You excluded';
+    case 'unsettled':
+      return 'Not settled';
+    case 'uncategorized':
+      return 'No class yet';
+    case 'card-payment':
+      return 'Card payment';
+    case 'cash':
+      return 'Cash out';
+    case 'investment':
+      return 'Investing';
+    case 'not-spending':
+      return 'Not spending';
+  }
+}
+
+/**
+ * The heading every one of these explanations sits under — the answer to "not
+ * counted WHERE", which the old chip never gave. Authored once so the register
+ * and the detail view cannot name two different scopes for one fact.
+ */
+export const OUT_OF_SCOPE_HEADING = 'Not part of Fixed or Discretionary';
+
+/**
+ * One sentence per reason: what this row is, and what it is therefore missing
+ * from. Each one states where the row still DOES count, because the reader's
+ * actual question was whether the money had gone missing.
+ */
+export function outOfScopeExplanation(r: OutOfScopeReason): string {
+  switch (r) {
+    case 'split-parent':
+      return 'This is the whole charge before it was split. The pieces under it carry the Fixed or Discretionary choice, so counting this one too would double it.';
+    case 'transfer':
+      return 'Money moved between your own accounts. Both balances change, but nothing was spent, so there is no Fixed or Discretionary side to choose.';
+    case 'money-in':
+      return 'Money coming in, not going out. It still counts as income and it still changes your balance — only money you spend gets a Fixed or Discretionary choice.';
+    case 'excluded':
+      return 'You marked this row “Excluded from totals”, so it stays out of your spending figures — including the Fixed and Discretionary split. Your balance still includes it.';
+    case 'unsettled':
+      return 'This row has not settled yet, so its amount can still change. It gets a Fixed or Discretionary choice once the bank posts it.';
+    case 'uncategorized':
+      return 'This row has no category yet, and the category is what decides Fixed or Discretionary. File it and the choice appears here.';
+    case 'card-payment':
+      return 'Paying a card bill settles purchases you already counted when you made them. Counting the payment too would charge you twice for the same spending.';
+    case 'cash':
+      return 'Cash you took out is not spent until you spend it. Whatever it pays for gets counted when that purchase shows up.';
+    case 'investment':
+      return 'Money moved into investing is saving, not spending, so it sits outside the Fixed and Discretionary split. It still counts toward your net worth.';
+    case 'not-spending':
+      return 'This row is not spending, so it has no Fixed or Discretionary side. Everything else about it — your balance, your Activity — is unchanged.';
+  }
 }
 
 /**

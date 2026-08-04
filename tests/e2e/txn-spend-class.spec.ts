@@ -10,7 +10,9 @@ async function signIn(page: Page) {
   await page.waitForURL('**/dashboard');
 }
 
-test('every register row shows a Fixed or Discretionary (or Not counted) class', async ({ page }) => {
+test('every register row shows a Fixed or Discretionary class, or says why it has neither', async ({
+  page,
+}) => {
   await signIn(page);
   await clickMoreNav(page, 'nav-transactions');
   await page.waitForURL('**/transactions**');
@@ -45,4 +47,35 @@ test('every register row shows a Fixed or Discretionary (or Not counted) class',
   // 16px and blew past Details/Rules).
   await expect(groceries.locator('button[data-testid="txn-spend-class"]')).toHaveCount(0);
   await expect(groceries.locator('select[data-testid="txn-spend-class"]')).toHaveCount(0);
+});
+
+test('a row with no Fixed/Discretionary side says why, by tap', async ({ page }) => {
+  // The owner asked what "Not counted" meant (2026-08-03) — the second time
+  // this chip was renamed rather than explained. The explanation used to live
+  // in a `title` attribute, which a phone cannot open at all: this project runs
+  // its e2e at mobile-380, so a hover-only disclosure is an invisible one.
+  await signIn(page);
+  await clickMoreNav(page, 'nav-transactions');
+  await page.waitForURL('**/transactions**');
+
+  const chip = page
+    .getByTestId('txn-row')
+    .locator('[data-testid="txn-spend-class"][data-spend-class="out-of-scope"]')
+    .first();
+  await expect(chip).toBeVisible();
+
+  // The chip names the row's OWN fact, never the old catch-all.
+  const label = (await chip.innerText()).trim();
+  expect(label).not.toBe('Not counted');
+  expect(label).not.toBe('Neither');
+  expect(label.length).toBeGreaterThan(0);
+  // …and it carries the reason it was chosen from, so a wrong chip is debuggable.
+  await expect(chip).toHaveAttribute('data-spend-class-reason', /.+/);
+
+  // Tapping it answers "not counted WHERE" — the part the old label never said.
+  await expect(chip.getByTestId('txn-spend-class-why-panel')).toHaveCount(0);
+  await chip.getByTestId('txn-spend-class-why').click();
+  const panel = chip.getByTestId('txn-spend-class-why-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('Not part of Fixed or Discretionary');
 });

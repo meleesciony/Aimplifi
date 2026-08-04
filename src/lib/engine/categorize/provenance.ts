@@ -78,7 +78,7 @@ export interface ProvenanceVerdict {
 }
 
 /** Canonical, no-shame labels. Slice-2 UI renders these; tests pin them. */
-const LABELS: Record<ProvenanceKind, string> = {
+export const PROVENANCE_LABELS: Record<ProvenanceKind, string> = {
   'user-set': 'You set this',
   'your-rule': 'Your rule',
   'merchant-default': 'Known merchant',
@@ -90,7 +90,7 @@ const LABELS: Record<ProvenanceKind, string> = {
 };
 
 function verdict(kind: ProvenanceKind): ProvenanceVerdict {
-  return { kind, label: LABELS[kind], needsConfirm: kind === 'ai-guess' };
+  return { kind, label: PROVENANCE_LABELS[kind], needsConfirm: kind === 'ai-guess' };
 }
 
 /**

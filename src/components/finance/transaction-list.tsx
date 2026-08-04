@@ -49,6 +49,7 @@ import {
 } from '@/components/finance/provenance-badge';
 import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
 import { SpendClassSelect } from '@/components/finance/spend-class-select';
+import { outOfScopeReason } from '@/lib/engine/spending-plan/spend-class';
 
 /**
  * What the row's note/tax control says without being opened.
@@ -654,6 +655,23 @@ export function TransactionList({
                         <SpendClassSelect
                           transactionId={t.id}
                           spendClass={t.spendClass}
+                          reason={outOfScopeReason(
+                            {
+                              accountId: t.accountId,
+                              date: t.date,
+                              amountCents: t.amountCents,
+                              categoryId: t.categoryId,
+                              isTransfer: t.isTransfer,
+                              status: t.status,
+                              rawDescriptor: t.rawDescriptor,
+                              excludeFromTotals: t.excludeFromTotals,
+                              splitParentId: t.splitParentId,
+                              // The register never loads split CONTAINERS, only
+                              // their pieces (see the action-menu row below).
+                              isSplitParent: false,
+                            },
+                            t.spendClass,
+                          )}
                           canEdit={canEditSpendClass}
                           merchantName={t.merchantName}
                           bulkCount={t.ruleEligible ? t.merchantCount : undefined}

@@ -11,29 +11,38 @@
  * one, or all of them (#398).
  */
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { spendClassLabel, type SpendClass } from '@/lib/engine/spending-plan/spend-class';
+import {
+  spendClassLabel,
+  type OutOfScopeReason,
+  type SpendClass,
+} from '@/lib/engine/spending-plan/spend-class';
 import {
   setMerchantSpendClass,
   setTransactionSpendClass,
 } from '@/server/transaction-flags-actions';
-import { SpendClassBadge } from '@/components/finance/spend-class-badge';
+import { ROW_CHIP, SpendClassBadge } from '@/components/finance/spend-class-badge';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 
-/** Same chrome as Details / Rules on the register row. */
-const CHIP =
-  'tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50';
+/** Same chrome as Details / Rules on the register row — defined beside the badge
+ *  so the two controls cannot drift apart in size. */
+const CHIP = ROW_CHIP;
 
 export function SpendClassSelect({
   transactionId,
   spendClass,
+  reason,
   canEdit,
   merchantName,
   bulkCount,
 }: {
   transactionId: string;
   spendClass: SpendClass;
+  /** Why this row has no dial (`outOfScopeReason`), or null when it has one.
+   *  Passed straight through to the badge — see its prop doc for why it is
+   *  required rather than optional. */
+  reason: OutOfScopeReason | null;
   canEdit: boolean;
   merchantName: string;
   /** How many transactions share this payee (the register's merchantCount
@@ -62,7 +71,7 @@ export function SpendClassSelect({
   }, [menuOpen]);
 
   if (!editable) {
-    return <SpendClassBadge spendClass={spendClass} />;
+    return <SpendClassBadge spendClass={spendClass} reason={reason} />;
   }
 
   const offersScope = typeof bulkCount === 'number' && bulkCount > 1;
