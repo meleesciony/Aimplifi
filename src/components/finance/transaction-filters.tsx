@@ -7,6 +7,14 @@
  * the pure query engine.
  */
 import { useRouter } from 'next/navigation';
+import { formatISODate, isoDate } from '@/lib/dates';
+import {
+  PERIOD_PRESETS,
+  PERIOD_PRESET_LABELS,
+  matchPeriodPreset,
+  presetWindow,
+  type PeriodPreset,
+} from '@/lib/engine/transactions/presets';
 
 const TYPE_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -29,6 +37,8 @@ export function TransactionFilters({
   categoryOptions,
   current,
   unclassifiedCount,
+  today,
+  oldestDate,
 }: {
   accountOptions: { id: string; name: string }[];
   /** Category dropdown options — the user's visible assignable set incl. customs
@@ -52,6 +62,16 @@ export function TransactionFilters({
    *  while it is already on. Zero hides the control: a filter that can only ever
    *  return nothing is not a control, it is a dead end. */
   unclassifiedCount: number;
+  /** Today's business date from the SERVER (provider.today) — the period
+   *  presets compute their windows against it, so the dropdown and the
+   *  from/to inputs agree with the same "today" the totals use, never with
+   *  the browser clock. */
+  today: string;
+  /** Date of the oldest transaction the reader can see, or null when there
+   *  are none. A period picker promising "last year" must say how far back
+   *  the data actually goes — a just-linked bank has ~90 days, and a preset
+   *  that silently returns less than its name is the defect this discloses. */
+  oldestDate?: string | null;
 }) {
   const router = useRouter();
 
@@ -211,6 +231,38 @@ export function TransactionFilters({
           ))}
         </select>
 
+        {/* Period presets (owner request 2026-08-04: "still need a way to view
+            last month, last quarter, last year, etc."). A preset is a named
+            from/to pair — picking one commits the same dates a reader could
+            type below, and the select shows whichever preset the CURRENT dates
+            match ('Custom' when none). The windows are computed against the
+            server's business date, so a preset and the totals agree on
+            "today". */}
+        {(() => {
+          const active = matchPeriodPreset(current.from, current.to, isoDate(today));
+          return (
+            <select
+              aria-label="Period"
+              value={active}
+              onChange={(e) => {
+                const preset = e.target.value as PeriodPreset | 'custom';
+                if (preset === 'custom') return; // names the state, sets nothing
+                const w = presetWindow(preset, isoDate(today));
+                commit({ from: w.from ?? '', to: w.to ?? '' });
+              }}
+              data-testid="txn-filter-period"
+              className={selectClass}
+            >
+              {active === 'custom' && <option value="custom">Custom</option>}
+              {PERIOD_PRESETS.map((p) => (
+                <option key={p} value={p}>
+                  {PERIOD_PRESET_LABELS[p]}
+                </option>
+              ))}
+            </select>
+          );
+        })()}
+
         <label className="flex items-center gap-1 text-xs text-muted-foreground">
           From
           <input
@@ -257,6 +309,19 @@ export function TransactionFilters({
           </button>
         )}
       </div>
+
+      {/* How far back the data actually goes. A period preset that names a
+          window older than the reader's history would otherwise return a
+          partial answer wearing a complete-sounding name ("Last year" on a
+          bank linked three months ago). Stating the span makes the same
+          empty-looking result legible instead of mysterious. Hidden when
+          there are no transactions at all — the empty register has its own
+          copy. */}
+      {oldestDate && (
+        <p className="text-xs text-muted-foreground" data-testid="txn-history-span">
+          History available from {formatISODate(isoDate(oldestDate), 'long')}.
+        </p>
+      )}
     </div>
   );
 }

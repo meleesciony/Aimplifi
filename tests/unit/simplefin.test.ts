@@ -17,6 +17,7 @@ import { decryptToken } from '@/lib/crypto';
 import { isoDate, toEpochDays } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import { isSyncFailureReason } from '@/lib/providers/sync-status';
+import { SIMPLEFIN_INITIAL_LOOKBACK_DAYS } from '@/lib/providers/simplefin';
 
 const CLAIM_URL = 'https://claim.example/abc123';
 const SETUP_TOKEN = Buffer.from(CLAIM_URL, 'utf8').toString('base64');
@@ -145,13 +146,34 @@ describe('SimpleFIN connect + sync (real actions, mocked server)', () => {
     expect(gets.some(([u]) => String(u).includes(`start-date=${startSec}`))).toBe(true);
   });
 
+  /**
+   * Owner request 2026-08-04: "why are we only pulling 6 months of data? Can we
+   * get at least 2-3 years?" The first pull used to ask for 90 days. These lock
+   * the widened window at the one place it is decided — bounded like the Plaid
+   * days_requested lock (plaid-oauth.test.ts), plus one hand-verified calendar
+   * date: DEMO_TODAY pins "today" at 2026-06-10, and 1095 days before that is
+   * 2023-06-11 (the window crosses the 2024 leap day, which is what makes it
+   * the 11th, not the 10th — exactly the off-by-one this test exists to catch).
+   */
+  it('first sync asks for three years of history, not the old 90 days', async () => {
+    expect(SIMPLEFIN_INITIAL_LOOKBACK_DAYS).toBeGreaterThanOrEqual(730); // never back below 2 years
+    expect(SIMPLEFIN_INITIAL_LOOKBACK_DAYS).toBeLessThanOrEqual(1830); // sanity cap: 5 years
+    await connectSimplefin(SETUP_TOKEN); // 1st sync is the wide one
+    const calls = vi.mocked(fetch).mock.calls as [unknown, { method?: string }][];
+    const gets = calls.filter(([u, i]) => i?.method === 'GET' && String(u).includes('/accounts'));
+    expect(gets.length).toBeGreaterThanOrEqual(1);
+    const firstStartSec = toEpochDays(isoDate('2023-06-11')) * 86400;
+    expect(String(gets[0][0])).toContain(`start-date=${firstStartSec}`);
+  });
+
   it('backfills the full history of an account first seen on an incremental sync (DECISIONS #73)', async () => {
     await connectSimplefin(SETUP_TOKEN); // 1st sync → only acc-1, lastSyncedAt = 2026-06-10
 
     // 2nd (incremental) sync: a NEW acc-2 appears whose only transaction is OLDER
-    // than the 5-day overlap — so it shows up only in the 90-day backfill window,
-    // never the incremental one. The mock branches on the requested start-date.
-    const oldPosted = toEpochDays(isoDate('2026-05-15')) * 86400; // within 90d, outside 5d
+    // than the 5-day overlap — so it shows up only in the wide backfill window
+    // (SIMPLEFIN_INITIAL_LOOKBACK_DAYS), never the incremental one. The mock
+    // branches on the requested start-date.
+    const oldPosted = toEpochDays(isoDate('2026-05-15')) * 86400; // inside the wide window, outside 5d
     const incrementalCutoff = toEpochDays(isoDate('2026-05-01')) * 86400;
     const acc2Tx = {
       id: 'acc-2',
@@ -170,7 +192,7 @@ describe('SimpleFIN connect + sync (real actions, mocked server)', () => {
         if (url.startsWith('https://bridge.example/simplefin/accounts')) {
           const sd = Number(new URL(url).searchParams.get('start-date') ?? '0');
           // incremental window: acc-2 is new but has no recent activity;
-          // backfill (90-day) window: acc-2's older transaction is returned.
+          // wide backfill window: acc-2's older transaction is returned.
           const accounts =
             sd >= incrementalCutoff
               ? [ACCOUNTS.accounts[0], { ...acc2Tx, transactions: [] }]

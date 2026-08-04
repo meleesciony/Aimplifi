@@ -34,6 +34,28 @@ import { type MappedSfHolding, mapSimplefinHoldings } from './simplefin-holdings
 import type { SyncResult } from './types';
 
 /**
+ * How much history the FIRST SimpleFIN pull asks for — and the backfill pull for
+ * a spending account first seen on an incremental sync (DECISIONS #73).
+ *
+ * Owner request 2026-08-04: "why are we only pulling 6 months of data? Can we
+ * get at least 2-3 years?" The answer for SimpleFIN was 90 days, chosen by
+ * nobody — it was the original quick-start value and nobody ever revisited it
+ * (the a-default-is-a-decision-you-shipped lesson, third instance after Plaid's
+ * days_requested). The SimpleFIN bridge accepts an arbitrary start-date (epoch
+ * seconds), so the honest window is "as far back as the INSTITUTION provides" —
+ * some cap around 90 days, many carry years. Asking for three years and taking
+ * whatever comes back costs one wider first fetch per connection and is bounded
+ * by the bank, not by us. DECISIONS #61 (a start-date is always required) is
+ * unchanged: this only widens the value we send.
+ *
+ * Deliberately NOT "all of time" (start-date 0): a few bridges reject or stall
+ * on absurd windows, and three years is beyond every comparison the app makes
+ * (the longest engine window is the FI signature's 12 months; the widest view a
+ * reader can pick is 24 months of chart bars).
+ */
+export const SIMPLEFIN_INITIAL_LOOKBACK_DAYS = 1095;
+
+/**
  * Reconcile one INVESTMENT account's holdings against the brokerage feed
  * (DECISIONS #124). INVARIANT: a SimpleFIN sync touches ONLY its own
  * source='simplefin' rows — it NEVER modifies or deletes a source='manual' holding
@@ -414,7 +436,7 @@ async function runSimplefinSync(
     ? addDays(today, -opts.fullLookbackDays!)
     : conn.lastSyncedAt
       ? addDays(isoDate(conn.lastSyncedAt), -5)
-      : addDays(today, -90);
+      : addDays(today, -SIMPLEFIN_INITIAL_LOOKBACK_DAYS);
   const data = await fetchSimplefinAccounts(accessUrl, startDate);
 
   let added = 0;
@@ -548,7 +570,9 @@ async function runSimplefinSync(
   // are ingested — not just whatever happened to land in the last few days.
   if (newSpendingRefs.length > 0) {
     const refs = new Set(newSpendingRefs);
-    const backfill = await fetchSimplefinAccounts(accessUrl, addDays(today, -90));
+    // Same window as a first-ever pull: an account first seen mid-incremental
+    // deserves the same history as one present from the start (DECISIONS #73).
+    const backfill = await fetchSimplefinAccounts(accessUrl, addDays(today, -SIMPLEFIN_INITIAL_LOOKBACK_DAYS));
     for (const acct of backfill.accounts ?? []) {
       const accountId = accountIdByRef.get(acct.id);
       if (!accountId || !refs.has(acct.id)) continue;

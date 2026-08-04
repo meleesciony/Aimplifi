@@ -1,7 +1,15 @@
 /**
- * Reports data (DECISIONS #67): last-6-months income/expense series + this
- * month's spending-by-category breakdown, from the shared snapshot.
+ * Reports data (DECISIONS #67): trailing income/expense series + this month's
+ * spending-by-category breakdown, from the shared snapshot.
+ *
+ * The series length is a READER CHOICE (owner request 2026-08-04: "why are we
+ * only pulling 6 months of data? … need a way to view last month, last
+ * quarter, last year"): 6 months stays the default, and the same chart can be
+ * widened to 12 or 24 months — the vocabulary lives in the engine
+ * (engine/reports/chart-range.ts) so the client view's selector and this
+ * assembler read the same values without the client importing a server module.
  */
+import type { ReportChartMonths } from '@/lib/engine/reports/chart-range';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
 import { spendingByCategory, type SpendingBreakdown } from '@/lib/engine/reports/reports';
 import {
@@ -64,7 +72,7 @@ export interface ReportsData {
   monthFlows: Record<string, MonthFlowBreakdown>;
 }
 
-export async function getReports(userId: string): Promise<ReportsData> {
+export async function getReports(userId: string, months: ReportChartMonths = 6): Promise<ReportsData> {
   const provider = getProvider();
   const today = provider.today(userId);
   const ym = today.slice(0, 7);
@@ -77,10 +85,10 @@ export async function getReports(userId: string): Promise<ReportsData> {
   // the rows under each cannot disagree about what counts.
   const excludedFlowIds = snap.loanPaymentFlowExclusions?.excludeIds;
 
-  const months = monthlyFlows(snap.transactions, excludedFlowIds)
+  const series = monthlyFlows(snap.transactions, excludedFlowIds)
     .map((f) => ({ month: f.month, incomeCents: f.incomeCents, expensesCents: f.expensesCents }))
     .sort((a, b) => (a.month < b.month ? -1 : 1))
-    .slice(-6);
+    .slice(-months);
 
   const breakdown = spendingByCategory(snap.transactions, { fromYm: ym, toYm: ym }, meta, excludedFlowIds);
   // Named once and handed to BOTH builders: two panels that disagree about a
@@ -99,15 +107,15 @@ export async function getReports(userId: string): Promise<ReportsData> {
     meta,
     excludedFlowIds,
   );
-  // `months` is the array the chart renders, so the headlines here are the
+  // `series` is the array the chart renders, so the headlines here are the
   // figures the reader will actually see — `reconciles` is checked against the
   // painted number, not against a second derivation of it.
-  const monthFlows = buildMonthFlowBreakdowns(named, months, excludedFlowIds);
+  const monthFlows = buildMonthFlowBreakdowns(named, series, excludedFlowIds);
   // C.25 (#403) disclosure facts, named by the one shared helper so every
   // surface phrases the exclusion the same way.
   return {
     ym,
-    months,
+    months: series,
     breakdown,
     breakdowns,
     monthFlows,

@@ -144,6 +144,15 @@ export interface TransactionsResult {
    * it — which is precisely the property the pre-filter count failed.
    */
   unclassifiedCount: number;
+  /**
+   * Date of the oldest transaction in the reader's FULL visible set (pre-filter),
+   * or null when there are none. The register's period presets name windows like
+   * "last year"; this is the date that says how much history exists to fill them
+   * (a bank linked last month cannot show last year), so the picker can disclose
+   * its own real bound instead of returning a partial window wearing a
+   * complete-sounding name.
+   */
+  oldestDate: string | null;
 }
 
 /** Rows per register page. */
@@ -441,7 +450,13 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   // would just restate the page's own length once the control is on.
   const unclassifiedCount = countUnclassified(rows, filter);
 
-  return { rows: items, summary, accountOptions, pageInfo: info, lens, unclassifiedCount };
+  // Over the FULL pre-filter set, never `filtered`: the span describes all the
+  // data, not the current slice. Explicit scan rather than trusting the sort:
+  // an ordering change upstream must not silently move the disclosed bound.
+  let oldestDate: string | null = null;
+  for (const r of rows) if (oldestDate === null || r.date < oldestDate) oldestDate = r.date;
+
+  return { rows: items, summary, accountOptions, pageInfo: info, lens, unclassifiedCount, oldestDate };
 }
 
 /** One piece of a split, as the detail view lists it. */

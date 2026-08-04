@@ -15,6 +15,7 @@ import { getSharedTransactionsView } from '@/server/household';
 import { getTransactions, getWithheldAccountSummary } from '@/server/transactions';
 import { getVisibleGroups } from '@/server/categories';
 import { isDemoUser } from '@/lib/demo-user';
+import { getProvider } from '@/lib/providers/demo';
 
 // The `?type=` vocabulary is owned by `links.ts` (O.16) so the return-trip
 // builder and this reader cannot drift into accepting different values.
@@ -80,7 +81,7 @@ export default async function TransactionsPage({
     reimbursement !== null ||
     spendClass !== null;
 
-  const [{ rows, summary, accountOptions, pageInfo, lens, unclassifiedCount }, categoryGroups, withheld, shared] =
+  const [{ rows, summary, accountOptions, pageInfo, lens, unclassifiedCount, oldestDate }, categoryGroups, withheld, shared] =
     await Promise.all([
       getTransactions(session.user.id, filter, page),
       getVisibleGroups(session.user.id),
@@ -174,6 +175,8 @@ export default async function TransactionsPage({
           spendClass: spendClass ?? '',
         }}
         unclassifiedCount={unclassifiedCount}
+        today={getProvider().today(session.user.id)}
+        oldestDate={oldestDate}
       />
 
       {/* W.7: Plan Fixed is budget|typical, not this window's outflows — say so

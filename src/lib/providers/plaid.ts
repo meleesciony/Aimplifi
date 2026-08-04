@@ -9,9 +9,11 @@
  *   IMPLEMENTED but UNVERIFIED (no sandbox credentials in this build env): the
  *   network orchestration below — /link/token/create, /item/public_token/
  *   exchange, /accounts/get, /transactions/sync (cursor loop), /transactions/get
- *   (date-ranged, ONLY the O.12d provider-category backfill), /liabilities/get,
- *   /item/remove. It is real code, not a stub, but has never run against a live
- *   Plaid sandbox. Run docs/PLAID_WALKTHROUGH.md §5 to validate before trusting.
+ *   (date-ranged: the O.12d provider-category backfill AND the one-time
+ *   deep-history backfill for items linked before days_requested=730),
+ *   /liabilities/get, /item/remove. It is real code, not a stub, but has never
+ *   run against a live Plaid sandbox. Run docs/PLAID_WALKTHROUGH.md §5 to
+ *   validate before trusting.
  *
  *   WIRED (DECISIONS #53): recurring re-detection + ScheduledTransaction refresh
  *   after ingest — syncTransactions now calls refreshRecurringForUser (best-effort)
@@ -22,7 +24,7 @@
  * Demo mode is entirely unaffected — the DataProvider seam keeps this dormant.
  */
 import type { JWK } from 'jose';
-import { dayOfMonthFromISO, type ISODate } from '@/lib/dates';
+import { addDays, dayOfMonthFromISO, type ISODate } from '@/lib/dates';
 import { businessToday } from '@/lib/business-today';
 import { stampAccountIdentity, stampConnectionIdentity } from '@/lib/providers/plaid-identity';
 import { decryptToken, encryptToken } from '@/lib/crypto';
@@ -66,6 +68,10 @@ import {
   type ProviderCategoryBackfillResult,
   planProviderCategoryBackfill,
 } from './plaid-backfill';
+import {
+  type HistoryBackfillSkipped,
+  planHistoryBackfill,
+} from './plaid-history-backfill';
 import { assistUnsureRows } from '@/server/categorize-assist';
 import { categorizeSuggestFor } from '@/server/categorize-suggest';
 import { DemoProvider } from './demo';
@@ -257,11 +263,15 @@ export function linkTokenParams(
     // THIS ONLY HELPS FUTURE LINKS, and that asymmetry is the important part
     // rather than a caveat: Plaid documents that `days_requested` applies only
     // where Transactions has not already been initialized on the Item, and that
-    // extending an existing Item requires /item/remove plus a fresh trip through
-    // Link. So an already-connected bank keeps its 90 days until the owner
-    // deliberately re-links it. Nothing here re-links anything on its own — that
+    // extending an existing Item's SYNC history requires /item/remove plus a
+    // fresh trip through Link. Nothing here re-links anything on its own — that
     // destroys the existing credential (the irreversible-acts-need-live-proof
-    // lesson) and is the owner's call, not a migration.
+    // lesson) and is the owner's call, not a migration. Instead, an already-
+    // connected bank's older history is fetched ADDITIVELY by the one-time
+    // date-ranged /transactions/get backfill below (`backfillItemHistory`,
+    // owner request 2026-08-04): same rows, same pipeline, no credential
+    // destroyed — with the institution-dependent caveat that a bank only
+    // returns as much history as it keeps.
     //
     // The cost is a longer historical poll on first link, which is exactly what
     // the cursor-based /transactions/sync flow already handles: the extra rows
@@ -518,6 +528,12 @@ export class PlaidProvider implements DataProvider {
         // Only set when resolved: never overwrite a real name or id with null on a re-link.
         ...(institution ? { institution } : {}),
         ...(institutionId ? { institutionId } : {}),
+        // A NEW link asked for the full PLAID_DAYS_REQUESTED window, so its
+        // history is complete by construction — mark the one-time deep-history
+        // backfill done at birth instead of re-fetching (at Plaid's billing)
+        // rows the cursor is already delivering. Items that predate this
+        // column stay null and get the backfill on their next sync.
+        historyBackfilledAt: this.today(userId),
       },
       update: {
         accessToken: encryptToken(accessToken),
@@ -1558,6 +1574,33 @@ export class PlaidProvider implements DataProvider {
           data: { cursor, lastSyncedAt: today, lastSyncAttemptAt: today, lastSyncError: null },
         });
         lastCursor = cursor ?? null;
+
+        // One-time deep-history backfill (owner request 2026-08-04): an item
+        // linked before days_requested=730 shipped carries only Plaid's 90-day
+        // default, and no ordinary sync ever grows it. Runs on the item's OWN
+        // success path — a failed item never pays for it — and is add-only and
+        // idempotent, so a failure here must never read as a sync failure: the
+        // flag stays null, the next sync retries, and the audit row records why
+        // history is still short.
+        if (!item.historyBackfilledAt) {
+          try {
+            const hb = await this.backfillItemHistory(userId, item);
+            added += hb.added;
+          } catch (e) {
+            await prisma.auditLog
+              .create({
+                data: {
+                  userId,
+                  action: 'plaid.item.history-backfill.failed',
+                  meta: JSON.stringify({
+                    itemId: item.itemId,
+                    error: e instanceof Error ? e.message : String(e),
+                  }),
+                },
+              })
+              .catch(() => {});
+          }
+        }
       } catch (e) {
         // One item in an error state (e.g. ITEM_LOGIN_REQUIRED needing re-auth) must
         // not block the user's other items. Record + continue; this item's cursor is
@@ -1615,6 +1658,167 @@ export class PlaidProvider implements DataProvider {
     }
 
     return { added, modified, removed, nextCursor: lastCursor, itemsFailed, derivedChanged };
+  }
+
+  /**
+   * One-time deep-history backfill for ONE item (owner request 2026-08-04:
+   * "why are we only pulling 6 months of data? Can we get at least 2-3
+   * years?"). An item linked before `days_requested=730` shipped carries only
+   * Plaid's 90-day default; this reads the older window through the date-ranged
+   * /transactions/get — the same endpoint the O.12d provider-category backfill
+   * uses — and ADDS the rows we do not already hold through the exact ingest
+   * pipeline live sync uses (prepare → LLM-assist → merchant upsert → create,
+   * prediction log included). Add-only by construction: every fetched id we
+   * already store is skipped, no UPDATE path exists here at all, so the
+   * backfill can close gaps but never disturb a verdict, split, or correction.
+   *
+   * Institution-dependent bound: a bank returns as much history as it keeps —
+   * Plaid documents roughly 24 months for most institutions via this endpoint,
+   * and asking wider than that degrades to what exists rather than erroring.
+   * Two full years is the most this path can promise; the re-link remains the
+   * owner's lever beyond it (see PLAID_DAYS_REQUESTED above).
+   *
+   * Idempotent + convergent: the completion flag is set ONLY after the ingest
+   * loop finishes, so a crash mid-run retries on the next sync, and the
+   * already-stored skips make each retry pick up where the last one stopped
+   * instead of duplicating. UNVERIFIED against a live sandbox, like every
+   * network path in this file.
+   */
+  private async backfillItemHistory(
+    userId: string,
+    item: { id: string; itemId: string; accessToken: string },
+  ): Promise<{ added: number; skipped: HistoryBackfillSkipped }> {
+    const noSkips: HistoryBackfillSkipped = {
+      pending: 0,
+      unmappedAccount: 0,
+      alreadyExists: 0,
+      inconsistentFetch: 0,
+    };
+    // Demo fence, the backfillProviderCategories stance: the shared demo row
+    // must never trigger provider egress, whatever route reaches this.
+    if (isDemoUser(userId)) return { added: 0, skipped: noSkips };
+
+    const today = this.today(userId);
+    const token = decryptToken(item.accessToken);
+    const startDate = addDays(today, -PLAID_DAYS_REQUESTED);
+
+    const fetched: PlaidTransaction[] = [];
+    let offset = 0;
+    for (;;) {
+      const page = await plaidPost<{
+        transactions: PlaidTransaction[];
+        total_transactions: number;
+      }>('/transactions/get', {
+        access_token: token,
+        start_date: startDate,
+        end_date: today,
+        options: { count: 500, offset },
+      });
+      fetched.push(...page.transactions);
+      offset += page.transactions.length;
+      // Stop on a completed or EMPTY page: an empty page with
+      // total_transactions still ahead would otherwise loop forever against a
+      // misbehaving server (the O.12d guard, reused).
+      if (page.transactions.length === 0 || offset >= page.total_transactions) break;
+    }
+
+    // Every providerRef already stored for this user's Plaid accounts — the
+    // add-only boundary. Scoped by account.provider (never the nullable
+    // plaidItemId), the L.17 lesson the O.12d backfill already records.
+    const existing = await prisma.transaction.findMany({
+      where: { account: { userId, provider: 'plaid' }, providerRef: { not: null } },
+      select: { providerRef: true },
+    });
+    const existingRefs = new Set(existing.map((r) => r.providerRef as string));
+    const plan = planHistoryBackfill(fetched, existingRefs, await this.plaidAccountIdMap(userId));
+    if (plan.rows.length === 0) {
+      // Nothing to add (history complete, or the institution returned nothing
+      // older). Mark done so the run is not refetched every sync; the audit
+      // row keeps the "ran, found nothing" vs "never ran" distinction.
+      await prisma.plaidItem.update({ where: { id: item.id }, data: { historyBackfilledAt: today } });
+      await prisma.auditLog
+        .create({
+          data: {
+            userId,
+            action: 'plaid.item.history-backfill',
+            meta: JSON.stringify({ itemId: item.itemId, windowStart: startDate, added: 0, skipped: plan.skipped }),
+          },
+        })
+        .catch(() => {});
+      return { added: 0, skipped: plan.skipped };
+    }
+
+    const [rules, tuning] = await Promise.all([loadUserRules(userId), getThresholdTuning(userId)]);
+    const prepared = plan.rows.map((r) =>
+      prepareIngestedTransaction(r.txn, r.accountId, rules, tuning.flaggedBps),
+    );
+    const assisted = await assistUnsureRows(prepared, categorizeSuggestFor(userId));
+
+    let added = 0;
+    for (let i = 0; i < plan.rows.length; i++) {
+      const row = assisted[i];
+      const merchant = await prisma.merchant.upsert({
+        where: { canonical: row.merchantCanonical },
+        create: { canonical: row.merchantCanonical, defaultCategoryId: row.categoryId },
+        update: {},
+      });
+      try {
+        const createdRow = await prisma.transaction.create({
+          data: {
+            accountId: plan.rows[i].accountId,
+            providerRef: row.providerRef,
+            // Field-for-field the live sync's CREATE branch (base + verdict +
+            // rule stamps): a backfilled row must be indistinguishable from a
+            // row the cursor delivered, because every engine reads both.
+            date: row.date,
+            amountCents: row.amountCents,
+            rawDescriptor: row.rawDescriptor,
+            merchantId: merchant.id,
+            status: row.status,
+            providerCategoryId: row.providerCategoryId,
+            providerCategoryConfidenceBps: row.providerCategoryConfidenceBps,
+            categoryId: row.categoryId,
+            confidenceBps: row.confidenceBps,
+            needsReview: row.needsReview,
+            isTransfer: row.isTransfer,
+            ...(row.taxClassStamp ? { taxClass: row.taxClassStamp } : {}),
+            ...(row.spendClassStamp ? { spendClassOverride: row.spendClassStamp } : {}),
+          },
+        });
+        // The pipeline's verdict, logged exactly as live ingest logs it
+        // (DECISIONS #190) — accuracy metrics must see backfilled rows too.
+        await logCategoryPredictions(userId, [
+          {
+            transactionId: createdRow.id,
+            categoryId: row.categoryId,
+            confidenceBps: row.confidenceBps,
+            source: row.source,
+          },
+        ]);
+        added++;
+      } catch (e) {
+        // Two syncs can race the backfill (the cron sweep and a hand-pressed
+        // per-bank Sync): the loser lands on @@unique(accountId, providerRef).
+        // The winner already stored the row — count it as existing rather than
+        // aborting the run (the live create path's CQ-2 stance, reused).
+        if (!isUniqueViolation(e)) throw e;
+        plan.skipped.alreadyExists++;
+      }
+    }
+
+    // Mark done ONLY after the ingest loop completes — a crash mid-run retries
+    // on the next sync, and the alreadyExists skip makes the retry converge.
+    await prisma.plaidItem.update({ where: { id: item.id }, data: { historyBackfilledAt: today } });
+    await prisma.auditLog
+      .create({
+        data: {
+          userId,
+          action: 'plaid.item.history-backfill',
+          meta: JSON.stringify({ itemId: item.itemId, windowStart: startDate, added, skipped: plan.skipped }),
+        },
+      })
+      .catch(() => {});
+    return { added, skipped: plan.skipped };
   }
 
   /**

@@ -1,11 +1,13 @@
 'use client';
 
 /**
- * Reports view (DECISIONS #67): income vs. expense over 6 months + this month's
- * spending by category with parent-group rollup. Recharts for the bars; inline
- * bars for the category breakdown (crisp, no axis clutter).
+ * Reports view (DECISIONS #67): income vs. expense over a trailing window the
+ * reader picks (6 / 12 / 24 months) + this month's spending by category with
+ * parent-group rollup. Recharts for the bars; inline bars for the category
+ * breakdown (crisp, no axis clutter).
  */
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useId, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
@@ -15,6 +17,7 @@ import { CATEGORY_LINK_CLASS, categoryMonthRegisterHref } from '@/lib/engine/tra
 import { formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { withheldInlineNote, type WithheldAccountSummary } from '@/lib/providers/currency';
+import { REPORT_CHART_MONTHS, type ReportChartMonths } from '@/lib/engine/reports/chart-range';
 import type { ReportsData } from '@/server/reports';
 
 const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -30,6 +33,7 @@ export function ReportsView({
   data,
   withheld,
   linkableCategoryIds,
+  months,
 }: {
   data: ReportsData;
   withheld: WithheldAccountSummary;
@@ -39,7 +43,11 @@ export function ReportsView({
    * unlinked, which looks like the feature was never built rather than like a bug.
    */
   linkableCategoryIds: string[];
+  /** Trailing length of the income/spending series (6 / 12 / 24 months). The
+   *  page validated `?months=` against the same vocabulary before passing it. */
+  months: ReportChartMonths;
 }) {
+  const router = useRouter();
   const linkable = new Set(linkableCategoryIds);
   // C.25 (#403, critic P1-4): figures that dropped excluded loan payments
   // cannot link to a register that still shows them — refused categories.
@@ -259,8 +267,32 @@ export function ReportsView({
 
       {/* Income vs Expense */}
       <section className="rounded-2xl border bg-card p-5 shadow-sm">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Income vs. spending</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">Income vs. spending</h2>
+            {/* Trailing-window picker (owner request 2026-08-04: "why are we
+                only pulling 6 months of data?"). The chart always showed six
+                months because nothing could ask for more; the selector commits
+                `?months=` and the page re-derives the series at that length.
+                The choice is limited to what history can actually feed — a
+                reader whose bank was linked last month can still pick 24, and
+                the chart simply draws the months that exist (monthlyFlows emits
+                only months with qualifying rows), so a wider pick degrades to
+                the truth instead of an error. */}
+            <select
+              aria-label="Chart range"
+              value={months}
+              onChange={(e) => router.push(`/reports?months=${e.target.value}`)}
+              data-testid="reports-range"
+              className="h-7 rounded-md border border-input bg-background px-1.5 text-xs text-foreground"
+            >
+              {REPORT_CHART_MONTHS.map((m) => (
+                <option key={m} value={m}>
+                  Last {m} months
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <span className="size-2 rounded-full bg-emerald-400" /> Income
@@ -275,7 +307,17 @@ export function ReportsView({
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
                 <CartesianGrid vertical={false} strokeOpacity={0.15} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} />
+                {/* Wider windows thin the labels so they cannot collide: every
+                    month at 6, every 2nd at 12, every 3rd at 24 (the axis keeps
+                    its month names; the tooltip and month buttons below always
+                    carry the full "Mon 'YY"). */}
+                <XAxis
+                  dataKey="name"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={11}
+                  interval={months === 6 ? 0 : months === 12 ? 1 : 2}
+                />
                 <Tooltip
                   cursor={{ fillOpacity: 0.06 }}
                   formatter={(v) => formatCents(cents(Math.round(Number(v) * 100)))}
@@ -300,7 +342,7 @@ export function ReportsView({
           </div>
         ) : (
           <p className="py-6 text-center text-sm text-muted-foreground" data-testid="income-expense-empty">
-            No income or spending recorded in the last 6 months.
+            No income or spending recorded in the last {months} months.
           </p>
         )}
 

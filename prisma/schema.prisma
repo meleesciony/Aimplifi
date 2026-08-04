@@ -186,6 +186,7 @@ model PlaidItem {
   lastSyncedAt      String? // YYYY-MM-DD — last SUCCESSFUL per-item sync (Gap 1 §4)
   lastSyncAttemptAt String? // YYYY-MM-DD — last attempt (success or failure)
   lastSyncError     String? // sanitized SyncFailureReason on a failed attempt; null when healthy
+  historyBackfilledAt String? // YYYY-MM-DD — the one-time deep-history backfill (/transactions/get over PLAID_DAYS_REQUESTED days) completed for this item; null = not yet run. Items linked before days_requested=730 shipped carry only Plaid's 90-day default until this runs; new links set it at creation (they already asked for the full window).
   createdAt         DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
