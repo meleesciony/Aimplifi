@@ -90,14 +90,10 @@ without touching the engines — that is also how you’d add any other data API
 
 ## Deploy (Vercel)
 
-1. Push the repo to GitHub; import into Vercel (framework: Next.js).
-2. Database: switch `datasource` to Postgres (schema is portable; money is
-   `Int` cents, dates are `YYYY-MM-DD` strings) — e.g. Vercel Postgres/Neon —
-   set `DATABASE_URL`, run `prisma db push && prisma db seed`.
-3. Env: `AUTH_SECRET` (`npx auth secret`), optionally the Plaid/Google/cron
-   vars above. A blank Plaid config still builds and runs (demo mode).
-4. Cron: add `{ "crons": [{ "path": "/api/cron/sync", "schedule": "0 11 * * *" }] }`
-   to `vercel.json`, with `CRON_SECRET` set.
+See `docs/DEPLOY.md` (canonical, step-by-step). Short version: import into
+Vercel, Postgres via `DATABASE_URL` (schema is portable), `AUTH_SECRET`, then
+`prisma db push && prisma db seed`. A blank Plaid config still builds and runs
+(demo mode).
 
 ## Repo map
 
