@@ -9789,3 +9789,59 @@ Vercel production deployment `aimplifi-lh27qquvc` — **● Ready**, sha-matched
 via `vercel ls --meta githubCommitSha=8ff5208…`, aliased to www.aimplifi.app.
 Fixed is computed at read time, so a page reload shows the new basis; no sync
 or cron involved.
+
+
+## #400 — C.25 measured, attempted, and reverted (2026-08-03)
+
+**The mortgage really does count as spending in half the owner's months and not
+the others. The fix that removes it from the other half was built, passed the
+whole gate, and was reverted: a fresh-context critic found five P0s and three
+reproduced by execution. Nothing shipped; the evidence and the corrected
+direction did.**
+
+### Measured first (read-only, `scripts/audit-probes/c25-who-sees-the-mortgage.mts`)
+- `countsInFlows` is **true in April and July, false in May and June** for the
+  same $6,217.07 charge — the pair lands 2 days out in May/June, 4 days in July,
+  and April has no counterpart row at all. Residual (2) confirmed live.
+- **Residual (1) is refuted.** `Mortgage 1192` carries `minimumPaymentCents` and
+  `dueDayOfMonth`, so `selectLoanObligations` dates it and the radar / /forecast
+  / /calendar already expand three $6,217.07 committed events per 90-day window.
+  The `loanPayment` keep C.25 asked for would have DOUBLED the bill on the
+  committed line, and the #134 disclosure could not have fired (it keys on an
+  `auto-loan` normalizer verdict; this descriptor normalizes to `uncategorized`).
+- Residual (1)'s burn half: real mechanism, **$0.00 today** — typical $235.59/day
+  and heavy $401.54/day are identical with and without the merchant excluded,
+  because only one mortgage week sits inside the 8-week window and neither the
+  median nor the p80 rank reaches it.
+
+### Built, gated, then reverted
+`planTransferUpdates(txns, accountTypeById)` swept every payment-account outflow
+of a `loanPaymentMerchantCanonicals` merchant at the one production writer of
+`isTransfer`. Gate was green — tsc, eslint, **5772 unit / 352 files**,
+`next build`, and budgets-basis + reports-total-reconciles + spend-class +
+transactions e2e **25/25** — with 16 locks and 4 mutations each killing exactly
+its own lock. The critic still found it unsafe, and three findings reproduce in
+`scripts/audit-probes/c25-critic-repro.mts`:
+1. `m.aggregate` is a six-name list, so `ONLINE PAYMENT` / `BILL PAY` / `ACH
+   DEBIT` are ordinary canonicals: on a bank that stamps every ACH alike, one
+   $450 auto-loan payment flagged AND auto-filed rent, electric and internet —
+   $2,215.00/mo of real bills deleted from every total.
+2. One coincidental amount match classifies a payee forever at every amount (a
+   roofing invoice equal to a mortgage payment took its own later $1,250 bill
+   with it).
+3. It defeats C.24's exactness invariant: `classifySpendClass` returns
+   `out-of-scope` for a transfer row, so in the no-series branch Fixed loses the
+   whole bill and nothing re-enters it — the dangerous direction, and the exact
+   defect C.24 existed to fix.
+
+### The error worth keeping
+The reverted draft claimed `resolveFixedCategoryAmounts` and
+`monthlyNonDiscretionaryCents` "never read `isTransfer`". They reach it through
+`countsInFlows` and `classifySpendClass`. The claim came from grepping the
+literal string in two files instead of following the call chain — rule 0's own
+failure mode, and the reason the change looked safe enough to gate.
+
+### Left in the tree
+Both probes (they are the evidence), DECISIONS #400, the requeued C.25 with the
+corrected direction, and C.26. No source file changed; `git status` shows docs
+and probes only.

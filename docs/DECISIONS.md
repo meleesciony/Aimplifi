@@ -3317,3 +3317,80 @@ outside Rules affect only that row until a rule is made.
 `createKeywordRule ? Fixed/Discretionary (extra occurrence abstains)` in
 `tests/unit/keyword-rules-server.test.ts`; e2e `register-return` (Activity from
 list; row + Activity from detail `via=row`); unit sentinel + always-`back`.
+
+
+## #400 — C.25: the mortgage's month-to-month inconsistency is REAL, and flagging it away is worse than leaving it (attempt reverted; the deliverable is the finding)
+
+**What was measured** (read-only production replay,
+`scripts/audit-probes/c25-who-sees-the-mortgage.mts`, kept in the repo):
+
+1. **The defect is real.** The transfer pair rule is a ±3-day coincidence test,
+   so the owner's $6,217.07 Truist mortgage classified itself differently every
+   month on settlement timing: `countsInFlows` is TRUE in April and July, FALSE
+   in May and June, for the identical charge. /reports, /trends, the pace
+   projection and /budgets each read a mortgage in half his months.
+2. **C.25's own prescription is refuted.** The row asked for a `loanPayment`
+   keep in the radar and the stored-series refresh, on the premise that
+   /calendar and cash-needed "stay blind". They are not blind: `Mortgage 1192`
+   carries `minimumPaymentCents = 621707` and `dueDayOfMonth = 1`, so
+   `selectLoanObligations` dates it and the radar, /forecast and /calendar have
+   been expanding three $6,217.07 committed events per 90-day window all along.
+   Building the keep would have put the same bill on the committed line TWICE
+   ($12,434.14/mo), and the #134 overlap disclosure could not have caught it —
+   it fires only on a normalizer `auto-loan` verdict, and this descriptor
+   normalizes to `uncategorized`. **Do not build that keep.**
+3. **Residual (1)'s burn half is worth $0.00 today.** Only one mortgage week
+   sits inside the 8-week window and neither the median nor the p80 rank reaches
+   it: typical $235.59/day, heavy $401.54/day, identical with and without the
+   merchant excluded. The mechanism is real; the number does not move yet.
+
+**What was built, and why it was reverted.** The attempt made the class
+per-MERCHANT at the one production writer of `isTransfer` (`planTransferUpdates`
++ `refreshTransferFlags`), sweeping every payment-account outflow of a
+`loanPaymentMerchantCanonicals` merchant — the auto-loan precedent. It passed
+the full gate (5772 unit tests, 16 new locks, 4 mutations, 25/25 affected e2e)
+and a fresh-context hostile critic still returned FAIL with five P0s, three of
+which were reproduced here by execution (`scripts/audit-probes/c25-critic-repro.mts`):
+
+- **The identity is not specific enough to write on.** `m.aggregate` is a
+  hardcoded six-name list (Zelle, Venmo, Check, Cash App, Apple Cash, PayPal),
+  so `ONLINE PAYMENT`, `BILL PAY`, `ACH DEBIT` are ordinary canonicals. On a
+  bank that stamps every ACH the same way, ONE $450 auto-loan payment flagged
+  AND auto-filed the reader's rent, electric and internet — $2,215.00/mo of real
+  bills, gone from every total, with only the auto loan able to re-enter.
+- **One coincidence classifies a payee forever, at every amount.** A roofing
+  invoice that happened to equal a mortgage payment three months earlier took
+  the payee's whole history and future with it, including a later $1,250 bill.
+- **It defeats C.24's own safety net.** `spending-plan.ts` states the exactness
+  invariant: where the union cannot take the money, the basis keeps it. But
+  `classifySpendClass` returns `out-of-scope` for a transfer row, so
+  `monthlyNonDiscretionaryCents` and `resolveFixedCategoryAmounts` both drop it
+  — in the no-series branch (reader taps "Not a bill", under three payments of
+  history, an escrow re-analysis breaks the amount plateau) Fixed loses the whole
+  bill and nothing re-enters it. That is the exact defect C.24 existed to fix,
+  in the dangerous direction.
+
+**The claim of mine the critic falsified, recorded because the error is the
+lesson.** The reverted draft of this entry asserted that
+`filedCategoryByMerchant`, `resolveFixedCategoryAmounts` and
+`monthlyNonDiscretionaryCents` "never read `isTransfer`". Only the first is
+true: the other two reach it through `countsInFlows` and `classifySpendClass`.
+The assertion came from grepping the literal string in two files instead of
+following the call chain — rule 0's failure mode exactly, and the reason the
+change looked safe.
+
+**The direction that remains open (C.25 requeued).** Removing money from the
+flow sums may only be done where the "it is carried elsewhere" invariant can be
+CHECKED, and that is a read-time fact: the plan knows whether the series
+unioned, and `selectLoanObligations` knows whether a loan side exists to project
+(it does not for SimpleFIN loans at all — neither provider field is written
+there — nor for any Plaid loan whose servicer returns no next-payment date, the
+`undatable-loan` case the repo already models). A sync-time write to
+`Transaction.isTransfer` can check neither, is applied to every consumer at
+once, and has **no undo**: nothing in `src/server` or `src/lib/providers` ever
+writes `isTransfer: false`, and a flagged row cannot be split, reimbursed,
+excluded, rule-targeted or declared a bill. Failure direction decides it — the
+defect leaves a real charge visible in some months (a figure a reader can
+weigh), the fix deletes real charges permanently and silently (which inflates
+guilt-free spending and lowers the FI number by 25× the missing annual amount).
+A safe superset beats a precision fix that fabricates.
