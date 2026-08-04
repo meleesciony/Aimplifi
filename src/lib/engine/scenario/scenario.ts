@@ -4,8 +4,9 @@
  *
  * THE PROBLEM IT SOLVES: the app's five projection engines read their inputs from TWO
  * independent representations that nothing previously tied together —
- *   - the AGGREGATE figures /coach derives (6-month average monthly income & savings,
- *     annualExpenses = expenses6 × 2), which feed savings-rate, FI, and retirement; and
+ *   - the AGGREGATE figures /coach derives (average monthly income & savings over the
+ *     coach's REAL window — its last ≤ 6 full months; annualExpenses = window expenses
+ *     × 12 ÷ window months), which feed savings-rate, FI, and retirement; and
  *   - the PER-FLOW scheduled rows (`snap.scheduled`), which feed the cash-flow forecast
  *     and the cash-needed engine's scheduled projection.
  * A "15% pay cut" applied to one representation but not the other ships a silent
@@ -25,7 +26,8 @@
  * Base figures arrive VERBATIM from the coach derivation (never re-derived here); the
  * only new identity is monthlyExpenses = monthlyIncome − monthlySavings, exact in
  * integers by construction. `annualExpensesCents` remains the separate verbatim coach
- * figure (expenses6 × 2); its pre-existing rounding divergence from 12 × monthlyExpenses
+ * figure (window expenses × 12 ÷ window months); its pre-existing rounding divergence
+ * from 12 × monthlyExpenses
  * is inherited and documented, not resolved.
  *
  * Adapters preserve each downstream engine's OWN conventions verbatim (fail-loud floors
@@ -77,12 +79,21 @@ export interface ScenarioDials {
 /** The canonical pre-scenario snapshot: both representations, assembled once. */
 export interface ScenarioBase {
   today: ISODate;
-  /** Verbatim coach figure: 6-month average monthly income (≥ 0 by derivation). */
+  /** Verbatim coach figure: average monthly income over the real window (≥ 0). */
   monthlyIncomeCents: number;
-  /** Verbatim coach figure: 6-month average monthly savings (may be negative). */
+  /** Verbatim coach figure: average monthly savings over the real window (may be negative). */
   monthlySavingsCents: number;
-  /** Verbatim coach figure: expenses6 × 2. */
+  /** Verbatim coach figure: window expenses annualized (× 12 ÷ window months). */
   annualExpensesCents: number;
+  /**
+   * The number of full months /coach actually averaged over — verbatim
+   * `CoachData.fi.monthlySavingsMonths` (the window length, ≤ 6; 0 = no complete
+   * months on record). Carried so scenario copy names the SAME window the coach
+   * shows; never used in math (the aggregates arrive pre-averaged). Copy that
+   * hardcoded "6 months" while the coach read a shorter history was the bug this
+   * field kills — every surface must speak the coach's real window.
+   */
+  averageWindowMonths: number;
   /** Verbatim coach figure: Σ INVESTMENT account balances. */
   portfolioCents: number;
   /**
@@ -142,6 +153,8 @@ export interface ScenarioState {
   monthlyInvestibleCents: number;
   /** Post-knob annual expenses (verbatim base ± 12 × monthly delta), floored at 0. */
   annualExpensesCents: number;
+  /** The coach's real averaging window, carried verbatim from the base (copy only). */
+  averageWindowMonths: number;
   portfolioCents: number;
   /** The applied (post-clamp, post-eligibility) extra debt payment. */
   extraDebtMonthlyCents: number;
@@ -156,12 +169,27 @@ export interface ScenarioState {
   notes: string[];
 }
 
+/**
+ * The averaging window named in copy — the coach's dialect (coach-copy.ts C.9):
+ * "your last N full month(s)", singular at 1. `windowMonths` is the coach's real
+ * window (≤ 6); 0 means no complete month is on record, and copy must say that
+ * instead of inventing a window the reader does not have.
+ */
+function windowPhrase(windowMonths: number): string {
+  if (windowMonths <= 0) return 'your history so far';
+  return `the last ${windowMonths} month${windowMonths === 1 ? '' : 's'}`;
+}
+
 /** Standing assumptions every scenario carries (stated, not advisory). */
-const STANDING_ASSUMPTIONS: readonly string[] = [
-  'Aggregate figures are 6-month averages from your history; scheduled flows are your detected recurring items — the same knob moves both.',
-  'Issued card statements, loan minimums, and account balances are facts a scenario does not rewrite.',
-  'Fixed-dollar scenario adjustments start on the first of next month.',
-];
+function standingAssumptions(windowMonths: number): string[] {
+  return [
+    windowMonths <= 0
+      ? 'Aggregate figures start at $0 — no complete months of history are on record yet; scheduled flows are your detected recurring items — the same knob moves both.'
+      : `Aggregate figures are averages over your last ${windowMonths} full month${windowMonths === 1 ? '' : 's'}; scheduled flows are your detected recurring items — the same knob moves both.`,
+    'Issued card statements, loan minimums, and account balances are facts a scenario does not rewrite.',
+    'Fixed-dollar scenario adjustments start on the first of next month.',
+  ];
+}
 
 function clampWithNote(
   value: number,
@@ -223,7 +251,7 @@ export function applyScenario(base: ScenarioBase, knobs: ScenarioKnobs): Scenari
     // base makes the asymmetry VISIBLE — disclose it rather than look one-sided.
     if (base.monthlyIncomeCents === 0 && base.scheduledRows.some((r) => r.amountCents > 0)) {
       notes.push(
-        'Your average monthly income over the last 6 months is $0, so the percent change shows up only on your scheduled income flows.',
+        `Your average monthly income over ${windowPhrase(base.averageWindowMonths)} is $0, so the percent change shows up only on your scheduled income flows.`,
       );
     }
   }
@@ -278,7 +306,7 @@ export function applyScenario(base: ScenarioBase, knobs: ScenarioKnobs): Scenari
     // Mirror of S15 for the expense side (critic F2).
     if (baseExpenses === 0 && base.scheduledRows.some((r) => r.amountCents < 0)) {
       notes.push(
-        'Your average monthly spending over the last 6 months is $0, so the percent change shows up only on your scheduled bills.',
+        `Your average monthly spending over ${windowPhrase(base.averageWindowMonths)} is $0, so the percent change shows up only on your scheduled bills.`,
       );
     }
   }
@@ -354,7 +382,7 @@ export function applyScenario(base: ScenarioBase, knobs: ScenarioKnobs): Scenari
   // Critic F3: the extra payment has no end date in the flow/aggregate model, even
   // though the payoff engine may clear the debts sooner — a stated assumption, so
   // months-to-FI under an aggressive payoff is read with the right caveat.
-  const assumptions = [...STANDING_ASSUMPTIONS];
+  const assumptions = standingAssumptions(base.averageWindowMonths);
   if (extraDebt > 0) {
     assumptions.push(
       'The extra debt payment is modeled as continuing for the whole projection, even after the debts would be paid off.',
@@ -368,6 +396,7 @@ export function applyScenario(base: ScenarioBase, knobs: ScenarioKnobs): Scenari
     monthlyNetCents: net,
     monthlyInvestibleCents: net - extraDebt,
     annualExpensesCents: annualExpenses,
+    averageWindowMonths: base.averageWindowMonths,
     portfolioCents: base.portfolioCents,
     extraDebtMonthlyCents: extraDebt,
     scheduledRows: [...rows, ...synthetic],

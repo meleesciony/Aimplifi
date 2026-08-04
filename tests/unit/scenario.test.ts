@@ -45,6 +45,7 @@ function baseSC(overrides: Partial<ScenarioBase> = {}): ScenarioBase {
     monthlyIncomeCents: 500000,
     monthlySavingsCents: 120000,
     annualExpensesCents: 4560000,
+    averageWindowMonths: 6,
     portfolioCents: 2500000,
     paymentAccountId: 'acct-check',
     scheduledRows: rows,
@@ -481,5 +482,78 @@ describe('critic fixes (#255 cycle 1)', () => {
       { extraDebtMonthlyCents: 30000 },
     );
     expect(noDebts.assumptions.some((a) => a.includes('even after the debts'))).toBe(false);
+  });
+});
+
+/**
+ * Window consistency (task 1, 2026-08-04): the coach averages over its REAL window —
+ * `CoachData.fi.monthlySavingsMonths` = the count of full months on record, ≤ 6 — and
+ * every scenario surface must name THAT window, never a hardcoded 6. These tests lock
+ * the value end-to-end: carried verbatim into the state, and interpolated into every
+ * piece of copy that previously said "6 months".
+ */
+describe('window consistency: scenario copy speaks the coach\'s real window', () => {
+  it('carries the coach\'s window verbatim through applyScenario', () => {
+    for (const n of [0, 1, 2, 3, 4, 5, 6]) {
+      expect(applyScenario(baseSC({ averageWindowMonths: n }), {}).averageWindowMonths).toBe(n);
+    }
+  });
+
+  it('the standing assumption names the real window for every 1..6, and never says 6 otherwise', () => {
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+      const s = applyScenario(baseSC({ averageWindowMonths: n }), {});
+      const plural = n === 1 ? '' : 's';
+      expect(s.assumptions[0]).toBe(
+        `Aggregate figures are averages over your last ${n} full month${plural}; scheduled flows are your detected recurring items — the same knob moves both.`,
+      );
+      if (n !== 6) {
+        expect(s.assumptions.join(' ')).not.toMatch(/6.?month/);
+        expect(s.notes.join(' ')).not.toMatch(/6.?month/);
+      }
+    }
+  });
+
+  it('window 0 (no complete months on record) says that instead of inventing a window', () => {
+    const s = applyScenario(baseSC({ averageWindowMonths: 0 }), {});
+    expect(s.assumptions[0]).toContain('no complete months of history are on record yet');
+  });
+
+  it('the S15 $0-base disclosures interpolate the window — income and expense sides', () => {
+    const income = applyScenario(
+      baseSC({ averageWindowMonths: 3, monthlyIncomeCents: 0, monthlySavingsCents: -380000 }),
+      { income: { percentBps: 5000 } },
+    );
+    expect(income.notes.some((note) => note.includes('income over the last 3 months is $0'))).toBe(true);
+
+    const expense = applyScenario(
+      baseSC({ averageWindowMonths: 4, monthlyIncomeCents: 380000, monthlySavingsCents: 380000 }),
+      { expense: { percentBps: 1000 } },
+    );
+    expect(expense.notes.some((note) => note.includes('spending over the last 4 months is $0'))).toBe(true);
+  });
+
+  it('window 1 is singular everywhere, and window 0 falls back to "your history so far"', () => {
+    const one = applyScenario(
+      baseSC({ averageWindowMonths: 1, monthlyIncomeCents: 0, monthlySavingsCents: -380000 }),
+      { income: { percentBps: 5000 } },
+    );
+    expect(one.assumptions[0]).toContain('your last 1 full month;');
+    expect(one.notes.some((note) => note.includes('income over the last 1 month is $0'))).toBe(true);
+
+    const zero = applyScenario(
+      baseSC({ averageWindowMonths: 0, monthlyIncomeCents: 0, monthlySavingsCents: -380000 }),
+      { income: { percentBps: 5000 } },
+    );
+    expect(zero.notes.some((note) => note.includes('income over your history so far is $0'))).toBe(true);
+  });
+
+  it('a knobbed scenario still carries the window — consistency survives the knobs, not just identity', () => {
+    const s = applyScenario(baseSC({ averageWindowMonths: 2 }), {
+      income: { percentBps: -1500 },
+      expense: { percentBps: -1000 },
+      extraDebtMonthlyCents: 20000,
+    });
+    expect(s.averageWindowMonths).toBe(2);
+    expect(s.assumptions[0]).toContain('your last 2 full months');
   });
 });
