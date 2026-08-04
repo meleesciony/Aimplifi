@@ -35,7 +35,7 @@ describe('fiSliderBounds (W.11)', () => {
     // Document the pre-W.11 expression so a revert cannot sneak back in as "simpler".
     const oldInitial = Math.min(7000, Math.max(0, 8500));
     expect(oldInitial).toBe(7000);
-    const lied = COACH_COPY.sliderCaption(8500, oldInitial, 11, 12);
+    const lied = COACH_COPY.sliderCaption(8500, oldInitial, 11, 12, 6);
     expect(lied).toContain('Lowering');
     expect(lied).toContain('85.0%');
     expect(lied).toContain('70.0%');
@@ -45,7 +45,7 @@ describe('fiSliderBounds (W.11)', () => {
     const fromBps = 8500;
     const toBps = fiSliderInitialBps(fromBps);
     expect(toBps).toBe(fromBps);
-    const line = COACH_COPY.sliderCaption(fromBps, toBps, 11, 12);
+    const line = COACH_COPY.sliderCaption(fromBps, toBps, 11, 12, 6);
     expect(line).toContain('current pace');
     expect(line).toContain('85.0%');
     expect(line).not.toContain('Lowering');
@@ -58,7 +58,7 @@ describe('fiSliderBounds (W.11)', () => {
 
   it('dragging below the current pace still names the change honestly', () => {
     const fromBps = 8500;
-    const line = COACH_COPY.sliderCaption(fromBps, 6000, 11, 14);
+    const line = COACH_COPY.sliderCaption(fromBps, 6000, 11, 14, 6);
     expect(line).toContain('Lowering');
     expect(line).toContain('85.0%');
     expect(line).toContain('60.0%');

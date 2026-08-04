@@ -6,6 +6,49 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-04 — C.9: annual spending scales by the REAL window, never ×2 (DECISIONS #405, audit P0-6)
+
+`getCoachData` computed `annualExpenses = expenses6 * 2` while the savings/income
+averages divided by `Math.max(1, last6.length)` — so a reader three months in got an
+annual figure exactly HALF their true spending, and the FI number, the FI date, Coast
+and the /goals emergency-fund example halved with it. Fix: one line of money math in
+the server that owns the window — `roundHalfAwayFromZero(expenses6 * 12 /
+Math.max(1, last6.length))`. For a full six-month window this is byte-identical to the
+old value (×12/6 = ×2, exact integer — no rounding drift); for N < 6 it is the true year.
+
+**The copy half of the slice.** Five surfaces hardcoded "6": the FI sentence ("last 6
+full months × 2"), the slider caption + context, the share-of-income sentence, and the
+runway cushion on BOTH the signature weather line and the dashboard income-pause line.
+Each now receives the window — the server's existing `monthlySavingsMonths` (documented
+as ALSO the annual-expense window) for the /coach cards; a new REQUIRED
+`NudgeInput.runwayWindowMonths` riding onto `Proposal` for the income-pause line
+(required, not defaulted). Full-window renderings are byte-identical; short windows say
+"your last 3 full months × 4" / "3-month average pace"; zero history gets a named-zero
+branch instead of "0 months".
+
+**Critic cycle 1 — zero P0/P1.** One P2 recorded as an OPEN residual below (the
+scenario engine's own "6-month averages" note — pre-existing, separate engine).
+
+**Locks:** fi-real-basis.test.ts grew a 3-month-history Prisma lock (window carried as
+3; annual = the true $36,000; FI = $900,000; fail-old pins against the $18,000/$450,000
+half-values; the FI sentence naming "your last 3 full months × 4" off the REAL server
+output). Copy locks pin the N=3/1/0 branches and byte-identical N=6 forms.
+
+**Gate:** `bash scripts/verify.sh` → **VERIFY GREEN** (tsc 0, eslint 0, unit green,
+next build clean). Targeted `phase3-coach.spec.ts` e2e 1/1 — the demo seed's six-month
+window leaves every pinned string byte-identical.
+
+## ⚠️ OPEN 2026-08-04 — scenario engine still calls its verbatim coach inputs "6-month averages" (C.9 residual)
+
+`src/lib/engine/scenario/scenario.ts` note ("Aggregate figures are 6-month averages
+from your history") and two input doc comments ("Verbatim coach figure: 6-month average
+monthly income/savings") hardcode 6 while the coach divisor has been the REAL window
+since before C.9. Pre-existing falsity, separate engine with its own input contract —
+fix means threading the window through `ScenarioInputs` and the /scenario page, so it is
+deferred to its own slice rather than smuggled into C.9. The scenario FI TARGET itself
+reads the corrected `annualExpensesCents` verbatim, so its numbers are right; only the
+note sentence is stale.
+
 ## ✅ BUILT 2026-08-04 — C.8: /calendar places each card and loan due in EVERY month (DECISIONS #404, audit P0-3)
 
 `buildCashFlowCalendar` used to window-gate the ONE obligation the engines emit

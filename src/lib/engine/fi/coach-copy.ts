@@ -81,8 +81,14 @@ export const COACH_COPY = {
   savingsRateNoIncome: (monthLabel: string) =>
     `No income landed in ${monthLabel}, so there's no savings rate to compute — the trend below still tells the story.`,
 
-  fiNumber: (fi: Cents, swrBps: number, annualExpenses: Cents) =>
-    `Your FI number is ${formatCents(fi)}, assuming a ${pct(swrBps)} safe withdrawal rate on ${formatCents(annualExpenses)}/yr of spending — estimated from your last 6 full months × 2, so an unusual month moves it.`,
+  // C.9 (#405, audit P0-6): the window is carried in, never spelled "6" — the server scales
+  // the annual figure by 12 ÷ the REAL month count, and with three months of history "last
+  // 6 full months × 2" named a window the reader does not have and a multiplier the figure
+  // did not use.
+  fiNumber: (fi: Cents, swrBps: number, annualExpenses: Cents, windowMonths: number) =>
+    windowMonths === 0
+      ? `Your FI number is ${formatCents(fi)} because no complete month of spending is on record yet — it's annual spending ÷ the safe withdrawal rate, and it fills in as spending lands.`
+      : `Your FI number is ${formatCents(fi)}, assuming a ${pct(swrBps)} safe withdrawal rate on ${formatCents(annualExpenses)}/yr of spending — estimated from your last ${windowMonths} full month${windowMonths === 1 ? '' : 's'} × ${12 / windowMonths}, so an unusual month moves it.`,
 
   // ---- W.2 · the FI projections' basis --------------------------------------------------
   // Every projection on this card compounds at the REAL return, because the FI number it is
@@ -215,18 +221,42 @@ export const COACH_COPY = {
   ) =>
     `To be on pace over the next ${targetYears} years — ${targetYearsIsAppDefault ? `a working lifetime we picked to measure against, not a date you set` : `the horizon you set`} — it takes about ${formatCents(requiredMonthly)}/month in today's money, under this card's return assumptions.`,
 
-  sliderCaption: (fromBps: number, toBps: number, fromYears: number, toYears: number) => {
+  // C.9 (#405): the pace the slider starts from is `monthlySavings ÷ monthlyIncome`, and the
+  // server divides BOTH by the real window — so the caption names that window, not "6".
+  sliderCaption: (
+    fromBps: number,
+    toBps: number,
+    fromYears: number,
+    toYears: number,
+    windowMonths: number,
+  ) => {
     if (toBps === fromBps) {
-      return `This is your current pace (${pct1(fromBps)} average over 6 months) — drag to see your FI date move. Same return assumptions throughout.`;
+      const window =
+        windowMonths === 6
+          ? 'average over 6 months'
+          : windowMonths === 0
+            ? 'with no complete months on record yet'
+            : `average over the last ${windowMonths} month${windowMonths === 1 ? '' : 's'}`;
+      return `This is your current pace (${pct1(fromBps)} ${window}) — drag to see your FI date move. Same return assumptions throughout.`;
     }
     const direction = toBps > fromBps ? 'Raising' : 'Lowering';
     return `${direction} your savings rate from ${pct1(fromBps)} to ${pct1(toBps)} moves FI from ~${fromYears} years out to ~${toYears} years — return assumptions unchanged.`;
   },
 
-  sliderContext: (avgBps: number, latestBps: number | null, latestMonthLabel?: string) =>
-    latestBps !== null && Math.abs(latestBps - avgBps) >= 300
-      ? `The slider uses your 6-month average pace (${pct1(avgBps)}); ${latestMonthLabel ?? 'your latest full month'} alone was ${pct1(latestBps)}.`
-      : `The slider uses your 6-month average pace (${pct1(avgBps)}).`,
+  sliderContext: (
+    avgBps: number,
+    latestBps: number | null,
+    latestMonthLabel: string | undefined,
+    windowMonths: number,
+  ) => {
+    if (windowMonths === 0) {
+      return `The slider has no average pace to start from yet — no complete months of income and spending are on record.`;
+    }
+    const window = windowMonths === 6 ? '6-month' : `${windowMonths}-month`;
+    return latestBps !== null && Math.abs(latestBps - avgBps) >= 300
+      ? `The slider uses your ${window} average pace (${pct1(avgBps)}); ${latestMonthLabel ?? 'your latest full month'} alone was ${pct1(latestBps)}.`
+      : `The slider uses your ${window} average pace (${pct1(avgBps)}).`;
+  },
 
   // ---- Wealth target ("I want $10M — what do I need to do?") --------------------------
   // Every string here carries TWO assumptions, not one: the return rate AND the fact that
@@ -420,9 +450,15 @@ export const COACH_COPY = {
     // makes the omission worse by implying it is already handled.
     `To land it in ${years} year${years === 1 ? '' : 's'} it takes about ${formatCents(requiredMonthlyCents)}/month in today's money, assuming ${pct(realBps)} growth after inflation. A standing order set once and left alone would need to rise with inflation — ${pct(inflationBps)} a year ${owner.inflationIsDefault ? 'on our default assumption' : 'on your own assumption'} — to keep that pace.`,
 
-  /** The share of income, split out so it can be withheld when the denominator can't carry it. */
-  wealthTargetRequiredShare: (rateBps: number) =>
-    `That's ${pct1(rateBps)} of your average monthly income over the last 6 months.`,
+  /** The share of income, split out so it can be withheld when the denominator can't carry it.
+   * C.9 (#405): the income it names is divided by the real window server-side, so the sentence
+   * names that window too. */
+  wealthTargetRequiredShare: (rateBps: number, windowMonths: number) =>
+    windowMonths === 6
+      ? `That's ${pct1(rateBps)} of your average monthly income over the last 6 months.`
+      : windowMonths === 0
+        ? `That's ${pct1(rateBps)} of your average monthly income — no complete months are on record yet.`
+        : `That's ${pct1(rateBps)} of your average monthly income over the last ${windowMonths} month${windowMonths === 1 ? '' : 's'}.`,
 
   wealthTargetRequiredExceedsIncome: () =>
     `That's more than your whole average monthly income, so this pairing of number and date isn't a plan yet — one of the two has to move.`,
@@ -867,14 +903,18 @@ export const COACH_COPY = {
   signatureBasis: () =>
     `Habit lines move only after a new pattern holds for 3 months in a row — one unusual month never rewrites them. The weather line is only about this month.`,
 
+  // C.9 (#405): runway divides cash by the server's average expenses, whose divisor is the
+  // REAL window — the cushion names it (a finite runway implies ≥1 month of spending, so the
+  // count always exists when this branch prints).
   signatureWeather: (
     state: 'strained' | 'tight' | 'calm' | 'bright',
     runwayMonths: number,
     latestRateBps: number | null,
     monthLabel: string | null,
+    windowMonths: number,
   ) => {
     const cushion = Number.isFinite(runwayMonths)
-      ? `about ${runwayMonths} month${runwayMonths === 1 ? '' : 's'} of typical spending on hand (cash ÷ your 6-month average expenses)`
+      ? `about ${runwayMonths} month${runwayMonths === 1 ? '' : 's'} of typical spending on hand (cash ÷ your ${windowMonths}-month average expenses)`
       : `cash on hand and no recorded average expenses yet`;
     switch (state) {
       case 'strained':

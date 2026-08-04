@@ -916,3 +916,87 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
     }
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════════════════════
+// C.9 (#405, audit P0-6) — a short history scales annual spending by the REAL window,
+// never ×2: three months of rows used to print an annual figure that was exactly half the
+// reader's true spending, halving the FI number, the FI date and the /goals emergency fund.
+// ════════════════════════════════════════════════════════════════════════════════════════════
+describe('C.9 — annual spending scales by the REAL window (fail-old: expenses6 × 2)', () => {
+  const U = `c9-window-${Date.now()}-${process.pid}`;
+  // Only the last three COMPLETE months, same per-month money as the 12-month fixture, so the
+  // TRUE annual spending is identical ($36,000/yr). Stable against the wall clock: the engine
+  // drops the partial current month and `monthlyFlows` only emits months containing rows, so
+  // these three are the window on any run date.
+  const SHORT_MONTHS = ['2026-05', '2026-06', '2026-07'];
+
+  beforeAll(async () => {
+    await prisma.user.deleteMany({ where: { id: U } });
+    await prisma.user.create({
+      data: {
+        id: U,
+        email: `${U}@test.local`,
+        expectedReturnBps: NOMINAL_BPS,
+        swrBps: 400,
+        inflationBps: INFLATION_BPS,
+      },
+    });
+    const checking = await prisma.account.create({
+      data: {
+        userId: U,
+        provider: 'plaid',
+        providerRef: `${U}-checking`,
+        name: 'Everyday Checking',
+        type: 'CHECKING',
+        currency: 'USD',
+        currentBalanceCents: 0,
+      },
+    });
+    await prisma.transaction.createMany({
+      data: SHORT_MONTHS.flatMap((m) => [
+        {
+          id: `${U}-inc-${m}`,
+          accountId: checking.id,
+          date: `${m}-05`,
+          amountCents: INCOME_CENTS,
+          rawDescriptor: 'PAYROLL',
+        },
+        {
+          id: `${U}-exp-${m}`,
+          accountId: checking.id,
+          date: `${m}-12`,
+          amountCents: -EXPENSE_CENTS,
+          rawDescriptor: 'LIVING EXPENSES',
+          categoryId: 'groceries',
+        },
+      ]),
+    });
+  });
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: U } });
+  });
+
+  it('carries the window (3) and prints the true year of spending, not half of it', async () => {
+    const d = await getCoachData(U);
+    expect(d.fi.monthlySavingsMonths).toBe(3);
+    expect(d.fi.monthlySavingsCents).toBe(200_000); // (income − expenses) ÷ 3 — unchanged
+    // True annual spending: $3,000/mo × 12 = $36,000 — the SAME as the 12-month reader.
+    expect(d.fi.annualExpensesCents).toBe(3_600_000);
+    expect(d.fi.fiNumberCents).toBe(90_000_000); // $36,000 ÷ 4%
+    // Fail-old pins: the `expenses6 * 2` bug printed $18,000/yr and a $450,000 FI number.
+    expect(d.fi.annualExpensesCents).not.toBe(1_800_000);
+    expect(d.fi.fiNumberCents).not.toBe(45_000_000);
+  });
+
+  it('the FI sentence names the real window and multiplier, never "6 full months × 2"', async () => {
+    const d = await getCoachData(U);
+    const text = COACH_COPY.fiNumber(
+      d.fi.fiNumberCents,
+      d.fi.swrBps,
+      d.fi.annualExpensesCents,
+      d.fi.monthlySavingsMonths,
+    );
+    expect(text).toContain('your last 3 full months × 4');
+    expect(text).not.toContain('6 full months');
+  });
+});

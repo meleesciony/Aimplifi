@@ -97,14 +97,18 @@ export interface Proposal {
    * Verbatim display context for an income_pause proposal (#251); null for every
    * other kind. `cadence` is the paused series' cadence (so the copy can say
    * "usually arrives monthly"); `runwayMonths` is the coach's own
-   * `monthsOfRunway` figure copied verbatim (liquid ÷ 6-month average expenses,
+   * `monthsOfRunway` figure copied verbatim (liquid ÷ the window's average expenses,
    * already rounded to 0.1 by its producer) — carried so the copy can quantify
    * "if it stays paused" next to the fact, with the basis disclosed inline. Never
    * recomputed here; null also when the producer's figure is non-finite (no
-   * expense history yet).
+   * expense history yet). `runwayWindowMonths` is the real window the average
+   * expenses divide by (C.9, #405 — the server's `monthlySavingsMonths`), so the
+   * basis sentence names the reader's actual window instead of spelling "6"; null
+   * whenever `runwayMonths` is null.
    */
   cadence: PauseCadence | null;
   runwayMonths: number | null;
+  runwayWindowMonths: number | null;
   isEstimated: boolean;
   /**
    * The funding account this proposal's figure is walked forward from, when its bank has stopped
@@ -175,6 +179,14 @@ export interface NudgeInput {
    * non-finite value renders no runway line.
    */
   runwayMonths?: number;
+  /**
+   * C.9 (#405) — the real window the runway's average expenses divide by (the coach's
+   * `monthlySavingsMonths`). REQUIRED, not defaulted: the income_pause line discloses this
+   * basis inline, and a forgotten field would silently print "6-month" under a figure divided
+   * by 3 — the defaulted-parameter-fails-silent lesson. The only value that can ride with a
+   * rendered runway line is ≥1 (no expense history ⇒ non-finite runway ⇒ no line).
+   */
+  runwayWindowMonths: number;
   /**
    * The set of `dismissKey`s the user has dismissed — the SUPPRESSION store, distinct
    * from the EngagementEvent behavioral log. These are fact-keys (e.g.

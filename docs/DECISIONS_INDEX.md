@@ -398,3 +398,4 @@ refuses to write if it would drop any number this file already carries.
 - **#402** (Phase ?): The register chip that has no Fixed/Discretionary side NAMES ITS REASON; renaming it a third time was refused
 - **#403** (Phase ?): C.25 requeued: the exclusion is a READ-TIME fact with four gates, computed ONCE in the snapshot assembler (built, wired, critic-cycled)
 - **#404** (Phase ?): C.8: the calendar places each card and loan due in EVERY month — synthesis at the calendar boundary, radar's rules, provenance carried on the event (built, critic-cycled)
+- **#405** (Phase ?): C.9: annual spending scales by the REAL window, never ×2 — and every sentence that names the window carries it (built, critic-cycled)

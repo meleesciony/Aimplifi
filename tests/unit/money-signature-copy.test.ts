@@ -13,12 +13,12 @@ import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 const SIGNATURE_STRINGS: { label: string; text: string }[] = [
   { label: 'title', text: COACH_COPY.signatureTitle() },
   { label: 'basis', text: COACH_COPY.signatureBasis() },
-  { label: 'weather:strained', text: COACH_COPY.signatureWeather('strained', 0.8, 1200, 'May 2026') },
-  { label: 'weather:tight', text: COACH_COPY.signatureWeather('tight', 2.4, 300, 'May 2026') },
-  { label: 'weather:tightNegative', text: COACH_COPY.signatureWeather('tight', 5.1, -800, 'May 2026') },
-  { label: 'weather:calm', text: COACH_COPY.signatureWeather('calm', 4.2, 900, 'May 2026') },
-  { label: 'weather:bright', text: COACH_COPY.signatureWeather('bright', 6.5, 3197, 'May 2026') },
-  { label: 'weather:infinite', text: COACH_COPY.signatureWeather('calm', Infinity, null, null) },
+  { label: 'weather:strained', text: COACH_COPY.signatureWeather('strained', 0.8, 1200, 'May 2026', 6) },
+  { label: 'weather:tight', text: COACH_COPY.signatureWeather('tight', 2.4, 300, 'May 2026', 6) },
+  { label: 'weather:tightNegative', text: COACH_COPY.signatureWeather('tight', 5.1, -800, 'May 2026', 6) },
+  { label: 'weather:calm', text: COACH_COPY.signatureWeather('calm', 4.2, 900, 'May 2026', 6) },
+  { label: 'weather:bright', text: COACH_COPY.signatureWeather('bright', 6.5, 3197, 'May 2026', 6) },
+  { label: 'weather:infinite', text: COACH_COPY.signatureWeather('calm', Infinity, null, null, 0) },
   { label: 'saving:steady', text: COACH_COPY.signatureSavingSteady(10, 12, 'Aug 2025') },
   { label: 'saving:variable', text: COACH_COPY.signatureSavingVariable(4, 12) },
   { label: 'saving:forming', text: COACH_COPY.signatureSavingForming(3, 6) },
@@ -107,8 +107,8 @@ describe('money-signature copy — habit framing, never identity', () => {
 
   it('runway of exactly 1 renders "1 month", not "1 months" (critic P2-4)', () => {
     // runway 1 is reachable only as 'tight' (strained is strict <1)
-    expect(COACH_COPY.signatureWeather('tight', 1, 500, 'May 2026')).toContain('about 1 month of');
-    expect(COACH_COPY.signatureWeather('tight', 1, 500, 'May 2026')).not.toContain('1 months');
+    expect(COACH_COPY.signatureWeather('tight', 1, 500, 'May 2026', 6)).toContain('about 1 month of');
+    expect(COACH_COPY.signatureWeather('tight', 1, 500, 'May 2026', 6)).not.toContain('1 months');
   });
 
   it('the steady-habit line disclosed its persistence anchor (since month)', () => {
@@ -121,21 +121,30 @@ describe('money-signature copy — habit framing, never identity', () => {
     expect(basis).toContain('only about this month');
   });
 
-  it('weather lines state the cushion basis inline (cash ÷ 6-month average)', () => {
+  it('weather lines state the cushion basis inline (cash ÷ the window average)', () => {
     for (const state of ['strained', 'tight', 'calm', 'bright'] as const) {
-      expect(COACH_COPY.signatureWeather(state, 2.5, 500, 'May 2026')).toContain(
+      expect(COACH_COPY.signatureWeather(state, 2.5, 500, 'May 2026', 6)).toContain(
         'cash ÷ your 6-month average expenses',
       );
     }
   });
 
+  it('C.9 (#405): the cushion names the REAL window, not a hardcoded 6', () => {
+    expect(COACH_COPY.signatureWeather('calm', 2.5, 500, 'May 2026', 3)).toContain(
+      'cash ÷ your 3-month average expenses',
+    );
+    expect(COACH_COPY.signatureWeather('calm', 2.5, 500, 'May 2026', 1)).toContain(
+      'cash ÷ your 1-month average expenses',
+    );
+  });
+
   it('infinite runway never renders "Infinity"', () => {
-    const text = COACH_COPY.signatureWeather('calm', Infinity, null, null);
+    const text = COACH_COPY.signatureWeather('calm', Infinity, null, null, 0);
     expect(text).not.toContain('Infinity');
     expect(text).toContain('no recorded average expenses');
   });
 
   it('the tight-negative variant names the month whose spending outpaced income', () => {
-    expect(COACH_COPY.signatureWeather('tight', 5.1, -800, 'May 2026')).toContain('May 2026');
+    expect(COACH_COPY.signatureWeather('tight', 5.1, -800, 'May 2026', 6)).toContain('May 2026');
   });
 });

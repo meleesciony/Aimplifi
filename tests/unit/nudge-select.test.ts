@@ -193,6 +193,7 @@ function input(over: Partial<NudgeInput> = {}): NudgeInput {
     opportunities: [],
     paymentAccountName: 'Everyday Checking',
     frozenDues: [],
+    runwayWindowMonths: 6,
     ...over,
   };
 }
@@ -437,6 +438,8 @@ describe('nudge · income_pause (#251)', () => {
     expect(p.typicalCount).toBe(p0.occurrences); // the disclosed basis
     expect(p.cadence).toBe(p0.cadence);
     expect(p.runwayMonths).toBe(4.4); // verbatim passthrough from the caller's monthsOfRunway
+    // C.9 (#405) — the window the runway's average divides by rides with it, verbatim.
+    expect(p.runwayWindowMonths).toBe(6);
     expect(p.autopayCents).toBe(0);
     expect(p.isEstimated).toBe(false);
   });
@@ -444,8 +447,10 @@ describe('nudge · income_pause (#251)', () => {
   it('runway passthrough is honest: absent or non-finite (no expense history) → null, never ∞', () => {
     const absent = buildNudgeFeed(input({ incomePauses: [pauseOf({})] }));
     expect(absent.ordered[0].runwayMonths).toBeNull();
+    expect(absent.ordered[0].runwayWindowMonths).toBeNull(); // C.9: window null exactly when the figure is
     const infinite = buildNudgeFeed(input({ incomePauses: [pauseOf({})], runwayMonths: Infinity }));
     expect(infinite.ordered[0].runwayMonths).toBeNull();
+    expect(infinite.ordered[0].runwayWindowMonths).toBeNull();
   });
 
   it('dismissal keys to the MISSED OCCURRENCE: the same miss stays hidden, a new one reappears', () => {

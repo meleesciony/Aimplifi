@@ -105,6 +105,9 @@ export default async function CoachPage() {
           portfolioCents={data.fi.portfolioCents}
           monthlyIncomeCents={data.fi.monthlyIncomeCents}
           monthlySavingsCents={data.fi.monthlySavingsCents}
+          // C.9 (#405) — the real window the FI figure was scaled from and the slider pace was
+          // averaged over; verbatim from the server that did the dividing.
+          monthlySavingsMonths={data.fi.monthlySavingsMonths}
           monthsToFINow={data.fi.monthsToFI}
           swrBps={data.fi.swrBps}
           expectedReturnBps={data.fi.expectedReturnBps}
@@ -171,6 +174,9 @@ export default async function CoachPage() {
       {/* #252 Money Signature — habit patterns + this-month weather, facts inline */}
       <MoneySignatureCard
         signature={data.signature}
+        // C.9 (#405) — the cushion names the window the average expenses divide by; verbatim
+        // from the server, like the runway figure it qualifies.
+        expenseWindowMonths={data.fi.monthlySavingsMonths}
         // The weather line is the runway wearing a mood, so it takes the same CASH-side note the
         // runway card does — one figure, one claim, two places it is printed (critic P2-1).
         frozenCashNote={frozenTotalNote(data.frozenBalances.liquid, {

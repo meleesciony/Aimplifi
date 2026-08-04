@@ -68,9 +68,9 @@ const flows: MonthlyFlow[] = [
 const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'savingsRateHeadline', text: COACH_COPY.savingsRateHeadline(3197, 'May 2026'), isProjection: false },
   { label: 'savingsRateNoIncome', text: COACH_COPY.savingsRateNoIncome('May 2026'), isProjection: false },
-  { label: 'fiNumber', text: COACH_COPY.fiNumber(cents(150_000_000), 400, cents(6_000_000)), isProjection: true },
+  { label: 'fiNumber', text: COACH_COPY.fiNumber(cents(150_000_000), 400, cents(6_000_000), 6), isProjection: true },
   { label: 'savingsRateNegative', text: COACH_COPY.savingsRateHeadline(-2500, 'May 2026'), isProjection: false },
-  { label: 'sliderContext', text: COACH_COPY.sliderContext(2330, 3734, 'May 2026'), isProjection: false },
+  { label: 'sliderContext', text: COACH_COPY.sliderContext(2330, 3734, 'May 2026', 6), isProjection: false },
   // W.12 — headline / Coast defer to `fiProjectionBasis` for the rate number; they still
   // say "assumptions" so the projection sweep keeps them honest, without restating 4.50%.
   { label: 'yearsToFI', text: COACH_COPY.yearsToFI(17, 3), isProjection: true },
@@ -172,7 +172,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     text: COACH_COPY.notCoastFI(cents(120000), 25, false),
     isProjection: true,
   },
-  { label: 'sliderCaption', text: COACH_COPY.sliderCaption(2200, 3000, 23, 17), isProjection: true },
+  { label: 'sliderCaption', text: COACH_COPY.sliderCaption(2200, 3000, 23, 17, 6), isProjection: true },
   // W.10 — the rate here is the reader's own RETURN dial (the money grows at it); the figures
   // themselves are then deflated to today's money, which `opportunityBasis` states once.
   { label: 'opportunity:unused', text: COACH_COPY.opportunity(opportunity('unused-subscription'), 700), isProjection: true },
@@ -339,7 +339,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   },
   {
     label: 'wealthTargetRequiredShare',
-    text: COACH_COPY.wealthTargetRequiredShare(3400),
+    text: COACH_COPY.wealthTargetRequiredShare(3400, 6),
     isProjection: false,
   },
   {
@@ -509,12 +509,12 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   // #252 Money Signature — every state variant scans through the guardrails.
   { label: 'signatureTitle', text: COACH_COPY.signatureTitle(), isProjection: false },
   { label: 'signatureBasis', text: COACH_COPY.signatureBasis(), isProjection: false },
-  { label: 'signatureWeather:strained', text: COACH_COPY.signatureWeather('strained', 0.8, 1200, 'May 2026'), isProjection: false },
-  { label: 'signatureWeather:tight', text: COACH_COPY.signatureWeather('tight', 2.4, 300, 'May 2026'), isProjection: false },
-  { label: 'signatureWeather:tightNegative', text: COACH_COPY.signatureWeather('tight', 5.1, -800, 'May 2026'), isProjection: false },
-  { label: 'signatureWeather:calm', text: COACH_COPY.signatureWeather('calm', 4.2, 900, 'May 2026'), isProjection: false },
-  { label: 'signatureWeather:bright', text: COACH_COPY.signatureWeather('bright', 6.5, 3197, 'May 2026'), isProjection: false },
-  { label: 'signatureWeather:infiniteRunway', text: COACH_COPY.signatureWeather('calm', Infinity, null, null), isProjection: false },
+  { label: 'signatureWeather:strained', text: COACH_COPY.signatureWeather('strained', 0.8, 1200, 'May 2026', 6), isProjection: false },
+  { label: 'signatureWeather:tight', text: COACH_COPY.signatureWeather('tight', 2.4, 300, 'May 2026', 6), isProjection: false },
+  { label: 'signatureWeather:tightNegative', text: COACH_COPY.signatureWeather('tight', 5.1, -800, 'May 2026', 6), isProjection: false },
+  { label: 'signatureWeather:calm', text: COACH_COPY.signatureWeather('calm', 4.2, 900, 'May 2026', 6), isProjection: false },
+  { label: 'signatureWeather:bright', text: COACH_COPY.signatureWeather('bright', 6.5, 3197, 'May 2026', 6), isProjection: false },
+  { label: 'signatureWeather:infiniteRunway', text: COACH_COPY.signatureWeather('calm', Infinity, null, null, 0), isProjection: false },
   { label: 'signatureSavingSteady', text: COACH_COPY.signatureSavingSteady(10, 12, 'Aug 2025'), isProjection: false },
   { label: 'signatureSavingVariable', text: COACH_COPY.signatureSavingVariable(4, 12), isProjection: false },
   { label: 'signatureSavingForming', text: COACH_COPY.signatureSavingForming(3, 6), isProjection: false },
@@ -900,5 +900,49 @@ describe('the guardrail scan covers every string COACH_COPY can emit', () => {
     );
     // And the pin itself cannot rot: a key that gets registered must leave this list.
     expect(KNOWN_UNSCANNED.filter((k) => !missing.includes(k))).toEqual([]);
+  });
+});
+
+// C.9 (#405, audit P0-6) — every sentence that names the expense/income window carries it in;
+// none of them may spell "6" for a reader whose history is shorter. The full-window (6) forms
+// are pinned byte-identical in ALL_STRINGS above; these lock the short-history branches.
+describe('C.9 — window copy is carried, never hardcoded to 6', () => {
+  it('the FI sentence names the real window and its multiplier', () => {
+    expect(COACH_COPY.fiNumber(cents(90_000_000), 400, cents(3_600_000), 3)).toContain(
+      'your last 3 full months × 4',
+    );
+    expect(COACH_COPY.fiNumber(cents(90_000_000), 400, cents(3_600_000), 6)).toContain(
+      'your last 6 full months × 2',
+    );
+    // No history at all: no window claim, no multiplier — the figure is named as unfilled.
+    const empty = COACH_COPY.fiNumber(cents(0), 400, cents(0), 0);
+    expect(empty).toContain('no complete month of spending is on record yet');
+    expect(empty).not.toContain('×');
+  });
+
+  it('the slider captions name the real window (and never for the unchanged drag branch)', () => {
+    expect(COACH_COPY.sliderCaption(2200, 2200, 23, 17, 3)).toContain(
+      'average over the last 3 months',
+    );
+    expect(COACH_COPY.sliderCaption(2200, 2200, 23, 17, 1)).toContain(
+      'average over the last 1 month',
+    );
+    expect(COACH_COPY.sliderCaption(0, 0, 0, 0, 0)).toContain('no complete months on record yet');
+    // The drag branch makes no window claim in any window.
+    expect(COACH_COPY.sliderCaption(2200, 3000, 23, 17, 3)).not.toContain('month');
+  });
+
+  it('the slider context names the real window', () => {
+    expect(COACH_COPY.sliderContext(2330, null, undefined, 3)).toContain('3-month average pace');
+    expect(COACH_COPY.sliderContext(2330, 3734, 'May 2026', 6)).toContain('6-month average pace');
+    expect(COACH_COPY.sliderContext(0, null, undefined, 0)).toContain(
+      'no average pace to start from yet',
+    );
+  });
+
+  it('the share-of-income sentence names the real window', () => {
+    expect(COACH_COPY.wealthTargetRequiredShare(3400, 3)).toContain('over the last 3 months');
+    expect(COACH_COPY.wealthTargetRequiredShare(3400, 1)).toContain('over the last 1 month.');
+    expect(COACH_COPY.wealthTargetRequiredShare(3400, 6)).toContain('over the last 6 months');
   });
 });

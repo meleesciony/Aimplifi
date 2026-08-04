@@ -91,6 +91,9 @@ export default async function DashboardPage({
     unusualCharges: coach.unusualCharges,
     incomePauses: coach.incomePauses,
     runwayMonths: coach.runwayMonths,
+    // C.9 (#405) — the runway's average expenses divide by the REAL window; the
+    // income-pause line's basis sentence names it. Verbatim from the coach.
+    runwayWindowMonths: coach.fi.monthlySavingsMonths,
     paymentAccountName: data.paymentAccountName,
     frozenDues: frozenDueRows,
   } as const;

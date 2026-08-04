@@ -26,6 +26,7 @@ export function FICard({
   portfolioCents,
   monthlyIncomeCents,
   monthlySavingsCents,
+  monthlySavingsMonths,
   monthsToFINow,
   swrBps,
   expectedReturnBps,
@@ -52,7 +53,7 @@ export function FICard({
    * the slider all start from the portfolio, so they are what the sentence is about.
    */
   frozenPortfolioNote?: string | null;
-  /** Latest FULL month's savings rate (can differ from the 6-mo average the slider uses). */
+  /** Latest FULL month's savings rate (can differ from the window average the slider uses). */
   latestMonthRateBps?: number | null;
   latestMonthLabel?: string;
   /** Inline currency-exclusion basis note (#135 residual 25) when the user has withheld
@@ -61,6 +62,14 @@ export function FICard({
   portfolioCents: Cents;
   monthlyIncomeCents: Cents;
   monthlySavingsCents: Cents;
+  /**
+   * C.9 (#405) — the real window behind `monthlySavingsCents`, `monthlyIncomeCents` AND
+   * `annualExpensesCents` (the server carries it; `data.fi.monthlySavingsMonths`). REQUIRED:
+   * the FI sentence, the slider caption and the slider context all name this window, and a
+   * component that re-derives "6" from a variable name is the second definition of the basis
+   * W.2's comment bans.
+   */
+  monthlySavingsMonths: number;
   monthsToFINow: number | null;
   swrBps: number;
   /** The reader's NOMINAL dial. Named in the basis + volatility copy as one operand; it is
@@ -118,7 +127,7 @@ export function FICard({
           {formatCents(fiNumberCents)}
         </CardTitle>
         <p className="text-sm text-muted-foreground" data-testid="fi-basis">
-          {COACH_COPY.fiNumber(fiNumberCents, swrBps, annualExpensesCents)}
+          {COACH_COPY.fiNumber(fiNumberCents, swrBps, annualExpensesCents, monthlySavingsMonths)}
         </p>
         {currencyNote ? (
           <p className="text-xs text-muted-foreground" data-testid="fi-currency-note">
@@ -199,7 +208,12 @@ export function FICard({
             </span>
           </label>
           <p className="text-xs text-muted-foreground">
-            {COACH_COPY.sliderContext(currentRateBps, latestMonthRateBps ?? null, latestMonthLabel)}
+            {COACH_COPY.sliderContext(
+              currentRateBps,
+              latestMonthRateBps ?? null,
+              latestMonthLabel,
+              monthlySavingsMonths,
+            )}
           </p>
           <input
             id="fi-slider"
@@ -220,6 +234,7 @@ export function FICard({
                   sliderBps,
                   yearsOf(monthsToFINow ?? sliderMonths) ?? 0,
                   yearsOf(sliderMonths)!,
+                  monthlySavingsMonths,
                 )
               : COACH_COPY.notOnTrack()}
           </p>

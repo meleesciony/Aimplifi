@@ -3680,3 +3680,45 @@ calendar-frozen spec's quiet-month lock was REWRITTEN to the new truth (later
 months now paint; the frozen fact rides the synthesized money; only a pre-due month
 is silent). Three unrelated mobile-380 e2e (auth:82, today-feed-frozen:220/238)
 fail IDENTICALLY on clean HEAD — stash-verified, recorded OPEN, not caused here.
+
+## #405 — C.9: annual spending scales by the REAL window, never ×2 — and every sentence that names the window carries it (built, critic-cycled)
+
+**The defect in one line (audit P0-6):** `getCoachData` computed
+`annualExpenses = expenses6 * 2` while the savings/income averages divided by
+`Math.max(1, last6.length)` — so a reader three months in got an annual figure
+that was exactly HALF their true spending, and the FI number, the FI date,
+Coast, the runway-adjacent emergency-fund example on /goals and every scenario
+seeded from `annualExpensesCents` halved with it.
+
+**The fix.** One line of money math, in the server that owns the window:
+`annualExpenses = roundHalfAwayFromZero(expenses6 * 12 / Math.max(1, last6.length))`.
+For a full six-month window this is byte-identical to the old value (×12/6 = ×2,
+exact integer — no rounding drift); for N < 6 it is the true year. The divisor
+guard matches the two averages beside it, so N = 0 stays $0, as before.
+
+**The copy rule (the checkable sentence must stay checkable).** Five surfaces
+hardcoded "6": the FI sentence ("last 6 full months × 2"), the slider caption +
+context ("average over 6 months" / "6-month average pace"), the share-of-income
+sentence, and the runway cushion on BOTH the signature weather line and the
+dashboard's income-pause line. Each now receives the window — the server's
+existing `monthlySavingsMonths` field (documented as ALSO the annual-expense
+window; one array, one divisor, one count) for the /coach cards, and a new
+REQUIRED `NudgeInput.runwayWindowMonths` riding onto `Proposal` for the
+income-pause line (required, not defaulted — the defaulted-parameter-fails-silent
+lesson). Full-window renderings are byte-identical; short windows say "your last
+3 full months × 4", "3-month average pace", etc.; zero history gets a named-zero
+branch ("no complete month of spending is on record yet") instead of "0 months".
+
+**What was NOT changed (recorded, not silent).** (1) `scenario.ts` still calls
+its verbatim coach inputs "6-month averages" in one note and two doc comments —
+a pre-existing falsity (the divisor was real before C.9) on a separate engine
+with its own input contract; deferred to its own slice. (2) The emergency-fund
+line on /goals says "(6 months of expenses)" — TRUE by construction
+(annual ÷ 2 = six months of annualized spending) regardless of window.
+
+**Locks.** fi-real-basis.test.ts grew a 3-month-history Prisma lock: window
+carried as 3, annual = the true $36,000, FI = $900,000, with fail-old pins
+against the $18,000/$450,000 half-values, plus the FI sentence naming
+"your last 3 full months × 4". Copy locks pin the N=3/1/0 branches and the
+byte-identical N=6 forms. Verify green; phase3-coach e2e passes with the demo's
+six-month window (pinned strings unchanged).

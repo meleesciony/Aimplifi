@@ -87,6 +87,7 @@ function paymentProposal(r: PaymentReminder, today: ISODate, dismissed: Readonly
     typicalCount: null,
     cadence: null,
     runwayMonths: null,
+    runwayWindowMonths: null,
     isEstimated: r.isEstimated,
     fundingFrozen: null, // not projected from the funding balance
     dismissed: dismissed.has(dismissKey),
@@ -119,6 +120,7 @@ function dipProposal(
     typicalCount: null,
     cadence: null,
     runwayMonths: null,
+    runwayWindowMonths: null,
     isEstimated: radar.includesEstimatedDues,
     // The dip IS the radar's verdict re-printed as an instruction, so the fact comes from the
     // radar's own starting account — the account it walked from, labelled as the radar labels it —
@@ -164,6 +166,7 @@ function shortfallProposal(
     typicalCount: null,
     cadence: null,
     runwayMonths: null,
+    runwayWindowMonths: null,
     isEstimated,
     // `cn.fundingFrozen` carries the drop date and the balance but deliberately not the name, so
     // the surface's own label completes it (TASKS L.20).
@@ -220,6 +223,7 @@ function opportunityProposal(o: Opportunity, today: ISODate, dismissed: Readonly
     typicalCount: null,
     cadence: null,
     runwayMonths: null,
+    runwayWindowMonths: null,
     isEstimated: o.isEstimate,
     fundingFrozen: null, // not projected from the funding balance
     dismissed: dismissed.has(dismissKey),
@@ -255,6 +259,7 @@ function unusualProposal(u: UnusualCharge, today: ISODate, dismissed: ReadonlySe
     typicalCount: u.sampleCount, // verbatim display context
     cadence: null,
     runwayMonths: null,
+    runwayWindowMonths: null,
     isEstimated: false, // a real posted charge, never an estimate
     fundingFrozen: null, // not projected from the funding balance
     dismissed: dismissed.has(dismissKey),
@@ -284,11 +289,14 @@ function unusualProposal(u: UnusualCharge, today: ISODate, dismissed: ReadonlySe
  * arrived (per-kind semantic, labeled at the copy boundary). `runwayMonths` rides
  * through verbatim from the caller's monthsOfRunway (display context; non-finite
  * or non-positive → null — "∞ months" and "covers about -0.5 months" are
- * unrepresentable downstream, #251 critic F6).
+ * unrepresentable downstream, #251 critic F6). `runwayWindowMonths` rides with it
+ * (C.9, #405): the window the average expenses divide by, named by the basis
+ * sentence — null exactly when the runway figure itself is null.
  */
 function incomePauseProposal(
   p: IncomePauseState,
   runwayMonths: number | undefined,
+  runwayWindowMonths: number,
   today: ISODate,
   dismissed: ReadonlySet<string>,
 ): Proposal {
@@ -314,6 +322,10 @@ function incomePauseProposal(
     runwayMonths:
       runwayMonths !== undefined && Number.isFinite(runwayMonths) && runwayMonths > 0
         ? runwayMonths
+        : null,
+    runwayWindowMonths:
+      runwayMonths !== undefined && Number.isFinite(runwayMonths) && runwayMonths > 0
+        ? runwayWindowMonths
         : null,
     isEstimated: false, // the missed deposit is a fact; the runway figure discloses its own basis
     fundingFrozen: null, // not projected from the funding balance
@@ -382,7 +394,7 @@ export function buildNudgeFeed(input: NudgeInput): NudgeFeed {
     ...opportunities.map((o) => opportunityProposal(o, today, dismissed)),
     ...(input.unusualCharges ?? []).map((u) => unusualProposal(u, today, dismissed)),
     ...(input.incomePauses ?? []).map((p) =>
-      incomePauseProposal(p, input.runwayMonths, today, dismissed),
+      incomePauseProposal(p, input.runwayMonths, input.runwayWindowMonths, today, dismissed),
     ),
   ];
   const dip = dipProposal(radar, today, dismissed);

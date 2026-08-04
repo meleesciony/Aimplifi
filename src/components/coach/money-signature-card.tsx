@@ -64,11 +64,12 @@ function steadinessLine(s: MoneySignature['spendingSteadiness']): string {
 export function MoneySignatureCard({
   signature,
   frozenCashNote,
+  expenseWindowMonths,
 }: {
   signature: MoneySignature;
   /**
    * TASKS L.18, critic P2-1. The weather line prints the SAME runway the /coach runway card prints
-   * — cash ÷ six-month average expenses — and the state word itself ("calm" vs "strained") is
+   * — cash ÷ the window's average expenses — and the state word itself ("calm" vs "strained") is
    * computed from it, so a savings account frozen HIGH manufactures a reassurance verdict. The
    * runway card was qualified and this one, reading the identical number, was not.
    *
@@ -76,6 +77,12 @@ export function MoneySignatureCard({
    * what is wrong is a mood rather than a figure.
    */
   frozenCashNote: string | null;
+  /**
+   * C.9 (#405) — the real window the runway's average expenses divide by. REQUIRED: the cushion
+   * parenthetical names it, and "6" re-derived from a variable name is the uncheckable-sentence
+   * failure the server now carries this field to prevent.
+   */
+  expenseWindowMonths: number;
 }) {
   const { weather } = signature;
   return (
@@ -91,6 +98,7 @@ export function MoneySignatureCard({
             weather.runwayMonths,
             weather.latestRateBps,
             weather.latestMonth === null ? null : formatMonth(weather.latestMonth),
+            expenseWindowMonths,
           )}
         </p>
         {frozenCashNote ? (

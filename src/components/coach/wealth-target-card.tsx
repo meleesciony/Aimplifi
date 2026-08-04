@@ -79,10 +79,11 @@ export function WealthTargetCard({
    */
   monthlySavingsCents: Cents;
   /**
-   * The 6-month MEAN of categorized monthly income (`server/coach.ts`), which is NOT the
-   * spending plan's income (a 3-month median over non-credit accounts). The two differ, so
-   * the share-of-income sentence names its own window rather than saying "your income" and
-   * letting the reader assume it matches the guilt-free figure in the next sentence.
+   * The MEAN of categorized monthly income over the real window (`server/coach.ts`, the last
+   * ≤6 complete months), which is NOT the spending plan's income (a 3-month median over
+   * non-credit accounts). The two differ, so the share-of-income sentence names its own window
+   * rather than saying "your income" and letting the reader assume it matches the guilt-free
+   * figure in the next sentence.
    */
   monthlyIncomeCents: Cents;
   safeToSpendCents: Cents;
@@ -102,7 +103,9 @@ export function WealthTargetCard({
   /**
    * How many months the historical surplus was averaged over — still named in the
    * pace sentence when contribution is recent-surplus; when contribution is the
-   * settings %, the contribution-basis line owns the explanation instead.
+   * settings %, the contribution-basis line owns the explanation instead. C.9 (#405):
+   * also the window `monthlyIncomeCents` divides by, which the share-of-income
+   * sentence names.
    */
   monthlySavingsMonths: number;
   /** #375 — which source produced `monthlySavingsCents`. */
@@ -250,7 +253,7 @@ export function WealthTargetCard({
       ? null
       : result.requiredSavingsRateBps > 10000
         ? COACH_COPY.wealthTargetRequiredExceedsIncome()
-        : COACH_COPY.wealthTargetRequiredShare(result.requiredSavingsRateBps);
+        : COACH_COPY.wealthTargetRequiredShare(result.requiredSavingsRateBps, monthlySavingsMonths);
 
   const hasSpread =
     result !== null &&

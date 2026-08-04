@@ -97,7 +97,10 @@ export interface CoachData {
     monthlySavingsCents: Cents;
     /**
      * How many months `monthlySavingsCents` and `monthlyIncomeCents` were actually averaged
-     * over — `last6.length`, which is the DIVISOR, not the constant 6.
+     * over — `last6.length`, which is the DIVISOR, not the constant 6. C.9 (#405): this is
+     * ALSO the window `annualExpensesCents` was scaled to a year from (same array, same
+     * divisor), so every sentence that names the window — the FI number's "× 12/N", the
+     * slider's "average pace", the runway's "average expenses" — reads this, never "6".
      *
      * Carried because two independent critics falsified the same sentence on the wealth-target
      * card: `monthlyFlows` emits only months that CONTAIN a qualifying row, so this is 3 for a
@@ -290,7 +293,14 @@ export async function getCoachData(
 
   const expenses6 = last6.reduce((s, f) => s + f.expensesCents, 0);
   const income6 = last6.reduce((s, f) => s + f.incomeCents, 0);
-  const annualExpenses = cents(expenses6 * 2);
+  // C.9 (#405, audit P0-6): scale by the REAL window, not the constant 6. `expenses6 * 2`
+  // assumed six months arrived, so a reader three months in got an annual figure that was
+  // exactly half their true spending — and the FI number, the FI date, Coast and the /goals
+  // emergency-fund example all halved with it. Same `Math.max(1, …)` guard the two averages
+  // below use: with zero months the sum is 0 and the divisor cannot be 0.
+  const annualExpenses = cents(
+    roundHalfAwayFromZero((expenses6 * 12) / Math.max(1, last6.length)),
+  );
   // documented rounding rule, not Math.round (half-toward-+∞ on negatives)
   const monthlySavings = roundHalfAwayFromZero((income6 - expenses6) / Math.max(1, last6.length));
   const monthlyIncome = roundHalfAwayFromZero(income6 / Math.max(1, last6.length));
@@ -318,8 +328,9 @@ export async function getCoachData(
   // TASKS W.2 — the FI projections compound at the REAL (after-inflation) return, not the
   // nominal dial.
   //
-  // `fiTarget` is a PRESENT VALUE: `annualExpenses` is the last 6 complete months of this
-  // reader's actual spending × 2, so the target is denominated in today's dollars. Growing
+  // `fiTarget` is a PRESENT VALUE: `annualExpenses` is this reader's actual spending over
+  // their last ≤6 complete months scaled to a year, so the target is denominated in today's
+  // dollars. Growing
   // the portfolio at the nominal 7% and stopping when it crosses that target compares future
   // nominal dollars against today's dollars — a unit mismatch, not a modelling choice, and it
   // runs optimistic by the whole inflation gap (decades on a long horizon). This card's own

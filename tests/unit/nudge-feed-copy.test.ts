@@ -25,6 +25,7 @@ function prop(o: Partial<Proposal> & { kind: ProposalKind; tier: ProposalTier })
     typicalCount: null,
     cadence: null,
     runwayMonths: null,
+    runwayWindowMonths: null,
     isEstimated: false,
     fundingFrozen: null,
     dismissed: false,
@@ -131,6 +132,7 @@ describe('proposalCopy — money-honesty per kind', () => {
         typicalCount: 4,
         cadence: 'MONTHLY',
         runwayMonths: 4.4,
+        runwayWindowMonths: 6,
         sortDate: isoDate('2026-05-10'),
       }),
     );

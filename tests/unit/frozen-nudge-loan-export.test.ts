@@ -71,6 +71,7 @@ function prop(o: { kind: ProposalKind; centsAtStake: number; fundingFrozen: Prop
     typicalCount: null,
     cadence: null,
     runwayMonths: null,
+    runwayWindowMonths: null,
     isEstimated: false,
     fundingFrozen: o.fundingFrozen,
     dismissed: false,

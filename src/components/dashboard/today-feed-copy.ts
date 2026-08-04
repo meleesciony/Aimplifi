@@ -165,7 +165,7 @@ export function proposalCopy(p: Proposal): { title: string; detail: string } {
       // detector) — money that DIDN'T arrive, never "at stake" or "spent". The
       // basis is disclosed inline twice (coaching guardrail): the cadence claim
       // rests on "based on N deposits", and the runway figure names its own
-      // formula (cash on hand ÷ 6-month average expenses) right next to the
+      // formula (cash on hand ÷ the window's average expenses) right next to the
       // number. Copy-subject audit (second-person lesson): income pauses are
       // computed from the VIEWER's own coach data (viewer-only, like
       // unusual_charge — the #249 household asymmetry), so "your cash on hand"
@@ -190,7 +190,7 @@ export function proposalCopy(p: Proposal): { title: string; detail: string } {
       const basis = p.typicalCount !== null ? ` (based on ${p.typicalCount} deposits)` : '';
       const runway =
         p.runwayMonths !== null
-          ? ` If it stays paused, your cash on hand covers about ${p.runwayMonths} months of typical spending (cash ÷ your 6-month average expenses).`
+          ? ` If it stays paused, your cash on hand covers about ${p.runwayMonths} months of typical spending (cash ÷ your ${p.runwayWindowMonths}-month average expenses).`
           : '';
       return {
         title: 'A regular deposit seems paused',
