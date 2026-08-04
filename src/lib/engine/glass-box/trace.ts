@@ -18,7 +18,7 @@
 import { type Cents, cents, formatCents, sumCents } from '@/lib/money';
 import type { ISODate } from '@/lib/dates';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
-import { frozenCardsNote } from '@/lib/engine/account/feed-dropped-view';
+import { currentCycleAmountSource, frozenCardsNote } from '@/lib/engine/account/feed-dropped-view';
 import {
   mapToConsciousBuckets,
   type ConsciousBucketKey,
@@ -162,7 +162,7 @@ export function traceCashNeeded(
       cardId: c.cardId,
       label: c.cardName,
       frozenSince: c.frozenSince as string,
-      isEstimated: c.isEstimated,
+      amountSource: currentCycleAmountSource(c.isEstimated),
       ownership: partnerCardIds.has(c.cardId) ? ('partner' as const) : ('reader' as const),
     })),
     // A figure, not an instruction: this panel explains a total, and the pay-by-date imperative it

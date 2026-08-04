@@ -29,6 +29,7 @@ import {
   FROZEN_ALL_CLEAR_TESTID,
   FROZEN_CARD_TESTID,
   FROZEN_FIRST_ACTION_TESTID,
+  currentCycleAmountSource,
   frozenCardsNote,
   frozenNothingDueNote,
   frozenQuotedBalanceNote,
@@ -301,7 +302,7 @@ export function CardsBreakdown({
                       cardId: firstAction.cardId,
                       label: painted(firstAction.cardId, firstAction.cardName),
                       frozenSince: firstAction.frozenSince,
-                      isEstimated: firstAction.isEstimated,
+                      amountSource: currentCycleAmountSource(firstAction.isEstimated),
                       // Critic P1-1: on a PARTNER's card the builder drops the "check it before
                       // paying" imperative entirely — the reader is not the one paying it — and
                       // says "the bank" rather than claiming a relationship they do not have.
@@ -434,7 +435,7 @@ export function CardsBreakdown({
                               cardId: card.cardId,
                               label: painted(card.cardId, card.cardName),
                               frozenSince: card.frozenSince,
-                              isEstimated: card.isEstimated,
+                              amountSource: currentCycleAmountSource(card.isEstimated),
                               // A PARTNER's card: this viewer's /accounts does not list that
                               // connection (L.14 critic F-4), and they are not the one paying it
                               // (critic P1-1). Both follow from ownership, so the builder decides.

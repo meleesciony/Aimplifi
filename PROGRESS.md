@@ -2,6 +2,38 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-04 — C.8: the calendar shows every due, every month (audit P0-3)
+
+Owner's audit opened with "the trends makes no sense"; P0-3 was its calendar
+sibling — /calendar window-gated the single obligation the engines emit per
+card/loan, so every month but the due one printed "0 payments due across 0 dates"
+under a footnote promising each due day is badged. For the owner September
+understated committed outflow by ~$25,000. Fix: the engine now synthesizes future
+cycles inside the month window — cards repeat monthly from the RAW issuer due date
+(business-day re-adjusted per occurrence, priced at the statement basis, always
+"(est.)", the radar's projectCardDues rule for rule); loans repeat their fixed
+issuer payment from the same raw anchor /forecast expands. Required `today` +
+`holidays` params. Current-month events untouched (fail-old locked).
+
+A hostile critic broke the first cut (FAIL, 1 P1 + 4 P2). The P1 was the sharpest:
+the synthesized events reused the boolean `isEstimated`, and the frozen disclosure
+keyed its amount sentence off it — so a frozen card WITH a statement was told, in
+every later month, that its figure was "worked out from the last balance we saw"
+while the grid printed the statement basis. Fixed by carrying WHERE THE AMOUNT
+COMES FROM (`statement | repeated-statement | balance | loan-terms`) on the event,
+computed once in the engine, branched in the disclosure; `FrozenCardRow.isEstimated`
+replaced by `amountSource` and the six current-cycle call sites mapped through one
+helper. A scoped follow-up critic then caught the source logic keying on the
+page-injected `cycleBasisCents` alone — a bare statement card would have mislabeled
+as balance — now keyed on the obligation's own estimate path. The calendar-frozen
+quiet-month e2e was rewritten to the new truth: later months paint, the frozen fact
+rides the synthesized money, only a pre-due month is silent.
+
+Gate: `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **5849 unit across 358
+files** / build clean. Targeted calendar e2e 21/21 serially. Three unrelated
+mobile-380 e2e (auth:82, today-feed-frozen:220/238) fail identically on clean HEAD
+— stash-verified pre-existing, recorded OPEN in STATUS.
+
 ## 2026-08-04 — Ledgers archived (docs only, no code)
 
 PROGRESS.md, docs/STATUS.md, REGRESSION_LEDGER.md and the completed TASKS.md

@@ -6,6 +6,47 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-04 — C.8: /calendar places each card and loan due in EVERY month (DECISIONS #404, audit P0-3)
+
+`buildCashFlowCalendar` used to window-gate the ONE obligation the engines emit
+per card/loan, so every month but the due month printed "0 payments due across 0
+dates" under a footnote promising each due day is badged — September understated
+the owner's committed outflow by ~$25,000. Now the engine SYNTHESIZES future
+cycles inside the month window: cards repeat monthly from the RAW issuer due date,
+business-day re-adjusted per occurrence, priced at the statement basis
+(`cycleBasisCents ?? cashRequiredCents`), always `(est.)` — the radar's
+`projectCardDues` rule for rule; loans repeat their fixed issuer-reported payment,
+never `(est.)`, from the same raw anchor /forecast expands. New REQUIRED params
+`today` + `holidays`. Current-month events are untouched (fail-old locked).
+
+**Critic cycle 1 — FAIL, 1 P1 + 4 P2, all fixed + locked.** The P1 (F-1): the
+synthesized events reused the boolean `isEstimated`, and the frozen disclosure
+keyed its amount sentence off it — so a frozen card WITH a statement was told, in
+every later month, that its figure was "worked out from the last balance we saw"
+while the grid printed the statement basis. Fix: `DueAmountSource`
+(`statement | repeated-statement | balance | loan-terms`) computed once in the
+engine, carried on `CalendarEvent.amountSource`, mapped verbatim by the page,
+branched in `frozenCardsNote` (three sentences) and `frozenCardDatesNote` (a
+repeated statement still derives its DATE from the statement).
+`FrozenCardRow.isEstimated` replaced by `amountSource`; the six current-cycle call
+sites map through one `currentCycleAmountSource()`. Follow-up scoped critic caught
+the source logic keying on the page-injected `cycleBasisCents` alone — a bare
+statement card would have mislabeled as balance; now keyed on the obligation's own
+estimate path. P2s: overclaimed "one date" comment corrected (calendar rolls back
+to business days, /forecast prints raw — by design), footnote precision for
+estimate-path cards, the F-4 stale-anchor residual recorded in-source, and
+phase4.test.ts's `[...cards, ...upcoming]` double-list (a post-C.8
+double-synthesis trap) now `result.cards` alone.
+
+**Gate:** `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0,
+**5849 unit / 358 files** (21 new: synthesis locks, amountSource locks, the three
+F-1 sentence branches + the September real-engine provenance lock), next build
+clean. Targeted calendar e2e (calendar-frozen ×6 / duplicate-connections /
+phase4-features) **21/21** serially; the calendar-frozen quiet-month lock was
+REWRITTEN to the new truth — later months now paint the frozen fact on the
+synthesized money; only a PRE-due month is silent. Three unrelated mobile-380 e2e
+fail identically on clean HEAD — see the OPEN entry below.
+
 ## ✅ BUILT 2026-08-04 — C.25: the mortgage leaves the spending totals in EVERY month, at read time (DECISIONS #403)
 
 The #400 revert direction stood up: nothing stored is written. The exclusion is
@@ -64,6 +105,22 @@ state `success` (Production), www.aimplifi.app `/sign-in` byte-identical to
 the deployment URL this session (cmp). No demo figure moves by construction
 (the seed's exclusion set is empty), so the sha-match + content-match is the
 live proof, as with C.24.
+
+## ⚠️ OPEN 2026-08-04 — three more mobile-380 e2e fail on clean HEAD (predates C.8)
+
+Found while running C.8's targeted e2e; stash/run/pop on clean HEAD (`87f0f08`)
+reproduced all three IDENTICALLY, so the C.8 slice did not cause them:
+
+- `tests/e2e/auth.spec.ts:82` — "first manual account → dashboard explains its
+  sparse cards (no bare $0.00)" (mobile-380)
+- `tests/e2e/today-feed-frozen.spec.ts:220` — "an UNDATABLE frozen loan finally
+  reaches the all-clear" (mobile-380)
+- `tests/e2e/today-feed-frozen.spec.ts:238` — "the undatable loan is still named
+  when another payment IS due" (mobile-380)
+
+All three pass on desktop projects; `phase4-features.spec.ts:33` also failed once
+in a parallel run but passes alone and serially (known parallel-flake class).
+Not diagnosed.
 
 ## ⚠️ OPEN 2026-08-04 — dashboard-duplicate-disclosure mobile e2e fails on clean HEAD (predates C.25)
 

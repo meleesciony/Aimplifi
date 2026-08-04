@@ -18,7 +18,7 @@ import {
   type FrozenCalendarRow,
   frozenCalendarNotice,
 } from '@/lib/engine/account/feed-dropped-view';
-import { addMonthsClamped, formatISODate, formatMonth, isoDate } from '@/lib/dates';
+import { addMonthsClamped, formatISODate, formatMonth, holidayTable, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { getCashNeeded } from '@/server/finance';
 
@@ -69,16 +69,40 @@ export default async function CalendarPage({
   // (TASKS L.19). Two separate applications of `withOwner` would be two expressions for one card's
   // name, which is the #297/#298 drift this repo keeps paying for: the disclosure would be free to
   // call an account something the row beside it does not.
-  const paintedCards = result.cards.map((c) => ({ ...c, cardName: withOwner(c.cardId, c.cardName) }));
+  //
+  // `cycleBasisCents` (TASKS C.8): months after the current one repeat each card's FULL statement
+  // basis, not this cycle's post-mid-cycle-payment residual — the exact basis the radar's
+  // `projectCardDues` prices future cycles at (server/radar.ts builds this same map), so the two
+  // surfaces cannot quote different amounts for the same future payment.
+  const statementBasisByCard = new Map(
+    input.cards
+      .filter((c) => c.statement)
+      .map((c) => [c.id, c.statement!.statementBalanceCents] as const),
+  );
+  const paintedCards = result.cards.map((c) => ({
+    ...c,
+    cardName: withOwner(c.cardId, c.cardName),
+    cycleBasisCents: statementBasisByCard.get(c.cardId),
+  }));
   const paintedLoans = loanObligations.map((l) => ({
     ...l,
     accountName: withOwner(l.accountId, l.accountName),
   }));
+  // The table must span BOTH `today` (synthesized occurrences strictly after it) and the DISPLAYED
+  // month, which is a free query param — a reader twelve clicks into next year still gets real
+  // holiday roll-backs, not weekend-only ones.
+  const todayYear = +today.slice(0, 4);
+  const monthYear = +month.slice(0, 4);
   const calendar = buildCashFlowCalendar({
     month,
     scheduled: snap.scheduled.map((s) => ({ ...s, description: withOwner(s.accountId, s.description) })),
     cardObligations: paintedCards,
     loanObligations: paintedLoans,
+    today,
+    holidays: holidayTable(
+      Math.min(todayYear, monthYear) - 1,
+      Math.max(todayYear, monthYear) + 1,
+    ),
   });
 
   // TASKS L.15 (a). Resolved against the card-due events THIS MONTH actually holds, under the exact
@@ -99,9 +123,11 @@ export default async function CalendarPage({
   // paints, exactly as the duplicate view above is. An obligation whose effective due date falls in
   // another month emits no event, so naming it here would qualify a row the reader cannot find.
   //
-  // `frozenSince` is looked up per ACCOUNT (it is a fact about the connection), while `isEstimated`
-  // is read off the EVENT — a card can hold both a current statement and a next-cycle estimate, and
-  // the claim must describe the amount actually printed on this row, not the account's other one.
+  // `frozenSince` is looked up per ACCOUNT (it is a fact about the connection), while
+  // `amountSource` is read off the EVENT — a card can hold both a current statement and a
+  // synthesized repeat of it, and the claim must describe the amount actually printed on this row,
+  // not the account's other one (C.8 critic F-1: a boolean `isEstimated` cannot tell a repeated
+  // STATEMENT from a balance estimate, and the disclosure's sentence changes with the difference).
   const frozenCardSource = new Map(
     paintedCards.filter((c) => c.frozenSince != null).map((c) => [c.cardId, c] as const),
   );
@@ -112,7 +138,9 @@ export default async function CalendarPage({
     calendar.days
       .flatMap((d) => d.events)
       .flatMap((e): FrozenCalendarRow[] => {
-        if (e.accountId === undefined) return [];
+        // amountSource rides the EVENT (the engine knows which branch painted it). A due event
+        // without one is a scheduled flow misread as a due; refuse rather than default (C.8 F-1).
+        if (e.accountId === undefined || e.amountSource === undefined) return [];
         const card = e.kind === 'card-due' ? frozenCardSource.get(e.accountId) : undefined;
         const loan = e.kind === 'loan-due' ? frozenLoanSource.get(e.accountId) : undefined;
         if (card) {
@@ -125,7 +153,7 @@ export default async function CalendarPage({
                 | 'partner'
                 | 'reader',
               kind: 'card' as const,
-              isEstimated: e.isEstimated ?? false,
+              amountSource: e.amountSource,
             },
           ];
         }
@@ -139,9 +167,9 @@ export default async function CalendarPage({
                 | 'partner'
                 | 'reader',
               kind: 'loan' as const,
-              // A loan's payment is a stored fixed amount the bank sent, never an estimate we
-              // derived — `LoanObligation.isEstimated` is always false for the same reason.
-              isEstimated: false,
+              // A loan's payment is the issuer-reported fixed amount; `frozenLoanNote` never reads
+              // this field, but it is REQUIRED, so it is stated rather than defaulted.
+              amountSource: e.amountSource,
             },
           ];
         }
@@ -343,8 +371,11 @@ export default async function CalendarPage({
           )}
           <p className="mt-3 text-xs text-muted-foreground">
             Card and loan amounts shown on their effective due dates (weekend/holiday dates roll back to
-            the prior business day). Each due day is badged here, the dashboard shows your upcoming payment
-            reminders, and email reminders activate once an email provider is configured.
+            the prior business day), and each repeats monthly in later months — future card amounts are
+            estimates, repeating this cycle&apos;s amount (the current statement, or the balance estimate
+            when no statement exists) until the issuer sends the real one, and each is labeled (est.).
+            Each due day is badged here, the dashboard shows your upcoming payment reminders, and email
+            reminders activate once an email provider is configured.
           </p>
         </CardContent>
       </Card>

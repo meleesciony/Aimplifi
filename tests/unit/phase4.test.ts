@@ -31,7 +31,10 @@ function seedObligations() {
     holidayTable: holidayTable(2024, 2027),
   });
   const result = computeCashNeeded(input);
-  return [...result.cards, ...result.upcoming];
+  // `cards` already contains every obligation (estimates included); `upcoming` is a SUBSET of it.
+  // Spreading both double-counted, and after C.8 a duplicated card synthesizes every future month
+  // twice (critic F-5). Hand the builder the one complete list.
+  return result.cards;
 }
 
 describe('cash-flow calendar (June 2026 from seed)', () => {
@@ -39,6 +42,8 @@ describe('cash-flow calendar (June 2026 from seed)', () => {
     month: '2026-06',
     scheduled: seed.scheduled,
     cardObligations: seedObligations(),
+    today: isoDate('2026-06-10'),
+    holidays: holidayTable(2025, 2027),
   });
 
   it('lays out all 30 June days', () => {
@@ -117,13 +122,21 @@ describe('loan payments surface on the calendar + reminders, not the cash headli
       scheduled: seed.scheduled,
       cardObligations: [],
       loanObligations,
+      today,
+      holidays: holidayTable(2025, 2027),
     });
     const d = july.days.find((x) => x.date === '2026-07-02')!;
     expect(d.events.some((e) => e.kind === 'loan-due' && e.label === 'Auto Loan due' && e.amountCents === -38500)).toBe(true);
     expect(july.reminderDates).toContain('2026-07-02');
     // The loan adds exactly its payment to the month's outflow total (vs the same month
     // without it) — July also carries the recurring rent/savings scheduled outflows.
-    const julyNoLoan = buildCashFlowCalendar({ month: '2026-07', scheduled: seed.scheduled, cardObligations: [] });
+    const julyNoLoan = buildCashFlowCalendar({
+      month: '2026-07',
+      scheduled: seed.scheduled,
+      cardObligations: [],
+      today,
+      holidays: holidayTable(2025, 2027),
+    });
     expect(july.totalOutCents - julyNoLoan.totalOutCents).toBe(38500);
   });
 });

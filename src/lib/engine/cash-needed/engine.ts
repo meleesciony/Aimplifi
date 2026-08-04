@@ -58,7 +58,11 @@ import {
   previousBusinessDay,
   priorBusinessDayIfNonBusiness,
 } from '@/lib/dates';
-import { frozenCardsNote, frozenFundingNote } from '@/lib/engine/account/feed-dropped-view';
+import {
+  currentCycleAmountSource,
+  frozenCardsNote,
+  frozenFundingNote,
+} from '@/lib/engine/account/feed-dropped-view';
 import type {
   CardObligation,
   CardSnapshot,
@@ -299,7 +303,7 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
       cardId: c.id,
       label: c.name,
       frozenSince: c.frozenSince as string,
-      isEstimated: c.statement === null,
+      amountSource: currentCycleAmountSource(c.statement === null),
       // This engine is pure and is handed a household-MERGED account list carrying no ownership,
       // so at household scope it cannot tell whose card this is. It says "the bank" rather than
       // asserting "your bank" over a partner's (critic P1-1).

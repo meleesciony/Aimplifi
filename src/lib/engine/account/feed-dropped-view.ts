@@ -283,6 +283,35 @@ function nextStepClause(nextStep: FrozenNextStep, plural: boolean): string {
  */
 export type FrozenOwnership = 'reader' | 'partner' | 'unknown';
 
+/**
+ * Where a PAINTED due amount comes from — i.e. which field the bank stopped confirming, which is
+ * exactly what the qualifying sentence must name (TASKS C.8 critic F-1). Before this existed, the
+ * calendar's synthesized future cycles reused the `isEstimated` flag, and a frozen card WITH a
+ * statement was qualified as "worked out from the last balance we saw" over a figure that was the
+ * statement basis — a false provenance for money, on the surface L.19 calls highest-consequence.
+ *
+ *  - `'statement'`          — the last statement the bank sent (a card's current cycle);
+ *  - `'repeated-statement'` — a LATER month's estimate repeating that last statement (the calendar
+ *                             synthesizes future cycles; the amount is the statement basis, NOT a
+ *                             balance, and the sentence says so);
+ *  - `'balance'`            — no statement exists; the amount is worked out from the frozen balance;
+ *  - `'loan-terms'`         — a loan's issuer-reported fixed payment. Only `FrozenCalendarRow`
+ *                             carries loans, and `frozenLoanNote` never reads this field — the value
+ *                             exists so the field can be REQUIRED everywhere rather than defaulted.
+ */
+export type DueAmountSource = 'statement' | 'repeated-statement' | 'balance' | 'loan-terms';
+
+/**
+ * The CURRENT-cycle surfaces (/cards, reminders, Ask, Glass-Box, the cash-needed assumption) print
+ * obligations only — never the calendar's synthesized repeats — so their one remaining fact, the
+ * obligation's `isEstimated`, maps onto the provenance exactly: an estimate-path obligation has no
+ * statement, and its amount is worked out from the balance. ONE mapping so six call sites cannot
+ * drift on it (the failure class this field exists to close).
+ */
+export function currentCycleAmountSource(isEstimated: boolean): DueAmountSource {
+  return isEstimated ? 'balance' : 'statement';
+}
+
 /** A card this surface is printing, labelled exactly as the surface paints it. */
 export interface FrozenCardRow {
   readonly cardId: string;
@@ -291,9 +320,10 @@ export interface FrozenCardRow {
   readonly label: string;
   /** YYYY-MM-DD — a row is only passed in when it IS frozen, so this is never null. */
   readonly frozenSince: string;
-  /** True when no statement exists, so the amount asked for is derived from the frozen balance
-   *  itself. Changes the claim, so it is carried rather than inferred. */
-  readonly isEstimated: boolean;
+  /** REQUIRED (C.8 critic F-1): the amount claim branches on WHERE THE AMOUNT COMES FROM, which a
+   *  boolean cannot say once synthesized cycles exist — see `DueAmountSource`. Every caller states
+   *  it; surfaces that only ever print current cycles pass `'statement'` or `'balance'`. */
+  readonly amountSource: DueAmountSource;
   readonly ownership: FrozenOwnership;
 }
 
@@ -390,9 +420,17 @@ export function frozenCardsNote(
     const r = rows[0];
     const name = renderSafe(r.label);
     const when = formatISODate(r.frozenSince as ISODate, 'long');
-    return r.isEstimated
-      ? `${opener} ${name} on ${when}, and no statement has arrived since, so the amount asked for here is worked out from the last balance we saw — nothing that has happened on the card since is in it, including any payment ${madeBy}.${tail}`
-      : `${opener} ${name} on ${when}, so nothing that has happened on the card since is in these figures — including any payment ${madeBy} against this statement.${tail}`;
+    // THREE provenances, three claims (C.8 critic F-1). A boolean split told a statement card's
+    // LATER-month estimate that it was "worked out from the last balance we saw" — false by the
+    // whole gap between the balance and the statement basis printed beside it. Each branch names
+    // the field the figure actually came from.
+    if (r.amountSource === 'balance') {
+      return `${opener} ${name} on ${when}, and no statement has arrived since, so the amount asked for here is worked out from the last balance we saw — nothing that has happened on the card since is in it, including any payment ${madeBy}.${tail}`;
+    }
+    if (r.amountSource === 'repeated-statement') {
+      return `${opener} ${name} on ${when}, and no statement has arrived since, so this later month repeats the last statement the bank sent — nothing that has happened on the card since is in it, including any payment ${madeBy}.${tail}`;
+    }
+    return `${opener} ${name} on ${when}, so nothing that has happened on the card since is in these figures — including any payment ${madeBy} against this statement.${tail}`;
   }
   return `${opener} ${rows.length} of these cards (${nameSet(
     labelsOf(rows),
@@ -954,9 +992,11 @@ export interface FrozenCalendarRow {
   readonly frozenSince: string;
   readonly ownership: FrozenOwnership;
   readonly kind: 'card' | 'loan';
-  /** Card only: no statement, so the amount is derived from the frozen balance. Always false for a
-   *  loan, whose payment is a stored fixed amount rather than an estimate. */
-  readonly isEstimated: boolean;
+  /** REQUIRED (C.8 critic F-1): carried off the EVENT verbatim — the calendar engine knows
+   *  whether it painted a statement, a synthesized repeat of one, or a balance estimate, and this
+   *  builder must not re-derive that from a boolean. Loans pass `'loan-terms'`, which
+   *  `frozenLoanNote` never reads. */
+  readonly amountSource: DueAmountSource;
 }
 
 export interface FrozenCalendarNotice {
@@ -980,20 +1020,23 @@ export interface FrozenCalendarNotice {
  * for loans since L.18 ("the payment amount and due date shown here are the last ones it sent");
  * the card path, on the same banner, said nothing.
  *
- * The estimate path is named separately because its date comes from a different stale field: the
- * account's own stored cycle-close and due day, not a statement.
+ * The balance-estimate path is named separately because its date comes from a different stale
+ * field: the account's own stored cycle-close and due day, not a statement. A REPEATED statement
+ * (C.8's later-month synthesis) still derives its date from the statement — it repeats the last
+ * due day — so for the DATE claim it groups with `'statement'`, not `'balance'`.
  */
 export function frozenCardDatesNote(
-  rows: readonly { readonly isEstimated: boolean }[],
+  rows: readonly { readonly amountSource: DueAmountSource }[],
 ): string | null {
   if (rows.length === 0) return null;
   const many = rows.length > 1;
   const subject = many ? 'The due dates shown for them are' : 'The due date shown for it is';
+  const fromBalance = (r: { readonly amountSource: DueAmountSource }) => r.amountSource === 'balance';
   // Both paths in one clause where they agree, split where they do not: a statement card's date
   // came from the last statement, an estimate card's from the account's own stored due day.
-  const source = rows.every((r) => r.isEstimated)
+  const source = rows.every(fromBalance)
     ? `worked out from the day of the month this account used to be due`
-    : rows.some((r) => r.isEstimated)
+    : rows.some(fromBalance)
       ? `taken from the last statement the bank sent, or from the day of the month the account used to be due`
       : `taken from the last statement the bank sent`;
   return `${subject} ${source}, so ${

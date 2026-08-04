@@ -17,6 +17,7 @@ import { formatCents } from '@/lib/money';
 import {
   FROZEN_CARD_TESTID,
   type FrozenNothingDueRow,
+  currentCycleAmountSource,
   frozenCardsNote,
   frozenLoanNote,
   frozenNothingDueNote,
@@ -245,7 +246,7 @@ export function PaymentRemindersCard({
                                   cardId: r.accountId,
                                   label: painted(r),
                                   frozenSince: r.frozenSince,
-                                  isEstimated: r.isEstimated,
+                                  amountSource: currentCycleAmountSource(r.isEstimated),
                                   // Critic P1-1: a partner's card drops the imperative and the
                                   // "your bank" subject, both of which are false for this reader.
                                   ownership: owner ? 'partner' : 'reader',

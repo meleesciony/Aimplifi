@@ -431,6 +431,7 @@ describe('(a) the calendar', () => {
   const obligation = (cardId: string, cardName: string) => ({
     cardId,
     cardName,
+    dueDate: isoDate('2026-06-13'),
     effectiveDueDate: isoDate('2026-06-13'),
     cashRequiredCents: cents(667_968),
     isEstimated: false,
@@ -441,6 +442,8 @@ describe('(a) the calendar', () => {
       month: '2026-06',
       scheduled: [],
       cardObligations: [obligation('chase-a', 'CREDIT CARD'), obligation('chase-b', 'Chase Sapphire')] as never,
+      today: isoDate('2026-06-10'),
+      holidays: [],
     });
     const due = cal.days.flatMap((d) => d.events).filter((e) => e.kind === 'card-due');
     expect(due).toHaveLength(2);
@@ -453,8 +456,14 @@ describe('(a) the calendar', () => {
       scheduled: [],
       cardObligations: [
         obligation('chase-a', 'CREDIT CARD'),
-        { ...obligation('chase-b', 'Chase Sapphire'), effectiveDueDate: isoDate('2026-07-13') },
+        {
+          ...obligation('chase-b', 'Chase Sapphire'),
+          dueDate: isoDate('2026-07-13'),
+          effectiveDueDate: isoDate('2026-07-13'),
+        },
       ] as never,
+      today: isoDate('2026-06-10'),
+      holidays: [],
     });
     const rows = cal.days
       .flatMap((d) => d.events)

@@ -11,11 +11,13 @@ import {
   compareDates,
   daysInMonth,
   isoDate,
+  priorBusinessDayIfNonBusiness,
 } from '@/lib/dates';
-import type { CardObligation } from '@/lib/engine/cash-needed/types';
 import type { ScheduledLike } from '@/lib/engine/cash-needed/assemble';
 import type { LoanObligation } from '@/lib/engine/loans/obligations';
 import { monthsPerCadence } from '@/lib/engine/recurring/detect';
+import type { ProjectableObligation } from '@/lib/engine/radar/radar';
+import type { DueAmountSource } from '@/lib/engine/account/feed-dropped-view';
 
 export interface CalendarEvent {
   date: ISODate;
@@ -34,6 +36,17 @@ export interface CalendarEvent {
    * function's own month-window and `cashRequiredCents > 0` predicates.
    */
   accountId?: string;
+  /**
+   * WHERE THE AMOUNT COMES FROM — set on 'card-due' and 'loan-due' only (TASKS C.8 critic F-1).
+   *
+   * The frozen-account disclosure qualifies a due by naming the field the bank stopped confirming,
+   * and that field differs by how THIS event was produced: a current statement, a synthesized repeat
+   * of one, or a balance estimate. Before this was carried, a later-month synthesis reused the
+   * boolean `isEstimated`, and a frozen card WITH a statement was told its figure was "worked out
+   * from the last balance we saw" — a false provenance for money. The engine knows which branch it
+   * painted; handing the fact over keeps the disclosure from re-deriving it (and getting it wrong).
+   */
+  amountSource?: DueAmountSource;
 }
 
 export interface CalendarDay {
@@ -103,31 +116,95 @@ export function expandScheduled(
 export function buildCashFlowCalendar(params: {
   month: string; // YYYY-MM
   scheduled: readonly ScheduledLike[];
-  cardObligations: readonly CardObligation[]; // current + upcoming, from the engine
+  /** current + upcoming, from the engine; `cycleBasisCents` prices future cycles. */
+  cardObligations: readonly ProjectableObligation[];
   loanObligations?: readonly LoanObligation[]; // next LOAN/MORTGAGE payments (#134)
+  /**
+   * REQUIRED (the L.15 defaulted-argument lesson): synthesized cycles are only
+   * ever dated AFTER today — a stale anchor from a long-passed due date must be
+   * skipped, and only a caller that hands over its own `today` gets that guard.
+   */
+  today: ISODate;
+  /**
+   * REQUIRED for the same reason: every synthesized occurrence is re-adjusted to
+   * the prior business day with the SAME table the obligation's own effective
+   * date was adjusted with, or a future month's badge would sit on a weekend the
+   * current month's footnote just promised roll back.
+   */
+  holidays: readonly ISODate[];
 }): CashFlowCalendar {
-  const { month } = params;
+  const { month, today, holidays } = params;
   const year = +month.slice(0, 4);
   const mo = +month.slice(5, 7);
   const first = isoDate(`${month}-01`);
   const last = isoDate(`${month}-${String(daysInMonth(year, mo)).padStart(2, '0')}`);
+  // A synthesized occurrence steps from the RAW due date and then rolls BACK to
+  // the prior business day, so its raw date can sit a few days past `last` while
+  // its effective date still lands inside the month (a 1st falling on a long
+  // weekend is the live shape). The longest US weekend+holiday run rolls back 4
+  // days; 7 is the safe margin. Iteration stays bounded for a far-past month too:
+  // k=1's raw date is already past `last`, so the loop exits at once.
+  const rawLimit = addDays(last, 7);
 
   const events: CalendarEvent[] = expandScheduled(params.scheduled, first, last);
   for (const ob of params.cardObligations) {
-    if (ob.cashRequiredCents <= 0) continue;
-    if (compareDates(ob.effectiveDueDate, first) >= 0 && compareDates(ob.effectiveDueDate, last) <= 0) {
+    // THIS cycle: the engine's real obligation, exactly as before (C.8 left the
+    // current-month event untouched — it added the OTHER months).
+    if (ob.cashRequiredCents > 0) {
+      if (compareDates(ob.effectiveDueDate, first) >= 0 && compareDates(ob.effectiveDueDate, last) <= 0) {
+        events.push({
+          date: ob.effectiveDueDate,
+          kind: 'card-due',
+          label: `${ob.cardName} due${ob.isEstimated ? ' (est.)' : ''}`,
+          amountCents: cents(-ob.cashRequiredCents),
+          isEstimated: ob.isEstimated,
+          accountId: ob.cardId,
+          // An estimate-path obligation carries no statement; its amount is worked out from the
+          // balance. A statement obligation's is the statement's own figure.
+          amountSource: ob.isEstimated ? 'balance' : 'statement',
+        });
+      }
+    }
+    // FUTURE cycles (TASKS C.8 / audit P0-3): monthly repeats of this card's
+    // obligation, mirroring the radar's `projectCardDues` rule for rule — step
+    // from the RAW issuer due date (stepping from the effective date would drag
+    // one month's weekend shift into every later month), re-adjust per
+    // occurrence, price at the statement basis, ALWAYS labeled estimated
+    // (adjudicated condition 3: statements not generated yet). Skipping stale
+    // anchors and credit-balance statements is the radar's guard verbatim.
+    const futureAmount = ob.cycleBasisCents ?? ob.cashRequiredCents;
+    if (futureAmount <= 0) continue; // a credit-balance statement is not a recurring debit
+    for (let k = 1; ; k++) {
+      const raw = addMonthsClamped(ob.dueDate, k);
+      if (compareDates(raw, rawLimit) > 0) break;
+      const effective = priorBusinessDayIfNonBusiness(raw, holidays);
+      if (compareDates(effective, first) < 0 || compareDates(effective, last) > 0) continue;
+      // Stale anchor from a long-passed due date. NOTE (critic F-4, recorded residual): this guard
+      // also drops an occurrence that lands EXACTLY on `today` for an obligation more than a month
+      // overdue (k=1 steps onto today's date), leaving two real demands on one event. It is the
+      // radar's guard verbatim (`projectCardDues`), so parity holds, and the shape needs
+      // delinquency — not a slice defect.
+      if (compareDates(effective, today) <= 0) continue;
+      // A repeat is of the STATEMENT unless the obligation is on the estimate path (no statement,
+      // balance-derived). Keyed on the obligation's own path, NOT merely on the presence of
+      // `cycleBasisCents`: that field is a page-injected enrichment, so a statement card handed in
+      // bare (no basis) must still read as a repeated statement, not a balance estimate (critic
+      // F-1). The frozen disclosure branches on this, and it must be true.
+      const repeatsStatement = !ob.isEstimated || ob.cycleBasisCents != null;
       events.push({
-        date: ob.effectiveDueDate,
+        date: effective,
         kind: 'card-due',
-        label: `${ob.cardName} due${ob.isEstimated ? ' (est.)' : ''}`,
-        amountCents: cents(-ob.cashRequiredCents),
-        isEstimated: ob.isEstimated,
+        label: `${ob.cardName} due (est.)`,
+        amountCents: cents(-futureAmount),
+        isEstimated: true,
         accountId: ob.cardId,
+        amountSource: repeatsStatement ? 'repeated-statement' : 'balance',
       });
     }
   }
   for (const ob of params.loanObligations ?? []) {
     if (ob.paymentCents <= 0) continue;
+    // THIS cycle, unchanged.
     if (compareDates(ob.effectiveDueDate, first) >= 0 && compareDates(ob.effectiveDueDate, last) <= 0) {
       events.push({
         date: ob.effectiveDueDate,
@@ -135,6 +212,33 @@ export function buildCashFlowCalendar(params: {
         label: `${ob.accountName} due`,
         amountCents: cents(-ob.paymentCents),
         accountId: ob.accountId,
+        amountSource: 'loan-terms',
+      });
+    }
+    // FUTURE cycles: the fixed monthly payment repeats — the amount is the
+    // issuer-reported contract payment (never an estimate, never `(est.)`,
+    // exactly as `LoanObligation.isEstimated` documents). /forecast expands the
+    // same loan at this cadence from this same RAW anchor
+    // (`loanObligationsToScheduledFlows`), so the two surfaces share an anchor and
+    // a cadence; their DISPLAY conventions differ by design — the calendar rolls
+    // each occurrence back to a business day, /forecast prints the raw date
+    // (critic F-2: an earlier comment overclaimed "one date"). Deliberately NOT
+    // re-derived from the day-of-month: an anchor clamped by a short month would
+    // then disagree with /forecast even on the anchor, and unifying both
+    // expanders is a separate slice (recorded residual, C.8).
+    for (let k = 1; ; k++) {
+      const raw = addMonthsClamped(ob.dueDate, k);
+      if (compareDates(raw, rawLimit) > 0) break;
+      const effective = priorBusinessDayIfNonBusiness(raw, holidays);
+      if (compareDates(effective, first) < 0 || compareDates(effective, last) > 0) continue;
+      if (compareDates(effective, today) <= 0) continue; // stale anchor (same F-4 residual as cards)
+      events.push({
+        date: effective,
+        kind: 'loan-due',
+        label: `${ob.accountName} due`,
+        amountCents: cents(-ob.paymentCents),
+        accountId: ob.accountId,
+        amountSource: 'loan-terms',
       });
     }
   }

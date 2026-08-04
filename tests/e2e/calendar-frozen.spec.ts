@@ -33,9 +33,13 @@ const DUE_MONTH = '2026-06';
  *  22nd/25th it can never cross back out of the displayed month. */
 const CARD_DUE_DATE = '2026-06-25';
 const LOAN_DUE_DAY = 22;
-/** Three months past the loan's single next payment — `selectLoanObligations` emits exactly one
- *  occurrence, so this month's grid cannot hold it. */
-const QUIET_MONTH = '2026-09';
+/** Three months past the loan's first due month. Pre-C.8 this month's grid could not hold the loan
+ *  (`selectLoanObligations` emitted exactly one occurrence); C.8 makes dues REPEAT monthly, so this
+ *  month now paints the loan's next payment and the frozen disclosure must follow it there. */
+const LATER_MONTH = '2026-09';
+/** The only months still quiet after C.8 are the ones BEFORE the first due month: there is no
+ *  history to backfill, so nothing is painted and nothing may be qualified. */
+const QUIET_MONTH = '2026-05';
 const DROPPED_AT = '2026-05-20';
 
 async function signUpThrowaway(page: Page): Promise<string> {
@@ -293,8 +297,12 @@ test('a frozen LOAN says its DUE DATE is the last one the bank sent', async ({ p
  * month actually paints rather than against the obligations behind them. The account is still
  * frozen; it simply has no row on THIS month's grid, and a disclosure naming a row the reader
  * cannot see sends them looking for something that is not there.
+ *
+ * C.8 moved where abstention lives: dues now repeat monthly, so a LATER month paints the loan and
+ * the disclosure FOLLOWS it (the frozen fact rides the money, L.14's thesis, onto the synthesized
+ * event too). The silent case is now a month BEFORE the first due, which paints nothing.
  */
-test('the same frozen loan is silent on a month whose grid holds no due for it', async ({
+test('a frozen loan follows its recurring payment into a later month; only a pre-due month is silent', async ({
   page,
 }) => {
   const email = await signUpThrowaway(page);
@@ -306,6 +314,18 @@ test('the same frozen loan is silent on a month whose grid holds no due for it',
   await page.goto(`/calendar?month=${DUE_MONTH}`);
   expect(await frozenText(page)).toContain(loanName);
 
+  // C.8: the later month PAINTS the recurring payment, and the disclosure names the frozen loan
+  // over it — a reader looking at September's grid is told the amount and day are unconfirmed.
+  await page.goto(`/calendar?month=${LATER_MONTH}`);
+  await expect(page.getByTestId('cal-month')).toHaveAttribute('data-month', LATER_MONTH, {
+    timeout: 20_000,
+  });
+  await expect(
+    page.getByTestId('calendar-list').getByText(`${loanName} due`, { exact: false }).first(),
+  ).toBeVisible({ timeout: 20_000 });
+  expect(await frozenText(page)).toContain(loanName);
+
+  // The silent case: a month before any due paints nothing, so nothing may be qualified.
   await page.goto(`/calendar?month=${QUIET_MONTH}`);
   await expect(page.getByTestId('cal-month')).toHaveAttribute('data-month', QUIET_MONTH, {
     timeout: 20_000,

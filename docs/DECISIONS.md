@@ -3620,3 +3620,63 @@ merchant (empty set = no sentence, never a claim about an absence).
 **Income side needs no exclusion:** #62 withholds loan-account activity from the
 snapshot, and budgets' db query is spending-accounts-only, so no loan inflow ever
 reaches a flow sum; the exclusion is outflow-only by construction.
+
+## #404 — C.8: the calendar places each card and loan due in EVERY month — synthesis at the calendar boundary, radar's rules, provenance carried on the event (built, critic-cycled)
+
+**The defect in one line (audit P0-3):** `buildCashFlowCalendar` window-gated the
+ONE obligation the engines emit per card/loan ("the next payment on/after today"),
+so every month but the due month printed "0 payments due across 0 dates" under a
+footnote promising "each due day is badged here". For the owner (4+ cards, ~$6,200
+mortgage) September understated committed outflow by ~$25,000.
+
+**Where the synthesis lives and why.** Inside `buildCashFlowCalendar` — pure,
+unit-testable, and the ONE place the month window exists. Required new params
+`today` + `holidays` (the L.15 lesson: a caller that forgets them gets silence at
+exactly the wrong moment, so they are required, not defaulted). Cards repeat
+monthly from the RAW issuer due date, re-adjusted to the prior business day per
+occurrence, priced at `cycleBasisCents ?? cashRequiredCents`, ALWAYS labeled
+`(est.)` — the radar's `projectCardDues` rule for rule (adjudicated condition 3).
+Loans repeat their fixed issuer-reported payment, never `(est.)`, stepping from the
+same raw anchor /forecast expands (`loanObligationsToScheduledFlows`); the two
+surfaces share anchor and cadence while their DISPLAY conventions differ by design
+(calendar rolls back to business days, forecast prints raw — critic F-2 corrected an
+earlier comment that overclaimed "one date"). Deliberately NOT re-derived from
+day-of-month for loans: a clamped anchor would then disagree with /forecast even on
+the anchor; unifying expanders is a separate slice.
+
+**What stays true:** the current-month events are untouched (fail-old locked);
+iteration is bounded for far-past and far-future months alike (a `last + 7 days`
+raw-limit provably covers the longest US weekend+holiday roll-back of 3 days); a
+stale anchor skips occurrences on/before today (radar's guard verbatim — recorded
+residual critic F-4: a 1+month-overdue card whose k=1 lands exactly on today drops
+that occurrence, parity-preserving, needs delinquency); a credit-balance statement
+never recurs.
+
+**The critic's P1 (F-1) and its shape.** Cycle 1 FAIL, 1 P1 + 4 P2. The P1: the
+synthesized events reused the boolean `isEstimated`, and the frozen-account
+disclosure keyed its amount sentence off it — so a frozen card WITH a statement was
+told, in every later month, that its figure was "worked out from the last balance
+we saw" while the grid printed the statement basis: a false PROVENANCE for money on
+the surface L.19 calls highest-consequence (the exact defect class L.18's
+correction #2 paid to remove, back through a new door). Fix: a closed provenance
+set — `DueAmountSource = 'statement' | 'repeated-statement' | 'balance' |
+'loan-terms'` — computed ONCE in the engine where the fact is known (which branch
+painted the event), carried on `CalendarEvent.amountSource`, mapped verbatim by the
+page into `FrozenCalendarRow`, branched in `frozenCardsNote` (three sentences) and
+`frozenCardDatesNote` (a repeated statement still derives its DATE from the
+statement, so it groups with `'statement'` there). `FrozenCardRow.isEstimated` was
+REPLACED by `amountSource`; the six current-cycle call sites map through one
+`currentCycleAmountSource()` so they cannot drift. The source logic keys on the
+obligation's own estimate path, NOT merely on the page-injected `cycleBasisCents`
+(the follow-up caught that a bare statement card would have mislabeled as balance).
+The P2s: the overclaimed "one date" comment (F-2), the footnote's estimate-path
+imprecision (F-3), the F-4 residual recorded in-source, and phase4.test.ts's
+`[...cards, ...upcoming]` double-list — harmless pre-C.8, a double-synthesis trap
+after — now `result.cards` alone (F-5).
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **5849 unit across
+358 files** / build clean. Targeted calendar e2e 21/21 serially; the
+calendar-frozen spec's quiet-month lock was REWRITTEN to the new truth (later
+months now paint; the frozen fact rides the synthesized money; only a pre-due month
+is silent). Three unrelated mobile-380 e2e (auth:82, today-feed-frozen:220/238)
+fail IDENTICALLY on clean HEAD — stash-verified, recorded OPEN, not caused here.

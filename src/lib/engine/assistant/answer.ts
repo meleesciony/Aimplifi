@@ -30,6 +30,7 @@ import {
   cardDuplicateUndatedNote,
 } from '@/lib/engine/account/card-duplicate-view';
 import {
+  currentCycleAmountSource,
   frozenCardsNote,
   frozenFundingNote,
   frozenListedBalancesNote,
@@ -1341,7 +1342,7 @@ export function answerCashNeeded(
             cardId: c.cardId,
             label: c.cardName,
             frozenSince: c.frozenSince as string,
-            isEstimated: c.isEstimated,
+            amountSource: currentCycleAmountSource(c.isEstimated),
             ownership: 'reader' as const,
           })),
         { role: 'instruction', nextStep: 'accounts-route' },

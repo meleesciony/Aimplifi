@@ -21,7 +21,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { buildCashFlowCalendar } from '@/lib/engine/calendar/build';
 import type { CardObligation } from '@/lib/engine/cash-needed/types';
 import { cents, type Cents } from '@/lib/money';
-import { isoDate } from '@/lib/dates';
+import { holidayTable, isoDate } from '@/lib/dates';
 
 function row(over: Partial<ExportTxn>): ExportTxn {
   return {
@@ -119,7 +119,13 @@ describe('critic5: calendar places weekend due dates on the effective day', () =
   };
 
   it('Freedom (issuer Sun 06-28) shows on Fri 06-26 and NOT on 06-28', () => {
-    const cal = buildCashFlowCalendar({ month: '2026-06', scheduled: [], cardObligations: [freedomOb] });
+    const cal = buildCashFlowCalendar({
+      month: '2026-06',
+      scheduled: [],
+      cardObligations: [freedomOb],
+      today: isoDate('2026-06-10'),
+      holidays: holidayTable(2026, 2027),
+    });
     const d26 = cal.days.find((d) => d.date === '2026-06-26')!;
     const d28 = cal.days.find((d) => d.date === '2026-06-28')!;
     expect(d26.events.some((e) => e.kind === 'card-due' && e.label.startsWith('Freedom'))).toBe(true);

@@ -39,7 +39,9 @@ import {
 import { traceNetWorthDerivation } from '@/lib/engine/assistant/derivation';
 import { traceCashNeeded } from '@/lib/engine/glass-box/trace';
 import {
+  type DueAmountSource,
   type FrozenCalendarRow,
+  currentCycleAmountSource,
   frozenCalendarNotice,
   frozenCardsNote,
   frozenDuesEmailLines,
@@ -357,7 +359,7 @@ describe('/cards — the page’s per-row note and its one instruction', () => {
           cardId: frozen.cardId,
           label: `${frozen.cardName} ····0977`,
           frozenSince: frozen.frozenSince as string,
-          isEstimated: frozen.isEstimated,
+          amountSource: currentCycleAmountSource(frozen.isEstimated),
           ownership: 'reader',
         },
       ],
@@ -377,7 +379,7 @@ describe('/cards — the page’s per-row note and its one instruction', () => {
       cardId: 'c',
       label: 'Chase Sapphire',
       frozenSince: DROPPED,
-      isEstimated: false,
+      amountSource: 'statement' as const,
       ownership: 'reader' as const,
     };
     expect(frozenCardsNote([row], { role: 'figure', nextStep: 'accounts-route' })).not.toContain(
@@ -400,7 +402,7 @@ describe('/cards — the page’s per-row note and its one instruction', () => {
           cardId: 'p',
           label: "Sam's Venture ····0977",
           frozenSince: DROPPED,
-          isEstimated: false,
+          amountSource: 'statement' as const,
           ownership: 'partner',
         },
       ],
@@ -454,8 +456,8 @@ describe('/cards — the page’s per-row note and its one instruction', () => {
     // reader-only remedy over the partner's row beside it.
     const note = frozenCardsNote(
       [
-        { cardId: 'a', label: 'Chase Sapphire', frozenSince: DROPPED, isEstimated: false, ownership: 'reader' },
-        { cardId: 'b', label: "Sam's Venture", frozenSince: DROPPED, isEstimated: false, ownership: 'partner' },
+        { cardId: 'a', label: 'Chase Sapphire', frozenSince: DROPPED, amountSource: 'statement' as const, ownership: 'reader' },
+        { cardId: 'b', label: "Sam's Venture", frozenSince: DROPPED, amountSource: 'statement' as const, ownership: 'partner' },
       ],
       { role: 'instruction', nextStep: 'accounts-route' },
     ) as string;
@@ -1367,7 +1369,7 @@ describe('L.19 — /calendar, the page whose product is a dated amount to pay', 
     frozenSince: DROPPED,
     ownership: 'reader',
     kind: 'card',
-    isEstimated: false,
+    amountSource: 'statement',
     ...over,
   });
 
@@ -1375,7 +1377,10 @@ describe('L.19 — /calendar, the page whose product is a dated amount to pay', 
     // The L.15 defect shape: a count computed over something other than what it names. A card with
     // a current statement and a next-cycle estimate emits two events for one account.
     const notice = frozenCalendarNotice(
-      [row({ accountId: 'frozen-card' }), row({ accountId: 'frozen-card', isEstimated: true })],
+      [
+        row({ accountId: 'frozen-card' }),
+        row({ accountId: 'frozen-card', amountSource: 'repeated-statement' }),
+      ],
       { nextStep: 'accounts-route', funding: null, shows: 'no-dip' },
     )!;
     expect(notice.title).toBe('One account behind this calendar has stopped updating');
@@ -1473,7 +1478,7 @@ describe('L.19 — the calendar notice over the REAL engines', () => {
           frozenSince: c.frozenSince as string,
           ownership: 'reader' as const,
           kind: 'card' as const,
-          isEstimated: c.isEstimated,
+          amountSource: currentCycleAmountSource(c.isEstimated),
         })),
       ...loans
         .filter((l) => l.frozenSince != null)
@@ -1483,7 +1488,7 @@ describe('L.19 — the calendar notice over the REAL engines', () => {
           frozenSince: l.frozenSince as string,
           ownership: 'reader' as const,
           kind: 'loan' as const,
-          isEstimated: false,
+          amountSource: 'loan-terms' as const,
         })),
     ];
     const notice = frozenCalendarNotice(rows, {
@@ -1561,7 +1566,7 @@ describe('L.19 critic P1-1 — the calendar prints ONE instruction no due row ac
           frozenSince: DROPPED,
           ownership: 'reader',
           kind: 'card',
-          isEstimated: false,
+          amountSource: 'statement',
         },
       ],
       { nextStep: 'accounts-route', funding, shows: 'a-transfer' },
@@ -1578,20 +1583,20 @@ describe('L.19 critic P1-1 — the calendar prints ONE instruction no due row ac
 });
 
 describe('L.19 critic P1-2 — on a calendar the DATE is the product, and it may be one we made up', () => {
-  const cardRow = (isEstimated: boolean) => ({
+  const cardRow = (amountSource: DueAmountSource) => ({
     accountId: 'frozen-card',
     label: 'Chase Sapphire',
     frozenSince: DROPPED,
     ownership: 'reader' as const,
     kind: 'card' as const,
-    isEstimated,
+    amountSource,
   });
 
   it('says the due date cannot move, and that a passed date is shown as due today', () => {
     // `buildObligation` clamps an already-passed due date to today (engine.ts:158-161), so the
     // grid can paint a date no bank ever sent — and for a frozen card no new statement can arrive
     // to move it off today again. The card note qualified only the AMOUNT.
-    const notice = frozenCalendarNotice([cardRow(false)], {
+    const notice = frozenCalendarNotice([cardRow('statement')], {
       nextStep: 'accounts-route',
       funding: null,
       shows: 'no-dip',
@@ -1602,7 +1607,7 @@ describe('L.19 critic P1-2 — on a calendar the DATE is the product, and it may
   });
 
   it('names the ESTIMATE path’s different stale field — the stored due day, not a statement', () => {
-    const notice = frozenCalendarNotice([cardRow(true)], {
+    const notice = frozenCalendarNotice([cardRow('balance')], {
       nextStep: 'accounts-route',
       funding: null,
       shows: 'no-dip',
@@ -1612,13 +1617,65 @@ describe('L.19 critic P1-2 — on a calendar the DATE is the product, and it may
     );
   });
 
+  it('a REPEATED statement’s date is still taken from the statement, not the stored due day (C.8 F-1)', () => {
+    // The later-month synthesis repeats the last due day, so the DATE provenance groups with the
+    // statement path. Only a balance estimate derives its date from the stored due day.
+    const notice = frozenCalendarNotice([cardRow('repeated-statement')], {
+      nextStep: 'accounts-route',
+      funding: null,
+      shows: 'no-dip',
+    })!;
+    const all = notice.lines.join(' ');
+    expect(all).toContain('The due date shown for it is taken from the last statement the bank sent');
+    expect(all).not.toContain('worked out from the day of the month');
+  });
+
   it('a LOAN gets no second date sentence — `frozenLoanNote` already makes that claim', () => {
     const notice = frozenCalendarNotice(
-      [{ ...cardRow(false), accountId: 'l1', label: 'Home Mortgage', kind: 'loan' }],
+      [{ ...cardRow('statement'), accountId: 'l1', label: 'Home Mortgage', kind: 'loan', amountSource: 'loan-terms' as const }],
       { nextStep: 'accounts-route', funding: null, shows: 'no-dip' },
     )!;
     expect(notice.lines).toHaveLength(1);
     expect(notice.lines[0]).toContain('the payment amount and due date shown here are the last ones it sent');
+  });
+});
+
+describe('C.8 critic F-1 — the frozen amount claim names the field the figure came from', () => {
+  const single = (amountSource: DueAmountSource) =>
+    frozenCardsNote(
+      [
+        {
+          cardId: 'frozen-card',
+          label: 'Chase Sapphire',
+          frozenSince: DROPPED,
+          amountSource,
+          ownership: 'reader' as const,
+        },
+      ],
+      { role: 'instruction', nextStep: 'accounts-route' },
+    ) as string;
+
+  it('a STATEMENT card says the figure is the statement’s own', () => {
+    const note = single('statement');
+    expect(note).toContain('against this statement');
+    expect(note).not.toContain('worked out from the last balance we saw');
+    expect(note).not.toContain('repeats the last statement');
+  });
+
+  it('a BALANCE-estimate card says the figure is worked out from the balance', () => {
+    const note = single('balance');
+    expect(note).toContain('worked out from the last balance we saw');
+    expect(note).not.toContain('repeats the last statement');
+  });
+
+  it('a REPEATED statement says so — and never claims the balance as its source (the F-1 lie)', () => {
+    // Before the fix, a later-month synthesis reused `isEstimated`, so a statement card was told
+    // its figure was "worked out from the last balance we saw" — false by the whole gap between
+    // the balance and the statement basis printed beside it.
+    const note = single('repeated-statement');
+    expect(note).toContain('repeats the last statement the bank sent');
+    expect(note).not.toContain('worked out from the last balance we saw');
+    expect(note).not.toContain('against this statement');
   });
 });
 
@@ -1633,7 +1690,7 @@ describe('L.19 critic P2-2 — two accounts that paint identically are not shown
       frozenSince: DROPPED,
       ownership: 'reader' as const,
       kind: 'loan' as const,
-      isEstimated: false,
+      amountSource: 'loan-terms' as const,
     });
     const notice = frozenCalendarNotice([loan('a'), loan('b')], {
       nextStep: 'accounts-route',
@@ -1652,8 +1709,8 @@ describe('L.19 critic P2-2 — two accounts that paint identically are not shown
   it('two loans that DIFFER still get their own sentence each', () => {
     const notice = frozenCalendarNotice(
       [
-        { accountId: 'a', label: 'AUTO LOAN', frozenSince: DROPPED, ownership: 'reader', kind: 'loan', isEstimated: false },
-        { accountId: 'b', label: 'Home Mortgage', frozenSince: DROPPED, ownership: 'reader', kind: 'loan', isEstimated: false },
+        { accountId: 'a', label: 'AUTO LOAN', frozenSince: DROPPED, ownership: 'reader', kind: 'loan', amountSource: 'loan-terms' as const },
+        { accountId: 'b', label: 'Home Mortgage', frozenSince: DROPPED, ownership: 'reader', kind: 'loan', amountSource: 'loan-terms' as const },
       ],
       { nextStep: 'accounts-route', funding: null, shows: 'no-dip' },
     )!;
@@ -1725,6 +1782,8 @@ describe('L.19 critic P2-3 — the resolution rule locked through the REAL calen
         scheduled: [],
         cardObligations: out.cards,
         loanObligations: [],
+        today: TODAY,
+        holidays: HOL,
       });
       const frozenById = new Map(
         out.cards.filter((c) => c.frozenSince != null).map((c) => [c.cardId, c] as const),
@@ -1732,7 +1791,9 @@ describe('L.19 critic P2-3 — the resolution rule locked through the REAL calen
       return cal.days
         .flatMap((d) => d.events)
         .flatMap((e): FrozenCalendarRow[] => {
-          const src = e.accountId ? frozenById.get(e.accountId) : undefined;
+          // Mirror the page: a due event carries its own amountSource; refuse rather than default.
+          if (e.accountId === undefined || e.amountSource === undefined) return [];
+          const src = frozenById.get(e.accountId);
           return src
             ? [
                 {
@@ -1741,7 +1802,7 @@ describe('L.19 critic P2-3 — the resolution rule locked through the REAL calen
                   frozenSince: src.frozenSince as string,
                   ownership: 'reader',
                   kind: 'card',
-                  isEstimated: e.isEstimated ?? false,
+                  amountSource: e.amountSource,
                 },
               ]
             : [];
@@ -1758,10 +1819,43 @@ describe('L.19 critic P2-3 — the resolution rule locked through the REAL calen
     // The healthy card is never named.
     expect(speaks!.lines.join(' ')).not.toContain('Freedom Card');
 
-    // A month whose grid holds no due for it: the account is still frozen, and the page is silent.
-    expect(rowsFor('2026-09')).toEqual([]);
+    // C.8 changed this month: a card's due now REPEATS into later months, so the frozen card IS
+    // painted in September and the disclosure must follow it there — the L.14 "fact rides the
+    // money" thesis extends to the synthesized event. And critic F-1's whole point: this card HAS
+    // a statement, so the repeat is of that STATEMENT — the banner must say so, and must NOT fall
+    // into the balance-estimate sentence ("worked out from the last balance we saw"), which would
+    // name a provenance the printed figure does not have.
+    const septRows = rowsFor('2026-09');
+    expect(septRows).toEqual([
+      {
+        accountId: 'frozen-card',
+        label: 'Chase Sapphire',
+        frozenSince: DROPPED,
+        ownership: 'reader',
+        kind: 'card',
+        amountSource: 'repeated-statement',
+      },
+    ]);
+    const sept = frozenCalendarNotice(septRows, {
+      nextStep: 'accounts-route',
+      funding: null,
+      shows: 'no-dip',
+    });
+    expect(sept).not.toBeNull();
+    expect(sept!.lines.join(' ')).toContain('Chase Sapphire');
+    expect(sept!.lines.join(' ')).toContain('this later month repeats the last statement the bank sent');
+    expect(sept!.lines.join(' ')).not.toContain('worked out from the last balance we saw');
+    // The DATE claim groups with the statement path too — a repeated due day still came from the
+    // statement, not from the stored-due-day estimate branch.
+    expect(sept!.lines.join(' ')).toContain('taken from the last statement the bank sent');
+    expect(sept!.lines.join(' ')).not.toContain('worked out from the day of the month');
+
+    // The silent case is now only a month BEFORE the due month — every month from the due month
+    // forward paints the estimate. (Navigating backwards is a real gesture: the page has a prev
+    // link.) The account is still frozen, but nothing is painted, so the page stays silent.
+    expect(rowsFor('2026-05')).toEqual([]);
     expect(
-      frozenCalendarNotice(rowsFor('2026-09'), {
+      frozenCalendarNotice(rowsFor('2026-05'), {
         nextStep: 'accounts-route',
         funding: null,
         shows: 'no-dip',
