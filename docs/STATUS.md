@@ -59,6 +59,12 @@ spending-plan×2/dashboard-duplicate-disclosure): **39/41** — the two
 clean HEAD (stash-verified this session), so they predate this slice; see the
 OPEN entry below.
 
+**Deploy:** `d4347c6` → GitHub deployment `aimplifi-38lifklki-reiforge`
+state `success` (Production), www.aimplifi.app `/sign-in` byte-identical to
+the deployment URL this session (cmp). No demo figure moves by construction
+(the seed's exclusion set is empty), so the sha-match + content-match is the
+live proof, as with C.24.
+
 ## ⚠️ OPEN 2026-08-04 — dashboard-duplicate-disclosure mobile e2e fails on clean HEAD (predates C.25)
 
 `tests/e2e/dashboard-duplicate-disclosure.spec.ts` mobile-380 variants fail
