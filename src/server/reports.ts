@@ -13,6 +13,11 @@ import {
   type MonthFlowBreakdown,
 } from '@/lib/engine/glass-box/month-flow-breakdown';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
+import {
+  loanPaymentBasisFacts,
+  loanPaymentRefusedCategories,
+  type LoanPaymentBasisFact,
+} from '@/server/loan-payment-basis';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
 
@@ -20,6 +25,20 @@ export interface ReportsData {
   ym: string;
   months: { month: string; incomeCents: number; expensesCents: number }[];
   breakdown: SpendingBreakdown;
+  /**
+   * C.25 (DECISIONS #403): the loan payments these figures do NOT count as
+   * spending, and why — one entry per excluded merchant, carrying the loan
+   * it is counted on instead. Empty when no merchant qualifies (demo,
+   * SimpleFIN-only readers, undatable loans), and the view says nothing:
+   * silence is the correct sentence for "nothing moved".
+   */
+  loanPaymentExclusions: readonly LoanPaymentBasisFact[];
+  /**
+   * C.25 (#403, critic P1-4): categories whose figure dropped excluded rows.
+   * A register link from one of them would land on a total still counting
+   * those rows, so the view refuses the link on these (O.5/O.6 invariant).
+   */
+  loanPaymentRefusedCategories: readonly string[];
   /**
    * The transactions behind each category figure, keyed by category id — one
    * entry for every category in `breakdown.byCategory`.
@@ -53,13 +72,17 @@ export async function getReports(userId: string): Promise<ReportsData> {
     provider.getFinanceSnapshot(userId),
     getCategoryMeta(userId),
   ]);
+  // C.25 (#403): the read-side exclusion, computed ONCE in the assembler.
+  // One set for every sum on this page, so the bars, the category table and
+  // the rows under each cannot disagree about what counts.
+  const excludedFlowIds = snap.loanPaymentFlowExclusions?.excludeIds;
 
-  const months = monthlyFlows(snap.transactions)
+  const months = monthlyFlows(snap.transactions, excludedFlowIds)
     .map((f) => ({ month: f.month, incomeCents: f.incomeCents, expensesCents: f.expensesCents }))
     .sort((a, b) => (a.month < b.month ? -1 : 1))
     .slice(-6);
 
-  const breakdown = spendingByCategory(snap.transactions, { fromYm: ym, toYm: ym }, meta);
+  const breakdown = spendingByCategory(snap.transactions, { fromYm: ym, toYm: ym }, meta, excludedFlowIds);
   // Named once and handed to BOTH builders: two panels that disagree about a
   // payee's name on the same page would be a defect nobody could explain, and
   // building the array twice is what would let them.
@@ -74,10 +97,21 @@ export async function getReports(userId: string): Promise<ReportsData> {
     ym,
     new Map(breakdown.byCategory.map((c) => [c.categoryId, c.amountCents])),
     meta,
+    excludedFlowIds,
   );
   // `months` is the array the chart renders, so the headlines here are the
   // figures the reader will actually see — `reconciles` is checked against the
   // painted number, not against a second derivation of it.
-  const monthFlows = buildMonthFlowBreakdowns(named, months);
-  return { ym, months, breakdown, breakdowns, monthFlows };
+  const monthFlows = buildMonthFlowBreakdowns(named, months, excludedFlowIds);
+  // C.25 (#403) disclosure facts, named by the one shared helper so every
+  // surface phrases the exclusion the same way.
+  return {
+    ym,
+    months,
+    breakdown,
+    breakdowns,
+    monthFlows,
+    loanPaymentExclusions: loanPaymentBasisFacts(snap),
+    loanPaymentRefusedCategories: loanPaymentRefusedCategories(snap),
+  };
 }

@@ -114,6 +114,8 @@ describe('merchantSpend — aggregation', () => {
       pendingPurchaseCents: 0,
       pendingRefundCents: 0,
       excludedAggregateCount: 0,
+      excludedLoanPaymentCount: 0,
+      excludedLoanPaymentCents: 0,
       items: [],
     });
   });

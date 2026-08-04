@@ -64,6 +64,8 @@ const MERCHANT: MerchantSpendResult = {
   pendingPurchaseCents: 0,
   pendingRefundCents: 0,
   excludedAggregateCount: 0,
+  excludedLoanPaymentCount: 0,
+  excludedLoanPaymentCents: 0,
   items: [{ date: '2026-06-10', merchant: 'Costco', amountCents: 15844 }],
 };
 
@@ -106,7 +108,7 @@ describe('headlineCents — absent when there is no figure to reconcile', () => 
   });
   it('empty merchant_spend omits it', () => {
     expect(answerMerchantSpend(
-        { merchant: 'Costco', totalCents: 0, count: 0, purchaseCount: 0, purchaseCents: 0, refundCount: 0, refundCents: 0, pendingPurchaseCents: 0, pendingRefundCents: 0, excludedAggregateCount: 0, items: [] },
+        { merchant: 'Costco', totalCents: 0, count: 0, purchaseCount: 0, purchaseCents: 0, refundCount: 0, refundCents: 0, pendingPurchaseCents: 0, pendingRefundCents: 0, excludedAggregateCount: 0, excludedLoanPaymentCount: 0, excludedLoanPaymentCents: 0, items: [] },
         THIS_MONTH,
       ).headlineCents).toBeUndefined();
   });

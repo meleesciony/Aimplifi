@@ -19,6 +19,9 @@ import { OPPORTUNITY_HORIZON_MONTHS, opportunityValueTodayCents, savingsRateBps 
 const [H10, H20, H30] = OPPORTUNITY_HORIZON_MONTHS;
 
 export interface TxnLike {
+  /** Present on every real row; optional so hand-built fixtures stay terse,
+   *  nullable because the breakdown row shapes carry it that way. */
+  id?: string | null;
   date: string;
   amountCents: number;
   rawDescriptor: string;
@@ -47,7 +50,16 @@ export interface TxnLike {
  * under it in the same commit — the drift `a-link-on-a-figure-asserts-two-engines-agree`
  * was written about.
  */
-export function countsInFlows(t: TxnLike): boolean {
+/**
+ * `excludedFlowIds` is the C.25 read-side exclusion (DECISIONS #403): row ids
+ * of loan payments that are carried elsewhere (a dateable obligation on the
+ * linked loan account) and so leave every flow sum in every month — computed
+ * once by the snapshot assembler, handed in by surfaces that sum flows.
+ * Omitted = the exact pre-C.25 behaviour, so an unwired caller and the demo
+ * golden are unchanged by construction.
+ */
+export function countsInFlows(t: TxnLike, excludedFlowIds?: ReadonlySet<string>): boolean {
+  if (typeof t.id === 'string' && excludedFlowIds?.has(t.id)) return false;
   return !t.isTransfer && t.status === 'POSTED' && !t.isSplitParent && !isExcludedFromTotals(t);
 }
 
@@ -58,8 +70,8 @@ export function countsInFlows(t: TxnLike): boolean {
  * or an Income-group category other than the 'refund' leaf (a merchandise
  * return nets against spend instead — #166).
  */
-export function isIncomeFlowRow(t: TxnLike): boolean {
-  if (!countsInFlows(t) || t.amountCents <= 0) return false;
+export function isIncomeFlowRow(t: TxnLike, excludedFlowIds?: ReadonlySet<string>): boolean {
+  if (!countsInFlows(t, excludedFlowIds) || t.amountCents <= 0) return false;
   return !t.categoryId || (t.categoryId !== 'refund' && isIncomeCategoryId(t.categoryId));
 }
 
@@ -88,12 +100,15 @@ export interface MonthlyFlow {
  * (we don't net an ambiguous inflow against spend). A month's expenses never
  * go below 0.
  */
-export function monthlyFlows(transactions: readonly TxnLike[]): MonthlyFlow[] {
+export function monthlyFlows(
+  transactions: readonly TxnLike[],
+  excludedFlowIds?: ReadonlySet<string>,
+): MonthlyFlow[] {
   const byMonth = new Map<string, { income: number; expenses: number }>();
   for (const t of transactions) {
-    if (!countsInFlows(t)) continue;
+    if (!countsInFlows(t, excludedFlowIds)) continue;
     const slot = byMonth.get(monthKey(t.date)) ?? { income: 0, expenses: 0 };
-    if (isIncomeFlowRow(t)) slot.income += t.amountCents;
+    if (isIncomeFlowRow(t, excludedFlowIds)) slot.income += t.amountCents;
     else if (t.amountCents > 0) slot.expenses -= t.amountCents; // refund nets spend down
     else slot.expenses += -t.amountCents;
     byMonth.set(monthKey(t.date), slot);
@@ -262,6 +277,7 @@ export function detectLifestyleCreep(
   // Custom-category aware (DECISIONS #111): a custom discretionary category should
   // count toward lifestyle creep. Defaults to the static map (no-custom = identical).
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403): loan payments leave the creep baseline too
 ): CreepResult {
   const lastFullMonthStart = addMonthsClamped(isoDate(`${monthKey(today)}-01`), 0);
   const months: string[] = [];
@@ -272,7 +288,7 @@ export function detectLifestyleCreep(
   const discSpend = new Map<string, number>(months.map((m) => [m, 0]));
   const income = new Map<string, number>(months.map((m) => [m, 0]));
   for (const t of transactions) {
-    if (!countsInFlows(t)) continue;
+    if (!countsInFlows(t, excludedFlowIds)) continue;
     const month = monthKey(t.date);
     if (!discSpend.has(month)) continue;
     if (t.amountCents > 0) {

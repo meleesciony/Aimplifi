@@ -1,6 +1,10 @@
 {
   "permissions": {
     "defaultMode": "acceptEdits",
+    "deny": [
+      "Read(./docs/archive/**)",
+      "Read(./docs/baseline/**)"
+    ],
     "allow": [
       "Bash(npm run verify*)",
       "PowerShell(npm run verify*)",

@@ -89,9 +89,11 @@ export interface MonthFlowBreakdown {
  *
  * The enumeration is COMPLETE against `countsInFlows`, whose four clauses are,
  * in order: not a transfer, POSTED only, not a split container, and not excluded
- * from totals. What follows those four is the flow SPLIT, and it was got wrong
- * twice before it was got right, because the split is not the rule it looks
- * like:
+ * from totals. (C.25/#403 adds an optional fifth — a caller-supplied set of
+ * loan-payment row ids carried elsewhere — which this builder threads through
+ * untouched: an excluded row never enters the enumeration either.) What
+ * follows those clauses is the flow SPLIT, and it was got wrong twice before
+ * it was got right, because the split is not the rule it looks like:
  *
  *   `isIncomeFlowRow = amountCents > 0 && (!categoryId || (categoryId !== 'refund' && group === 'Income'))`
  *
@@ -199,16 +201,20 @@ function labelFor(t: MonthFlowSourceTxn): string {
 export function buildMonthFlowBreakdowns(
   txns: readonly MonthFlowSourceTxn[],
   headlines: readonly { month: string; incomeCents: number; expensesCents: number }[],
+  // C.25 (#403): the SAME set the bars were summed with, so the rows a bar
+  // opens cannot name money the bar itself does not show — one predicate,
+  // two surfaces, no drift (this file's own doctrine).
+  excludedFlowIds?: ReadonlySet<string>,
 ): Record<string, MonthFlowBreakdown> {
   const wanted = new Set(headlines.map((h) => h.month));
   const collected = new Map<string, BreakdownRow[]>();
 
   for (const t of txns) {
     // The predicate, not a copy of it.
-    if (!countsInFlows(t)) continue;
+    if (!countsInFlows(t, excludedFlowIds)) continue;
     const month = t.date.slice(0, 7);
     if (!wanted.has(month)) continue;
-    const income = isIncomeFlowRow(t);
+    const income = isIncomeFlowRow(t, excludedFlowIds);
     const key = `${month}:${income ? 'income' : 'expense'}`;
     const rows = collected.get(key) ?? [];
     const label = labelFor(t);

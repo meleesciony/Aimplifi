@@ -527,6 +527,9 @@ export function answerTopCategories(breakdown: SpendingBreakdown, tf: Timeframe,
  * and the narrowings live at the two consumers.
  */
 export interface AskTxnRow {
+  /** DB row id, carried so a caller-supplied exclusion set (C.25 #403) can
+   *  name exact rows. Absent only in hand-built fixtures. */
+  id?: string;
   date: string;
   amountCents: number; // signed; negative = spend
   status: string; // PENDING | POSTED — narrowed by the consumer, never the builder
@@ -575,6 +578,8 @@ export interface AskTxnRow {
  *  `isSplitParent` are present on DB rows at runtime (declared here instead of
  *  re-cast at each call site — GLASSBOX_PLAN readiness note). */
 export interface SnapshotTxnLike {
+  /** Present on every snapshot row; optional for hand-built fixtures. */
+  id?: string;
   date: string;
   amountCents: number;
   rawDescriptor: string;
@@ -599,6 +604,7 @@ export function toAskTxnRows(txns: readonly SnapshotTxnLike[]): AskTxnRow[] {
   return txns.map((t) => {
     const m = normalizeMerchant(t.rawDescriptor);
     return {
+      id: t.id,
       date: t.date,
       amountCents: t.amountCents,
       status: t.status,
@@ -659,9 +665,14 @@ export function largestPurchases(
   // about which rows are Costco's. Absent → the global ranking, byte-identical
   // to before.
   merchant?: string,
+  // C.25 (#403, critic P2-A): a carried-elsewhere loan payment is not a
+  // purchase the reader can weigh — ranking it "biggest" beside totals that
+  // dropped it would name as spending what every figure says is not.
+  excludedFlowIds?: ReadonlySet<string>,
 ): LargestTxn[] {
   return rows
     .filter((t) => {
+      if (typeof t.id === 'string' && excludedFlowIds?.has(t.id)) return false;
       const ym = t.date.slice(0, 7);
       return (
         // POSTED-only, and stated HERE rather than inherited from the row builder
@@ -754,6 +765,13 @@ export interface MerchantSpendResult {
    *  means "you asked about something that isn't a store" — a different fact from
    *  "you spent nothing there", and the answer says so rather than denying. */
   excludedAggregateCount: number;
+  /** Matched rows left out by the C.25 loan-payment exclusion (#403, critic
+   *  P1-C): the money matched the merchant and moved, but it is carried on a
+   *  loan, so it is not spending. Non-zero with `count === 0` means "you paid
+   *  this lender, and that is not a purchase" — a different fact from "you
+   *  spent nothing there", and the answer says so rather than denying. */
+  excludedLoanPaymentCount: number;
+  excludedLoanPaymentCents: number;
   /** Matched rows, contribution-desc then most-recent-first. SIGNED: a purchase is
    *  positive, a refund negative, so `items` always sums to `totalCents` — which is
    *  what the Glass-Box trace asserts at runtime. */
@@ -840,12 +858,29 @@ export function merchantSpend(
   query: string,
   today: string,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+  // C.25 (#403, critic P1-2): the SAME loan-payment exclusion the category
+  // intents apply — "how much did I spend at X" and "how much did I spend"
+  // are one basis, and the stored-flag settlement flip must not survive on
+  // this surface. A carried-elsewhere payment answers as not-spent.
+  excludedFlowIds?: ReadonlySet<string>,
 ): MerchantSpendResult {
   const q = query.trim().toLowerCase();
   // `isSpendRow` carries the window itself; `<= today` and the merchant scope are ours.
-  const named = rows.filter(
+  // Matched is computed WITHOUT the exclusion first, so the rows the
+  // exclusion removes can still be COUNTED and disclosed (critic P1-C):
+  // "no spending at your mortgage lender" is false — money moved there, it
+  // is just carried on the loan instead of counted as spending.
+  const matchedAll = rows.filter(
     (t) => t.date <= today && isSpendRow(t, tf, meta) && merchantMatches(t.merchant, q),
   );
+  const named =
+    excludedFlowIds === undefined
+      ? matchedAll
+      : matchedAll.filter((t) => !(typeof t.id === 'string' && excludedFlowIds.has(t.id)));
+  const excludedLoanRows = matchedAll.length - named.length;
+  const excludedLoanCents = named.length === matchedAll.length ? 0 : matchedAll
+    .filter((t) => typeof t.id === 'string' && excludedFlowIds!.has(t.id))
+    .reduce((s, t) => s + -Math.min(0, t.amountCents), 0);
   // The aggregate split, NOT part of the money basis: it decides which NAMES are
   // answerable as a store, never which rows belong to a category total. That is
   // why excluding them cannot make this figure disagree with /reports — no
@@ -908,6 +943,8 @@ export function merchantSpend(
     pendingPurchaseCents,
     pendingRefundCents,
     excludedAggregateCount: aggregateRows.length,
+    excludedLoanPaymentCount: excludedLoanRows,
+    excludedLoanPaymentCents: excludedLoanCents,
     items,
   };
 }
@@ -933,6 +970,13 @@ function excludedAggregateClause(res: MerchantSpendResult): string {
   if (res.excludedAggregateCount === 0) return '';
   const n = res.excludedAggregateCount;
   return ` ${n} ${n === 1 ? 'row' : 'rows'} under a shared name like Zelle, Check or ATM ${n === 1 ? 'was' : 'were'} left out — those cover many payees.`;
+}
+
+/** C.25 (#403, critic P1-C): loan payments matched but carried elsewhere. */
+function excludedLoanClause(res: MerchantSpendResult): string {
+  if (res.excludedLoanPaymentCount === 0) return '';
+  const n = res.excludedLoanPaymentCount;
+  return ` ${fmt(res.excludedLoanPaymentCents)} in ${n === 1 ? 'a payment' : `${n} payments`} to this lender ${n === 1 ? 'is' : 'are'} counted on the loan, not as spending.`;
 }
 
 export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): AssistantAnswer {
@@ -972,6 +1016,20 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
     };
   }
 
+  if (res.count === 0 && res.excludedLoanPaymentCount > 0) {
+    // C.25 (#403, critic P1-C): money DID move to this payee — it is carried
+    // on a loan, so it is not spending. Denying it would be false (the rows
+    // sit in the activity the source link opens); totalling it would count a
+    // repayment as spending. Say which it is.
+    return {
+      kind: 'merchant_spend',
+      headline: `Payments to ${res.merchant} aren't counted as spending ${tf.label}.`,
+      detail: `${fmt(res.excludedLoanPaymentCents)} went there${res.excludedLoanPaymentCount === 1 ? '' : ` across ${res.excludedLoanPaymentCount} payments`} — loan payments are counted on the loan, not as spending.`,
+      facts: [],
+      source: ACTIVITY_SOURCE,
+    };
+  }
+
   if (res.count === 0) {
     // Nothing matched at all. The only branch where "no spending" is true.
     return { kind: 'merchant_spend', headline: `No spending at ${res.merchant} ${tf.label}.`, facts: [], source: ACTIVITY_SOURCE };
@@ -980,6 +1038,18 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
   if (res.purchaseCents === 0 && res.refundCents === 0) {
     // Only zero-amount rows (a $0 verification hold). Nothing moved, so "no
     // spending" is true — and the refund branches below would be false.
+    // Unless loan payments moved (critic cycle 3 P2-1): then the lender DID
+    // receive money, and denying spending without naming the payments is the
+    // same false denial the dedicated branch above exists to prevent.
+    if (res.excludedLoanPaymentCount > 0) {
+      return {
+        kind: 'merchant_spend',
+        headline: `Payments to ${res.merchant} aren't counted as spending ${tf.label}.`,
+        detail: `${fmt(res.excludedLoanPaymentCents)} went there${res.excludedLoanPaymentCount === 1 ? '' : ` across ${res.excludedLoanPaymentCount} payments`} — loan payments are counted on the loan, not as spending.`,
+        facts: [],
+        source: ACTIVITY_SOURCE,
+      };
+    }
     return { kind: 'merchant_spend', headline: `No spending at ${res.merchant} ${tf.label}.`, facts: [], source: ACTIVITY_SOURCE };
   }
 
@@ -988,7 +1058,7 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
     return {
       kind: 'merchant_spend',
       headline: `No purchases at ${res.merchant} ${tf.label}.`,
-      detail: `${fmt(res.refundCents)} came back in refunds.${pendingClause(res)}${excludedAggregateClause(res)}`,
+      detail: `${fmt(res.refundCents)} came back in refunds.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}`,
       facts: rowFacts,
       source: ACTIVITY_SOURCE,
     };
@@ -1005,7 +1075,7 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
     // of a NEGATIVE net. Tapping "$30.00" to open a panel headed "-$30.00" is a
     // reconciliation the reader cannot follow, which is the same contract read
     // one level up: never offer a tap we cannot honor.
-    const bothFigures = `${fmt(res.purchaseCents)} spent, ${fmt(res.refundCents)} returned.${pendingClause(res)}${excludedAggregateClause(res)}`;
+    const bothFigures = `${fmt(res.purchaseCents)} spent, ${fmt(res.refundCents)} returned.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}`;
     return {
       kind: 'merchant_spend',
       headline:
@@ -1024,8 +1094,8 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
   // headline is now a NET number and the listed rows are the purchases.
   const detail =
     res.refundCount > 0
-      ? `Across ${res.purchaseCount} ${noun} totalling ${fmt(res.purchaseCents)}, less ${fmt(res.refundCents)} returned.${pendingClause(res)}${excludedAggregateClause(res)}`
-      : `Across ${res.purchaseCount} ${noun}.${pendingClause(res)}${excludedAggregateClause(res)}`;
+      ? `Across ${res.purchaseCount} ${noun} totalling ${fmt(res.purchaseCents)}, less ${fmt(res.refundCents)} returned.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}`
+      : `Across ${res.purchaseCount} ${noun}.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}`;
   return {
     kind: 'merchant_spend',
     headline: `You spent ${fmt(res.totalCents)} at ${res.merchant} ${tf.label}.`,

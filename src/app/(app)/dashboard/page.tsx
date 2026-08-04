@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { cents, formatCents } from '@/lib/money';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { CashNeededCard } from '@/components/finance/cash-needed-card';
 import { paintedHeroCards } from '@/lib/engine/account/card-duplicate-view';
@@ -186,6 +187,17 @@ export default async function DashboardPage({
       {showOnboarding && <OnboardingNudge />}
 
       <CashFlowRadarCard radar={radar.radar} paymentAccountName={radar.paymentAccountName} />
+
+      {/* C.25 (#403, critic P2-B): the savings-rate, top-spending and pace
+          cards below all read flows the exclusion moved — name what left, or
+          say nothing when nothing did. Same words /coach uses (one helper). */}
+      {coach.loanPaymentExclusions.map((e, i) => (
+        <p key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`} className="text-xs text-muted-foreground" data-testid="dashboard-loan-payment-basis">
+          Payments to {e.payee} at {formatCents(cents(e.paymentCents))}/mo are counted on{' '}
+          {e.loanName}, not in these cards — loan payments are not spending. A payment at
+          another amount counts normally.
+        </p>
+      ))}
 
       {/* Charts + savings dial — keep; cut redundant how-to, not visualizations. */}
       <div className="grid gap-5 sm:grid-cols-2">

@@ -59,12 +59,20 @@ import { formatISODate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
+import { loanPaymentBasisFacts, type LoanPaymentBasisFact } from '@/server/loan-payment-basis';
 import { accountLabel } from '@/lib/engine/account/display-name';
 
 export interface CoachData {
   today: string;
   flows: MonthlyFlow[]; // last 12 full months, ascending
   currentRateBps: number | null;
+  /**
+   * C.25 (#403, critic P1-5): the loan payments the figures on this page do
+   * NOT count — the savings rate, creep baseline, discretionary average and
+   * the FI number all read flows the exclusion moved, so the page names what
+   * left. Empty when nothing moved, and the page says nothing.
+   */
+  loanPaymentExclusions: readonly LoanPaymentBasisFact[];
   /**
    * The rows behind each bar of the savings-rate chart, keyed `YYYY-MM:income`
    * and `YYYY-MM:expense` — the same builder and the same keys /reports uses
@@ -265,14 +273,19 @@ export async function getCoachData(
     reimbursement: (t as { reimbursement?: string | null }).reimbursement ?? null,
   }));
 
-  const allFlows = monthlyFlows(txns);
+  const allFlows = monthlyFlows(txns, snap.loanPaymentFlowExclusions?.excludeIds);
   const currentMonth = today.slice(0, 7);
   const fullFlows = allFlows.filter((f) => f.month < currentMonth);
   const flows = fullFlows.slice(-12);
   // `flows` is the array the chart draws, so these headlines are the figures the
   // reader will actually see — `reconciles` is checked against the painted
   // numbers, not against a second derivation of them.
-  const monthFlows = buildMonthFlowBreakdowns(txns, flows);
+  const monthFlows = buildMonthFlowBreakdowns(txns, flows, snap.loanPaymentFlowExclusions?.excludeIds);
+  // C.25 (#403, critic P1-5): these figures MOVE when the exclusion applies
+  // (savings rate, creep baseline, discretionary average, and the FI number
+  // itself reads annual expenses off these flows) — so the page names what
+  // left them, with the same one helper every other surface uses.
+  const loanPaymentExclusions = loanPaymentBasisFacts(snap);
   const last6 = fullFlows.slice(-6);
 
   const expenses6 = last6.reduce((s, f) => s + f.expensesCents, 0);
@@ -361,7 +374,7 @@ export async function getCoachData(
   // construction (the fence), so demo always sees the unconfirmed nudge.
   const confirmedPauses = await getConfirmedIncomePauses(userId);
   const incomePauses = incomePausesForFeed(series, today, confirmedPauses);
-  const creep = detectLifestyleCreep(txns, today, 6, meta);
+  const creep = detectLifestyleCreep(txns, today, 6, meta, snap.loanPaymentFlowExclusions?.excludeIds);
   // documented rounding rule, not Math.round (consistency with monthlySavings above)
   const avgMonthlyExpenses = cents(roundHalfAwayFromZero(expenses6 / Math.max(1, last6.length)));
   const runway = monthsOfRunway(liquid, avgMonthlyExpenses);
@@ -385,6 +398,9 @@ export async function getCoachData(
         !t.isTransfer &&
         !t.isSplitParent &&
         !isExcludedFromTotals(t) && // O.15: not the reader's spending
+        // C.25 (#403): a loan payment carried elsewhere is not a drain the
+        // reader can weigh — the committed line owns it.
+        !(t.id !== undefined && snap.loanPaymentFlowExclusions?.excludeIds.has(t.id)) &&
         t.status === 'POSTED' &&
         t.amountCents < 0 &&
         t.date >= cutoff,
@@ -494,6 +510,7 @@ export async function getCoachData(
     flows,
     currentRateBps: flows[flows.length - 1]?.savingsRateBps ?? null,
     monthFlows,
+    loanPaymentExclusions,
     fi: {
       fiNumberCents: fiTarget,
       annualExpensesCents: annualExpenses,
@@ -534,6 +551,7 @@ export async function getCoachData(
       3,
       meta,
       (id) => categoryName(id, meta),
+      snap.loanPaymentFlowExclusions?.excludeIds,
     ),
     savingsTargetBps: user.savingsTargetBps ?? null,
     review,

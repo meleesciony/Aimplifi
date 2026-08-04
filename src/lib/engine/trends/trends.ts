@@ -289,6 +289,21 @@ export interface TrendsInput {
    * a fixture answering `[]` is stating that its month has no bills.
    */
   scheduled: readonly PaceBillInput[];
+  /**
+   * C.25 (#403): row ids of loan payments carried elsewhere — handed in by
+   * the server from the snapshot assembler so movers and pace stop reading a
+   * mortgage in the months settlement timing left it unflagged. Optional =
+   * pre-C.25 behaviour when absent (demo golden unchanged).
+   */
+  excludedFlowIds?: ReadonlySet<string>;
+  /**
+   * C.25 (#403, critic P1-1): the merchant canonicals behind
+   * `excludedFlowIds`. Pace's bill basis needs them at MERCHANT scope: a
+   * carried-elsewhere payment's scheduled expectation must leave both the
+   * still-due figure and the posted credit, or the projection counts it
+   * twice / not at all.
+   */
+  excludedLoanCanonicals?: ReadonlySet<string>;
 }
 
 const groupOf = (id: string | null | undefined, meta: ReadonlyMap<string, CategoryMeta>) =>
@@ -336,8 +351,9 @@ function categorySpendMap(
   txns: readonly TrendTxn[],
   ym: string,
   meta: ReadonlyMap<string, CategoryMeta>,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
 ): Map<string, number> {
-  const { byCategory } = spendingByCategory(txns, { fromYm: ym, toYm: ym }, meta);
+  const { byCategory } = spendingByCategory(txns, { fromYm: ym, toYm: ym }, meta, excludedFlowIds);
   return new Map(byCategory.map((c) => [c.categoryId, c.amountCents]));
 }
 
@@ -427,8 +443,20 @@ function billsThisMonth(
   today: string,
   ym: string,
   meta: ReadonlyMap<string, CategoryMeta>,
+  // C.25 (#403, critic P1-1): the canonicals of loan payments carried
+  // elsewhere. Their charges left `spentSoFar` via the flow exclusion, so
+  // their scheduled expectations must leave BOTH halves of the bill basis —
+  // the still-due figure and the posted credit. Leaving either half in
+  // counts the payment twice (subtracting it again as a credit) or not at
+  // all (demanding it as still due), and the credit half re-introduces the
+  // stored-flag settlement flip this module exists to kill.
+  excludedLoanCanonicals?: ReadonlySet<string>,
 ): { stillDue: PaceBillDue[]; stillDueCents: number; creditedCents: number } {
   const key = (m: string) => m.trim().toLowerCase();
+  const excludedKeys =
+    excludedLoanCanonicals === undefined
+      ? undefined
+      : new Set([...excludedLoanCanonicals].map((c) => key(c)));
 
   // Expected: one entry per merchant, so two series on one name cannot be
   // compared against the same charges twice.
@@ -439,6 +467,7 @@ function billsThisMonth(
     if (occurrences === 0) continue;
     const k = key(bill.description);
     if (!k) continue;
+    if (excludedKeys?.has(k)) continue; // carried elsewhere — not this basis
     const prev = expected.get(k);
     const cents = Math.abs(bill.amountCents) * occurrences;
     if (prev) prev.cents += cents;
@@ -534,13 +563,17 @@ function computePace(
   today: string,
   scheduled: readonly PaceBillInput[],
   meta: ReadonlyMap<string, CategoryMeta>,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
+  excludedLoanCanonicals?: ReadonlySet<string>, // C.25 (#403, critic P1-1)
 ): SpendingPace | null {
   const ym = monthKey(today);
   // Only money already spent counts toward "so far": ignore any future-dated rows.
   const soFar = txns.filter((t) => t.date <= today);
-  const spentSoFarCents = spendingByCategory(soFar, { fromYm: ym, toYm: ym }, meta).totalCents;
+  const spentSoFarCents = spendingByCategory(soFar, { fromYm: ym, toYm: ym }, meta, excludedFlowIds)
+    .totalCents;
   const prior = addMonthsToMonthKey(ym, -(1));
-  const priorMonthCents = spendingByCategory(txns, { fromYm: prior, toYm: prior }, meta).totalCents;
+  const priorMonthCents = spendingByCategory(txns, { fromYm: prior, toYm: prior }, meta, excludedFlowIds)
+    .totalCents;
   // C.1 (CALC_AUDIT 2026-08-02, P0-7): abstain on ZERO observations, whatever
   // last month did. The old guard was an AND, so a reader whose feed had not
   // yet delivered an August row was shown "$0.00 projected by month end" and a
@@ -556,7 +589,14 @@ function computePace(
   const [y, m] = [Number(ym.slice(0, 4)), Number(ym.slice(5, 7))];
   const dim = daysInMonth(y, m);
   const daysElapsed = Math.min(Number(today.slice(8, 10)), dim); // ≥1 for a real date
-  const { stillDue, stillDueCents, creditedCents } = billsThisMonth(scheduled, txns, today, ym, meta);
+  const { stillDue, stillDueCents, creditedCents } = billsThisMonth(
+    scheduled,
+    txns,
+    today,
+    ym,
+    meta,
+    excludedLoanCanonicals,
+  );
   // The month total nets refunds by CATEGORY and drops a net-refunded category
   // to zero, while the credit above is summed per MERCHANT — so in a
   // refund-heavy month the two bases can cross and the credit can exceed the
@@ -605,16 +645,17 @@ function computeMovers(
   txns: readonly TrendTxn[],
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
 ): { comparedYm: string | null; baselineMonths: string[]; movers: CategoryMover[]; moverTotal: number } {
   const current = addMonthsToMonthKey(monthKey(today), -(1)); // last completed month
-  const currentMap = categorySpendMap(txns, current, meta);
+  const currentMap = categorySpendMap(txns, current, meta, excludedFlowIds);
 
   // Baseline = the up-to-3 completed months before `current` that actually have
   // spend (never average in pre-history zero months — it would understate the norm).
   const baselineMaps: { ym: string; map: Map<string, number> }[] = [];
   for (let i = 1; i <= BASELINE_MONTHS; i++) {
     const ym = addMonthsToMonthKey(current, -(i));
-    const map = categorySpendMap(txns, ym, meta);
+    const map = categorySpendMap(txns, ym, meta, excludedFlowIds);
     let total = 0;
     for (const v of map.values()) total += v;
     if (total > 0) baselineMaps.push({ ym, map });
@@ -681,10 +722,19 @@ function computeLargest(
   txns: readonly TrendTxn[],
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403, critic P2-A)
 ): LargestTxn[] {
   const ym = monthKey(today);
   return txns
-    .filter((t) => t.date <= today && monthKey(t.date) === ym && isPurchaseRow(t, meta))
+    .filter(
+      (t) =>
+        t.date <= today &&
+        monthKey(t.date) === ym &&
+        isPurchaseRow(t, meta) &&
+        // A carried-elsewhere loan payment is not a purchase — ranking it
+        // "largest" beside totals that dropped it would contradict them.
+        !(typeof t.id === 'string' && excludedFlowIds?.has(t.id)),
+    )
     .map((t) => ({
       date: t.date,
       merchant: t.merchant?.trim() || 'Unknown merchant',
@@ -795,10 +845,10 @@ function computeNewMerchants(
 
 /** Compute all spending-trend insights from a posted-spend transaction list. */
 export function computeSpendingTrends(
-  { txns, today, scheduled }: TrendsInput,
+  { txns, today, scheduled, excludedFlowIds, excludedLoanCanonicals }: TrendsInput,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): SpendingTrends {
-  const { comparedYm, baselineMonths, movers, moverTotal } = computeMovers(txns, today, meta);
+  const { comparedYm, baselineMonths, movers, moverTotal } = computeMovers(txns, today, meta, excludedFlowIds);
   // O.6 — the one place the two bases part company; see `TrendTxn.status`.
   // Category figures read every row; the row-naming insights read settled rows
   // only, which is also what Ask's `largestPurchases` reads (O.7 moved that filter off
@@ -809,10 +859,10 @@ export function computeSpendingTrends(
     asOfYm: monthKey(today),
     comparedYm,
     baselineMonths,
-    pace: computePace(txns, today, scheduled, meta),
+    pace: computePace(txns, today, scheduled, meta, excludedFlowIds, excludedLoanCanonicals),
     movers,
     moverTotal,
-    largest: computeLargest(settled, today, meta),
+    largest: computeLargest(settled, today, meta, excludedFlowIds),
     // ALL rows (O.8a) — `computeNewMerchants` applies the settled narrowing to
     // its naming pass itself, because only half of what that card prints is a
     // claim about a settled event; the money beside it is an aggregate.

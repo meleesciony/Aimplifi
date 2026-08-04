@@ -76,6 +76,8 @@ import {
 import { CORRECTABLE_KINDS } from '@/lib/engine/assistant/trace-view';
 import { applyCategory, undoCorrections } from '@/server/triage-actions';
 import { accountLabel } from '@/lib/engine/account/display-name';
+import { cents, formatCents } from '@/lib/money';
+import { loanPaymentBasisFacts } from '@/server/loan-payment-basis';
 
 const MONTH_TITLE = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const ymLabel = (ym: string) => `${MONTH_TITLE[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
@@ -280,7 +282,29 @@ async function composeAnswer(
   // shipped read-paths (which load the same snapshot) so they can't drift.
   const snap = await getProvider().getFinanceSnapshot(userId);
 
-  const answer = await buildAnswer(intent, snap, userId, today, meta);
+  const built = await buildAnswer(intent, snap, userId, today, meta);
+  // C.25 (#403, critic P1-C): the flow totals behind these answers exclude
+  // loan payments carried elsewhere — the answer says so, in the same words
+  // every view uses, or Ask would print a figure no basis sentence owns.
+  // merchant_spend discloses in its own engine (it knows the merchant).
+  const answer =
+    intent.kind === 'spend_total' ||
+    intent.kind === 'spend_by_category' ||
+    intent.kind === 'top_categories' ||
+    intent.kind === 'income' ||
+    intent.kind === 'savings_rate'
+      ? (() => {
+          const facts = loanPaymentBasisFacts(snap);
+          if (facts.length === 0) return built;
+          const sentence = facts
+            .map(
+              (e) =>
+                `Payments to ${e.payee} at ${formatCents(cents(e.paymentCents))}/mo are counted on ${e.loanName}, not as spending.`,
+            )
+            .join(' ');
+          return { ...built, detail: built.detail ? `${built.detail} ${sentence}` : sentence };
+        })()
+      : built;
   // Glass-Box trace (GLASSBOX_PLAN slice 2): for a row-sum answer carrying a real
   // headline figure, re-select the exact transaction rows behind it — reconciled to
   // the penny by the SAME pure engines buildAnswer used, on the SAME snapshot + meta
@@ -299,6 +323,10 @@ async function composeAnswer(
             today,
             meta,
             expectedHeadlineCents: answer.headlineCents,
+            // C.25 (#403): the trace re-selects the rows the answer summed —
+            // it must drop the same loan-payment rows or a correct answer
+            // would reconcile FALSE.
+            excludedFlowIds: snap.loanPaymentFlowExclusions?.excludeIds,
           }),
         }
       : answer;
@@ -441,32 +469,65 @@ async function buildAnswer(
         terminalSuccessorMap(accounts, await getActiveReconciliations(userId)),
       );
     case 'spend_total':
-      // Exact /reports parity — pass the snapshot rows straight to the same engine.
-      return answerSpendTotal(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.timeframe);
+      // Exact /reports parity — pass the snapshot rows straight to the same
+      // engine, with the same C.25 loan-payment exclusion (#403), or Ask and
+      // /reports would answer the same month differently.
+      return answerSpendTotal(
+        spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta, snap.loanPaymentFlowExclusions?.excludeIds),
+        intent.timeframe,
+      );
     case 'spend_by_category':
-      return answerSpendByCategory(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.target, intent.timeframe);
+      return answerSpendByCategory(
+        spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta, snap.loanPaymentFlowExclusions?.excludeIds),
+        intent.target,
+        intent.timeframe,
+      );
     case 'top_categories':
-      return answerTopCategories(spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta), intent.timeframe, intent.limit);
+      return answerTopCategories(
+        spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta, snap.loanPaymentFlowExclusions?.excludeIds),
+        intent.timeframe,
+        intent.limit,
+      );
     case 'largest_purchases':
       // NAMES a row as a settled fact ⇒ POSTED-only, applied inside
       // `largestPurchases` itself. See O.6's rule, and O.7 for why this is no
       // longer shared with `merchant_spend` below.
       // The optional merchant scope (TASKS 2.7) threads through verbatim.
       return answerLargest(
-        largestPurchases(toAskTxnRows(snap), intent.timeframe, intent.limit, today, meta, intent.merchant),
+        largestPurchases(
+          toAskTxnRows(snap),
+          intent.timeframe,
+          intent.limit,
+          today,
+          meta,
+          intent.merchant,
+          snap.loanPaymentFlowExclusions?.excludeIds,
+        ),
         intent.timeframe,
         intent.merchant,
       );
     case 'merchant_spend':
       // SUMS a window ⇒ the same basis the three category intents above use
-      // (`isSpendRow`: POSTED **and** PENDING, refunds netted). O.7 moved it off
+      // (`isSpendRow`: POSTED **and** PENDING, refunds netted, C.25 loan
+      // payments carried elsewhere excluded — #403). O.7 moved it off
       // the purchase predicate so "how much did I spend at Whole Foods" and "how
       // much did I spend on groceries" cannot answer the same money differently.
-      return answerMerchantSpend(merchantSpend(toAskTxnRows(snap), intent.timeframe, intent.merchant, today, meta), intent.timeframe);
+      return answerMerchantSpend(
+        merchantSpend(
+          toAskTxnRows(snap),
+          intent.timeframe,
+          intent.merchant,
+          today,
+          meta,
+          snap.loanPaymentFlowExclusions?.excludeIds,
+        ),
+        intent.timeframe,
+      );
     case 'income': {
       // Full snapshot rows (incl. categoryId + isSplitParent at runtime) → same as
-      // /reports & /coach: refunds net against spend, split parents excluded.
-      const flows = monthlyFlows(snap.transactions);
+      // /reports & /coach: refunds net against spend, split parents excluded,
+      // loan payments carried elsewhere left out (C.25 #403) — one basis.
+      const flows = monthlyFlows(snap.transactions, snap.loanPaymentFlowExclusions?.excludeIds);
       const income = flows
         .filter((f) => f.month >= intent.timeframe.fromYm && f.month <= intent.timeframe.toYm)
         .reduce((s, f) => s + f.incomeCents, 0);

@@ -231,7 +231,18 @@ export function categoryRegisterHref(
 export function categoryMonthRegisterHref(
   { categoryId, month, amountCents }: { categoryId: string; month: string; amountCents: number },
   linkable: ReadonlySet<string>,
+  /**
+   * C.25 (#403, critic P1-4): categories whose figure applied the loan-payment
+   * flow exclusion. The register does NOT apply it (the rows stay visible
+   * there), so a link from such a figure would land on a total that includes
+   * money the figure dropped — the destination no longer adds up to the
+   * clicked number, which is the one thing these links assert (O.5/O.6).
+   * Refused by not building the href — the fence's own vocabulary — so the
+   * figure renders plain instead of pointing somewhere it does not sum to.
+   */
+  refusedCategories?: ReadonlySet<string>,
 ): string | null {
+  if (refusedCategories?.has(categoryId)) return null;
   const { from, to } = monthWindow(month);
   return categoryRegisterHref({ categoryId, from, to, amountCents }, linkable);
 }

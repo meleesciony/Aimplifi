@@ -3288,7 +3288,7 @@ a popup that asks, make fixed for all other transactions or just this one."
 merchant-wide flip marks every payee row and no other payee, agreement
 stores NULL merchant-wide, demo fence.
 
-## #399 � Rules Fixed/Discretionary THEN action + Return to place
+## #399 � Rules Fixed/Discretionary THEN action + Return to place
 
 Owner, 2026-08-03: Rules lacked Fixed/Discretionary; leaving Activity for Rules
 lost his place in years of history. Guess must be algorithmic (recurring ? Fixed
@@ -3298,13 +3298,13 @@ outside Rules affect only that row until a rule is made.
 
 **DECIDED:**
 
-1. `CategorizationRule.setSpendClass` ('fixed' | 'guilt-free' | null) � THEN
+1. `CategorizationRule.setSpendClass` ('fixed' | 'guilt-free' | null) � THEN
    action beside tax/rename. Algorithmic pre-select via `guessRuleSpendClass`
    over matched history (classifySpendClass / recurring merchants). Preview shows
    the guess and baseline/extra counts; reader can override.
 
 2. Apply + ingest stamp `Transaction.spendClassOverride`. Extra occurrences
-   (`extraOccurrenceIds`, cadence-aware per-month expected count) get NULL �
+   (`extraOccurrenceIds`, cadence-aware per-month expected count) get NULL �
    keep guessing. Amount is not an outlier signal.
 
 3. Return navigation (clarified same day): `?from=` is prefill only. List place
@@ -3546,3 +3546,77 @@ disclosure button carries its own testid inside the labelled span, so the e2e lo
 **Decision 5 — the detail view stops describing a control that isn't there.** Its "For
 your Plan" paragraph said "Change the selector if the guess is wrong" beside rows that
 have no selector. Out-of-scope rows get the reason sentence instead.
+
+---
+
+## #403 — C.25 requeued: the exclusion is a READ-TIME fact with four gates, computed ONCE in the snapshot assembler (built, wired, critic-cycled)
+
+**The defect in one line:** `countsInFlows` keys off the stored `isTransfer`, and the
+stored flag is the product of a ±3-day same-amount coincidence at SYNC time — so the
+owner's $6,217.07 mortgage flips in and out of every spending total by settlement
+timing (TRUE Apr/Jul, FALSE May/Jun; measured, `c25-who-sees-the-mortgage.mts`).
+
+**Why the exclusion moves to read time (DECISIONS #400 stood up).** A sync-time write
+to `isTransfer` cannot check the only two facts that make removal safe — whether the
+plan unioned the series, whether the loan side can project — is applied to every
+consumer at once, and has no undo. Read time can check, applies per surface, and is
+recomputed on every read (nothing persists that a later month could contradict).
+
+**The invariant, per #400:** money leaves a flow sum only where "it is carried
+elsewhere" is CHECKED. The carried-elsewhere surface for a loan payment is the
+committed/forecast/calendar line, which exists exactly when `selectLoanObligations`
+can date the loan (LOAN/MORTGAGE + `minimumPaymentCents>0` + `dueDayOfMonth`). 
+SimpleFIN loans write neither field (verified: `simplefin-map.ts:163-195`); undatable
+Plaid loans fail the same gate — for both, the rows STAY in the flows (visible beats
+vanished; #400's failure-direction rule).
+
+**The four eligibility gates (ALL must hold for a row to leave the flow sums):**
+1. The row is an outflow on a CHECKING/SAVINGS account, POSTED, not a split parent,
+   not reader-excluded — i.e. it would otherwise have been counted.
+2. Its merchant canonical is linked to a specific LOAN/MORTGAGE account by **≥2
+   distinct calendar months** of ±3-day same-|amount| pairs, re-derived at read time
+   from the raw rows (the stored flag is never consulted — it is the unstable thing).
+   One coincidence (the reverted attempt's P0-2: the roofing invoice) never qualifies;
+   a recurring payment does. Aggregate canonicals (Zelle/Venmo/Check/Cash App/Apple
+   Cash/PayPal) are refused outright (the C.4 doctrine, C.24's F3).
+3. That linked loan account has a DATEABLE obligation in `selectLoanObligations`.
+4. The row's |amount| equals one of that account's obligation `paymentCents`.
+   Gate 4 is the P0-1 killer: on a bank that stamps every ACH `ONLINE PAYMENT`, only
+   rows at the obligation's own amount leave — rent/electric/internet at their own
+   amounts stay, whatever the descriptor says.
+
+**Measured consequence (owner data):** every $6,217.07 Truist row leaves the flow
+sums in every month — Apr/Jul (the months the flag missed) included — while an
+escrow-adjusted month at a different amount stays visible. The mortgage is counted
+on the committed line (`selectLoanObligations` already expands it, verified #400),
+so removal is double-count prevention, not deletion: no month loses money the app
+does not show somewhere else.
+
+**Computed ONCE, in the shared assembler** (`getFinanceSnapshot`, the one both
+providers route through — plaid.ts:2174-2177 delegates to demo.ts:39): one targeted
+query (POSTED/USD inflows on LOAN/MORTGAGE accounts, the C.24 loanSideInflows shape)
+plus the snapshot's own accounts and rows, yielding `excludeIds` (row ids) + the
+disclosure facts. Every flow surface inherits the same set; "a disclosure a call
+site has to remember is one a call site can forget" (month-flow-breakdown's own
+doctrine). Engine predicates take an OPTIONAL id-set; omitted = today's behaviour,
+so every untouched call site and the demo golden are unchanged by construction.
+
+**Surfaces wired:** reports bars + category table (`monthlyFlows`,
+`spendingByCategory` — which trends, pace and budgets-row-basis reuse), Glass-Box
+month-flow panel, coach (savings rate, lifestyle creep, discretionary avg), Ask
+(`assistant.ts` monthlyFlows), /budgets (ids passed through the spending-plan
+result, since budgets queries the db directly). NOT wired: the register and its
+summary (rows stay visible there; a filtered view sums what it shows), tax export,
+reimbursement, cash-needed (already loan-aware), and the plan's own Fixed basis
+(C.24's union + exactness invariant already govern it — this slice never touches
+`isTransfer`, `RecurringSeries`, or any stored row).
+
+**What /reports shows a reader whose largest outflow leaves spending:** totals
+without the repayment, plus an engine-authored basis sentence naming what moved and
+where it is counted instead (the committed line) — assumptions-style, per the
+cash-needed/radar house pattern. Silence is reserved for readers with no eligible
+merchant (empty set = no sentence, never a claim about an absence).
+
+**Income side needs no exclusion:** #62 withholds loan-account activity from the
+snapshot, and budgets' db query is spending-accounts-only, so no loan inflow ever
+reaches a flow sum; the exclusion is outflow-only by construction.

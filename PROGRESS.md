@@ -1399,3 +1399,55 @@ Vercel production deployment `aimplifi-jgng5xg3v` — **● Ready**, sha-matched
 `vercel ls --meta githubCommitSha=672b9d1…`; www.aimplifi.app answers 200. This
 commit changes no source file, so there is no rendered marker to grep for — the
 deploy check here is the sha match and the Ready state, not a page assertion.
+
+
+## #403 — C.25 built: the mortgage leaves the spending totals in every month (2026-08-04)
+
+**The slice the #400 revert pointed at, built the way #400 said to.** Nothing
+stored is written: the exclusion is a read-time fact computed ONCE in the
+snapshot assembler and inherited by every flow-summing surface through the
+shared predicates (optional row-id set; omitted = today's behaviour). The
+four gates, in `src/lib/engine/categorize/loan-payment-flows.ts`: the row
+would otherwise have counted; its canonical is linked to one loan account by
+≥2 distinct pair-months re-derived from the raw rows (the stored flag is not
+an input, so it cannot be consulted); that account has a dateable obligation;
+the amount equals an obligation payment. Attribution is per edge after critic
+P1-3 — an unpaired month leaves only when EVERY linked account can project,
+so SimpleFIN and undatable loans keep their money visible (#400's
+failure-direction rule, now enforced at row level, not just merchant level).
+
+**Measured before and after.** Replay probe
+(`scripts/audit-probes/c25-read-side-exclusion.mts`, first run executed this
+session; a re-run for row identities was permission-blocked afterwards —
+recorded, not hidden): one merchant edge on the owner's data (Truist →
+Mortgage 1192 @ $6,217.07); April −$6,217.07 and July −$12,434.14 leave the
+monthly totals, flagged months unchanged. The month-to-month flip is gone.
+
+**Critic cycle 1: FAIL, five P1s — all fixed and locked.** Pace read the
+payment through one half of its basis (the bill credit kept admitting it; the
+fix drops the excluded merchant from both halves — hand-computed locks in
+`trends-pace-loan-exclusion.test.ts`); Ask merchant_spend answered on the old
+basis; covered amounts were keyed by canonical only (the two-loans-one-name
+shape laundered an undatable loan's payments); the register link invariant
+(links refused now for categories whose figure dropped excluded rows); coach
+figures moved with zero disclosure (they name it now, FI number included).
+Cycle 2 FAILed with three P1s — fixed by the carry CAPACITY cap (at most the
+carried count leaves per canonical/month/amount), all-partner eligibility for
+attributed rows, and Ask disclosure (lender branch + basis sentence on the
+total intents; largest rankings drop excluded rows). Cycle 3 FAILed with one
+P1 — disclosure facts now derive from ACTUAL exclusions, never eligibility,
+and split/reader-excluded rows can no longer classify a merchant. Cycle 3's
+P2 residuals (aggregate-branch clause, pending wording, window-independent
+sentence, new-merchant surface) are recorded in STATUS, not fixed.
+
+**Gate:** `bash scripts/verify.sh` → VERIFY GREEN — tsc 0, eslint 0, **5828
+unit** (30 new: gates, attribution/capacity shapes, phantom locks, pace
+locks, merchant_spend basis, assembler wiring on a throwaway user + the
+demo-golden lock). Targeted e2e **39/41** — the two `dashboard-duplicate-disclosure`
+mobile failures reproduce identically on clean HEAD (stash-verified), so they
+predate this slice and are tracked in STATUS.
+
+**Left in the tree:** the probe, DECISIONS #403, the STATUS entry. The
+demo/golden dataset cannot exercise the wiring by construction (the seed's
+loan account has no transactions) — the assembler lock on the real client is
+the standing guard for it.

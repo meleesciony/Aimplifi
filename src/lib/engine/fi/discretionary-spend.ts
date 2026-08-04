@@ -16,6 +16,7 @@ export function averageDiscretionaryCategorySpend(
   windowMonths = 3,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
   nameOf: (id: string) => string = (id) => meta.get(id)?.name ?? id,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403): loan payments are not discretionary spend
 ): DiscretionaryCategorySpend[] {
   const months = Math.max(1, Math.trunc(windowMonths));
   const lastFullMonthStart = addMonthsClamped(isoDate(`${monthKey(today)}-01`), 0);
@@ -26,7 +27,7 @@ export function averageDiscretionaryCategorySpend(
 
   const totals = new Map<string, number>();
   for (const t of transactions) {
-    if (!countsInFlows(t)) continue;
+    if (!countsInFlows(t, excludedFlowIds)) continue;
     if (t.amountCents >= 0) continue;
     const m = monthKey(t.date);
     if (!monthSet.has(m)) continue;

@@ -6,6 +6,67 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-04 — C.25: the mortgage leaves the spending totals in EVERY month, at read time (DECISIONS #403)
+
+The #400 revert direction stood up: nothing stored is written. The exclusion is
+computed ONCE in the snapshot assembler (`getFinanceSnapshot`) and inherited by
+every flow-summing surface through the shared predicates (`countsInFlows`,
+`isSpendRow`, `monthlyFlows`, `spendingByCategory`) via an optional row-id set;
+an unwired caller and the demo golden are unchanged by construction.
+
+**The four gates** (`src/lib/engine/categorize/loan-payment-flows.ts`): a row
+leaves the flows only when (1) it would otherwise have counted, (2) its
+canonical is linked to one loan account by ≥2 DISTINCT pair-months re-derived
+at read time (aggregate canonicals refused; the stored flag is not an input,
+so it cannot be consulted), (3) that account has a DATEABLE obligation, and
+(4) the amount equals an obligation payment. Attribution is PER EDGE (critic
+P1-3): a row that paired itself is judged by where its pair lands; an
+unpaired month leaves only if EVERY linked account can project — SimpleFIN
+and undatable loans keep their money visible.
+
+**Measured on the owner's data** (read-only probe,
+`scripts/audit-probes/c25-read-side-exclusion.mts`, first run executed this
+session): exactly one merchant edge — Truist Mortg Olb Mtgpmt → Mortgage 1192
+@ $6,217.07/mo; April's total drops $6,217.07, July's drops $12,434.14 (two
+rows), flagged months unchanged. A row-identity re-run was blocked by a
+permissions gate after the first run — recorded, not hidden; the month-level
+figures above are the executed evidence.
+
+**Critic cycles 1–3.** Cycle 1 FAIL, five P1s — pace's bill basis dropped the
+excluded merchant from BOTH halves, Ask `merchant_spend` joined the one
+basis, per-edge attribution, register links REFUSED for categories whose
+figure dropped excluded rows (O.5/O.6 link invariant), coach/dashboard name
+what left their figures. Cycle 2 FAIL, three P1s — the carry CAPACITY cap
+(at most the carried count leaves per canonical/month/amount: the month's
+inflows onto eligible accounts or the obligations covering it, whichever is
+larger), all-partner eligibility for attributed rows, and Ask disclosure
+(engine branch for the lender case + basis sentence on the total intents,
+largest-purchase rankings drop excluded rows). Cycle 3 FAIL, one P1 — the
+disclosure FACTS now derive from actual exclusions, never eligibility (a
+merchant that qualified but kept its rows publishes nothing), and split/
+reader-excluded rows can no longer classify a merchant. All locks live in
+the three test files below; cycle 3's P2 residuals (aggregate-branch clause,
+pending qualifier wording, window-independent Ask sentence, new-merchant
+surface) are RECORDED, not fixed.
+
+**Gate:** `bash scripts/verify.sh` → **VERIFY GREEN** — tsc 0, eslint 0,
+**5828 unit** (30 new: the gates, attribution/capacity shapes, phantom locks,
+pace locks, merchant_spend basis, assembler wiring on a throwaway user + the
+demo-golden lock), next build clean. Targeted e2e
+(reports/reports-total-reconciles/budgets-basis/trends×3/phase3-coach/ask/
+spending-plan×2/dashboard-duplicate-disclosure): **39/41** — the two
+`dashboard-duplicate-disclosure` mobile-380 failures reproduce IDENTICALLY on
+clean HEAD (stash-verified this session), so they predate this slice; see the
+OPEN entry below.
+
+## ⚠️ OPEN 2026-08-04 — dashboard-duplicate-disclosure mobile e2e fails on clean HEAD (predates C.25)
+
+`tests/e2e/dashboard-duplicate-disclosure.spec.ts` mobile-380 variants fail
+with zero `reminder-row` elements (expected 2) — reproduced on unmodified
+`main` (8c5b3fe) this session by stash/run/pop, so the C.25 slice did not
+cause them. Desktop variants pass. Not diagnosed; likely a date-window or
+mobile-layout drift against the seed's asOf.
+
 ## ✅ BUILT 2026-08-03 — C.24: the transfer-flagged mortgage counts once, at its full rate (DECISIONS #394)
 
 Audit P1-13, measured live in C.0/#393: the owner's $6,217.07 Truist mortgage

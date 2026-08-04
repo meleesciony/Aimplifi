@@ -205,9 +205,10 @@ function spendRowsFor(
   tf: Timeframe,
   meta: ReadonlyMap<string, CategoryMeta>,
   id: string,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403) — same set the answer summed with
 ): TraceRow[] {
   return txns
-    .filter((t) => isSpendRow(t, tf, meta) && spendRowCategoryId(t) === id)
+    .filter((t) => isSpendRow(t, tf, meta, excludedFlowIds) && spendRowCategoryId(t) === id)
     .map((t) => ({
       date: t.date,
       merchant: normalizeMerchant(t.rawDescriptor).canonical,
@@ -225,12 +226,13 @@ function groupsFor(
   txns: readonly TraceTxn[],
   tf: Timeframe,
   meta: ReadonlyMap<string, CategoryMeta>,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
 ): TraceGroup[] {
   return cats.map((c) => ({
     key: c.categoryId,
     label: c.name,
     amountCents: c.amountCents,
-    rows: spendRowsFor(txns, tf, meta, c.categoryId),
+    rows: spendRowsFor(txns, tf, meta, c.categoryId, excludedFlowIds),
   }));
 }
 
@@ -273,8 +275,9 @@ export function traceSpendTotal(
   txns: readonly TraceTxn[],
   tf: Timeframe,
   meta: ReadonlyMap<string, CategoryMeta>,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
 ): RowSumTrace {
-  const groups = groupsFor(breakdown.byCategory, txns, tf, meta);
+  const groups = groupsFor(breakdown.byCategory, txns, tf, meta, excludedFlowIds);
   return assemble(
     'spend_total',
     breakdown.totalCents,
@@ -292,6 +295,7 @@ export function traceSpendByCategory(
   txns: readonly TraceTxn[],
   tf: Timeframe,
   meta: ReadonlyMap<string, CategoryMeta>,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
 ): RowSumTrace {
   let amount = 0;
   let cited: { categoryId: string; name: string; amountCents: number }[] = [];
@@ -308,7 +312,7 @@ export function traceSpendByCategory(
     amount = g?.amountCents ?? 0;
     cited = g?.categories ?? [];
   }
-  const groups = groupsFor(cited, txns, tf, meta);
+  const groups = groupsFor(cited, txns, tf, meta, excludedFlowIds);
   return assemble(
     'spend_by_category',
     amount,
@@ -326,9 +330,10 @@ export function traceTopCategories(
   txns: readonly TraceTxn[],
   tf: Timeframe,
   meta: ReadonlyMap<string, CategoryMeta>,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
 ): RowSumTrace {
   const top = breakdown.byCategory.slice(0, limit);
-  const groups = groupsFor(top, txns, tf, meta);
+  const groups = groupsFor(top, txns, tf, meta, excludedFlowIds);
   return assemble(
     'top_categories',
     top[0]?.amountCents ?? 0,
@@ -368,14 +373,19 @@ export function traceMerchantSpend(res: MerchantSpendResult): RowSumTrace {
 /** income: cite the rows `monthlyFlows` counted as income in the window, via
  *  its own exported predicate; the headline is the flows' windowed sum —
  *  exactly the figure the answer used. */
-export function traceIncome(flows: readonly MonthlyFlow[], txns: readonly TraceTxn[], tf: Timeframe): RowSumTrace {
+export function traceIncome(
+  flows: readonly MonthlyFlow[],
+  txns: readonly TraceTxn[],
+  tf: Timeframe,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403) — one basis with the answer
+): RowSumTrace {
   const headline = flows
     .filter((f) => f.month >= tf.fromYm && f.month <= tf.toYm)
     .reduce((s, f) => s + f.incomeCents, 0);
   const rows: TraceRow[] = txns
     .filter((t) => {
       const ym = t.date.slice(0, 7);
-      return ym >= tf.fromYm && ym <= tf.toYm && isIncomeFlowRow(t);
+      return ym >= tf.fromYm && ym <= tf.toYm && isIncomeFlowRow(t, excludedFlowIds);
     })
     .map((t) => ({
       date: t.date,
@@ -407,6 +417,10 @@ export interface TraceInput {
   transactions: readonly TraceTxn[];
   /** Business date (YYYY-MM-DD) — the same `today` the answer was built with. */
   today: string;
+  /** C.25 (#403): the SAME loan-payment exclusion the answer summed with —
+   *  the trace re-selects the rows behind the figure, so it must drop the
+   *  same rows or a correct answer would reconcile FALSE. */
+  excludedFlowIds?: ReadonlySet<string>;
   /** REQUIRED (critic 2026-07-15 F1): the SAME category meta the answer was
    *  built with (`mergeCategoryMeta(custom)` on the server). An optional
    *  default to the static map silently mis-bucketed custom categories —
@@ -447,33 +461,52 @@ export function traceAnswer(intent: AssistantIntent, input: TraceInput): AnswerT
 function traceForKind(intent: AssistantIntent, input: TraceInput): AnswerTrace {
   const meta = input.meta;
   const txns = input.transactions;
+  const excludedFlowIds = input.excludedFlowIds; // C.25 (#403): the answer's own set
   switch (intent.kind) {
     case 'spend_total':
-      return traceSpendTotal(spendingByCategory(txns, intent.timeframe, meta), txns, intent.timeframe, meta);
+      return traceSpendTotal(
+        spendingByCategory(txns, intent.timeframe, meta, excludedFlowIds),
+        txns,
+        intent.timeframe,
+        meta,
+        excludedFlowIds,
+      );
     case 'spend_by_category':
       return traceSpendByCategory(
-        spendingByCategory(txns, intent.timeframe, meta),
+        spendingByCategory(txns, intent.timeframe, meta, excludedFlowIds),
         intent.target,
         txns,
         intent.timeframe,
         meta,
+        excludedFlowIds,
       );
     case 'top_categories':
       return traceTopCategories(
-        spendingByCategory(txns, intent.timeframe, meta),
+        spendingByCategory(txns, intent.timeframe, meta, excludedFlowIds),
         intent.limit,
         txns,
         intent.timeframe,
         meta,
+        excludedFlowIds,
       );
     case 'merchant_spend':
-      return traceMerchantSpend(merchantSpend(toAskTxnRows(txns), intent.timeframe, intent.merchant, input.today, meta));
+      return traceMerchantSpend(
+        merchantSpend(toAskTxnRows(txns), intent.timeframe, intent.merchant, input.today, meta, excludedFlowIds),
+      );
     case 'income':
       // TraceTxn extends TxnLike (compile-time assert below) — no cast needed.
-      return traceIncome(monthlyFlows(txns), txns, intent.timeframe);
+      return traceIncome(monthlyFlows(txns, excludedFlowIds), txns, intent.timeframe, excludedFlowIds);
     case 'largest_purchases':
       return traceLargest(
-        largestPurchases(toAskTxnRows(txns), intent.timeframe, intent.limit, input.today, meta, intent.merchant),
+        largestPurchases(
+          toAskTxnRows(txns),
+          intent.timeframe,
+          intent.limit,
+          input.today,
+          meta,
+          intent.merchant,
+          excludedFlowIds,
+        ),
         intent.merchant,
       );
     default:

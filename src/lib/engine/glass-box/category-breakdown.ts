@@ -232,6 +232,9 @@ export function buildCategoryBreakdowns(
   month: string,
   headlines: ReadonlyMap<string, number>,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+  // C.25 (#403): the SAME set the category totals were summed with, so the
+  // rows a category opens cannot name money the total itself does not show.
+  excludedFlowIds?: ReadonlySet<string>,
 ): Record<string, CategoryBreakdown> {
   const range = { fromYm: month, toYm: month };
   const wanted = new Set(headlines.keys());
@@ -240,7 +243,7 @@ export function buildCategoryBreakdowns(
   for (const t of txns) {
     // The predicate, not a copy of it. Any change to what counts as spending
     // moves the figures and these rows in the same commit.
-    if (!isSpendRow(t, range, meta)) continue;
+    if (!isSpendRow(t, range, meta, excludedFlowIds)) continue;
     const categoryId = spendRowCategoryId(t);
     // Pure optimisation, and deliberately unobservable: `out` is built by
     // iterating `headlines` below, so a surplus category collected here would be

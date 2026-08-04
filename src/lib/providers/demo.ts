@@ -7,9 +7,12 @@
  * owning account relation) — see docs/CRITIC_RUBRIC.md standing checks.
  */
 import { prisma } from '@/lib/db';
-import type { ISODate } from '@/lib/dates';
+import { holidayTable, type ISODate } from '@/lib/dates';
 import { businessToday } from '@/lib/business-today';
 import { applyReconciliationBoundary } from '@/lib/engine/account/reconcile-boundary';
+import { loanPaymentFlowExclusions } from '@/lib/engine/categorize/loan-payment-flows';
+import { LOAN_ACCOUNT_TYPES } from '@/lib/engine/categorize/transfers';
+import { selectLoanObligations } from '@/lib/engine/loans/obligations';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { isSupportedCurrency } from './currency';
 import type { DataProvider, FinanceSnapshot, SyncResult } from './types';
@@ -103,6 +106,48 @@ export class DemoProvider implements DataProvider {
       scheduled: scheduled.filter((s) => supportedIds.has(s.accountId)),
       links: reconciliations,
     });
+    // C.25 (DECISIONS #403): the read-side loan-payment exclusion, computed
+    // ONCE here so every flow-summing surface inherits the SAME set. The
+    // snapshot withholds loan activity (#62), so the loan side arrives via
+    // one targeted query — the exact shape C.24's detection reads
+    // (spending-plan.ts loanSideInflows) — and the obligation facts come
+    // from the accounts already in hand. Superseded predecessors are
+    // skipped exactly as cashNeededFromSnapshot skips them: the boundary
+    // never zeroed their `minimumPaymentCents`, and the live successor is
+    // the account that owes. Pure functions below; no row is written.
+    const superseded = new Set(boundary.supersededAccountIds ?? []);
+    let loanPaymentFlowExclusionsOut: FinanceSnapshot['loanPaymentFlowExclusions'];
+    const loanAccountIds = new Set(
+      boundary.accounts
+        .filter((a) => LOAN_ACCOUNT_TYPES.has(a.type) && !superseded.has(a.id))
+        .map((a) => a.id),
+    );
+    if (loanAccountIds.size > 0) {
+      const loanInflows = await prisma.transaction.findMany({
+        where: {
+          accountId: { in: [...loanAccountIds] },
+          amountCents: { gt: 0 },
+          status: 'POSTED',
+        },
+        select: { id: true, accountId: true, date: true, amountCents: true },
+      });
+      const today = this.today(userId);
+      const year = Number(today.slice(0, 4));
+      const obligations = selectLoanObligations({
+        accounts: boundary.accounts.filter((a) => !superseded.has(a.id)),
+        today,
+        holidays: holidayTable(year - 1, year + 1),
+      });
+      const computed = loanPaymentFlowExclusions({
+        rows: boundary.transactions.filter(
+          (t): t is (typeof boundary.transactions)[number] & { id: string } => t.id !== undefined,
+        ),
+        loanInflows,
+        accountTypeById: new Map(boundary.accounts.map((a) => [a.id, a.type])),
+        obligations: obligations.map((o) => ({ accountId: o.accountId, paymentCents: o.paymentCents })),
+      });
+      if (computed.excludeIds.size > 0) loanPaymentFlowExclusionsOut = computed;
+    }
     return {
       paymentAccountId: boundary.paymentAccountId,
       supersededAccountIds: boundary.supersededAccountIds,
@@ -113,6 +158,7 @@ export class DemoProvider implements DataProvider {
       transactions: [...boundary.transactions],
       scheduled: [...boundary.scheduled],
       balanceSnapshots: [...boundary.balanceSnapshots],
+      loanPaymentFlowExclusions: loanPaymentFlowExclusionsOut,
     };
   }
 }

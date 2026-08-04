@@ -41,6 +41,9 @@ export function ReportsView({
   linkableCategoryIds: string[];
 }) {
   const linkable = new Set(linkableCategoryIds);
+  // C.25 (#403, critic P1-4): figures that dropped excluded loan payments
+  // cannot link to a register that still shows them — refused categories.
+  const loanRefused = new Set(data.loanPaymentRefusedCategories);
   const chartData = data.months.map((m) => ({
     name: monthLabel(m.month),
     // Carried on the datum so a bar click knows which month it is, without the
@@ -141,6 +144,7 @@ export function ReportsView({
     const href = categoryMonthRegisterHref(
       { categoryId: c.categoryId, month: data.ym, amountCents: c.amountCents },
       linkable,
+      loanRefused,
     );
     return (
       <div key={c.categoryId}>
@@ -355,6 +359,22 @@ export function ReportsView({
                 counts underneath.
               </p>
             )}
+            {/* C.25 (#403): the money this page does NOT count as spending,
+                named — a loan payment carried elsewhere is counted on the
+                committed side, so the figures here drop it in every month,
+                not just the months the bank's settlement timing paired it.
+                Speaks only when something moved; silence means nothing did. */}
+            {data.loanPaymentExclusions.map((e, i) => (
+              <p
+                key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`}
+                className="mt-1 text-xs text-muted-foreground"
+                data-testid="reports-loan-payment-basis"
+              >
+                Payments to {e.payee} at {formatCents(cents(e.paymentCents))}/mo are counted on{' '}
+                {e.loanName}, not here — loan payments are not spending. A payment at another
+                amount (an escrow change, say) counts normally.
+              </p>
+            ))}
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {data.months.map((m) => {
                 const active = selectedMonth === m.month;

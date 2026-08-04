@@ -8,6 +8,9 @@ import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categ
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 
 export interface ReportTxn {
+  /** Present on every real row; optional so hand-built fixtures stay terse,
+   *  nullable to match the breakdown row shapes that extend this type. */
+  id?: string | null;
   date: string; // YYYY-MM-DD
   amountCents: number; // signed; negative = spend
   categoryId?: string | null;
@@ -44,8 +47,12 @@ export function isSpendRow(
   t: ReportTxn,
   range: { fromYm: string; toYm: string },
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+  // C.25 (#403): loan payments carried elsewhere leave the category totals in
+  // every month. Omitted = the exact pre-C.25 behaviour.
+  excludedFlowIds?: ReadonlySet<string>,
 ): boolean {
   if (t.isSplitParent || t.isTransfer || isExcludedFromTotals(t)) return false;
+  if (typeof t.id === 'string' && excludedFlowIds?.has(t.id)) return false;
   const ym = t.date.slice(0, 7);
   if (ym < range.fromYm || ym > range.toYm) return false;
   const id = t.categoryId ?? 'uncategorized';
@@ -68,10 +75,11 @@ export function spendingByCategory(
   // Custom-category aware (DECISIONS #111): defaults to the static system map, so
   // a user with no custom categories gets byte-identical output.
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403), threaded to isSpendRow
 ): SpendingBreakdown {
   const totals = new Map<string, number>();
   for (const t of txns) {
-    if (!isSpendRow(t, range, meta)) continue;
+    if (!isSpendRow(t, range, meta, excludedFlowIds)) continue;
     const id = spendRowCategoryId(t);
     totals.set(id, (totals.get(id) ?? 0) + spendContributionCents(t));
   }

@@ -82,6 +82,17 @@ export default async function CoachPage() {
           vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
       <CurrencyExclusionBanner summary={withheld} />
 
+      {/* C.25 (#403, critic P1-5): the savings rate, creep baseline and FI
+          number all read flows the exclusion moved — name what left, or say
+          nothing when nothing did. */}
+      {data.loanPaymentExclusions.map((e, i) => (
+        <p key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`} className="text-xs text-muted-foreground" data-testid="coach-loan-payment-basis">
+          Payments to {e.payee} at {formatCents(cents(e.paymentCents))}/mo are counted on{' '}
+          {e.loanName}, not in these figures — loan payments are not spending. A payment at
+          another amount counts normally.
+        </p>
+      ))}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <SavingsRateCard
           flows={data.flows}

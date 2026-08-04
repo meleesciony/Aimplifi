@@ -14,6 +14,7 @@ import { prisma } from '@/lib/db';
 import { BudgetTargetForm } from '@/components/finance/budget-target-form';
 import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
 import { getCategoryOverlay } from '@/server/category-meta';
+import { loanPaymentBasisFacts, loanPaymentRefusedCategories } from '@/server/loan-payment-basis';
 import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
 import { getHiddenCategoryIds, getLinkableCategoryIds } from '@/server/categories';
 import {
@@ -58,8 +59,20 @@ export default async function BudgetsPage() {
   // target can't be set before any account exists).
   if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
-  const [txns, budgets, user, plan, overlay, hiddenCategoryIds, linkableCategoryIds, fixedMerchants] =
-    await Promise.all([
+  const [
+    txns,
+    budgets,
+    user,
+    plan,
+    overlay,
+    hiddenCategoryIds,
+    linkableCategoryIds,
+    fixedMerchants,
+    // The shared snapshot, fetched ONCE for both jobs it does here: the
+    // Fixed-basis amounts (resolveFixedCategoryAmounts below) and the C.25
+    // loan-payment exclusion this page's own row sums must apply (#403).
+    snap,
+  ] = await Promise.all([
     // All non-transfer, non-split activity this month (BOTH signs) so the engine
     // can net refunds against spend — outflow-only would overstate it.
     prisma.transaction.findMany({
@@ -126,6 +139,7 @@ export default async function BudgetsPage() {
     // become links. Same call /reports and /transactions make.
     getLinkableCategoryIds(userId),
     getRecurringBillMerchantCanonicals(userId),
+    provider.getFinanceSnapshot(userId),
   ]);
   const linkable = new Set(linkableCategoryIds);
 
@@ -147,6 +161,15 @@ export default async function BudgetsPage() {
   // is a claim that the register agrees. Sharing the PREDICATE, not just the query,
   // is what makes "one basis" true rather than nearly true.
   const spendRange = { fromYm: month, toYm: month };
+  // C.25 (#403): loan payments carried elsewhere on a dateable obligation
+  // leave THIS page's row sums too — same set the flows read, from the same
+  // snapshot — or the budget basis would count a mortgage in the months the
+  // stored transfer flag happened to miss it.
+  const excludedFlowIds = snap.loanPaymentFlowExclusions?.excludeIds;
+  // Categories whose figure drops excluded rows: a register link from them
+  // would land on a total that still counts those rows — refused (critic
+  // P1-4; the O.5/O.6 link invariant).
+  const loanRefusedCategories = new Set(loanPaymentRefusedCategories(snap));
   // Named, not inlined, because ONE array now feeds two things: the figures, and
   // the rows the expandable panel prints beneath each figure. Passing the same
   // array to both is what makes "these rows are that number" true by
@@ -159,7 +182,7 @@ export default async function BudgetsPage() {
         // isTransfer/isSplitParent are already false — the Prisma clause excluded them.
         // excludeFromTotals is SELECTED and passed through (O.15): the predicate,
         // not this page, decides that an excluded row leaves the figures.
-        isSpendRow({ ...t, isTransfer: false, isSplitParent: false }, spendRange, meta),
+        isSpendRow({ ...t, isTransfer: false, isSplitParent: false }, spendRange, meta, excludedFlowIds),
     )
     .map((t) => ({ ...t, isTransfer: false, isSplitParent: false }));
   const spendByCategory = netSpendByCategory(spendRows);
@@ -201,6 +224,7 @@ export default async function BudgetsPage() {
     month,
     new Map(rows.map((r) => [r.categoryId, r.spentCents])),
     meta,
+    excludedFlowIds,
   );
 
   // Wave B.1, per transaction (#397): this month's rows classified one by one —
@@ -217,7 +241,8 @@ export default async function BudgetsPage() {
   // C.24: with the SAME exclusion the plan applied (excluded ⇔ unioned — the
   // exactness invariant the plan owns), or this page would print the partial
   // "rent" fragment the plan no longer counts.
-  const snap = await provider.getFinanceSnapshot(userId);
+  // `snap` is the one fetched in the opening Promise.all — one snapshot for
+  // both the Fixed basis below and the C.25 exclusion above (#403).
   const categoryFixedFull = resolveFixedCategoryAmounts({
     transactions: snap.transactions,
     today: isoDate(today),
@@ -287,6 +312,16 @@ export default async function BudgetsPage() {
               clause that changed, and it is the one a reader could otherwise only
               discover by adding the rows up by hand. */}
           <CardDescription>{month} · transfers excluded · pending included</CardDescription>
+          {/* C.25 (#403): the loan payments this list does not count, named —
+              same set the figures above applied. Speaks only when something
+              moved; silence means nothing did. */}
+          {loanPaymentBasisFacts(snap).map((e, i) => (
+            <CardDescription key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`} data-testid="budgets-loan-payment-basis">
+              Payments to {e.payee} at {formatCents(cents(e.paymentCents))}/mo are counted on{' '}
+              {e.loanName}, not here — loan payments are not spending. A payment at another
+              amount counts normally.
+            </CardDescription>
+          ))}
           <CardTitle className="text-base">By category</CardTitle>
         </CardHeader>
         <CardContent>
@@ -299,6 +334,7 @@ export default async function BudgetsPage() {
               const href = categoryMonthRegisterHref(
                 { categoryId: row.categoryId, month, amountCents: row.spentCents },
                 linkable,
+                loanRefusedCategories,
               );
               const spent = formatCents(cents(row.spentCents));
               return (

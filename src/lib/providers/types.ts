@@ -37,6 +37,21 @@ export interface FinanceSnapshot {
   transactions: TransactionLike[];
   scheduled: ScheduledLike[];
   balanceSnapshots: BalanceSnapshotLike[];
+  /**
+   * C.25 (DECISIONS #403): the READ-TIME loan-payment exclusion, computed
+   * ONCE here so every flow-summing surface inherits the same set — the
+   * row ids of loan payments that are carried elsewhere (a dateable
+   * obligation on the linked loan account at the row's own amount) and so
+   * leave spending totals in EVERY month, not just the months the sync-time
+   * ±3-day pairing happened to flag. `excluded` carries the disclosure
+   * facts (what moved, where it is counted instead). Absent/empty when no
+   * merchant qualifies — the demo/golden path, SimpleFIN-only readers, and
+   * any loan the app cannot project.
+   */
+  loanPaymentFlowExclusions?: {
+    readonly excludeIds: ReadonlySet<string>;
+    readonly excluded: readonly { canonical: string; accountId: string; paymentCents: number }[];
+  };
 }
 
 export interface SyncResult {

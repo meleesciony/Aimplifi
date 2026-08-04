@@ -192,13 +192,20 @@ export function TrendsView({
   // money dials are user-configured category labels; tag a mover when its category is one
   const dialSet = new Set(dials.map((d) => d.toLowerCase()));
   const linkable = new Set(linkableCategoryIds);
+  // C.25 (#403, critic P1-4): a mover figure that dropped excluded loan
+  // payments cannot link to a register that still counts them.
+  const loanRefused = new Set(trends.loanPaymentRefusedCategories);
   // O.6: `comparedYm` is the month `currentCents` was summed over — the movers
   // block only renders when it is non-null, but the builder needs a string, so
   // the null case yields no links rather than a link to a guessed month.
   const moverHref = (m: CategoryMover) =>
     comparedYm === null
       ? null
-      : categoryMonthRegisterHref({ categoryId: m.categoryId, month: comparedYm, amountCents: m.currentCents }, linkable);
+      : categoryMonthRegisterHref(
+          { categoryId: m.categoryId, month: comparedYm, amountCents: m.currentCents },
+          linkable,
+          loanRefused,
+        );
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -257,6 +264,21 @@ export function TrendsView({
                 otherwise has no way to know which rows each one summed. */}{' '}
             <span data-testid="trends-pace-basis">Includes pending charges.</span>
           </p>
+          {/* C.25 (#403): what the pace and the movers do NOT count — a loan
+              payment carried elsewhere is counted on the committed side, so
+              it leaves the projection in every month. Speaks only when
+              something moved; silence means nothing did. */}
+          {trends.loanPaymentExclusions.map((e, i) => (
+            <p
+              key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`}
+              className="mt-1 text-xs text-muted-foreground"
+              data-testid="trends-loan-payment-basis"
+            >
+              Not counted here: payments to {e.payee} at {money(e.paymentCents)}/mo — counted
+              on {e.loanName} instead, and loan payments are not spending. A payment at another
+              amount counts normally.
+            </p>
+          ))}
         </section>
       ) : (
         // C.1: the engine abstains when nothing has been counted this month.

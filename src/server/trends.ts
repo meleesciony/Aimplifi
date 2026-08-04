@@ -52,6 +52,11 @@ import {
 import { computeSpendingTrends, type SpendingTrends, type TrendTxn } from '@/lib/engine/trends/trends';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
+import {
+  loanPaymentBasisFacts,
+  loanPaymentRefusedCategories,
+  type LoanPaymentBasisFact,
+} from '@/server/loan-payment-basis';
 
 /**
  * The snapshot → engine shaping step, exported PURE so it can be tested (O.6
@@ -134,6 +139,12 @@ export function toTrendTxns(
  */
 export interface SpendingTrendsData extends SpendingTrends {
   breakdowns: Record<string, CategoryBreakdown>;
+  /** C.25 (#403): what the movers/pace figures do not count, and why. Empty
+   *  when nothing moved — the view says nothing (same rule as /reports). */
+  loanPaymentExclusions: readonly LoanPaymentBasisFact[];
+  /** C.25 (#403, critic P1-4): categories whose mover figure dropped excluded
+   *  rows — the register link is refused there (O.5/O.6 link invariant). */
+  loanPaymentRefusedCategories: readonly string[];
 }
 
 export async function getSpendingTrends(userId: string): Promise<SpendingTrendsData> {
@@ -156,7 +167,19 @@ export async function getSpendingTrends(userId: string): Promise<SpendingTrendsD
   // `description`, `amountCents`, `nextDate` and `cadence`, which is every field
   // a `ScheduledLike` carries besides `accountId` — so there is no hand-built
   // payload here to drop a fact out of (`the-narrowing-you-did-not-list`).
-  const trends = computeSpendingTrends({ txns, today, scheduled: snap.scheduled }, meta);
+  // C.25 (#403): movers and pace read the same exclusion the flows do, so a
+  // mortgage settles out of the baseline the moment it settles out of the
+  // totals — one basis, both figures. Pace's BILL basis needs the merchant
+  // scope too (critic P1-1): the carried-elsewhere payment's scheduled
+  // expectation leaves the still-due figure AND its posted credit together.
+  const excludedFlowIds = snap.loanPaymentFlowExclusions?.excludeIds;
+  const excludedLoanCanonicals = snap.loanPaymentFlowExclusions
+    ? new Set(snap.loanPaymentFlowExclusions.excluded.map((e) => e.canonical))
+    : undefined;
+  const trends = computeSpendingTrends(
+    { txns, today, scheduled: snap.scheduled, excludedFlowIds, excludedLoanCanonicals },
+    meta,
+  );
 
   // No movers ⇒ `comparedYm` is null ⇒ no panel can be opened, so there is
   // nothing to build and no month to build it over.
@@ -166,8 +189,14 @@ export async function getSpendingTrends(userId: string): Promise<SpendingTrendsD
         trends.comparedYm,
         new Map(trends.movers.map((m) => [m.categoryId, m.currentCents])),
         meta,
+        excludedFlowIds,
       )
     : {};
 
-  return { ...trends, breakdowns };
+  return {
+    ...trends,
+    breakdowns,
+    loanPaymentExclusions: loanPaymentBasisFacts(snap),
+    loanPaymentRefusedCategories: loanPaymentRefusedCategories(snap),
+  };
 }
