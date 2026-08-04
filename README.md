@@ -76,13 +76,13 @@ in `tests/unit/critic*-*.test.ts`.
   **PWA manifest**, **security headers (CSP)**, **rate limiting**, **cron sync
   route**, **AES-256-GCM token encryption for bank tokens (Plaid/SimpleFIN) at rest**.
 
-## Dormant pending keys
+## Live in production (www.aimplifi.app) — env keys for a fresh deploy
 
-| Feature | Activate by |
+| Feature | Status / activate on a new deploy with |
 |---|---|
-| Plaid bank connections | `.env.local`: `DATA_PROVIDER=plaid`, `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV=sandbox`, `DATA_ENCRYPTION_KEY` (32-byte base64). **Implemented and sandbox-verified** (2026-06-17, `npm run plaid:validate`: link → exchange → account sync → /transactions/sync → liabilities; per-bank disconnect shipped, ROADMAP #1 / DECISIONS #256). Real banks need production Plaid keys — a Plaid business-approval gate, not a code gap. See docs/PLAID_WALKTHROUGH.md. |
-| Real auth (magic link / Google) | `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` + enabling the providers in `src/auth.ts` (demo sign-in is the Phase-1–5 default). |
-| Background sync schedule | `CRON_SECRET` + a Vercel cron hitting `/api/cron/sync`. |
+| Plaid bank connections | **LIVE** — real accounts connected on the production deployment (production keys; per-bank disconnect, DECISIONS #256). Fresh deploy: `DATA_PROVIDER=plaid`, `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`, `DATA_ENCRYPTION_KEY` (32-byte base64); see docs/PLAID_WALKTHROUGH.md. Schwab/PNC need per-institution Plaid registration (TASKS 0.7). |
+| Auth (email + password, emailed reset) | **LIVE** — Credentials provider in `src/auth.ts` with reset flow via Resend (`AUTH_SECRET`, `RESEND_API_KEY`, `AUTH_URL` on non-Vercel; DECISIONS #257). Demo sign-in remains for demo mode. No Google/magic-link providers. |
+| Background sync schedule | `CRON_SECRET` + a Vercel cron hitting `/api/cron/sync` (see docs/DEPLOY.md). |
 
 `src/lib/providers/types.ts` is the seam: anything that implements
 `DataProvider` (accounts, cursor-based transaction sync, statements) plugs in
@@ -101,7 +101,7 @@ Vercel, Postgres via `DATABASE_URL` (schema is portable), `AUTH_SECRET`, then
 src/lib/money.ts, dates.ts     # THE money/date utilities (branded types)
 src/lib/engine/                # pure engines: cash-needed, categorize,
                                # recurring, fi, calendar, goals
-src/lib/providers/             # DataProvider seam: demo (seeded) | plaid (dormant)
+src/lib/providers/             # DataProvider seam: demo (seeded) | plaid (live in prod)
 src/server/                    # session+ownership-scoped data assembly & actions
 prisma/seed.ts + src/lib/seed/ # deterministic demo dataset (pure builder)
 docs/                          # architecture, edge cases (hand math), critic

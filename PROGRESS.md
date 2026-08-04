@@ -2,6 +2,42 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-04 — history-windows: 3y SimpleFIN pull, Plaid deep-history backfill, period presets (commit 18b6ad6)
+
+Owner request 2026-08-04: "why are we only pulling 6 months of data, can we get
+at least 2-3 years," and a way to view last month / last quarter / last year.
+
+- **SimpleFIN:** first pull + new-account backfill widen 90d → 1095d
+  (`SIMPLEFIN_INITIAL_LOOKBACK_DAYS`); the institution caps what actually comes back.
+- **Plaid:** one-time ADD-ONLY deep-history backfill for items linked before
+  `days_requested=730` shipped (they carry Plaid's 90-day default) —
+  `/transactions/get` over the 730-day window through the exact ingest pipeline;
+  pure planner (`plaid-history-backfill.ts`) skips pending/existing/unmapped rows;
+  `PlaidItem.historyBackfilledAt` flags done items (new links set it at creation);
+  audit-logged. Schema change is additive nullable.
+- **Register:** period-preset dropdown (this/last month, past 3 months, last quarter,
+  past 12 months, YTD, last year, all time) committing from/to; pure tested windows
+  (`engine/transactions/presets.ts`); "history available from" disclosure via the
+  oldest visible transaction date.
+- **Reports:** income-vs-spending chart range picker (6/12/24 months), vocabulary in
+  `engine/reports/chart-range.ts` (client+server shared).
+
+Gate at ship: `bash scripts/verify.sh` GREEN (tsc 0, eslint 0, unit green, build
+clean); new locks in `tests/unit/period-presets.test.ts` and
+`tests/unit/plaid-history-backfill.test.ts`.
+
+**Deploy-verified 2026-08-04 (this session):** pushed `18b6ad6`; Vercel production
+deployment `dpl_5oTaPtB6PvrjQGa5ek48vJoZptZP`
+(`aimplifi-jopk2ralw-reiforge.vercel.app`) readyState **READY**, created 15:37:37
+EDT — four seconds after the commit (15:37:33), no commit since, alias
+www.aimplifi.app. The buildCommand chains `prisma db push` BEFORE `next build`, so
+the READY build proves `PlaidItem.historyBackfilledAt` reached the live Neon
+database. www answers: /transactions 307 → /sign-in (auth gate, as designed),
+/sign-in 200. No content-match grep possible: both new surfaces (register presets,
+reports range picker) sit behind the login — the changed behaviour is locked by the
+unit tests above against the real engine, and the demo seed's server paths are
+unchanged.
+
 ## 2026-08-04 — C.8: the calendar shows every due, every month (audit P0-3)
 
 Owner's audit opened with "the trends makes no sense"; P0-3 was its calendar

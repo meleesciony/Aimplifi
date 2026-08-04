@@ -123,10 +123,10 @@
    A's view returns only A's accounts/net worth) + an e2e (brand-new signup →
    empty onboarding, no demo-data leak → sign out → back in). Invite-only signup
    (DECISIONS #57) gates account creation behind a `SIGNUP_ALLOWLIST` env var
-   (dormant = open for demo/tests). REMAINING is purely operational: **deploy**
-   so users reach it from their own devices — Vercel + Neon Postgres, env vars
-   set (`DATABASE_URL`, `AUTH_SECRET`, `DATA_ENCRYPTION_KEY`, and
-   `SIGNUP_ALLOWLIST` to lock signup down). Step-by-step in **docs/DEPLOY.md**.
+   (dormant = open for demo/tests). DEPLOYED and live at www.aimplifi.app
+   (Vercel + Neon Postgres); a fresh deploy needs `DATABASE_URL`, `AUTH_SECRET`,
+   `DATA_ENCRYPTION_KEY`, and `SIGNUP_ALLOWLIST` — step-by-step in
+   **docs/DEPLOY.md**.
 3. ~~**Average-daily-balance interest** for the minimum path~~ — **DONE**
    (DECISIONS #29): the minimum-path interest now uses the average-daily-balance
    method (APR÷365 × the cycle's average balance, grace-gated), replacing the
