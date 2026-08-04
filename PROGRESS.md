@@ -2,6 +2,28 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-04 — Ledgers archived (docs only, no code)
+
+PROGRESS.md, docs/STATUS.md, REGRESSION_LEDGER.md and the completed TASKS.md
+rows moved verbatim to `docs/archive/`; the live files hold 2026-08 onward and
+the open queue. Losslessness was PROVEN, not assumed: for each pair, every
+non-blank line removed from the live file was checked for presence in
+live+archive by set difference — 7065 / 8483 / 434 / 117 removed lines, zero
+missing. The single apparent miss was a byte-order-mark copy of a heading that
+survives without the mark. Also: README's Deploy section now points at
+docs/DEPLOY.md rather than keeping a second, drifting copy of the steps, and
+two lesson files that had never been listed
+(check-provider-production-requirements-before-saying-no-setup,
+cloud-synced-folders) are now in docs/lessons/INDEX.md — found by diffing the
+lessons directory against the index, and pre-existing, not caused by this move.
+
+Gate: `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **5798 unit across
+354 files** / build clean. No schema, code or test change.
+
+**Shipped:** `443f3bd` pushed; GitHub deployment 5738259394 **success**
+(sha-matched); https://www.aimplifi.app/sign-in serves 200 and still renders
+the Aimplifi sign-in form.
+
 ## 2026-08-03 - "Not counted" says why (owner asked what it meant)
 
 Owner screenshot: an `Interest Paid +$0.10` row read "Not counted" and nothing
