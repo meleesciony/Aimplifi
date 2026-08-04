@@ -38,6 +38,14 @@ output). Copy locks pin the N=3/1/0 branches and byte-identical N=6 forms.
 next build clean). Targeted `phase3-coach.spec.ts` e2e 1/1 — the demo seed's six-month
 window leaves every pinned string byte-identical.
 
+**Deploy-verified 2026-08-04:** pushed `ba90b3c` (no prisma diff → database untouched);
+Vercel status **success** on that SHA (deployment
+`reiforge/aimplifi/DX6YxPgg1h3zRhABL8dA3BNvkXJU`); www answers (307 → /sign-in, the
+auth gate, as designed). No content-match grep was possible: /coach is behind the login
+and the demo's six-month window renders every pinned string byte-identical by
+construction — the changed behaviour lives in the short-history branches, which the
+3-month Prisma lock executed against the real engine.
+
 ## ⚠️ OPEN 2026-08-04 — scenario engine still calls its verbatim coach inputs "6-month averages" (C.9 residual)
 
 `src/lib/engine/scenario/scenario.ts` note ("Aggregate figures are 6-month averages
