@@ -6,6 +6,36 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-04 — scenario engine speaks the coach's REAL window (closes the C.9 residual)
+
+The C.9 OPEN residual is closed. `ScenarioBase` now carries a REQUIRED
+`averageWindowMonths` — verbatim `CoachData.fi.monthlySavingsMonths`, the coach's real
+window (≤ 6 full months; 0 = none on record) — and `ScenarioState` carries it through
+`applyScenario`. Every copy site that hardcoded "6 months" now interpolates the window
+in the coach's C.9 dialect: the standing assumption ("averages over your last N full
+month(s)"), both S15 $0-base disclosures ("income/spending over the last N months"),
+and the doc comments. Window 0 gets the honest named-zero branch ("no complete months
+of history are on record yet" / "your history so far") instead of inventing a window.
+No math changed — the aggregates arrive pre-averaged verbatim, and the window is
+copy-only by documented contract. There is no scenario UI yet, so no page renders the
+copy; the engine contract is what the future what-if surface will read.
+
+**Locks:** scenario.test.ts grew a window-consistency block — the window carried
+verbatim for 0..6; the assumption string pinned per N with a no-"6"-unless-N-is-6
+guard; singular at 1; the window-0 branches; S15 notes interpolated on BOTH sides;
+consistency surviving a fully-knobbed scenario. Full-window (6) rendering stays
+byte-identical, so the existing pinned assertions were untouched.
+
+**Gate:** `bash scripts/verify.sh` → **VERIFY GREEN** (tsc 0, eslint 0, unit green,
+next build clean).
+
+**Deploy-verified 2026-08-04:** pushed `b902ac9` (no prisma diff → database untouched);
+Vercel deployment status **success** on that SHA (deployment id 5751099840,
+`aimplifi-73d3kh9nh-reiforge.vercel.app`); www answers (307 → /sign-in, the auth
+gate, as designed) and the deployment URL serves 200 at /sign-in. No content-match
+grep was possible: the scenario engine has no rendered UI surface yet — the changed
+copy lives entirely in the engine contract the unit locks executed.
+
 ## ✅ BUILT 2026-08-04 — C.9: annual spending scales by the REAL window, never ×2 (DECISIONS #405, audit P0-6)
 
 `getCoachData` computed `annualExpenses = expenses6 * 2` while the savings/income
@@ -45,17 +75,6 @@ auth gate, as designed). No content-match grep was possible: /coach is behind th
 and the demo's six-month window renders every pinned string byte-identical by
 construction — the changed behaviour lives in the short-history branches, which the
 3-month Prisma lock executed against the real engine.
-
-## ⚠️ OPEN 2026-08-04 — scenario engine still calls its verbatim coach inputs "6-month averages" (C.9 residual)
-
-`src/lib/engine/scenario/scenario.ts` note ("Aggregate figures are 6-month averages
-from your history") and two input doc comments ("Verbatim coach figure: 6-month average
-monthly income/savings") hardcode 6 while the coach divisor has been the REAL window
-since before C.9. Pre-existing falsity, separate engine with its own input contract —
-fix means threading the window through `ScenarioInputs` and the /scenario page, so it is
-deferred to its own slice rather than smuggled into C.9. The scenario FI TARGET itself
-reads the corrected `annualExpensesCents` verbatim, so its numbers are right; only the
-note sentence is stale.
 
 ## ✅ BUILT 2026-08-04 — C.8: /calendar places each card and loan due in EVERY month (DECISIONS #404, audit P0-3)
 
