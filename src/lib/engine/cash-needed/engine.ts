@@ -12,11 +12,20 @@
  *  - Autopay cards are INCLUDED in cash required (money must be present) but
  *    EXCLUDED from "you must act" amounts; the autopay mode sets the amount.
  *    A card is never double-counted: cash required = max(scenario amount, autopay amount).
- *  - Mid-cycle payments reduce remaining due, floored at 0.
+ *  - Mid-cycle payments reduce remaining due, floored at 0. They arrive from two
+ *    channels: stored `CardPayment` rows (the reader's own record) and payments
+ *    DERIVED from the transaction feed at read time. Nothing writes the derived
+ *    ones — see `detected-payments.ts` and DECISIONS #401 for the admission rule
+ *    and every refusal. Until #401 the stored channel had no production writer at
+ *    all, so on a real card this line described nothing (audit P0-1).
  *  - No statement yet → obligation estimated from current balance, labeled.
  *    Estimated obligations belong to the NEXT cycle (their close date is in the
  *    future) and are excluded from this cycle's headline & projection — unless
- *    there are no generated statements at all, in which case they ARE the answer.
+ *    the issuer has never billed this reader at all, in which case they ARE the
+ *    answer. "Never billed" is NOT the same fact as "billed and already paid off",
+ *    though both arrive here as `statement: null`; `hasSettledStatement` separates
+ *    them. Reading the two as one hands a reader who has just paid everything off
+ *    his whole current balance as this cycle's headline, dated a month out.
  *  - The projection walks day by day; the shortfall check is the running
  *    minimum, not just due-date endpoints. Within a day: scheduled flows post
  *    first, then card payments (documented in assumptions).
@@ -218,8 +227,15 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
   // no generated statement at all.
   const real = allObligations.filter((o) => !o.isEstimated);
   const estimated = allObligations.filter((o) => o.isEstimated);
-  const cycleObligations = real.length > 0 ? real : estimated;
-  const upcoming = real.length > 0 ? estimated : [];
+  // A card whose statements are all SETTLED has generated statements — its
+  // estimate is next cycle, exactly like a card sitting beside an unpaid one.
+  // Reading `real.length === 0` alone as "this issuer has never billed you"
+  // hands a reader who just paid everything off his whole current balance as the
+  // headline, dated a month out (C.6). Both facts reach this function as
+  // `statement: null`; `hasSettledStatement` is what separates them.
+  const thisCycleIsKnown = real.length > 0 || input.cards.some((c) => c.hasSettledStatement === true);
+  const cycleObligations = thisCycleIsKnown ? real : estimated;
+  const upcoming = thisCycleIsKnown ? estimated : [];
 
   const due = cycleObligations
     .filter((o) => o.cashRequiredCents > 0)

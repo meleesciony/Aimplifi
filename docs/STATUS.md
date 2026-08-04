@@ -7561,9 +7561,18 @@ checklist). Unauthenticated API requests now return 401 JSON (middleware).
    (magic link / Google) plus the security pass land in Phase 4 (DECISIONS #13).
 4. **`getDashboardData` loads the full snapshot per render** — fine at seed
    scale; pagination/caching is a Phase 4/5 concern.
-5. **A card payment in transit that is recorded nowhere** (neither CardPayment
-   row nor pending debit) is conservatively double-demanded (full statement +
-   money still in checking). Documented behavior (critic scenario S2).
+5. **A card payment the feed cannot prove is conservatively double-demanded**
+   (full statement + money still in checking). This entry long described a
+   transient edge where the code had a permanent hole: `CardPayment` had NO
+   production writer, so on a real card the payment was never recorded, never
+   subtracted, and the double-demand was the *only* behavior — measured 0 rows
+   for the linked owner (audit P0-1). Fixed in C.6 / DECISIONS #401: payments are
+   now derived from the transaction feed at read time. The double-demand is once
+   again a genuine edge — it is what happens when the payer leg is not visible on
+   a CHECKING/SAVINGS account within three days (a balance transfer, a payment
+   from an account the app cannot see, or either leg still pending). Abstaining
+   costs an unnecessary transfer; a wrong admission costs a missed payment, so
+   the engine abstains. Documented behavior (critic scenario S2).
 6. WCAG AA: axe (wcag2a/aa + wcag21a/aa tags) passes on all core pages plus a
    keyboard-only flow (tests/e2e/phase5-a11y.spec.ts); a full manual audit
    (screen readers, zoom, cognitive review) has not been performed.

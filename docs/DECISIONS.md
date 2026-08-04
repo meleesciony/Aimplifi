@@ -3394,3 +3394,93 @@ defect leaves a real charge visible in some months (a figure a reader can
 weigh), the fix deletes real charges permanently and silently (which inflates
 guilt-free spending and lowers the FI number by 25× the missing annual amount).
 A safe superset beats a precision fix that fabricates.
+
+## #401 — C.6: mid-cycle card payments are DERIVED AT READ TIME, and only when the payer leg is visible on a CHECKING/SAVINGS account
+
+**The defect** (audit P0-1, the largest money defect in the C-series). `CardPayment`
+had no production writer: `prisma/seed.ts` was the only code in the repo that wrote
+one. Measured 2026-08-04 against the live database
+(`scripts/audit-probes/c6-card-payments.mts`, kept in the repo): **0 rows for the
+linked owner**, and all 58 rows in the whole database belong to the demo seed. So
+`paymentsAppliedCents` was 0 forever on a real card and `remainingDue` stayed at the
+full statement balance until the issuer's NEXT statement issued, typically two to
+three weeks later.
+
+The two halves of the payment were then accounted asymmetrically: the checking-side
+debit IS seen (the bank reports the lower balance), the card-side credit was not. The
+day-by-day walk therefore subtracted the same money twice and manufactured a shortfall
+— and a transfer instruction — out of a bill the reader had already settled.
+`engine.ts:15` and `docs/EDGE_CASES.md §B` both described this as working.
+
+**Decision 1 — derive at read time; do NOT write `CardPayment` rows.** TASKS C.6
+prescribed writing rows with `source:'detected-from-transactions'`. That prescription
+was deliberately not shipped, for three reasons the same probe run established:
+
+1. `CardPayment` carries no transaction id and no unique key, so there is nothing to
+   upsert against and re-running an ingest would duplicate payments — each duplicate
+   silently reducing a real amount due.
+2. SimpleFIN writes no `Statement` at all, and `CardPayment.statementId` is required,
+   so on a SimpleFIN-only card there is no row to attach a payment to.
+3. A stored row cannot self-correct. When the feed later restates or removes the
+   transaction it was derived from, the derived payment persists and under-demands a
+   bill forever. A read-time derivation follows the feed in both directions.
+
+The enum value `'detected-from-transactions'` in `prisma/schema.prisma` consequently
+still has no producer, and the schema comment says so.
+
+**Decision 2 — the admission rule is stated positively, and the payer leg must be an
+account that can actually pay a bill.** A credit on a card counts as a payment only
+when a POSTED outflow of the same amount, on a CHECKING or SAVINGS account, is visible
+within three days.
+
+This constraint is not tidiness; the loose version was falsified by execution. Allowing
+ANY of the reader's own accounts to be the counterpart — which is what "match an
+own-account transfer pair" means everywhere else in this codebase — credited **11
+merchant credits as payments** on the owner's live data: an Amex Uber One statement
+credit (three months running), an eBay refund, a golf-club refund. All eleven were
+duplicate-connection artifacts: the owner holds several cards under BOTH SimpleFIN and
+Plaid, so one refund arrives as two rows on two account ids a day apart and pairs with
+itself. The strict rule keeps **51 rows / $142,333.71** — every one an "AUTOMATIC
+PAYMENT", "AUTOPAY PAYMENT" or "CAPITAL ONE AUTOPAY PYMT" debit from Schwab checking —
+and refuses all 11.
+
+A card-to-card BALANCE TRANSFER is refused too. That is the whole reason the constraint
+exists: a real balance transfer and a duplicated refund are the same shape, and only one
+of them may reduce an amount due. Every abstention costs an over-demand (an unnecessary
+transfer); every wrong admission costs a missed payment. The asymmetry decides it.
+
+**Decision 3 — read the pair, not `Transaction.isTransfer`.** That flag is set by two
+different mechanisms (`categorize/transfers.ts`): a descriptor the normalizer
+recognizes, OR a pair. A descriptor verdict proves nothing about where the money came
+from, and on the owner's data **every one of the 11 false positives carried
+`isTransfer = true`**. The flag is also written by a background refresh inside a catch
+that must not fail an ingest, so it can lag the rows. The pair is re-derived from the
+rows themselves.
+
+**Decision 4 — a SETTLED statement is not the same fact as NO statement, and the engine
+now distinguishes them (`CardSnapshot.hasSettledStatement`).** This is the defect the
+fix itself created, caught before ship. The engine's rule is that estimated obligations
+belong to the next cycle "unless there are no generated statements at all, in which case
+they ARE the answer" — and it read that condition as `real.length === 0`. Both facts
+reach it as `statement: null`.
+
+Before C.6 the settled case was unreachable in production (nothing wrote `CardPayment`,
+so no real card was ever fully paid). Detecting payments makes it reachable **every
+month**, in the days between a bill being settled and the next statement issuing. On the
+owner's live shape that window is six days. Without the flag, the reader who has just
+paid everything off is handed his whole current balance ($10,700.25) as THIS cycle's
+headline — a bill the issuer has not sent yet, dated a month out. That would have
+replaced one phantom demand with another.
+
+**Decision 5 — a credited payment is never also announced as a next-statement credit,
+and the two sets are made disjoint by identity.** The post-close-credit note tells the
+reader a credit "reduces your next statement, not this amount due" — the correct
+sentence for a refund and a flat contradiction of a payment just subtracted. Disjointness
+is enforced on `DetectedCardPayment.txnIndex`, not on `isTransfer`, because a lagging
+flag would put one credit in both sentences at once.
+
+**The lock the repo did not have.** Every pre-existing cash-needed test injects
+`paymentsAppliedCents` into a hand-built `CardSnapshot`, so not one of them could fail on
+a missing intake — which is how P0-1 survived to the audit. The new integration tests run
+transaction rows → the REAL assembler → the REAL engine → `remainingDueCents`, on the
+owner's measured live shape.

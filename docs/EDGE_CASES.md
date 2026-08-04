@@ -31,6 +31,25 @@ Calendar references use real 2026 dates (June 13, 2026 = Saturday; June 15 = Mon
 - **Expected remaining due = $600.00.**
 - B2 (overpayment): statement $500.00, payments $600.00 → remaining = **$0.00**
   (floored; never negative cash need).
+- B3 (**detected** payment — the production case; C.6 / DECISIONS #401): no stored
+  `CardPayment` row exists, because nothing writes one. Statement $9,250.93 closed
+  07-11; a $9,250.93 card credit on 08-05 pairs with a $9,250.93 Schwab checking
+  debit on 08-06. **Expected remaining due = $0.00**, and the card leaves the
+  headline entirely rather than being replaced by a next-cycle estimate (B5).
+- B4 (**abstention**): the same $9,250.93 card credit with NO visible payer leg — or
+  a payer leg on another card, an investment account, or an account the app was not
+  told about — is refused. **Expected remaining due = $9,250.93**, demanded in full.
+  Over-demanding costs an unnecessary transfer; under-demanding costs a missed
+  payment.
+- B5 (**settled ≠ never billed**): once B3 settles the only statement, the card has
+  no current obligation but HAS been billed. **Expected: headline $0.00**, and the
+  $10,700.25 current balance appears only as next cycle's estimate — never as this
+  cycle's amount due.
+- B6 (**disjoint sentences**): a $4,000.00 detected payment beside a genuine $620.73
+  post-close refund on one card. **Expected remaining due = $5,250.93** — the
+  payment is subtracted and named "already paid this cycle", the refund is NOT
+  subtracted and is named as reducing the next statement. Neither figure appears in
+  the other's sentence.
 
 ### C. Statement not yet generated → estimate
 - No statement; current balance $1,234.00; cycle closes 2026-06-20, due ~25 days later.

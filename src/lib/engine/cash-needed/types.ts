@@ -25,6 +25,24 @@ export interface CardSnapshot {
   nextDueDate?: ISODate;
   /** Σ payments already applied against the current statement (mid-cycle payments). */
   paymentsAppliedCents: Cents;
+  /**
+   * TRUE when `statement` is null because every generated statement is PAID and
+   * past due — not because the issuer has never generated one.
+   *
+   * Both facts arrive here as `statement: null`, and the engine's "unless there
+   * is no generated statement at all" rule reads that null as the second. Before
+   * C.6 the first was unreachable in production (nothing wrote `CardPayment`, so
+   * no real card was ever fully paid); detecting payments makes it reachable
+   * every month, in the days between a bill being settled and the next statement
+   * issuing. Without this flag the reader who has just paid everything off is
+   * handed his whole current balance as THIS cycle's headline — a bill the
+   * issuer has not sent yet, dated a month out, replacing one phantom demand
+   * with another.
+   *
+   * Absent/false on every hand-built fixture, so the partition is unchanged for
+   * a card that genuinely has no statement.
+   */
+  hasSettledStatement?: boolean;
   /** A refund/credit that posted after statement close (informational; does not reduce this statement). */
   postCloseCreditCents?: Cents;
   /** YYYY-MM-DD the bank stopped sharing this card, else null/absent (TASKS L.14).

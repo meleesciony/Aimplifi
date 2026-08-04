@@ -349,7 +349,15 @@ model CardPayment {
   statementId String
   date        String // YYYY-MM-DD
   amountCents Int // positive = amount paid
-  source      String // 'manual' | 'autopay' | 'detected-from-transactions'
+  // 'manual' | 'autopay' | 'detected-from-transactions'.
+  // NOTE: 'detected-from-transactions' has NO producer and is not expected to get
+  // one. Detected mid-cycle payments are derived at READ time
+  // (src/lib/engine/cash-needed/detected-payments.ts) rather than stored: this
+  // model carries no transaction id or unique key to upsert against, SimpleFIN
+  // writes no Statement for a payment to attach to, and a stored row cannot
+  // self-correct when the feed later restates the row it was derived from.
+  // See DECISIONS #401. In production today, seed rows are the only rows.
+  source      String
 
   statement Statement @relation(fields: [statementId], references: [id], onDelete: Cascade)
 }

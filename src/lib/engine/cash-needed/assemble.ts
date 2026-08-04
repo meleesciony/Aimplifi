@@ -15,6 +15,7 @@ import { type ISODate, addDays, addMonthsClamped, compareDates, isoDate, nextDay
 import { accountLabel } from '@/lib/engine/account/display-name';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
 import { monthsPerCadence } from '@/lib/engine/recurring/detect';
+import { detectCardPayments, detectedPaymentCentsForStatement } from './detected-payments';
 import type { CardSnapshot, CashNeededInput, PendingTx, Scenario, ScheduledItem } from './types';
 
 export interface AccountLike {
@@ -139,16 +140,40 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
 
   const autopayByAccount = new Map(p.autopays.map((a) => [a.accountId, a]));
 
+  // Mid-cycle card payments the feed can PROVE (TASKS C.6 / audit P0-1). Until
+  // this existed, `CardPayment` had no production writer at all — measured, 0
+  // rows on the live account — so a bill the reader had already settled kept
+  // being demanded in full until the next statement issued, while the
+  // checking-side debit was already counted against them. The admission rule and
+  // every refusal live in detected-payments.ts; the accounts map is built from
+  // the SAME list this assembler trusts, so an account filtered out upstream
+  // (superseded, non-USD) cannot prove a payment.
+  const accountTypeById = new Map(p.accounts.map((a) => [a.id, a.type]));
+  const detectedPayments = detectCardPayments(p.transactions, accountTypeById);
+  const detectedIndexes = new Set(detectedPayments.map((d) => d.txnIndex));
+
   const cards: CardSnapshot[] = p.accounts
     .filter((a) => a.type === 'CREDIT')
     .map((card) => {
       const own = p.statements
         .filter((s) => s.accountId === card.id)
         .sort((a, b) => compareDates(isoDate(b.cycleEnd), isoDate(a.cycleEnd)));
-      const paidAgainst = (statementId: string) =>
+      // Stored rows (the reader's own record: 'manual' / 'autopay') PLUS the
+      // payments detected from the feed, deduped against each other. Both halves
+      // are read here rather than at the two call sites below, so the statement
+      // SELECTION and the amount due can never disagree about what has been paid.
+      const storedPaidAgainst = (statementId: string) =>
         p.cardPayments
           .filter((cp) => cp.statementId === statementId)
           .reduce((sum, cp) => sum + cp.amountCents, 0);
+      const paidAgainst = (statement: StatementLike) =>
+        storedPaidAgainst(statement.id) +
+        detectedPaymentCentsForStatement({
+          detected: detectedPayments,
+          cardAccountId: card.id,
+          cycleEnd: statement.cycleEnd,
+          storedPayments: p.cardPayments.filter((cp) => cp.statementId === statement.id),
+        });
       // Current obligation = the most recent statement that is either not yet
       // due OR still carries an unpaid remainder (delinquent statements must
       // NEVER vanish into the estimate path — Hostile Critic finding P1-2).
@@ -156,20 +181,25 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
         own.find(
           (s) =>
             compareDates(isoDate(s.dueDate), p.today) >= 0 ||
-            s.statementBalanceCents - paidAgainst(s.id) > 0,
+            s.statementBalanceCents - paidAgainst(s) > 0,
         ) ?? null;
 
       let paymentsApplied = 0;
       let postCloseCredit = 0;
       if (current) {
-        paymentsApplied = paidAgainst(current.id);
+        paymentsApplied = paidAgainst(current);
         postCloseCredit = p.transactions
           .filter(
-            (t) =>
+            (t, i) =>
               t.accountId === card.id &&
               t.status === 'POSTED' &&
               !t.isTransfer &&
               !t.isSplitParent &&
+              // A row we just credited as a PAYMENT cannot also be announced as a
+              // credit that "reduces your next statement, not this amount due".
+              // Disjoint by identity, not by the isTransfer flag — see
+              // DetectedCardPayment.txnIndex.
+              !detectedIndexes.has(i) &&
               t.amountCents > 0 &&
               compareDates(isoDate(t.date), isoDate(current.cycleEnd)) > 0,
           )
@@ -223,6 +253,10 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
         nextCycleCloseDate,
         nextDueDate,
         paymentsAppliedCents: cents(paymentsApplied),
+        // `current` is null here for exactly two reasons: this card has no
+        // statements at all, or every one it has is past due AND fully paid.
+        // Only the assembler can still tell them apart.
+        hasSettledStatement: !current && own.length > 0,
         postCloseCreditCents: postCloseCredit > 0 ? cents(postCloseCredit) : undefined,
         frozenSince: card.feedDroppedAt ?? null,
       };
