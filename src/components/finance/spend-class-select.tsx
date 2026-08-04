@@ -19,6 +19,7 @@ import {
 import { SpendClassBadge } from '@/components/finance/spend-class-badge';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 
 /** Same chrome as Details / Rules on the register row. */
 const CHIP =
@@ -76,10 +77,10 @@ export function SpendClassSelect({
           setChoice(null);
           return;
         }
-        window.location.reload();
+        reloadPreservingScroll();
       } catch (err) {
         if (err instanceof ActionDeadline) {
-          window.location.reload();
+          reloadPreservingScroll();
           return;
         }
         setError('Could not save — nothing was changed.');

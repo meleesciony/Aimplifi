@@ -19,6 +19,7 @@ import { ASSIGNABLE_GROUPS, filterCategoryOptions } from '@/lib/engine/categoriz
 import { recategorizeSharedTransaction } from '@/server/household-actions';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import type { SharedTxnRow } from '@/server/household';
 
 function amountClass(t: SharedTxnRow): string {
@@ -81,10 +82,10 @@ export function SharedTransactionList({
       }
       // Full reload, not router.refresh(): the re-rendered chip IS the
       // confirmation that can't lie (#167).
-      window.location.reload();
+      reloadPreservingScroll();
     } catch (e) {
       if (e instanceof ActionDeadline) {
-        window.location.reload(); // write usually committed — re-sync (#164 rule)
+        reloadPreservingScroll(); // write usually committed — re-sync (#164 rule)
         return;
       }
       setError(e instanceof Error ? e.message : 'Could not save — nothing was changed.');
