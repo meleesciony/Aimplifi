@@ -32,6 +32,15 @@ serially on that build. **P2 residuals noted in DECISIONS #406** (beyond-horizon
 "what's going in now" now reachable on the settings basis; the seed's OR line has
 no node-env lock — repo has no RTL — its two inputs are locked).
 
+**Deploy-verified 2026-08-04:** pushed `a243e90` (no prisma diff → database
+untouched). Proof is `scripts/c10-live-deploy-check.mjs` → **DEPLOY PROOF: PASS**
+on www.aimplifi.app: signed into the shared demo, the pace line renders an arrival
+through the new selector ("At $1,239.70/month — what was left after spending,
+averaged over the 6 months of …"), and the SERVED client bundle carries both
+C.10-only literals ("what your plan has you setting aside", "nothing has been left
+over after spending") — the freshness marker the byte-identical demo sentence
+cannot provide. A script-only commit `14d4059` followed (not in the app build).
+
 ## ✅ BUILT 2026-08-04 — scenario engine speaks the coach's REAL window (closes the C.9 residual)
 
 The C.9 OPEN residual is closed. `ScenarioBase` now carries a REQUIRED
