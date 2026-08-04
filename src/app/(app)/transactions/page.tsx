@@ -10,6 +10,7 @@ import { buttonVariants } from '@/components/ui/button';
 import type { FlowType, TxnFilter } from '@/lib/engine/transactions/query';
 import { VALID_FLOW_TYPES, VALID_SPEND_CLASSES } from '@/lib/engine/transactions/links';
 import { SharedTransactionList } from '@/components/finance/shared-transaction-list';
+import { RegisterScrollRestorer } from '@/components/finance/register-scroll';
 import { getSharedTransactionsView } from '@/server/household';
 import { getTransactions, getWithheldAccountSummary } from '@/server/transactions';
 import { getVisibleGroups } from '@/server/categories';
@@ -91,6 +92,10 @@ export default async function TransactionsPage({
 
   return (
     <div className="space-y-4">
+      {/* Puts the reader back where they were after an inline edit's
+          confirmation reload (owner, 2026-08-03). Mounted ONCE for the whole
+          page — both lists below write the same saved offset. */}
+      <RegisterScrollRestorer />
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Transactions</h1>
         <div className="flex gap-2">

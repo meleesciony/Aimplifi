@@ -41,6 +41,7 @@ import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { TxnActionMenuItems } from '@/components/finance/txn-action-menu';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import {
   PROVENANCE_BADGE_TESTID,
   PROVENANCE_CONFIRM_TESTID,
@@ -202,7 +203,7 @@ export function TransactionList({
       res = await withDeadline(fn(), FORM_ACTION_DEADLINE_MS);
     } catch (e) {
       if (e instanceof ActionDeadline) {
-        window.location.reload(); // write usually committed — re-sync (#164 rule)
+        reloadPreservingScroll(); // write usually committed — re-sync (#164 rule)
         return;
       }
       setActionError({ id: t.id, msg: 'Could not save — nothing was changed. Try again.' });
@@ -214,7 +215,7 @@ export function TransactionList({
       setActionBusy(false);
       return;
     }
-    window.location.reload();
+    reloadPreservingScroll();
   }
 
   useEffect(() => {
@@ -247,7 +248,7 @@ export function TransactionList({
       );
     } catch (e) {
       if (e instanceof ActionDeadline) {
-        window.location.reload(); // write usually committed — re-sync (#164 rule)
+        reloadPreservingScroll(); // write usually committed — re-sync (#164 rule)
         return;
       }
       setTaxError('Could not save — nothing was changed. Try again.');
@@ -261,7 +262,7 @@ export function TransactionList({
     }
     // Full reload, never router.refresh(): the re-rendered row is the confirmation
     // that can't lie (#167). `taxBusy` stays true until the new page arrives.
-    window.location.reload();
+    reloadPreservingScroll();
   }
 
   const close = useCallback(() => {
@@ -351,7 +352,7 @@ export function TransactionList({
       if (e instanceof ActionDeadline) {
         // The create usually COMMITTED and only the confirmation stream was
         // severed — re-sync; if it saved, the category is in the picker (#164 rule).
-        window.location.reload();
+        reloadPreservingScroll();
         return;
       }
       // Rejected action (network flake / expired session) degrades to the
@@ -385,10 +386,10 @@ export function TransactionList({
       // Full reload, not router.refresh(): refresh's application was the
       // coin-flip the probe witnessed — the re-rendered chip is the
       // confirmation that can't lie. pending stays true until the new page.
-      window.location.reload();
+      reloadPreservingScroll();
     } catch (e) {
       if (e instanceof ActionDeadline) {
-        window.location.reload(); // write usually committed — re-sync (#164 rule)
+        reloadPreservingScroll(); // write usually committed — re-sync (#164 rule)
         return;
       }
       setError(e instanceof Error ? e.message : 'Could not save — nothing was changed.');
@@ -415,10 +416,10 @@ export function TransactionList({
         recategorize({ transactionId: t.id, categoryId: t.categoryId, scope: 'one' }),
         FORM_ACTION_DEADLINE_MS,
       );
-      window.location.reload();
+      reloadPreservingScroll();
     } catch (e) {
       if (e instanceof ActionDeadline) {
-        window.location.reload(); // write usually committed — re-sync (#164 rule)
+        reloadPreservingScroll(); // write usually committed — re-sync (#164 rule)
         return;
       }
       setConfirmError({ id: t.id, msg: e instanceof Error ? e.message : 'Could not confirm — nothing was changed.' });
@@ -448,10 +449,10 @@ export function TransactionList({
         recategorize({ transactionId: t.id, categoryId: t.suggestion.categoryId, scope: 'one', expectUnfiled: true }),
         FORM_ACTION_DEADLINE_MS,
       );
-      window.location.reload();
+      reloadPreservingScroll();
     } catch (e) {
       if (e instanceof ActionDeadline) {
-        window.location.reload(); // write usually committed — re-sync (#164 rule)
+        reloadPreservingScroll(); // write usually committed — re-sync (#164 rule)
         return;
       }
       setConfirmError({ id: t.id, msg: e instanceof Error ? e.message : 'Could not confirm — nothing was changed.' });
