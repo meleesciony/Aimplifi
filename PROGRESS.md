@@ -9845,3 +9845,9 @@ failure mode, and the reason the change looked safe enough to gate.
 Both probes (they are the evidence), DECISIONS #400, the requeued C.25 with the
 corrected direction, and C.26. No source file changed; `git status` shows docs
 and probes only.
+
+**Shipped:** `672b9d1` pushed; no `prisma/` diff (live database untouched).
+Vercel production deployment `aimplifi-jgng5xg3v` — **● Ready**, sha-matched via
+`vercel ls --meta githubCommitSha=672b9d1…`; www.aimplifi.app answers 200. This
+commit changes no source file, so there is no rendered marker to grep for — the
+deploy check here is the sha match and the Ready state, not a page assertion.
