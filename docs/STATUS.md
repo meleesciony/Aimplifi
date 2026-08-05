@@ -54,17 +54,37 @@ and said "No posted spending in June 2026" over $400.00 of posted June
 spending); a category the clamp emptied disclosed nothing anywhere; and Ask's
 basis line read as the complete rule while omitting the newest exclusion.
 
-Gate: `bash scripts/verify.sh` GREEN — tsc 0, eslint 0, **5972 unit / 362
-files**, build clean. Targeted e2e 15/15 (reports-total-reconciles,
-budgets-basis, category-breakdown, category-drilldown, spend-class-drilldown).
+Cycles 2 and 3 each found a defect introduced by the previous cycle's FIX (a
+page figure subtracted from two independently-floored sums, which cancelled to
+silence; then a window label narrowed twice — "Jun 2026 so far so far"). Cycle 4
+signed off: zero P0, zero P1.
 
-**OPEN — a rule that lives in a `.tsx` still cannot be locked.** This repo has
-no component-rendering harness (no testing-library), which is why C.26's fixes
-move decisions INTO loaders and engines rather than testing the components. Two
-things remain component-level and are guarded only by `tsc` plus e2e on the demo
-seed: that `CategoryBreakdownPanel` calls `categoryPanelBasis` at all, and the
-/reports page-level sentence. The cheapest real closure is a render harness;
-filed, not built.
+Gate: `bash scripts/verify.sh` GREEN — tsc 0, eslint 0, **5989 unit / 363
+files**, build clean. Targeted e2e 13/13 (reports-total-reconciles,
+category-breakdown, category-drilldown, dashboard, budgets-basis).
+
+**Deploy-verified 2026-08-05:** `01ab3ab` (no `prisma/` diff — the live database
+is untouched); production deployment `aimplifi-g76kkcs0r` ● Ready;
+`node scripts/c26-live-deploy-check.mjs` → **DEPLOY PROOF: PASS (7/7)**. The
+discriminating check is the link's own window: production now emits
+`/transactions?category=groceries&from=2026-06-01&to=2026-06-10` — today, where
+the previous build emitted the month end — and the register it opens nets to
+exactly the figure that was clicked (25282 vs 25282).
+
+**CLOSED — components can now be asserted.** The "no component-rendering
+harness" gap that had let two cycles of user-visible copy ship unlocked is gone:
+`@testing-library/react` + `jsdom`, `.tsx` in the vitest include, opted into per
+file with a `// @vitest-environment jsdom` pragma. `tests/unit/spend-window-render.test.tsx`
+renders `ReportsView`, `TopSpendingCard`, `CategoryBreakdownPanel` and
+`MonthFlowPanel`. Available to every future slice.
+
+**OPEN — one seam the harness cannot reach: an async server component's prop
+wiring.** Mutation-proven: passing `notCountedYetCents={0}` in
+`dashboard/page.tsx` restores the disclosure defect with the whole suite green.
+Not a live defect — the prop is REQUIRED so an omission fails `tsc`, the
+component itself is locked, and the value has one plausible source — but it is
+the last unlocked link in this chain. Only an e2e on /dashboard with a seeded
+future-dated row closes it.
 
 ## ✅ BUILT 2026-08-04 — C.12: an instruction and the figure it qualifies now come from the same selection (audit P1-16/17/18/20, DECISIONS #408)
 
