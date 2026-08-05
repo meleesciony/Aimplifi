@@ -1809,8 +1809,9 @@ the live ingest answers every stored row with `guardedVerdictRefresh` — a refr
 a 5-day overlap, a silent re-filing of three years of history at 1095. A pure planner
 emits only genuinely-new rows; the writer only ever `create`s.
 
-**Four fresh-context critic cycles, all FAIL through cycle 3, all findings executed:
-3 P0 + 19 P1.** Cycles 2 and 3 each OPENED with a P0 that the previous cycle had just
+**Four fresh-context critic cycles — the HARD CAP. Cycles 1-3 FAIL, all findings
+executed (2 P0 + 15 P1). Cycle 4 FAIL with 3 P1 left OPEN and recorded in
+`docs/STATUS.md` per CLAUDE.md §6, plus a P0 that did not reproduce.** Cycles 2 and 3 each OPENED with a P0 that the previous cycle had just
 created — cycle 3's was cycle 2's fix applied to the wrong branch of the same upsert,
 while its comment correctly named the route it failed to close.
 Both P0s were the same shape and neither was arithmetic — see
@@ -1822,8 +1823,20 @@ corrected rows from every figure without updating one row. Cycle 2: the P0 was c
 `lastSyncedAt`, so reconnect took the live-ingest full pull AND re-fetched three
 years; a probe measured a stored 2024 row moving Groceries → Coffee, silently.
 
-**Gate:** `bash scripts/verify.sh` GREEN — tsc 0, eslint 0, **6069 unit / 367
-files**, build clean. Targeted e2e: `connection-health` + `transactions` 23/23.
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0, eslint 0, **6069 unit / 367 files**,
+build clean, run three times consecutively with no other agent active. Targeted e2e:
+`connection-health` + `transactions` 23/23.
+
+**Cycle 4's P0 was a measurement artifact and is recorded as one.** It reported the
+suite red across five runs; the unit-DB filename hashes `process.cwd()`, so its
+control (a separate git worktree) had a private database while its treatment shared
+one SQLite file with this session's concurrent runs.
+
+**A sabotage line reached commit `d38086e`** — `if (false && !conn.historyBackfilledAt)`,
+the feature disabled — because `git add -A` ran while a critic was mid-probe in the
+same checkout. Caught from the critic's report, amended to `16759d1` before any push,
+residue verified as exactly one line. Lesson updated
+(`docs/lessons/a-subagents-green-is-a-hypothesis.md`, 3rd instance).
 
 **Scale gate** (the task row's explicit pre-ship condition), `H5_SCALE_PROBE=1 npx
 vitest run tests/unit/simplefin-history-backfill-scale.test.ts`:

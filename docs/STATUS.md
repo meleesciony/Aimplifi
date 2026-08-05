@@ -86,6 +86,68 @@ from a promised window, so it states what the institution actually returned and 
 back on its own once the backfill lands. A critic flagged this as missing; it was
 verified present instead of rebuilt.
 
+**Critic cycle 4: FAIL — 1 P0 + 3 P1. THE HARD CAP IS REACHED (CLAUDE.md §6), so
+these are recorded open rather than fixed, and the owner is asked for direction.**
+
+*Cycle 4's P0-1 ("the unit suite does not pass") did NOT reproduce and is recorded
+as a measurement artifact.* It reported five red full-suite runs; three consecutive
+runs afterwards, with no other agent running, were **6069 passed / 0 failed**, and
+`bash scripts/verify.sh` is GREEN. The confound: the unit test DB filename hashes
+`process.cwd()` (`tests/setup/test-db.ts:48`), so the critic's control — run in a
+separate git worktree — had a private database, while its treatment runs shared one
+SQLite file with this session's concurrent runs. The `database is locked` errors it
+saw are that contention. The mechanism it named is real in kind (the backfill does
+add per-sync work, and fires for every fixture whose flag starts null), so it is worth
+re-checking if suite flakiness reappears — but the attribution was not sound.
+
+**MY OWN INCIDENT, recorded because it nearly shipped:** commit `d38086e` captured a
+sabotage line the critic had left in the tree mid-probe — `if (false && !conn.historyBackfilledAt)`,
+i.e. the whole feature disabled — because the commit was made while a critic was
+actively mutating the same working tree. It was caught by the critic's own report,
+amended to `16759d1` before any push, and the residue was verified to be exactly one
+line. **The rule this earns: never `git add -A` while a subagent is working in the
+same checkout** — give critics a worktree, or commit only explicit paths after the
+agent reports. This is the third instance of `a-subagents-green-is-a-hypothesis`.
+
+**OPEN P1 — three ways an account stops being superseded do NOT re-arm the backfill.**
+The terminal "zero mapped accounts → done" state is only safe because
+`undoReconciliationFor` clears `historyBackfilledAt`. It is not the only reversal:
+`confirmReconciliationFor`'s direction-conflict auto-undo writes `undoneAt` directly
+(`reconciliation.ts:251-256`); deleting the successor account drops the link via
+`effectiveReconciliationLinks` with no FK and no flag clear; and the successor's
+`type`/`currency` — which the SimpleFIN sync overwrites from the feed on every run —
+can drift the link out of effectiveness with no user action at all. Each leaves a
+connection permanently unable to widen its history. The by-construction fix is to stop
+gating on a stored flag for this case and derive "is a backfill owed" from state (the
+`learn.ts` recompute-from-scratch idiom), which is a design change, not a patch —
+hence not attempted at the cap.
+
+**OPEN P1 — reconnect-after-disconnect can lose a pending row older than 5 days.**
+`connectSimplefin` now sets `lastSyncedAt: today` when history is retained (that is
+what stops the live ingest re-filing it), the planner skips every `pending` row, and
+`markDone` fires once the plan is consumed. So a hold outstanding when the user
+disconnected, older than the 5-day overlap, is refused by the backfill and falls
+outside every later live window. Before this slice that reconnect did a 1095-day LIVE
+pull, which would have ingested it — so this trades a re-categorisation bug for a
+narrower data-absence bug. Depends on SimpleFIN's `start-date` filtering on posted
+time, which is the documented protocol semantics but was not observed against a live
+bridge.
+
+**OPEN P1 (NOT this slice — already on `main`) — the PLAID deep-history backfill has
+the same superseded-predecessor defect this slice rated P0.** `plaidAccountIdMap`
+(`plaid.ts:1097-1103`) maps every `provider: 'plaid'` account with no supersession
+filter, and `backfillItemHistory` creates rows from it — so it can drag a
+predecessor's `span.first` back and drop the successor's rows from every figure.
+`undoReconciliationFor` also does not clear `plaidItem.historyBackfilledAt`. Shipped
+2026-08-04 in `18b6ad6`; needs its own slice.
+
+**OPEN P2s from cycle 4:** the effective-date sort and the new rate limit are both
+correct but unlocked by any test; `syncAllAccounts` double-charges the limiter
+(`sync-all:` then `sync-simplefin:`); `undoReconciliationFor` re-arms unconditionally,
+so undoing a Plaid/manual pair still costs the next sync a three-year fetch;
+`reportedAny` is any-not-all, so one account reporting marks the whole connection done;
+and `connectSimplefin` has no rate limit at all.
+
 **OPEN — a CSV-imported or hand-typed row carries no `providerRef`, so the backfill
 cannot see it as a duplicate.** `@@unique([accountId, providerRef])` protects only
 feed-owned rows, and `existingRefs` filters `providerRef: { not: null }`. A user who

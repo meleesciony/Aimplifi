@@ -111,3 +111,29 @@ was left open on a premise about a *different* action ("with creation fenced the
 delete"), and its blast radius if that premise ever lapsed is every transaction in the category plus
 its rules and budgets. The axis is not reachability, it is what the thing costs while it waits: a
 guard costs a line and fails safe, a feature costs prose that must stay true on every surface.
+
+## Third instance (H.5, 2026-08-05): never `git add -A` while a subagent works in the same checkout
+
+Two ways the same session was bitten in one slice:
+
+1. **A sabotage line reached a commit.** A hostile critic was mid-probe — it had written
+   `if (false && !conn.historyBackfilledAt)`, disabling the whole feature — when the parent
+   session ran `git add -A && git commit` to protect its work from that very critic. The
+   commit therefore shipped the feature switched off. It was caught only because the critic
+   said so in its report, and amended before any push. Pre-commit greps confirmed the
+   *fixes* were present and still missed the *disabling* line, because a grep checks for what
+   you expect, not for what someone else added.
+
+2. **Concurrent suite runs made the gate unreadable.** Four consecutive full-suite runs
+   returned four DIFFERENT failure sets (10, 23, 8, 21) while a critic ran its own suite
+   against the same single-file SQLite test DB. Genuine breakage is deterministic; a failure
+   set that changes every run is contention. The critic then reported "the suite does not
+   pass" as a P0 — its control ran in a separate git worktree, which gets a private test DB
+   because the filename hashes `process.cwd()`, so the control was isolated and the treatment
+   was not. Three clean runs after it finished: 6069 passed.
+
+**The rules:** give critics their own worktree (`isolation: "worktree"`), or commit explicit
+paths only, and only after the agent has reported. Never run the gate for a verdict while an
+agent is running one too. And when a subagent reports a failing gate, ask what else was
+touching the tree before believing the attribution — in both directions: its green is a
+hypothesis, and so is its red.
