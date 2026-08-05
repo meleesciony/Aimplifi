@@ -18,7 +18,12 @@
 import { chromium } from 'playwright';
 
 const BASE = process.env.LIVE_BASE ?? 'https://www.aimplifi.app';
-const MARKERS = ['covers the first short day', 'in any figure on this card'];
+// forecast-view.tsx is the one C.12 surface that ships a client chunk, so the
+// bundle literal is its new testid (the old build's chunk cannot contain it).
+// The hero/radar/cards copy is SERVER-rendered (cash-needed-card is an RSC), so
+// those strings never appear in client chunks — their proof is the DOM order
+// check below, which the old build cannot satisfy (no such testid existed).
+const MARKERS = ['forecast-scope-note'];
 const results = [];
 const check = (name, ok, detail = '') => {
   results.push({ name, ok });

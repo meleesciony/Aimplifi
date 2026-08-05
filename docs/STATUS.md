@@ -41,6 +41,13 @@ precision, second-step posting buffer, chip-string duplication, unnamed first
 short day on the hero) are recorded in DECISIONS #408. Lesson:
 docs/lessons/a-fix-on-the-reported-surface-is-not-a-fix-on-the-pattern.md.
 
+**Deploy-verified 2026-08-04:** `29d3b86` (no prisma diff);
+`scripts/c12-live-deploy-check.mjs` against production → DEPLOY PROOF: PASS
+(5/5) — `forecast-scope-note` renders above the hero figure (DOM order
+checked), and the served client bundle carries the marker. Targeted e2e on
+the verify build: 17 passed; the 3 failures reproduce identically on clean
+HEAD (pre-existing drift — see the OPEN entry below).
+
 ## ✅ BUILT 2026-08-04 — C.11: the Glass-Box certification is split into the claim it can stand behind and the one it can't (audit P1-14, DECISIONS #407)
 
 The audit's trust-surface finding: every Glass-Box panel ended "…matched to

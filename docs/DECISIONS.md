@@ -3965,3 +3965,16 @@ firstCountedActionCard (estimate-first trap, all-estimates promote, null
 banner), radar undatable (ok/alert/none), radar P1-1 withhold, forecast
 DOM-order e2e. Mutation-proven both directions per the critics' revert checks.
 Lesson: docs/lessons/a-fix-on-the-reported-surface-is-not-a-fix-on-the-pattern.md.
+
+**Deploy-verified 2026-08-04.** Pushed `29d3b86` (no prisma diff → database
+untouched); `scripts/c12-live-deploy-check.mjs` → DEPLOY PROOF: PASS (5/5) —
+the demo sign-in on production renders `forecast-scope-note` with the
+card-payment omission ABOVE the hero figure (DOM-order checked; the old build
+has no such testid), and the served client bundle carries the literal. The
+hero/radar/cards copy is server-rendered (RSC), so bundle-literal freshness
+rides on the one client-component marker — a lesson from the first script
+draft, which searched chunks for RSC strings that can never appear there.
+E2e note: three mobile-380 specs (today-feed-frozen ×2,
+frozen-figure-surfaces:92) failed in this session but reproduce IDENTICALLY
+on clean HEAD `fec663a` via stash/run/pop — pre-existing spec/component
+drift, recorded in STATUS, not caused by C.12.
