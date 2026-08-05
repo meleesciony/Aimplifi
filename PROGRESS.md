@@ -1859,3 +1859,36 @@ invisible to the suite before this slice added it).
 and verified to survive `scripts/gen-pg-schema.mjs` into the Postgres schema that
 `prisma db push` applies on deploy. Existing rows get NULL, which IS the intended
 semantics: every existing connection is owed a backfill.
+
+### H.5 live deploy proof — PASS (5/5), www.aimplifi.app, 2026-08-05
+
+`node scripts/h5-live-deploy-check.mjs` (script only, not in the app build), against
+production deployment `dpl_2noGCCt3kLGhLtyu2Z6gZzmaWS9C` (Ready, aliased to
+www.aimplifi.app) on `c753921`:
+
+```
+PASS  signed into the shared demo on production — https://www.aimplifi.app
+PASS  the accounts page renders and reads the SimpleFIN connection model — status=200 connect-control=1
+PASS  the register states how far back history actually goes, from a real date — History available from Thu, Dec 12, 2024.
+PASS  the dashboard still renders after the sync-path change — status=200
+PASS  no uncaught client errors on the routes read — none
+
+5/5 checks passed
+```
+
+**What this proof can and cannot say, stated rather than implied.** H.5 has NO UI, so
+the usual "grep for a new testid" discriminator does not exist. What production
+genuinely establishes is (a) the additive column reached Neon — `prisma db push` is
+inside `vercel.json`'s buildCommand, so a failed migration is a failed deploy, and
+`/accounts` reads `SimpleFinConnection` without a P2022; (b) the schema change and the
+edited sync path did not break the live app, which is this deploy's real risk; and (c)
+the surface H.5 depends on to report depth is live and reading real data — "History
+available from Thu, Dec 12, 2024" is derived from the oldest ACTUAL transaction, not
+from a promised window, which is exactly why no new surface was built.
+
+**What it cannot prove, and where that proof lives instead:** production has no
+SimpleFIN connection and the shared demo is fenced from provider egress by
+construction, so a backfill cannot be made to run there. That it reaches past the
+90-day floor, stays add-only across a three-year overlap, and converges under the
+per-run cap is proven by `tests/unit/simplefin-history-backfill{,-server,-scale}.test.ts`
+against a mocked bridge — and by the fail-old checks recorded above, not by this script.
