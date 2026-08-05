@@ -4,6 +4,7 @@ import { formatMonth } from '@/lib/dates';
 import type { SpendingBreakdown } from '@/lib/engine/reports/reports';
 import type { CategoryBreakdown } from '@/lib/engine/glass-box/category-breakdown';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
+import { reportsNotCountedYetCopy } from '@/lib/engine/glass-box/category-breakdown';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 import { SURFACE_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
@@ -31,6 +32,7 @@ export function TopSpendingCard({
   breakdowns,
   /** The month these figures cover — the panel may not assume "this month". */
   ym,
+  notCountedYetCents,
 }: {
   breakdown: SpendingBreakdown;
   /**
@@ -40,6 +42,19 @@ export function TopSpendingCard({
    */
   breakdowns: Record<string, CategoryBreakdown>;
   ym: string;
+  /**
+   * The money this card's window held back (C.26 critic cycle 2, F3).
+   *
+   * REQUIRED, and the reason is the executed finding: this card inherited the
+   * stop-at-today clamp from `getReports` and none of its disclosure, so a
+   * reader whose only June charge was dated later in June met "$0.00 this
+   * month" and "No spending yet this month." over $400.00 of posted charges,
+   * under a label claiming the whole month. Its panels cannot carry the
+   * per-category sentence in that state — the categories the clamp emptied are
+   * dropped before a panel exists. A defaulted prop would have let the next
+   * surface repeat it silently.
+   */
+  notCountedYetCents: number;
 }) {
   const top = breakdown.byCategory.slice(0, 4);
   // O.19a (owner report 2026-07-31): the header prints `totalCents` — the WHOLE
@@ -62,11 +77,19 @@ export function TopSpendingCard({
           <PieChart className="size-3.5" aria-hidden /> Top spending →
         </TrackedActedLink>
         <span className="tabular-nums text-xs text-muted-foreground">
-          {formatCents(cents(breakdown.totalCents))} this month
+          {formatCents(cents(breakdown.totalCents))}{' '}
+          {notCountedYetCents > 0 ? 'so far this month' : 'this month'}
         </span>
       </div>
+      {notCountedYetCents > 0 ? (
+        <p className="mt-2 text-xs text-muted-foreground" data-testid="top-spending-not-counted-yet">
+          {reportsNotCountedYetCopy(formatCents(cents(notCountedYetCents)))}
+        </p>
+      ) : null}
       {top.length === 0 ? (
-        <p className="py-5 text-center text-xs text-muted-foreground">No spending yet this month.</p>
+        <p className="py-5 text-center text-xs text-muted-foreground">
+          {notCountedYetCents > 0 ? 'Nothing counted yet this month.' : 'No spending yet this month.'}
+        </p>
       ) : (
         <div className="mt-3 space-y-2">
           {top.map((c, i) => (
@@ -90,6 +113,13 @@ export function TopSpendingCard({
               <CategoryBreakdownPanel
                 breakdown={breakdowns[c.categoryId]}
                 categoryName={c.name}
+                // NOT narrowed here (critic cycle 3, G1): the panel applies
+                // `windowLabelSoFar` with its OWN category's held-back amount.
+                // Narrowing with the PAGE amount first produced "Jun 2026 so
+                // far so far" for any category with money dated ahead, and
+                // labelled a category that held back nothing "so far" — a
+                // panel's label describes its own figure's window, which is
+                // the property that lets two panels on one page differ.
                 windowLabel={formatMonth(ym)}
                 testIdPrefix="top-spending-breakdown"
               />

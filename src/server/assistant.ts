@@ -26,7 +26,7 @@ import { solveSavingsGoalByDate } from '@/lib/engine/solve/savings-goal-by-date'
 import { solveRetireAtAge } from '@/lib/engine/solve/retire-at-age';
 import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 import type { ISODate } from '@/lib/dates';
-import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
+import { asOfWindow, spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
 import { askVocabulary, mergeCategoryMeta, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import { getCategoryOverlay } from '@/server/category-meta';
@@ -448,6 +448,13 @@ async function buildAnswer(
   // TASKS L.18: one normalization of the snapshot rows into the assistant's shape, so every answer
   // and trace below sees `feedDroppedAt` and none of them can quote a frozen balance as a live one.
   const accounts = assistantAccounts(snap.accounts, new Set(snap.supersededAccountIds ?? []));
+  // C.26: the reader's timeframe, stopping at today — the window the three
+  // category intents sum over AND the one the Glass-Box trace cites rows with,
+  // named once here so an answer and its own evidence cannot be selected
+  // differently. `merchant_spend` has clamped since O.7 and is what made the
+  // split visible: "how much did I spend at Whole Foods" already stopped at
+  // today while "how much did I spend on groceries" did not.
+  const askSpendWindow = (tf: { fromYm: string; toYm: string }) => asOfWindow(tf, today);
   switch (intent.kind) {
     case 'net_worth': {
       // Slice 3: derivation traces are attached HERE, where the engine inputs
@@ -470,21 +477,22 @@ async function buildAnswer(
       );
     case 'spend_total':
       // Exact /reports parity — pass the snapshot rows straight to the same
-      // engine, with the same C.25 loan-payment exclusion (#403), or Ask and
+      // engine, with the same C.25 loan-payment exclusion (#403), and since
+      // C.26 the same stop-at-today window (`askSpendWindow`), or Ask and
       // /reports would answer the same month differently.
       return answerSpendTotal(
-        spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta, snap.loanPaymentFlowExclusions?.excludeIds),
+        spendingByCategory(snap.transactions as ReportTxn[], askSpendWindow(intent.timeframe), meta, snap.loanPaymentFlowExclusions?.excludeIds),
         intent.timeframe,
       );
     case 'spend_by_category':
       return answerSpendByCategory(
-        spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta, snap.loanPaymentFlowExclusions?.excludeIds),
+        spendingByCategory(snap.transactions as ReportTxn[], askSpendWindow(intent.timeframe), meta, snap.loanPaymentFlowExclusions?.excludeIds),
         intent.target,
         intent.timeframe,
       );
     case 'top_categories':
       return answerTopCategories(
-        spendingByCategory(snap.transactions as ReportTxn[], intent.timeframe, meta, snap.loanPaymentFlowExclusions?.excludeIds),
+        spendingByCategory(snap.transactions as ReportTxn[], askSpendWindow(intent.timeframe), meta, snap.loanPaymentFlowExclusions?.excludeIds),
         intent.timeframe,
         intent.limit,
       );
@@ -527,7 +535,16 @@ async function buildAnswer(
       // Full snapshot rows (incl. categoryId + isSplitParent at runtime) → same as
       // /reports & /coach: refunds net against spend, split parents excluded,
       // loan payments carried elsewhere left out (C.25 #403) — one basis.
-      const flows = monthlyFlows(snap.transactions, snap.loanPaymentFlowExclusions?.excludeIds);
+      // C.26: "you brought in" is the income-side twin of "you spent", so it
+      // stops at today the same way — a paycheck the reader has dated for next
+      // Friday has not arrived. The three spending intents above clamp through
+      // their window; `monthlyFlows` has no window parameter, so the same
+      // narrowing is applied to its input, which for any past timeframe removes
+      // nothing.
+      const flows = monthlyFlows(
+        snap.transactions.filter((t) => t.date <= today),
+        snap.loanPaymentFlowExclusions?.excludeIds,
+      );
       const income = flows
         .filter((f) => f.month >= intent.timeframe.fromYm && f.month <= intent.timeframe.toYm)
         .reduce((s, f) => s + f.incomeCents, 0);

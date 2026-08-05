@@ -16,6 +16,7 @@ import { isoDate } from '@/lib/dates';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { CATEGORY_BY_ID, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
 import {
+  asOfWindow,
   isSpendRow,
   spendContributionCents,
   spendRowCategoryId,
@@ -63,9 +64,12 @@ const T = (
 
 /**
  * Hand-verified fixture (see inline sums). June 2026, today = 2026-06-15.
- * byCategory: groceries 8000; dining 8000−2000+2500 = 8500; shopping
+ * byCategory: groceries 8000; dining 8000−2000 = 6000 (the 2500 row is dated
+ * 2026-06-20, AFTER today — C.26 stops these figures at today); shopping
  * 7000(pending)+4000+2600−1500 = 12100; entertainment 1000−3000 = −2000 → DROPPED.
- * total = 28600. Income (flows): 400000 only — the 'refund' leaf nets expenses.
+ * total = 26100. Before C.26 the dining figure counted the 06-20 row and read
+ * 8500 (total 28600) while merchant_spend, which has clamped since O.7, did
+ * not — the two-window split this fixture used to pin in its own comment. Income (flows): 400000 only — the 'refund' leaf nets expenses.
  * Merchant 'amazon' — O.7: the SAME basis as the shopping category above, so it
  * reads 7000(pending)+4000+2600−1500 = 12100 across 4 rows and the two figures
  * agree (every shopping row here is an Amazon row). It was 6600 across 2 while
@@ -84,7 +88,10 @@ const TXNS: TraceTxn[] = [
   T('2026-06-10', -10000, null, 'ONLINE TRANSFER', { isTransfer: true }),
   T('2026-06-11', -1000, 'groceries', 'KROGER #529', { isSplitParent: true }),
   T('2026-06-12', -7000, 'shopping', 'AMZN Mktp US*PEND1', { status: 'PENDING' }), // in spend AND merchant (O.7); not in largest
-  T('2026-06-20', -2500, 'dining', 'CHIPOTLE 1122'), // future vs today: in spend; not in largest/merchant
+  // C.26: dated after `today`, so it is in NO figure that says "you spent" —
+  // spend_total, spend_by_category, top_categories, largest and merchant_spend
+  // all stop at today now. It was the one row on which they disagreed.
+  T('2026-06-20', -2500, 'dining', 'CHIPOTLE 1122'),
   T('2026-05-30', -9999, 'groceries', 'KROGER #529'), // out of range
   T('2026-06-03', -4000, 'shopping', 'AMZN Mktp US*1A2B3'),
   T('2026-06-06', -2600, 'shopping', 'AMZN Mktp US*9Z8Y7'),
@@ -104,11 +111,11 @@ function asRowSum(intent: AssistantIntent): RowSumTrace {
 // ── Criterion 1: every row-sum intent reconciles, sum(rows) === headline ────
 
 describe('C1 — every ROW-SUM intent reconciles on the fixture', () => {
-  it('spend_total: rows sum to the $286.00 total', () => {
+  it('spend_total: rows sum to the $261.00 total', () => {
     const t = asRowSum({ kind: 'spend_total', timeframe: JUNE });
-    expect(t.headlineCents).toBe(28600);
-    expect(rowSum(t)).toBe(28600);
-    expect(t.sumCents).toBe(28600);
+    expect(t.headlineCents).toBe(26100);
+    expect(rowSum(t)).toBe(26100);
+    expect(t.sumCents).toBe(26100);
     expect(t.reconciled).toBe(true);
   });
 
@@ -123,27 +130,27 @@ describe('C1 — every ROW-SUM intent reconciles on the fixture', () => {
     expect(t.reconciled).toBe(true);
   });
 
-  it('spend_by_category (group Food & Dining): groceries + dining = $165.00', () => {
+  it('spend_by_category (group Food & Dining): groceries + dining = $140.00', () => {
     const t = asRowSum({
       kind: 'spend_by_category',
       timeframe: JUNE,
       target: { type: 'group', group: 'Food & Dining', label: 'food' },
     });
-    expect(t.headlineCents).toBe(16500);
-    expect(rowSum(t)).toBe(16500);
+    expect(t.headlineCents).toBe(14000);
+    expect(rowSum(t)).toBe(14000);
     expect(t.reconciled).toBe(true);
     // The dining refund is cited as a NEGATIVE contribution, not hidden.
     expect(t.rows.some((r) => r.contributionCents === -2000)).toBe(true);
   });
 
-  it('spend_by_category (umbrella set): dining + shopping = $206.00', () => {
+  it('spend_by_category (umbrella set): dining + shopping = $181.00', () => {
     const t = asRowSum({
       kind: 'spend_by_category',
       timeframe: JUNE,
       target: { type: 'categories', categoryIds: ['dining', 'shopping'], label: 'fun money' },
     });
-    expect(t.headlineCents).toBe(8500 + 12100);
-    expect(rowSum(t)).toBe(8500 + 12100);
+    expect(t.headlineCents).toBe(6000 + 12100);
+    expect(rowSum(t)).toBe(6000 + 12100);
     expect(t.reconciled).toBe(true);
   });
 
@@ -153,7 +160,7 @@ describe('C1 — every ROW-SUM intent reconciles on the fixture', () => {
     expect(rowSum(t)).toBe(12100);
     expect(t.reconciled).toBe(true);
     // All three listed categories are carried as groups, each reconciled.
-    expect(t.groups?.map((g) => g.amountCents)).toEqual([12100, 8500, 8000]);
+    expect(t.groups?.map((g) => g.amountCents)).toEqual([12100, 8000, 6000]);
   });
 
   it('merchant_spend (amazon): net $121.00 — two posted, one pending, one returned', () => {
@@ -207,8 +214,11 @@ describe('C2 — spend_total reconciles hierarchically, net-refund category excl
   it('the entertainment category (nets to a refund) is excluded — no group, no rows', () => {
     expect(t.groups?.some((g) => g.key === 'entertainment')).toBe(false);
     expect(t.rows.some((r) => r.categoryId === 'entertainment')).toBe(false);
-    // …exactly as spendingByCategory excludes it from the headline.
-    const breakdown = spendingByCategory(TXNS as ReportTxn[], JUNE);
+    // …exactly as spendingByCategory excludes it from the headline. C.26: the
+    // comparison window is the answer's own — `JUNE` stopping at today — because
+    // that is what the trace summed; comparing against the unclamped month would
+    // be the very two-window mistake this slice removed.
+    const breakdown = spendingByCategory(TXNS as ReportTxn[], asOfWindow(JUNE, TODAY));
     expect(breakdown.byCategory.some((c) => c.categoryId === 'entertainment')).toBe(false);
     expect(t.headlineCents).toBe(breakdown.totalCents);
   });
@@ -354,7 +364,7 @@ describe('F1 — custom category meta: the trace uses the SAME merged meta the a
 
   it('spend_total with custom meta reconciles and buckets the custom rows', () => {
     const trace = traceAnswer({ kind: 'spend_total', timeframe: JUNE }, golfInput) as RowSumTrace;
-    expect(trace.headlineCents).toBe(28600 + 12000);
+    expect(trace.headlineCents).toBe(26100 + 12000);
     expect(trace.reconciled).toBe(true);
   });
 });
@@ -366,17 +376,17 @@ describe('F2 — expectedHeadlineCents: input drift between answer and tap fails
     const drifted: TraceTxn[] = [...TXNS, T('2026-06-14', -9900, 'groceries', 'KROGER #529')];
     const trace = traceAnswer(
       { kind: 'spend_total', timeframe: JUNE },
-      { transactions: drifted, today: TODAY, meta: CATEGORY_BY_ID, expectedHeadlineCents: 28600 },
+      { transactions: drifted, today: TODAY, meta: CATEGORY_BY_ID, expectedHeadlineCents: 26100 },
     ) as RowSumTrace;
-    expect(trace.headlineCents).toBe(38500); // internally consistent…
-    expect(trace.sumCents).toBe(38500);
+    expect(trace.headlineCents).toBe(36000); // internally consistent…
+    expect(trace.sumCents).toBe(36000);
     expect(trace.reconciled).toBe(false); // …but NOT the number the user tapped
   });
 
   it('matching expectedHeadlineCents leaves a clean trace reconciled', () => {
     const trace = traceAnswer(
       { kind: 'spend_total', timeframe: JUNE },
-      { ...INPUT, expectedHeadlineCents: 28600 },
+      { ...INPUT, expectedHeadlineCents: 26100 },
     ) as RowSumTrace;
     expect(trace.reconciled).toBe(true);
   });

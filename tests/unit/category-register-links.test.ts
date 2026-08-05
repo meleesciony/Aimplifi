@@ -19,11 +19,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import { monthWindow } from '@/lib/dates';
-import { categoryMonthRegisterHref, categoryRegisterHref } from '@/lib/engine/transactions/links';
+import { categoryWindowRegisterHref, categoryRegisterHref } from '@/lib/engine/transactions/links';
 
 /** The register's category control can show these — see getVisibleGroups. */
 const LINKABLE = new Set(['groceries', 'travel', 'cat/with space&amp']);
-import { spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
+import { spendingByCategory, wholeMonthWindow, type ReportTxn } from '@/lib/engine/reports/reports';
 import { netSpendByCategory } from '@/lib/engine/budgets/status';
 import { filterTransactions, summarizeTransactions, type TxnView } from '@/lib/engine/transactions/query';
 
@@ -34,7 +34,7 @@ import { filterTransactions, summarizeTransactions, type TxnView } from '@/lib/e
  */
 const SOME = 12345;
 const hrefFor = (categoryId: string, amountCents = SOME, month = '2026-06', linkable = LINKABLE) =>
-  categoryMonthRegisterHref({ categoryId, month, amountCents }, linkable);
+  categoryWindowRegisterHref({ categoryId, window: wholeMonthWindow(month), amountCents }, linkable);
 
 describe('categoryRegisterHref (O.5 — the link itself)', () => {
   it('names the three params the register reads', () => {
@@ -325,11 +325,11 @@ describe('O.6 — one basis: every category surface agrees with the register', (
     // The concrete cost was on /trends: a mover is on the page BECAUSE it moved,
     // sorts first by absolute delta, and a category that fell to nothing was
     // rendered dead beside four live rows.
-    expect(categoryMonthRegisterHref({ categoryId: CATEGORY, month: MONTH, amountCents: 0 }, LINKABLE)).toBe(
+    expect(categoryWindowRegisterHref({ categoryId: CATEGORY, window: wholeMonthWindow(MONTH), amountCents: 0 }, LINKABLE)).toBe(
       '/transactions?category=groceries&from=2026-06-01&to=2026-06-30',
     );
     // The FENCE is unchanged and still the only refusal — a zero in a category the
     // register's control cannot display is still refused, for the original reason.
-    expect(categoryMonthRegisterHref({ categoryId: 'coffee', month: MONTH, amountCents: 0 }, LINKABLE)).toBeNull();
+    expect(categoryWindowRegisterHref({ categoryId: 'coffee', window: wholeMonthWindow(MONTH), amountCents: 0 }, LINKABLE)).toBeNull();
   });
 });

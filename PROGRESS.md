@@ -1609,3 +1609,88 @@ predate this slice and are tracked in STATUS.
 demo/golden dataset cannot exercise the wiring by construction (the seed's
 loan account has no transactions) — the assembler lock on the real client is
 the standing guard for it.
+
+## #410 — C.26 built: one window for "spent this month", and the link follows the figure (2026-08-05)
+
+**The slice the C.13 session split out (audit P1-28), built the way its own
+revert said to.** `computePace` stopped at today and `spendingByCategory` did
+not, so the dashboard's top-spending card and the pace card one inch away
+answered "this month" over two windows; Ask carried the same split
+(`merchant_spend` has clamped since O.7, the three category intents had not).
+The first attempt clamped the figures and was killed by a fresh-context critic
+with five executed P1s. All five are addressed here.
+
+**The window is now a value a figure HAS, not a month key two authors expand
+separately.** `SpendWindow { fromYm, toYm, asOf? }` in the reports engine, with
+named authors (`spentSoFarWindow`, `wholeMonthWindow`, `asOfWindow`) and one
+translation to register dates (`spendWindowRegisterDates`).
+`categoryMonthRegisterHref` became `categoryWindowRegisterHref` and takes the
+window itself, so a caller cannot clamp the figure and not the link without
+constructing a second object on purpose. `buildCategoryBreakdowns` takes it too
+— a panel rebuilt from the month key would have listed a row its own figure
+dropped and turned `reconciles` false on a correct number.
+
+**Decided, not left open (critic P1-2): /budgets keeps the whole month.**
+/reports says "you spent" (money already gone ⇒ stop at today); /budgets tracks
+an allowance a charge dated for the 20th has already consumed, and clamping
+would raise "left to spend" — the generous direction on the one figure that
+exists to restrain. Each page equals its OWN register; that is the invariant,
+not that the two pages equal each other.
+
+**Income clamps with spending (critic P1-3)**, on /reports' chart and Ask's
+`income` intent — the two places a current-month income figure is printed
+(/coach filters to complete months, so nothing there moves).
+
+**The basis sentence stayed true (critic P1-4)** by not being stretched:
+`BREAKDOWN_BASIS` still claims a complete enumeration and is still complete for
+the unclamped surfaces; the clamp gets its own sentence, gated on
+`notCountedYetCents > 0` — a fact about this reader's rows, not a restatement of
+config — and computed in the engine so no surface can forget it.
+
+**Locks, mutation-proven (critic P1-5, the finding that killed the first
+attempt).** `tests/unit/spend-window-parity.test.ts` drives the REAL loaders
+(`getReports`, `askAssistant` through the real parser) on a throwaway user with
+a future-dated row, plus the O.5 link execution and a CONTROL that lands the
+$520.00. Executed: removing the reports window kills 5, removing the income
+filter kills 1, removing all four Ask clamps kills 6.
+
+**Gate:** `bash scripts/verify.sh` → VERIFY GREEN — tsc 0, eslint 0, **5964
+unit / 362 files**, build clean.
+
+
+### Critic cycles (C.26)
+
+**Cycle 1: FAIL, 6 P1s, all executed, all fixed.** (1) The /reports view could
+still reintroduce the measured $120→$520 defect with the whole suite green, so
+the href moved into `getReports` and the view names no window. (2) The new
+disclosure was asserted nowhere — basis composition moved out of the .tsx into
+`categoryPanelBasis`/`monthFlowPanelBasis`. (3) The CHART panel had the clamp
+without its disclosure and printed "Returns in June 2026 outran purchases",
+blaming the reader's refunds for money the date rule removed. (4) It could also
+print "No posted spending in June 2026" over $400.00 of posted June spending;
+`buildMonthFlowBreakdowns` takes `asOf` itself now, carries `notCountedYetCents`
+per bar, and `windowLabelSoFar` narrows the label every sentence interpolates.
+(5) A category the clamp emptied disclosed nothing anywhere — added a page-level
+figure. (6) Ask's basis read as the complete rule while omitting the newest
+exclusion.
+
+**Cycle 2: FAIL, 3 P1s, all fixed.** (F1) The page-level figure was
+`wholeMonthSum − clampedSum`, and `spendingByCategory` floors each category at
+zero independently in each window — so a later-dated refund in one category
+cancelled a later-dated purchase in another, the page fell silent, and the panel
+directly beneath it still disclosed $400.00. There is now ONE computation,
+`notCountedYetByCategory`, feeding both the panels and the page. (F2) The
+component layer was still unlockable: the critic deleted every render-site fix
+in one pass with 5972/5972 green. Closed by installing a component-render
+harness (`@testing-library/react` + `jsdom`, `.tsx` in the vitest include, opted
+in per file) — `tests/unit/spend-window-render.test.tsx`. (F3) The dashboard's
+top-spending card had inherited the clamp and none of the disclosure.
+
+**Worth keeping:** the F1 fix was written wrong the first time — the total
+summed the RAW per-category nets, which re-created the same cancellation one
+level up — and the lock written alongside it caught that before the critic did.
+That is the difference between a test that asserts the fix and a test that
+asserts the property.
+
+**Gate after cycle 2:** VERIFY GREEN — tsc 0, eslint 0, **5983 unit / 363
+files**, build clean.

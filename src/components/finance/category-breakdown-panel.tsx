@@ -24,8 +24,9 @@
  * strings.
  */
 import {
-  BREAKDOWN_BASIS,
   breakdownEmptyCopy,
+  categoryPanelBasis,
+  windowLabelSoFar,
   breakdownNetRefundCopy,
   type CategoryBreakdown,
 } from '@/lib/engine/glass-box/category-breakdown';
@@ -63,6 +64,10 @@ export function CategoryBreakdownPanel({
   testIdPrefix?: string;
   basis?: readonly string[];
 }) {
+  // C.26 (critic cycle 1): "June 2026" is a false label for a figure that stops
+  // on the 10th once something is dated later in the month, and both sentences
+  // below interpolate it.
+  const label = windowLabelSoFar(windowLabel, breakdown.notCountedYetCents);
   return (
     <BreakdownPanel
       subject={{
@@ -74,9 +79,16 @@ export function CategoryBreakdownPanel({
         reconciles: breakdown.reconciles,
         clampedByNetRefund: breakdown.clampedByNetRefund,
       }}
-      emptyCopy={breakdownEmptyCopy(windowLabel)}
-      netRefundCopy={breakdownNetRefundCopy(formatCents(breakdown.sumCents), windowLabel)}
-      basis={[BREAKDOWN_BASIS, ...basis]}
+      emptyCopy={breakdownEmptyCopy(label)}
+      netRefundCopy={breakdownNetRefundCopy(formatCents(breakdown.sumCents), label)}
+      // C.26 (critic cycle 1, P1-2): composed by the ENGINE, not here. The
+      // first cycle assembled this array in the component and a critic deleted
+      // the clamp clause with 5964/5964 tests green — this repo has no
+      // component-rendering harness, so a rule that lives in a .tsx cannot be
+      // locked. `categoryPanelBasis` still prepends the shared sentence for the
+      // original reason: a disclosure a surface has to remember is one a
+      // surface can forget.
+      basis={categoryPanelBasis(breakdown, basis)}
       registerHref={registerHref}
       testIdPrefix={testIdPrefix}
     />

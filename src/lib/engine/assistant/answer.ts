@@ -425,7 +425,13 @@ export function answerSpendTotal(breakdown: SpendingBreakdown, tf: Timeframe): A
     headlineCents: breakdown.totalCents,
     // Same correction as NET_SPEND_BASIS (O.7): the `credit-card-payment`
     // CATEGORY is not excluded by `isSpendRow` — only transfer-FLAGGED rows are.
-    detail: 'Purchases only — transfers and income are excluded.',
+    // C.26: the date rule is named because this sentence reads as the COMPLETE
+    // rule, and a reader with a charge dated later this month is told about it
+    // on /reports and would not be here. Unconditional, unlike the panel
+    // sentence one module over: that one names an AMOUNT (a claim about this
+    // reader's rows, so it is gated on there being one); this names a RULE,
+    // which is true for every reader and every timeframe.
+    detail: "Purchases only — transfers and income are excluded, and anything dated after today isn't counted yet.",
     // Tagged (slice 2b): each top category is a trace group, so its figure is
     // independently tappable. traceKey/cents come from the SAME breakdown entry.
     // O.19b: the headline is the WHOLE period total, so the capped list carries
@@ -846,12 +852,14 @@ function merchantMatches(canonical: string, q: string): boolean {
  * so an ATM withdrawal cannot win "your biggest purchase". Naming and summing
  * are now the two sides of O.6's rule rather than two callers of one narrowing.
  *
- * ONE divergence from `spendingByCategory` survives on purpose: the `<= today`
- * guard. `spendingByCategory` has none, so a manually-entered future-dated row
- * (nothing in `prepareManualTransaction` rejects one) counts toward a /reports
- * category figure. "You spent" is a claim about money already gone, and unlike a
- * pending charge — committed, merely not settled — a future-dated row has not
- * moved at all. Kept, and stated in the answer's basis line.
+ * The `<= today` guard was the ONE divergence from `spendingByCategory` that
+ * survived O.7, and C.26 closed it — in this function's favour. The argument
+ * for it, written here first, is now the whole app's rule: "You spent" is a
+ * claim about money already gone, and unlike a pending charge (committed,
+ * merely not settled) a future-dated row has not moved at all. `SpendWindow`
+ * carries the day for every other caller; this one still filters rows directly
+ * because it takes rows, not a window, and the two now agree by argument rather
+ * than differing by design. Stated in the answer's basis line either way.
  */
 export function merchantSpend(
   rows: readonly AskTxnRow[],
@@ -1117,7 +1125,8 @@ export function answerIncome(incomeCents: number, tf: Timeframe): AssistantAnswe
     kind: 'income',
     headline: `You brought in ${fmt(incomeCents)} ${tf.label}.`,
     headlineCents: incomeCents,
-    detail: 'Income only — transfers between your own accounts are excluded.',
+    detail:
+      "Income only — transfers between your own accounts are excluded, and anything dated after today isn't counted yet.",
     facts: [],
     source: REPORTS_SOURCE,
   };

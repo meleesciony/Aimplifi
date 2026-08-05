@@ -15,11 +15,12 @@
  * sentence, which says the opposite about pending rows.
  */
 import {
-  MONTH_FLOW_BASIS,
   monthFlowEmptyCopy,
+  monthFlowPanelBasis,
   monthFlowNetRefundCopy,
   type MonthFlowBreakdown,
 } from '@/lib/engine/glass-box/month-flow-breakdown';
+import { windowLabelSoFar } from '@/lib/engine/glass-box/category-breakdown';
 import { BreakdownPanel } from '@/components/finance/breakdown-panel';
 import { monthRegisterHref } from '@/lib/engine/transactions/links';
 
@@ -38,13 +39,18 @@ export function MonthFlowPanel({
   defaultOpen?: boolean;
 }) {
   const isIncome = breakdown.flow === 'income';
+  // C.26 (critic cycle 1, P1-3/P1-4): every sentence below interpolates this
+  // label, so narrowing it here is what makes all of them true when the chart's
+  // date rule held money back — "No posted spending in June 2026" over $400.00
+  // of posted June spending was the failure.
+  const label = windowLabelSoFar(windowLabel, breakdown.notCountedYetCents);
   return (
     <BreakdownPanel
       subject={{
         // Colons are legal in a test id but awkward in every selector that reads
         // one, so the key the engine uses becomes a dash here.
         id: `${breakdown.month}-${breakdown.flow}`,
-        name: `${isIncome ? 'Income' : 'Spending'} in ${windowLabel}`,
+        name: `${isIncome ? 'Income' : 'Spending'} in ${label}`,
         headlineCents: breakdown.headlineCents,
         rows: breakdown.rows,
         sumCents: breakdown.sumCents,
@@ -52,11 +58,11 @@ export function MonthFlowPanel({
         clampedByNetRefund: breakdown.clampedByNetRefund,
       }}
       emptyToggleLabel="Nothing counted here — see why"
-      emptyCopy={monthFlowEmptyCopy(breakdown.flow, windowLabel)}
+      emptyCopy={monthFlowEmptyCopy(breakdown.flow, label)}
       // Passes CENTS: the copy takes the magnitude itself, so this call site
       // cannot reintroduce the sign bug both critics found.
-      netRefundCopy={monthFlowNetRefundCopy(breakdown.sumCents, windowLabel)}
-      basis={[MONTH_FLOW_BASIS[breakdown.flow]]}
+      netRefundCopy={monthFlowNetRefundCopy(breakdown.sumCents, label)}
+      basis={monthFlowPanelBasis(breakdown)}
       registerHref={monthRegisterHref(breakdown.month)}
       // Claims the WINDOW, never the rows — see `monthRegisterHref`, which
       // explains why no register filter can express one half of a month.

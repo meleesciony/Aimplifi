@@ -22,6 +22,7 @@
  * destination below the figure that was clicked.
  */
 import { monthWindow } from '@/lib/dates';
+import { spendWindowRegisterDates, type SpendWindow } from '@/lib/engine/reports/reports';
 import type { FlowType } from '@/lib/engine/transactions/query';
 
 /** The register route these links target. */
@@ -214,22 +215,35 @@ export function categoryRegisterHref(
 }
 
 /**
- * The register, filtered to one category over one calendar month ("YYYY-MM").
+ * The register, filtered to one category over the window a figure was summed
+ * over — `SpendWindow`, the same object the sum was handed.
  *
- * The common case by far — after O.6 it is every case: `/reports`, `/trends`
- * movers and `/budgets` rows all sum whole calendar months
- * (`spendingByCategory` windows by month key), so they hand over the month they
- * displayed and the day boundaries are derived by the tested date module
- * instead of at each call site.
+ * It took a month key until C.26 (audit P1-28), and the reason it no longer
+ * does is the one measured finding that killed the first attempt at that slice.
+ * A clamped /reports figure ("you spent $120.00 this month", rows dated after
+ * today excluded) linked to a register windowed on `monthWindow(month)` — the
+ * last day of the month — and landed on $520.00 of rows. The figure and its
+ * destination were derived by two different authors from the same month key,
+ * and only one of them knew about the clamp. Taking the window itself removes
+ * the second author: `spendWindowRegisterDates` translates whatever the figure
+ * used, so a caller cannot clamp one and not the other without deliberately
+ * constructing a second window.
+ *
+ * This is also why the parameter is the window and not a `to` date. A `to` is
+ * something a call site computes; a window is something a figure HAS.
  *
  * Takes an object rather than positional arguments deliberately: `categoryId`
- * and `month` are both strings, so a positional signature accepts them
- * transposed without a type error, and the resulting link would filter by a
- * category named "2026-06" over a window derived from a category id — an empty
- * register, no error anywhere.
+ * and the window were both strings before, so a positional signature accepted
+ * them transposed without a type error, and the resulting link would filter by
+ * a category named "2026-06" over a window derived from a category id — an
+ * empty register, no error anywhere.
  */
-export function categoryMonthRegisterHref(
-  { categoryId, month, amountCents }: { categoryId: string; month: string; amountCents: number },
+export function categoryWindowRegisterHref(
+  {
+    categoryId,
+    window,
+    amountCents,
+  }: { categoryId: string; window: SpendWindow; amountCents: number },
   linkable: ReadonlySet<string>,
   /**
    * C.25 (#403, critic P1-4): categories whose figure applied the loan-payment
@@ -243,7 +257,7 @@ export function categoryMonthRegisterHref(
   refusedCategories?: ReadonlySet<string>,
 ): string | null {
   if (refusedCategories?.has(categoryId)) return null;
-  const { from, to } = monthWindow(month);
+  const { from, to } = spendWindowRegisterDates(window);
   return categoryRegisterHref({ categoryId, from, to, amountCents }, linkable);
 }
 

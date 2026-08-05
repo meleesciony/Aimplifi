@@ -11,9 +11,10 @@ import { useRouter } from 'next/navigation';
 import { useId, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
+import { reportsNotCountedYetCopy, windowLabelSoFar } from '@/lib/engine/glass-box/category-breakdown';
 import { MonthFlowPanel } from '@/components/finance/month-flow-panel';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
-import { CATEGORY_LINK_CLASS, categoryMonthRegisterHref } from '@/lib/engine/transactions/links';
+import { CATEGORY_LINK_CLASS } from '@/lib/engine/transactions/links';
 import { formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { withheldInlineNote, type WithheldAccountSummary } from '@/lib/providers/currency';
@@ -32,26 +33,20 @@ const TOP_CATEGORY_ROWS = 12;
 export function ReportsView({
   data,
   withheld,
-  linkableCategoryIds,
   months,
 }: {
   data: ReportsData;
   withheld: WithheldAccountSummary;
-  /**
-   * Ids the register's category control can display (see `categoryRegisterHref`).
-   * Required, not defaulted: an omitted set would silently render every row
-   * unlinked, which looks like the feature was never built rather than like a bug.
-   */
-  linkableCategoryIds: string[];
   /** Trailing length of the income/spending series (6 / 12 / 24 months). The
    *  page validated `?months=` against the same vocabulary before passing it. */
   months: ReportChartMonths;
 }) {
   const router = useRouter();
-  const linkable = new Set(linkableCategoryIds);
-  // C.25 (#403, critic P1-4): figures that dropped excluded loan payments
-  // cannot link to a register that still shows them — refused categories.
-  const loanRefused = new Set(data.loanPaymentRefusedCategories);
+  // C.26 (critic cycle 1, P1-1): the linkable fence and the C.25 refusals both
+  // moved into `getReports`, with the window, because all three decide the same
+  // thing — whether this figure may become a link and where it points — and a
+  // decision split across a loader and a component is one a component can get
+  // wrong. `data.categoryHrefs` is the whole answer, already made.
   const chartData = data.months.map((m) => ({
     name: monthLabel(m.month),
     // Carried on the datum so a bar click knows which month it is, without the
@@ -149,15 +144,17 @@ export function ReportsView({
   // could drift. Palette index continues through the tail (i + TOP_CATEGORY_ROWS)
   // so expanding cannot recolor the rows already on screen.
   const renderRow = (c: ReportsData['breakdown']['byCategory'][number], i: number) => {
-    const href = categoryMonthRegisterHref(
-      { categoryId: c.categoryId, month: data.ym, amountCents: c.amountCents },
-      linkable,
-      loanRefused,
-    );
+    // C.26 (critic cycle 1, P1-1): the href is BUILT BY `getReports`, from the
+    // same window object it summed the figure with. This view no longer names a
+    // window, so it cannot name a different one — the defect that reached
+    // production here (a clamped $120.00 opening an unclamped $520.00) is now
+    // unwritable at this call site rather than merely tested somewhere else.
+    const href = data.categoryHrefs[c.categoryId] ?? null;
     return (
       <div key={c.categoryId}>
         {/* O.5: the figure is the link. The href carries THIS card's window
-            (data.ym) so the register it lands on nets to exactly the amount
+            (`data.window`, applied by `getReports`) so the register it lands on
+            nets to exactly the amount
             printed here — a landing page summing to a different number would
             be worse than no link.
 
@@ -198,7 +195,11 @@ export function ReportsView({
             // Includes the group so the accessible name CONTAINS the visible
             // text (WCAG 2.5.3) — an aria-label replaces it, and dropping
             // "· Food & Dining" made voice control unable to match on it.
-            aria-label={`${c.name} · ${c.group}: ${formatCents(cents(c.amountCents))} in ${monthLabel(data.ym)} — view these transactions`}
+            // C.26 (critic cycle 1, P2-3): the window in the accessible name is
+            // the FIGURE's, not the month's — "in Jun" was false on a figure
+            // that stops at today, and this string is the whole label a screen
+            // reader hears (it replaces the visible text).
+            aria-label={`${c.name} · ${c.group}: ${formatCents(cents(c.amountCents))} in ${windowLabelSoFar(monthLabel(data.ym), data.notCountedYetCents)} — view these transactions`}
             // Owner-reported 2026-07-31 ("you didn't fix this and all bar
             // charts"): the BAR was a sibling of this anchor, so the widest,
             // most obviously chart-like thing on the card was the one part of
@@ -509,16 +510,32 @@ export function ReportsView({
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-sm font-semibold">Spending by category</h2>
           <span className="text-xs text-muted-foreground" data-testid="reports-category-total">
-            {monthLabel(data.ym)} · {formatCents(cents(data.breakdown.totalCents))} total
+            {monthLabel(data.ym)}
+            {data.notCountedYetCents > 0 ? ' so far' : ''} ·{' '}
+            {formatCents(cents(data.breakdown.totalCents))} total
           </span>
         </div>
+        {/* C.26 (critic cycle 1, P1-5): the page-level statement of what this
+            window held back. It sits ABOVE the table rather than inside a
+            category panel because the case it exists for is the one where there
+            is no panel — a reader whose only charge this month is dated ahead
+            gets an empty table, and the per-category sentence cannot render. */}
+        {data.notCountedYetCents > 0 ? (
+          <p className="mb-2 text-xs text-muted-foreground" data-testid="reports-not-counted-yet">
+            {reportsNotCountedYetCopy(formatCents(cents(data.notCountedYetCents)))}
+          </p>
+        ) : null}
         {currencyNote ? (
           <p className="mb-2 text-xs text-muted-foreground" data-testid="reports-currency-note">
             {currencyNote}
           </p>
         ) : null}
         {top.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">No spending this month yet.</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {data.notCountedYetCents > 0
+              ? 'Nothing counted yet this month — see above.'
+              : 'No spending this month yet.'}
+          </p>
         ) : (
           <div className="space-y-2.5" data-testid="category-breakdown">
             {top.map((c, i) => renderRow(c, i))}

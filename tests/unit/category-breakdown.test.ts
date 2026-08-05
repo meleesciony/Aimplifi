@@ -22,11 +22,15 @@ import {
   buildCategoryBreakdowns,
   type BreakdownSourceTxn,
 } from '@/lib/engine/glass-box/category-breakdown';
-import { spendingByCategory } from '@/lib/engine/reports/reports';
+import { spendingByCategory, wholeMonthWindow } from '@/lib/engine/reports/reports';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 
 const MONTH = '2026-06';
+// C.26: these fixtures assert the UNCLAMPED behaviour (whole calendar month),
+// which is what /budgets and /trends still ask for. The clamped window has its
+// own locks below and in tests/unit/spend-window-parity.test.ts.
+const WHOLE_MONTH = wholeMonthWindow(MONTH);
 
 const row = (over: Partial<BreakdownSourceTxn> = {}): BreakdownSourceTxn => ({
   id: 'txn-1',
@@ -73,7 +77,7 @@ const headlinesFrom = (txns: readonly BreakdownSourceTxn[]) =>
 describe('buildCategoryBreakdowns — parity with the figure it explains', () => {
   it('every category figure equals the plain sum of the rows listed for it', () => {
     const headlines = headlinesFrom(MIXED);
-    const out = buildCategoryBreakdowns(MIXED, MONTH, headlines);
+    const out = buildCategoryBreakdowns(MIXED, WHOLE_MONTH, headlines);
 
     // The fixture must actually produce more than one category, or "every"
     // is a claim about a single trivial case.
@@ -85,7 +89,7 @@ describe('buildCategoryBreakdowns — parity with the figure it explains', () =>
   });
 
   it('nets a refund down rather than listing it as spending', () => {
-    const out = buildCategoryBreakdowns(MIXED, MONTH, headlinesFrom(MIXED));
+    const out = buildCategoryBreakdowns(MIXED, WHOLE_MONTH, headlinesFrom(MIXED));
     const groceries = out['groceries'];
     // 45.00 + 20.00 + 8.00 − 12.00 = 61.00, hand-verified.
     expect(groceries.sumCents).toBe(6100);
@@ -97,7 +101,7 @@ describe('buildCategoryBreakdowns — parity with the figure it explains', () =>
   });
 
   it('counts pending charges and says which rows they are', () => {
-    const out = buildCategoryBreakdowns(MIXED, MONTH, headlinesFrom(MIXED));
+    const out = buildCategoryBreakdowns(MIXED, WHOLE_MONTH, headlinesFrom(MIXED));
     const pending = out['groceries'].rows.filter((r) => r.isPending);
     expect(pending.map((r) => r.transactionId)).toEqual(['d']);
   });
@@ -111,13 +115,13 @@ describe('buildCategoryBreakdowns — parity with the figure it explains', () =>
     ['the month before', 'x6'],
     ['the month after', 'x7'],
   ])('never lists %s', (_label, id) => {
-    const out = buildCategoryBreakdowns(MIXED, MONTH, headlinesFrom(MIXED));
+    const out = buildCategoryBreakdowns(MIXED, WHOLE_MONTH, headlinesFrom(MIXED));
     const listed = Object.values(out).flatMap((b) => b.rows.map((r) => r.transactionId));
     expect(listed).not.toContain(id);
   });
 
   it('lists rows oldest first', () => {
-    const out = buildCategoryBreakdowns(MIXED, MONTH, headlinesFrom(MIXED));
+    const out = buildCategoryBreakdowns(MIXED, WHOLE_MONTH, headlinesFrom(MIXED));
     const dates = out['groceries'].rows.map((r) => r.date);
     expect(dates).toEqual([...dates].sort());
   });
@@ -125,7 +129,7 @@ describe('buildCategoryBreakdowns — parity with the figure it explains', () =>
 
 describe('buildCategoryBreakdowns — the states a panel has to tell apart', () => {
   it('returns an entry for a requested category with no rows, and reconciles at zero', () => {
-    const out = buildCategoryBreakdowns([], MONTH, new Map([['travel', 0]]));
+    const out = buildCategoryBreakdowns([], WHOLE_MONTH, new Map([['travel', 0]]));
     expect(out['travel'].rows).toEqual([]);
     expect(out['travel'].reconciles).toBe(true);
     expect(out['travel'].clampedByNetRefund).toBe(false);
@@ -134,7 +138,7 @@ describe('buildCategoryBreakdowns — the states a panel has to tell apart', () 
   it('reports a real mismatch rather than an empty list under a live number', () => {
     // A figure with no rows behind it is the shape an upstream defect takes;
     // the panel must be able to say so (an-empty-set-is-not-a-fact-about-money).
-    const out = buildCategoryBreakdowns([], MONTH, new Map([['travel', 5000]]));
+    const out = buildCategoryBreakdowns([], WHOLE_MONTH, new Map([['travel', 5000]]));
     expect(out['travel'].reconciles).toBe(false);
     expect(out['travel'].clampedByNetRefund).toBe(false);
   });
@@ -143,21 +147,21 @@ describe('buildCategoryBreakdowns — the states a panel has to tell apart', () 
     // Both figure builders hold a net-refund category at zero rather than
     // printing negative spend, so the rows legitimately do not sum to it.
     const rows = [row({ id: 'r1', amountCents: -2000 }), row({ id: 'r2', amountCents: 6000 })];
-    const out = buildCategoryBreakdowns(rows, MONTH, new Map([['groceries', 0]]));
+    const out = buildCategoryBreakdowns(rows, WHOLE_MONTH, new Map([['groceries', 0]]));
     expect(out['groceries'].sumCents).toBe(-4000);
     expect(out['groceries'].reconciles).toBe(false);
     expect(out['groceries'].clampedByNetRefund).toBe(true);
   });
 
   it('does not call a plain mismatch a net refund', () => {
-    const out = buildCategoryBreakdowns([row({ amountCents: -2000 })], MONTH, new Map([['groceries', 9999]]));
+    const out = buildCategoryBreakdowns([row({ amountCents: -2000 })], WHOLE_MONTH, new Map([['groceries', 9999]]));
     expect(out['groceries'].clampedByNetRefund).toBe(false);
   });
 });
 
 describe('buildCategoryBreakdowns — how a row is named', () => {
   const one = (over: Partial<BreakdownSourceTxn>) =>
-    buildCategoryBreakdowns([row(over)], MONTH, new Map([['groceries', 1000]]))['groceries'].rows[0];
+    buildCategoryBreakdowns([row(over)], WHOLE_MONTH, new Map([['groceries', 1000]]))['groceries'].rows[0];
 
   it("prefers the register's display name over the bank text", () => {
     const r = one({ merchantName: 'My Corner Shop', rawDescriptor: 'SQ *CORNER MARKET 0042' });
@@ -186,7 +190,7 @@ describe('buildCategoryBreakdowns — how a row is named', () => {
     const same = { date: '2026-06-04', amountCents: -1500, id: undefined };
     const out = buildCategoryBreakdowns(
       [row(same), row(same)],
-      MONTH,
+      WHOLE_MONTH,
       new Map([['groceries', 3000]]),
     );
     const keys = out['groceries'].rows.map((r) => r.key);
@@ -320,7 +324,7 @@ describe('the display name a row is given', () => {
           }),
         },
       ],
-      MONTH,
+      WHOLE_MONTH,
       new Map([['groceries', 2500]]),
     );
     expect(out['groceries'].rows[0].label).toBe('Mum’s Pharmacy');
@@ -335,13 +339,13 @@ describe('headlineCents is carried, not recomputed', () => {
   // test asserts the branch where no mismatch exists. It is the number the panel
   // tells the reader it could not reconcile against, so it is worth one lock.
   it('is the figure the caller passed, not the row sum', () => {
-    const out = buildCategoryBreakdowns([row({ amountCents: -2000 })], MONTH, new Map([['groceries', 9999]]));
+    const out = buildCategoryBreakdowns([row({ amountCents: -2000 })], WHOLE_MONTH, new Map([['groceries', 9999]]));
     expect(out['groceries'].headlineCents).toBe(9999);
     expect(out['groceries'].sumCents).toBe(2000);
   });
 
   it('equals the row sum exactly when it reconciles', () => {
-    const out = buildCategoryBreakdowns([row({ amountCents: -2000 })], MONTH, new Map([['groceries', 2000]]));
+    const out = buildCategoryBreakdowns([row({ amountCents: -2000 })], WHOLE_MONTH, new Map([['groceries', 2000]]));
     expect(out['groceries'].headlineCents).toBe(2000);
     expect(out['groceries'].headlineCents).toBe(out['groceries'].sumCents);
   });

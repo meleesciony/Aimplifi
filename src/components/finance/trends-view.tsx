@@ -14,9 +14,10 @@ import {
   CATEGORY_LINK_CLASS,
   CATEGORY_NAME_LINK_CLASS,
   MERCHANT_LINK_CLASS,
-  categoryMonthRegisterHref,
+  categoryWindowRegisterHref,
   merchantRegisterHref,
 } from '@/lib/engine/transactions/links';
+import { wholeMonthWindow } from '@/lib/engine/reports/reports';
 import {
   baselineLabel,
   paceAssumption,
@@ -201,8 +202,16 @@ export function TrendsView({
   const moverHref = (m: CategoryMover) =>
     comparedYm === null
       ? null
-      : categoryMonthRegisterHref(
-          { categoryId: m.categoryId, month: comparedYm, amountCents: m.currentCents },
+      : categoryWindowRegisterHref(
+          // C.26: whole month, and that is the right window here rather than an
+          // oversight — a mover's `currentCents` comes from `categorySpendMap`,
+          // which sums the calendar month, and `comparedYm` is normally a month
+          // already complete. The window travels so the two cannot drift.
+          {
+            categoryId: m.categoryId,
+            window: wholeMonthWindow(comparedYm),
+            amountCents: m.currentCents,
+          },
           linkable,
           loanRefused,
         );

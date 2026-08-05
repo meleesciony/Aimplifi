@@ -4,7 +4,6 @@ import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { ReportsView } from '@/components/finance/reports-view';
 import { REPORT_CHART_MONTHS, type ReportChartMonths } from '@/lib/engine/reports/chart-range';
 import { getReports } from '@/server/reports';
-import { getLinkableCategoryIds } from '@/server/categories';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { prisma } from '@/lib/db';
 
@@ -30,20 +29,18 @@ export default async function ReportsPage({
     ? (monthsParsed as ReportChartMonths)
     : 6;
 
-  const [data, withheld, linkableCategoryIds] = await Promise.all([
+  // C.26 (critic cycle 1, P1-1): the O.5 linkable fence moved INSIDE
+  // `getReports`, which now returns a built href per category. The fence itself
+  // is unchanged — `getLinkableCategoryIds` is still its one author, and /trends
+  // and /budgets still read it directly — but the /reports link is assembled
+  // beside the figure it points at, where the window that decides its `to` date
+  // lives.
+  const [data, withheld] = await Promise.all([
     getReports(userId, months),
     getWithheldAccountSummary(userId),
-    // O.5: the exact option list the register's category <select> is built from
-    // (transactions/page.tsx:100 flattens the same call), so a breakdown row can
-    // only become a link when the destination's control can display the filter it
-    // would arrive under. Hidden categories and the `uncategorized` placeholder
-    // are both absent from this list, and both still render a figure here.
-    // O.6: the flatten moved into `getLinkableCategoryIds` when /trends and
-    // /budgets became linkable too — one author for the fence, three readers.
-    getLinkableCategoryIds(userId),
   ]);
   // withheld threads into the view (the #141/#145 convention; a plain {count,currencies}
   // crosses to the client ReportsView fine) — banner inside the view's own max-w-2xl column,
   // no redundant wrapper, all-USD DOM byte-identical.
-  return <ReportsView data={data} withheld={withheld} linkableCategoryIds={linkableCategoryIds} months={months} />;
+  return <ReportsView data={data} withheld={withheld} months={months} />;
 }

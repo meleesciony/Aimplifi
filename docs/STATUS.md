@@ -30,16 +30,41 @@ the repo would fail (the critic verified this by grep). The real lock is a
 server-level test over a seeded reconciled pair comparing `getTransactions().summary`
 against the page's panel total. Filed, not built.
 
-**OPEN — C.26, audit P1-28 ("spent this month" over two windows).** Built this
-session as a `spentAsOf` clamp in `getReports` + the three Ask category intents,
-verify-green, then REVERTED after a fresh-context critic produced 5 executed P1s.
-The sharpest: a clamped /reports figure links to an unclamped register
-(`categoryMonthRegisterHref` derives `to` from the month end), measured as $120.00
-clicked landing on $520.00 of rows — the O.5/O.6 link invariant, which this repo
-treats as more serious than the divergence being fixed. Doing it right means the link
-window follows the figure, a decision about whether /budgets clamps too, income
-clamped on both surfaces or neither, and server-level locks the parity test did not
-provide. All five findings are recorded verbatim in the C.26 task row.
+**CLOSED 2026-08-05 — C.26 built (DECISIONS #410).** See the entry below.
+
+## ✅ BUILT 2026-08-05 — C.26 (P1-28): one window for "spent this month", and the register link is built from it (DECISIONS #410)
+
+`computePace` stopped at today and `spendingByCategory` did not, so the
+dashboard's top-spending card and the pace card an inch away answered "this
+month" over two windows; Ask carried the same split (`merchant_spend` has
+clamped since O.7, the three category intents had not). The window is now a
+value a figure CARRIES — `SpendWindow` — with one translation to register dates,
+so a figure and its link cannot be windowed by two authors. /budgets keeps the
+whole month deliberately (an allowance a later-dated charge has already
+consumed; clamping would raise "left to spend"), and each page equals its OWN
+register.
+
+**Critic cycle 1: FAIL, 6 P1s, all executed, all fixed.** The /reports view
+could still reintroduce the measured $120→$520 defect with the suite green, so
+the href is now built by `getReports` (the view names no window); the new
+disclosure was asserted nowhere, so basis composition moved out of the .tsx into
+the engine; the CHART panel had the clamp without its disclosure and printed two
+false sentences (it blamed the reader's refunds for money the date rule removed,
+and said "No posted spending in June 2026" over $400.00 of posted June
+spending); a category the clamp emptied disclosed nothing anywhere; and Ask's
+basis line read as the complete rule while omitting the newest exclusion.
+
+Gate: `bash scripts/verify.sh` GREEN — tsc 0, eslint 0, **5972 unit / 362
+files**, build clean. Targeted e2e 15/15 (reports-total-reconciles,
+budgets-basis, category-breakdown, category-drilldown, spend-class-drilldown).
+
+**OPEN — a rule that lives in a `.tsx` still cannot be locked.** This repo has
+no component-rendering harness (no testing-library), which is why C.26's fixes
+move decisions INTO loaders and engines rather than testing the components. Two
+things remain component-level and are guarded only by `tsc` plus e2e on the demo
+seed: that `CategoryBreakdownPanel` calls `categoryPanelBasis` at all, and the
+/reports page-level sentence. The cheapest real closure is a render harness;
+filed, not built.
 
 ## ✅ BUILT 2026-08-04 — C.12: an instruction and the figure it qualifies now come from the same selection (audit P1-16/17/18/20, DECISIONS #408)
 

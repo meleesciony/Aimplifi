@@ -4,7 +4,7 @@ import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CATEGORIES, CATEGORY_BY_ID, categoryName, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
-import { isSpendRow } from '@/lib/engine/reports/reports';
+import { isSpendRow, wholeMonthWindow } from '@/lib/engine/reports/reports';
 import { isBudgetable, netSpendByCategory, summarizeBudgets } from '@/lib/engine/budgets/status';
 import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { cents, formatCents } from '@/lib/money';
@@ -20,7 +20,7 @@ import { getHiddenCategoryIds, getLinkableCategoryIds } from '@/server/categorie
 import {
   CATEGORY_LINK_CLASS,
   CATEGORY_NAME_LINK_CLASS,
-  categoryMonthRegisterHref,
+  categoryWindowRegisterHref,
 } from '@/lib/engine/transactions/links';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
@@ -163,7 +163,17 @@ export default async function BudgetsPage() {
   // /reports never showed it. Harmless while nothing linked; a lie once the figure
   // is a claim that the register agrees. Sharing the PREDICATE, not just the query,
   // is what makes "one basis" true rather than nearly true.
-  const spendRange = { fromYm: month, toYm: month };
+  // C.26 (audit P1-28): the WHOLE month, and unlike /reports that is on
+  // purpose. /reports answers "what have you spent" — a claim about money
+  // already gone, so it stops at today. This page tracks an allowance, and a
+  // charge the reader has dated for the 28th has already consumed part of it;
+  // dropping it would raise "left to spend" on a limit the reader set, which is
+  // the generous direction on the one figure that exists to restrain them.
+  // The two pages therefore print different numbers for one category in the
+  // rare month that holds a future-dated row — each equal to its own register,
+  // because the window below is the same object its links are built from
+  // (DECISIONS #410).
+  const spendRange = wholeMonthWindow(month);
   // C.25 (#403): loan payments carried elsewhere on a dateable obligation
   // leave THIS page's row sums too — same set the flows read, from the same
   // snapshot — or the budget basis would count a mortgage in the months the
@@ -224,7 +234,7 @@ export default async function BudgetsPage() {
       // The register's own display rule, shared with it by construction.
       merchantName: registerDisplayName(t),
     })),
-    month,
+    spendRange,
     new Map(rows.map((r) => [r.categoryId, r.spentCents])),
     meta,
     excludedFlowIds,
@@ -351,8 +361,8 @@ export default async function BudgetsPage() {
               // is a number the reader chose rather than a set of rows, and never the
               // pair, which would claim the register adds up to "$412.30 / $500.00".
               // `amountCents` is what makes that explicit at the call site.
-              const href = categoryMonthRegisterHref(
-                { categoryId: row.categoryId, month, amountCents: row.spentCents },
+              const href = categoryWindowRegisterHref(
+                { categoryId: row.categoryId, window: spendRange, amountCents: row.spentCents },
                 linkable,
                 loanRefusedCategories,
               );

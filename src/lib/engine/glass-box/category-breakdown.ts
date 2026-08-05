@@ -32,13 +32,14 @@
  *
  * Pure: no I/O, no Date, integer cents only.
  */
-import { type Cents, cents, sumCents } from '@/lib/money';
+import { type Cents, cents, formatCents, sumCents } from '@/lib/money';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import {
   isSpendRow,
   spendContributionCents,
   spendRowCategoryId,
   type ReportTxn,
+  type SpendWindow,
 } from '@/lib/engine/reports/reports';
 
 /**
@@ -126,6 +127,21 @@ export interface CategoryBreakdown {
    * no net spend.
    */
   clampedByNetRefund: boolean;
+  /**
+   * Money in this category, inside this window, that the figure does NOT count
+   * because it is dated after the window's `asOf` (C.26). Zero on an unclamped
+   * window, and zero on a clamped one with nothing dated ahead — which is every
+   * reader who has never entered or imported a future-dated row.
+   *
+   * It is computed HERE, from the same pass that collects the rows, for the
+   * reason `BREAKDOWN_BASIS` is printed unconditionally: a disclosure a call
+   * site has to remember is one a call site can forget. Every panel on every
+   * surface inherits it, and it is a FACT (an amount actually dropped), not a
+   * restatement of configuration — a sentence that fires on the clamp's mere
+   * existence would nag every reader about a rule that never touched their
+   * money (the `dataDerived` gate, C.11/#407).
+   */
+  notCountedYetCents: Cents;
 }
 
 /**
@@ -160,6 +176,92 @@ export const BREAKDOWN_BASIS =
   'These are the rows the figure counts. Pending charges are included; income, transfers ' +
   'between your own accounts, the container row left by a split, and anything you marked ' +
   'as not your spending are left out.';
+
+/**
+ * The clamp's own sentence (C.26), printed only when the clamp actually held
+ * money back — `notCountedYetCents > 0`, a fact about this reader's rows.
+ *
+ * `BREAKDOWN_BASIS` above enumerates what the figure leaves out and claims to be
+ * COMPLETE against `isSpendRow`. C.26 gave that predicate a sixth clause, so on
+ * a clamped surface the enumeration stopped being complete — a disclosure that
+ * sounds exhaustive and is not is worse than a shorter one
+ * (`closing-a-gap-shrinks-the-disclosure-that-described-it`). It is a separate
+ * sentence rather than a longer constant because the clause is conditional and
+ * the constant is not: /budgets counts those rows, so on /budgets the clause
+ * would be false, and every reader without a future-dated row would be told
+ * about a rule that never touched their money.
+ *
+ * It says "not yet" rather than "excluded": the money has not left, and the row
+ * will count itself on the day it is dated. Nothing here tells the reader they
+ * did anything wrong — dating a charge ahead is how the register is meant to be
+ * used.
+ */
+export function breakdownNotCountedYetCopy(amount: string, noun: 'spending' | 'income' = 'spending'): string {
+  return `${amount} here is dated after today and isn't counted yet — this figure covers ${noun} through today.`;
+}
+
+/**
+ * The PAGE-level statement of what a stop-at-today window held back (C.26
+ * critic cycle 1, P1-5).
+ *
+ * Separate from the panel sentence because it answers at a different scope and
+ * in the one situation the panel sentence cannot exist: when the clamp removes
+ * everything a category had, that category is dropped by `spendingByCategory`,
+ * never reaches `headlines`, and gets no panel to carry a disclosure. So this
+ * one is hung on the page total, where an empty table still has somewhere to
+ * say it.
+ *
+ * Says where the money IS ("still on your activity list"), because the reader's
+ * next question is whether it was lost. It was not — the register windows on
+ * dates the reader chooses and has always shown these rows.
+ */
+export function reportsNotCountedYetCopy(amount: string): string {
+  return (
+    `${amount} of this month's spending is dated later than today, so it isn't in these ` +
+    `figures yet. It's still on your activity list, and it'll count on the day it's dated.`
+  );
+}
+
+/**
+ * The window label a panel prints, given the money its window held back.
+ *
+ * "June 2026" is a false label for a figure that stops on the 10th as soon as
+ * anything is dated later in the month, and every sentence in both panel
+ * families interpolates this one string — the empty sentence, the net-refund
+ * sentence, the register link's accessible name. Narrowing the LABEL therefore
+ * corrects all of them at once, which is why the fix is here and not a "so far"
+ * variant of each sentence (C.26 critic cycle 1, P1-3/P1-4).
+ *
+ * Gated on the amount, like the sentence itself: with nothing dated ahead the
+ * figure really does cover the whole window so far as anything can tell, and
+ * "so far" on every past month would be noise.
+ */
+export function windowLabelSoFar(windowLabel: string, notCountedYetCents: number): string {
+  return notCountedYetCents > 0 ? `${windowLabel} so far` : windowLabel;
+}
+
+/**
+ * The basis sentences a CATEGORY panel prints, composed here rather than in the
+ * component (C.26 critic cycle 1, P1-2).
+ *
+ * The first cycle put this composition in the .tsx, and a critic deleted the
+ * whole conditional clause with the entire suite green — there is no
+ * component-rendering harness in this repo, so anything assembled in a
+ * component is unlockable by construction. Assembling it in the engine makes
+ * the rule a pure function with a test, and leaves the component a spread.
+ */
+export function categoryPanelBasis(
+  breakdown: Pick<CategoryBreakdown, 'notCountedYetCents'>,
+  extra: readonly string[] = [],
+): [string, ...string[]] {
+  return [
+    BREAKDOWN_BASIS,
+    ...(breakdown.notCountedYetCents > 0
+      ? [breakdownNotCountedYetCopy(formatCents(breakdown.notCountedYetCents))]
+      : []),
+    ...extra,
+  ];
+}
 
 /**
  * The two panel sentences that describe a WINDOW, as functions of it.
@@ -211,6 +313,72 @@ function labelFor(t: BreakdownSourceTxn): string {
 }
 
 /**
+ * The money a stop-at-today window kept out of a set of figures, per category,
+ * and the total across every category — ONE computation with two readers.
+ *
+ * Counts rows the clamp ALONE excluded: a row dropped for any other reason (a
+ * transfer, an excluded flow, the wrong month) is already described by
+ * `BREAKDOWN_BASIS`, and re-counting it here would attribute somebody else's
+ * exclusion to the date rule.
+ *
+ * It exists as a shared function because of the defect it replaced (C.26 critic
+ * cycle 2, F1). `getReports` computed its page-level figure as
+ * `wholeMonthSum − clampedSum`, and `spendingByCategory` floors each category
+ * at zero INDEPENDENTLY IN EACH WINDOW — so a category whose later-dated refund
+ * exceeded its purchases contributed a floored zero to one sum and a real
+ * amount to the other. Executed: groceries $400 dated ahead and dining carrying
+ * a later-dated $1,300 refund cancelled exactly, the page fell silent, and the
+ * panel directly beneath it still disclosed the $400. A subtraction of two
+ * clamped aggregates is not the quantity; the quantity is a sum of rows, and
+ * this is where those rows are counted.
+ *
+ * `totalCents` is the sum of the FLOORED per-category values, and both halves
+ * of that matter. Flooring first is what stops the cancellation from simply
+ * moving up a level: summing the raw nets would let one category's later-dated
+ * refund erase another's later-dated purchase, which is the cycle-2 defect
+ * again in a new place (caught here by the lock, having been written that way
+ * first). Summing over EVERY category — not only the ones that survive into a
+ * surface's `headlines` — is what makes the page figure cover the category the
+ * clamp emptied completely, which has no panel to carry a sentence of its own.
+ *
+ * The figure therefore answers "how much later-dated spending is waiting",
+ * treating a later-dated refund as reducing its own category's wait and never
+ * anyone else's — which is exactly what each panel says, so the page and its
+ * panels cannot contradict each other.
+ */
+export function notCountedYetByCategory(
+  txns: readonly BreakdownSourceTxn[],
+  window: SpendWindow,
+  meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
+  excludedFlowIds?: ReadonlySet<string>,
+): { byCategory: Map<string, number>; totalCents: number } {
+  const raw = new Map<string, number>();
+  if (window.asOf) {
+    const unclamped: SpendWindow = { fromYm: window.fromYm, toYm: window.toYm };
+    for (const t of txns) {
+      if (t.date <= window.asOf) continue;
+      if (!isSpendRow(t, unclamped, meta, excludedFlowIds)) continue;
+      const categoryId = spendRowCategoryId(t);
+      raw.set(categoryId, (raw.get(categoryId) ?? 0) + spendContributionCents(t));
+    }
+  }
+  // Each category floored (a later-dated refund is not "money not counted
+  // yet"), and the total summed from those FLOORED values — never from the raw
+  // nets, which is what let one category's later-dated refund cancel another's
+  // later-dated purchase and silence the page (cycle-2 F1). Flooring first is
+  // also what makes `totalCents >= ` every panel's figure, so the page and its
+  // panels cannot contradict each other in either direction.
+  const byCategory = new Map<string, number>();
+  let total = 0;
+  for (const [id, amount] of raw) {
+    const floored = Math.max(0, amount);
+    byCategory.set(id, floored);
+    total += floored;
+  }
+  return { byCategory, totalCents: total };
+}
+
+/**
  * Build one breakdown per requested category.
  *
  * `headlines` is the map of `categoryId → the figure that surface prints`, and
@@ -222,21 +390,25 @@ function labelFor(t: BreakdownSourceTxn): string {
  * panel prints the mismatch rather than an empty list under a real number —
  * `an-empty-set-is-not-a-fact-about-money`.
  *
- * `month` is a single "YYYY-MM": all four call sites sum whole calendar months
- * (`spendingByCategory` windows by month key, and /trends' movers window on
- * `comparedYm`). A wider window would need the caller to say which one, so the
- * narrow signature is the fence.
+ * `window` is the SpendWindow the headline figures were summed over — the same
+ * object, not a month key re-expanded here. Before C.26 it was a month key and
+ * every call site summed whole calendar months, so the two could not disagree;
+ * once /reports began stopping at today, a panel rebuilt from the month key
+ * would have listed a future-dated row the figure above it had dropped, and
+ * `reconciles` would have gone false on a figure that was right. The rule this
+ * signature enforces is the same one the register link enforces: the rows under
+ * a number are selected by the number's own window.
  */
 export function buildCategoryBreakdowns(
   txns: readonly BreakdownSourceTxn[],
-  month: string,
+  window: SpendWindow,
   headlines: ReadonlyMap<string, number>,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
   // C.25 (#403): the SAME set the category totals were summed with, so the
   // rows a category opens cannot name money the total itself does not show.
   excludedFlowIds?: ReadonlySet<string>,
 ): Record<string, CategoryBreakdown> {
-  const range = { fromYm: month, toYm: month };
+  const range = window;
   const wanted = new Set(headlines.keys());
   const collected = new Map<string, BreakdownRow[]>();
 
@@ -268,6 +440,8 @@ export function buildCategoryBreakdowns(
     collected.set(categoryId, rows);
   }
 
+  const notYet = notCountedYetByCategory(txns, window, meta, excludedFlowIds);
+
   const out: Record<string, CategoryBreakdown> = {};
   for (const [categoryId, headline] of headlines) {
     const rows = collected.get(categoryId) ?? [];
@@ -282,6 +456,10 @@ export function buildCategoryBreakdowns(
       sumCents: sum,
       reconciles: sum === headline,
       clampedByNetRefund: headline === 0 && sum < 0,
+      // Floored per category by `notCountedYetByCategory` (a later-dated refund
+      // is not "money not counted yet"); the page-level total sums these same
+      // floored values, so the two can never disagree — see that function.
+      notCountedYetCents: cents(notYet.byCategory.get(categoryId) ?? 0),
     };
   }
   return out;

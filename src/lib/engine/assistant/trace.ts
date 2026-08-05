@@ -23,12 +23,14 @@
  * Pure: no I/O, no Date, integer cents only.
  */
 import {
+  asOfWindow,
   isSpendRow,
   spendContributionCents,
   spendRowCategoryId,
   spendingByCategory,
   type ReportTxn,
   type SpendingBreakdown,
+  type SpendWindow,
 } from '@/lib/engine/reports/reports';
 import { isIncomeFlowRow, monthlyFlows, type MonthlyFlow, type TxnLike } from '@/lib/engine/fi/insights';
 import type { CategoryMeta } from '@/lib/engine/categorize/categories';
@@ -194,7 +196,8 @@ export const ROW_SUM_KINDS: ReadonlySet<AssistantIntent['kind']> = new Set<Assis
  * Locked in reports.test.ts, including the straddle, so neither half is silent.
  */
 const NET_SPEND_BASIS =
-  'Purchases only — transfers and income are excluded; refunds count against their category.';
+  'Purchases only — transfers and income are excluded; refunds count against their category; ' +
+  "anything dated after today is not counted yet.";
 const DROPPED_CATEGORY_BASIS =
   'Categories whose refunds exceed their purchases this period are left out, matching your reports view.';
 
@@ -202,13 +205,13 @@ const DROPPED_CATEGORY_BASIS =
  *  selected with the engine's own exported predicate, never re-derived. */
 function spendRowsFor(
   txns: readonly TraceTxn[],
-  tf: Timeframe,
+  window: SpendWindow,
   meta: ReadonlyMap<string, CategoryMeta>,
   id: string,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403) — same set the answer summed with
 ): TraceRow[] {
   return txns
-    .filter((t) => isSpendRow(t, tf, meta, excludedFlowIds) && spendRowCategoryId(t) === id)
+    .filter((t) => isSpendRow(t, window, meta, excludedFlowIds) && spendRowCategoryId(t) === id)
     .map((t) => ({
       date: t.date,
       merchant: normalizeMerchant(t.rawDescriptor).canonical,
@@ -224,7 +227,7 @@ function spendRowsFor(
 function groupsFor(
   cats: readonly { categoryId: string; name: string; amountCents: number }[],
   txns: readonly TraceTxn[],
-  tf: Timeframe,
+  window: SpendWindow,
   meta: ReadonlyMap<string, CategoryMeta>,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
 ): TraceGroup[] {
@@ -232,7 +235,7 @@ function groupsFor(
     key: c.categoryId,
     label: c.name,
     amountCents: c.amountCents,
-    rows: spendRowsFor(txns, tf, meta, c.categoryId, excludedFlowIds),
+    rows: spendRowsFor(txns, window, meta, c.categoryId, excludedFlowIds),
   }));
 }
 
@@ -273,11 +276,11 @@ function assemble(
 export function traceSpendTotal(
   breakdown: SpendingBreakdown,
   txns: readonly TraceTxn[],
-  tf: Timeframe,
+  window: SpendWindow,
   meta: ReadonlyMap<string, CategoryMeta>,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
 ): RowSumTrace {
-  const groups = groupsFor(breakdown.byCategory, txns, tf, meta, excludedFlowIds);
+  const groups = groupsFor(breakdown.byCategory, txns, window, meta, excludedFlowIds);
   return assemble(
     'spend_total',
     breakdown.totalCents,
@@ -293,7 +296,7 @@ export function traceSpendByCategory(
   breakdown: SpendingBreakdown,
   target: SpendTarget,
   txns: readonly TraceTxn[],
-  tf: Timeframe,
+  window: SpendWindow,
   meta: ReadonlyMap<string, CategoryMeta>,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
 ): RowSumTrace {
@@ -312,7 +315,7 @@ export function traceSpendByCategory(
     amount = g?.amountCents ?? 0;
     cited = g?.categories ?? [];
   }
-  const groups = groupsFor(cited, txns, tf, meta, excludedFlowIds);
+  const groups = groupsFor(cited, txns, window, meta, excludedFlowIds);
   return assemble(
     'spend_by_category',
     amount,
@@ -328,12 +331,12 @@ export function traceTopCategories(
   breakdown: SpendingBreakdown,
   limit: number,
   txns: readonly TraceTxn[],
-  tf: Timeframe,
+  window: SpendWindow,
   meta: ReadonlyMap<string, CategoryMeta>,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
 ): RowSumTrace {
   const top = breakdown.byCategory.slice(0, limit);
-  const groups = groupsFor(top, txns, tf, meta, excludedFlowIds);
+  const groups = groupsFor(top, txns, window, meta, excludedFlowIds);
   return assemble(
     'top_categories',
     top[0]?.amountCents ?? 0,
@@ -393,7 +396,8 @@ export function traceIncome(
       contributionCents: t.amountCents,
     }));
   return assemble('income', headline, rows, [
-    'Income only — transfers between your own accounts are excluded, and merchandise refunds count against spending instead of income.',
+    'Income only — transfers between your own accounts are excluded, merchandise refunds count against spending instead of income, ' +
+      "and anything dated after today is not counted yet.",
   ]);
 }
 
@@ -462,30 +466,36 @@ function traceForKind(intent: AssistantIntent, input: TraceInput): AnswerTrace {
   const meta = input.meta;
   const txns = input.transactions;
   const excludedFlowIds = input.excludedFlowIds; // C.25 (#403): the answer's own set
+  // C.26: the answer's own window — the reader's timeframe stopping at today,
+  // exactly what `buildAnswer` sums with. The trace is the evidence FOR that
+  // figure, so selecting its rows over a wider window would cite a row the
+  // figure never counted and `assemble`'s reconciliation check would fail on an
+  // answer that is right.
+  const askWindow = (tf: { fromYm: string; toYm: string }) => asOfWindow(tf, input.today);
   switch (intent.kind) {
     case 'spend_total':
       return traceSpendTotal(
-        spendingByCategory(txns, intent.timeframe, meta, excludedFlowIds),
+        spendingByCategory(txns, askWindow(intent.timeframe), meta, excludedFlowIds),
         txns,
-        intent.timeframe,
+        askWindow(intent.timeframe),
         meta,
         excludedFlowIds,
       );
     case 'spend_by_category':
       return traceSpendByCategory(
-        spendingByCategory(txns, intent.timeframe, meta, excludedFlowIds),
+        spendingByCategory(txns, askWindow(intent.timeframe), meta, excludedFlowIds),
         intent.target,
         txns,
-        intent.timeframe,
+        askWindow(intent.timeframe),
         meta,
         excludedFlowIds,
       );
     case 'top_categories':
       return traceTopCategories(
-        spendingByCategory(txns, intent.timeframe, meta, excludedFlowIds),
+        spendingByCategory(txns, askWindow(intent.timeframe), meta, excludedFlowIds),
         intent.limit,
         txns,
-        intent.timeframe,
+        askWindow(intent.timeframe),
         meta,
         excludedFlowIds,
       );
@@ -495,7 +505,14 @@ function traceForKind(intent: AssistantIntent, input: TraceInput): AnswerTrace {
       );
     case 'income':
       // TraceTxn extends TxnLike (compile-time assert below) — no cast needed.
-      return traceIncome(monthlyFlows(txns, excludedFlowIds), txns, intent.timeframe, excludedFlowIds);
+      // C.26: same narrowing the `income` intent applies to its own input —
+      // `monthlyFlows` takes no window, so both sides clamp the array.
+      return traceIncome(
+        monthlyFlows(txns.filter((t) => t.date <= input.today), excludedFlowIds),
+        txns.filter((t) => t.date <= input.today),
+        intent.timeframe,
+        excludedFlowIds,
+      );
     case 'largest_purchases':
       return traceLargest(
         largestPurchases(

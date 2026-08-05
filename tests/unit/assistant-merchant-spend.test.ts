@@ -401,12 +401,21 @@ describe('the spend-family basis copy states only what the predicate does', () =
       { totalCents: 50000, byCategory: [], byGroup: [] },
       THIS_MONTH,
     );
-    expect(total.detail).toBe('Purchases only — transfers and income are excluded.');
+    // C.26 added the date clause to both sentences (critic cycle 1, P1-6: they
+    // read as the COMPLETE rule and the newest exclusion was missing). The O.7
+    // assertion this test exists for is the FALSE_CLAUSE one below; the exact
+    // strings are pinned alongside it so neither sentence drifts silently.
+    expect(total.detail).toBe(
+      "Purchases only — transfers and income are excluded, and anything dated after today isn't counted yet.",
+    );
     expect(total.detail).not.toMatch(FALSE_CLAUSE);
 
     const trace = traceSpendTotal({ totalCents: 0, byCategory: [], byGroup: [] }, [], THIS_MONTH, CATEGORY_BY_ID);
     expect(trace.basis.join(' ')).not.toMatch(FALSE_CLAUSE);
-    expect(trace.basis[0]).toBe('Purchases only — transfers and income are excluded; refunds count against their category.');
+    expect(trace.basis[0]).toBe(
+      'Purchases only — transfers and income are excluded; refunds count against their category; ' +
+        'anything dated after today is not counted yet.',
+    );
   });
 
   it('the merchant basis line states pending inclusion and refund netting, and claims neither of the two things it does not do', () => {

@@ -11,9 +11,15 @@
  */
 import type { ReportChartMonths } from '@/lib/engine/reports/chart-range';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
-import { spendingByCategory, type SpendingBreakdown } from '@/lib/engine/reports/reports';
+import {
+  spendingByCategory,
+  spentSoFarWindow,
+  type SpendingBreakdown,
+  type SpendWindow,
+} from '@/lib/engine/reports/reports';
 import {
   buildCategoryBreakdowns,
+  notCountedYetByCategory,
   type CategoryBreakdown,
 } from '@/lib/engine/glass-box/category-breakdown';
 import {
@@ -28,9 +34,52 @@ import {
 } from '@/server/loan-payment-basis';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
+import { getLinkableCategoryIds } from '@/server/categories';
+import { categoryWindowRegisterHref } from '@/lib/engine/transactions/links';
 
 export interface ReportsData {
   ym: string;
+  /**
+   * The window `breakdown` was summed over — this month, stopping at today
+   * (C.26, audit P1-28).
+   *
+   * It is on the payload rather than re-derived in the view because the view
+   * builds the register link for every category figure, and the first attempt
+   * at this slice shipped a clamped figure pointing at an unclamped register
+   * ($120.00 clicked, $520.00 of rows). It is carried rather than re-derived
+   * because `categoryHrefs` below is built from it here — the view names no
+   * window at all — and because the panels and the page-level disclosure are
+   * all selected by this same object.
+   */
+  window: SpendWindow;
+  /**
+   * The register link for each category figure, keyed by category id — `null`
+   * where the O.5/O.6 fence refuses one.
+   *
+   * Built HERE, not in the view, and that is C.26 critic cycle 1's P1-1. The
+   * view used to call `categoryWindowRegisterHref` itself, and a critic
+   * reintroduced the exact defect this slice exists to fix — a clamped figure
+   * pointing at a whole-month register, the measured $120.00 → $520.00 — by
+   * editing one expression there, with 5964/5964 tests green. This repo has no
+   * component-rendering harness, so nothing assembled in a .tsx can be locked;
+   * moving the construction to the loader puts it inside the mutation-proven
+   * server test AND leaves the view with no window to get wrong.
+   */
+  categoryHrefs: Record<string, string | null>;
+  /**
+   * ALL the money this page's window held back — every category, including the
+   * ones that vanished from the table because the clamp took everything they
+   * had (C.26 critic cycle 1, P1-5).
+   *
+   * The per-category field on `breakdowns` cannot cover that case by
+   * construction: `spendingByCategory` drops a category whose clamped net is
+   * ≤ 0, so it never reaches `headlines` and gets no panel. A reader whose only
+   * charge this month is dated ahead saw "$0.00 total" and "No spending this
+   * month yet" with nothing anywhere naming the money — the emptiest page is
+   * exactly where the disclosure was blind. A page-level figure is the one
+   * place that survives an empty table.
+   */
+  notCountedYetCents: number;
   months: { month: string; incomeCents: number; expensesCents: number }[];
   breakdown: SpendingBreakdown;
   /**
@@ -76,21 +125,41 @@ export async function getReports(userId: string, months: ReportChartMonths = 6):
   const provider = getProvider();
   const today = provider.today(userId);
   const ym = today.slice(0, 7);
-  const [snap, meta] = await Promise.all([
+  const [snap, meta, linkableCategoryIds] = await Promise.all([
     provider.getFinanceSnapshot(userId),
     getCategoryMeta(userId),
+    // The register's own option list — the fence deciding which figures may
+    // become links. Fetched here because the links are built here (see
+    // `categoryHrefs`); /reports' page no longer fetches it, while /trends and
+    // /budgets still call `getLinkableCategoryIds` directly for their own.
+    getLinkableCategoryIds(userId),
   ]);
   // C.25 (#403): the read-side exclusion, computed ONCE in the assembler.
   // One set for every sum on this page, so the bars, the category table and
   // the rows under each cannot disagree about what counts.
   const excludedFlowIds = snap.loanPaymentFlowExclusions?.excludeIds;
 
-  const series = monthlyFlows(snap.transactions, excludedFlowIds)
+  // C.26 (audit P1-28): this page reports what HAPPENED, so every figure on it
+  // stops at today. One filter, applied once, ahead of both engines — the chart
+  // and the category table would otherwise answer "this month" over two windows
+  // four inches apart, which is the defect being fixed rather than a second
+  // copy of it. It can only ever drop future-dated rows: every row in a past
+  // month is already on or before today, so the six-month series is unchanged
+  // byte for byte for every reader without one.
+  //
+  // The INCOME half is not optional here. The first attempt at this slice
+  // clamped spending and left income alone, so a future-dated paycheck counted
+  // in the same chart whose expense bar had just stopped counting a
+  // future-dated charge — one bar honest, its neighbour not.
+  const happened = snap.transactions.filter((t) => t.date <= today);
+  const window = spentSoFarWindow(ym, today);
+
+  const series = monthlyFlows(happened, excludedFlowIds)
     .map((f) => ({ month: f.month, incomeCents: f.incomeCents, expensesCents: f.expensesCents }))
     .sort((a, b) => (a.month < b.month ? -1 : 1))
     .slice(-months);
 
-  const breakdown = spendingByCategory(snap.transactions, { fromYm: ym, toYm: ym }, meta, excludedFlowIds);
+  const breakdown = spendingByCategory(snap.transactions, window, meta, excludedFlowIds);
   // Named once and handed to BOTH builders: two panels that disagree about a
   // payee's name on the same page would be a defect nobody could explain, and
   // building the array twice is what would let them.
@@ -101,8 +170,12 @@ export async function getReports(userId: string, months: ReportChartMonths = 6):
     merchantName: registerDisplayName(t),
   }));
   const breakdowns = buildCategoryBreakdowns(
+    // Deliberately the UNCLAMPED array with a CLAMPED window: the window
+    // decides which rows the panel lists (the figure's own rows), and the rows
+    // it can see beyond `asOf` are what let it total the money not counted yet.
+    // Handing it a pre-filtered array would make that sentence unwritable.
     named,
-    ym,
+    window,
     new Map(breakdown.byCategory.map((c) => [c.categoryId, c.amountCents])),
     meta,
     excludedFlowIds,
@@ -110,11 +183,35 @@ export async function getReports(userId: string, months: ReportChartMonths = 6):
   // `series` is the array the chart renders, so the headlines here are the
   // figures the reader will actually see — `reconciles` is checked against the
   // painted number, not against a second derivation of it.
-  const monthFlows = buildMonthFlowBreakdowns(named, series, excludedFlowIds);
+  // The bars were summed over `happened`, so their panels stop at the same day
+  // — passed as `asOf` rather than pre-filtered, because a panel handed a
+  // filtered array cannot tell an empty bar from one whose money is dated
+  // ahead, and it printed the wrong sentence for both (critic cycle 1, P1-3/4).
+  const monthFlows = buildMonthFlowBreakdowns(named, series, excludedFlowIds, today);
+  // One href per category figure, from the window that figure was summed over.
+  const linkable = new Set(linkableCategoryIds);
+  const refused = new Set(loanPaymentRefusedCategories(snap));
+  const categoryHrefs: Record<string, string | null> = {};
+  for (const c of breakdown.byCategory) {
+    categoryHrefs[c.categoryId] = categoryWindowRegisterHref(
+      { categoryId: c.categoryId, window, amountCents: c.amountCents },
+      linkable,
+      refused,
+    );
+  }
+  // The SAME computation the per-category panels carry, totalled by the module
+  // that owns it. Never a subtraction of two clamped aggregates: critic cycle 2
+  // (F1) executed that version cancelling to $0.00 — page silent — while the
+  // panel directly beneath it disclosed $400.00, because `spendingByCategory`
+  // floors each category at zero independently in each window.
+  const notCountedYetCents = notCountedYetByCategory(named, window, meta, excludedFlowIds).totalCents;
   // C.25 (#403) disclosure facts, named by the one shared helper so every
   // surface phrases the exclusion the same way.
   return {
     ym,
+    window,
+    categoryHrefs,
+    notCountedYetCents,
     months: series,
     breakdown,
     breakdowns,

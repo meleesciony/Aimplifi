@@ -49,6 +49,7 @@ import {
   buildCategoryBreakdowns,
   type CategoryBreakdown,
 } from '@/lib/engine/glass-box/category-breakdown';
+import { wholeMonthWindow } from '@/lib/engine/reports/reports';
 import { computeSpendingTrends, type SpendingTrends, type TrendTxn } from '@/lib/engine/trends/trends';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
@@ -186,7 +187,10 @@ export async function getSpendingTrends(userId: string): Promise<SpendingTrendsD
   const breakdowns = trends.comparedYm
     ? buildCategoryBreakdowns(
         txns,
-        trends.comparedYm,
+        // C.26: whole month — the movers' own basis (`categorySpendMap` sums
+        // the calendar month), and the same window `trends-view` builds their
+        // register links from.
+        wholeMonthWindow(trends.comparedYm),
         new Map(trends.movers.map((m) => [m.categoryId, m.currentCents])),
         meta,
         excludedFlowIds,

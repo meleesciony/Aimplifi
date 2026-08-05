@@ -22,7 +22,12 @@ export default defineConfig({
     // process.env assignment above.
     env: { DATABASE_URL: UNIT_DB_URL },
     environment: 'node',
-    include: ['tests/unit/**/*.test.ts', 'src/**/*.test.ts'],
+    // `.tsx` is included for the component-render harness added in C.26 (critic
+    // cycle 2, F2): two cycles of user-visible copy shipped unlocked because
+    // nothing in this repo could assert a rendered component. Those files opt
+    // into jsdom with a `// @vitest-environment jsdom` pragma; everything else
+    // stays on the node environment above.
+    include: ['tests/unit/**/*.test.ts', 'tests/unit/**/*.test.tsx', 'src/**/*.test.ts'],
     // Create/sync the temp-dir schema, then put it into WAL before workers spawn
     // (see the setup file). WAL lets concurrent readers and a single writer proceed
     // without blocking, which (together with the temp-dir relocation) prevents the

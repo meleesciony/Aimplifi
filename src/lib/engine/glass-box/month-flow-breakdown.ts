@@ -36,7 +36,10 @@
  */
 import { type Cents, cents, formatCents, sumCents } from '@/lib/money';
 import { countsInFlows, isIncomeFlowRow, type TxnLike } from '@/lib/engine/fi/insights';
-import type { BreakdownRow } from '@/lib/engine/glass-box/category-breakdown';
+import {
+  breakdownNotCountedYetCopy,
+  type BreakdownRow,
+} from '@/lib/engine/glass-box/category-breakdown';
 
 /** Which half of a month the reader tapped. */
 export type MonthFlow = 'income' | 'expense';
@@ -77,6 +80,22 @@ export interface MonthFlowBreakdown {
    * rows are all positive by `isIncomeFlowRow`.
    */
   clampedByNetRefund: boolean;
+  /**
+   * Money in this bar's month and flow that the CHART does not draw because it
+   * is dated after `asOf` (C.26 critic cycle 1, P1-3/P1-4).
+   *
+   * The category family got this field first and the chart on the same page did
+   * not, which produced two false sentences rather than one missing feature: an
+   * empty expense bar printed "No posted spending in June 2026" over $400.00 of
+   * posted June spending, and a bar the clamp had emptied down to a single
+   * refund printed "Returns in June 2026 outran purchases", blaming the
+   * reader's returns for money the date rule had removed. A basis constant that
+   * enumerates its exclusions is false the moment a new one exists
+   * (`closing-a-gap-shrinks-the-disclosure-that-described-it`), and every
+   * sentence in this module interpolates a window label — so carrying the fact
+   * lets the label say "so far" and the basis name the amount, in one place.
+   */
+  notCountedYetCents: Cents;
 }
 
 /**
@@ -180,6 +199,34 @@ export function monthFlowNetRefundCopy(sumCents: number, windowLabel: string): s
   );
 }
 
+/**
+ * The basis sentences a MONTH-FLOW panel prints (C.26 critic cycle 1, P1-4).
+ *
+ * `MONTH_FLOW_BASIS` above claims a COMPLETE enumeration of `countsInFlows`,
+ * and C.26 gave the chart a date rule that constant does not mention. Unlike
+ * the category constant — which is shared with /budgets, where the clause would
+ * be FALSE — this one is rendered only by /reports' chart, so the clause could
+ * have been folded into the constant. It is a separate, amount-gated sentence
+ * anyway, for the reason the sibling module gives: an unconditional clause
+ * tells every reader about a rule that never touched their money, while this
+ * one names the amount that is actually waiting.
+ */
+export function monthFlowPanelBasis(
+  breakdown: Pick<MonthFlowBreakdown, 'flow' | 'notCountedYetCents'>,
+): [string, ...string[]] {
+  return [
+    MONTH_FLOW_BASIS[breakdown.flow],
+    ...(breakdown.notCountedYetCents > 0
+      ? [
+          breakdownNotCountedYetCopy(
+            formatCents(breakdown.notCountedYetCents),
+            breakdown.flow === 'income' ? 'income' : 'spending',
+          ),
+        ]
+      : []),
+  ];
+}
+
 function labelFor(t: MonthFlowSourceTxn): string {
   const name = t.merchantName?.trim();
   if (name) return name;
@@ -205,9 +252,19 @@ export function buildMonthFlowBreakdowns(
   // opens cannot name money the bar itself does not show — one predicate,
   // two surfaces, no drift (this file's own doctrine).
   excludedFlowIds?: ReadonlySet<string>,
+  /**
+   * C.26: the day the CHART stops counting at, when its caller clamped
+   * (`getReports` does; nothing else calls this). Taken here rather than
+   * applied by the caller to the array it passes — which is what cycle 1
+   * shipped — because a pre-filtered array leaves this module unable to tell an
+   * empty bar from a bar whose money is dated ahead, and it printed the wrong
+   * sentence for both. Omitted = every row counts, the pre-C.26 behaviour.
+   */
+  asOf?: string | null,
 ): Record<string, MonthFlowBreakdown> {
   const wanted = new Set(headlines.map((h) => h.month));
   const collected = new Map<string, BreakdownRow[]>();
+  const notYet = new Map<string, number>();
 
   for (const t of txns) {
     // The predicate, not a copy of it.
@@ -216,6 +273,13 @@ export function buildMonthFlowBreakdowns(
     if (!wanted.has(month)) continue;
     const income = isIncomeFlowRow(t, excludedFlowIds);
     const key = `${month}:${income ? 'income' : 'expense'}`;
+    // Dated ahead: not in the bar, and counted as the money the bar does not
+    // draw. Oriented exactly as the row would have contributed, so the figure
+    // the sentence names is the one the bar would have grown by.
+    if (asOf && t.date > asOf) {
+      notYet.set(key, (notYet.get(key) ?? 0) + (income ? t.amountCents : -t.amountCents));
+      continue;
+    }
     const rows = collected.get(key) ?? [];
     const label = labelFor(t);
     const raw = t.rawDescriptor?.trim() ?? '';
@@ -263,6 +327,10 @@ export function buildMonthFlowBreakdowns(
         // proved it by deleting the clause). A dead branch is a claim that
         // something is handled, so the claim is stated here instead.
         clampedByNetRefund: headline === 0 && sum < 0,
+        // Floored at zero for the category family's reason: a later-dated
+        // refund is not "money not counted yet", and naming it as such would
+        // tell a reader a scheduled return is spending waiting to land.
+        notCountedYetCents: cents(Math.max(0, notYet.get(key) ?? 0)),
       };
     }
   }

@@ -213,6 +213,7 @@ export default async function DashboardPage({
           breakdown={reports.breakdown}
           breakdowns={reports.breakdowns}
           ym={reports.ym}
+          notCountedYetCents={reports.notCountedYetCents}
         />
       </div>
 
