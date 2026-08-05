@@ -40,6 +40,24 @@ task row scoped. Filed as **C.26** with all five findings recorded verbatim.
 Gate at ship: `bash scripts/verify.sh` GREEN — tsc 0, eslint 0, **5952 unit / 361
 files**, build clean. Targeted e2e 10/10 serially. Empty `prisma/` diff.
 
+**Deploy-verified 2026-08-04 (this session):** pushed `50dd586`; Vercel production
+`dpl_7JrxXnVQbdxb8vU4keajvze2LShq` (`aimplifi-8bcqylg18-reiforge.vercel.app`) status
+**Ready** on that exact SHA, aliased to www.aimplifi.app. `scripts/c13-live-deploy-check.mjs`
+(script only, not in the app build) signs into the shared demo and reads the real
+pages: **7/7 PASS**.
+
+**Stated rather than papered over: both behaviours are invisible on the demo, and
+that was measured.** The shared demo carries zero `AccountReconciliation` rows and
+zero loan-payment flow exclusions, so the keep is the R8 constant-true fast path and
+the new disclosure has nothing to say — no rendered figure differs between the old
+build and this one on this dataset. The freshness proof is therefore a CLIENT-BUNDLE
+literal: `spend-class-panel.tsx` is a client component, so the new
+`spend-class-loan-payment-basis` testid is compiled into a served chunk that the
+previous deployment cannot produce. The remaining checks execute the slice's own
+claim on live data — Fixed panel 54264 vs register 54264, Discretionary 15381 vs
+15381 — which the old build would also have passed here, and which is reported as
+confirmation that the shipped page works, not as a discriminator.
+
 **Two notes on this session's tree.** A fresh-context critic ran `git checkout` on
 `trace.ts` mid-audit and clobbered an edit, reconstructing it in different wording —
 caught by reading the diff rather than by the tests, which its reconstruction happened
