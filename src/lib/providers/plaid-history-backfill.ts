@@ -46,6 +46,15 @@ export interface HistoryBackfillSkipped {
   alreadyExists: number;
   /** Fetched twice with disagreeing fields — distrusted, the O.12d stance. */
   inconsistentFetch: number;
+  /**
+   * Threw in `prepareIngestedTransaction` (unparseable amount / date) — a
+   * SERVER-side counter: the planner itself never sets it. Counted so a bad
+   * row is skipped exactly as the live ingest skips it, never aborts the run,
+   * and is never charged to the per-run cap (it can never be stored, so
+   * charging it would let one bad row pin the cap on every future run — the
+   * H.5 cycle-2 finding, mirrored).
+   */
+  malformed: number;
 }
 
 export interface HistoryBackfillRow {
@@ -88,7 +97,7 @@ export function planHistoryBackfill(
 
   const plan: HistoryBackfillPlan = {
     rows: [],
-    skipped: { pending: 0, unmappedAccount: 0, alreadyExists: 0, inconsistentFetch: 0 },
+    skipped: { pending: 0, unmappedAccount: 0, alreadyExists: 0, inconsistentFetch: 0, malformed: 0 },
   };
 
   for (const txn of byId.values()) {

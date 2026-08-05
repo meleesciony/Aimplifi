@@ -31,7 +31,7 @@ describe('planHistoryBackfill', () => {
     expect(plan.rows).toHaveLength(1);
     expect(plan.rows[0].accountId).toBe('local-acct-1');
     expect(plan.rows[0].txn.transaction_id).toBe('t1');
-    expect(plan.skipped).toEqual({ pending: 0, unmappedAccount: 0, alreadyExists: 0, inconsistentFetch: 0 });
+    expect(plan.skipped).toEqual({ pending: 0, unmappedAccount: 0, alreadyExists: 0, inconsistentFetch: 0, malformed: 0 });
   });
 
   it('skips a row whose transaction_id is already stored — the backfill is add-only', () => {
@@ -97,12 +97,12 @@ describe('planHistoryBackfill', () => {
       ACCOUNTS,
     );
     expect(plan.rows.map((r) => r.txn.transaction_id)).toEqual(['new-1', 'new-2']);
-    expect(plan.skipped).toEqual({ pending: 1, unmappedAccount: 1, alreadyExists: 1, inconsistentFetch: 0 });
+    expect(plan.skipped).toEqual({ pending: 1, unmappedAccount: 1, alreadyExists: 1, inconsistentFetch: 0, malformed: 0 });
   });
 
   it('plans nothing on an empty fetch', () => {
     const plan = planHistoryBackfill([], new Set(['anything']), ACCOUNTS);
     expect(plan.rows).toHaveLength(0);
-    expect(plan.skipped).toEqual({ pending: 0, unmappedAccount: 0, alreadyExists: 0, inconsistentFetch: 0 });
+    expect(plan.skipped).toEqual({ pending: 0, unmappedAccount: 0, alreadyExists: 0, inconsistentFetch: 0, malformed: 0 });
   });
 });

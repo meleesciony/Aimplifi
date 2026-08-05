@@ -50,6 +50,7 @@ import {
   type PlaidMortgageLiability,
   type PlaidStudentLiability,
   type PlaidTransaction,
+  type IngestedTransaction,
   mapPlaidAccount,
   mapPlaidLiabilityToStatement,
   mapPlaidMortgageToLoanFields,
@@ -74,6 +75,7 @@ import {
 } from './plaid-history-backfill';
 import { assistUnsureRows } from '@/server/categorize-assist';
 import { categorizeSuggestFor } from '@/server/categorize-suggest';
+import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { DemoProvider } from './demo';
 import type { DataProvider, FinanceSnapshot, SyncResult } from './types';
 
@@ -185,6 +187,18 @@ export async function fetchPlaidWebhookKey(kid: string): Promise<JWK | null> {
  * literal it would just re-copy.
  */
 export const PLAID_DAYS_REQUESTED = 730;
+
+/**
+ * Deep-history backfill run bounds, mirrored verbatim from the SimpleFIN
+ * backfill's critic-tested pair (simplefin.ts, H.5): rows one invocation will
+ * ingest before deferring the rest to the next sync, and rows per commit slice —
+ * the LLM assist and the creates both run per chunk, so a killed serverless run
+ * loses at most one chunk of work instead of all of it, and a plan larger than
+ * the cap leaves `historyBackfilledAt` null so the next sync continues where
+ * this one stopped (the `alreadyExists` skip makes that continuation converge).
+ */
+export const PLAID_BACKFILL_MAX_ROWS_PER_RUN = 2000;
+export const PLAID_BACKFILL_CHUNK_ROWS = 250;
 
 /**
  * Build the `/link/token/create` request body (minus client_id/secret, which
@@ -1678,11 +1692,27 @@ export class PlaidProvider implements DataProvider {
    * Two full years is the most this path can promise; the re-link remains the
    * owner's lever beyond it (see PLAID_DAYS_REQUESTED above).
    *
-   * Idempotent + convergent: the completion flag is set ONLY after the ingest
-   * loop finishes, so a crash mid-run retries on the next sync, and the
-   * already-stored skips make each retry pick up where the last one stopped
-   * instead of duplicating. UNVERIFIED against a live sandbox, like every
-   * network path in this file.
+   * Idempotent + convergent: the completion flag is set ONLY when the WHOLE
+   * plan was consumed on a COMPLETE fetch, so a crash, a capped run, or a
+   * truncated response retries on the next sync, and the already-stored skips
+   * make each retry pick up where the last one stopped instead of duplicating.
+   *
+   * SUPERSEDED PREDECESSORS are excluded from the account map (H.5's P0,
+   * mirrored): a predecessor is read-only history, and the reconciliation
+   * boundary claims the window [span.first, cutover] from its FULL-HISTORY
+   * minimum date — so writing two years of older rows onto it would drag
+   * span.first back and silently DELETE the successor's rows (the ones carrying
+   * the reader's corrections and splits) from every figure, without updating a
+   * single row. Add-only is no defence against that; not writing is. The
+   * exclusion is temporary by construction: `undoReconciliationFor` re-arms
+   * this backfill by clearing `historyBackfilledAt`.
+   *
+   * Run bounds mirror the SimpleFIN backfill (H.5 critics): oldest-first,
+   * capped per run (PLAID_BACKFILL_MAX_ROWS_PER_RUN), committed per chunk
+   * (PLAID_BACKFILL_CHUNK_ROWS) so the LLM assist never fans out over the
+   * whole plan before a single row lands and a killed run keeps its chunks.
+   *
+   * UNVERIFIED against a live sandbox, like every network path in this file.
    */
   private async backfillItemHistory(
     userId: string,
@@ -1693,6 +1723,7 @@ export class PlaidProvider implements DataProvider {
       unmappedAccount: 0,
       alreadyExists: 0,
       inconsistentFetch: 0,
+      malformed: 0,
     };
     // Demo fence, the backfillProviderCategories stance: the shared demo row
     // must never trigger provider egress, whatever route reaches this.
@@ -1704,6 +1735,14 @@ export class PlaidProvider implements DataProvider {
 
     const fetched: PlaidTransaction[] = [];
     let offset = 0;
+    // A fetch is COMPLETE only when the offset reached the server's own total.
+    // The other exit — an EMPTY page with total_transactions still ahead — is a
+    // misbehaving server (the O.12d guard, reused), and its rows are real but
+    // its ABSENCES are not: marking done on that response would deny the reader
+    // the missing history permanently, because the flag gates the only trigger
+    // (the H.5 cycle-1 P1-2 trap, mirrored). Incomplete ⇒ ingest what arrived,
+    // never mark done, retry on the next sync.
+    let fetchComplete = false;
     for (;;) {
       const page = await plaidPost<{
         transactions: PlaidTransaction[];
@@ -1716,10 +1755,11 @@ export class PlaidProvider implements DataProvider {
       });
       fetched.push(...page.transactions);
       offset += page.transactions.length;
-      // Stop on a completed or EMPTY page: an empty page with
-      // total_transactions still ahead would otherwise loop forever against a
-      // misbehaving server (the O.12d guard, reused).
-      if (page.transactions.length === 0 || offset >= page.total_transactions) break;
+      if (offset >= page.total_transactions) {
+        fetchComplete = true;
+        break;
+      }
+      if (page.transactions.length === 0) break;
     }
 
     // Every providerRef already stored for this user's Plaid accounts — the
@@ -1730,94 +1770,152 @@ export class PlaidProvider implements DataProvider {
       select: { providerRef: true },
     });
     const existingRefs = new Set(existing.map((r) => r.providerRef as string));
-    const plan = planHistoryBackfill(fetched, existingRefs, await this.plaidAccountIdMap(userId));
-    if (plan.rows.length === 0) {
-      // Nothing to add (history complete, or the institution returned nothing
-      // older). Mark done so the run is not refetched every sync; the audit
-      // row keeps the "ran, found nothing" vs "never ran" distinction.
-      await prisma.plaidItem.update({ where: { id: item.id }, data: { historyBackfilledAt: today } });
-      await prisma.auditLog
+
+    // A SUPERSEDED PREDECESSOR is read-only history and may not receive rows
+    // (H.5 critic cycle 1, P0-1, mirrored — see the docblock). Filtered HERE,
+    // not inside `plaidAccountIdMap`: the live sync's callers upsert rows the
+    // feed just delivered and have their own semantics; only the backfill
+    // writes YEARS backward, which is what makes a predecessor write
+    // destructive. A row whose account is filtered lands in the planner's
+    // `unmappedAccount` skip — counted, never written.
+    const idByPlaidId = await this.plaidAccountIdMap(userId);
+    const superseded = await activeSupersededPredecessorIds([userId]);
+    for (const [ref, id] of idByPlaidId) {
+      if (superseded.has(id)) idByPlaidId.delete(ref);
+    }
+
+    const plan = planHistoryBackfill(fetched, existingRefs, idByPlaidId);
+
+    const markDone = () =>
+      prisma.plaidItem.update({ where: { id: item.id }, data: { historyBackfilledAt: today } });
+    const audit = (meta: Record<string, unknown>) =>
+      prisma.auditLog
         .create({
           data: {
             userId,
             action: 'plaid.item.history-backfill',
-            meta: JSON.stringify({ itemId: item.itemId, windowStart: startDate, added: 0, skipped: plan.skipped }),
+            meta: JSON.stringify({ itemId: item.itemId, windowStart: startDate, ...meta }),
           },
         })
         .catch(() => {});
+
+    if (plan.rows.length === 0) {
+      // Nothing to add — history already complete, or the institution returned
+      // nothing older. Mark done ONLY on a complete fetch (see fetchComplete
+      // above); a truncated response's emptiness proves nothing, so it retries.
+      if (fetchComplete) await markDone();
+      await audit({ added: 0, deferredToNextSync: 0, complete: fetchComplete, fetchComplete, skipped: plan.skipped });
       return { added: 0, skipped: plan.skipped };
     }
 
     const [rules, tuning] = await Promise.all([loadUserRules(userId), getThresholdTuning(userId)]);
-    const prepared = plan.rows.map((r) =>
-      prepareIngestedTransaction(r.txn, r.accountId, rules, tuning.flaggedBps),
+
+    // Oldest first: a capped run should buy the reader the history he is
+    // actually missing, and a partial run should extend the span DOWNWARD
+    // rather than leave a hole in the middle. Plaid's `date` is the row's own
+    // YYYY-MM-DD (the field `prepareIngestedTransaction` persists), so ISO
+    // string order IS date order; a malformed date sorts arbitrarily and is
+    // then discarded by the prepare try/catch below.
+    const queued = [...plan.rows].sort((a, b) =>
+      a.txn.date < b.txn.date ? -1 : a.txn.date > b.txn.date ? 1 : 0,
     );
-    const assisted = await assistUnsureRows(prepared, categorizeSuggestFor(userId));
 
+    let examined = 0;
+    let budgetLeft = PLAID_BACKFILL_MAX_ROWS_PER_RUN;
     let added = 0;
-    for (let i = 0; i < plan.rows.length; i++) {
-      const row = assisted[i];
-      const merchant = await prisma.merchant.upsert({
-        where: { canonical: row.merchantCanonical },
-        create: { canonical: row.merchantCanonical, defaultCategoryId: row.categoryId },
-        update: {},
-      });
-      try {
-        const createdRow = await prisma.transaction.create({
-          data: {
-            accountId: plan.rows[i].accountId,
-            providerRef: row.providerRef,
-            // Field-for-field the live sync's CREATE branch (base + verdict +
-            // rule stamps): a backfilled row must be indistinguishable from a
-            // row the cursor delivered, because every engine reads both.
-            date: row.date,
-            amountCents: row.amountCents,
-            rawDescriptor: row.rawDescriptor,
-            merchantId: merchant.id,
-            status: row.status,
-            providerCategoryId: row.providerCategoryId,
-            providerCategoryConfidenceBps: row.providerCategoryConfidenceBps,
-            categoryId: row.categoryId,
-            confidenceBps: row.confidenceBps,
-            needsReview: row.needsReview,
-            isTransfer: row.isTransfer,
-            ...(row.taxClassStamp ? { taxClass: row.taxClassStamp } : {}),
-            ...(row.spendClassStamp ? { spendClassOverride: row.spendClassStamp } : {}),
-          },
-        });
-        // The pipeline's verdict, logged exactly as live ingest logs it
-        // (DECISIONS #190) — accuracy metrics must see backfilled rows too.
-        await logCategoryPredictions(userId, [
-          {
-            transactionId: createdRow.id,
-            categoryId: row.categoryId,
-            confidenceBps: row.confidenceBps,
-            source: row.source,
-          },
-        ]);
-        added++;
-      } catch (e) {
-        // Two syncs can race the backfill (the cron sweep and a hand-pressed
-        // per-bank Sync): the loser lands on @@unique(accountId, providerRef).
-        // The winner already stored the row — count it as existing rather than
-        // aborting the run (the live create path's CQ-2 stance, reused).
-        if (!isUniqueViolation(e)) throw e;
-        plan.skipped.alreadyExists++;
-      }
-    }
+    let chunk: IngestedTransaction[] = [];
 
-    // Mark done ONLY after the ingest loop completes — a crash mid-run retries
-    // on the next sync, and the alreadyExists skip makes the retry converge.
-    await prisma.plaidItem.update({ where: { id: item.id }, data: { historyBackfilledAt: today } });
-    await prisma.auditLog
-      .create({
-        data: {
-          userId,
-          action: 'plaid.item.history-backfill',
-          meta: JSON.stringify({ itemId: item.itemId, windowStart: startDate, added, skipped: plan.skipped }),
-        },
-      })
-      .catch(() => {});
+    const flush = async () => {
+      // Per CHUNK, not per plan: `assistUnsureRows` fans out one concurrent LLM
+      // call per distinct unsure descriptor with no internal cap; two years of
+      // descriptors through one unbounded fan-out — before a single row is
+      // committed — was both the cost spike and the reason a killed run made no
+      // progress (the H.5 P1, mirrored).
+      const assisted = await assistUnsureRows(chunk, categorizeSuggestFor(userId));
+      chunk = [];
+
+      // Each prepared row carries its OWN accountId, so this loop never indexes
+      // back into plan.rows — a prepare failure cannot misalign the pairing.
+      for (const row of assisted) {
+        const merchant = await prisma.merchant.upsert({
+          where: { canonical: row.merchantCanonical },
+          create: { canonical: row.merchantCanonical, defaultCategoryId: row.categoryId },
+          update: {},
+        });
+        try {
+          const createdRow = await prisma.transaction.create({
+            data: {
+              accountId: row.accountId,
+              providerRef: row.providerRef,
+              // Field-for-field the live sync's CREATE branch (base + verdict +
+              // rule stamps): a backfilled row must be indistinguishable from a
+              // row the cursor delivered, because every engine reads both.
+              date: row.date,
+              amountCents: row.amountCents,
+              rawDescriptor: row.rawDescriptor,
+              merchantId: merchant.id,
+              status: row.status,
+              providerCategoryId: row.providerCategoryId,
+              providerCategoryConfidenceBps: row.providerCategoryConfidenceBps,
+              categoryId: row.categoryId,
+              confidenceBps: row.confidenceBps,
+              needsReview: row.needsReview,
+              isTransfer: row.isTransfer,
+              ...(row.taxClassStamp ? { taxClass: row.taxClassStamp } : {}),
+              ...(row.spendClassStamp ? { spendClassOverride: row.spendClassStamp } : {}),
+            },
+          });
+          // The pipeline's verdict, logged exactly as live ingest logs it
+          // (DECISIONS #190) — accuracy metrics must see backfilled rows too.
+          await logCategoryPredictions(userId, [
+            {
+              transactionId: createdRow.id,
+              categoryId: row.categoryId,
+              confidenceBps: row.confidenceBps,
+              source: row.source,
+            },
+          ]);
+          added++;
+        } catch (e) {
+          // Two syncs can race the backfill (the cron sweep and a hand-pressed
+          // per-bank Sync): the loser lands on @@unique(accountId, providerRef).
+          // The winner already stored the row — count it as existing rather than
+          // aborting the run (the live create path's CQ-2 stance, reused).
+          if (!isUniqueViolation(e)) throw e;
+          plan.skipped.alreadyExists++;
+        }
+      }
+    };
+
+    for (const r of queued) {
+      if (budgetLeft === 0) break;
+      examined++;
+      let row: IngestedTransaction;
+      try {
+        row = prepareIngestedTransaction(r.txn, r.accountId, rules, tuning.flaggedBps);
+      } catch {
+        // Malformed row (e.g. unparseable amount or date) — skip it, exactly as
+        // the live ingest does, never abort the run over one bad row, and DON'T
+        // charge it to the budget: it can never be stored, so charging it would
+        // let it block the cap on every future run (H.5 cycle-2 P1-1, mirrored).
+        plan.skipped.malformed++;
+        continue;
+      }
+      chunk.push(row);
+      budgetLeft--;
+      if (chunk.length >= PLAID_BACKFILL_CHUNK_ROWS) await flush();
+    }
+    if (chunk.length > 0) await flush();
+    const deferred = queued.length - examined;
+
+    // Done ONLY when the WHOLE plan was consumed on a COMPLETE fetch. A capped
+    // run leaves the flag null so the next sync continues where this one
+    // stopped; `alreadyExists` makes that continuation converge rather than
+    // duplicate. A crash mid-run behaves the same way, which is the point of
+    // committing per chunk.
+    const complete = deferred === 0 && fetchComplete;
+    if (complete) await markDone();
+    await audit({ added, deferredToNextSync: deferred, complete, fetchComplete, skipped: plan.skipped });
     return { added, skipped: plan.skipped };
   }
 

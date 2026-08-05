@@ -308,15 +308,22 @@ export async function undoReconciliationFor(
     data: { undoneAt: new Date() },
   });
   if (res.count === 0) return { ok: false, error: 'Reconciliation not found.' };
-  // An undo can make a SimpleFIN account writable history again, and the H.5
-  // deep-history backfill refuses to write to superseded predecessors — so a
-  // connection that finished (or skipped) its backfill while this link was active may
-  // now be owed one. Re-arm it: the backfill is add-only and idempotent, so the worst
-  // case is one wasted plan that comes back empty and re-marks itself done. Without
-  // this, the backfill would have to treat "every account superseded" as a permanent
-  // retry, paying a 1095-day fetch and an audit row on every sync forever (critic
-  // cycle 3, P1-1). Best-effort: an undo must not fail over re-arming a backfill.
+  // An undo can make a superseded account writable history again, and BOTH
+  // deep-history backfills (SimpleFIN, H.5; Plaid, its mirror) refuse to write to
+  // superseded predecessors — so a connection/item that finished (or skipped) its
+  // backfill while this link was active may now be owed one. Re-arm them: the
+  // backfills are add-only and idempotent, so the worst case is one wasted plan
+  // that comes back empty and re-marks itself done. Without this, a backfill would
+  // have to treat "every account superseded" as a permanent retry, paying a
+  // years-wide fetch and an audit row on every sync forever (critic cycle 3,
+  // P1-1). Unconditional across providers by accepted stance (H.5 cycle-4 P2,
+  // recorded open): scoping the re-arm to the predecessor's provider would save
+  // one wasted fetch on the other side and is not worth a second query shape
+  // here. Best-effort: an undo must not fail over re-arming a backfill.
   await prisma.simpleFinConnection
+    .updateMany({ where: { userId }, data: { historyBackfilledAt: null } })
+    .catch(() => {});
+  await prisma.plaidItem
     .updateMany({ where: { userId }, data: { historyBackfilledAt: null } })
     .catch(() => {});
   return { ok: true };
