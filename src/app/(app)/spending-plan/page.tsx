@@ -16,6 +16,7 @@ import {
   CATEGORY_NAME_LINK_CLASS,
   spendClassMonthRegisterHref,
 } from '@/lib/engine/transactions/links';
+import { UNNAMED_BILL_LABEL } from '@/lib/engine/spending-plan/fixed-line-items';
 
 export const metadata = { title: "Spending plan" };
 
@@ -237,6 +238,109 @@ export default async function SpendingPlanPage() {
             <> Set a savings target in Settings to reserve a share of income first.</>
           ) : null}
         </p>
+      </section>
+
+      {/* C.19 / H.3 — owner, four times: "where is mortgage? Fixed expense list
+          must include mortgage". The figure always held it (C.24 unions the
+          $6,217.07); no list did, because the union contributed a bare number
+          while C.24's exactness invariant pulled the merchant's rows out of the
+          category rollup — the only half that produced lines. The composition
+          is assembled in the engine (`buildFixedList`) and rendered here
+          verbatim; this page performs no arithmetic on it. */}
+      <section
+        className="rounded-2xl border bg-card p-5 shadow-sm"
+        data-testid="fixed-composition"
+      >
+        <h2 className="mb-1 text-sm font-semibold">What makes up your fixed costs</h2>
+        {/* NO GENERAL SENTENCE ABOUT HOW THESE AMOUNTS WERE REACHED. The first
+            cut carried one, describing the union's monthly smoothing — and the
+            copy critic falsified it twice, because most rows here are category
+            averages on a different basis entirely. Each line states its own
+            basis (`basisNote`) instead; a list from two bases cannot have one
+            explanation. */}
+        {p.fixedList.lines.length === 0 ? (
+          <p className="text-sm text-muted-foreground" data-testid="fixed-composition-empty">
+            {p.fixedList.note}
+          </p>
+        ) : (
+          <>
+            <dl className="divide-y text-sm">
+              {p.fixedList.lines.map((l) => (
+                <div
+                  key={l.key}
+                  className="flex items-center justify-between gap-3 py-2"
+                  data-testid="fixed-composition-row"
+                >
+                  <dt className="min-w-0 text-muted-foreground">
+                    <span data-testid="fixed-composition-label">{l.label}</span>
+                    {/* The chip is withheld when the label already carries the
+                        word — an unnamed bill reads "A recurring bill we
+                        detected" and does not need "REPEATING BILL" stamped
+                        beside it (the `outOfScopeChipLabel` rule: a chip that
+                        repeats its neighbour is clutter, not disclosure). */}
+                    {l.kind === 'recurring-bill' &&
+                    (l.loanPayment || !l.label.startsWith(UNNAMED_BILL_LABEL)) ? (
+                      <span
+                        className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide"
+                        data-testid="fixed-composition-bill-chip"
+                      >
+                        {l.loanPayment ? 'loan payment' : 'repeating bill'}
+                      </span>
+                    ) : null}
+                    {l.basisNote ? (
+                      <span className="text-xs" data-testid="fixed-composition-basis">
+                        {l.basisNote}
+                      </span>
+                    ) : null}
+                  </dt>
+                  <dd
+                    className="shrink-0 tabular-nums"
+                    data-testid="fixed-composition-amount"
+                  >
+                    {formatCents(cents(l.amountCents))}
+                  </dd>
+                </div>
+              ))}
+              <div className="flex items-center justify-between py-2.5">
+                <dt className="font-semibold">Total of these lines</dt>
+                <dd
+                  className="text-base font-bold tabular-nums"
+                  data-testid="fixed-composition-total"
+                >
+                  {formatCents(cents(p.fixedList.totalCents))}
+                </dd>
+              </div>
+              {/* Both figures on screen whenever they differ — and only when
+                  they actually do. Explaining a gap in prose while showing one
+                  number asks the reader to take the difference on trust; the
+                  arithmetic is the disclosure. A median basis whose median is 0
+                  leaves nothing unlisted, so the second row must not print
+                  ($300.00 twice, stacked) — the money critic's P2-1. */}
+              {!p.fixedList.reconciles && p.fixedList.unaccountedCents !== 0 ? (
+
+                <div className="flex items-center justify-between py-2.5">
+                  <dt className="text-muted-foreground">Fixed costs your plan uses</dt>
+                  <dd
+                    className="shrink-0 tabular-nums"
+                    data-testid="fixed-composition-plan-figure"
+                  >
+                    {formatCents(cents(p.fixedList.planFixedCents))}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+            <p
+              className="mt-3 text-xs text-muted-foreground"
+              data-testid={
+                p.fixedList.reconciles
+                  ? 'fixed-composition-reconciled'
+                  : 'fixed-composition-partial'
+              }
+            >
+              {p.fixedList.note}
+            </p>
+          </>
+        )}
       </section>
 
       {figuresForm}

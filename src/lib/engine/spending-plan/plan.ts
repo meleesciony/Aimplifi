@@ -352,6 +352,34 @@ export interface SpendingPlan extends SpendingPlanInput {
   /** Suggested fixed before any user override (same as fixed when unset). */
   suggestedFixedCents: number;
   /**
+   * The recurring bills counted INSIDE `suggestedFixedCents` that no category
+   * rollup line can show (C.19 / H.3) — the mortgage among them.
+   *
+   * Present only when the basis actually summed them (`category-designations`
+   * and `non-discretionary-median` add the union; `detected-series` reaches its
+   * total through a different function and `user-set` is a typed number), so an
+   * empty array here means "this basis counted none", never "we have none".
+   * `fixedLineItemsCoverRemainder` is the flag that separates those two, and a
+   * surface that itemizes this list must read it — a list is a claim about a
+   * total, and a claim this array cannot support has to be withheld.
+   */
+  fixedLineItems: FixedUnionRow[];
+  /**
+   * True when `suggestedFixedCents − sum(fixedLineItems)` is exactly the
+   * CATEGORY ROLLUP, i.e. a caller holding the rollup rows can account for every
+   * cent of `suggestedFixedCents`. False for the median basis (a median of
+   * monthly totals has no lines behind it at all), for the detected-series
+   * fallback, and when nothing was countable.
+   *
+   * IT IS A CLAIM ABOUT `suggestedFixedCents`, NEVER ABOUT `fixedExpensesCents`.
+   * A reader who locks a fixed intention keeps the data suggestion visible
+   * beside it (#372/#373), so this flag stays TRUE under an override while the
+   * figure on the page is the reader's own number — itemizing THAT would print
+   * lines that sum to a different total by design. `buildFixedList` is where
+   * that distinction is enforced; a caller must not re-derive it.
+   */
+  fixedLineItemsCoverRemainder: boolean;
+  /**
    * When an intention is locked (user-set income/fixed), how categorized data
    * differs from that intention (DECISIONS #373). Positive fixed slide = data
    * shows more non-discretionary spend than planned — overspend vs intention.
@@ -488,14 +516,45 @@ export const PLAN_FIXED_NEVER_CATEGORY_IDS = new Set([
  * (non-discretionary-median / detected-series). Excludes settlement categories.
  */
 export function recurringPlanExpenseCents(items: readonly PlanScheduledItem[]): number {
+  return recurringPlanExpenseRows(items).totalCents;
+}
+
+/**
+ * The row-level twin of `recurringPlanExpenseCents`, for the same reason its
+ * sibling has one (see `recurringOutsideFixedCategoryRows`): the detected-series
+ * basis IS this sum, so a surface itemizing that basis must list exactly these
+ * rows or it is drawing a list from a total nothing computed.
+ *
+ * The copy critic caught the omission as a false sentence rather than a missing
+ * feature: withholding these left the page saying "we can't name anything…
+ * until a repeating bill is detected" to a reader whose figure was 100% detected
+ * bills, two of which the app could name. The app knew; the page denied it.
+ */
+export function recurringPlanExpenseRows(
+  items: readonly PlanScheduledItem[],
+): FixedUnionResult {
+  const rows: FixedUnionRow[] = [];
   let sum = 0;
-  for (const s of items) {
-    if (s.amountCents >= 0) continue;
+  items.forEach((s, index) => {
+    if (s.amountCents >= 0) return;
     const id = s.categoryId;
-    if (typeof id === 'string' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(id)) continue;
-    sum += monthlyRateCents(-s.amountCents, s.cadence);
-  }
-  return sum;
+    if (typeof id === 'string' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(id)) return;
+    const rate = monthlyRateCents(-s.amountCents, s.cadence);
+    const canonical =
+      typeof s.merchantCanonical === 'string' && s.merchantCanonical !== ''
+        ? s.merchantCanonical
+        : null;
+    rows.push({
+      key: canonical !== null ? `${canonical}#${index}` : `series-${index}`,
+      merchantCanonical: canonical,
+      categoryId: typeof id === 'string' && id !== '' ? id : null,
+      cadence: s.cadence,
+      monthlyRateCents: rate,
+      loanPayment: s.loanPayment === true,
+    });
+    sum += rate;
+  });
+  return { rows, totalCents: sum };
 }
 
 /**
@@ -523,25 +582,114 @@ export function recurringOutsideFixedCategoryCents(
   rollupCategoryIds: ReadonlySet<string> = new Set(),
   budgetCategoryIds?: ReadonlySet<string>,
 ): number {
+  return recurringOutsideFixedCategoryRows(
+    items,
+    categoryIsFixed,
+    rollupCategoryIds,
+    budgetCategoryIds,
+  ).totalCents;
+}
+
+/**
+ * ONE unioned recurring bill, as a LINE a Fixed list can print (C.19 / H.3).
+ *
+ * WHY THIS EXISTS AT ALL. The owner has now asked four times where his mortgage
+ * is. It was never missing from the Fixed *figure* — C.24 put it there — it was
+ * missing from every Fixed *list*, because the union above returned a bare
+ * `number`. Its money reached `suggestedFixedCents` with no name attached, while
+ * C.24's exactness invariant had already removed the merchant's rows from the
+ * category rollup that DOES produce lines: `tests/unit/loan-payment-fixed-union
+ * .test.ts` asserts, as correct, that the rollup returns `rows: []` for a reader
+ * whose only housing spend is that mortgage. So the list printed nothing and the
+ * total printed $6,217.07, and the reader was right that the app had lost it.
+ *
+ * A total a list cannot account for is the defect this repo keeps re-finding
+ * under other names (`a-zero-is-a-claim-and-must-name-which-zero`,
+ * `an-empty-set-is-not-a-fact-about-money`). The remedy is structural rather
+ * than a disclosure: the union emits the rows it summed, and
+ * `recurringOutsideFixedCategoryCents` is now IMPLEMENTED IN TERMS OF THEM, so a
+ * printed line and the figure it sits under cannot disagree by construction —
+ * the same move L.30 made for the projection reason set.
+ *
+ * `merchantCanonical` is OPTIONAL on a `PlanScheduledItem` (only live detection
+ * supplies it), and a row that carries none is left `null` rather than labelled
+ * from its category. A category name on a merchant line would read as "your
+ * whole Housing budget" beside a single bill's rate — naming is the caller's
+ * job, and a caller that cannot name a line must say so instead of guessing.
+ */
+export interface FixedUnionRow {
+  /** Stable identity for rendering and dedupe. The canonical when known; a
+   *  positional key otherwise, which is why it is never shown to a reader. */
+  key: string;
+  /** The payee, when detection supplied one. `null` = unnamed, never guessed. */
+  merchantCanonical: string | null;
+  categoryId: string | null;
+  cadence: string | null;
+  /** The SMOOTHED monthly contribution — what this row adds to the Fixed term.
+   *  A quarterly premium appears at a third of its charge, which is the same
+   *  arithmetic the owner does by hand (`monthlyRateCents`). */
+  monthlyRateCents: number;
+  /** C.24's structural loan payment — the reason this row bypasses the
+   *  category-level covered-skip, and worth carrying so a surface can explain
+   *  why a mortgage is listed separately from its category. */
+  loanPayment: boolean;
+}
+
+export interface FixedUnionResult {
+  rows: FixedUnionRow[];
+  totalCents: number;
+}
+
+/**
+ * The row-level twin of `recurringOutsideFixedCategoryCents` — same predicates,
+ * same order, one authority. Read that function's docblock for the skip rules;
+ * this one only changes what is RETURNED, never what is counted.
+ */
+export function recurringOutsideFixedCategoryRows(
+  items: readonly PlanScheduledItem[],
+  categoryIsFixed: (categoryId: string) => boolean | null,
+  rollupCategoryIds: ReadonlySet<string> = new Set(),
+  budgetCategoryIds?: ReadonlySet<string>,
+): FixedUnionResult {
+  const rows: FixedUnionRow[] = [];
   let sum = 0;
-  for (const s of items) {
-    if (s.amountCents >= 0) continue;
+  items.forEach((s, index) => {
+    if (s.amountCents >= 0) return;
     const rate = monthlyRateCents(-s.amountCents, s.cadence);
     const id = s.categoryId;
-    if (typeof id === 'string' && id !== '' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(id)) continue;
-    if (s.loanPayment === true) {
-      if (typeof id === 'string' && id !== '' && budgetCategoryIds?.has(id) === true) continue;
+    if (typeof id === 'string' && id !== '' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(id)) return;
+    const keep = () => {
+      const canonical =
+        typeof s.merchantCanonical === 'string' && s.merchantCanonical !== ''
+          ? s.merchantCanonical
+          : null;
+      rows.push({
+        // The index is ALWAYS in the key, never only as a fallback: two series
+        // can share one canonical (the same payee detected at two cadences, or
+        // on two accounts) and both are counted, so a canonical-only key would
+        // collide between two lines that must each render.
+        key: canonical !== null ? `${canonical}#${index}` : `series-${index}`,
+        merchantCanonical: canonical,
+        categoryId: typeof id === 'string' && id !== '' ? id : null,
+        cadence: s.cadence,
+        monthlyRateCents: rate,
+        loanPayment: s.loanPayment === true,
+      });
       sum += rate;
-      continue;
+    };
+    if (s.loanPayment === true) {
+      if (typeof id === 'string' && id !== '' && budgetCategoryIds?.has(id) === true) return;
+      keep();
+      return;
     }
     if (typeof id === 'string' && id !== '') {
       const fixed = categoryIsFixed(id);
-      if (fixed === false) continue;
-      if (fixed === true && rollupCategoryIds.has(id)) continue;
+      if (fixed === false) return;
+      if (fixed === true && rollupCategoryIds.has(id)) return;
     }
-    sum += rate;
-  }
-  return sum;
+    keep();
+  });
+  return { rows, totalCents: sum };
 }
 
 /**
@@ -647,27 +795,43 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
   const useCategoryFixed = categoryFixedCents > 0;
   const outsideRecurring =
     typeof input.categoryIsFixed === 'function'
-      ? recurringOutsideFixedCategoryCents(
+      ? recurringOutsideFixedCategoryRows(
           input.scheduledFixed,
           input.categoryIsFixed,
           input.categoryFixedCoveredIds ?? new Set(),
           input.budgetCategoryIds,
         )
-      : 0;
+      : { rows: [] as FixedUnionRow[], totalCents: 0 };
+  const outsideRecurringCents = outsideRecurring.totalCents;
 
   let suggestedFixedCents: number;
   let suggestedFixedBasis: Exclude<FixedBasis, 'user-set'>;
   let fixedMonths: number;
+  // The lines behind the figure, per basis (C.19/H.3). Only the two bases that
+  // ADD the union can hand them out: publishing them under `detected-series`
+  // would be a list drawn from a sum that function never computed, and under
+  // `none` an empty list would read as "you have no fixed costs" rather than
+  // "nothing was countable" — the `a-zero-is-a-claim` distinction.
+  let fixedLineItems: FixedUnionRow[] = [];
+  let fixedLineItemsCoverRemainder = false;
   if (useCategoryFixed) {
     // No resolver ⇒ outside 0 (never double-count Fixed series as "unknown").
-    suggestedFixedCents = categoryFixedCents + outsideRecurring;
+    suggestedFixedCents = categoryFixedCents + outsideRecurringCents;
     suggestedFixedBasis = 'category-designations';
     fixedMonths = 0;
+    fixedLineItems = outsideRecurring.rows;
+    // The remainder is exactly `categoryFixedCents`, which IS the rollup total,
+    // so a caller holding the rollup rows can reach the penny.
+    fixedLineItemsCoverRemainder = true;
   } else if (trailingFixed.length > 0) {
     const patternFixed = Math.round(median(trailingFixed));
-    suggestedFixedCents = patternFixed + outsideRecurring;
+    suggestedFixedCents = patternFixed + outsideRecurringCents;
     suggestedFixedBasis = 'non-discretionary-median';
     fixedMonths = trailingFixed.length;
+    fixedLineItems = outsideRecurring.rows;
+    // A MEDIAN of monthly totals is not a sum of anything — there are no lines
+    // behind `patternFixed`, and no caller can invent them.
+    fixedLineItemsCoverRemainder = false;
   } else if (recurringFixedCents > 0) {
     // LAST-RESORT basis: no category rollup AND no non-discretionary spend
     // history. Every detected recurring outflow counts here, INCLUDING ones
@@ -682,6 +846,10 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
     suggestedFixedCents = recurringFixedCents;
     suggestedFixedBasis = 'detected-series';
     fixedMonths = 0;
+    // This basis IS the sum of these rows, and the rollup contributes nothing,
+    // so the remainder they must cover is zero — the list reconciles exactly.
+    fixedLineItems = recurringPlanExpenseRows(input.scheduledFixed).rows;
+    fixedLineItemsCoverRemainder = true;
   } else {
     suggestedFixedCents = 0;
     suggestedFixedBasis = 'none';
@@ -722,6 +890,8 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
     incomeBasis,
     incomeMonths: hasIncomeOverride ? 0 : incomeMonths,
     suggestedIncomeCents,
+    fixedLineItems,
+    fixedLineItemsCoverRemainder,
     fixedExpensesCents,
     fixedBasis,
     fixedMonths: hasFixedOverride ? 0 : fixedMonths,

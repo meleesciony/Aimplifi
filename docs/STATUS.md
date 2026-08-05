@@ -6,6 +6,60 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-05 — C.19/H.3: the Fixed list accounts for its own total, and the mortgage is a line in it (DECISIONS #411)
+
+**The C.19 task row was stale.** It was written 2026-08-02 asking for
+per-transaction spend class, a recurrence-first default and row-derived Fixed
+sums; #397 shipped all three on 2026-08-03. Measured before building, so none of
+it was rewritten.
+
+**What was actually broken is the owner's actual word: LIST.** He has asked
+"where is mortgage?" four times. C.24 put it in the Fixed FIGURE at $6,217.07/mo;
+it was in no list, because the union returned a bare number while C.24's
+exactness invariant removed the merchant's rows from the category rollup — the
+only half that produces lines. `loan-payment-fixed-union.test.ts:206` asserts the
+resulting empty rollup as correct, so no test could see the hole.
+
+Now: `recurringOutsideFixedCategoryRows` / `recurringPlanExpenseRows` emit the
+rows they sum and the `...Cents` functions are implemented in terms of them;
+`buildFixedList` assembles both halves and refuses to certify when they cannot
+meet; `/spending-plan` renders it and computes nothing. **No figure moves —
+`suggestedFixedCents` is byte-identical. No schema change.**
+
+**Copy critic (fresh context): FAIL — 4 P1 + 2 P2, all executed, all fixed.** All
+four shared one shape: a sentence written against one basis printed above rows
+produced by another. The general intro sentence was DELETED rather than narrowed
+(it was false for any bill deduped into a rollup category, and for a
+mid-window-started quarterly premium whose category line prints its whole
+charge); each line now carries its own basis, reusing `fixedAmountBasisClause`
+and `LONG_CADENCE_WORDS` rather than paraphrasing them.
+
+**Money critic (fresh context): FAIL — 2 P1 + 4 P2, all executed, all fixed.**
+The arithmetic attacks came back clean (row-sum parity across every cadence and
+skip set, every override refusing, the demo list reconciling to the penny by
+hand). What it found: "matched to the penny" is a claim about a SUM printed as
+if it were a claim about the COMPOSITION. P1-1: canonical drift can leave the
+same bill as its own line AND inside a category line with the sum still
+balancing — the certification now also refuses when a bill is filed to a
+category that has its own line (free on the intended C.24 path). P1-2: a reader
+who typed their figure was told it "came from the spending pattern" (the empty
+branch's second ladder dropped the user-set disclosure) — the ladder is now
+reused. P2-1: a zero median printed "$300.00" twice under a sentence about a
+nonexistent gap — both now gated on a non-zero remainder. P2-2:
+`unionedLoanMerchants` was derived before the union's skips, so a skipped series
+still lost its rows — now derived from what was actually kept. P2-3/P2-4
+(singular note; duplicate labels) fixed or recorded as not-live residual.
+
+**OPEN — the reserve/sinking-fund third source is NOT in this slice.** The
+owner's "money set aside every month for home repair" and "yearly dues ÷ 12" have
+no model in the app; that is C.23/H.4, still gated. This slice makes the existing
+Fixed figure sayable, which is the half of H.3 about the mortgage.
+
+**OPEN — the /budgets Fixed panel is a different question and stays separate.**
+That panel lists this month's fixed-CLASSIFIED spend by category; this one lists
+what composes the PLAN's monthly Fixed figure. Two lists, two questions, both
+labelled. Deliberate, recorded so it is not "unified" later by mistake.
+
 ## ✅ BUILT 2026-08-04 — C.13 P1-27: the Fixed/Discretionary heading and its register read one row set (DECISIONS #409)
 
 The audit's stated cause was already dead — #397 admits PENDING into

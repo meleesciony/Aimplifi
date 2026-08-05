@@ -45,6 +45,10 @@ import {
   filedCategoryByMerchant,
   resolveFixedCategoryAmounts,
 } from '@/lib/engine/spending-plan/fixed-category-amounts';
+import {
+  buildFixedList,
+  type FixedListResult,
+} from '@/lib/engine/spending-plan/fixed-line-items';
 import { suggestedCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import {
@@ -90,6 +94,14 @@ export interface SpendingPlanWithNotes extends SpendingPlan {
    * (/budgets) must apply the same set.
    */
   loanPaymentRollupExclusions: string[];
+  /**
+   * C.19/H.3 — the Fixed figure's composition, already assembled and already
+   * certified. The two halves that produce it (the category rollup and the
+   * union's series rows) are both computed in this loader, so assembling here
+   * is what keeps a single author on the claim "these lines add up to that
+   * figure". A page consumes `lines`, `totalCents` and `note` verbatim.
+   */
+  fixedList: FixedListResult;
 }
 
 export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithNotes> {
@@ -407,7 +419,34 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     // (the exactness invariant). /budgets re-derives the same per-category
     // basis and must apply the SAME exclusion or the two surfaces print
     // different "typical" figures for the same category.
-    loanPaymentRollupExclusions: [...unionedLoanMerchants],
+    //
+    // Money critic P2-2: `unionedLoanMerchants` above was derived from every
+    // `scheduledFixed` row with `loanPayment === true`, BEFORE the union's own
+    // skips (never-category, budget-priced) ran — so a series the union then
+    // DROPPED had still had its rows stripped from the rollup, and the money
+    // left Fixed entirely while the list certified the remainder "exact". The
+    // union now emits its rows, so the exclusion is derived from what was
+    // actually kept — the rows in `plan.fixedLineItems` that are loan payments
+    // — which is what makes "excluded ⇔ unioned" true rather than stated.
+    loanPaymentRollupExclusions: [
+      ...new Set(
+        plan.fixedLineItems
+          .filter((r) => r.loanPayment)
+          .map((r) => r.merchantCanonical)
+          .filter((c): c is string => c !== null),
+      ),
+    ],
+    // C.19/H.3: the Fixed figure's own composition, assembled HERE from the two
+    // halves that produced it — the category rollup computed just above and the
+    // union rows the plan summed. The page renders it and computes nothing: a
+    // list under a money figure is a claim that the lines add up to it, and
+    // C.26's critic proved a view can reintroduce exactly that defect with the
+    // whole suite green.
+    fixedList: buildFixedList({
+      plan,
+      rollupRows: categoryFixed.rows,
+      nameOfCategory: (id) => categoryName(id, categoryMeta),
+    }),
     disclosures: await buildDisclosures(userId, snap, computed, endOfMonth, {
       // The three facts that separate one $0 card-payments line from another (L.29).
       // Each is about a different way of not owing money this month, and each is

@@ -150,6 +150,9 @@ describe('headlineCents — the slice-3 boundary: TRACED derivation kinds set it
           fixedBasis: 'detected-series',
           fixedMonths: 0,
           suggestedFixedCents: 300000,
+          // C.19/H.3: 'detected-series' publishes no itemization.
+          fixedLineItems: [],
+          fixedLineItemsCoverRemainder: false,
           incomeSlideCents: 0,
           fixedSlideCents: 0,
           hasSlide: false,

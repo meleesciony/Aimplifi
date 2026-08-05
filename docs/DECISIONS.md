@@ -4204,3 +4204,107 @@ the prop is REQUIRED so an omission fails `tsc`, and the value has exactly one
 plausible source. Recorded because it is the last unlocked link in this chain:
 an async server component is not renderable by the jsdom harness, so only an
 e2e on /dashboard with a seeded future-dated row would close it.
+
+## #411 — C.19/H.3: a Fixed TOTAL its list cannot account for — the union emits the rows it summed, and each line states its own basis (built, critic-cycled)
+
+**The task row was stale and building from it would have rewritten live code.**
+C.19 was authored 2026-08-02 asking for per-transaction Fixed/Discretionary with
+`Transaction.spendClassOverride`, a recurrence-first default, and Fixed sums
+re-derived from ROWS. DECISIONS #397 shipped all three on 2026-08-03 — the column
+exists, `classifySpendClass` already resolves row override → recurring-bill
+merchant → taxonomy, and `resolveFixedCategoryAmounts` already pre-filters to
+fixed-CLASSIFIED rows before averaging. Measured first, per
+`sharing-a-basis-is-not-sharing-a-scope` ("a task row's premise is a hypothesis").
+
+**What was actually broken is what the owner actually said.** He has asked
+"where is mortgage?" four times, and the word is LIST, not total. C.24 (#394) put
+the mortgage in the Fixed FIGURE at its full $6,217.07 monthly rate. It was in no
+list, structurally: C.24's exactness invariant removes a structural loan
+payment's rows from the category rollup — the only half that produces lines —
+and re-adds the money through `recurringOutsideFixedCategoryCents`, which
+returned a bare `number`. `tests/unit/loan-payment-fixed-union.test.ts:206`
+asserts the resulting `rows: []` as CORRECT, so no test in the repo could see the
+hole. The list showed nothing; the total showed $6,217.07.
+
+**The fix is structural, not a disclosure.** `recurringOutsideFixedCategoryRows`
+emits the rows it sums and `...Cents` is implemented in terms of it, so a printed
+line and the figure above it cannot disagree by construction (the L.30 idiom).
+`recurringPlanExpenseRows` does the same for the detected-series basis. A new
+`buildFixedList` assembles both halves and REFUSES to certify when they cannot
+meet; `/spending-plan` — which itemized nothing at all — renders the verdict and
+computes nothing, because C.26's critic proved a view can reintroduce exactly
+this defect with the suite green.
+
+**No figure moves.** `suggestedFixedCents` is byte-identical before and after;
+only its composition becomes sayable. No schema change.
+
+**Two defects caught in my own code before the critics ran:** two series sharing
+one merchant canonical collided on a single key (both are counted, so both must
+render), and under a reader-set override the section printed a total its own
+lines contradicted. The printed total is now ALWAYS the sum of the printed lines,
+with `planFixedCents` published beside it whenever they differ — a figure
+directly above a list is read as that list's total, so it has to be one.
+
+**Copy critic (fresh context): FAIL — 4 P1 + 2 P2, all EXECUTED, all fixed.**
+Every one shared a shape: a sentence written against one basis, printed above
+rows produced by another.
+- P1-1: the intro sentence claimed repeating bills are listed at their monthly
+  share. False twice — a non-loan series whose category is already in the rollup
+  is deduped away and never appears, and a category line for a quarterly premium
+  first charged mid-window renders its WHOLE charge (`averageMonthlySpendByCategory`'s
+  own documented over-reserve). The sentence is DELETED, not narrowed; the basis
+  now travels on the row.
+- P1-2: a budget-priced category line rendered pixel-identical to a measured
+  average, dropping the provenance clause `/budgets` is REQUIRED to print beside
+  the same figure (audit P1-8, regressed onto a new surface).
+  `fixedAmountBasisClause` is now the line's own `basisNote`.
+- P1-3: the `user-set` branch returned before the completeness test, so an
+  override over the MEDIAN basis said "these lines are what your data shows"
+  while the majority of that data structurally cannot have lines. Two
+  independent facts, now composed rather than nested.
+- P1-4: the empty paragraph asserted "it does not mean your fixed costs are
+  zero" in two states where they ARE zero (including a reader who TYPED zero and
+  was argued with), and named "until a repeating bill is detected" as the remedy
+  on the `detected-series` basis — where bills WERE detected and the app could
+  name them. Both fixed: the empty note names WHICH zero, and that basis now
+  publishes its rows (and therefore reconciles exactly).
+- P2-5/P2-6: the chip repeated its own label on the unnamed path; `cadence` was
+  documented as a required disclosure and never rendered.
+
+**Money critic (fresh context): FAIL — 2 P1 + 4 P2, all EXECUTED, all fixed.**
+Its attacks on the arithmetic itself all came back clean: `sum(rows) ===
+totalCents` always (a row with `amountCents <= 0` is unconstructible),
+`...Cents` parity holds across every cadence and skip set, every override
+refuses to certify, and the demo reader's list reconciles to the penny by hand.
+What it found is that "matched to the penny" is a claim about a SUM, printed as
+if it were a claim about the COMPOSITION.
+- P1-1 (the deep one): `reconciles` tests a sum, never DISJOINTNESS. C.24 keeps
+  a unioned bill out of the rollup by merchant canonical, so if the payee's
+  wording changes mid-window the old rows stay in the rollup while the series
+  unions at full rate — the critic executed a mortgage appearing as its own
+  $6,217.07 line AND as $2,072.36 inside Rent & Mortgage, with the sum balancing
+  and the page certifying it. The app cannot tell two canonicals are one payee;
+  what it can do is refuse to certify when a bill is filed to a category that
+  also has a line. Costs nothing on the intended C.24 path (the merchant's rows
+  have left the rollup); fires only on the ambiguous overlap.
+- P1-2: the empty-list branch built a SECOND note ladder that dropped the
+  `user-set` disclosure for a non-zero override, telling a reader who had typed
+  $5,000 it "comes from their monthly spending pattern". The ladder is now
+  reused, not re-derived.
+- P2-1: a median of zero left `unaccountedCents === 0`, so the page printed
+  "$300.00" and "your plan uses $300.00" stacked under a sentence about a gap
+  that did not exist. The "rest" sentence and the second figure row are now
+  gated on a NON-ZERO remainder.
+- P2-2: `unionedLoanMerchants` was derived from every loan-payment row BEFORE
+  the union's own skips ran, so a series the union dropped had still had its
+  rows stripped — the money left Fixed while the list certified the remainder
+  exact. The exclusion is now derived from `plan.fixedLineItems` (what was
+  actually kept), making "excluded ⇔ unioned" true rather than stated.
+- P2-3: "These 1 line adds up" → "This line adds up".
+- P2-4: two lines can render one identical label (keys are distinct, labels are
+  not). Not live — `detectRecurring` emits one series per canonical — recorded
+  as a residual for a future caller supplying its own `scheduledFixed`.
+
+**Deliberately NOT in this slice:** reserves / sinking funds (the owner's third
+Fixed source — "money set aside every month for home repair", yearly dues ÷ 12)
+have no model in the app and remain C.23/H.4.

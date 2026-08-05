@@ -230,6 +230,10 @@ describe('answerSafeToSpend', () => {
     fixedBasis: 'detected-series' as const,
     fixedMonths: 0,
     suggestedFixedCents: 300000,
+    // C.19/H.3: this fixture's basis is 'detected-series', which publishes no
+    // itemization — the honest value here, not a convenience default.
+    fixedLineItems: [],
+    fixedLineItemsCoverRemainder: false,
     incomeSlideCents: 0,
     fixedSlideCents: 0,
     hasSlide: false,
