@@ -40,6 +40,7 @@
  */
 import type { SpendingPlan, SpendingPlanDisclosures } from './plan';
 import { REVIEW_FIXED_HREF } from './fixed-review';
+import { reserveLabelSuffix } from './reserves';
 
 /** One printed line's label, plus the control a "not set up" zero should offer. */
 export interface PlanRowLabel {
@@ -151,18 +152,29 @@ function incomeLabel(plan: SpendingPlan): string {
  */
 function fixedLabel(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): PlanRowLabel {
   if (plan.fixedExpensesCents !== 0 || plan.scheduledFixed.length > 0) {
-    if (plan.fixedBasis === 'user-set') return { label: 'Fixed costs (you set)' };
+    // Every label below names the SOURCES inside the figure, so every one of
+    // them is incomplete once a declared reserve is in it (C.23/H.4). The suffix
+    // is authored in `reserves.ts` and is '' when there are none, so a reader
+    // with no reserves sees the label unchanged to the character.
+    const reserves = reserveLabelSuffix(plan.reserveLines.length);
+    if (plan.fixedBasis === 'user-set') return { label: `Fixed costs (you set${reserves})` };
     if (plan.fixedBasis === 'category-designations') {
       return {
-        label: 'Fixed costs (Fixed categories + recurring not in that rollup)',
+        label: `Fixed costs (Fixed categories + recurring not in that rollup${reserves})`,
         action: { label: 'Review Fixed on Spending', href: REVIEW_FIXED_HREF },
       };
     }
+    // 'reserves-only' is the whole figure, so it takes no suffix: appending
+    // "+ reserves you declared" to a label that already says the term IS the
+    // reserves would name the same money twice.
+    if (plan.fixedBasis === 'reserves-only') {
+      return { label: 'Fixed costs (reserves you declared)' };
+    }
     return plan.fixedBasis === 'non-discretionary-median'
       ? {
-          label: `Fixed costs (non-discretionary median of last ${plan.fixedMonths} month${plan.fixedMonths === 1 ? '' : 's'} + recurring not in that spend)`,
+          label: `Fixed costs (non-discretionary median of last ${plan.fixedMonths} month${plan.fixedMonths === 1 ? '' : 's'} + recurring not in that spend${reserves})`,
         }
-      : { label: 'Fixed & recurring expenses (monthly pattern)' };
+      : { label: `Fixed & recurring expenses (monthly pattern${reserves})` };
   }
   const seen = disclosures.fixedSeries;
   const absent = seen.detected - seen.counted;

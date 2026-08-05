@@ -10,6 +10,7 @@ import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { traceConsciousBuckets } from '@/lib/engine/glass-box/trace';
 import {
   CONSCIOUS_BUCKET_LABELS,
+  consciousFixedCounts,
   mapToConsciousBuckets,
   type ConsciousBucketKey,
 } from '@/lib/engine/spending-plan/conscious';
@@ -184,6 +185,7 @@ export function ConsciousBucketsStrip({
             clampPct(share('fixed')),
             clampPct(share('savings')),
             clampPct(share('guiltFree')),
+            consciousFixedCounts(plan.reserveLines.length),
           )}
         </p>
       </CardContent>

@@ -405,3 +405,4 @@ refuses to write if it would drop any number this file already carries.
 - **#409** (Phase ?): C.13 (P1-27): the Fixed/Discretionary heading and the register it opens read one row set — the reconciliation keep is a REQUIRED argument, not a call-site habit (built, critic-cycled)
 - **#410** (Phase ?): C.26 (P1-28): a spending figure's WINDOW is a value it carries, and its register link is built from that same value (built, critic-cycled)
 - **#411** (Phase ?): C.19/H.3: a Fixed TOTAL its list cannot account for — the union emits the rows it summed, `...Cents` is implemented in terms of them, and each line states its own basis (built, critic-cycled)
+- **#412** (Phase ?): C.23/H.4: a reserve is a Fixed cost the reader declares, and the app does the division — reserves leave the savings max as they enter Fixed (built, critic pass in progress)

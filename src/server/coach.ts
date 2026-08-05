@@ -57,6 +57,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { formatISODate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
+import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
 import { loanPaymentBasisFacts, type LoanPaymentBasisFact } from '@/server/loan-payment-basis';
@@ -433,7 +434,22 @@ export async function getCoachData(
   // phrased downstream as standing instructions to set up at the user's bank —
   // Aimplifi reminds, it never moves money (reminders/select.ts invariant).
   const goalRows = await prisma.goal.findMany({
-    where: { userId },
+    // Reserves (C.23/H.4) share this table and are a FIXED cost, not
+    // pay-yourself-first savings: the blueprint's whole sentence is "set up a
+    // standing transfer to savings for X", which is the wrong instruction for
+    // money that is going to be spent on a roof. Excluded by kind rather than
+    // by the null contribution a reserve happens to carry today — a data
+    // convention is whatever the next writer decides it is.
+    where: {
+      userId,
+    // NOT `kind: { not: RESERVE_KIND }`. SQL three-valued logic makes
+    // `kind <> 'reserve'` NULL for a `kind IS NULL` row, and an ordinary
+    // savings goal is exactly that — so the tidy-looking predicate silently
+    // dropped EVERY savings goal (C.23 critic P0-1, executed: a three-goal
+    // user saw one). The set this needs is "everything that is not a
+    // reserve", and a null is not a reserve.
+    OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }],
+    },
     select: { name: true, monthlyContributionCents: true },
   });
   // A CONFIRMED-paused income never anchors the blueprint (#251): telling the user to

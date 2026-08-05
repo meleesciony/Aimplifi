@@ -6,6 +6,7 @@
  * Scans EVERY string COACH_COPY can produce, with representative args.
  */
 import { describe, expect, it } from 'vitest';
+import { CONSCIOUS_BUCKET_COUNTS } from '@/lib/engine/spending-plan/conscious';
 import { COACH_COPY, generateMoneyReview, wealthTargetPlanUnproven } from '@/lib/engine/fi/coach-copy';
 import type { CreepResult, MonthlyFlow, Opportunity } from '@/lib/engine/fi/insights';
 import { type PaymentReminder, reminderLine } from '@/lib/engine/reminders/select';
@@ -507,7 +508,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'savingsPersonalBest', text: COACH_COPY.savingsPersonalBest(3197, 'May 2026'), isProjection: false },
   { label: 'cushionIsAGoal', text: COACH_COPY.cushionIsAGoal(), isProjection: false },
   { label: 'assumptionsChange', text: COACH_COPY.assumptionsChange(), isProjection: false },
-  { label: 'consciousSpending', text: COACH_COPY.consciousSpending(58, 14, 28), isProjection: false },
+  { label: 'consciousSpending', text: COACH_COPY.consciousSpending(58, 14, 28, CONSCIOUS_BUCKET_COUNTS.fixed), isProjection: false },
   { label: 'consciousOverspent', text: COACH_COPY.consciousOverspent(), isProjection: false },
   { label: 'automationBlueprintBanner', text: COACH_COPY.automationBlueprintBanner(), isProjection: false },
   { label: 'automationSavingsStep', text: COACH_COPY.automationSavingsStep('payday', cents(50000), 'Emergency Fund'), isProjection: false },

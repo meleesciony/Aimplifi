@@ -310,7 +310,8 @@ export default async function BudgetsPage() {
       />
       <PlanFiguresForm
         suggestedIncomeCents={plan.suggestedIncomeCents}
-        suggestedFixedCents={plan.suggestedFixedCents}
+      patternFixedCents={plan.patternFixedCents}
+      reserveMonthlyCents={plan.reserveMonthlyCents}
         incomeOverrideCents={plan.incomeOverrideCents}
         fixedOverrideCents={plan.fixedOverrideCents}
         savingsTargetBps={user?.savingsTargetBps ?? null}

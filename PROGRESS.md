@@ -1694,3 +1694,81 @@ asserts the property.
 
 **Gate after cycle 2:** VERIFY GREEN — tsc 0, eslint 0, **5983 unit / 363
 files**, build clean.
+
+
+## C.23 / H.4 — reserves are a first-class Fixed kind (2026-08-05, BUILT, critic pass owed)
+
+**What shipped.** The owner's third source of committed money — *"money being
+reserved every month for home repair"*, *"yearly membership dues… divide by 12
+and put that cash aside"* — now has a model. A reserve is a `Goal` row with
+`kind = 'reserve'`, storing the TRUE COST and its rhythm in `targetCents` +
+a new additive nullable `Goal.cadence`; the app does the division
+(`resolveReserves` → `monthlyRateCents`), never the reader.
+
+**Where the money goes.** Folded into `suggestedFixedCents` AND
+`fixedExpensesCents` rather than published as a fourth term beside them —
+twelve call sites already render the fixed figure, and a separate term would
+have understated Fixed on eleven of them until each was found. New
+`fixedBasis = 'reserves-only'` for the reader whose whole fixed term is the
+declaration (`'none'` would have said "we found nothing" beside a non-zero
+figure they typed themselves).
+
+**The double-count hazard (H.4 criterion 2), closed twice.** `plannedSavings`
+is `max(goalContributions, target)` — a floor, never a sum — so a reserve
+inside that reduce is committed as savings AND as Fixed. Reserves store a null
+contribution, and the loader ALSO filters `kind !== 'reserve'` explicitly. The
+second is what the test locks, via a row carrying both (a data convention is
+whatever the next writer decides it is).
+
+**Refusals are loud.** `monthlyRateCents`'s default returns the amount
+unchanged, so a stored `'YEARLY'` would enter the plan at 12x. The cadence is
+validated against `RESERVE_CADENCES` and anything else is refused, named on the
+page, and given its own remove control.
+
+**Four basis authors updated**, because each enumerates the sources in the
+figure and each was incomplete the moment a source with no transaction behind
+it entered: `fixedLabel`, `safeToSpendParts`, the composition card, and the
+Fixed list's own note. The clause is authored once in `reserves.ts`.
+
+**Gate:** `bash scripts/verify.sh` → VERIFY GREEN — tsc 0, eslint 0,
+**6029 unit / 365 files**, build clean. E2E `fixed-composition.spec.ts` 3/3
+(the H.4 test drives the real form). Fail-old proven by mutation: deleting
+`reserves: reserves.lines` from the loader fails 2; deleting the
+`kind !== RESERVE_KIND` filter fails 1.
+
+**Schema:** additive nullable `Goal.cadence` only.
+
+### Critic cycle 1 (C.23/H.4) — three fresh-context critics, all FAIL: 1 P0, 5 P1, 4 P2, all executed, all fixed
+
+**P0-1, the sharpest, and it broke a feature this slice does not touch.** Excluding
+reserves from the two other Goal readers with `kind: { not: 'reserve' }` reads as
+"everything else" and is not: SQL three-valued logic makes `kind <> 'reserve'`
+NULL for a `kind IS NULL` row, and an ordinary savings goal is exactly that. So
+/goals rendered an empty list and the coach's automation blueprint stopped
+emitting standing-transfer instructions. Reproduced first-hand before fixing.
+
+**P1s.** (a) The override form printed `suggestedFixedCents` — pattern + reserves —
+beside an input that replaces only the pattern half, so locking the number the app
+displayed counted the reserve twice; the plan now publishes `patternFixedCents`
+and the form names what stays on top. (b) The slide sentence contradicted its own
+operands by exactly the reserve. (c) A cost above a Postgres `integer` was written
+on SQLite and would throw on INSERT in production, where the form's catch-all
+reloads showing no reserve and no error. (d) `/dashboard` renders the figure the
+write moves and was not revalidated. (e) The Conscious caption told a reserves-only
+reader that the whole bucket was "whatever is marked Fixed on Spending".
+
+**P2s.** A cost too small to have a monthly share printed a $0.00 line and walked
+`buildFixedList` into the one state its ladder has no branch for — an EMPTY note
+where the type promises a sentence in every case; refused in the engine AND at the
+form, because the page's stated remedy ("remove it and add it again") otherwise
+reproduced the identical row. The refusal headline blamed the amount for a bad
+cadence and used "saved", the one word this feature argues a reserve is not.
+"Reserve" already meant *savings you keep* one paragraph up the same page; that
+verb is now "hold back". Ask's basis sentence names the reserve as a qualifier.
+
+**Found by me before the critics, and worth its own lesson:** the override-form
+defect above. `docs/lessons/a-control-that-replaces-a-half-must-be-told-which-half.md`.
+
+**Re-gate:** `bash scripts/verify.sh` → VERIFY GREEN — tsc 0, eslint 0,
+**6036 unit / 365 files**, build clean. E2E `fixed-composition.spec.ts` 3/3 +
+`spending-plan.spec.ts` 1/1. 8 REGRESSION_LEDGER entries.

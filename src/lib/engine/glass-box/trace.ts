@@ -37,6 +37,7 @@ import {
 } from '@/lib/engine/spending-plan/conscious';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
+import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
 import {
   BUDGETS_CARD_NOTE_SURFACE,
   planCardNotes,
@@ -262,11 +263,35 @@ interface SafeToSpendParts {
  * guess (the L.15 lesson), and only the server caller passes the measured flag.
  */
 function fixedTermDataDerived(plan: SpendingPlan): boolean {
+  // A declared reserve is the reader's own number, for a commitment no
+  // transaction implies — the same kind of input as a budget target priced by
+  // hand, and disqualifying for the same reason. Tested FIRST because it holds
+  // on every basis: a reserve rides on top of the pattern, so an otherwise
+  // data-derived term stops being purely data-derived the moment one exists.
+  if (plan.reserveMonthlyCents > 0) return false;
   if (plan.fixedBasis === 'user-set') return false;
   if (plan.fixedBasis === 'category-designations') {
     return (plan.categoryFixedHasReaderInput ?? true) === false;
   }
   return true;
+}
+
+/**
+ * Add the reserve sentence to a basis explanation that enumerates sources.
+ *
+ * Every branch of `fixedRate` is an enumeration ("Fixed costs are X plus Y"), so
+ * every branch is incomplete once a declared reserve is in the figure. The one
+ * exception is `'reserves-only'`, whose own sentence already says the term IS
+ * the reserves — appending "it also includes" there would describe a second
+ * source that does not exist.
+ */
+function appendReserveClause(plan: SpendingPlan, parts: string[]): string[] {
+  if (plan.fixedBasis === 'reserves-only') return parts;
+  const clause = reserveTermClause(plan.reserveLines.length);
+  // An empty enumeration means no figure was explained at all; a lone sentence
+  // about reserves would then qualify nothing.
+  if (clause === '' || parts.length === 0) return parts;
+  return [...parts, clause];
 }
 
 function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): SafeToSpendParts {
@@ -336,7 +361,8 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
     // property of the formula itself and is true for every reader, including
     // the one with no bills at all — it is what stops "$0 fixed" being read as
     // "nothing I spend is counted anywhere".
-    fixedRate:
+    fixedRate: appendReserveClause(
+      plan,
       plan.fixedBasis === 'user-set'
         ? [
             `Fixed costs are the monthly figure you set on this plan (suggested from non-discretionary spending: ${formatCents(cents(plan.suggestedFixedCents))}). Savings is separate — your savings target is not a discretionary cut.`,
@@ -349,11 +375,16 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
             ? [
                 `Fixed costs are the median of your last ${plan.fixedMonths} complete month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spending (groceries, housing, utilities, insurance, and similar — not dining out, golf, or shopping), plus detected recurring bills not already in that spend (for example an auto-loan ACH tagged as a transfer). Savings is separate from this line.`,
               ]
-            : plan.scheduledFixed.length > 0
+            : plan.fixedBasis === 'reserves-only'
               ? [
-                  'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12.',
+                  'Fixed costs here are entirely the reserves you declared — nothing in your transactions produced a fixed figure yet.',
                 ]
-              : [],
+              : plan.scheduledFixed.length > 0
+                ? [
+                    'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12.',
+                  ]
+                : [],
+    ),
     // The understated NON-ZERO figure, which no label can reach (L.30) —
     // authored once in `row-labels.ts` beside the labels, and printed by the Ask
     // answer too. 'left-to-spend' because this panel's headline is always

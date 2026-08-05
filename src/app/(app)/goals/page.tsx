@@ -4,6 +4,7 @@ import { EmptyGoals } from '@/components/onboarding/route-empty';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { prisma } from '@/lib/db';
 import { goalFIImpact } from '@/lib/engine/goals';
+import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
@@ -22,7 +23,25 @@ export default async function GoalsPage() {
   // No accounts yet → route-framed onboarding; getCoachData throws on empty (DECISIONS #44).
   if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyGoals />;
   const [goals, coach, debts] = await Promise.all([
-    prisma.goal.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
+    // Reserves (C.23/H.4) share the Goal table and are NOT goals: they pre-fund
+    // an expense rather than build wealth, they carry no monthly contribution,
+    // and every card on this page states an effect on the reader's FI date —
+    // which a reserve does not have and which `goalFIImpact` would compute from
+    // a null contribution as though it did. They live on the Plan page, beside
+    // the fixed total they are part of.
+    prisma.goal.findMany({
+      where: {
+        userId,
+      // NOT `kind: { not: RESERVE_KIND }`. SQL three-valued logic makes
+      // `kind <> 'reserve'` NULL for a `kind IS NULL` row, and an ordinary
+      // savings goal is exactly that — so the tidy-looking predicate silently
+      // dropped EVERY savings goal (C.23 critic P0-1, executed: a three-goal
+      // user saw one). The set this needs is "everything that is not a
+      // reserve", and a null is not a reserve.
+      OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }],
+      },
+      orderBy: { name: 'asc' },
+    }),
     getCoachData(userId),
     loadDebtAccounts(userId),
   ]);

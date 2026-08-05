@@ -20,7 +20,6 @@ import {
   opportunityRowTrailsContributions,
   opportunityValueTrailsContributions,
 } from './fi';
-import { CONSCIOUS_BUCKET_COUNTS } from '@/lib/engine/spending-plan/conscious';
 
 /**
  * The cash-needed cover transfer, as the Money Review consumes it.
@@ -911,8 +910,12 @@ export const COACH_COPY = {
   // Investing folded into savings (no per-month contribution flow); stated inline.
   // Fixed numerator = must-pay Fixed categories (Wave B) — band copy must name that
   // (CONSCIOUS_BUCKET_COUNTS), not "recurring costs" alone. Card pay stays out.
-  consciousSpending: (fixedPct: number, savePct: number, funPct: number) =>
-    `About ${fixedPct}% of your income pattern goes to Fixed costs (${CONSCIOUS_BUCKET_COUNTS.fixed}), ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free. A rough target is 50–60% / 15–20% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
+  // `fixedCounts` is REQUIRED (C.23/H.4 critic P1-1): the caption enumerates what
+  // is in the Fixed bucket, and a declared reserve is in it and is marked
+  // nowhere. A default here would let the two call sites disagree silently,
+  // which is the shape L.30 was written about.
+  consciousSpending: (fixedPct: number, savePct: number, funPct: number, fixedCounts: string) =>
+    `About ${fixedPct}% of your income pattern goes to Fixed costs (${fixedCounts}), ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free. A rough target is 50–60% / 15–20% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
 
   consciousOverspent: () =>
     `Fixed costs and savings have outpaced this month's income pattern, so guilt-free has gone negative — one month is weather, not climate. The trend is what matters.`,

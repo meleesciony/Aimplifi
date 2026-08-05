@@ -689,7 +689,19 @@ model Goal {
   // null = a savings goal (rendered via goalFIImpact); 'debt_free' = an inverse
   // debt-free-by-date plan (DECISIONS #125), rendered with the solver's own date
   // rather than the savings-goal timeline. Nullable + default-null ⇒ demo/golden untouched.
+  // 'reserve' = a sinking fund (C.23/H.4): money set aside monthly against a known
+  // future expense. A reserve is a FIXED cost, not savings — see
+  // src/lib/engine/spending-plan/reserves.ts for why that is a distinction and not
+  // a reversal of the 2026-08-01 "savings is never Fixed" rule. On a reserve row
+  // `targetCents` holds the TRUE COST once per `cadence` and the app does the
+  // division; `monthlyContributionCents` stays null so the row can never be summed
+  // as a savings contribution.
   kind                     String?
+  // The reserve's rhythm: MONTHLY | QUARTERLY | SEMIANNUAL | ANNUAL. Meaningful only
+  // when kind = 'reserve'; null everywhere else. Validated at read time against
+  // RESERVE_CADENCES rather than trusted — an unrecognized value must never fall
+  // through to "monthly", which would enter the plan at 12x its truth.
+  cadence                  String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

@@ -184,3 +184,71 @@ test('H.3: the rendered lines add up to the rendered total, and the page says so
   await expect(panel.getByTestId('fixed-composition-reconciled')).toBeVisible();
   await expect(panel.getByTestId('fixed-composition-partial')).toHaveCount(0);
 });
+
+/**
+ * TASKS H.4 / C.23 — a DECLARED reserve is a line in the same list, at cost/12,
+ * and the total still accounts for every line.
+ *
+ * The owner: *"Fixed expense list must include mortgage and various savings for
+ * longer term expenditures (yearly membership dues, home repair, etc…)"*, and
+ * *"The way I personally categorize yearly membership dues is I divide by 12 and
+ * put that cash aside."*
+ *
+ * Driven through the real form rather than a seeded row, because the division is
+ * the feature: the reader types the WHOLE cost and the app produces the monthly
+ * share. Seeding the Goal row directly would test the engine a unit test already
+ * covers and would skip the one thing only a browser can check — that the
+ * cadence the reader chose is the cadence that gets stored.
+ */
+test('H.4: a declared yearly reserve is listed at a twelfth, beside the mortgage, inside the total', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedOwnerShape(email);
+
+  await page.goto('/spending-plan');
+  const before = await page
+    .getByTestId('fixed-composition')
+    .getByTestId('fixed-composition-total')
+    .innerText();
+
+  const form = page.getByTestId('reserve-form');
+  await expect(form).toBeVisible();
+  await form.getByPlaceholder('Home repair').fill('Gym dues');
+  await form.getByPlaceholder('1200').fill('1200');
+  await form.getByTestId('reserve-cadence').selectOption('ANNUAL');
+  await form.getByTestId('reserve-create').click();
+
+  const panel = page.getByTestId('fixed-composition');
+  const reserveRow = panel.getByTestId('fixed-composition-row').filter({ hasText: /Gym dues/i });
+  await expect(reserveRow).toHaveCount(1, { timeout: 20_000 });
+  // $1,200.00 a year, listed at $100.00 — the owner's own arithmetic, done for him.
+  await expect(reserveRow.getByTestId('fixed-composition-amount')).toHaveText(money(10_000));
+  // Marked as a declaration, so it is not mistaken for a detected charge.
+  await expect(reserveRow.getByTestId('fixed-composition-reserve-chip')).toHaveText(/reserve/i);
+  // And it says WHY $100 is not the number on any statement.
+  await expect(reserveRow.getByTestId('fixed-composition-basis')).toHaveText(
+    /a twelfth of the yearly cost/i,
+  );
+
+  // The mortgage is still there — a reserve joins the list, it does not replace it.
+  await expect(
+    panel.getByTestId('fixed-composition-row').filter({ hasText: new RegExp(MORTGAGE_DESCRIPTOR, 'i') }),
+  ).toHaveCount(1);
+
+  // The total moved by exactly the monthly share, and the rendered lines still
+  // add up to the rendered total.
+  const toCents = (s: string) => Math.round(parseFloat(s.replace(/[$,]/g, '')) * 100);
+  const totalText = await panel.getByTestId('fixed-composition-total').innerText();
+  expect(toCents(totalText) - toCents(before)).toBe(10_000);
+  const rendered = await panel.getByTestId('fixed-composition-amount').allInnerTexts();
+  expect(rendered.reduce((acc, s) => acc + toCents(s), 0)).toBe(toCents(totalText));
+  await expect(panel.getByTestId('fixed-composition-reconciled')).toBeVisible();
+
+  // The declaration is editable where it was made: one row, with its whole cost
+  // stated in the reader's own terms.
+  const editorRow = page.getByTestId('reserves-section').getByTestId('reserve-row');
+  await expect(editorRow).toHaveCount(1);
+  await expect(editorRow.getByTestId('reserve-row-basis')).toHaveText(/\$1,200\.00 a year/);
+  await expect(editorRow.getByTestId('reserve-row-monthly')).toHaveText('$100.00/mo');
+});

@@ -13,6 +13,7 @@ import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { computeSpendingPlan } from '@/lib/engine/spending-plan/plan';
 import {
   CONSCIOUS_BUCKET_COUNTS,
+  consciousFixedCounts,
   CONSCIOUS_TARGET_BPS,
   mapToConsciousBuckets,
 } from '@/lib/engine/spending-plan/conscious';
@@ -107,6 +108,17 @@ describe('mapToConsciousBuckets — provably equal re-partition', () => {
   });
 });
 
+describe('C.23/H.4 — the caption names the reserve the bucket contains', () => {
+  it('a declared reserve is added to the Fixed enumeration, and nothing changes without one', () => {
+    expect(consciousFixedCounts(0)).toBe(CONSCIOUS_BUCKET_COUNTS.fixed);
+    expect(consciousFixedCounts(1)).toContain('plus the reserve you declared');
+    expect(consciousFixedCounts(3)).toContain('plus the 3 reserves you declared');
+    // The rendered sentence carries it — the caption is the surface, not the table.
+    const text = COACH_COPY.consciousSpending(2, 0, 98, consciousFixedCounts(1));
+    expect(text).toContain('plus the reserve you declared');
+  });
+});
+
 describe('B.3 — Sethi band stays; Fixed copy names the widened numerator', () => {
   it('test_regression__conscious_fixed_band_stays_50_60_after_widened_numerator', () => {
     expect(CONSCIOUS_TARGET_BPS.fixed).toEqual([5000, 6000]);
@@ -115,7 +127,7 @@ describe('B.3 — Sethi band stays; Fixed copy names the widened numerator', () 
   });
 
   it('test_regression__conscious_caption_names_must_pay_fixed_not_bills_alone', () => {
-    const text = COACH_COPY.consciousSpending(58, 14, 28);
+    const text = COACH_COPY.consciousSpending(58, 14, 28, CONSCIOUS_BUCKET_COUNTS.fixed);
     expect(text).toContain(CONSCIOUS_BUCKET_COUNTS.fixed);
     expect(text).toMatch(/50–60%/);
     expect(text).toMatch(/income pattern/);

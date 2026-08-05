@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { monthKey } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
+import { reserveLabelSuffix } from '@/lib/engine/spending-plan/reserves';
 import {
   CATEGORY_NAME_LINK_CLASS,
   spendClassMonthRegisterHref,
@@ -27,14 +28,19 @@ function incomeBasisNote(plan: SpendingPlan): string {
 }
 
 function fixedBasisNote(plan: SpendingPlan): string {
-  if (plan.fixedBasis === 'user-set') return 'you locked this intention';
+  // Same rule as the row labels: each note enumerates the sources in the figure,
+  // so each needs the reserve fact appended (C.23/H.4). '' when there are none.
+  const reserves = reserveLabelSuffix(plan.reserveLines.length);
+  if (plan.fixedBasis === 'user-set') return `you locked this intention${reserves}`;
   if (plan.fixedBasis === 'category-designations') {
-    return 'app calculated — Fixed categories (budget or typical), plus recurring bills not already in that rollup';
+    return `app calculated — Fixed categories (budget or typical), plus recurring bills not already in that rollup${reserves}`;
   }
   if (plan.fixedBasis === 'non-discretionary-median') {
-    return `app calculated — median of last ${plan.fixedMonths} month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spend, plus recurring not already in that spend`;
+    return `app calculated — median of last ${plan.fixedMonths} month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spend, plus recurring not already in that spend${reserves}`;
   }
-  if (plan.fixedBasis === 'detected-series') return 'app calculated — from recurring bills';
+  if (plan.fixedBasis === 'detected-series') return `app calculated — from recurring bills${reserves}`;
+  // The whole term is the declaration — "you set aside", not "app calculated".
+  if (plan.fixedBasis === 'reserves-only') return 'reserves you declared';
   return 'none counted yet';
 }
 

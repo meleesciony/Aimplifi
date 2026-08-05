@@ -17,6 +17,9 @@ import {
   spendClassMonthRegisterHref,
 } from '@/lib/engine/transactions/links';
 import { UNNAMED_BILL_LABEL } from '@/lib/engine/spending-plan/fixed-line-items';
+import { RESERVE_CADENCE_WORDS } from '@/lib/engine/spending-plan/reserves';
+import { ReserveForm } from '@/components/finance/reserve-form';
+import { DeleteReserveButton } from '@/components/finance/delete-reserve-button';
 
 export const metadata = { title: "Spending plan" };
 
@@ -32,7 +35,8 @@ export default async function SpendingPlanPage() {
   const figuresForm = (
     <PlanFiguresForm
       suggestedIncomeCents={p.suggestedIncomeCents}
-      suggestedFixedCents={p.suggestedFixedCents}
+      patternFixedCents={p.patternFixedCents}
+      reserveMonthlyCents={p.reserveMonthlyCents}
       incomeOverrideCents={p.incomeOverrideCents}
       fixedOverrideCents={p.fixedOverrideCents}
       savingsTargetBps={p.savingsTargetBps}
@@ -232,10 +236,11 @@ export default async function SpendingPlanPage() {
           </p>
         ))}
         <p className="mt-3 text-xs text-muted-foreground">
-          Income − savings% − non-discretionary fixed (groceries and bills in; dining out out).
+          Income − savings% − non-discretionary fixed (groceries and bills in; dining out out)
+          {p.reserveLines.length > 0 ? ', plus anything you set aside below' : ''}.
           Card payments settle spend already counted; cash needed for them lives on Home.
           {p.savingsTargetBps == null && p.plannedSavingsCents > 0 ? (
-            <> Set a savings target in Settings to reserve a share of income first.</>
+            <> Set a savings target in Settings to hold back a share of income first.</>
           ) : null}
         </p>
       </section>
@@ -285,6 +290,19 @@ export default async function SpendingPlanPage() {
                         data-testid="fixed-composition-bill-chip"
                       >
                         {l.loanPayment ? 'loan payment' : 'repeating bill'}
+                      </span>
+                    ) : null}
+                    {/* A reserve is the one line with no transaction behind it,
+                        and it sits in a list whose every other row was measured
+                        from real spending. Unchipped, the reader has no way to
+                        tell their own declaration from a detected bill — and
+                        would go looking for a charge that does not exist. */}
+                    {l.kind === 'reserve' ? (
+                      <span
+                        className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide"
+                        data-testid="fixed-composition-reserve-chip"
+                      >
+                        reserve
                       </span>
                     ) : null}
                     {l.basisNote ? (
@@ -340,6 +358,110 @@ export default async function SpendingPlanPage() {
               {p.fixedList.note}
             </p>
           </>
+        )}
+      </section>
+
+      {/* C.23 / H.4 — the owner's third source of fixed money, in his words:
+          "money being reserved every month for home repair… The way I
+          personally categorize yearly membership dues is I divide by 12 and put
+          that cash aside." The division is the app's job, so this form asks for
+          the WHOLE cost and its rhythm. Placed directly under the Fixed list it
+          feeds, because a control belongs beside the figure it moves. */}
+      <section
+        className="rounded-2xl border bg-card p-5 shadow-sm"
+        data-testid="reserves-section"
+      >
+        <h2 className="mb-1 text-sm font-semibold">Money you set aside each month</h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          For costs that are real but haven&apos;t arrived yet — home repair, yearly
+          dues, a car service. Tell us the whole cost and how often it comes around;
+          we divide it and count the monthly share as a fixed cost, so it isn&apos;t
+          sitting in your guilt-free spending looking like money you can spend on
+          something else.
+        </p>
+        {p.reserveLines.length > 0 ? (
+          <dl className="mb-3 divide-y text-sm">
+            {p.reserveLines.map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center justify-between gap-3 py-2"
+                data-testid="reserve-row"
+              >
+                <dt className="min-w-0 text-muted-foreground">
+                  <span className="text-foreground" data-testid="reserve-row-name">
+                    {r.name}
+                  </span>
+                  <span className="mt-0.5 block text-xs" data-testid="reserve-row-basis">
+                    {formatCents(cents(r.trueCostCents))} {RESERVE_CADENCE_WORDS[r.cadence]}
+                  </span>
+                </dt>
+                <dd className="flex shrink-0 items-center gap-2">
+                  <span className="tabular-nums" data-testid="reserve-row-monthly">
+                    {formatCents(cents(r.monthlyCents))}/mo
+                  </span>
+                  <DeleteReserveButton reserveId={r.id} reserveName={r.name} />
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        {/* A declaration the plan could not read is money the reader told us
+            about and the plan is now spending as though it were free. It is
+            named — AND it keeps its remove control, because a row the reader
+            cannot see in the list above is a row they cannot act on, and
+            "remove it and add it again" would be an instruction with nothing
+            to click (`prevention-is-not-a-remedy`). */}
+        {p.refusedReserves.length > 0 ? (
+          <div className="mb-3" data-testid="reserves-refused">
+            {/* The headline states only what is true of EVERY refused row —
+                that it is not in the figure, and that removing and re-adding it
+                is the remedy. The first cut blamed the amount, which is false
+                for a bad cadence and false again for a cost the app read
+                perfectly well and found too small; each row states its own
+                reason below (`a-disclosure-is-several-claims-in-one-sentence`).
+                It also said "what you saved", the one word this whole feature
+                argues a reserve is not. */}
+            <p className="text-xs text-red-500">
+              {p.refusedReserves.length === 1
+                ? "One of your reserves isn't in your fixed costs. Remove it and add it again to fix it."
+                : `${p.refusedReserves.length} of your reserves aren't in your fixed costs. Remove them and add them again to fix them.`}
+            </p>
+            <dl className="mt-1 divide-y text-sm">
+              {p.refusedReserves.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between gap-3 py-2"
+                  data-testid="reserve-refused-row"
+                >
+                  <dt className="min-w-0 text-muted-foreground">
+                    <span className="text-foreground">{r.name}</span>
+                    <span className="mt-0.5 block text-xs">
+                      {r.reason === 'bad-cadence'
+                        ? "we can't tell how often this cost comes around"
+                        : r.reason === 'rounds-to-zero'
+                          ? 'spread over the year this comes to less than a cent a month'
+                          : "the amount saved isn't a usable figure"}
+                    </span>
+                  </dt>
+                  <dd className="shrink-0">
+                    <DeleteReserveButton reserveId={r.id} reserveName={r.name} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null}
+        {/* The shared demo is one row every visitor shares, so a reserve typed
+            here would land in the next visitor's fixed costs. The server action
+            refuses it either way; hiding the form is the courtesy half, matching
+            how the Plan figures form treats the same account. */}
+        {canEditFigures ? (
+          <ReserveForm />
+        ) : (
+          <p className="text-xs text-muted-foreground" data-testid="reserves-demo-note">
+            The demo is a shared account, so reserves can&apos;t be added here — create your
+            own free account to set aside your own money.
+          </p>
         )}
       </section>
 

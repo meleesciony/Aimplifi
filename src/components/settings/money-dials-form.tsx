@@ -248,7 +248,7 @@ export function MoneyDialsForm({
             />
             <span id="dials-hint-savings-target" className="text-xs text-muted-foreground">
               Pay yourself first: this share of your monthly income pattern is set aside
-              before guilt-free spending is counted. We reserve the larger of this and your
+              before guilt-free spending is counted. We count the larger of this and your
               goal contributions — never both. Leave blank to use your goals alone.
             </span>
             <FieldError id="dials-error-savingsTarget" message={err('savingsTarget')} />

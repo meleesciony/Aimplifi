@@ -4308,3 +4308,60 @@ if it were a claim about the COMPOSITION.
 **Deliberately NOT in this slice:** reserves / sinking funds (the owner's third
 Fixed source — "money set aside every month for home repair", yearly dues ÷ 12)
 have no model in the app and remain C.23/H.4.
+
+## #412 — C.23/H.4: a reserve is a Fixed cost the reader declares, and the app does the division (built, critic pass in progress)
+
+**The owner's model, in his words, has three sources of Fixed and the app modelled
+two.** A bill that leaves this month; a longer-rhythm bill smoothed to a monthly
+rate (`monthlyRateCents` — his ÷12 and the engine's are the same arithmetic); and
+*"money being reserved every month for home repair"* — a sinking fund with no
+merchant, no series and no history behind it. The third is discoverable from
+nothing, so it must be DECLARED.
+
+**Fixed, not savings — a distinction, not a reversal.** `plan.ts:446` records the
+owner's 2026-08-01 rule that savings/investing is never a Plan Fixed class, and
+that rule stands untouched: a reserve pre-funds a known EXPENSE (a bill deferred),
+savings builds a balance the reader keeps. `investment` is still never Fixed.
+
+**Carrier: a `Goal` row with `kind = 'reserve'` and a new additive nullable
+`Goal.cadence`.** `targetCents` holds the TRUE COST once per cadence and the app
+divides — a stored monthly figure would lose the fact that $100 is a twelfth of
+something, which is the only way the line can explain itself beside a real bill.
+
+**The double-count hazard, closed twice by construction.** `plannedSavingsCents`
+is `max(goalContributions, savingsTarget)` — "a floor, never a sum" — so a reserve
+inside that reduce is committed once as savings and again as Fixed, and
+`leftToSpend` understates by the reserve. Reserves store a null contribution AND
+the loader filters `kind !== 'reserve'` explicitly. The second is what is locked,
+via a row carrying both: a data convention is whatever the next writer decides it
+is, and a defence that cannot fail a test gets deleted as dead code.
+
+**Folded INTO the existing figure, not published beside it.** Twelve call sites
+render `fixedExpensesCents`; a fourth term would have understated Fixed on eleven
+of them until each was found — `one-loader-is-not-one-reader`, shipped on purpose.
+So `suggestedFixedCents` and `fixedExpensesCents` both include reserves, and the
+lines travel with them so the composition stays sayable.
+
+**A typed fixed override does not cancel the declaration.** The override (#372) is
+a number typed over a figure derived from SPENDING PATTERNS; a reserve is a
+separate statement made on a different screen. Dropping it would let the reader's
+own two statements silently cancel. Failure direction decides the tie: counting it
+over-commits (conservative, and visible in the list); dropping it hands back money
+already promised elsewhere.
+
+**New `fixedBasis = 'reserves-only'`,** because `'none'` is read by four label
+authors as "we could not find fixed costs", which is false beside a non-zero
+figure the reader typed themselves — and it is not `'user-set'` either.
+
+**Four basis authors updated,** each of which ENUMERATES the sources in the figure
+and each of which was incomplete the moment a source with no transaction behind it
+entered it: `fixedLabel`, `safeToSpendParts`, the composition card, and the Fixed
+list's own note. The clause is authored once in `reserves.ts`, per L.30's lesson
+about two surfaces hand-rolling one list.
+
+**An unrecognised cadence is refused, never treated as monthly.**
+`monthlyRateCents`'s `default` returns the amount unchanged — correct for a
+detected series whose cadence the detector left null, catastrophic for a stored
+`'YEARLY'`, which would enter the plan at TWELVE TIMES its truth in the direction
+that eats the whole guilt-free line. Refusals leave `resolveReserves` as data, are
+named on the page, and keep their own remove control.

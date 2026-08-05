@@ -48,6 +48,27 @@ export const CONSCIOUS_BUCKET_COUNTS: Record<ConsciousBucketKey, string> = {
   guiltFree: 'guilt-free discretionary spending',
 };
 
+/**
+ * The Fixed caption for THIS reader (C.23/H.4 copy critic P1-1).
+ *
+ * `CONSCIOUS_BUCKET_COUNTS.fixed` enumerates the bucket's sources and ends
+ * "whatever is marked Fixed on Spending" — a membership rule a declared reserve
+ * breaks by construction, because it has no transaction and no category and so
+ * is marked nowhere. Executed on a reserves-only reader, the rendered sentence
+ * described 100% of the bucket as something none of it was.
+ *
+ * The reserve fact is APPENDED rather than woven in, so the existing sentence
+ * (and the two tests that pin it) stay exactly as they were for the readers it
+ * was already true for, and the new clause carries its own truth condition —
+ * `a-disclosure-is-several-claims-in-one-sentence`.
+ */
+export function consciousFixedCounts(reserveCount: number): string {
+  if (reserveCount <= 0) return CONSCIOUS_BUCKET_COUNTS.fixed;
+  return reserveCount === 1
+    ? `${CONSCIOUS_BUCKET_COUNTS.fixed}, plus the reserve you declared`
+    : `${CONSCIOUS_BUCKET_COUNTS.fixed}, plus the ${reserveCount} reserves you declared`;
+}
+
 export interface ConsciousBucket {
   key: ConsciousBucketKey;
   /** Exact partition of patternIncomeCents. `guiltFree` is negative when overspent. */

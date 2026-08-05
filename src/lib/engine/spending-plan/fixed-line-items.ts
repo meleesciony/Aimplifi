@@ -22,12 +22,12 @@
  * when the two halves cannot meet — and the page renders a verdict it cannot
  * forge.
  *
- * WHAT IS DELIBERATELY NOT FIXED HERE. The reserve/sinking-fund third source the
- * owner described (*"money being reserved every month for home repair"*,
- * *"yearly membership dues… divide by 12 and put that cash aside"*) has no model
- * in the app yet; that is C.23/H.4 and it stays out. This slice moves no figure:
- * `suggestedFixedCents` is byte-identical before and after. It only makes the
- * figure's composition sayable.
+ * THE THIRD SOURCE, ADDED BY C.23/H.4. The reserve/sinking fund the owner
+ * described (*"money being reserved every month for home repair"*, *"yearly
+ * membership dues… divide by 12 and put that cash aside"*) now has a model, and
+ * its lines are assembled here beside the other two. It is the only kind with no
+ * transaction behind it, so it is the only kind whose label is the reader's own
+ * words — see `reserves.ts` for why that is Fixed and not savings.
  */
 import {
   LONG_CADENCE_WORDS,
@@ -38,9 +38,12 @@ import {
   fixedAmountBasisClause,
   type FixedCategoryAmount,
 } from '@/lib/engine/spending-plan/fixed-category-amounts';
+import { reserveBasisNote } from '@/lib/engine/spending-plan/reserves';
 
-/** Where a line's money came from — the two halves genuinely differ in kind. */
-export type FixedLineKind = 'category' | 'recurring-bill';
+/** Where a line's money came from — the three sources genuinely differ in kind.
+ *  `'reserve'` is the one with no transaction behind it: the reader declared it
+ *  (C.23/H.4), so it can never be traced to a merchant or a category. */
+export type FixedLineKind = 'category' | 'recurring-bill' | 'reserve';
 
 export interface FixedListLine {
   key: string;
@@ -74,6 +77,16 @@ export interface FixedListLine {
    * counted once a month).
    */
   basisNote: string | null;
+  /**
+   * A RESERVE's whole cost, once per its cadence — the figure the reader
+   * actually typed, which `amountCents` is a twelfth (or third, or sixth) of.
+   *
+   * Carried as a number rather than baked into `basisNote` so the one
+   * `formatCents` at the UI boundary stays the only place money becomes text.
+   * `null` on every other kind: a category average and a detected bill have no
+   * "whole cost" the reader ever stated.
+   */
+  reserveTrueCostCents?: number;
 }
 
 export interface FixedListResult {
@@ -155,6 +168,7 @@ export function buildFixedList(input: {
     | 'fixedExpensesCents'
     | 'fixedLineItems'
     | 'fixedLineItemsCoverRemainder'
+    | 'reserveLines'
   >;
   rollupRows: readonly FixedCategoryAmount[];
   nameOfCategory: (id: string) => string;
@@ -179,7 +193,20 @@ export function buildFixedList(input: {
     loanPayment: r.loanPayment,
     basisNote: billBasisNote(r.cadence),
   }));
-  const lines = [...categoryLines, ...billLines].sort(
+  // Declared reserves (C.23/H.4). The label is the reader's own name for it and
+  // is never decorated with a category or a merchant, because there is neither:
+  // the whole point of this kind is that no transaction implies it.
+  const reserveListLines: FixedListLine[] = plan.reserveLines.map((r) => ({
+    key: `reserve:${r.id}`,
+    label: r.name,
+    amountCents: r.monthlyCents,
+    kind: 'reserve' as const,
+    cadence: r.cadence,
+    loanPayment: false,
+    basisNote: reserveBasisNote(r.cadence),
+    reserveTrueCostCents: r.trueCostCents,
+  }));
+  const lines = [...categoryLines, ...billLines, ...reserveListLines].sort(
     (a, b) => b.amountCents - a.amountCents || a.label.localeCompare(b.label),
   );
   const sum = lines.reduce((s, l) => s + l.amountCents, 0);
@@ -243,6 +270,17 @@ export function buildFixedList(input: {
     parts.push(
       'Your plan uses the fixed-costs figure you set yourself, so these lines are what your data suggests instead.',
     );
+    // …EXCEPT the reserves, which are not a suggestion: they are added on top of
+    // the typed figure (`reserveMonthlyCents`), so the sentence above is false
+    // about them and has to be corrected rather than left to be read across.
+    // `a-disclosure-is-several-claims-in-one-sentence` — one fact, one sentence.
+    if (plan.reserveLines.length > 0) {
+      parts.push(
+        plan.reserveLines.length === 1
+          ? 'The reserve you declared is the exception — it is added on top of the figure you set, because you told us about it separately.'
+          : `The ${plan.reserveLines.length} reserves you declared are the exception — they are added on top of the figure you set, because you told us about them separately.`,
+      );
+    }
   }
   // Gated on the remainder being NON-ZERO, not merely on the basis: a median of
   // zero leaves nothing unlisted, and explaining "the rest" when the rest is

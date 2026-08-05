@@ -20,6 +20,7 @@ import {
   type SpendingBreakdown,
 } from '@/lib/engine/reports/reports';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
+import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
 import { planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import type { Forecast } from '@/lib/engine/forecast/forecast';
@@ -1184,6 +1185,13 @@ export function answerSafeToSpend(
       'Card statement payments are not subtracted here — paying the card settles spending already counted. How much cash you need for cards is answered under Cash needed on the dashboard.',
     );
   }
+  // C.23/H.4 (copy critic P2): every basis sentence below enumerates what the
+  // fixed term subtracts — "fixed and recurring expenses" — and a declared
+  // reserve is neither. It rides the qualifier list rather than being spliced
+  // into four branches, so the enumeration stays true for the readers it was
+  // already true for and the new fact carries its own condition.
+  const reserveClause = reserveTermClause(plan.reserveLines.length);
+  if (reserveClause !== '') qualifiers.push(reserveClause);
   const withQualifiers = (base: string) => [base, ...qualifiers].join(' ');
   if (plan.overspent) {
     // The basis rides this branch too (cycle-2 critic: Ask has no breakdown page, and an

@@ -30,6 +30,7 @@ import { listLearnedPhrases } from '@/server/vocab';
 import { getTaxYears } from '@/server/tax';
 import { LearnedPhrases } from '@/components/settings/learned-phrases';
 import { prisma } from '@/lib/db';
+import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { isDemoUser } from '@/lib/demo-user';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
@@ -66,7 +67,13 @@ export default async function SettingsPage() {
       }),
       prisma.transaction.count({ where: { account: { userId } } }),
       prisma.statement.count({ where: { account: { userId } } }),
-      prisma.goal.count({ where: { userId } }),
+      // Reserves (C.23/H.4) share this table and are a fixed cost, not a goal —
+      // counting them here told a reader with 2 goals and 3 reserves they had 5
+      // goals, in a data-deletion preview (critic P2-2). `not` alone would drop
+      // every `kind IS NULL` savings goal (critic P0-1), hence the OR.
+      prisma.goal.count({
+        where: { userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }] },
+      }),
       prisma.budget.count({ where: { userId } }),
       prisma.categorizationRule.count({ where: { userId } }),
       getCategoryCatalog(userId),

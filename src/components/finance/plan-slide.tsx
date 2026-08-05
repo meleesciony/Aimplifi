@@ -9,7 +9,7 @@ export function PlanSlideNotice({
   incomeSlideCents,
   fixedSlideCents,
   suggestedIncomeCents,
-  suggestedFixedCents,
+  dataFixedCents,
   incomeLocked,
   fixedLocked,
 }: {
@@ -17,7 +17,19 @@ export function PlanSlideNotice({
   incomeSlideCents: number;
   fixedSlideCents: number;
   suggestedIncomeCents: number;
-  suggestedFixedCents: number;
+  /**
+   * The FROM-CATEGORIES fixed figure — `plan.patternFixedCents`, NOT
+   * `suggestedFixedCents` (C.23/H.4 critic P1-2).
+   *
+   * `fixedSlideCents` is `suggested − fixed`, in which the declared reserves
+   * cancel because both sides carry them, so the slide it measures is
+   * `pattern − intention`. Printing the reserve-inclusive suggestion beside that
+   * gap made the sentence contradict its own arithmetic: measured, a $100.00
+   * reserve rendered "$40.00 BELOW your intention ($1,100.00 from data)" over an
+   * intention of $1,040.00 — a figure $60.00 ABOVE it. One sentence, two
+   * operands, and they have to come from the same side of the fold.
+   */
+  dataFixedCents: number;
   incomeLocked: boolean;
   fixedLocked: boolean;
 }) {
@@ -36,11 +48,11 @@ export function PlanSlideNotice({
     const abs = formatCents(cents(Math.abs(fixedSlideCents)));
     if (fixedSlideCents > 0) {
       lines.push(
-        `Fixed costs from categories are ${abs} above your intention (${formatCents(cents(suggestedFixedCents))} from data) — a slide / overspend vs your plan before guilt-free.`,
+        `Fixed costs from categories are ${abs} above your intention (${formatCents(cents(dataFixedCents))} from data) — a slide / overspend vs your plan before guilt-free.`,
       );
     } else {
       lines.push(
-        `Fixed costs from categories are ${abs} below your intention (${formatCents(cents(suggestedFixedCents))} from data).`,
+        `Fixed costs from categories are ${abs} below your intention (${formatCents(cents(dataFixedCents))} from data).`,
       );
     }
   }

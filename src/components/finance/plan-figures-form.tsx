@@ -26,7 +26,8 @@ function bpsToPercent(bps: number | null | undefined): string {
 
 export function PlanFiguresForm({
   suggestedIncomeCents,
-  suggestedFixedCents,
+  patternFixedCents,
+  reserveMonthlyCents,
   incomeOverrideCents,
   fixedOverrideCents,
   savingsTargetBps,
@@ -36,7 +37,10 @@ export function PlanFiguresForm({
   canEdit,
 }: {
   suggestedIncomeCents: number;
-  suggestedFixedCents: number;
+  /** The pattern half of the suggestion — what this form's input replaces (C.23/H.4). */
+  patternFixedCents: number;
+  /** Declared reserves, added on top of any locked figure. 0 for most readers. */
+  reserveMonthlyCents: number;
   incomeOverrideCents: number | null;
   fixedOverrideCents: number | null;
   savingsTargetBps: number | null;
@@ -87,7 +91,7 @@ export function PlanFiguresForm({
         incomeSlideCents={incomeSlideCents}
         fixedSlideCents={fixedSlideCents}
         suggestedIncomeCents={suggestedIncomeCents}
-        suggestedFixedCents={suggestedFixedCents}
+        dataFixedCents={patternFixedCents}
         incomeLocked={incomeOverrideCents != null}
         fixedLocked={fixedOverrideCents != null}
       />
@@ -157,8 +161,16 @@ export function PlanFiguresForm({
         <label className="block text-sm">
           <span className="font-medium text-foreground">Fixed costs — lock intention (optional)</span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
-            From non-discretionary categories: {formatCents(cents(suggestedFixedCents))} —
+            From non-discretionary categories: {formatCents(cents(patternFixedCents))} —
             groceries, housing, bills; not dining out or golf
+            {/* C.23/H.4: the figure above is the PATTERN half, which is all this
+                input replaces. Reserves are a separate declaration and stay
+                added on top of whatever is locked here — so the sentence names
+                them rather than letting the reader lock a number and watch the
+                fixed line come out higher. */}
+            {reserveMonthlyCents > 0
+              ? ` · plus ${formatCents(cents(reserveMonthlyCents))} a month you set aside, which stays added on top of any figure you lock here`
+              : ''}
             {fixedOverrideCents != null
               ? ' · locked — data above this is a slide / overspend vs intention'
               : ' · in use (no lock)'}

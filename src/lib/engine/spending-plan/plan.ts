@@ -81,15 +81,32 @@
 import { addDays, addMonthsClamped, type ISODate } from '@/lib/dates';
 import { median } from '@/lib/stats';
 import { monthsPerCadence } from '@/lib/engine/recurring/detect';
+// TYPE-ONLY, and it has to stay that way: `reserves.ts` imports
+// `monthlyRateCents` from here at runtime, so a value import in this direction
+// would close a module cycle. A `import type` is erased at compile time, which
+// is why the reserve arithmetic can keep sharing this file's one rate table
+// instead of growing a second copy of it (`dedup-must-diff-the-copies-first`).
+import type { ReserveLine } from '@/lib/engine/spending-plan/reserves';
 
 /** Where the plan's income figure came from — every surface states it inline. */
 export type IncomeBasis = 'trailing-median' | 'detected-series' | 'none' | 'user-set';
 
-/** How the fixed-expense term was derived (DECISIONS #371 / #372 / #377). */
+/**
+ * How the fixed-expense term was derived (DECISIONS #371 / #372 / #377).
+ *
+ * `'reserves-only'` (C.23/H.4) is the case where NOTHING in the reader's
+ * transaction history produced a fixed figure and the entire term is the
+ * reserves they declared by hand. It is its own value rather than `'none'`
+ * because `'none'` is read by four label authors as "we could not find fixed
+ * costs", which would be false beside a non-zero figure the reader typed
+ * themselves — and it is not `'user-set'` either, which means "the reader
+ * overrode the whole Fixed line with one number".
+ */
 export type FixedBasis =
   | 'non-discretionary-median'
   | 'category-designations'
   | 'detected-series'
+  | 'reserves-only'
   | 'none'
   | 'user-set';
 
@@ -216,6 +233,20 @@ export interface SpendingPlanInput {
   obligationsBeyondMonthThroughDate: string | null;
   /** True when any card inside `obligationsBeyondMonthCents` is an ESTIMATE. */
   obligationsBeyondMonthEstimated: boolean;
+  /**
+   * Reserves the reader DECLARED (C.23/H.4) — money set aside monthly against a
+   * known future expense, already resolved to monthly rates by `resolveReserves`.
+   *
+   * Optional because `[]` is the true state of every reader who has declared
+   * none, which is every reader before this shipped and every fixture in the
+   * suite; a required argument here would make ~200 test callers answer a
+   * question they have no stake in (`a-required-argument-makes-a-caller-answer-
+   * not-answer-correctly`). The risk it leaves — the ONE production loader
+   * forgetting to pass it, and a declared reserve silently vanishing from Fixed
+   * — is not carried by the type. It is locked by a test that drives the real
+   * server loader against a stored reserve row.
+   */
+  reserves?: readonly ReserveLine[];
 }
 
 /** Which input decided `plannedSavingsCents` — for honest labeling only. */
@@ -351,6 +382,41 @@ export interface SpendingPlan extends SpendingPlanInput {
   fixedMonths: number;
   /** Suggested fixed before any user override (same as fixed when unset). */
   suggestedFixedCents: number;
+  /**
+   * The declared reserves counted INSIDE both fixed figures (C.23/H.4).
+   *
+   * Published because both figures above already include them: a surface
+   * qualifying the Fixed line has to be able to say which part of it came from
+   * a rhythm nobody detected. `[]` for every reader who has declared none.
+   */
+  reserveLines: readonly ReserveLine[];
+  /**
+   * Sum of `reserveLines[].monthlyCents` — the part of the fixed term that has
+   * no transaction behind it, by design.
+   *
+   * IN `fixedExpensesCents` EVEN WHEN THE READER OVERRODE IT. The override
+   * (#372) is a number typed over a figure derived from SPENDING PATTERNS; a
+   * reserve is a separate declaration made on a different screen at a different
+   * time, and dropping it because a pattern figure was overridden would make a
+   * reader's own two statements silently cancel. The failure directions decide
+   * the tie: counting it twice would overstate commitment and shrink guilt-free
+   * spending (conservative, and visible in the list, which is why the list
+   * exists); dropping it hands back money the reader has already promised to
+   * something else. So it is added, and the override's own disclosure says so.
+   */
+  reserveMonthlyCents: number;
+  /**
+   * `suggestedFixedCents` WITHOUT the reserves — the half a fixed override
+   * actually replaces.
+   *
+   * Published because the override form prints the suggestion beside its input
+   * and invites the reader to lock it: showing the reserve-inclusive figure
+   * there would have them type a number that then has the reserves added to it
+   * again, producing a larger fixed cost than the one they just accepted.
+   * Computed here rather than subtracted at the view, so no surface owns a
+   * second derivation of the plan's own arithmetic (the C.26 lesson).
+   */
+  patternFixedCents: number;
   /**
    * The recurring bills counted INSIDE `suggestedFixedCents` that no category
    * rollup line can show (C.19 / H.3) — the mortgage among them.
@@ -856,6 +922,31 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
     fixedMonths = 0;
   }
 
+  // RESERVES (C.23/H.4) — the owner's third source of Fixed, folded into the
+  // figure every existing surface already prints rather than published as a
+  // fourth term beside it. Twelve call sites render `fixedExpensesCents` today;
+  // a separate term would have understated Fixed on eleven of them until each
+  // was found and updated, which is `one-loader-is-not-one-reader` shipped on
+  // purpose. One figure, every reader — and the composition stays sayable
+  // because the lines travel with it.
+  const reserveLines = [...(input.reserves ?? [])];
+  const reserveMonthlyCents = reserveLines.reduce((sum, r) => sum + r.monthlyCents, 0);
+  const patternFixedCents = suggestedFixedCents;
+  suggestedFixedCents = patternFixedCents + reserveMonthlyCents;
+  if (reserveMonthlyCents > 0) {
+    if (suggestedFixedBasis === 'none') {
+      // Nothing in the history, everything from the declaration. Not "none":
+      // there IS a figure and the reader authored all of it.
+      suggestedFixedBasis = 'reserves-only';
+      // Its lines are exactly the reserves, so the list reaches the penny.
+      fixedLineItemsCoverRemainder = true;
+    }
+    // On every other basis the remainder question is unchanged: reserve lines
+    // are individually listable, so a basis that could already be reached to
+    // the penny still can, and a median that never had lines behind it still
+    // has none. `fixedLineItemsCoverRemainder` is deliberately NOT flipped here.
+  }
+
   // Intention locks (#372/#373): when set, plan math uses the intention.
   // Categorized suggestions stay visible; a difference is a slide, not a rewrite.
   const hasIncomeOverride =
@@ -865,7 +956,12 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
 
   const patternIncomeCents = hasIncomeOverride ? input.incomeOverrideCents! : suggestedIncomeCents;
   const incomeBasis: IncomeBasis = hasIncomeOverride ? 'user-set' : suggestedIncomeBasis;
-  const fixedExpensesCents = hasFixedOverride ? input.fixedOverrideCents! : suggestedFixedCents;
+  // The override replaces the PATTERN half only; the declared reserves are added
+  // on top of it (see `reserveMonthlyCents`'s doc for why the reader's two
+  // statements are not allowed to cancel each other).
+  const fixedExpensesCents = hasFixedOverride
+    ? input.fixedOverrideCents! + reserveMonthlyCents
+    : suggestedFixedCents;
   const fixedBasis: FixedBasis = hasFixedOverride ? 'user-set' : suggestedFixedBasis;
 
   const incomeSlideCents = hasIncomeOverride ? suggestedIncomeCents - patternIncomeCents : 0;
@@ -896,6 +992,9 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
     fixedBasis,
     fixedMonths: hasFixedOverride ? 0 : fixedMonths,
     suggestedFixedCents,
+    reserveLines,
+    reserveMonthlyCents,
+    patternFixedCents,
     incomeSlideCents,
     fixedSlideCents,
     hasSlide,

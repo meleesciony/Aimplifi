@@ -50,6 +50,11 @@ import {
   type FixedListResult,
 } from '@/lib/engine/spending-plan/fixed-line-items';
 import { suggestedCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
+import {
+  RESERVE_KIND,
+  resolveReserves,
+  type RefusedReserve,
+} from '@/lib/engine/spending-plan/reserves';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import {
   classifySeriesProjection,
@@ -102,6 +107,17 @@ export interface SpendingPlanWithNotes extends SpendingPlan {
    * figure". A page consumes `lines`, `totalCents` and `note` verbatim.
    */
   fixedList: FixedListResult;
+  /**
+   * C.23/H.4 — reserve declarations this plan could NOT count, with the reason.
+   *
+   * A stored row whose cadence or amount is unusable is not a nothing: the
+   * reader declared a monthly commitment and the plan is now spending that money
+   * as guilt-free. The list travels so a surface can say "you declared 3 and we
+   * count 2" instead of silently printing the smaller number
+   * (`a-zero-is-a-claim-and-must-name-which-zero`). Empty for every reader whose
+   * declarations all resolved.
+   */
+  refusedReserves: RefusedReserve[];
 }
 
 export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithNotes> {
@@ -250,7 +266,20 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   // pay-yourself-first % target from Settings (#295). The engine takes the max.
   // Budgets feed the #377 per-category Fixed rollup (budget target else typical).
   const [goals, user, linkedCreditCardCount, budgetRows, fixedSeriesByStatus] = await Promise.all([
-    prisma.goal.findMany({ where: { userId }, select: { monthlyContributionCents: true } }),
+    // `kind` and the reserve fields come back too (C.23/H.4): a reserve is stored
+    // as a Goal row and must be summed as a FIXED cost, never as a savings
+    // contribution — see the split below.
+    prisma.goal.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        name: true,
+        kind: true,
+        targetCents: true,
+        cadence: true,
+        monthlyContributionCents: true,
+      },
+    }),
     prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -282,7 +311,26 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
       _count: { _all: true },
     }),
   ]);
-  const goalContributionsCents = goals.reduce((sum, g) => sum + (g.monthlyContributionCents ?? 0), 0);
+  // THE DOUBLE-COUNT GATE (C.23/H.4). `plannedSavingsCents` is
+  // `max(goalContributions, savingsTarget)` — "a floor, never a sum" — so a
+  // reserve left inside this reduce would be committed once as savings and again
+  // as Fixed, and `leftToSpend` would understate by exactly the reserve. The
+  // filter is EXPLICIT rather than relying on reserves storing a null
+  // contribution: that null is a data convention, and a data convention is
+  // whatever the next writer decides it is.
+  const goalContributionsCents = goals
+    .filter((g) => g.kind !== RESERVE_KIND)
+    .reduce((sum, g) => sum + (g.monthlyContributionCents ?? 0), 0);
+  const reserves = resolveReserves(
+    goals
+      .filter((g) => g.kind === RESERVE_KIND)
+      .map((g) => ({
+        id: g.id,
+        name: g.name,
+        trueCostCents: g.targetCents,
+        cadence: g.cadence,
+      })),
+  );
   const fixedSeriesCount = (status: SeriesProjectionStatus): number =>
     fixedSeriesByStatus.find((g) => g.projectionStatus === status)?._count._all ?? 0;
   const fixedSeries: FixedSeriesCensus = {
@@ -405,6 +453,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     cardObligationsCents,
     cardObligationsEstimated,
     goalContributionsCents,
+    reserves: reserves.lines,
     savingsTargetBps: user?.savingsTargetBps ?? null,
     obligationsBeyondMonthCents,
     obligationsBeyondMonthThroughDate,
@@ -447,6 +496,10 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
       rollupRows: categoryFixed.rows,
       nameOfCategory: (id) => categoryName(id, categoryMeta),
     }),
+    // Declarations that could not be counted (C.23/H.4). Surfaced rather than
+    // swallowed: a refused reserve is money the reader told us about and the
+    // plan then spent as though it were free.
+    refusedReserves: reserves.refused,
     disclosures: await buildDisclosures(userId, snap, computed, endOfMonth, {
       // The three facts that separate one $0 card-payments line from another (L.29).
       // Each is about a different way of not owing money this month, and each is
