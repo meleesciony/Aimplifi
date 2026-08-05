@@ -253,6 +253,79 @@ describe('H — intra-period dip (the killer test)', () => {
   });
 });
 
+describe('H2 — worst dip AFTER the first short day (C.12 / L.23 pairing)', () => {
+  // The executed defect: "Shortfall of $10,001.00 on Aug 10" — the window's worst dip
+  // paired with the FIRST short date, when Aug 10's true shortfall was $1.00.
+  // Today 06-01, Checking $199. Card1 $200 due 06-04 → −$1.00 (first short).
+  // Payroll +$50 on 06-05 → $49. Card2 $10,000 due 06-10 → −$9,951.00 (worst dip).
+  const r = computeCashNeeded(
+    input({
+      today: d('2026-06-01'),
+      paymentAccount: { name: 'Checking', balanceCents: cents(19900), pending: [], frozenSince: null },
+      cards: [
+        card({ id: 'c1', name: 'Card1', statement: statement(20000, '2026-06-04') }),
+        card({ id: 'c2', name: 'Card2', statement: statement(1000000, '2026-06-10') }),
+      ],
+      scheduled: [{ date: d('2026-06-05'), amountCents: cents(5000), description: 'Payroll' }],
+    }),
+  );
+
+  it('carries the window figure and the first-date figure separately', () => {
+    expect(r.headline.shortfallCents).toBe(995100); // window worst dip
+    expect(r.headline.shortfallDate).toBe('2026-06-04'); // first short day
+    expect(r.headline.worstDipDate).toBe('2026-06-10'); // the worst dip's OWN date
+    expect(r.headline.firstShortCents).toBe(5000); // $1.00 needed then, rounded UP to $50
+    expect(r.headline.shortfallDateBalanceCents).toBe(-100); // that day's own balance
+  });
+  it('one transfer still covers the whole window, dated before the FIRST short day', () => {
+    expect(r.headline.recommendation).toEqual({ amountCents: 1000000, byDate: '2026-06-03' });
+  });
+  it('the split assumption pairs each amount with its own date', () => {
+    expect(r.assumptions.join(' ')).toMatch(
+      /Two steps work: \$50\.00 by .+ covers the first short day — the rest is for the low point on .+\./,
+    );
+  });
+  it('an intermediate day deeper than the first step WITHHOLDS the split (critic P1-1)', () => {
+    // Today 06-01, Checking $199. Card1 $200 due 06-04 → −$1.00 (first short).
+    // Rent −$9,000 on 06-05 → −$9,001. Card2 $950 due 06-10 → −$9,951 (worst dip).
+    // Step 1 ($50) leaves 06-05 at −$8,951: the second step is needed BEFORE the low
+    // point the sentence would name — the same amount×date decoupling, re-introduced.
+    // The split must stay silent; the single sufficient transfer stands.
+    const s = computeCashNeeded(
+      input({
+        today: d('2026-06-01'),
+        paymentAccount: { name: 'Checking', balanceCents: cents(19900), pending: [], frozenSince: null },
+        cards: [
+          card({ id: 'c1', name: 'Card1', statement: statement(20000, '2026-06-04') }),
+          card({ id: 'c2', name: 'Card2', statement: statement(95000, '2026-06-10') }),
+        ],
+        scheduled: [{ date: d('2026-06-05'), amountCents: cents(-900000), description: 'Rent' }],
+      }),
+    );
+    expect(s.headline.shortfallDate).toBe('2026-06-04');
+    expect(s.headline.worstDipDate).toBe('2026-06-10');
+    expect(s.headline.firstShortCents).toBe(0);
+    expect(s.headline.recommendation).toEqual({ amountCents: 1000000, byDate: '2026-06-03' });
+    expect(s.assumptions.join(' ')).not.toMatch(/Two steps work/);
+  });
+  it('single-event shortfall: firstShortCents is 0, worstDipDate IS the first date, no split sentence', () => {
+    // Mutation lock in the other direction: a gate that always fires would mint a
+    // split sentence where the first short day is itself the worst dip.
+    const s = computeCashNeeded(
+      input({
+        today: d('2026-06-01'),
+        paymentAccount: { name: 'Checking', balanceCents: cents(20000), pending: [], frozenSince: null },
+        cards: [card({ id: 'c1', name: 'Card1', statement: statement(50000, '2026-06-04') })],
+      }),
+    );
+    expect(s.headline.shortfallCents).toBe(30000);
+    expect(s.headline.firstShortCents).toBe(0);
+    expect(s.headline.worstDipDate).toBe('2026-06-04');
+    expect(s.headline.shortfallDateBalanceCents).toBe(-30000);
+    expect(s.assumptions.join(' ')).not.toMatch(/Two steps work/);
+  });
+});
+
 describe('I — minimum-payment path interest (average-daily-balance method)', () => {
   it('statement $3,000, min $35, APR 24.00%, cycle 05-18→06-18 (31d), due 06-15 → interest $61.08', () => {
     // ADB hand math: full $3,000 for 28 days (close 05-18 → due 06-15), then the

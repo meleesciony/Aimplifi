@@ -341,7 +341,11 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
   let balance = startBalance;
   let minPoint: { date: ISODate; balanceCents: Cents } | null = null;
   let firstNegativeDate: ISODate | null = null;
+  let firstShortBalanceCents: Cents = ZERO;
   let worstDip: Cents = ZERO;
+  // Every day's post-draw balance, kept so the two-step split can be SOUNDNESS-tested
+  // after the walk (C.12 critic P1-1) — see firstShortCents below.
+  const dayBalances: { date: ISODate; balanceCents: Cents }[] = [];
   const points: ObligationPoint[] = [];
   let cumulative: Cents = ZERO;
 
@@ -375,9 +379,13 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
         minPoint = { date: d, balanceCents: balance };
       }
       if (balance < 0) {
-        if (firstNegativeDate === null) firstNegativeDate = d;
+        if (firstNegativeDate === null) {
+          firstNegativeDate = d;
+          firstShortBalanceCents = balance;
+        }
         if (cents(-balance) > worstDip) worstDip = cents(-balance);
       }
+      dayBalances.push({ date: d, balanceCents: balance });
     }
   }
 
@@ -395,6 +403,52 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
   if (recommendation) {
     assumptions.add(
       'Transfer recommendation is the projected shortfall rounded UP to the next $50, timed one business day before the first short date.',
+    );
+  }
+  // The worst dip and the FIRST shortfall are not always the same day (L.23 — radar
+  // learned this at radar.ts; this engine shipped the defect radar fixed). An amount
+  // and a date rendered together are one instruction, so the window's worst figure
+  // must never sit beside the first short date. `firstShortCents` is the amount that
+  // covers that date; it is 0 when the first short day IS the worst dip (the whole
+  // shortfall is due then, and the two fields would say the same thing).
+  const worstDipDate = worstDip > 0 ? (minPoint?.date ?? firstNegativeDate) : null;
+  let firstShortCents: Cents = ZERO;
+  if (
+    firstNegativeDate !== null &&
+    worstDipDate !== null &&
+    compareDates(worstDipDate, firstNegativeDate) > 0
+  ) {
+    const raw = roundUpToNext50Dollars(cents(-firstShortBalanceCents));
+    // C.12 critic P1-1: offering the split is only SOUND when step 1 alone covers every
+    // day before the low point. An intermediate day deeper than the first short day
+    // (rent landing between a $1 dip and a later lump) means the second step is needed
+    // EARLIER than the low point the sentence names — the same amount×date decoupling
+    // the split exists to fix, re-introduced. When the walk can see such a day the
+    // split is withheld everywhere (every consumer gates on firstShortCents > 0) and
+    // the single sufficient instruction stands.
+    const sound = dayBalances.every(
+      (day) =>
+        compareDates(day.date, firstNegativeDate) < 0 ||
+        compareDates(day.date, worstDipDate) >= 0 ||
+        day.balanceCents + raw >= 0,
+    );
+    if (sound) firstShortCents = raw;
+  }
+  if (
+    recommendation &&
+    firstShortCents > ZERO &&
+    firstShortCents < recommendation.amountCents &&
+    worstDipDate
+  ) {
+    // Cause-neutral on purpose (critic P2-3): the walk aggregates scheduled flows by
+    // date and keeps no labels, and naming only the day's CARD dues reads as the
+    // complete cause when a flow lands the same day. The low point is the true referent.
+    // "Covers", not "is needed" (critic P2-2): the step figure rounds UP to the next
+    // $50 like every transfer suggestion, so sufficiency is all it can claim.
+    assumptions.add(
+      `Two steps work: ${formatCents(firstShortCents)} by ${formatISODate(
+        recommendation.byDate,
+      )} covers the first short day — the rest is for the low point on ${formatISODate(worstDipDate)}.`,
     );
   }
   // The funding account's own disclosure sits HERE rather than beside the card one above, because
@@ -462,6 +516,9 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
       cardsDueCount: due.length,
       shortfallCents: worstDip,
       shortfallDate: firstNegativeDate,
+      firstShortCents,
+      worstDipDate,
+      shortfallDateBalanceCents: firstNegativeDate !== null ? firstShortBalanceCents : null,
       recommendation,
     },
     perDueDate: points,

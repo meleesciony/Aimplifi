@@ -360,9 +360,18 @@ export default async function CalendarPage({
                       className="mt-1.5 rounded-md border border-red-900/50 bg-red-950/40 px-2 py-1 text-xs text-red-300"
                       data-testid="calendar-dip"
                     >
-                      Projected low: {formatCents(result.intraPeriodMinimum?.balanceCents ?? cents(0))} —
+                      {/* This cell is the FIRST short day, so the figure quoted here is this
+                          day's own projected balance — the window's intra-period low belongs
+                          to a later date and is named with that date, not implied to be today. */}
+                      Projected balance:{' '}
+                      {formatCents(result.headline.shortfallDateBalanceCents ?? cents(0))} —
                       transfer {formatCents(result.headline.recommendation.amountCents)} by{' '}
-                      {formatISODate(isoDate(result.headline.recommendation.byDate))} to stay covered.
+                      {formatISODate(isoDate(result.headline.recommendation.byDate))} to stay
+                      covered.
+                      {result.headline.worstDipDate &&
+                        result.headline.worstDipDate !== day.date &&
+                        result.intraPeriodMinimum &&
+                        ` Lowest point: ${formatCents(result.intraPeriodMinimum.balanceCents)} on ${formatISODate(isoDate(result.intraPeriodMinimum.date))}.`}
                     </p>
                   )}
                 </li>

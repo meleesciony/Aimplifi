@@ -217,6 +217,13 @@ export interface RadarResult {
    */
   startingBalanceFrozenDisclosure?: string | null;
   /**
+   * Balance-carrying cards in NO figure this run prints (a verbatim pass-through of the
+   * input — the engine adds the `assumptions` sentence; the card renders the note).
+   * Optional, like `duplicateDisclosure`, so hand-built result stubs stay legal; the
+   * engine always sets it.
+   */
+  undatableCards?: readonly { cardId: string; cardName: string }[];
+  /**
    * The same fact as `startingBalanceFrozenDisclosure`, unrendered (TASKS L.20).
    *
    * Two surfaces now qualify this projection with sentences of their own — the radar card and the
@@ -323,6 +330,16 @@ export interface RadarInput {
   /** Scheduled income/bills + loan payments, already expanded — exactly /forecast's events. */
   committedEvents: readonly ForecastEvent[];
   cardDues: readonly RadarCardDue[];
+  /**
+   * Cards the cash-needed engine could place NOTHING on (no statement, no cycle days),
+   * already fenced to balance-carrying ones (#277 / L.4). The walk sees only
+   * `cardDues`, so these balances are in no figure this run prints — not the dip, not
+   * the cover transfer, and not the "Clear" verdict, which is the expensive direction
+   * (P1-20 / C.12): the hero discloses them while the radar's all-clear stood beside
+   * it saying nothing. Required at the boundary, like `feedDroppedAt`, so no caller
+   * can forget it.
+   */
+  undatableCards: readonly { cardId: string; cardName: string }[];
   /** ALL accounts — the engine itself enforces the deposit-only source guardrail. */
   accounts: readonly RadarAccountLike[];
   paymentAccountId: string;
@@ -448,10 +465,23 @@ export function computeRadar(input: RadarInput): RadarResult {
     const worstDipDate = (committed.lowest.date as ISODate) ?? firstNegativeDate;
     const firstShortBalance =
       committed.days.find((day) => day.date === firstNegativeDate)?.balanceCents ?? 0;
-    const firstShortCents =
-      compareDates(worstDipDate, firstNegativeDate) > 0 && firstShortBalance < 0
-        ? roundUpToNext50Dollars(cents(-firstShortBalance))
-        : ZERO;
+    let firstShortCents: Cents = ZERO;
+    if (compareDates(worstDipDate, firstNegativeDate) > 0 && firstShortBalance < 0) {
+      const raw = roundUpToNext50Dollars(cents(-firstShortBalance));
+      // C.12 critic P1-1: the two-step sentence is only SOUND when step 1 alone covers
+      // every day before the low point. An intermediate day deeper than the first
+      // short day (rent between a $1 dip and a later lump) means the second step is
+      // needed EARLIER than the date the sentence names — the very amount×date
+      // decoupling L.23 fixed, re-introduced. Withhold the split; the single
+      // sufficient transfer stands. (Both consumers gate on firstShortCents > 0.)
+      const sound = committed.days.every(
+        (day) =>
+          compareDates(day.date as ISODate, firstNegativeDate) < 0 ||
+          compareDates(day.date as ISODate, worstDipDate) >= 0 ||
+          day.balanceCents + raw >= 0,
+      );
+      if (sound) firstShortCents = raw;
+    }
     const worstDipEvents =
       compareDates(worstDipDate, firstNegativeDate) > 0
         ? (committed.days.find((day) => day.date === worstDipDate)?.events.filter((e) => e.amountCents < 0) ?? [])
@@ -463,11 +493,14 @@ export function computeRadar(input: RadarInput): RadarResult {
     if (firstShortCents > 0 && firstShortCents < amountCents) {
       // Sufficient is not the same as needed-by-then. Without this the reader is
       // shown one figure and one date and reasonably reads the whole amount as
-      // due by that date.
+      // due by that date. "Covers", not "is needed" (C.12 critic P2-2): the step
+      // figure rounds UP to the next $50 like every transfer suggestion, so
+      // sufficiency is all it can claim. The split is only offered when sound
+      // (the P1-1 gate above).
       assumptions.add(
-        `Only ${formatCents(firstShortCents)} of that is needed by ${formatISODate(byDate)} — the rest covers ${
+        `Two steps work: ${formatCents(firstShortCents)} by ${formatISODate(byDate)} covers the first short day — the rest is for ${
           worstDipEvents[0]?.label ?? 'a later outflow'
-        } on ${formatISODate(worstDipDate)}, so it can be moved in two steps.`,
+        } on ${formatISODate(worstDipDate)}.`,
       );
     }
     // Withholding a source silently would be its own defect (invariant D9): the reader may know
@@ -541,6 +574,25 @@ export function computeRadar(input: RadarInput): RadarResult {
   }
   const startingBalanceFrozenDisclosure = frozenStart ? frozenRadarPushNote(frozenStart) : null;
 
+  // ── Cards in no figure at all (P1-20 / C.12) ──
+  // The card-side twin of the frozen-start rule above: the walk sees only `cardDues`,
+  // so these balances are in no figure this run prints, and the silent "Clear" is the
+  // expensive direction — a reader reassured by a verdict that cannot see money they
+  // owe. Stated unconditionally (ok / watch / alert alike); the verdict covers only
+  // what the walk can see.
+  if (input.undatableCards.length > 0) {
+    // Name the verdict THIS run renders (critic P2-4): "not the Clear verdict" under a
+    // Heads-up chip names an absent claim. The chip labels live in cash-flow-radar-card;
+    // the strings here must track them.
+    const verdict =
+      status === 'ok' ? 'Clear' : status === 'watch' ? 'Watch' : 'Heads-up';
+    assumptions.add(
+      `${input.undatableCards.length} card${input.undatableCards.length === 1 ? '' : 's'} with no statement or due date yet ${
+        input.undatableCards.length === 1 ? 'is' : 'are'
+      } excluded from every figure here — the ${verdict} verdict covers only what the projection can see.`,
+    );
+  }
+
   return {
     today,
     horizonDays,
@@ -560,6 +612,7 @@ export function computeRadar(input: RadarInput): RadarResult {
     includesEstimatedDues: input.cardDues.some((d) => d.isEstimated),
     startingBalanceFrozenDisclosure,
     startingBalanceFrozen: frozenStart,
+    undatableCards: input.undatableCards,
     assumptions: [...assumptions],
   };
 }

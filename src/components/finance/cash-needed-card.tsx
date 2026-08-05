@@ -280,19 +280,18 @@ export function CashNeededCard({
         ) : (
           <Alert variant="destructive" data-testid="shortfall-alert">
             <AlertTitle>
+              {/* The amount and the date must belong to the same event (L.23): the
+                  window's worst dip pairs with the worst dip's date, never with the
+                  first short date — the first date's own amount is in the split line. */}
               Shortfall of {formatCents(headline.shortfallCents)}
-              {headline.shortfallDate
-                ? ` on ${formatISODate(isoDate(headline.shortfallDate))}`
+              {headline.worstDipDate
+                ? ` on ${formatISODate(isoDate(headline.worstDipDate))}`
                 : ''}
             </AlertTitle>
             <AlertDescription>
-              {result.intraPeriodMinimum && (
-                <span>
-                  Projected balance dips to{' '}
-                  {formatCents(result.intraPeriodMinimum.balanceCents)} on{' '}
-                  {formatISODate(isoDate(result.intraPeriodMinimum.date))}.{' '}
-                </span>
-              )}
+              {/* The dips-to line that used to sit here named the same low point the
+                  title now names (both read minPoint.date since C.12) — an exact
+                  duplication in every state, removed (critic P2-5). */}
               {headline.recommendation && (
                 <span className="font-medium text-foreground" data-testid="transfer-recommendation">
                   Transfer {formatCents(headline.recommendation.amountCents)}
@@ -310,6 +309,22 @@ export function CashNeededCard({
                     )}
                 </span>
               )}
+              {headline.recommendation &&
+                headline.firstShortCents > 0 &&
+                headline.firstShortCents < headline.recommendation.amountCents &&
+                headline.worstDipDate && (
+                  // Sufficient is not needed-by-then (L.23): the transfer above covers the
+                  // whole window, but the first short day needs only this much — said with
+                  // "covers", never "is needed", because the step figure rounds UP to the
+                  // next $50 (critic P2-2). Offered only when the engine proved the split
+                  // sound (P1-1): every consumer gates on firstShortCents > 0.
+                  <span className="mt-1.5 block" data-testid="shortfall-split">
+                    Two steps work: {formatCents(headline.firstShortCents)} by{' '}
+                    {formatISODate(isoDate(headline.recommendation.byDate))} covers the first
+                    short day — the rest is for the low point on{' '}
+                    {formatISODate(isoDate(headline.worstDipDate))}.
+                  </span>
+                )}
               {headline.recommendation && (
                 <span className="mt-1.5 block">
                   <Link

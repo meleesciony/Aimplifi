@@ -183,6 +183,20 @@ export interface CashNeededResult {
     shortfallCents: Cents;
     /** First date the projected balance goes negative (null if never). */
     shortfallDate: ISODate | null;
+    /**
+     * The amount whose transfer covers the FIRST short date, rounded UP to the next $50 —
+     * 0 when the first short day is itself the worst dip (the whole shortfall is due
+     * then), AND 0 when an intermediate day before the low point dips deeper than that
+     * step covers (C.12 critic P1-1: offering two steps would then re-introduce the
+     * amount×date decoupling — the second step is needed earlier than the named date).
+     * An amount and a date rendered together are one instruction (L.23): `shortfallCents`
+     * paired with `shortfallDate` states a figure that is not due then.
+     */
+    firstShortCents: Cents;
+    /** Date of the worst dip (=== shortfallDate when the first short day is the worst). */
+    worstDipDate: ISODate | null;
+    /** Projected balance ON shortfallDate (negative) — that day's own figure, not the window's. */
+    shortfallDateBalanceCents: Cents | null;
     /** Transfer suggestion: shortfall rounded UP to the next $50, one business day early. */
     recommendation: { amountCents: Cents; byDate: ISODate } | null;
   };

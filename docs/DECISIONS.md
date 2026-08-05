@@ -3883,3 +3883,85 @@ www.aimplifi.app; `scripts/c11-live-deploy-check.mjs` → DEPLOY PROOF: PASS
 (7/7) — the Fixed panel renders the new one-row sentence with the clause, no
 penny-match; Savings withholds the clause; guilt-free keeps the arithmetic
 sentence; the served client bundle carries the C.11-only literal.
+
+## #408 — C.12: an instruction and the figure it qualifies must come from the SAME selection — the shortfall split is offered only when the walk proves it sound (built, critic-cycled, 2 cycles)
+
+**Context.** CALC_AUDIT_2026-08-02 P1-16/17/18/20, one slice, one root: four
+instructions had drifted from the figures they qualify. (a) "Shortfall of
+$10,001.00 on Aug 10" paired the window's worst dip with the FIRST short date
+(true Aug 10 figure: $1.00) on four surfaces — hero, a `critical` Today-feed
+nudge, Ask, and the calendar dip cell — while `radar.ts` had already fixed the
+identical pairing in the sibling engine (L.23). (b) /cards' "Do this first"
+promoted a next-cycle ESTIMATE excluded from the total beside it. (c)
+/forecast's card-payment omission note sat after every figure it qualified.
+(d) The radar's "Clear" verdict and cover transfer never mentioned
+balance-carrying cards the engine cannot date; the hero on the same page did.
+
+**Decision.**
+1. `CashNeededResult.headline` gains `firstShortCents` (transfer step covering
+   the first short date, rounded UP to $50), `worstDipDate`, and
+   `shortfallDateBalanceCents`. The hero title pairs the window figure with
+   the worst dip's OWN date; the nudge's `centsAtStake` is the first date's
+   step figure; Ask and the calendar cell pair each amount with its own date.
+2. **The two-step split is offered only when provably sound (critic cycle 1
+   P1-1).** The first cut's sentence — "the rest covers the low point on
+   Jun 10, so it can be moved in two steps" — re-introduced the very
+   decoupling it fixed: with an intermediate day deeper than step 1 covers
+   (rent between a $1 dip and a later lump), the second step is needed BEFORE
+   the named low point. Both engines now test every day in
+   [firstNegativeDate, worstDipDate) against `balance + firstStep >= 0` and
+   withhold the split (`firstShortCents = 0`) when it fails — every consumer
+   gates on `> 0`, so all surfaces fall back to the single sufficient
+   instruction with no per-surface branching. The gate uses the ROUNDED step
+   (the plan printed is the plan tested). The radar twin got the same gate —
+   the slice's own lesson (a fix on the reported surface is not a fix on the
+   pattern) required it.
+3. Split copy says "covers", never "is needed" (cycle 1 P2-2: the step
+   figure rounds UP; sufficiency is all it can claim), and is cause-neutral —
+   "the rest is for the low point on …" (P2-3: the card-name join read
+   exhaustive beside scheduled flows on the same day; the radar keeps its
+   single-event naming, the obviously-partial precedent). New shape:
+   "Two steps work: $50.00 by Jun 3 covers the first short day — the rest is
+   for the low point on Jun 10."
+4. (b) `firstCountedActionCard(result, ordered)` in card-duplicate-view.ts —
+   the banner's membership test is `paintedHeroCards`, the same perDueDate
+   selection the hero uses and the same set `requiredCents` sums; the urgency
+   comparator is exported (`compareCardUrgency`) so grid order and selection
+   cannot drift. All-estimates state (thisCycleIsKnown=false) still promotes
+   estimates — they ARE the cycle. Uncounted estimate rows read
+   "Estimated — next cycle", keyed on `upcoming` membership (cycle 1 P2-6:
+   paintedHeroCards absence would mislabel a $0 this-cycle estimate).
+5. (c) The /forecast note moved to the top of the hero (first node, before
+   every figure) with `forecast-scope-note` and a DOM-order e2e lock.
+6. (d) `RadarInput.undatableCards` is REQUIRED at the boundary (the
+   `feedDroppedAt` precedent — no caller can forget), plumbed from
+   `undatedCardsWithBalance(cashNeeded)` (the #277/L.4 fence, so the count
+   matches the hero's note); the result passthrough is optional for stub
+   legality. The header note renders in all three statuses before the
+   cover-transfer imperative; the assumption names the verdict ON SCREEN
+   (cycle-1 P2-4 / money P2-1: "not the Clear verdict" under a Heads-up chip
+   names an absent claim).
+7. The destructive hero alert's "Projected balance dips to…" line was removed
+   (cycle-1 P2-5): with the title on `worstDipDate` it duplicated the title in
+   every state. The covered alert's low-point line is untouched.
+
+**Accepted residuals.** (i) Nudge stake precision is bimodal (money critic
+P2-2, withdrawn on disposition): split case carries the $50-rounded step —
+exactly the figure the hero's split line prints for the same event — while the
+unsplit case carries raw `shortfallCents` beside its own (worst) date; the raw
+per-date alternative would print $1 against the hero's $50 step for the same
+day, a real contradiction. (ii) "The rest is for the low point on D2" carries
+no one-business-day buffer on the second step (same-day posting reliance),
+pre-existing in the radar wording. (iii) The verdict-name mapping duplicates
+the chip strings across engine and card, coupled by comment only. (iv) The
+hero split line leaves "the first short day" unnamed (its date lives in the
+nudge and the calendar cell; the actionable byDate is named).
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, eslint 0, **5945
+unit / 360 files** (from 5930/360), build clean. New locks: cash-needed H2
+(split fields, split assumption, single-event zero, P1-1 withhold), nudge
+pairing (per-date stake, single-event fallback), Ask two-step (present/absent),
+firstCountedActionCard (estimate-first trap, all-estimates promote, null
+banner), radar undatable (ok/alert/none), radar P1-1 withhold, forecast
+DOM-order e2e. Mutation-proven both directions per the critics' revert checks.
+Lesson: docs/lessons/a-fix-on-the-reported-surface-is-not-a-fix-on-the-pattern.md.

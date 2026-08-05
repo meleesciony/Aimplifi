@@ -24,6 +24,8 @@ import {
   type CardDuplicatePairInput,
   type CardMoneyRole,
   cardDuplicateView,
+  compareCardUrgency,
+  firstCountedActionCard,
 } from '@/lib/engine/account/card-duplicate-view';
 import {
   FROZEN_ALL_CLEAR_TESTID,
@@ -126,13 +128,23 @@ export function CardsBreakdown({
       )}
 
       {(() => {
-        // urgency order: soonest effective due date first, manual action before autopay
-        const ordered = [...result.cards].sort(
-          (a, b) =>
-            a.effectiveDueDate.localeCompare(b.effectiveDueDate) ||
-            b.userActionCents - a.userActionCents,
-        );
-        const firstAction = ordered.find((c) => c.userActionCents > 0);
+        // urgency order: soonest effective due date first, manual action before autopay —
+        // the comparator is shared with the first-action gate so the two cannot drift.
+        const ordered = [...result.cards].sort(compareCardUrgency);
+        // "Do this first" is THE imperative on this page, so the card it names must be
+        // inside the total printed beside it (P1-17 / C.12). The membership test is the
+        // engine's own, shared with the dashboard hero: perDueDate via paintedHeroCards.
+        // A next-cycle ESTIMATE lives in `upcoming` — excluded from requiredCents the
+        // moment any card has a real statement — yet sorts here by date and could head
+        // the list; promoting it instructed the reader to pay a figure no total on this
+        // page contains. ($0-due dated cards are absent from paintedHeroCards by design;
+        // they can never be the first action, and their rows keep the default label.)
+        const firstAction = firstCountedActionCard(result, ordered);
+        // The engine's own next-cycle set (engine.ts: upcoming). The row label keys on
+        // THIS, not on paintedHeroCards absence (critic P2-6): a $0 this-cycle estimate
+        // is in no total either, but it is not next-cycle, and only upcoming membership
+        // makes that claim.
+        const upcomingIds = new Set(result.upcoming.map((c) => c.cardId));
         // ONE identity pass over EVERY card the page paints — the dated grid first, then the
         // "No due date yet" panel, i.e. exactly the order they appear down the page.
         //
@@ -157,8 +169,8 @@ export function CardsBreakdown({
         // precisely `cards` minus `upcoming` — `upcoming` holds the estimated obligations that are
         // dropped wholesale the moment any card has a real statement (engine.ts:214-223). A critic
         // running the engine caught the first cut claiming two estimated $6,679.68 rows inflated a
-        // $217.99 headline that contained neither.
-        const upcomingIds = new Set(result.upcoming.map((c) => c.cardId));
+        // $217.99 headline that contained neither. (`upcomingIds` itself is declared above, beside
+        // the first-action gate that shares it.)
         // The disclosure is computed from the SCENARIO CURRENTLY ON SCREEN, so the amounts it
         // quotes are the amounts beside the cards — the pay-in-full and minimum figures differ.
         const duplicates = cardDuplicateView(
@@ -355,10 +367,16 @@ export function CardsBreakdown({
                   <CardContent className="space-y-1 text-sm">
                     {/* THE answer for this card, biggest thing on it. "You must
                         pay" is true only for the reader's OWN card — a partner's
-                        card gets the neutral label (slice-8 critic F-2). */}
+                        card gets the neutral label (slice-8 critic F-2). And either
+                        imperative is false for a next-cycle ESTIMATE: that figure is
+                        in no total on this page (P1-17), so the row says what it is. */}
                     <div className="flex items-baseline justify-between">
                       <span className="text-muted-foreground">
-                        {owner ? HOUSEHOLD_COPY.cardsPartnerToPayLabel() : 'You must pay'}
+                        {card.isEstimated && upcomingIds.has(card.cardId)
+                          ? 'Estimated — next cycle'
+                          : owner
+                            ? HOUSEHOLD_COPY.cardsPartnerToPayLabel()
+                            : 'You must pay'}
                       </span>
                       <span
                         className="text-xl font-semibold tabular-nums"

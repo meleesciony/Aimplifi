@@ -6,6 +6,41 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-04 — C.12: an instruction and the figure it qualifies now come from the same selection (audit P1-16/17/18/20, DECISIONS #408)
+
+Four instruction/figure drifts, one root. (a) The cash-needed shortfall paired
+the window's worst dip with the FIRST short date on four surfaces ("$10,001.00
+on Aug 10" for a $1.00 day, incl. a `critical` nudge) — the exact pairing
+radar had already fixed (L.23), unported to the sibling engine. The headline
+now carries `firstShortCents` / `worstDipDate` / `shortfallDateBalanceCents`;
+the hero title pairs the window figure with the worst dip's own date, the
+nudge stakes the first date's own step figure, Ask and the calendar cell pair
+each amount with its own date. **Critic cycle 1 (P1) caught the fix itself:**
+the two-step sentence re-introduced the decoupling whenever an intermediate
+day dipped deeper than step 1 covers — both engines now offer the split only
+when the walk proves every day in [firstNegativeDate, worstDipDate) sound,
+and withhold it otherwise (the single sufficient transfer always stands).
+Wording says "covers", never "is needed" (the step figure rounds UP), and is
+cause-neutral ("the rest is for the low point on …"). (b) /cards "Do this
+first" is gated by `firstCountedActionCard` — the same `paintedHeroCards`
+membership the hero uses and the same set the printed total sums; a next-cycle
+estimate can no longer head the page's one imperative, and its row reads
+"Estimated — next cycle". (c) /forecast's card-payment caveat moved above the
+hero figure (DOM-order e2e lock). (d) `RadarInput.undatableCards` is required
+at the boundary (the hero's own #277 fence), the radar card discloses the
+count in every status ahead of the cover transfer, and the assumption names
+the verdict actually on screen.
+
+**Locks:** cash-needed H2 (split fields, single-event zero, P1-1 withhold),
+nudge per-date stake, Ask two-step present/absent, firstCountedActionCard
+(estimate-first trap / all-estimates promote / null banner), radar undatable
+(ok/alert/none) and P1-1 withhold, forecast DOM-order e2e. Mutation-proven in
+both directions per the critics' revert checks. Two fresh-context critics
+(money + copy), 2 cycles, zero open P0/P1. Accepted residuals (nudge stake
+precision, second-step posting buffer, chip-string duplication, unnamed first
+short day on the hero) are recorded in DECISIONS #408. Lesson:
+docs/lessons/a-fix-on-the-reported-surface-is-not-a-fix-on-the-pattern.md.
+
 ## ✅ BUILT 2026-08-04 — C.11: the Glass-Box certification is split into the claim it can stand behind and the one it can't (audit P1-14, DECISIONS #407)
 
 The audit's trust-surface finding: every Glass-Box panel ended "…matched to
@@ -294,6 +329,18 @@ reproduced all three IDENTICALLY, so the C.8 slice did not cause them:
 All three pass on desktop projects; `phase4-features.spec.ts:33` also failed once
 in a parallel run but passes alone and serially (known parallel-flake class).
 Not diagnosed.
+
+**Reproduced again 2026-08-04 (C.12 session), same stash/run/pop method on
+clean HEAD (`fec663a`): the two today-feed-frozen tests fail identically, AND
+a third spec joined them — `tests/e2e/frozen-figure-surfaces.spec.ts:92` "the
+surfaces that print a frozen figure now say so — /cards, Ask and /coach"
+(mobile-380).** The failure mode is visible in the page snapshot: the custom
+seeds render the feed's copy ("Nothing needs you today. Your bank stopped
+sharing Home Mortgage…") but NOT inside the `payment-reminders-card` testid
+the specs query, and the copy no longer starts "You're all caught up" — the
+feed component drifted from both specs after O.3 (`c336b38`). The drift is
+testid-and-copy, not the seeded data (the mortgage is named correctly on
+screen). C.12 did not cause any of the three.
 
 ## ⚠️ OPEN 2026-08-04 — dashboard-duplicate-disclosure mobile e2e fails on clean HEAD (predates C.25)
 

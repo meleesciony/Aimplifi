@@ -33,7 +33,7 @@
  * cannot renumber gets `sameLabel` instead, and every sentence has a form for it.
  */
 import { renderSafe } from './render-safe';
-import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
+import type { CashNeededResult, CardObligation } from '@/lib/engine/cash-needed/types';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cents, formatCents } from '@/lib/money';
 
@@ -361,6 +361,38 @@ export function paintedHeroCards(result: CashNeededResult): PaintedHeroCard[] {
       role: { counted: false, reason: 'next-cycle' } as CardMoneyRole,
     })),
   ];
+}
+
+/** Urgency order for the /cards grid: soonest effective due date, then largest manual action. */
+export function compareCardUrgency(a: CardObligation, b: CardObligation): number {
+  return (
+    a.effectiveDueDate.localeCompare(b.effectiveDueDate) || b.userActionCents - a.userActionCents
+  );
+}
+
+/**
+ * The /cards "Do this first" gate (P1-17 / C.12). The banner is THE imperative on the
+ * page, so the card it names must be inside the total printed beside it. Membership is
+ * the engine's own — the same perDueDate selection paintedHeroCards exposes — so the
+ * banner cannot drift from the hero: a next-cycle ESTIMATE lives in `upcoming`,
+ * excluded from requiredCents the moment any card has a real statement, yet sorts into
+ * the urgency list by date; promoting it instructed the reader to pay a figure no total
+ * on the page contains. When NOTHING has a real statement the estimates ARE the cycle
+ * (thisCycleIsKnown), they are counted, and the gate promotes them.
+ *
+ * `ordered` is the caller's own urgency sort, kept there so display order and selection
+ * order cannot drift apart.
+ */
+export function firstCountedActionCard(
+  result: CashNeededResult,
+  ordered: readonly CardObligation[],
+): CardObligation | null {
+  const counted = new Set(
+    paintedHeroCards(result)
+      .filter((c) => c.role.counted)
+      .map((c) => c.cardId),
+  );
+  return ordered.find((c) => c.userActionCents > 0 && counted.has(c.cardId)) ?? null;
 }
 
 /**

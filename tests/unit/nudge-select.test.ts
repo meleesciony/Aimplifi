@@ -113,6 +113,9 @@ function cashNeededOf(o: {
   shortfallDate?: string | null;
   byDate?: string | null;
   requiredCents?: number;
+  /** Amount needed by the FIRST short date when it differs from the worst dip (C.12). */
+  firstShortCents?: number;
+  worstDipDate?: string | null;
   /** isEstimated flag per synthesized perDueDate point (default: one real point). */
   cycleEstimatedFlags?: boolean[];
   /** The funding account's bank stopped sharing it (TASKS L.20). */
@@ -148,6 +151,15 @@ function cashNeededOf(o: {
           : o.shortfallDate
             ? isoDate(o.shortfallDate)
             : null,
+      firstShortCents: cents(o.firstShortCents ?? 0),
+      worstDipDate: o.worstDipDate
+        ? isoDate(o.worstDipDate)
+        : (o.shortfallDate === undefined
+            ? isoDate('2026-06-15')
+            : o.shortfallDate
+              ? isoDate(o.shortfallDate)
+              : null),
+      shortfallDateBalanceCents: null,
       recommendation: null,
     },
     fundingFrozen: o.fundingFrozen
@@ -286,6 +298,28 @@ describe('nudge · criterion 1 · verbatim-copy', () => {
     const feed = buildNudgeFeed(input({ reminders: [r] }));
     expect(feed.ordered[0].tier).toBe('handled');
     expect(feed.ordered[0].centsAtStake).toBe(r.autopayCents);
+  });
+
+  it('C.12: the shortfall nudge pairs the first short date with the amount needed by THAT date (L.23)', () => {
+    // Executed defect: "Shortfall of $10,001.00 on Aug 10" when Aug 10's true
+    // shortfall was $1.00 — the window's worst dip sat beside the first short date
+    // on a critical nudge with nothing beside it to correct it.
+    const split = cashNeededOf({
+      shortfallCents: 995100,
+      shortfallDate: '2026-06-04',
+      firstShortCents: 5000,
+      worstDipDate: '2026-06-10',
+    });
+    const feed = buildNudgeFeed(input({ cashNeeded: split }));
+    const nudge = feed.ordered.find((p) => p.kind === 'cash_needed_shortfall')!;
+    expect(nudge.centsAtStake).toBe(cents(5000)); // needed by 06-04, NOT the $9,951 window worst
+    expect(nudge.sortDate).toBe(isoDate('2026-06-04'));
+    // Single-event shortfall: firstShortCents is 0, the whole figure IS due then.
+    const single = cashNeededOf({ shortfallCents: 30000, shortfallDate: '2026-06-04' });
+    const feed2 = buildNudgeFeed(input({ cashNeeded: single }));
+    expect(feed2.ordered.find((p) => p.kind === 'cash_needed_shortfall')!.centsAtStake).toBe(
+      cents(30000),
+    );
   });
 
   it('the engine source contains no money arithmetic (grep-provable)', () => {

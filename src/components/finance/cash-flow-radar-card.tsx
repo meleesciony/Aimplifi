@@ -30,6 +30,7 @@ export function CashFlowRadarCard({
 }) {
   const today = isoDate(radar.today);
   const dip = radar.committed.firstNegativeDate;
+  const undatable = radar.undatableCards ?? [];
 
   const STATUS = {
     ok: {
@@ -84,6 +85,17 @@ export function CashFlowRadarCard({
           </span>
         </div>
         <CardDescription>{STATUS.desc}</CardDescription>
+        {/* The card-side twin of the frozen-start rule (P1-20 / C.12): these balances
+            are in no figure this card prints — the walk saw only datable dues — and the
+            silent "Clear" is the expensive direction. In the header so the reader meets
+            it before the cover-transfer imperative below (the placement rule). */}
+        {undatable.length > 0 && (
+          <p className="text-xs text-amber-500" data-testid="radar-undatable-note">
+            Not included: {undatable.length} card{undatable.length === 1 ? '' : 's'} — no
+            statement or due date yet, so {undatable.length === 1 ? 'its' : 'their'} balance
+            isn&apos;t in any figure on this card.
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         {radar.status === 'alert' && dip && (
@@ -104,11 +116,11 @@ export function CashFlowRadarCard({
                 {radar.coverTransfer.firstShortCents > 0 &&
                   radar.coverTransfer.firstShortCents < radar.coverTransfer.amountCents && (
                     <div className="mt-1 text-xs" data-testid="radar-cover-split">
-                      Only {fmt(radar.coverTransfer.firstShortCents)} of that is needed by{' '}
-                      {formatISODate(isoDate(radar.coverTransfer.byDate))} — the rest covers{' '}
+                      Two steps work: {fmt(radar.coverTransfer.firstShortCents)} by{' '}
+                      {formatISODate(isoDate(radar.coverTransfer.byDate))} covers the first short
+                      day — the rest is for{' '}
                       {radar.coverTransfer.worstDipEvents[0]?.label ?? 'a later outflow'} on{' '}
-                      {formatISODate(isoDate(radar.coverTransfer.worstDipDate))}, so you can move it in two
-                      steps.
+                      {formatISODate(isoDate(radar.coverTransfer.worstDipDate))}.
                     </div>
                   )}
                 <div className="mt-1 text-xs text-muted-foreground">

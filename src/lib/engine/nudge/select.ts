@@ -159,7 +159,13 @@ function shortfallProposal(
     subjectKey: subjectKey('cash_needed_shortfall'),
     sortDate: date, // verbatim (nullable)
     daysUntil: null,
-    centsAtStake: cn.headline.shortfallCents, // verbatim
+    // The amount paired with `date` must be the amount actually needed BY that date
+    // (L.23): the window's worst dip beside the first short date states a figure that
+    // is not due then — executed, that pairing printed "$10,001.00 on Aug 10" for a
+    // day whose true shortfall was $1.00. firstShortCents is 0 when the first short
+    // day IS the worst dip, and then the whole shortfall is the right figure.
+    centsAtStake:
+      cn.headline.firstShortCents > 0 ? cn.headline.firstShortCents : cn.headline.shortfallCents,
     autopayCents: ZERO, // not a payment_due proposal
     merchant: null,
     typicalCents: null,

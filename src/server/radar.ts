@@ -25,6 +25,7 @@ import {
   paymentAccountHistoryDays,
 } from '@/lib/engine/radar/burn';
 import { computeRadar, projectCardDues, type RadarInput, type RadarResult } from '@/lib/engine/radar/radar';
+import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates, resolvePaymentAccount } from '@/server/finance';
 import {
   type CardDuplicatePairInput,
@@ -208,6 +209,13 @@ export function radarFromSnapshot(
     paymentAccountId: payment.id,
     holidays,
     burn,
+    // The same fence the hero applies (#277 / L.4): balance-carrying cards no figure
+    // can date. The radar walks `dues` only, so without this its "Clear" verdict and
+    // cover transfer say nothing about them while the hero beside it does (P1-20).
+    undatableCards: undatedCardsWithBalance(cashNeeded).map((c) => ({
+      cardId: c.cardId,
+      cardName: c.cardName,
+    })),
     assumptions,
   };
   const radar = computeRadar(baseInput);

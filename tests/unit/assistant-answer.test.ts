@@ -444,6 +444,46 @@ describe('answerCashNeeded', () => {
     const r = { ...base, headline: { requiredCents: 0, byDate: null, cardsDueCount: 0, shortfallCents: 0, shortfallDate: null, recommendation: null } } as unknown as CashNeededResult;
     expect(answerCashNeeded(r, 'Everyday Checking').headline).toBe('You have nothing due on your cards this cycle.');
   });
+  it('C.12: a worst dip AFTER the first short date adds the two-step sentence (L.23)', () => {
+    // The executed defect paired the window's worst figure with the first short date.
+    // The instruction keeps the sufficient transfer; the added sentence pairs each
+    // amount with its own date.
+    const r = {
+      ...base,
+      headline: {
+        requiredCents: 120000,
+        byDate: '2026-06-24',
+        cardsDueCount: 2,
+        shortfallCents: 995100,
+        shortfallDate: '2026-06-04',
+        firstShortCents: 5000,
+        worstDipDate: '2026-06-10',
+        shortfallDateBalanceCents: -100,
+        recommendation: { amountCents: 1000000, byDate: '2026-06-03' },
+      },
+    } as unknown as CashNeededResult;
+    const a = answerCashNeeded(r, 'Everyday Checking');
+    expect(a.detail).toContain('move $10,000.00 in by Jun 3, 2026');
+    expect(a.detail).toContain('Two steps work: $50.00 by Jun 3, 2026 covers the first short day');
+    expect(a.detail).toContain('the low point on Jun 10, 2026');
+  });
+  it('C.12: single-event shortfall adds NO two-step sentence (gate mutation lock)', () => {
+    const r = {
+      ...base,
+      headline: {
+        requiredCents: 120000,
+        byDate: '2026-06-24',
+        cardsDueCount: 1,
+        shortfallCents: 20000,
+        shortfallDate: '2026-06-24',
+        firstShortCents: 0,
+        worstDipDate: '2026-06-24',
+        shortfallDateBalanceCents: -20000,
+        recommendation: { amountCents: 20000, byDate: '2026-06-23' },
+      },
+    } as unknown as CashNeededResult;
+    expect(answerCashNeeded(r, 'Everyday Checking').detail).not.toContain('Two steps work');
+  });
 });
 
 describe('answerSubscriptions', () => {

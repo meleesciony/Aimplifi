@@ -1354,6 +1354,19 @@ export function answerCashNeeded(
     detailParts.push(
       `That's more than ${paymentAccountName} holds — move ${fmt(s.recommendation.amountCents)} in by ${humanDate(s.recommendation.byDate)}.`,
     );
+    // Sufficient is not needed-by-then (L.23): when the window's worst dip lands after
+    // the first short date, the single instruction above overstates what that date
+    // requires. "Covers", not "is needed" (critic P2-2): the step figure rounds UP to
+    // the next $50. Offered only when the engine proved the two-step plan sound (P1-1).
+    if (
+      s.firstShortCents > 0 &&
+      s.firstShortCents < s.recommendation.amountCents &&
+      s.worstDipDate
+    ) {
+      detailParts.push(
+        `Two steps work: ${fmt(s.firstShortCents)} by ${humanDate(s.recommendation.byDate)} covers the first short day — the rest is for the low point on ${humanDate(s.worstDipDate)}.`,
+      );
+    }
   }
   /**
    * The funding account, named with the label THIS answer prints for it (the "From" fact), and

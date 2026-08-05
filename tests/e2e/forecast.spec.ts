@@ -35,3 +35,25 @@ test('forecast view projects the balance with chart, milestones, and lowest poin
   // checking scheduled row). Locks the balance projection agreeing with those surfaces.
   await expect(page.getByTestId('forecast-upcoming')).toContainText('Auto Loan');
 });
+
+test('C.12: the card-payment omission caveat lands BEFORE the first figure it qualifies', async ({ page }) => {
+  // P1-18: the note used to sit three screens below the hero — after every figure it
+  // qualifies. The placement rule its siblings enforce: the reader meets the caveat
+  // before the figure. DOM-order lock, not a screenshot.
+  await signIn(page);
+  await page.goto('/forecast');
+
+  const note = page.getByTestId('forecast-scope-note');
+  await expect(note).toBeVisible();
+  await expect(note).toContainText('include card payments');
+  const noteBeforeFigure = await page.evaluate(() => {
+    const n = document.querySelector('[data-testid="forecast-scope-note"]');
+    const f = document.querySelector('[data-testid="forecast-projected"]');
+    return (
+      n !== null &&
+      f !== null &&
+      (n.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+    );
+  });
+  expect(noteBeforeFigure).toBe(true);
+});

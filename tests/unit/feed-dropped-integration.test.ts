@@ -171,6 +171,7 @@ describe('critic P0-2 — a frozen balance is never offered as money to move', (
     paymentAccountId: 'chk',
     holidays: holidayTable(2026, 2027),
     burn: null,
+    undatableCards: [],
     assumptions: [],
   };
 

@@ -20,7 +20,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { paintedHeroCards } from '@/lib/engine/account/card-duplicate-view';
+import { compareCardUrgency, firstCountedActionCard, paintedHeroCards } from '@/lib/engine/account/card-duplicate-view';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
 import type { CashNeededInput, CardSnapshot } from '@/lib/engine/cash-needed/types';
 import { isoDate } from '@/lib/dates';
@@ -47,7 +47,7 @@ function dated(id: string, name: string, statementCents: number, dueDate: string
 }
 
 /** No statement, but both cycle days — the engine ESTIMATES a next-cycle obligation. */
-function estimated(id: string, name: string, balanceCents: number): CardSnapshot {
+function estimated(id: string, name: string, balanceCents: number, nextDueDate = '2026-09-05'): CardSnapshot {
   return {
     id,
     name,
@@ -56,7 +56,7 @@ function estimated(id: string, name: string, balanceCents: number): CardSnapshot
     statement: null,
     currentBalanceCents: cents(balanceCents),
     nextCycleCloseDate: isoDate('2026-08-08'),
-    nextDueDate: isoDate('2026-09-05'),
+    nextDueDate: isoDate(nextDueDate),
     paymentsAppliedCents: cents(0),
   };
 }
@@ -149,6 +149,41 @@ describe('paintedHeroCards — counted means IN the headline, in every engine st
     // "money we are leaving out", and five surfaces once disagreed about that on one dashboard.
     const result = run([dated('z', 'Bonvoy', 21_799, '2026-07-31'), undatable('paid', 'Closed Card', 0)]);
     expect(paintedHeroCards(result).map((r) => r.cardId)).toEqual(['z']);
+  });
+
+  it('C.12: a next-cycle estimate that sorts FIRST by date is never promoted to "Do this first"', () => {
+    // The defect (P1-17): urgency order is by effective due date, and an estimated
+    // obligation's projected date can beat every real one — the banner then instructed
+    // the reader to pay a figure the headline total does not contain.
+    const result = run([
+      dated('z', 'Bonvoy', 21_799, '2026-08-10'),
+      estimated('a', 'CREDIT CARD', 667_968, '2026-08-01'),
+    ]);
+    const ordered = [...result.cards].sort(compareCardUrgency);
+    expect(ordered[0].cardId).toBe('a'); // the estimate DOES sort first — that is the trap
+    expect(result.headline.requiredCents).toBe(21_799); // and the total excludes it
+    expect(firstCountedActionCard(result, ordered)?.cardId).toBe('z');
+  });
+
+  it('C.12: when NOTHING has a real statement the estimates ARE the cycle — the gate promotes them', () => {
+    // thisCycleIsKnown is false, so `cycleObligations = estimated`: the estimate is
+    // inside the printed total and promoting it is correct. A gate that just excluded
+    // isEstimated would silence the one instruction this state can honestly give.
+    const result = run([
+      estimated('a', 'CREDIT CARD', 100_000, '2026-08-01'),
+      estimated('b', 'CREDIT CARD', 200_000, '2026-08-05'),
+    ]);
+    const ordered = [...result.cards].sort(compareCardUrgency);
+    expect(firstCountedActionCard(result, ordered)?.cardId).toBe('a');
+  });
+
+  it('C.12: only estimates need action → null, so no banner instructs from outside the total', () => {
+    const result = run([
+      dated('z', 'Paid Off', 0, '2026-08-10'),
+      estimated('a', 'CREDIT CARD', 667_968, '2026-08-01'),
+    ]);
+    const ordered = [...result.cards].sort(compareCardUrgency);
+    expect(firstCountedActionCard(result, ordered)).toBeNull();
   });
 
   it('every counted row carries the SAME cents the hero prints beside that card', () => {

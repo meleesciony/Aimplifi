@@ -684,6 +684,7 @@ describe('web push — the amount first, the caveat last, and never suppressed',
       paymentAccountId: 'chk',
       holidays: HOL,
       burn: null,
+      undatableCards: [],
     });
     const [n] = selectNotifications({
       reminders: [],
@@ -744,6 +745,7 @@ describe('Cash Flow Radar — the gap L.14 left: the balance the walk STARTS fro
     paymentAccountId: 'chk',
     holidays: HOL,
     burn: null,
+    undatableCards: [],
     ...overrides,
   });
 

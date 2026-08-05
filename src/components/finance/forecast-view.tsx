@@ -30,6 +30,17 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
         data-testid="forecast-hero"
         className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 shadow-sm"
       >
+        {/* The scope caveat qualifies EVERY figure on this page, so the reader meets it
+            before the first one (P1-18 / C.12 — the /cards placement rule: the caveat
+            comes before the figure it qualifies, never three screens below it). */}
+        <p
+          className="mb-3 text-xs text-muted-foreground"
+          data-testid="forecast-scope-note"
+        >
+          Projection of {data.accountName}{' '}from your recurring income and bills only — it
+          doesn&apos;t include card payments (see the cash-needed card) or one-off spending, so
+          treat it as a planning estimate.
+        </p>
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Projected balance in {data.horizonDays} days
         </p>
@@ -143,12 +154,6 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
           </ul>
         </section>
       )}
-
-      <p className="px-1 text-xs text-muted-foreground">
-        Projection of {data.accountName} from your recurring income and bills only — it doesn&apos;t
-        include card payments (see the cash-needed card) or one-off spending, so treat it as a
-        planning estimate.
-      </p>
     </div>
   );
 }

@@ -49,6 +49,7 @@ function baseInput(over: Partial<RadarInput> = {}): RadarInput {
     paymentAccountId: 'acct-checking',
     holidays: [],
     burn: null,
+    undatableCards: [],
     ...over,
   };
 }
@@ -80,6 +81,52 @@ describe('computeRadar — case A: clear', () => {
     expect(r.committed.lowestCents).toBe(100000);
     expect(r.committed.lowestDate).toBe('2026-06-10');
     expect(r.committed.endingCents).toBe(120000);
+  });
+});
+
+describe('computeRadar — undatable cards beside the verdict (P1-20 / C.12)', () => {
+  it('a Clear verdict carries them on the result and says so in assumptions', () => {
+    // The defect: the radar's "Clear" never mentioned cards the engine could not date
+    // while the hero on the same page disclosed them — an all-clear that cannot see
+    // money the reader owes is the expensive direction.
+    const r = computeRadar(
+      baseInput({
+        committedEvents: [{ date: '2026-06-15', amountCents: 50000, label: 'Payroll' }],
+        undatableCards: [
+          { cardId: 'c-x', cardName: 'CREDIT CARD' },
+          { cardId: 'c-y', cardName: 'STORE CARD' },
+        ],
+      }),
+    );
+    expect(r.status).toBe('ok');
+    expect(r.undatableCards).toEqual([
+      { cardId: 'c-x', cardName: 'CREDIT CARD' },
+      { cardId: 'c-y', cardName: 'STORE CARD' },
+    ]);
+    expect(r.assumptions.join(' ')).toMatch(
+      /2 cards with no statement or due date yet are excluded from every figure here — the Clear verdict covers only what the projection can see\./,
+    );
+  });
+
+  it('an alert state (the cover transfer) discloses them too — singular form, Heads-up verdict', () => {
+    const r = computeRadar(
+      baseInput({
+        startingBalanceCents: cents(10000),
+        cardDues: [due({ dueDate: '2026-06-12', amountCents: 30000 })],
+        undatableCards: [{ cardId: 'c-x', cardName: 'CREDIT CARD' }],
+      }),
+    );
+    expect(r.status).toBe('alert');
+    expect(r.coverTransfer).not.toBeNull();
+    expect(r.assumptions.join(' ')).toMatch(
+      /1 card with no statement or due date yet is excluded from every figure here — the Heads-up verdict covers only what the projection can see\./,
+    );
+  });
+
+  it('none → empty pass-through, no note (gate mutation lock)', () => {
+    const r = computeRadar(baseInput({}));
+    expect(r.undatableCards).toEqual([]);
+    expect(r.assumptions.join(' ')).not.toMatch(/no statement or due date yet/);
   });
 });
 
@@ -351,7 +398,7 @@ describe('a later, larger outflow splits the cover transfer from its deadline (L
     expect(r.coverTransfer?.firstShortCents).toBe(5000);
     expect(r.coverTransfer?.worstDipEvents.map((e) => e.label)).toEqual(['Allstate Insurance Premium']);
     expect([...r.assumptions]).toContain(
-      'Only $50.00 of that is needed by Fri, Jun 12 — the rest covers Allstate Insurance Premium on Sat, Aug 29, so it can be moved in two steps.',
+      'Two steps work: $50.00 by Fri, Jun 12 covers the first short day — the rest is for Allstate Insurance Premium on Sat, Aug 29.',
     );
   });
 
@@ -368,6 +415,29 @@ describe('a later, larger outflow splits the cover transfer from its deadline (L
     // two-step instruction where one step is the whole truth.
     expect(r.coverTransfer?.firstShortCents).toBe(0);
     expect(r.coverTransfer?.worstDipEvents).toEqual([]);
-    expect([...r.assumptions].some((a) => a.startsWith('Only '))).toBe(false);
+    expect([...r.assumptions].some((a) => a.startsWith('Two steps work'))).toBe(false);
+  });
+
+  it('an intermediate day deeper than the first step WITHHOLDS the split (C.12 critic P1-1)', () => {
+    // Start $1,000. Rent −$1,050 on 06-15 → −$50 (first short). Car repair −$900 on
+    // 07-01 → −$950, deeper than step 1 covers. Allstate −$1,200 on 08-29 → −$2,150
+    // (worst). Step 1 ($50) leaves 07-01 at −$900: the second step is needed BEFORE
+    // the low point the sentence would name — offering it re-introduces the decoupling.
+    const r = computeRadar(
+      baseInput({
+        horizonDays: 90,
+        startingBalanceCents: cents(100000),
+        committedEvents: [
+          { date: d('2026-06-15'), amountCents: -105000, label: 'Rent' },
+          { date: d('2026-07-01'), amountCents: -90000, label: 'Car repair' },
+          { date: d('2026-08-29'), amountCents: -120000, label: 'Allstate Insurance Premium' },
+        ],
+      }),
+    );
+    expect(r.committed.firstNegativeDate).toBe('2026-06-15');
+    expect(r.coverTransfer?.amountCents).toBe(215000); // the single sufficient transfer stands
+    expect(r.coverTransfer?.worstDipDate).toBe('2026-08-29');
+    expect(r.coverTransfer?.firstShortCents).toBe(0);
+    expect([...r.assumptions].some((a) => a.startsWith('Two steps work'))).toBe(false);
   });
 });
