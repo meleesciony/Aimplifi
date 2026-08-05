@@ -1309,3 +1309,42 @@ A $0.01/mo row ties its contributions at ten years for 12 dial pairs where the l
 stays silent. No opportunity kind can mint a row that small (the smallest is a detected series or
 a hard-coded $20.00 retention offer), and a figure equal to the deposits does not read as a bug
 the way one below them does.
+
+## C.23/H.4 — reserves are a Fixed cost the reader declares (2026-08-05, DECISIONS #412, critic cycle 1 done)
+
+**Shipped.** A reserve (sinking fund) is a `Goal` row with `kind='reserve'` plus an
+additive nullable `Goal.cadence`, storing the TRUE COST once per rhythm; the app
+divides. It counts as FIXED, appears as its own line kind in the C.19/H.3 Fixed
+list, and is declared on /spending-plan. H.4's two acceptance locks are executed:
+the reserve renders at cost/12 beside the mortgage (e2e, through the real form),
+and it LEAVES the `plannedSavingsCents` max as it enters Fixed, with the plan
+identity holding to the cent on all five bases (unit, through the real loader).
+
+**Three fresh-context critics: 1 P0 + 5 P1 + 4 P2, all executed and all fixed.**
+See PROGRESS.md and the 8 REGRESSION_LEDGER entries.
+
+### OPEN after C.23/H.4, ranked
+
+1. **The guided half of C.23 is not built.** The owner asked for a settings
+   section that PROPOSES lines from `detectRecurring`/`RecurringSeries` so he
+   confirms and edits rather than types, plus one "move this much to reserves this
+   month" figure with a named holding account. Today every reserve is typed by
+   hand. C.23's row stays `[~]`.
+2. **A reader whose ONLY reserve is refused still reaches "Fixed & recurring
+   expenses (none counted)" and a "See your recurring bills" control** that cannot
+   reach the thing they declared (copy critic P2). Mitigated on the surface that
+   matters: /spending-plan names the refused row directly below, with its own
+   remove control. Closing it properly needs a refused-count on `SpendingPlan`,
+   which the label author would then read.
+3. **Refused reserves are surfaced on /spending-plan only.** `refusedReserves`
+   lives on `SpendingPlanWithNotes` and is rendered at one call site, so /budgets,
+   the dashboard and Ask say nothing about a declaration the reader made. No
+   figure is wrong — a refused reserve is in no total — so this is an absence of
+   disclosure, not a false claim.
+4. **Two reserves with the same name and amount both count, with no warning.**
+   Nothing enforces uniqueness; the two lines are order-indistinguishable and only
+   the delete control's id separates them (security critic P2-6).
+5. **The reserve fact is stated twice on one panel** — once in the row label's
+   "+ reserves you declared" suffix and once in the Glass-Box clause two lines
+   below (copy critic P2). Both are true; neither is redundant on every surface,
+   which is why it was not collapsed.
