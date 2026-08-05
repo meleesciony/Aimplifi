@@ -165,6 +165,11 @@ model SimpleFinConnection {
   lastSyncedAt      String? // YYYY-MM-DD — last SUCCESSFUL sync
   lastSyncAttemptAt String? // YYYY-MM-DD — last attempt (success or failure)
   lastSyncError     String? // sanitized SyncFailureReason on a failed attempt; null when healthy (Gap 1 §4)
+  // YYYY-MM-DD the one-time deep-history backfill ran, else null (H.5). A connection
+  // first pulled under the old 90-day default keeps that floor FOREVER — every later
+  // sync starts at lastSyncedAt-5d — so its history can never grow without this.
+  // Null = never ran (a failed attempt leaves it null and the next sync retries).
+  historyBackfilledAt String?
   createdAt         DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -6,6 +6,124 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-05 — H.5: the deep-history backfill for existing SimpleFIN connections (DECISIONS #413)
+
+**The premise was measured before anything was built, and it held.** The owner's
+*"i see a max date of march this year"* is not a bank limit: `SIMPLEFIN_INITIAL_LOOKBACK_DAYS`
+(1095) is applied only to a connection's first-ever pull or an account first seen
+mid-sync, and every other sync starts at `lastSyncedAt - 5d`. A connection whose
+first pull ran under the old 90-day default keeps that floor for life, so widening
+the constant on 2026-08-04 reached no connection that already existed. The
+`opts.fullLookbackDays` escape hatch built for exactly this had **zero callers**.
+
+**Built as an add-only path rather than by calling that parameter.** A 1095-day pull
+through the live ingest answers every already-stored row with `guardedVerdictRefresh`,
+which rewrites categoryId/needsReview/isTransfer on any row without an explicit
+Correction — a refresh over 5 days, a silent re-filing of three years of history
+against today's rules over 1095. A pure planner emits only genuinely-new rows and the
+writer only ever `create`s.
+
+**Two fresh-context critics: FAIL — 1 P0 + 11 P1, all executed.** The P0 and the
+headline P1 were the same shape, and it is now a lesson
+(`docs/lessons/add-only-bounds-what-you-write-not-what-it-means.md`): *add-only bounds
+what you WRITE, not what your write MEANS downstream.* P0 — writing into a SUPERSEDED
+PREDECESSOR drags its full-history `span.first`, which is a reconciliation claim edge,
+back three years and thereby DELETES three years of the successor's corrected rows
+from every figure, without updating one row. P1 — `refreshTransferFlags`, inherited
+from the live sync, rewrites `isTransfer` on already-settled rows whenever a new row
+supplies a counterpart; dropped here, kept on the ordinary sync. Also fixed: an empty
+plan marking done on an untrustworthy response (now `inconclusive`; `data.errors` is
+read at last); the connect-time flag, which re-created the reported defect and made it
+unreachable (removed; a reconnect now clears it); an unbounded LLM fan-out over the
+whole plan before any commit, so a timeout committed nothing and repeated forever (now
+chunked 250 / capped 2000 per run, oldest-first, `markDone` only when the plan is
+consumed); and `rateLimitDurable` on `syncSimplefinNow`.
+
+**Critic cycle 2: FAIL — 1 P0 + 3 P1, all executed, and the P0 was cycle 1's own
+fix.** Cycle 1 made a reconnect clear the backfill flag; the line above it had been
+setting `lastSyncedAt: null` since long before this slice. Together, a reconnect took
+the full-pull branch through the LIVE ingest and then fetched three years a second
+time — a probe measured a stored 2024 row moving Groceries → Coffee, silently, no
+audit row. `Disconnect` keeps the history and the UI hints at "reconnect", so this is
+a shipped route. Reconnect no longer nulls `lastSyncedAt`. Also fixed: unpreparable
+rows were charged to the per-run cap though they can never be stored (one bad-format
+bridge could pin the cap forever and never converge); a superseded-only connection
+marked itself permanently done though supersession is reversible; and the oldest-first
+ordering the cap's safety argument rests on was asserted by nothing — a newest-first
+sort left the suite green while the owner's March floor survived every run. Plus a
+planner skip for undatable rows, which the TODAY date-fallback would otherwise mint
+into the current month.
+
+**Critic cycle 3: FAIL — 1 P0 + 3 P1, and the P0 was cycle 2's fix, again.** Cycle
+2's comment named `disconnect → connect` as the route it was closing and then closed
+the upsert's `update:` branch — but `disconnectSimplefin` DELETES the connection row,
+so that route takes `create:`, where a null `lastSyncedAt` still meant a 1095-day pull
+through the live ingest over the rows the disconnect deliberately KEPT. Measured
+again: Groceries → Coffee. A connection created for a user who still holds SimpleFIN
+history now gets today's date, so the sync goes incremental and the add-only backfill
+supplies the depth; nothing is lost to the narrower window, because anything in the
+gap is unstored and the backfill adds it. Cycle 2's superseded-retry was wrong the
+other way — a permanent LOOP (1095-day fetch + full providerRef scan + audit row on
+every sync, forever). Reversibility is now an EVENT: `undoReconciliationFor` clears
+`historyBackfilledAt`, which is what makes marking that state done safe. Two tests
+carrying cycle-2 finding numbers were proven no-ops by sabotage and rewritten to cross
+the limits they name.
+
+**Scale gate executed** (the task row's explicit pre-ship condition),
+`tests/unit/simplefin-history-backfill-scale.test.ts` behind `H5_SCALE_PROBE=1`:
+3000 rows over ~1090 days converge in **2 capped runs at 1.55 ms/row**; a forced full
+re-plan against an entirely-stored history adds **0 rows, 0 duplicates, 0 drifted
+columns**.
+
+**Schema:** `SimpleFinConnection.historyBackfilledAt String?` — additive and nullable,
+verified to survive `scripts/gen-pg-schema.mjs` into the Postgres schema `prisma db
+push` applies on deploy. Existing rows get NULL, which is the intended semantics: every
+existing connection is owed a backfill.
+
+**No surface was built, deliberately.** `transaction-filters.tsx` already prints
+"History available from <date>" derived from the OLDEST ACTUAL TRANSACTION rather than
+from a promised window, so it states what the institution actually returned and moves
+back on its own once the backfill lands. A critic flagged this as missing; it was
+verified present instead of rebuilt.
+
+**OPEN — a CSV-imported or hand-typed row carries no `providerRef`, so the backfill
+cannot see it as a duplicate.** `@@unique([accountId, providerRef])` protects only
+feed-owned rows, and `existingRefs` filters `providerRef: { not: null }`. A user who
+filled the pre-March gap by hand — which the app's own `/transactions/import` page
+invites — will get those charges duplicated when the feed's copies arrive. Additive and
+visible in the register rather than a wrong stored verdict, but it inflates spend. A
+real fix needs amount+date+account fuzzy matching, which is its own slice with its own
+critic (the C.6 lesson: a loose pair rule credited 11 refunds as payments). **Filed, not
+built.**
+
+**OPEN — the per-chunk commit is reasoned, not asserted.** `BACKFILL_CHUNK_ROWS`
+exists so an uncatchable serverless timeout leaves committed work behind, and a
+critic confirmed by sabotage that deleting the chunk flush leaves the suite green.
+Locking it needs a test that throws from `transaction.create` partway through a plan
+and asserts the earlier chunks survived. **Filed, not built.**
+
+**OPEN — a providerRef stored on a superseded PREDECESSOR suppresses the row on the
+successor.** `existingRefs` is scoped by provider, not by account, so a charge already
+held on a read-only predecessor is treated as present and never added to the live
+successor. Conservative and consistent with add-only, but it is a history hole of
+exactly the kind this slice exists to close. **Filed, not built.**
+
+**OPEN — backfilled rows land in an unbounded triage inbox.** `getTriageItems` has no
+date floor, no `take` and no pagination, so a three-year backfill can move the review
+queue from ~17 items to hundreds of two-year-old rows in one page load. The per-run cap
+staggers the inflow but does not bound the queue. **Filed, not built.**
+
+**OPEN — reconnect still takes its full pull through the LIVE ingest.** `connectSimplefin`
+sets `lastSyncedAt: null`, so the next `runSimplefinSync` is a 1095-day pass in which
+every already-stored row hits `guardedVerdictRefresh` — precisely the harm this slice
+routes around everywhere else. Pre-existing, not introduced here, and out of this
+slice's scope; recorded so it is not mistaken for covered.
+
+**UNVERIFIED — no `maxDuration` is raised on the server-action path.** The three routes
+that set it are crons and a repair route. A large first backfill on Neon is O(N)
+sequential round-trips; the per-run cap bounds it, but the platform default for this
+project has not been read off the Vercel dashboard and is not asserted here.
+
 ## ✅ BUILT 2026-08-05 — C.19/H.3: the Fixed list accounts for its own total, and the mortgage is a line in it (DECISIONS #411)
 
 **The C.19 task row was stale.** It was written 2026-08-02 asking for

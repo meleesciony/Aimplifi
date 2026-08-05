@@ -11,7 +11,7 @@ import { businessToday } from '@/lib/business-today';
 import { encryptToken } from '@/lib/crypto';
 import { DEMO_CONNECT_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { prisma } from '@/lib/db';
-import { auditLog, requireUserId } from '@/server/authz';
+import { auditLog, rateLimitDurable, requireUserId } from '@/server/authz';
 import { claimAccessUrl, syncFromSimplefin } from '@/lib/providers/simplefin';
 import type { SyncResult } from '@/lib/providers/types';
 import { accountShapeDigest } from '@/server/sync-change-digest';
@@ -69,10 +69,44 @@ export async function connectSimplefin(setupToken: string): Promise<SimplefinRes
 
   // The token is single-use; store the durable access URL encrypted.
   const ciphertext = encryptToken(accessUrl);
+  // ── How (re)connecting interacts with H.5's deep-history backfill ──────────────
+  // Three critic cycles landed on this block; the rule it settled on is one line:
+  // *a wide window must never reach the LIVE ingest over rows we already store.*
+  // `runSimplefinSync` treats a null `lastSyncedAt` as a first-ever pull and fetches
+  // 1095 days through the ordinary ingest, where every stored row meets
+  // `guardedVerdictRefresh` and is re-filed against today's rules. Measured on a
+  // probe: a stored 2024-11-20 row filed as Groceries came back as Coffee, silently,
+  // with no audit row. Harmless when there is nothing stored; a silent mass
+  // re-categorisation when there is.
+  //
+  // `historyBackfilledAt` is NOT set here. Recording the backfill as done on the
+  // strength of a sync that has not run yet looks free, but a first sync that
+  // SUCCEEDS AND RETURNS NOTHING (a 200 with `errors`, or no accounts) still writes
+  // `lastSyncedAt: today`, pinning every later sync to a 5-day window while the flag
+  // blocks the only mechanism that could widen it again — the reported "max date of
+  // March" defect, made permanent by its own fix.
+  //
+  // RECONNECT (`update:`) keeps `lastSyncedAt` and clears the flag: the incremental
+  // sync covers recent activity and the add-only backfill supplies the depth, so a
+  // new credential can reach further back without touching a stored row.
+  //
+  // RECONNECT AFTER A DISCONNECT takes `create:`, because `disconnectSimplefin`
+  // DELETES this row while deliberately KEEPING the transactions — the flow the
+  // disconnect copy actively invites. A user who still holds SimpleFIN history is
+  // therefore not a first-ever pull and must not be treated as one: give the row
+  // today's date so the sync goes incremental. A genuinely new user keeps the wide
+  // first pull — nothing is stored for it to disturb, and it saves a second fetch.
+  const retained = await prisma.transaction.count({
+    where: { account: { userId, provider: 'simplefin' } },
+  });
   await prisma.simpleFinConnection.upsert({
     where: { userId },
-    create: { userId, accessUrl: ciphertext },
-    update: { accessUrl: ciphertext, lastSyncedAt: null },
+    create: {
+      userId,
+      accessUrl: ciphertext,
+      ...(retained > 0 ? { lastSyncedAt: businessToday(userId) } : {}),
+    },
+    update: { accessUrl: ciphertext, historyBackfilledAt: null },
   });
   await auditLog(userId, 'simplefin.connect', {});
 
@@ -99,6 +133,14 @@ export async function connectSimplefin(setupToken: string): Promise<SimplefinRes
 export async function syncSimplefinNow(): Promise<SimplefinResult> {
   const userId = await requireUserId();
   if (isDemoUser(userId)) return { ok: false, changed: false, error: DEMO_CONNECT_BLOCKED };
+  // The repo rule (`sync-actions.ts`): every request path uses rateLimitDurable.
+  // This path had none, and H.5 raised the cost of abusing it — a sync that also
+  // owes a deep-history backfill fetches three years and can fan out an LLM assist.
+  // The only other brake is AutoSync's `sessionStorage` throttle, which is per-TAB
+  // and destroyed by a reload, so three tabs meant three concurrent backfills.
+  if (!(await rateLimitDurable(`sync-simplefin:${userId}`, 10, 60_000))) {
+    return { ok: false, changed: false, error: 'Too many syncs — give it a minute and try again.' };
+  }
   // The account rows before the sync. SimpleFIN rewrites every balance on each run and
   // reports no counter for it, exactly as the Plaid path does (critic P0-1) — and an
   // INVESTMENT or LOAN account has no transactions at all, so its balance is the only

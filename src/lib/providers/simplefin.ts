@@ -15,6 +15,11 @@
 import { type ISODate, addDays, isoDate, toEpochDays } from '@/lib/dates';
 import { decryptToken } from '@/lib/crypto';
 import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
+import { isDemoUser } from '@/lib/demo-user';
+import {
+  type SimplefinBackfillSkipped,
+  planSimplefinHistoryBackfill,
+} from '@/lib/providers/simplefin-history-backfill';
 import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
 import { safeSyncErrorReason } from '@/lib/providers/sync-status';
 import { assistUnsureRows } from '@/server/categorize-assist';
@@ -24,9 +29,11 @@ import { loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { logCategoryPredictions } from '@/server/predictions';
 import { refreshRecurringForUser } from '@/server/recurring';
+import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import {
   type IngestedSfTransaction,
   type SimplefinAccount,
+  type SimplefinTransaction,
   mapSimplefinAccount,
   prepareSimplefinTransaction,
 } from './simplefin-map';
@@ -409,7 +416,349 @@ export async function syncFromSimplefin(
     where: { userId },
     data: { lastSyncedAt: today, lastSyncAttemptAt: today, lastSyncError: null },
   });
+
+  // One-time deep-history backfill (H.5). A connection whose first pull ran under
+  // the old 90-day default is pinned to that floor forever — every later sync
+  // starts at lastSyncedAt-5d — so its history cannot grow without this. Runs on
+  // the connection's OWN success path (a failed sync never pays for it) and is
+  // add-only and idempotent, so a failure here must never read as a sync failure:
+  // the flag stays null, the next sync retries, and the audit row records why the
+  // history is still short. A forced full pull (opts.fullLookbackDays) is already
+  // as wide as the backfill, so it does the job itself — but the flag is still set
+  // by the backfill's own path, never inferred here.
+  if (!conn.historyBackfilledAt) {
+    try {
+      const hb = await backfillSimplefinHistory(conn, userId, today);
+      result = {
+        ...result,
+        added: result.added + hb.added,
+        // Rows landed that no engine has seen: recurring detection and transfer
+        // pairing ran INSIDE runSimplefinSync, before these rows existed. The
+        // backfill re-runs both (guarded) and reports the result, so the caller
+        // re-renders (the whole point of three more years is that an annual or
+        // semiannual series becomes detectable — H.2's note, made true here).
+        derivedChanged: result.derivedChanged || hb.derivedChanged,
+      };
+    } catch (e) {
+      await prisma.auditLog
+        .create({
+          data: {
+            userId,
+            action: 'simplefin.history-backfill.failed',
+            // safeSyncErrorReason, not the raw message: this error came from a
+            // fetch against the credential-bearing access URL (#5/SEC-SF-4), and
+            // an audit row is stored text like any other.
+            meta: JSON.stringify({ error: safeSyncErrorReason(e) }),
+          },
+        })
+        .catch(() => {});
+    }
+  }
   return result;
+}
+
+/**
+ * The one-time deep-history backfill for an EXISTING SimpleFIN connection (H.5).
+ *
+ * Deliberately NOT `syncFromSimplefin(userId, today, { fullLookbackDays: 1095 })`,
+ * even though that parameter exists and was built for exactly this shape. A forced
+ * full pull runs the whole live ingest over a three-year overlap, and that ingest
+ * answers an already-stored row with `guardedVerdictRefresh` — which rewrites
+ * categoryId / needsReview / isTransfer on every row the reader has not explicitly
+ * corrected. On a 5-day overlap that is a refresh; over three years it is a silent
+ * mass re-filing of the user's entire history against today's rules, moving every
+ * report total with no user action behind it. It would also widen the #128 pending
+ * reconcile's in-window pass from 5 days to 3 years. So this path plans first and
+ * CREATES only rows that do not exist (simplefin-history-backfill.ts): add-only by
+ * construction, not by intention.
+ *
+ * WHAT "ADD-ONLY" DOES AND DOES NOT COVER (critic cycle 1, A-P1-1). It covers every
+ * Transaction row: this function calls `create` and never `update` or `delete`, so
+ * no stored verdict, split, correction, amount or pending status can move. It does
+ * NOT automatically extend to a DERIVED pass that rewrites existing rows — which is
+ * why `refreshTransferFlags` is NOT called here even though the live sync calls it.
+ * `transfer-refresh.ts` sets `isTransfer` on ALREADY-STORED rows when a newly added
+ * row supplies a missing counterpart, and its pair rule is a coincidence detector
+ * (equal magnitude, opposite sign, within 3 days) that would get three extra years
+ * of chances to fire against rows the reader already settled — silently removing
+ * them from every spending total. Transfer pairing therefore stays where the reader
+ * can attribute it, the next ordinary sync, rather than arriving as a side effect of
+ * a backfill nobody pressed a button for. `refreshRecurringForUser` IS called: it
+ * writes only derived RecurringSeries/ScheduledTransaction rows, never a
+ * Transaction, and re-deriving cadence is the entire reason more history is worth
+ * having.
+ *
+ * BOUNDED PER RUN (critic cycle 1, B-P1-1/2/4). The ingest is chunked and capped: a
+ * run commits as it goes and stops at BACKFILL_MAX_ROWS_PER_RUN, marking itself done
+ * only once it has consumed the whole plan. A serverless timeout is not catchable,
+ * so a run that dies must still leave progress behind — unchunked, a kill during the
+ * LLM assist (which ran over the entire plan before the first create) committed
+ * nothing, and the retry repeated the identical work forever.
+ *
+ * The institution caps what actually comes back — asking for 1095 days does not
+ * mean receiving them. This reports what it added; it never promises three years.
+ */
+/** Rows one invocation will ingest before deferring the rest to the next sync. */
+export const BACKFILL_MAX_ROWS_PER_RUN = 2000;
+/** Rows per commit slice: the LLM assist and the creates both run per chunk, so a
+ *  killed run loses at most this much work instead of all of it. */
+export const BACKFILL_CHUNK_ROWS = 250;
+
+async function backfillSimplefinHistory(
+  conn: { accessUrl: string },
+  userId: string,
+  today: ISODate,
+): Promise<{ added: number; derivedChanged: boolean; skipped: SimplefinBackfillSkipped }> {
+  const noSkips: SimplefinBackfillSkipped = {
+    pending: 0,
+    unmappedAccount: 0,
+    alreadyExists: 0,
+    inconsistentFetch: 0,
+    malformed: 0,
+    undatable: 0,
+  };
+  // Demo fence (#242 F1, the categorizeSuggestFor stance): the shared demo row is
+  // every anonymous visitor at once and must never trigger provider egress,
+  // whatever route reaches this.
+  if (isDemoUser(userId)) return { added: 0, derivedChanged: false, skipped: noSkips };
+
+  const startDate = addDays(today, -SIMPLEFIN_INITIAL_LOOKBACK_DAYS);
+  const data = await fetchSimplefinAccounts(decryptToken(conn.accessUrl), startDate);
+
+  // Spending accounts ONLY, and only ones that already exist locally. The backfill
+  // never creates an account: discovery belongs to the sync, which runs its own
+  // first-seen full-history pass (DECISIONS #73) — and an account created here
+  // would get its rows without ever passing through that pass's balance/holdings
+  // handling. INVESTMENT and LOAN take no transaction rows on this path, matching
+  // the sync's own two `continue`s.
+  const localAccounts = await prisma.account.findMany({
+    where: { userId, provider: 'simplefin', type: { in: ['CHECKING', 'SAVINGS', 'CREDIT'] } },
+    select: { id: true, providerRef: true },
+    orderBy: { id: 'asc' },
+  });
+  // A SUPERSEDED PREDECESSOR is read-only history and may not receive rows (critic
+  // cycle 1, P0-1). `refuseManualWriteToSuperseded` already blocks manual entry and
+  // CSV import onto these accounts; this is the same rule for a feed write, and the
+  // reason is sharper than "the rows would be ignored". The boundary claims the
+  // window [span.first, cutover] from the predecessor's FULL-HISTORY minimum date
+  // (reconciliation.ts `getReconciliationTxnKeep` → reconcile-boundary.ts
+  // `txnKeepRule`), and every SUCCESSOR row inside that window is dropped. Dragging
+  // span.first back three years would therefore delete three years of the
+  // successor's rows — the ones carrying the reader's corrections and splits — from
+  // every figure, without updating a single row. Add-only is no defence against
+  // that; not writing is.
+  const superseded = await activeSupersededPredecessorIds([userId]);
+  const accountIdByRef = new Map<string, string>();
+  for (const a of localAccounts) {
+    if (!a.providerRef || superseded.has(a.id)) continue;
+    // FIRST wins, matching the sync's `findFirst` resolution (critic cycle 1,
+    // P2-2): Account has no unique constraint on (userId, provider, providerRef),
+    // and last-wins would file history onto a different row than the sync uses,
+    // splitting one account's history in two. `orderBy: id` makes "first" stable.
+    if (!accountIdByRef.has(a.providerRef)) accountIdByRef.set(a.providerRef, a.id);
+  }
+
+  // The add-only boundary. Scoped by `account.provider`, never a nullable join
+  // column — the L.17 lesson the Plaid backfill already records.
+  const existing = await prisma.transaction.findMany({
+    where: { account: { userId, provider: 'simplefin' }, providerRef: { not: null } },
+    select: { providerRef: true },
+  });
+  const existingRefs = new Set(existing.map((r) => r.providerRef as string));
+
+  const accounts = data.accounts ?? [];
+  const plan = planSimplefinHistoryBackfill(accounts, existingRefs, accountIdByRef);
+
+  const markDone = () =>
+    prisma.simpleFinConnection.update({ where: { userId }, data: { historyBackfilledAt: today } });
+  const audit = (action: string, meta: Record<string, unknown>) =>
+    prisma.auditLog.create({ data: { userId, action, meta: JSON.stringify(meta) } }).catch(() => {});
+
+  // AN EMPTY PLAN IS NOT PROOF THAT THE HISTORY IS COMPLETE (critic cycle 1, P1-2).
+  // A 200 carrying `errors` and no accounts, or a partial response that omits the
+  // `transactions` array, produces the identical empty plan — and the planner
+  // deliberately refuses to read a missing array as "no transactions". Marking done
+  // on that would deny the reader the fix PERMANENTLY: the flag gates the only
+  // trigger, and there is no user-facing way to ask for a retry. So a run counts as
+  // done only when at least one MAPPED account actually reported an array;
+  // anything else is audited as inconclusive and retried on the next sync.
+  //
+  // ZERO MAPPED ACCOUNTS is the one exception, and it is a real nothing-to-do rather
+  // than a bad response: every SimpleFIN account is investment/loan, or superseded,
+  // or not yet created locally. It marks done. Cycle 2 made this case retry instead,
+  // on the grounds that supersession is reversible — which traded a permanent trap
+  // for a permanent LOOP (a 1095-day fetch, a full providerRef scan and an audit row
+  // on every sync, with nothing on this data able to end it). Reversibility now lives
+  // where it belongs, as an EVENT: `undoReconciliationFor` clears
+  // `historyBackfilledAt`, so undoing a combination re-arms the backfill. A terminal
+  // state is safe once its reversal re-opens it.
+  const reportedAny =
+    accountIdByRef.size === 0 ||
+    accounts.some((a) => Array.isArray(a.transactions) && accountIdByRef.has(a.id));
+  if (!reportedAny) {
+    await audit('simplefin.history-backfill.inconclusive', {
+      windowStart: startDate,
+      accountsReturned: accounts.length,
+      mappedAccounts: accountIdByRef.size,
+      // Read at last: the field is declared on the response type and nothing else
+      // in this file consumes it, so a bridge-side error was previously invisible.
+      errors: data.errors ?? [],
+    });
+    return { added: 0, derivedChanged: false, skipped: plan.skipped };
+  }
+
+  if (plan.rows.length === 0) {
+    // A TRUSTWORTHY response with nothing to add — history already complete, or the
+    // institution holds nothing older. Mark done so this is not refetched every
+    // sync; the audit row keeps "ran, found nothing" distinct from "never ran".
+    await markDone();
+    await audit('simplefin.history-backfill', {
+      windowStart: startDate,
+      added: 0,
+      deferredToNextSync: 0,
+      complete: true,
+      skipped: plan.skipped,
+    });
+    return { added: 0, derivedChanged: false, skipped: plan.skipped };
+  }
+
+  await ensureCategories(); // FK target for every txn.categoryId the categorizer emits (#63)
+  const [rules, tuning] = await Promise.all([loadUserRules(userId), getThresholdTuning(userId)]);
+  // Oldest first: a capped run should buy the reader the history he is actually
+  // missing, and a partial run should extend the span DOWNWARD rather than leave a
+  // hole in the middle. Sorted on the EFFECTIVE date — the one
+  // `prepareSimplefinTransaction` will assign — not on `posted` alone (critic cycle
+  // 3, P2-1). A row with the `posted: 0` sentinel
+  // and a recent `transacted_at` survives the planner's undatable skip and would sort
+  // to position 0 on raw `posted`, spending the cap's oldest-first budget on the
+  // newest row in the plan; a feed omitting `posted` entirely would yield NaN and
+  // scramble the order arbitrarily. `effectiveEpoch` cannot be 0 here: the planner
+  // already dropped every row for which both fields are absent.
+  const effectiveEpoch = (t: SimplefinTransaction) =>
+    t.posted > 0 ? t.posted : (t.transacted_at ?? 0);
+  const queued = [...plan.rows].sort((a, b) => effectiveEpoch(a.txn) - effectiveEpoch(b.txn));
+
+  // The cap counts rows that could actually BE ingested, not rows examined (critic
+  // cycle 2, P1-1). A row that throws in `prepareSimplefinTransaction` — an amount
+  // the parser rejects — never reaches `create`, so it never enters `existingRefs`
+  // and the next run re-plans it in the identical oldest-first position. Charging it
+  // to the budget meant a bridge whose amount format this parser dislikes could hold
+  // the cap forever: nothing lands, the flag never sets, and every sync pays a
+  // three-year fetch until the connection dies. Unusable rows are therefore consumed
+  // and discarded here, and only what CAN be prepared is rationed.
+  let examined = 0;
+  let budgetLeft = BACKFILL_MAX_ROWS_PER_RUN;
+  let added = 0;
+  let chunk: IngestedSfTransaction[] = [];
+
+  const flush = async () => {
+    // Per CHUNK, not per plan: `assistUnsureRows` fans out one concurrent LLM call
+    // per distinct unsure descriptor with no internal cap, and its only previous
+    // bound was that the live sync feeds it a 5-day window. Three years of
+    // descriptors through one unbounded fan-out — before a single row is committed
+    // — was both the cost spike and the reason a killed run made no progress.
+    const assisted = await assistUnsureRows(chunk, categorizeSuggestFor(userId));
+    chunk = [];
+
+    // Each prepared row carries its OWN accountId, so the create loop never has to
+    // index back into plan.rows — a prepare failure cannot misalign the pairing.
+    for (const row of assisted) {
+      const merchant = await prisma.merchant.upsert({
+        where: { canonical: row.merchantCanonical },
+        create: { canonical: row.merchantCanonical, defaultCategoryId: row.categoryId },
+        update: {},
+      });
+      try {
+        const createdRow = await prisma.transaction.create({
+          data: {
+            accountId: row.accountId,
+            providerRef: row.providerRef,
+            // Field-for-field the live sync's CREATE branch: a backfilled row must
+            // be indistinguishable from one the sync delivered, because every
+            // engine reads both.
+            date: row.date,
+            amountCents: row.amountCents,
+            rawDescriptor: row.rawDescriptor,
+            merchantId: merchant.id,
+            status: row.status,
+            categoryId: row.categoryId,
+            confidenceBps: row.confidenceBps,
+            needsReview: row.needsReview,
+            isTransfer: row.isTransfer,
+            ...(row.taxClassStamp ? { taxClass: row.taxClassStamp } : {}),
+            ...(row.spendClassStamp ? { spendClassOverride: row.spendClassStamp } : {}),
+          },
+        });
+        await logCategoryPredictions(userId, [
+          {
+            transactionId: createdRow.id,
+            categoryId: row.categoryId,
+            confidenceBps: row.confidenceBps,
+            source: row.source,
+          },
+        ]);
+        added++;
+      } catch (e) {
+        // The cron sweep and a hand-pressed Sync can race this: the loser lands on
+        // @@unique(accountId, providerRef). The winner already stored the row, so
+        // count it as existing rather than aborting the run (the live create path's
+        // CQ-2 stance, reused).
+        if (!isUniqueViolation(e)) throw e;
+        plan.skipped.alreadyExists++;
+      }
+    }
+  };
+
+  for (const r of queued) {
+    if (budgetLeft === 0) break;
+    examined++;
+    let row: IngestedSfTransaction;
+    try {
+      row = prepareSimplefinTransaction(r.txn, r.accountId, today, rules, tuning.flaggedBps);
+    } catch {
+      // Malformed row (e.g. unparseable amount) — skip it, exactly as the live ingest
+      // does, never abort the run over one bad row, and DON'T charge it to the
+      // budget: it can never be stored, so charging it would let it block the cap on
+      // every future run.
+      plan.skipped.malformed++;
+      continue;
+    }
+    chunk.push(row);
+    budgetLeft--;
+    if (chunk.length >= BACKFILL_CHUNK_ROWS) await flush();
+  }
+  if (chunk.length > 0) await flush();
+  const deferred = queued.length - examined;
+
+  // Done ONLY when the WHOLE plan was consumed. A capped run leaves the flag null so
+  // the next sync continues where this one stopped; `alreadyExists` makes that
+  // continuation converge rather than duplicate. A crash mid-run behaves the same
+  // way, which is the point of committing per chunk.
+  if (deferred === 0) await markDone();
+  await audit('simplefin.history-backfill', {
+    windowStart: startDate,
+    added,
+    deferredToNextSync: deferred,
+    complete: deferred === 0,
+    skipped: plan.skipped,
+  });
+
+  // Cadence is the reason more history is worth having: an annual or semiannual
+  // series needs occurrences the 90-day floor never stored. Guarded exactly as
+  // inside runSimplefinSync — the ingest has already committed, so a throw in a
+  // derived projection must not cost the caller a successful backfill. Transfer
+  // pairing is deliberately NOT run here; see the docblock.
+  let derivedChanged = false;
+  if (added > 0) {
+    try {
+      const refreshed = await refreshRecurringForUser(userId, today);
+      if (refreshed.changed) derivedChanged = true;
+    } catch {
+      // derived projection — never fail the backfill over it
+    }
+  }
+
+  return { added, derivedChanged, skipped: plan.skipped };
 }
 
 async function runSimplefinSync(

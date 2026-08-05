@@ -406,3 +406,4 @@ refuses to write if it would drop any number this file already carries.
 - **#410** (Phase ?): C.26 (P1-28): a spending figure's WINDOW is a value it carries, and its register link is built from that same value (built, critic-cycled)
 - **#411** (Phase ?): C.19/H.3: a Fixed TOTAL its list cannot account for — the union emits the rows it summed, `...Cents` is implemented in terms of them, and each line states its own basis (built, critic-cycled)
 - **#412** (Phase ?): C.23/H.4: a reserve is a Fixed cost the reader declares, and the app does the division — reserves leave the savings max as they enter Fixed (built, critic pass in progress)
+- **#413** (Phase ?): H.5: history is a property of the CONNECTION ROW, and a re-pull is not a refresh at a different size — the deep-history backfill is add-only by construction (built, critic-cycled)

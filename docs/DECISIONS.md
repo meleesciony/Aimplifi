@@ -4365,3 +4365,118 @@ detected series whose cadence the detector left null, catastrophic for a stored
 `'YEARLY'`, which would enter the plan at TWELVE TIMES its truth in the direction
 that eats the whole guilt-free line. Refusals leave `resolveReserves` as data, are
 named on the page, and keep their own remove control.
+
+## #413 — H.5: history is a property of the CONNECTION ROW, and a re-pull is not a refresh at a different size (built, critic-cycled)
+
+**The owner's report:** *"why aren't they showing, i see a max date of march this year"*.
+
+**Measured cause, not guessed.** `SIMPLEFIN_INITIAL_LOOKBACK_DAYS` (1095) is applied on
+exactly two paths: a connection's first-ever pull, and an account first seen mid-sync
+(DECISIONS #73). Every other sync starts at `lastSyncedAt - 5d`. So a connection whose
+first pull ran under the old 90-day default carries that floor for the rest of its life,
+and widening the constant — which #18b6ad6 did on 2026-08-04 — reaches no connection that
+already exists. The `opts.fullLookbackDays` escape hatch built for this had **zero callers**
+(grepped). March is ~90 days before the owner's first connect.
+
+**The decision: the backfill is ADD-ONLY BY CONSTRUCTION, not by calling the existing
+force-full parameter.** `syncFromSimplefin(userId, today, { fullLookbackDays: 1095 })` was
+the obvious implementation and is wrong. The live ingest answers an already-stored row with
+`guardedVerdictRefresh`, which rewrites `categoryId` / `needsReview` / `isTransfer` on every
+row carrying no explicit `Correction`. Over the incremental path's 5-day overlap that is a
+refresh; over 1095 days it is a silent re-filing of the user's entire history against
+today's rules — every report total moves, with no user action behind it and no audit trail.
+It would also widen the #128 pending reconcile's in-window pass from 5 days to 3 years.
+**The same code means something different at a different overlap width.** So a pure planner
+(`simplefin-history-backfill.ts`) decides what is genuinely new and the writer creates only
+that, mirroring the Plaid precedent (`plaid-history-backfill.ts`, #18b6ad6).
+
+**What "add-only" does and does not cover — the finding that cost cycle 1 a P0 and a P1.**
+It bounds what you WRITE. It does not bound what your write MEANS to something derived from
+it:
+
+* **P0 — a superseded predecessor.** The reconciliation boundary claims the window
+  `[predecessor.span.first, cutover]` from that predecessor's FULL-HISTORY minimum date and
+  DROPS every successor row inside it (`reconcile-boundary.ts` `txnKeepRule`). Backfilling
+  three years onto a predecessor drags `span.first` back three years and therefore deletes
+  three years of the *successor's* rows — the ones carrying the reader's corrections and
+  splits — from every figure, **without updating a single row**. `refuseManualWriteToSuperseded`
+  already declares these accounts read-only for manual entry and CSV; this is that rule for a
+  feed write. Not writing is the only defence; add-only is not one.
+* **P1 — a derived pass.** `refreshTransferFlags` writes `isTransfer` onto ALREADY-STORED
+  rows when a newly added row supplies a missing counterpart, on a coincidence rule (equal
+  magnitude, opposite sign, ±3 days) that a three-year backfill hands three extra years of
+  chances — silently removing settled rows from every spending total. It is therefore NOT
+  run here; transfer pairing stays on the next ordinary sync where the reader can attribute
+  it. `refreshRecurringForUser` IS run: it writes only derived RecurringSeries rows, never a
+  Transaction, and re-deriving cadence is the entire reason more history is worth having.
+
+**An empty plan is not proof the history is complete.** A 200 carrying `errors`, or a
+partial response omitting `transactions`, produces the identical empty plan — and the planner
+deliberately refuses to read a missing array as "no transactions". Marking done on that would
+deny the reader the fix permanently: the flag gates the only trigger and no surface can ask
+for a retry. A run counts as done only when a mapped account actually reported an array;
+`data.errors` is now read (nothing consumed it before). Exception: zero mapped accounts is a
+real "nothing to do", not a bad response, and marks done rather than refetching forever.
+
+**Never record that work is done on the strength of work that has not run.** Setting
+`historyBackfilledAt` at connect looked free — a fresh connection already pulls the full
+window. But a first sync that *succeeds and returns nothing* still writes `lastSyncedAt:
+today`, pinning every later sync to a 5-day window while the pre-set flag blocks the only
+mechanism that could widen it again: the reported defect, made permanent by its own fix. The
+flag is set only by the backfill's own completion. A RECONNECT clears it — a new credential
+may reach history the old one could not, and re-running an add-only pass is cheap insurance.
+
+**Bounded per run, because a timeout is not catchable.** The LLM assist (`assistUnsureRows`)
+fans out one concurrent call per distinct unsure descriptor with no internal cap; its only
+prior bound was that the live sync feeds it a 5-day window. Running it over the whole plan
+before the first `create` meant a killed run committed **nothing** and the retry repeated the
+identical work forever. The ingest is now chunked (250) and capped (2000/run), oldest-first
+so a partial run extends the span downward rather than holing the middle, and `markDone` runs
+only when the whole plan is consumed. `syncSimplefinNow` also gained the repo's standard
+`rateLimitDurable` — AutoSync's only other brake is a per-TAB `sessionStorage` throttle, so
+three tabs meant three concurrent three-year fetches.
+
+**Measured, not asserted** (`tests/unit/simplefin-history-backfill-scale.test.ts`, gated
+behind `H5_SCALE_PROBE=1`): 3000 rows over ~1090 days converge in 2 capped runs at
+1.55 ms/row, and a forced full re-plan against an entirely-stored history adds 0 rows,
+creates 0 duplicates and drifts 0 columns.
+
+**Critic cycle 2 — FAIL (1 P0 + 3 P1), all executed, and the P0 was cycle 1's own fix.**
+Cycle 1 made a reconnect CLEAR `historyBackfilledAt`, and the line above it had been
+setting `lastSyncedAt: null` since long before this slice. Together they made a reconnect
+take the full-pull branch through the LIVE ingest *and* then fetch three years a second
+time. Measured on a probe: a stored 2024 row moved Groceries → Coffee, silently, with no
+audit row — the exact harm this slice routes around everywhere else, on the one path
+nobody had tested. `Disconnect` deliberately KEEPS the history and the UI hints at
+"reconnect", so it is a shipped route, not a corner. Fixed by NOT nulling `lastSyncedAt`:
+the incremental sync covers recent activity and the add-only backfill delivers the depth.
+The other three: rows that fail to prepare were charged to the per-run cap though they can
+never be stored, so one bad-format bridge could pin the cap forever and the backfill would
+never converge (the cap now rations only what CAN be prepared); `accountIdByRef.size === 0`
+marked done even when every account had been EXCLUDED as superseded, which is reversible
+via `undoneAt`, so undoing a combination left the history unwidenable forever; and the
+oldest-first ordering that the cap's whole safety argument rests on was asserted by
+nothing — a newest-first sort left the suite green while the owner's March floor survived
+every run. A planner skip for undatable rows (`posted: 0`, no `transacted_at`) was added in
+the same pass: the date fallback is TODAY, which is sane at a 5-day window and mints
+three-year-old charges into the current month at 1095.
+
+**Critic cycle 3 — FAIL (1 P0 + 3 P1), and the P0 was cycle 2's fix, again.** Cycle 2's
+comment named `disconnect → connect` as the route it was closing, and closed the upsert's
+`update:` branch — but `disconnectSimplefin` DELETES the connection row, so that route
+takes `create:`, where a null `lastSyncedAt` still meant a 1095-day pull through the live
+ingest over the rows the disconnect deliberately KEPT. Measured again: Groceries → Coffee.
+A connection created for a user who still holds SimpleFIN history is now given today's
+date, so the sync goes incremental and the add-only backfill supplies the depth (no data
+is lost to the narrower window: anything the gap contains is unstored, so the backfill
+adds it). Cycle 2's superseded-retry was also wrong in the other direction — it traded a
+permanent trap for a permanent LOOP (a 1095-day fetch, a full providerRef scan and an
+audit row on every sync, forever). Reversibility is now handled as an EVENT:
+`undoReconciliationFor` clears `historyBackfilledAt`, which makes marking the state done
+safe. Two tests carrying cycle-2 finding numbers were proven no-ops by sabotage and
+rewritten to cross the limits they name.
+
+**Surface:** none built, and none needed — `transaction-filters.tsx` already prints "History
+available from <date>" derived from the OLDEST ACTUAL TRANSACTION, never from a promised
+window, so it states what came back and moves back on its own when the backfill lands. A
+critic flagged this as missing; it was verified present instead of rebuilt.

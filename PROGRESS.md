@@ -1793,3 +1793,56 @@ The discriminating check is the section itself: the previous build has no
 deployment cannot produce it. The demo's own refusal is asserted as a rendered
 fact rather than an absence, and C.19's reconciliation invariant is re-executed
 live with the new line kind in play ($3,240.92 across 11 lines, matched).
+
+## H.5 — SimpleFIN deep-history backfill for existing connections (2026-08-05, DECISIONS #413)
+
+**Premise measured before building, and it held.** `SIMPLEFIN_INITIAL_LOOKBACK_DAYS`
+(1095) applies only to a connection's first-ever pull or an account first seen
+mid-sync; every other sync starts at `lastSyncedAt - 5d`. So a connection first
+pulled under the old 90-day default is pinned to that floor for life, and widening
+the constant on 2026-08-04 reached no existing connection. The owner's "max date of
+march" is that floor. `opts.fullLookbackDays`, built for exactly this, had zero
+callers.
+
+**Built add-only rather than by calling that parameter.** A 1095-day pull through
+the live ingest answers every stored row with `guardedVerdictRefresh` — a refresh at
+a 5-day overlap, a silent re-filing of three years of history at 1095. A pure planner
+emits only genuinely-new rows; the writer only ever `create`s.
+
+**Four fresh-context critic cycles, all FAIL through cycle 3, all findings executed:
+3 P0 + 19 P1.** Cycles 2 and 3 each OPENED with a P0 that the previous cycle had just
+created — cycle 3's was cycle 2's fix applied to the wrong branch of the same upsert,
+while its comment correctly named the route it failed to close.
+Both P0s were the same shape and neither was arithmetic — see
+`docs/lessons/add-only-bounds-what-you-write-not-what-it-means.md`. Cycle 1: writing
+into a superseded predecessor drags its full-history `span.first`, a reconciliation
+claim edge, back three years and thereby DELETES three years of the successor's
+corrected rows from every figure without updating one row. Cycle 2: the P0 was cycle
+1's own fix — a reconnect cleared the backfill flag while the line above it nulled
+`lastSyncedAt`, so reconnect took the live-ingest full pull AND re-fetched three
+years; a probe measured a stored 2024 row moving Groceries → Coffee, silently.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0, eslint 0, **6069 unit / 367
+files**, build clean. Targeted e2e: `connection-health` + `transactions` 23/23.
+
+**Scale gate** (the task row's explicit pre-ship condition), `H5_SCALE_PROBE=1 npx
+vitest run tests/unit/simplefin-history-backfill-scale.test.ts`:
+
+```
+H.5 SCALE PROBE — 3000 rows over ~1090 days
+─────────────────────────────────────────────
+converge (2 capped runs)  added=3000  4459ms  (1.49ms/row)
+next sync (flag set)        added=0  requests=3
+forced full 1090d replan    added=0  226ms
+duplicates=0  drifted rows=0
+```
+
+**Fail-old/pass-new checked on the load-bearing locks, not assumed:** disabling the
+trigger fails 7 of 8 original tests; removing the superseded guard lands 2 rows on
+the read-only predecessor; a newest-first sort fails the ordering lock (it was
+invisible to the suite before this slice added it).
+
+**Schema:** `SimpleFinConnection.historyBackfilledAt String?` — additive, nullable,
+and verified to survive `scripts/gen-pg-schema.mjs` into the Postgres schema that
+`prisma db push` applies on deploy. Existing rows get NULL, which IS the intended
+semantics: every existing connection is owed a backfill.

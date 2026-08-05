@@ -158,12 +158,47 @@ describe('SimpleFIN connect + sync (real actions, mocked server)', () => {
   it('first sync asks for three years of history, not the old 90 days', async () => {
     expect(SIMPLEFIN_INITIAL_LOOKBACK_DAYS).toBeGreaterThanOrEqual(730); // never back below 2 years
     expect(SIMPLEFIN_INITIAL_LOOKBACK_DAYS).toBeLessThanOrEqual(1830); // sanity cap: 5 years
-    await connectSimplefin(SETUP_TOKEN); // 1st sync is the wide one
+    await connectSimplefin(SETUP_TOKEN);
     const calls = vi.mocked(fetch).mock.calls as [unknown, { method?: string }][];
     const gets = calls.filter(([u, i]) => i?.method === 'GET' && String(u).includes('/accounts'));
     expect(gets.length).toBeGreaterThanOrEqual(1);
-    const firstStartSec = toEpochDays(isoDate('2023-06-11')) * 86400;
-    expect(String(gets[0][0])).toContain(`start-date=${firstStartSec}`);
+    const wideStartSec = toEpochDays(isoDate('2023-06-11')) * 86400;
+    // Asserted across the GETs rather than on the first one: since H.5 a RECONNECT
+    // keeps `lastSyncedAt` (nulling it drove a 1095-day pull through the live ingest,
+    // which re-files stored rows — critic cycle 2 P0-1), so the wide window is
+    // delivered by the add-only backfill instead of by the sync's first pass. The
+    // invariant the owner cares about is unchanged: the connection asks for 3 years.
+    expect(gets.some(([u]) => String(u).includes(`start-date=${wideStartSec}`))).toBe(true);
+  });
+
+  it('connecting does NOT pre-mark the deep-history backfill as done (H.5 critic P1-3)', async () => {
+    // The tempting optimisation is to set `historyBackfilledAt` at connect, since a
+    // fresh connection's first pull is already the full window. But that records a
+    // sync that has not happened. A first sync that SUCCEEDS AND RETURNS NOTHING —
+    // a 200 with an `errors` array — still writes `lastSyncedAt: today`, pinning
+    // every later sync to a 5-day window while the flag blocks the one mechanism
+    // that could widen it again: the reported "max date of March" defect, made
+    // permanent by its own fix. Leaving it null costs one extra fetch.
+    //
+    // Driven through the failing-first-sync path, because that is where the two
+    // designs differ: on a HEALTHY connect the following sync legitimately marks
+    // itself done after an honest empty plan, so asserting null there would pass
+    // either way.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: unknown, init?: { method?: string }) => {
+        const url = String(input);
+        if (init?.method === 'POST' && url === CLAIM_URL) {
+          return { ok: true, status: 200, text: async () => ACCESS_URL } as Response;
+        }
+        return { ok: false, status: 500, text: async () => '', json: async () => ({}) } as Response;
+      }),
+    );
+    const r = await connectSimplefin(SETUP_TOKEN);
+    expect(r.ok).toBe(true); // the link is saved even though the first sync failed
+    const conn = await prisma.simpleFinConnection.findUnique({ where: { userId: USER } });
+    expect(conn).not.toBeNull();
+    expect(conn!.historyBackfilledAt).toBeNull(); // still owed a deep pull
   });
 
   it('backfills the full history of an account first seen on an incremental sync (DECISIONS #73)', async () => {
