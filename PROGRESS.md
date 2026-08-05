@@ -1772,3 +1772,24 @@ defect above. `docs/lessons/a-control-that-replaces-a-half-must-be-told-which-ha
 **Re-gate:** `bash scripts/verify.sh` → VERIFY GREEN — tsc 0, eslint 0,
 **6036 unit / 365 files**, build clean. E2E `fixed-composition.spec.ts` 3/3 +
 `spending-plan.spec.ts` 1/1. 8 REGRESSION_LEDGER entries.
+
+### C.23/H.4 live deploy proof — PASS (6/6), www.aimplifi.app, 2026-08-05
+
+`node scripts/c23-live-deploy-check.mjs`
+
+```
+PASS  signed into the shared demo on production — https://www.aimplifi.app
+PASS  the reserves section renders with this commit’s heading — Money you set aside each month
+PASS  the write form is withheld on the shared demo — forms=0
+PASS  and the reason is stated where the form would be — The demo is a shared account, so reserves can't be added her
+PASS  the printed lines still add up to the printed Fixed total — 11 lines summing 324092 vs total 324092
+PASS  the list still states a verdict about itself, and it is not empty — These 11 lines add up to the fixed costs your plan uses — matched to t
+
+6/6 checks passed
+```
+
+The discriminating check is the section itself: the previous build has no
+"Money you set aside each month" section on /spending-plan, so a stale
+deployment cannot produce it. The demo's own refusal is asserted as a rendered
+fact rather than an absence, and C.19's reconciliation invariant is re-executed
+live with the new line kind in play ($3,240.92 across 11 lines, matched).
