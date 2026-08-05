@@ -344,6 +344,9 @@ describe('summarizeSpendClassCategories', () => {
       CATEGORY_BY_ID,
       new Set(),
       (id) => CATEGORY_BY_ID.get(id)!.name,
+      // C.13: no reconciliation link in this fixture — the R8 constant-true
+      // keep. The boundary itself is locked in spend-class-link-parity.test.ts.
+      () => true,
     );
     expect(fixed.map((r) => [r.categoryId, r.spentCents])).toEqual([
       ['rent', 200_000],
@@ -361,6 +364,9 @@ describe('summarizeSpendClassCategories', () => {
       CATEGORY_BY_ID,
       new Set(),
       (id) => CATEGORY_BY_ID.get(id)!.name,
+      // C.13: no reconciliation link in this fixture — the R8 constant-true
+      // keep. The boundary itself is locked in spend-class-link-parity.test.ts.
+      () => true,
     );
     expect(fixed).toHaveLength(0);
     expect(guiltFree.map((r) => r.categoryId)).toEqual(['dining']);

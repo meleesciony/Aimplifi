@@ -25,7 +25,10 @@ import {
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getSpendingPlan } from '@/server/spending-plan';
-import { summarizeSpendClassCategories } from '@/lib/engine/spending-plan/spend-class';
+import {
+  spendClassLoanPaymentNote,
+  summarizeSpendClassCategories,
+} from '@/lib/engine/spending-plan/spend-class';
 import { resolveFixedCategoryAmounts } from '@/lib/engine/spending-plan/fixed-category-amounts';
 import { ConsciousBucketsStrip } from '@/components/finance/conscious-buckets-strip';
 import { BudgetingCompositionCard } from '@/components/finance/budgeting-composition-card';
@@ -229,11 +232,17 @@ export default async function BudgetsPage() {
 
   // Wave B.1, per transaction (#397): this month's rows classified one by one —
   // a category whose rows split appears in both lists with that side's subtotal.
+  // C.13: the same reconciliation keep `spendRows` applies above, because these
+  // two headings LINK to the register and the register applies it (R1). Not
+  // `spendRows` itself: that array has also had `isSpendRow` run over it, which
+  // drops the C.25 loan-payment exclusions the register still lists — feeding it
+  // here would trade one mismatch with the destination for another.
   const spendClasses = summarizeSpendClassCategories(
     txns.map((t) => ({ ...t, isTransfer: false })),
     meta,
     fixedMerchants,
     (id) => categoryName(id, meta),
+    keepsReconciled,
   );
 
   // #377: per-category Plan amounts (budget else typical) for Fixed rows —
@@ -305,6 +314,17 @@ export default async function BudgetsPage() {
         fixed={fixedRows}
         guiltFree={spendClasses.guiltFree}
         month={month}
+        // C.13 critic P1-1: the same facts the By-category card names below,
+        // said from THIS list's side. Both figures are right for their own
+        // link, and a page that prints one category twice owes the reader the
+        // sentence that reconciles them — beside BOTH figures, not one.
+        loanPaymentNotes={loanPaymentBasisFacts(snap).map((e) =>
+          spendClassLoanPaymentNote({
+            payee: e.payee,
+            loanName: e.loanName,
+            amount: formatCents(cents(e.paymentCents)),
+          }),
+        )}
       />
       <Card>
         <CardHeader className="pb-2">

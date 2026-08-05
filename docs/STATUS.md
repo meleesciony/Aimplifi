@@ -6,6 +6,41 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-04 — C.13 P1-27: the Fixed/Discretionary heading and its register read one row set (DECISIONS #409)
+
+The audit's stated cause was already dead — #397 admits PENDING into
+`classifySpendClass`, so the $49.93 it cited is gone, verified before anything was
+touched. The parity claim survived through a mechanism the audit did not name: the
+register applies the shared R1 reconciliation keep before it stamps `spendClass`,
+`/budgets` applied that keep to `spendRows` and handed the Fixed/Discretionary panel
+the raw month query. `summarizeSpendClassCategories` now takes `keepsReconciled` as a
+REQUIRED parameter. Critic P1 (fresh context, executed): with the panel now provably
+equal to the register, /budgets prints one category twice — C.25 excludes a loan
+payment from By-category so THAT figure matches its link, the split keeps it so ITS
+link matches — with the explaining sentence under the lower card only.
+`spendClassLoanPaymentNote` now states the direction beside both.
+
+Gate: `bash scripts/verify.sh` GREEN — tsc 0, eslint 0, **5952 unit / 361 files**,
+build clean. Targeted e2e 10/10 serially (spend-class, spend-class-drilldown,
+budgets-basis, budget-targets, category-drilldown).
+
+**OPEN — `/budgets/page.tsx` has no test of its own.** The new required parameter is
+load-bearing by TYPE only: an edit could satisfy it with `() => true` and no test in
+the repo would fail (the critic verified this by grep). The real lock is a
+server-level test over a seeded reconciled pair comparing `getTransactions().summary`
+against the page's panel total. Filed, not built.
+
+**OPEN — C.26, audit P1-28 ("spent this month" over two windows).** Built this
+session as a `spentAsOf` clamp in `getReports` + the three Ask category intents,
+verify-green, then REVERTED after a fresh-context critic produced 5 executed P1s.
+The sharpest: a clamped /reports figure links to an unclamped register
+(`categoryMonthRegisterHref` derives `to` from the month end), measured as $120.00
+clicked landing on $520.00 of rows — the O.5/O.6 link invariant, which this repo
+treats as more serious than the divergence being fixed. Doing it right means the link
+window follows the figure, a decision about whether /budgets clamps too, income
+clamped on both surfaces or neither, and server-level locks the parity test did not
+provide. All five findings are recorded verbatim in the C.26 task row.
+
 ## ✅ BUILT 2026-08-04 — C.12: an instruction and the figure it qualifies now come from the same selection (audit P1-16/17/18/20, DECISIONS #408)
 
 Four instruction/figure drifts, one root. (a) The cash-needed shortfall paired

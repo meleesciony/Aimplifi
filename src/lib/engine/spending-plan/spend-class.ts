@@ -258,6 +258,34 @@ export function guessSpendClass(
   return classifySpendClass({ ...t, spendClassOverride: null }, meta, fixedMerchants);
 }
 
+/**
+ * The sentence that reconciles this panel with the By-category list beneath it
+ * (C.13 critic P1-1).
+ *
+ * They genuinely differ, and both are right for their own job. C.25 (#403)
+ * takes a loan payment carried on its loan OUT of the category figures, because
+ * a category figure links to a register filtered to that category and must sum
+ * to it. The Fixed / Discretionary split does NOT apply that exclusion, because
+ * ITS link goes to a register filtered by class — which still lists the payment
+ * — and dropping it there would break the destination match C.13 just
+ * established. So one page prints Housing twice, at two figures, four inches
+ * apart, and until now only the lower one carried an explanation.
+ *
+ * The sentence names the direction rather than merely disclosing an exclusion:
+ * a reader who reads "not counted" under one figure and sees it counted in the
+ * other has been told something that contradicts what is on screen.
+ *
+ * `amount` arrives pre-formatted — currency formatting stays at the UI
+ * boundary (`formatCents`), as everywhere else in this codebase.
+ */
+export function spendClassLoanPaymentNote(fact: {
+  payee: string;
+  loanName: string;
+  amount: string;
+}): string {
+  return `Payments to ${fact.payee} at ${fact.amount}/mo ARE counted here, because this split follows your Transactions list. Under By category below they are counted on ${fact.loanName} instead, so the two lists differ by that amount.`;
+}
+
 export interface SpendClassCategoryRow {
   categoryId: string;
   name: string;
@@ -273,15 +301,30 @@ export interface SpendClassCategoryRow {
  * both lists, each with its own subtotal — the lists answer "what makes up my
  * Fixed number and my guilt-free number", and a single category-level bucket
  * cannot do that honestly. Categories with $0 classified spend are omitted.
+ *
+ * C.13: `keepsReconciled` is REQUIRED, and it is the parity half of this
+ * function's contract rather than an optimisation. Each of these headings is a
+ * LINK — `spendClassMonthRegisterHref` sends the reader to the register filtered
+ * to the same class and month — so the total printed here is a claim that the
+ * destination adds up to it (the O.5/O.6 link invariant). The register applies
+ * the shared R1 reconciliation ownership rule (`getReconciliationTxnKeep`, see
+ * server/transactions.ts) before it classifies anything, so a reader who has
+ * confirmed a provider migration sees each real purchase ONCE there. This panel
+ * summed the raw month query, counting the predecessor's copy of every
+ * post-cutover purchase a second time — the heading promised money the
+ * destination could not show. Taking the predicate rather than pre-filtered rows
+ * keeps the two surfaces on one rule instead of two copies of it.
  */
 export function summarizeSpendClassCategories(
   transactions: readonly TxnLike[],
   meta: ReadonlyMap<string, CategoryMeta>,
   fixedMerchants: ReadonlySet<string>,
   nameOf: (id: string) => string,
+  keepsReconciled: (accountId: string, date: string) => boolean,
 ): { fixed: SpendClassCategoryRow[]; guiltFree: SpendClassCategoryRow[] } {
   const byCat = new Map<string, { fixed: number; guiltFree: number }>();
   for (const t of transactions) {
+    if (!keepsReconciled(t.accountId, t.date)) continue;
     const cls = classifySpendClass(t, meta, fixedMerchants);
     if (cls === 'out-of-scope') continue;
     const id = t.categoryId!;

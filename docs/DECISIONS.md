@@ -3978,3 +3978,53 @@ E2e note: three mobile-380 specs (today-feed-frozen ×2,
 frozen-figure-surfaces:92) failed in this session but reproduce IDENTICALLY
 on clean HEAD `fec663a` via stash/run/pop — pre-existing spec/component
 drift, recorded in STATUS, not caused by C.12.
+
+## #409 — C.13 (P1-27): the Fixed/Discretionary heading and the register it opens read one row set — the reconciliation keep is a REQUIRED argument, not a call-site habit (built, critic-cycled)
+
+**The audit's stated cause was already dead.** P1-27 blamed a classifier requiring
+POSTED (`spend-class.ts:70` → `insights.ts:48`) for $49.93 of guilt-free the linked
+register could not display. #397 (2026-08-03) had already admitted PENDING into
+`classifySpendClass` for a different reason — the owner's pending Hair Capital row
+showing "Not counted" with no dial — and the module doc says so in as many words.
+Executed against the shipped demo: zero divergence from status, because there is none.
+
+**The parity claim survived anyway, through a mechanism nobody had written down.**
+`getTransactions` applies the shared R1 reconciliation ownership rule
+(`getReconciliationTxnKeep`) to every row before it stamps `spendClass`, so a reader
+who has confirmed a provider migration sees each real purchase once on the register.
+`/budgets` applied that same keep to `spendRows` — and handed the Fixed/Discretionary
+panel the RAW month query. So the heading a reader clicks summed the predecessor's
+copy of every post-cutover purchase twice, and the destination showed it once.
+
+**Fix: the predicate is a required parameter of the engine, not a filter at the call
+site.** `summarizeSpendClassCategories(rows, meta, fixedMerchants, nameOf,
+keepsReconciled)`. Taking the PREDICATE rather than pre-filtered rows is deliberate:
+`spendRows` has also had `isSpendRow` run over it, which drops the C.25 loan-payment
+exclusions the register still lists, so feeding that array here would have traded one
+mismatch with the destination for another.
+
+**Critic P1 (fresh context, executed): the page prints one category twice.** With
+the panel now provably equal to the register, /budgets shows Housing at $1,800.00
+under "By category" (C.25 excludes a loan payment carried on its loan, so THAT figure
+matches ITS link) and $4,200.00 under "Fixed expenses" (which keeps it, so THAT link
+matches) — four inches apart, with the C.25 disclosure rendered inside the lower card
+only. Both figures are right for their own link and the reader had no way to know it.
+`spendClassLoanPaymentNote` now states the direction beside the split: the payment IS
+counted here, is counted on the loan under By category, and the two lists differ by
+that amount. The sentence names the direction rather than merely disclosing an
+exclusion, because "not counted" printed above a figure that counts it is worse than
+silence.
+
+**Locked** in `tests/unit/spend-class-link-parity.test.ts`: both sides run over one
+fixture whose rows exercise both directions of R1 (a successor backfill inside the
+predecessor's claim window, and a predecessor row still reporting past the cutover),
+plus PENDING, a per-row override, a refund, an excluded row and a settlement
+category. The CONTROL executes the old behaviour — an always-true keep — and shows
+the heading promising $3,880.00 against a destination summing $1,960.00.
+
+**Residual, recorded not waived:** nothing in the repo tests `/budgets/page.tsx`
+itself, so the required parameter is load-bearing by TYPE only — a future edit could
+satisfy it with `() => true` and no test would fail. The cheapest real lock is a
+server-level test over a seeded reconciled pair comparing `getTransactions().summary`
+to the page's panel total; filed rather than built here.
+

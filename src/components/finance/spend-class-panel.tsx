@@ -36,11 +36,22 @@ export function SpendClassPanel({
   fixed,
   guiltFree,
   month,
+  loanPaymentNotes,
 }: {
   fixed: SpendClassFixedRow[];
   guiltFree: SpendClassCategoryRow[];
   /** Calendar month ("YYYY-MM") for heading → register deep links (W.7). */
   month: string;
+  /**
+   * C.13 critic P1-1: the loan payments that count HERE and not in the By-category
+   * list below (C.25 / #403 excludes them there so those figures still sum to
+   * their own register link; this split keeps them so ITS link still matches).
+   * REQUIRED, not optional — the whole defect was one of the two lists carrying
+   * the explanation while the other printed a contradicting figure in silence,
+   * and an optional prop reads as "nothing to say" at exactly the caller that
+   * forgot to pass it. Empty array = nothing moved, and the panel says nothing.
+   */
+  loanPaymentNotes: readonly string[];
 }) {
   // Deep link /budgets#spend-class (Plan "Review Fixed on Spending") — scroll after
   // soft nav; same-path hash clicks are handled by PlanRowActionLink.
@@ -68,6 +79,15 @@ export function SpendClassPanel({
         category to lock a Fixed line&apos;s amount; otherwise we use typical
         spend.
       </p>
+      {loanPaymentNotes.map((note) => (
+        <p
+          key={note}
+          className="mt-2 text-xs text-muted-foreground"
+          data-testid="spend-class-loan-payment-basis"
+        >
+          {note}
+        </p>
+      ))}
 
       <ClassList
         title="Fixed expenses"

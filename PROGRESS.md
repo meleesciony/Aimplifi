@@ -2,6 +2,51 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-04 — C.13: half shipped, half reverted with its findings (audit P1-27 / P1-28, DECISIONS #409)
+
+**P1-27, shipped.** The audit blamed a POSTED-only classifier for $49.93 the linked
+register could not show. #397 had already fixed that on 2026-08-03; measured first,
+and the demo divergence is zero. The parity claim survived through a different
+mechanism: `getTransactions` applies the shared R1 reconciliation keep before it
+stamps `spendClass`, `/budgets` applied that keep to `spendRows` and gave the
+Fixed/Discretionary panel the raw month query — so after a confirmed provider
+migration the heading a reader clicks double-counted every post-cutover purchase.
+`summarizeSpendClassCategories` now takes `keepsReconciled` as a required parameter
+(the predicate, not pre-filtered rows: `spendRows` also carries `isSpendRow`, which
+drops the C.25 loan-payment exclusions the register still lists).
+
+Critic cycle 1, fresh context, executed rather than argued: with the panel now
+provably equal to the register, /budgets prints one category at two figures four
+inches apart, and the sentence explaining it lived under the lower one only.
+`spendClassLoanPaymentNote` states the direction beside the split.
+
+**P1-28, built and reverted the same session.** The two "spent this month" figures on
+the dashboard genuinely disagree, and the fix looked small — `spentAsOf` applied to
+the array in `getReports` and the three Ask category intents, matching the clamp
+`merchantSpend` has carried since O.7. It went verify-green. A second fresh-context
+critic then produced five P1s, all executed: the clamped /reports figure links to an
+UNCLAMPED register ($120.00 clicked → $520.00 of rows), /budgets stays unclamped and
+links to the same href so two pages would print two numbers for one category, income
+clamped on /reports but not in Ask, the shared Glass-Box basis sentence is rendered by
+both surfaces and cannot describe two windows, and — mutation-proven — removing the
+clamp from both server files left 59 and 45 tests green, because the parity test
+re-derived the call-site expression instead of calling `getReports`/`buildAnswer`.
+
+Reverted rather than patched: making it correct means the register link window must
+follow the figure, which is a decision about `categoryMonthRegisterHref` and about
+whether /budgets' allowance figure clamps too — a materially larger slice than the
+task row scoped. Filed as **C.26** with all five findings recorded verbatim.
+
+Gate at ship: `bash scripts/verify.sh` GREEN — tsc 0, eslint 0, **5952 unit / 361
+files**, build clean. Targeted e2e 10/10 serially. Empty `prisma/` diff.
+
+**Two notes on this session's tree.** A fresh-context critic ran `git checkout` on
+`trace.ts` mid-audit and clobbered an edit, reconstructing it in different wording —
+caught by reading the diff rather than by the tests, which its reconstruction happened
+to satisfy (`a-subagents-green-is-a-hypothesis`, again). And `TASKS.md` carries a
+concurrent session's Wave H rows plus its archiving of the completed Wave C rows; that
+work is in this commit because it is in this file, and it is not mine.
+
 ## 2026-08-04 — C.10: the wealth-target pace line names the plan as a plan, and refuses it when the history doesn't back it (audit P0-8, DECISIONS #406)
 
 The last open P0 of the calc audit. #375 made the years dial compound the settings
