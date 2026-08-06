@@ -671,12 +671,34 @@ one clamp.** Three independent mechanisms, each verified by reading the lines:
    `inflow | outflow | card-due | loan-due` (`engine/calendar/build.ts:22-25`), fed by scheduled
    cadences plus card/loan obligations. The page has `snap.transactions` in hand and never passes
    them (`calendar/page.tsx:96-106`).
-2. **Scheduled rows step forward only.** `expandScheduled` anchors on `ScheduledTransaction.nextDate`
-   — the NEXT occurrence — and iterates `i = 0,1,2…` forward (`build.ts:98-108`); its own comment
-   says "A row dated in the past also steps forward now." Nothing before `nextDate` is emitted, so
-   the already-passed days of the CURRENT month are empty too, not just past months.
+2. **Scheduled rows step forward only, from wherever their anchor sits.** `expandScheduled` anchors
+   on `ScheduledTransaction.nextDate` and iterates `i = 0,1,2…` forward (`build.ts:98-108`); its own
+   comment says "A row dated in the past also steps forward now." So the calendar's earliest content
+   is each series' own anchor — **not** `today` — and it repeats to whatever month is requested, with
+   no far horizon.
 3. **Dues on or before today are explicitly skipped** — the "stale anchor" guard at `build.ts:187`
    (cards) and `:234` (loans), `if (compareDates(effective, today) <= 0) continue`.
+
+**CORRECTION, same session, from the owner's own observation** (*"I can scroll forward in dates and
+all data populates into 2027. No data pre May"*): the first version of this row generalized #2 into
+"the already-passed days of the CURRENT month are empty too" — that is WRONG, and his screen is the
+evidence. A series anchored in the past paints past months, which is exactly why May–July are
+populated. What is true is narrower and worse: **the entire past half of this calendar is
+projections replayed backward from a scheduled anchor, and the entire future half is projections
+replayed forward, to 2027 and beyond, with no horizon — none of it is a posted transaction, because
+mechanism #1 means the page never reads one.** So "no data pre May" is the oldest scheduled anchor,
+not the oldest thing that happened to him.
+
+**The second, larger half of the report is a DATA fact, not a calendar fact.** Measured live
+2026-08-05 (#414, output in PROGRESS): the oldest transaction across all 12 Plaid items is
+**2026-04-24**. Plaid's documented maximum is **730 days** (re-verified against plaid.com/docs/api/link
+on 2026-08-06, `days_requested` min 1 / max 730 / default 90), items linked before we asked for 730
+only ever ingested Plaid's 90-day default, and the one-time backfill ran on all 12 items and got
+`added: 0` — Plaid holds nothing older. **Three trailing years is therefore unreachable through
+Plaid by construction.** The two routes that do reach it: a SimpleFIN connection, whose first-ever
+pull asks for `SIMPLEFIN_INITIAL_LOOKBACK_DAYS = 1095` (`simplefin.ts:63`, three years to the day) —
+the owner's SimpleFIN connection is currently DISCONNECTED (#414) — and per-bank CSV export through
+the existing importer (H.2).
 
 Pinned as intended behaviour by `tests/unit/calendar-due-expansion.test.ts:209` — *"a month BEFORE
 the due month paints nothing (no backfill of history we never held)"*. So this is a **product
@@ -691,7 +713,8 @@ lesson, on a page whose back-arrow invites exactly that reading.
 
 | # | Task | Owner/Agent | Effort | Est. budget | Status |
 |---|------|-------------|--------|------------|--------|
-| K.1 | **Decide what a past day on /calendar holds, then build it.** Three candidate shapes, materially different products: (i) **posted activity** — actual income/spend from the register on their real dates, so the month view has a history half and an obligation half; (ii) **obligations only, with outcomes** — keep it a bills calendar, but a past due date shows the bill that came due and whether a matching payment posted (stays on-topic, answers "did I pay it?", and reuses the pairing the transfer sweep already does — H.7's precedent for how wrong that can go); (iii) **forward-only, made honest** — drop the back-arrow, state the scope, point at /transactions and /reports for history. Whichever wins, the two defects named above close with it. If (i) or (ii): the day figures are money on a new surface ⇒ they must share the register's basis and the reconciliation boundary (H.8's rule) or the calendar becomes the seventh reader that disagrees with the register. | **Fable 5** (money on a new surface) | medium | 70k | **[ ] OPEN — BLOCKED ON THE OWNER'S PICK between (i)/(ii)/(iii); everything else about the row is diagnosed and ready.** |
+| K.1 | **A past day on /calendar shows what actually posted — ANSWERED by the owner 2026-08-06** (*"We want 3 trailing year data"*), which selects shape (i) over the two alternatives offered (bills-with-outcomes, and forward-only-made-honest). The calendar gains its first posted-transaction source: real income/spend on the dates they posted, behind today; obligations ahead of it. **These are money figures on a new surface, so they take the register's basis and the reconciliation boundary or the calendar becomes the next reader that disagrees with the register** (H.8's rule, and it is now SIX readers deep — do not add a seventh). Two things close with it: the "Previous month" arrow stops being able to land on a grid that only ever held projections, and the "No scheduled activity this month" copy stops asserting a zero it cannot see. **Also in scope because the owner's sentence is about trust, not just presence:** the forward half must stop reading like data — a 2027 cell is a scheduled series replayed 17 times, and only the card/loan dues currently carry `(est.)`. | **Fable 5** (money on a new surface) | medium | 70k | **[ ] OPEN — UNBLOCKED, direction chosen. Note the ceiling honestly on the surface: the calendar can only ever reach as far back as the DATA does, which is 2026-04-24 today (K.2), so this row makes the page correct, not deep.** |
+| K.2 | **Three trailing years of DATA — the half of the owner's ask that no calendar change can satisfy.** Not a new investigation: H.1(a) measured the live corpus (oldest row 2026-04-24, all 12 items backfilled, `added: 0`), and Plaid's 730-day ceiling is re-verified. Route A = **reconnect SimpleFIN**, whose first-ever pull asks 1095 days (`simplefin.ts:63`) — owner action, one click, and it is the ONLY route that reaches three years for a bank that supports it. Route B = **H.2's guided CSV import** per institution, the only route for banks SimpleFIN cannot reach. Route C = **H.6's fresh Plaid Link** caps at 730 days and therefore CANNOT satisfy "3 years" alone — say so rather than letting it be re-proposed. Deliverable: tell the owner which of his 12 institutions each route can serve, before he spends clicks on the wrong one. | Opus 5 | medium | 50k | **[ ] OPEN — follows K.1; supersedes nothing in Wave H, it sequences H.2/H.6 against the owner's actual sentence.** |
 
 ## Wave D — Docs diet: the ledgers are burning session context (owner request 2026-08-04)
 
