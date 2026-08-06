@@ -56,6 +56,34 @@ residue-checked: removing the overturn gate fails 6 of the 7 new pure locks;
 removing the boundary filter fails the duplicate-pair lock; removing the flag
 write's premise re-assertion fails the read→write race lock.
 
+### H.7 live deploy proof — PASS (6/6), www.aimplifi.app, 2026-08-05
+
+`node scripts/h7-live-deploy-check.mjs` against production deployment
+`aimplifi-9py4gtpn2` (Ready, aliased to www.aimplifi.app) on `52de853`:
+
+```
+PASS  signed into the shared demo on production — https://www.aimplifi.app
+PASS  the accounts page renders after the reconciliation-identity import — status=200
+PASS  the register renders and reads real transaction history — History available from Thu, Dec 12, 2024.
+PASS  the income/spending totals that a wrong transfer flag would move still render — status=200 money-rendered=true
+PASS  the dashboard still renders after the sync-path return-shape change — status=200
+PASS  no uncaught client errors on the routes read — none
+
+6/6 checks passed
+```
+
+**What this proves and what it cannot.** H.7 is entirely a server path that runs
+only inside a provider sync, and the shared demo is fenced from provider egress
+by construction (#242 F1) — so production cannot be made to run the sweep, and
+there is no schema change to observe either. What it does establish is that the
+real risk of this deploy did not land: `transfer-refresh` now imports
+`activeTerminalSuccessorMap` from the reconciliation server module and both
+providers read a third field off its return value, so a bad import or a shape
+mismatch would have taken down exactly the routes checked above — including
+/reports, whose income and spending totals are the figures a wrong transfer flag
+moves. That a coincidence no longer reverses a settled verdict is proven by the
+unit gate with five executed sabotages, not by this script.
+
 ### CRITIC CYCLE 1 (2026-08-05) — two fresh-context critics in isolated worktrees, both FAIL: 1 P0, 5 P1, 4 P2, 1 P3. All fixed and locked; the mechanism changed twice.
 
 **P0-1 — the gate never fired on the shape a row actually arrives in.** Every
