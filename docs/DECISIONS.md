@@ -4823,3 +4823,45 @@ other would re-create the disagreement this slice removed.
 **Re-gate:** verify GREEN — tsc 0 / eslint 0 / **6137 unit across 372 files** /
 build clean; `transactions.spec` **24/24**. Seven executed sabotages across the
 cycle, each restored and residue-checked.
+
+## #418 — the app's purpose is the FI-coach mission, not the cash-needed question
+
+**2026-08-06 · Fable 5 session · owner-directed (synthesized per his instruction — he
+gave a stream-of-consciousness statement and asked for a cohesive summary, explicitly
+not a verbatim record)**
+
+**The decision, in one line:** whenever the app is described — to the owner, in the
+README, in app copy, in docs — the answer to "what is this app for" is the
+conscious-spending / financial-independence mission, and the Cash-Needed Engine is named
+as a feature that serves it, never as the definition.
+
+**The purpose, synthesized:** Aimplifi exists to make its users deliberately wealthier —
+a financial coach with a bank feed, not a bank feed with charts. It combines
+Mint/Simplifi-grade aggregation with the practical personal-finance canon (*I Will Teach
+You to Be Rich*, *The Psychology of Money*, and the rest of SPEC.md Differentiator #3)
+expressed as AI-driven product behavior: organize the complete financial picture, show
+where money actually goes, cut the expenses that don't buy happiness while protecting
+the spending that does (money dials), and keep the long game — financial independence,
+retirement, the user's own goals — visible and on track. "How much money do I need and
+when" is the Cash-Needed Engine's job: a flagship feature and a design element, not the
+app's identity.
+
+**Why this needed a decision at all:** the recorded framing had drifted. README opened
+with "built around one killer question" and CLAUDE.md's build loop carries the
+under-10-seconds cash-needed benchmark, so every fresh session (and every AI answer to
+"what does this app do") led with the feature. Meanwhile SPEC.md's Differentiator #3
+already encodes exactly the mission the owner restated — Sethi's money dials, Psychology
+of Money principles, savings rate as the headline metric, big wins not latte shame — so
+this is a framing correction, not a spec change. It is also the same signal as Wave W
+(2026-07-31, "parity is the baseline… building in principles from personal finance
+books"): the differentiator half is the half the owner actually bought.
+
+**What changed (docs only, no code):** CLAUDE.md gains a "Purpose" section directly
+under the project header carrying the synthesized statement; README's opening now leads
+with the mission and lists the Cash-Needed Engine, disappearing categorization, and the
+FI Coach as the three features that carry it. The cash-needed UX benchmark in the build
+loop stays — it is a fine benchmark for a flow; it is just not the app's identity.
+
+**Standing consequence for prioritization:** ties between parity work and
+differentiator work (Waves W/P — coach intelligence, dials, wealth targets) break
+toward the differentiator, per this statement and Wave W's.

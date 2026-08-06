@@ -8,6 +8,22 @@ that is meaningfully better than Mint and Simplifi. The full product spec is in 
 Phase 0 (architecture) is complete: see `docs/PHASE_0_ARCHITECTURE.md`. Work proceeds
 phase by phase per `docs/PHASES.md`.
 
+## Purpose (owner-directed, 2026-08-06 — DECISIONS #418)
+
+Aimplifi exists to make its users deliberately wealthier — it is a financial coach with
+a bank feed, not a bank feed with charts. It pairs the aggregation backbone of Mint and
+Simplifi with the practical personal-finance canon (*I Will Teach You to Be Rich*, *The
+Psychology of Money*, and the rest of SPEC.md Differentiator #3) expressed as AI-driven
+product behavior: organize the user's complete financial picture, show where money
+actually goes, cut the expenses that don't buy happiness while protecting the spending
+that does (conscious spending — "money dials"), and keep the long game — financial
+independence, retirement, the user's own goals — visible and on track. Every feature
+serves this mission and none defines it: "how much money do I need and when" is the
+Cash-Needed Engine's job, a flagship feature, not the app's identity. Lead with the
+mission in any description of the app — README, app copy, docs, or an answer to the
+owner. The under-10-seconds cash-needed benchmark in the build loop below remains a
+valid UX benchmark for that flow.
+
 ## Working location
 
 The canonical local checkout is `C:\dev\Aimplifi` (relocated off OneDrive on

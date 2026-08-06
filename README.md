@@ -1,13 +1,24 @@
 # Aimplifi
 
-A personal-finance web app built around one killer question, answered to the cent:
+A personal-finance web app that helps you cut the expenses that don't buy you
+happiness — and spend confidently on the ones that do (your "money dials") —
+in service of the long game: financial independence, retirement, and whatever
+else you're aiming at. The practical personal-finance canon (*I Will Teach You
+to Be Rich*, *The Psychology of Money*, and friends) built into the product's
+behavior, on top of Mint/Simplifi-grade account aggregation with AI-driven
+intelligence throughout.
 
-> **“How much money must be in my checking account, and by what date, to pay every card in full this cycle?”**
+Three things carry that purpose:
 
-Plus the two things Mint and Simplifi never got right: categorization that
-nearly disappears (merchant normalization → confidence routing → a thumb-first
-triage inbox), and an FI Coach that treats your savings rate — not returns —
-as the headline metric.
+- **The Cash-Needed Engine**, which answers to the cent: *"How much money must
+  be in my checking account, and by what date, to pay every card in full this
+  cycle?"*
+- **Categorization that nearly disappears** — merchant normalization →
+  confidence routing → a thumb-first triage inbox — the chore Mint and
+  Simplifi never got right.
+- **An FI Coach** that treats your savings rate — not returns — as the
+  headline metric, and ranks savings opportunities by compounded impact, never
+  by latte shame.
 
 ## Quickstart (demo mode — zero credentials)
 
