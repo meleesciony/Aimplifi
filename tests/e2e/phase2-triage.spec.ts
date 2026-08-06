@@ -18,8 +18,12 @@
  *       seed asOf) stays under the SPEC budget, and
  *   (b) the whole 60-day backlog clears in ≤ 2×groups+2 interactions — the
  *       structural claim: cost scales with DECISIONS, never with rows.
+ *
+ * NOT HERE (K.6): the two write-in tests — singles-mode reset and create-and-file —
+ * moved to `triage-write-in.spec.ts`. They create a category, which the shared demo
+ * user is fenced out of (O.17), so they seed their own non-demo user instead of
+ * borrowing this file's demo queue.
  */
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from './helpers/test';
 
 test.describe.configure({ mode: 'serial' });
@@ -46,6 +50,26 @@ async function signInToTriage(page: Page) {
 async function interactionLog(page: Page) {
   return page.evaluate(() => window.__triageLog ?? []);
 }
+
+// ── SERIAL-RESIDUE CONTRACT (rewritten K.6, 2026-08-06) ──────────────────────────
+// This file is mode:'serial' on ONE shared seeded demo DB, so declaration order IS
+// the fixture. The rule is now a single ordering invariant rather than a per-test
+// hand-off: EVERY TEST THAT LEAVES THE QUEUE AS IT FOUND IT COMES FIRST, AND THE ONE
+// TEST THAT DRAINS IT COMES LAST.
+//
+// The tests below file only what they undo (or skip without filing), so each one
+// hands the next a queue with the same groups in it. `review cost` is the exception:
+// it clears the queue to empty by design, which is its whole claim — so nothing that
+// needs a card may be declared after it.
+//
+// This replaces a contract written around the two write-in tests, which used to sit
+// between `accept-all banner` and `review cost` and drained the demo's only multi-row
+// group on their way through. They moved to `triage-write-in.spec.ts` in K.6, and the
+// ordering rule outlived the reason: `Skip for now` (#374) was declared AFTER
+// `review cost` and had therefore NEVER run green in a full-file run — it opens by
+// requiring a card, and there is none left. It passed alone, so the failure was pure
+// declaration order, and it was invisible because the two write-in tests aborted the
+// serial file before it was ever reached.
 
 test('group cards: honest suggestions, gesture flow, group filing, split — all undoable', async ({ page }) => {
   await signInToTriage(page);
@@ -107,9 +131,8 @@ test('group cards: honest suggestions, gesture flow, group filing, split — all
 });
 
 
-// Read-only #162 lock — runs BEFORE the destructive tests below: it asserts against
-// the PRISTINE all-ambiguous demo queue, which the singles/write-in/review-cost
-// tests permanently consume (serial-residue contract, see the note further down).
+// Read-only #162 lock — asserts against the PRISTINE all-ambiguous demo queue, which
+// the test above restores by undoing both of its filings.
 test('accept-all banner is absent on the all-ambiguous golden demo (DECISIONS #162)', async ({ page }) => {
   await signInToTriage(page);
   // The inbox still renders its ambiguous carousel normally under the new code…
@@ -121,196 +144,31 @@ test('accept-all banner is absent on the all-ambiguous golden demo (DECISIONS #1
   await expect(page.getByTestId('triage-accept-all')).toHaveCount(0);
 });
 
-// ── SERIAL-RESIDUE CONTRACT (2026-07-05): this file is mode:'serial' on ONE shared
-// seeded DB. The demo queue has exactly ONE multi-row group (the 6-row Zelle
-// aggregate) and the write-in test below NET-FILES the top group (its mid-test
-// reload discards the client undo stack, so it cannot restore it). The singles-mode
-// test NEEDS that multi-row group, so it runs FIRST: it drains the Zelle group's
-// rows but leaves every other group intact, which the later tests don't depend on.
-// (Previously this ordering bug was invisible: the singles test always died at the
-// 60s pending-wedge stall before reaching the multi-row hunt — see DECISIONS #164.)
-test('singles mode never leaks onto the next card: write-in on the LAST row resets to idle (cycle-2 P1)', async ({ page }) => {
+// Skips, never files — so the queue it hands on is the one it was given. Declared
+// BEFORE `review cost` (K.6): it needs a card, and `review cost` leaves none.
+test('Skip for now rotates to the next merchant without filing (#374)', async ({ page }) => {
   await signInToTriage(page);
   const inbox = page.getByTestId('triage-inbox');
-  const splitBtn = page.getByTestId('triage-split-btn');
-  await expect(splitBtn).toBeVisible();
-
-  // Composition-independent: file 1-row tops away until a MULTI-row group
-  // surfaces (its action button reads "One by one"; 1-row tops read "Split").
-  for (let i = 0; i < 8; i++) {
-    if ((await splitBtn.textContent())?.includes('One by one')) break;
-    const remaining = Number(await inbox.getAttribute('data-remaining'));
-    expect(remaining, 'queue exhausted before a multi-row group surfaced (fixture drift)').toBeGreaterThan(1);
-    const hasSuggestion = (await page.getByTestId('triage-suggestion').count()) > 0;
-    await page.getByTestId('triage-accept').click(); // suggestion files; otherwise opens the picker
-    if (!hasSuggestion) {
-      await page.getByTestId('triage-alternatives').locator('button').first().click();
-    }
-    await expect(inbox).toHaveAttribute('data-remaining', String(remaining - 1));
-  }
-  await expect(splitBtn).toContainText('One by one');
-
-  const before = Number(await inbox.getAttribute('data-remaining'));
-  await splitBtn.click();
-  await expect(page.getByTestId('triage-singles')).toBeVisible();
-
-  // Drain the group to its LAST row via per-row quick-picks…
-  let rows = await page.getByTestId('triage-single-row').count();
-  expect(rows).toBeGreaterThan(1);
-  while (rows > 1) {
-    await page.getByTestId('single-pick').first().click();
-    await page.getByTestId('triage-alternatives').locator('button').first().click();
-    await expect(page.getByTestId('triage-single-row')).toHaveCount(rows - 1);
-    rows -= 1;
-  }
-
-  // …then file the last row through the WRITE-IN. createAndFile dispatches
-  // setExtraCategories/setNewCatName BEFORE onPick→fileRow→removeRowLocally —
-  // exactly the ordering under which the pre-fix reset (a side effect inside
-  // the setGroups updater, skipped when React defers the updater) silently
-  // no-oped and singles mode leaked onto the NEXT merchant's card (cycle-2 P1).
-  await page.getByTestId('single-pick').click();
-  await page.getByTestId('triage-add-category').click();
-  await page.getByTestId('new-category-name').fill(`Leak ${Date.now().toString().slice(-6)}`);
-  await page.getByTestId('new-category-submit').click();
-
-  // Group emptied → queue advanced AND mode reset: the next card renders
-  // COLLAPSED (no pre-expanded, untapped singles list).
-  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
-  await expect(page.getByTestId('triage-singles')).toHaveCount(0);
   await expect(page.getByTestId('triage-card')).toBeVisible();
-});
-
-test('write-in category: create + file the whole group, joins pickers, errors stay inline (#136)', async ({ page }) => {
-  await signInToTriage(page);
-  const catName = `Golf ${Date.now().toString().slice(-6)}`; // unique per run (retry-safe)
-  const inbox = page.getByTestId('triage-inbox');
   const before = Number(await inbox.getAttribute('data-remaining'));
   expect(before).toBeGreaterThan(1);
-
-  // ── Lock (critic P1): a half-typed write-in form must NOT survive when the
-  // top card changes without advance(). File the top group via a quick-pick,
-  // open the form on the next card and type into it, then UNDO — reopening the
-  // picker on the restored card must show the button, not a stale form.
-  await page.getByTestId('triage-accept').click(); // no suggestion → opens the picker
-  await expect(page.getByTestId('triage-alternatives-panel')).toBeVisible();
-  // Keyboard path (critic P1): opening the panel lands focus ON it.
-  await expect(page.getByTestId('triage-alternatives-panel')).toBeFocused();
-  await page.getByTestId('triage-alternatives').locator('button').first().click();
-  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
-  await page.getByTestId('triage-more').click();
-  await page.getByTestId('triage-add-category').click();
-  await page.getByTestId('new-category-name').fill('Stale draft');
-  await page.getByTestId('triage-undo').click();
+  const firstHeading = await page.getByTestId('triage-merchant-heading').innerText();
+  await expect(page.getByTestId('triage-open-detail')).toBeVisible();
+  await page.getByTestId('triage-skip').click();
   await expect(inbox).toHaveAttribute('data-remaining', String(before));
-  await page.getByTestId('triage-more').click();
-  await expect(page.getByTestId('triage-new-category')).toHaveCount(0); // form closed
-  await expect(page.getByTestId('triage-add-category')).toBeVisible();
-
-  // Open the write-in mini-form; the group select is prefilled (spending groups
-  // only) and the whole page stays WCAG A/AA clean with the form open.
-  await page.getByTestId('triage-add-category').click();
-  await expect(page.getByTestId('triage-new-category')).toBeVisible();
-  await expect(page.getByTestId('new-category-group')).not.toHaveValue('');
-  const axe = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .analyze();
-  expect(axe.violations).toEqual([]);
-
-  // Create & file — the WHOLE top group files under the new category in one step.
-  await page.getByTestId('new-category-name').fill(catName);
-  await page.getByTestId('new-category-submit').click();
-  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
-
-  // The fresh category is assignable on the NEXT card without a reload — and
-  // the picker SEARCH narrows ~84 options to exactly it (#137).
-  await page.getByTestId('triage-more').click();
-  await page.getByTestId('triage-cat-search').fill(catName);
-  await expect(page.getByTestId('triage-cat-option')).toHaveCount(1);
-  await expect(page.getByTestId('triage-cat-option')).toHaveText(catName);
-  await page.getByTestId('triage-cat-search').fill('zzz no such category');
-  await expect(page.getByTestId('triage-cat-no-match')).toBeVisible();
-  await expect(page.getByTestId('triage-add-category')).toBeVisible(); // create-hint synergy
-  // A GROUP-label query must find the group's categories (critic P1).
-  await page.getByTestId('triage-cat-search').fill('bills');
-  await expect(page.getByTestId('triage-cat-option').first()).toBeVisible();
-  await expect(page.getByTestId('triage-cat-no-match')).toHaveCount(0);
-  await page.getByTestId('triage-cat-search').fill('');
-
-  // ── Lock (critic P1): a REJECTED create action degrades to the inline error —
-  // never the route error boundary. Abort the next action POST.
-  let abortedOnce = false;
-  await page.route('**/triage*', async (route) => {
-    if (!abortedOnce && route.request().method() === 'POST') {
-      abortedOnce = true;
-      await route.abort('connectionfailed');
-    } else {
-      await route.continue();
-    }
-  });
-  await page.getByTestId('triage-add-category').click();
-  await page.getByTestId('new-category-name').fill(`${catName} B`);
-  await page.getByTestId('new-category-submit').click();
-  await expect(page.getByTestId('new-category-error')).toBeVisible();
-  await expect(inbox).toBeVisible(); // the island survived — no error boundary
-  await page.unroute('**/triage*');
-
-  // …and a duplicate name errors INLINE, filing nothing (queue count unchanged).
-  await page.getByTestId('new-category-name').fill(catName);
-  await page.getByTestId('new-category-submit').click();
-  await expect(page.getByTestId('new-category-error')).toBeVisible();
-  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
-
-  // Persistence: a full server re-render must offer the category — proves the
-  // DB row, not the client overlay. Then Enter-files-single-match end-to-end,
-  // and undo restores the whole GROUP.
-  await page.reload();
-  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
-  await page.getByTestId('triage-more').click();
-  await page.getByTestId('triage-cat-search').fill(catName);
-  await expect(page.getByTestId('triage-cat-option')).toHaveCount(1);
-  await page.getByTestId('triage-cat-search').press('Enter');
-  await expect(inbox).toHaveAttribute('data-remaining', String(before - 2));
-  await page.getByTestId('triage-undo').click();
-  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
-  // The search filter must NOT survive the undo's card change (critic P2).
-  await page.getByTestId('triage-more').click();
-  await expect(page.getByTestId('triage-cat-search')).toHaveValue('');
-
-  // GUARD (checker): a MULTI-match query + Enter must do nothing.
-  await page.getByTestId('triage-cat-search').fill('bills');
-  await page.getByTestId('triage-cat-search').press('Enter');
-  await expect(page.getByTestId('triage-new-category')).toHaveCount(0);
-  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1));
-
-  // Prefill (#139): zero matches + Enter opens the write-in prefilled with the
-  // query; a HELD Enter's auto-repeat must NOT chain into create+file.
-  await page.getByTestId('triage-cat-search').fill('Pickleball Dues');
-  await expect(page.getByTestId('triage-cat-no-match')).toBeVisible();
-  await page.keyboard.down('Enter');
-  await expect(page.getByTestId('triage-new-category')).toBeVisible();
-  await expect(page.getByTestId('new-category-name')).toHaveValue('Pickleball Dues');
-  await page.keyboard.down('Enter'); // repeat keydown lands on the name input
-  await page.keyboard.up('Enter');
-  await expect(inbox).toHaveAttribute('data-remaining', String(before - 1)); // nothing filed
-  await expect(page.getByTestId('triage-new-category')).toBeVisible(); // form intact
-
-  // GUARD (checker P1): with the form OPEN, Enter on a fresh zero-match query
-  // must NOT re-open/prefill — the user's edited draft survives.
-  await page.getByTestId('new-category-name').fill('Pickleball Edited');
-  await page.getByTestId('triage-cat-search').fill('Croquet Fees');
-  await page.getByTestId('triage-cat-search').press('Enter');
-  await expect(page.getByTestId('new-category-name')).toHaveValue('Pickleball Edited');
-
-  // iOS focus-zoom guard (#140): touch form controls ≥16px.
-  for (const id of ['triage-cat-search', 'new-category-name']) {
-    const fs = await page
-      .getByTestId(id)
-      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-    expect(fs, `${id} touch font-size floor (iOS zoom guard)`).toBeGreaterThanOrEqual(16);
-  }
+  await expect(page.getByTestId('triage-merchant-heading')).not.toHaveText(firstHeading);
 });
 
+test('categorization accuracy card shows a measured value (DECISIONS #37)', async ({ page }) => {
+  await signInToTriage(page);
+  const card = page.getByTestId('accuracy-card');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('Categorization accuracy');
+  // seeded known-merchant labels guarantee a measured percentage (n > 0)
+  await expect(page.getByTestId('accuracy-value')).toContainText('%');
+});
+
+// ── DRAINS THE QUEUE — must stay LAST in this serial file (see the contract above).
 test('review cost scales with DECISIONS: week slice <15/<60s, full backlog ≤ 2×groups+2', async ({ page }) => {
   // 12+ sequential server actions; this machine's documented action-apply stall
   // (STATUS #16/#17) can hold a `pending` button past the default 60s. Wall-clock
@@ -380,28 +238,6 @@ test('review cost scales with DECISIONS: week slice <15/<60s, full backlog ≤ 2
   // the dashboard badge is gone — feed fully reviewed
   await page.goto('/dashboard');
   await expect(page.getByTestId('review-badge')).toHaveCount(0);
-});
-
-test('categorization accuracy card shows a measured value (DECISIONS #37)', async ({ page }) => {
-  await signInToTriage(page);
-  const card = page.getByTestId('accuracy-card');
-  await expect(card).toBeVisible();
-  await expect(card).toContainText('Categorization accuracy');
-  // seeded known-merchant labels guarantee a measured percentage (n > 0)
-  await expect(page.getByTestId('accuracy-value')).toContainText('%');
-});
-
-test('Skip for now rotates to the next merchant without filing (#374)', async ({ page }) => {
-  await signInToTriage(page);
-  const inbox = page.getByTestId('triage-inbox');
-  await expect(page.getByTestId('triage-card')).toBeVisible();
-  const before = Number(await inbox.getAttribute('data-remaining'));
-  expect(before).toBeGreaterThan(1);
-  const firstHeading = await page.getByTestId('triage-merchant-heading').innerText();
-  await expect(page.getByTestId('triage-open-detail')).toBeVisible();
-  await page.getByTestId('triage-skip').click();
-  await expect(inbox).toHaveAttribute('data-remaining', String(before));
-  await expect(page.getByTestId('triage-merchant-heading')).not.toHaveText(firstHeading);
 });
 
 // "Accept all confident" is INERT on the golden demo (DECISIONS #162): every one

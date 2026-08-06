@@ -2235,16 +2235,25 @@ The eight re-pointed specs: **34/34** serialized.
 
 ### OPEN after K.5, ranked
 
-1. **K.6 — the last two reds.** They need a non-demo user holding a multi-row needs-review
-   group; the defect under test is a React dispatch ordering, so it cannot move to a unit
-   test. Until it closes, `VERIFY_E2E=1` still cannot exit 0.
+1. ~~**K.6 — the last two reds.**~~ **CLOSED 2026-08-06 — and there were THREE, not two.** See
+   §K.6 below. Two corrections to what this item claimed: the file's true red count could not
+   be read off a serial run (a failure masks everything behind it — four tests never ran, and
+   one of them, `Skip for now`, was independently red on declaration order); and "until it
+   closes, `VERIFY_E2E=1` still cannot exit 0" was true but not because of K.6. It still cannot
+   exit 0 — see §K.8.
 2. **`/recurring` has no nav-level entry point.** Its only link in the whole app lived on the
    orphaned `RecurringSummaryCard`. The route is still reachable from a transaction's detail
    view and from /spending-plan, so no figure is wrong — this is a navigation question for the
    owner, recorded rather than fixed.
 3. **A shipped fence has now left the full suite red three times** (#244, K.3, K.6) because
-   `VERIFY_E2E=1` is opt-in. A cheap grep-level guard for demo-driven writes in specs would
-   have caught all three.
+   `VERIFY_E2E=1` is opt-in locally. **The proposed remedy here — "a cheap grep-level guard for
+   demo-driven writes in specs" — was assessed under K.6 and REJECTED; do not re-propose it.**
+   A spec file mixes demo and throwaway users per TEST, so a file-level grep cannot tell which
+   sign-in a given test used: run against the suite it flagged `transactions.spec.ts`, which
+   already uses throwaway users for both its write-in tests and even carries an explicit
+   demo-fence test at `:529`. The real guard is not missing — `.github/workflows/verify.yml`
+   has been running the full `VERIFY_E2E=1` gate on every push the whole time, and it has been
+   FAILING on every push. Nothing in the loop reads it. That is §K.8.
 
 ### K.5 addendum — a re-point that passed for the wrong reason (2026-08-06)
 
@@ -2269,3 +2278,89 @@ would lock the gap in and go red the day someone fixes it.
 www.aimplifi.app, including the discriminator (a served chunk carries
 `today-feed-frozen-dues`, a string in no earlier build) and the abstention
 (nothing frozen on the demo ⇒ the new paragraph is absent).
+
+## K.6 — three reds, not two; and the fence was never the thing to change (2026-08-06)
+
+The row said two tests were red and four were unproven. Executed rather than inspected, the
+file held **three** reds, and the third had nothing to do with the demo fence.
+
+### What was actually red
+
+| Test | Root cause |
+|---|---|
+| `phase2-triage.spec.ts:132` singles mode | O.17's demo fence on `createCustomCategory` |
+| `phase2-triage.spec.ts:184` write-in | the same fence, same signature at `:223` |
+| `phase2-triage.spec.ts:394` Skip for now (#374) | declared AFTER `review cost`, which drains the queue |
+
+A full-file serial run fails at `:132` and reports **4 did not run** — so `:184`, `:314`,
+`:385` and `:394` were all masked, and "the true red count is 2" was a hypothesis over four
+unrun tests. `--grep-invert` on both fenced tests exposes `:394`: `triage-card` not found,
+queue EMPTY. Run alone it PASSES in 2.1s. It had therefore never run green in a full-file run
+since #374 added it, because the two fenced tests always aborted the serial file first.
+
+### The fix
+
+The fence is correct and was not touched. The two write-in tests moved to
+`tests/e2e/triage-write-in.spec.ts`, each owning a throwaway signup and a purpose-built
+four-group queue: one 3-row group (groups sort by row count DESC, so it is deterministically
+on top and the per-row mode is reachable on the first look) plus three 1-row groups, every row
+with `providerCategoryId` NULL so all three suggestion paths — our pipeline, the L.12 provider
+fallback, and the `unanimousProposal` last resort — are null. That last part is load-bearing,
+not decoration: `:184` reaches the picker by clicking accept on a card with nothing to accept,
+so an ambiguous top card is a precondition of the test, and the fixture asserts it on arrival
+rather than discovering it mid-flow. `GOOSE POND BAR GRILLE` is used because
+`triage-provider-suggestion.spec.ts` already proves our ruleset cannot categorize it.
+
+`phase2-triage.spec.ts` keeps the demo queue and gains a rewritten serial-residue contract: one
+ordering invariant — every test that leaves the queue as it found it comes first, the single
+test that drains it comes last — replacing a per-test hand-off written around the two departed
+tests. `Skip for now` moved above `review cost`.
+
+**Sabotage-proven.** Restoring the pre-fix cycle-2 P1 shape (the `groupEmptied` flag mutated
+INSIDE the `setGroups` updater, `triage-inbox.tsx:337`) turns the singles test RED at exactly
+the assertion its title names — `triage-singles` count 1, the mode leaking onto the next card.
+Reverted and rebuilt before the gate run.
+
+### Gate
+
+`VERIFY_E2E=1 bash scripts/verify.sh`, exit code taken from verify.sh itself: tsc 0 / eslint 0 /
+**6,167 unit passed + 1 skipped / 374 files** / build clean / **e2e 295 passed, 2 failed** /
+`VERIFY_EXIT=1`.
+
+All 5 remaining `phase2-triage` tests and both `triage-write-in` tests passed inside that run,
+under 4-worker parallel load. The two non-passes are outside this slice:
+`budget-targets.spec.ts:20` and `transactions.spec.ts:145`. `budget-targets:20` was already red
+on CI run 31129722042 before this change, and nothing here is imported by either spec. Together
+in isolation they pass 25/25 — recorded as what it is, not as proof they are sound.
+
+## K.8 — the unit gate is environment-dependent, and CI has been red the whole time (2026-08-06)
+
+K.6's row claimed closing it would make `VERIFY_E2E=1` green. That is false, and the reason is
+larger than K.6.
+
+`.github/workflows/verify.yml` has been running the full `VERIFY_E2E=1` gate on every push and
+PR the entire time. `gh run list` shows **failure on every recent push**, for at least two
+days. The latest run fails **four unit tests that pass locally** — `fi-real-basis` ×2,
+`loan-payment-flow-assembler` ×1, `merchant-lens-server` ×1 — so the "6,167 passed / 374 files"
+that every recent entry in this file reports is a fact about the maintainer's machine, not
+about a clean checkout.
+
+**Root cause, reproduced rather than reasoned.** `businessToday()`
+(`src/lib/business-today.ts:33`) gives `process.env.DEMO_TODAY` top precedence. `.env` sets
+`DEMO_TODAY=2026-06-10`, but vitest does not load `.env`, so locally these tests fall through
+to the real clock; GitHub Actions declares `DEMO_TODAY: "2026-06-10"` as a job-level env var
+that IS in `process.env` for every step. None of the three files pins a date itself.
+`DEMO_TODAY=2026-06-10 npx vitest run` on the three files reproduces all four failures
+byte-identically: `expected 1 to be 3`; the FI sentence printing `your last 1 full month × 12`
+where the test wants `your last 3 full months × 4`; `length of 4 but got 2`; `$50.00` where the
+test wants `$60.00 in all`.
+
+**A timezone explanation was proposed and rejected — do not re-propose it.** Local is UTC−4 and
+CI is UTC, but `currentMonth = today.slice(0,7)`, so a one-day shift cannot change a month
+count.
+
+The fix is not four edited assertions. Three tests silently depend on the ambient wall clock, so
+their verdicts drift with the calendar as well as with the environment; the deliverable is a
+deterministic clock for the unit gate and then repairs to whatever that surfaces. It moves
+money-math expectations (FI number, loan flows, merchant totals), so it takes its own slice with
+a critic pass. Tracked as **K.8**.

@@ -2169,3 +2169,89 @@ the route table is Plaid-granularity only; (4) H.2's per-bank CSV instructions.
 
 **Next:** K.6 closes the last two e2e reds and with them `VERIFY_E2E=1`; K.2's open
 items above need either an owner reconnect or approval to run the probe.
+
+## K.6 — three reds, not two: the fence, and a test that never ran (2026-08-06)
+
+**Diagnosis complete, all four claims executed — not inspected.** Fresh `next build`
+(exit 0), then `phase2-triage.spec.ts` serialized at `--workers=1`:
+
+1. Full file: `:132` FAILS (`expected "10", received "11"` at :179) and **4 tests did
+   not run** — the K.6 row said `:184` was masked; `:314`, `:385` and `:394` were masked
+   too, so the row's "true red count is 2" was a hypothesis over four unrun tests.
+2. `--grep-invert :132`: `:184` FAILS the same way at :223 (`"10"`/`"11"`). Same fence,
+   same signature — the create+file never files, so `data-remaining` never decrements.
+3. `--grep-invert` both: **`:394` "Skip for now" (#374) FAILS** — `triage-card` not
+   found, queue EMPTY. It is declared AFTER `:314` (review cost), which drains the whole
+   queue by design, and `:394` opens by requiring `before > 1`.
+4. `:394` alone: **PASSES (2.1s)**. So its defect is DECLARATION ORDER, not the demo
+   fence — it has never run green in a full-file run since #374 added it, because the
+   earlier failures always aborted the serial file first.
+
+**Next:** move `:132`/`:184` to their own non-demo spec with a seeded throwaway user
+(precedent: `triage-provider-suggestion.spec.ts` — same better-sqlite3 shape, and it
+PROVES `GOOSE POND BAR GRILLE` yields no own-pipeline suggestion); reorder
+`phase2-triage.spec.ts` so the queue-draining test is last; correct the serial-residue
+contract comment, which will be stale the moment the singles test stops draining Zelle.
+
+**Shipped.** The two fenced tests moved to `tests/e2e/triage-write-in.spec.ts`, each with its
+own throwaway signup and a purpose-built 4-group queue (one 3-row group + three 1-row groups,
+`providerCategoryId` NULL throughout so all three suggestion paths — pipeline, provider,
+proposal — are null and the top card is honestly ambiguous, which `:184` needs to reach the
+picker at all). The fixture asserts its own premise on arrival, so a ruleset that later learns
+one of these merchants fails at the top with a clear cause instead of deep inside a flow.
+`phase2-triage.spec.ts` keeps the demo queue and gains a rewritten serial-residue contract:
+one ordering invariant (net-zero tests first, the single queue-draining test last) replacing a
+per-test hand-off written around the two departed tests. `:394` moved above `:314`.
+
+**Sabotage-proven, not just green:** restoring the pre-fix cycle-2 P1 shape (the `groupEmptied`
+flag mutated INSIDE the `setGroups` updater, `triage-inbox.tsx:337`) turns the singles test RED
+at exactly its named assertion — `triage-singles` count 1, the mode leaking onto the next card.
+Reverted and rebuilt. Both files together: **7/7 passed** serialized.
+
+## K.8 — the local unit gate and CI disagree, and CI has been red on every push
+
+**Found while proving K.6's headline claim, which is FALSE.** Closing K.6 does NOT make
+`VERIFY_E2E=1` green. `.github/workflows/verify.yml` already runs the full gate on every push,
+and `gh run list` shows **failure on every push for at least two days**. Nobody was reading it.
+
+The latest run fails **4 UNIT tests that pass locally** — `fi-real-basis` ×2,
+`loan-payment-flow-assembler` ×1, `merchant-lens-server` ×1 — plus the documented
+`budget-targets` CI timing flake (`docs/lessons/ci-e2e-timing-flake.md`).
+
+**Root cause (arithmetic-exact, not a timezone story).** `businessToday()` gives
+`process.env.DEMO_TODAY` top precedence. `.env` sets it to `2026-06-10`, but **vitest does not
+load `.env`**, so locally these tests fall through to the real clock (2026-08-06). GitHub
+Actions declares `DEMO_TODAY: "2026-06-10"` as a JOB-LEVEL env var, which IS in `process.env`
+for every step. None of the three test files pins the date itself. The predicted numbers match
+CI exactly: `fi-real-basis` filters `f.month < currentMonth` over `['2026-05','2026-06','2026-07']`
+— 3 under `'2026-08'`, **1** under `'2026-06'` ("expected 1 to be 3"); the loan assembler wants
+4 months of Apr–Jul and a June "today" leaves **2** ("length of 4 but got 2").
+
+A first-pass subagent diagnosis blamed the timezone (local UTC−4 vs CI UTC) and was rejected:
+`currentMonth = today.slice(0,7)`, so a one-day shift cannot change a month count.
+
+**Not fixed here** — it moves money-math test expectations (FI number, loan flows, merchant
+totals) and deserves its own slice with a critic pass. The principled fix is to make the unit
+gate's clock deterministic rather than ambient, then repair whatever that surfaces.
+
+**K.8 root cause CONFIRMED by execution.** `DEMO_TODAY=2026-06-10 npx vitest run` on the three
+files reproduces all four CI failures byte-identically: `expected 1 to be 3`; the FI sentence
+printing `your last 1 full month × 12` where the test wants `your last 3 full months × 4`;
+`length of 4 but got 2`; `$50.00` where the test wants `$60.00 in all`. 4 failed / 39 passed.
+
+**K.6 GATE — `VERIFY_E2E=1 bash scripts/verify.sh`, exit code captured from verify.sh itself:**
+tsc 0 / eslint 0 / **6,167 unit passed + 1 skipped / 374 files** / build clean /
+**e2e 295 passed, 2 failed** / `VERIFY_EXIT=1`.
+
+The gate is RED, and honestly so. Both non-passes are OUTSIDE this slice and neither is in a
+triage file: `budget-targets.spec.ts:20` (`budget-clear-dining` toHaveCount(0), 15s, on the
+test's own documented reload-under-full-suite-load path) and `transactions.spec.ts:145`
+(`toHaveURL(/type=income/)` timed out at 20s with the URL still `/transactions`). Evidence they
+are pre-existing rather than caused here: `budget-targets:20` was ALREADY red on CI run
+31129722042 before this change, and nothing in this slice is imported by either spec. Re-run
+together in isolation they pass 25/25 — recorded as what it is, NOT as proof they are sound,
+because "it passes in isolation" is the exact misread K.5 cost a session to.
+
+**What this slice's own tests did inside that full run:** all 5 `phase2-triage` tests and both
+`triage-write-in` tests PASSED under 4-worker parallel load, not only in the serialized
+targeted run.
