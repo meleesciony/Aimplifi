@@ -2116,3 +2116,56 @@ re-pointed specs 34/34 serialized; the new engine lock sabotage-proven RED by re
 
 **Next:** K.6 closes the last two reds and with them `VERIFY_E2E=1`; K.4 (the register's
 filtered-scope bounds) is the next product slice.
+
+## K.2 — the multi-year ask, measured before it was answered (2026-08-06)
+
+**Owner:** *"why haven't we populated 2023-2026 yet. I want all data possible."*
+
+**The premise checked first.** Re-ran `scripts/audit-probes/h1-connection-depth.mts`
+(read-only, committed) against live Neon rather than quoting the 2026-08-05 figures:
+56 accounts, 3,087 rows, **1,872** after the R1 keep, register floor **2026-03-25**.
+"We haven't populated it" turns out to be false in a useful way — **nothing was
+skipped.** Plaid is at its documented 730-day ceiling, all **13** items report
+`backfill=2026-08-04`, and the oldest Plaid row anywhere is **2026-04-24**: Plaid
+holds no more, and H.6's fresh Link cannot reach 2023 by construction.
+
+**The blocking fact, which was not in STATUS:** the probe buckets 25 accounts and
+1,684 rows under `simplefin:NO-CONNECTION-ROW`, frozen [2026-03-25..2026-07-21].
+**The `SimpleFinConnection` row is deleted.** SimpleFIN is the only automatic route
+that reaches years, and H.5's backfill has had nothing to run against for ~16 days.
+
+**Shipped (#421):** `SIMPLEFIN_INITIAL_LOOKBACK_DAYS` 1095 → 1460. At 1095 the
+window stopped at **2023-08-07** — the owner named 2023 and would have received five
+months of it. 1460 lands on 2022-08-07. Locked as a property (from any "today" in
+2026 the window still reaches 2023-01-01) which **caught its own off-by-one before
+commit**: at 1460 days 2026-12-31 maps to *exactly* 2023-01-01, so the assertion is
+`<=`, not `<`. The [730, 1830] bound is untouched — the number stays a one-line
+product decision.
+
+**Gate:** tsc 0 / eslint 0 / **6,167 unit passed + 1 skipped / 374 files** / build
+clean / `VERIFY_EXIT=0`. An earlier run reported 21 failures across 8 files; that was
+**two verifies running concurrently against the same SQLite test DB** (my own doing),
+and a clean single run is green. Recorded rather than dropped, because "it passes in
+isolation" is the exact misread K.5 cost a session to.
+
+**Deploy proof — and what it can honestly say.** `scripts/h5-live-deploy-check.mjs`
+**5/5 PASS** against https://www.aimplifi.app after pushing `c73b834`. This slice has
+**no change-unique marker and cannot have one**: it changes a server-side constant and
+comments, so no client bundle changes, no schema changes (`git diff origin/main..main
+-- prisma/` empty — Neon untouched), and production holds no SimpleFIN connection to
+exercise the wider window against. What production establishes is that the deploy
+landed healthy and every surface on the SimpleFIN read path still renders. That the
+window actually widens is proven by the unit gate, not by this script — stated the
+same way H.5 stated it, for the same reason.
+
+**Open, and ranked in docs/STATUS.md:** (1) the owner reconnect — owner-only, and the
+only thing that moves data; (2) the accounts page cannot distinguish a DELETED
+connection from a merely stale one (it prints "No new data in 16 days — you may need
+to reconnect", `health.ts:82`, while `feedDroppedAt` stays null because its only
+writer is an active sync) — traced read-only, **not** UI-verified; (3)
+`k2-institution-routes.mts` was written to name the 25 SimpleFIN accounts'
+institutions and was **blocked by the permission classifier** — it has never run, so
+the route table is Plaid-granularity only; (4) H.2's per-bank CSV instructions.
+
+**Next:** K.6 closes the last two e2e reds and with them `VERIFY_E2E=1`; K.2's open
+items above need either an owner reconnect or approval to run the probe.
