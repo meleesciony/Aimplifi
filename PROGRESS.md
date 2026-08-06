@@ -2,13 +2,49 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-05 — H.7 critic cycle 1: the mechanism changed twice (DECISIONS #415)
+
+**Two fresh-context critics, isolated worktrees, both FAIL: 1 P0, 5 P1, 4 P2, 1 P3
+— all fixed and locked.** The two that changed the design rather than patching it:
+
+**(1) The gate never fired on the shape a row arrives in (P0).** Every synced row
+is born `needsReview`, so gating only the SETTLED case let the coincidence win on
+the first sweep — and `fileIds` is the heavier write, stamping 'transfer' and
+clearing `needsReview`, so the row never reached triage either. The evidence bar
+is now ONE bar over every write. Fixing it surfaced a defect of my own: gating
+filing while still FLAGGING would have recreated the pre-#165 wedge, because a
+flagged `needsReview` row is hidden from triage AND excluded from every total. An
+unevidenced pair now gets no action at all.
+
+**(2) Filtering the READ made the writer blind to a leg its readers count (P1).**
+The R1 rule disowns a successor row inside the predecessor's claim; when that is
+the only copy of a paying leg, the sweep stopped seeing it while the counterpart
+on an unlinked card was still counted — executed: a $123.45 card payment read as
+negative spending, a month's expenses $200.00 -> $76.55. The reconciliation
+boundary is therefore out of the INPUT and into the MATCHING rule: rows carry
+their confirmed account identity and two rows on one real account never pair.
+
+Also fixed: LOAN/MORTGAGE can send (a $20,000 HELOC draw filed as Income was
+staying Income — including in the tax export); the overturn write re-asserts its
+premise (`undoCorrections` falsifies "can only become more settled"); one exported
+constant feeds both the engine predicate and the SQL mirror; one pair+normalizer
+walk instead of two (+86% measured); and `overturned` is returned separately.
+
+**Gate:** verify GREEN — tsc 0 / eslint 0 / **6096 unit / 369 files** / build
+clean. Five sabotages executed, all RED, all restored with residue checks. Live
+re-measure with the shipped code: 114 flags + 39 overturns justified from scratch;
+unrepaired set 53 rows / $29,848.84.
+
+**Next:** critic cycle 2 on these fixes; the owner decision on repairing the 53;
+TASKS H.8 (five other unboundaried readers, sharpest `spending-plan.ts:198`).
+
 ## 2026-08-05 — H.7: the transfer sweep stops silently reversing settled rows (DECISIONS #415)
 
 **Done:** the flag branch of `planTransferUpdates` inherits the protection the file
 branch has had since #148 — a pair-only guess may SUPPLY a verdict, never silently
 REVERSE one. Two causes, two scopes: `refreshTransferFlags` now applies
-`getReconciliationTxnKeep` (it was the ONLY transaction read surface in the app that
-did not, so it paired rows against their own reconciled duplicates), and a settled
+`getReconciliationTxnKeep` (it did not, so it paired rows against their own
+reconciled duplicates), and a settled
 substantively-categorized row is overturned only by a directionally coherent pair —
 one whose SENDING leg is an account money can actually leave. `flagIds` and
 `overturnIds` are planned separately because only the first can have its premise
@@ -20,8 +56,11 @@ from every total; 73 stood on nothing but a pair (45 duplicate-account artifacts
 12 brokerage funding, 9 card/loan payments, 7 pure coincidence). The critic's repro
 was live and bidirectional: a $500.00 fund distribution settled at 9900 bps and a
 $500.00 Zelle payment to a landscaper cancelled each other out, so a real income row
-and a real expense row both disappeared. Boundary alone removes 53 of 73; +direction
-leaves 16, of which 15 are genuinely correct.
+and a real expense row both disappeared. Boundary alone removes 53 of 73; +direction leaves 16
+by that replica measure. Re-measured afterwards with the SHIPPED
+`planTransferUpdates` (`h7-shipped-plan.mts`, which supersedes it): 66 flags + 29
+endorsed overturns, 28 of them correct and one false (a $0.07 interest row); the
+unrepaired set is 63 rows / $49,008.13.
 
 **Rejected after measuring:** an age gate (refuses the corrections a backfill exists
 to make) and a confidence gate (useless — genuine and false both sit at 9000-9900).

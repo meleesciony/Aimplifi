@@ -4573,7 +4573,11 @@ expense vanishing from their totals.
 
 *The boundary (universal).* The dominant cause was not the gate at all: the sweep read
 every row, while the register, CSV export, budgets, recurring detection and triage all
-filter through `getReconciliationTxnKeep`. With 26 active links, 1,215 of 3,065 rows
+filter through `getReconciliationTxnKeep`. (An earlier draft of this entry called the
+sweep the ONLY reader skipping that filter; that is false — `backfill.ts`, `rules.ts`,
+`keyword-rules.ts`, `self-audit.ts` and `household-digest.ts` skip it too, recorded as
+TASKS H.8. The sweep is the only one that matches rows against EACH OTHER, which is why
+a duplicate manufactures a transfer here rather than merely doubling a figure.) With 26 active links, 1,215 of 3,065 rows
 were not the sweep's to read, and it was pairing rows against their own duplicates —
 the same-account case `transfers.ts` already declares invalid. Applying the app's own
 keep-rule removed 53 of the 73. This is a CORRECTNESS fix and applies to every row: it
@@ -4592,9 +4596,12 @@ correct — whereas a silent exclusion is one they cannot. The heuristic's failu
 is therefore inaction, never a rewrite.
 
 **What the two together leave standing** (the point of the measurement, not a claim of
-perfection): 16 settled overturns, of which 15 are the genuinely correct ones — the
-"Funds Transfer to Brokerage" fundings, the Chase autopays, the Truist mortgage — and
-ONE residual false positive: a $0.07 "Interest Paid" inflow matched to a $0.07 Vanguard
+perfection): replaying the SHIPPED rule from scratch over the boundary-owned rows
+(`h7-shipped-plan.mts`, which supersedes the replica-based figures the design was
+chosen on) yields 66 flags and 29 settled verdicts it still endorses reversing. 28 of
+those 29 are the genuinely correct ones — the "Funds Transfer to Brokerage" fundings,
+the Capital One and Chase autopays, two Truist mortgage payments — and ONE is a
+residual false positive: a $0.07 "Interest Paid" inflow matched to a $0.07 Vanguard
 money-market row. Chasing it would mean inventing an amount floor with a magic number,
 which the evidence does not support; it is recorded in STATUS as an open residual
 instead. A second, unmeasured residual is named there too: a settled CASH outflow can
@@ -4616,3 +4623,46 @@ the one shape in which the boundary deliberately drops nothing. The fixture now 
 a pre-cutover anchor row and the reason inline. This also means some real duplicates
 legitimately survive the boundary; the live measurement already reflects that, because
 it ran the shipped rule rather than a description of it.
+
+**REVISED after critic cycle 1 (same day, same slice).** Two fresh-context critics
+in isolated worktrees returned 1 P0, 5 P1, 4 P2, 1 P3, and two of those changed the
+design rather than patching it.
+
+*The evidence bar is one bar, over every write.* The P0: every synced row is BORN
+`needsReview`, so gating only the SETTLED case let the coincidence win on the very
+first sweep — and `fileIds`, untouched by the first cut, is the HEAVIER write,
+since it also stamps `categoryId: 'transfer'` and clears `needsReview`, removing
+the row from triage. The critic executed this slice's own live repro end to end
+and the $500 still vanished. Fixing it exposed a second defect of mine: gating
+filing while still FLAGGING would have recreated the pre-#165 wedge, because a
+flagged `needsReview` row is hidden from the triage queue by its own transfer
+guard AND excluded from every total. So an unevidenced pair now receives no action
+at all — not a weaker one.
+
+*The reconciliation boundary belongs in the matching rule, not the input.* The
+sharpest P1: `getReconciliationTxnKeep` disowns a successor row dated inside the
+predecessor's claim, so when that row is the only copy of a transfer's paying leg,
+the sweep — a WRITER — went blind to it while every reader still counted its
+counterpart on the unlinked side. Executed: a $123.45 card payment read as
+negative spending, taking a month's expenses from $200.00 to $76.55. The general
+rule this yields, and the reason the mechanism was replaced rather than patched:
+**a writer that guards a flag must see at least everything its readers see.** Rows
+now carry a confirmed account IDENTITY (`activeTerminalSuccessorMap`) and the pair
+rule refuses two rows on the same real account — the same protection, with nothing
+removed from the sweep's view.
+
+*Three smaller reversals of my own reasoning.* `LOAN` and `MORTGAGE` joined
+`CAN_SEND_ACCOUNT_TYPES` after a critic executed a $20,000 HELOC draw the owner
+had filed as Income and watched it stay Income — in the income bars, the FI
+savings rate and the tax export; my claim that refusing to overturn is "always the
+safe direction" is false whenever the recorded verdict is itself the wrong one.
+The overturn write gained the premise re-assertion I had argued it could not need
+("a row can only become MORE settled inside the window" — `undoCorrections`
+falsifies it). And the SQL mirror of `hasCompetingVerdict` now reads one exported
+constant, after a critic deleted `'uncategorized'` from the hand-typed copy and
+the whole suite stayed green.
+
+*Re-measured with the shipped code* (`h7-shipped-plan.mts`): all 3,065 rows read,
+114 flags and 39 overturns justified from scratch, two residual false ones (the
+$0.07 interest rows). Unrepaired set: 53 rows / $29,848.84. Cycle 2 is owed — the
+fixes are sabotage-locked and re-gated, not yet adversarially reviewed.

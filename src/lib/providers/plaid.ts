@@ -1654,7 +1654,7 @@ export class PlaidProvider implements DataProvider {
       const transfers = await refreshTransferFlags(userId);
       // Honest counts: refreshTransferFlags returns what its guarded writes actually
       // mutated, not what the stale read planned — so this is a real change, not a plan.
-      if (transfers.flagged + transfers.filed > 0) derivedChanged = true;
+      if (transfers.flagged + transfers.overturned + transfers.filed > 0) derivedChanged = true;
     } catch {
       // a derived re-classification; the ingest already succeeded
     }

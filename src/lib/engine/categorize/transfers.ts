@@ -25,6 +25,26 @@ export interface TransferTxn {
   amountCents: number;
   rawDescriptor: string;
   isSplitParent?: boolean;
+  /**
+   * The id of the REAL account this row sits on, when the user has confirmed
+   * that two rows are the same account (H.7 cycle 2). A reconciled pair — the
+   * same card arriving from two providers — makes a purchase and its own refund
+   * look like two accounts, which defeats the same-account exclusion below and
+   * manufactures a transfer out of two copies of one row.
+   *
+   * Absent (the default) it IS `accountId`, so nothing changes for anyone who
+   * does not pass it. Deliberately an identity rather than a filter on the
+   * INPUT: dropping the disowned copy would make this sweep — a WRITER — blind
+   * to a leg the readers still count, and the two legs of one payment are not
+   * both governed by the same link, so the counterpart would silently start
+   * counting as ordinary spend (cycle-1 critic P1-3, executed).
+   */
+  accountIdentityId?: string;
+}
+
+/** The account a row really belongs to: its confirmed identity, else itself. */
+function identityOf(t: TransferTxn): string {
+  return t.accountIdentityId ?? t.accountId;
 }
 
 /**
@@ -32,16 +52,36 @@ export interface TransferTxn {
  *
  * An OUTFLOW on a credit line is a purchase or an interest charge — money spent
  * at a merchant, not money moved to another account — so it cannot be the
- * sending leg of a transfer. Cash and brokerage accounts can send.
+ * sending leg of a transfer.
  *
- * This is a HEURISTIC with real counterexamples (a balance transfer debits the
- * receiving card; a cash advance sends from a card), which is exactly why it is
- * used ONLY as the extra evidence required to OVERTURN a settled verdict
- * (`planTransferUpdates`) and never to suppress detection generally: refusing
- * to overturn leaves the row exactly as its owner filed it, so the heuristic's
- * failure mode is inaction, not a rewrite.
+ * This is a HEURISTIC with one real counterexample class: a cash advance and a
+ * balance transfer genuinely do send from a card. It is applied anyway, to every
+ * write, because the alternative measured worse — an unevidenced pair that is
+ * merely FLAGGED lands in the pre-#165 wedge (hidden from triage by the transfer
+ * guard, yet excluded from every total), and one that is FILED also loses its
+ * category. Refusing instead leaves the row visible and countable exactly as it
+ * is, which is a state its owner can see and correct.
+ *
+ * The cost is stated rather than hidden: a CREDIT-sourced transfer already
+ * settled under a substantive category keeps that category (STATUS residual 2).
+ * An earlier cut scoped this gate to overturns only and argued that inaction is
+ * "always the safe direction"; a critic falsified that with a $20,000 HELOC draw
+ * filed as Income, which is why LOAN and MORTGAGE are inside the set.
  */
-export const CAN_SEND_ACCOUNT_TYPES: ReadonlySet<string> = new Set(['CHECKING', 'SAVINGS', 'INVESTMENT']);
+export const CAN_SEND_ACCOUNT_TYPES: ReadonlySet<string> = new Set([
+  'CHECKING',
+  'SAVINGS',
+  'INVESTMENT',
+  // A draw on a line of credit IS money moving between the owner's accounts,
+  // and these account types carry no merchant purchases to be confused with one
+  // (cycle-1 critic P1-2, executed: a $20,000 HELOC draw the owner had filed as
+  // Income stayed Income — in the income bars, the FI savings rate, and the TAX
+  // EXPORT). Only CREDIT is withheld, because a card outflow is overwhelmingly a
+  // purchase and only occasionally a cash advance, and type alone cannot tell
+  // them apart — that residual is recorded in STATUS rather than guessed at.
+  'LOAN',
+  'MORTGAGE',
+]);
 
 /** A matched pair: the leg money left, and the leg it arrived on. */
 export interface TransferPair {
@@ -67,7 +107,11 @@ function matchTransferPairs<T extends TransferTxn>(transactions: readonly T[]): 
     for (const a of group) {
       if (a.amountCents >= 0) continue;
       for (const b of group) {
-        if (b.amountCents <= 0 || b.accountId === a.accountId) continue;
+        // ONE rule for "not the same account": a row's identity is its
+        // accountId unless the user has confirmed otherwise, so this subsumes
+        // the original `b.accountId === a.accountId` check rather than sitting
+        // beside it as a second, driftable condition.
+        if (b.amountCents <= 0 || identityOf(b) === identityOf(a)) continue;
         if (Math.abs(daysBetween(isoDate(a.date), isoDate(b.date))) <= 3) {
           pairs.push({ outflow: a, inflow: b });
         }
@@ -77,25 +121,36 @@ function matchTransferPairs<T extends TransferTxn>(transactions: readonly T[]): 
   return pairs;
 }
 
-export function detectTransfers(transactions: readonly TransferTxn[]): Set<string> {
-  const transferIds = new Set<string>();
-
+/**
+ * Both halves of detection, computed ONCE (cycle-1 critics F4/P2-6: the first
+ * cut walked the pair matcher and the normalizer twice per plan — measured at
+ * +86% on a 3,065-row corpus, inside every sync).
+ */
+function detectTransferParts<T extends TransferTxn>(
+  transactions: readonly T[],
+): { descriptorIds: Set<string>; pairs: Array<{ outflow: T; inflow: T }>; transferIds: Set<string> } {
   // Descriptor heuristic goes THROUGH the normalizer (one decision path —
   // critic F4): a descriptor is transfer-like only if the merchant table says
   // so. The auto-loan ACH is an own-obligation payment, excluded from
   // income/expense like a transfer.
+  const descriptorIds = new Set<string>();
   for (const t of transactions) {
     const categoryId = normalizeMerchant(t.rawDescriptor).categoryId;
-    if (categoryId === 'transfer' || categoryId === 'auto-loan') transferIds.add(t.id);
+    if (categoryId === 'transfer' || categoryId === 'auto-loan') descriptorIds.add(t.id);
   }
 
   // Pair matching: equal/opposite amounts, different accounts, within 3 days.
-  for (const { outflow, inflow } of matchTransferPairs(transactions)) {
+  const pairs = matchTransferPairs(transactions);
+  const transferIds = new Set(descriptorIds);
+  for (const { outflow, inflow } of pairs) {
     transferIds.add(outflow.id);
     transferIds.add(inflow.id);
   }
+  return { descriptorIds, pairs, transferIds };
+}
 
-  return transferIds;
+export function detectTransfers(transactions: readonly TransferTxn[]): Set<string> {
+  return detectTransferParts(transactions).transferIds;
 }
 
 /** A transaction with the persisted state planTransferUpdates needs to decide
@@ -124,7 +179,7 @@ export interface TransferStateTxn extends TransferTxn {
  * Categories that assert nothing a transfer flag would contradict: no verdict
  * yet ('uncategorized'), or a verdict that already agrees ('transfer').
  */
-const NON_COMPETING_CATEGORY_IDS: ReadonlySet<string> = new Set(['transfer', 'uncategorized']);
+export const NON_COMPETING_CATEGORY_IDS: readonly string[] = ['transfer', 'uncategorized'];
 
 /**
  * Whether this row already carries an answer that a pair-only guess would be
@@ -138,7 +193,7 @@ const NON_COMPETING_CATEGORY_IDS: ReadonlySet<string> = new Set(['transfer', 'un
  * without evidence.
  */
 export function hasCompetingVerdict(t: TransferStateTxn): boolean {
-  return !t.needsReview && t.categoryId !== null && !NON_COMPETING_CATEGORY_IDS.has(t.categoryId);
+  return !t.needsReview && t.categoryId !== null && !NON_COMPETING_CATEGORY_IDS.includes(t.categoryId);
 }
 
 export interface TransferUpdatePlan {
@@ -194,36 +249,43 @@ export interface TransferUpdatePlan {
  * see and correct — unlike a silent exclusion, which they cannot.
  */
 export function planTransferUpdates(transactions: readonly TransferStateTxn[]): TransferUpdatePlan {
-  const detected = detectTransfers(transactions);
+  // Descriptor evidence and the pairs — one walk each.
+  const { descriptorIds, pairs } = detectTransferParts(transactions);
 
-  // Which rows the DESCRIPTOR alone reaches — the merchant table naming the row
-  // a transfer is not a coincidence of amount and date, so it keeps overturning
-  // a settled verdict exactly as it always has (TRANSFER_CONFIDENCE_BPS 9900).
-  const descriptorDetected = new Set<string>();
-  for (const t of transactions) {
-    const categoryId = normalizeMerchant(t.rawDescriptor).categoryId;
-    if (categoryId === 'transfer' || categoryId === 'auto-loan') descriptorDetected.add(t.id);
-  }
-
-  // The legs a directionally coherent pair reaches, from the SAME pair rule
-  // `detectTransfers` just used — never a second walk under a second rule.
+  // The legs a directionally coherent pair reaches, from the SAME pairs the
+  // detection just used — never a second walk under a second rule.
   const coherentlyPaired = new Set<string>();
-  for (const { outflow, inflow } of matchTransferPairs(transactions)) {
+  for (const { outflow, inflow } of pairs) {
     if (!CAN_SEND_ACCOUNT_TYPES.has(outflow.accountType)) continue;
     coherentlyPaired.add(outflow.id);
     coherentlyPaired.add(inflow.id);
   }
 
+  /**
+   * ONE evidence bar for every write (cycle-1 critics P0-1 / F1): a name the
+   * merchant table knows, or a pair that could physically have moved the money.
+   *
+   * It governs FILING and FLAGGING alike, not just the settled overturn the
+   * first cut gated. Two executed findings forced that. (a) Every synced row is
+   * BORN `needsReview`, so gating only the settled case let the coincidence win
+   * on the very first sweep — and filing is the HEAVIER write, since it also
+   * stamps categoryId 'transfer' and clears needsReview, removing the row from
+   * triage so the owner never sees the income that vanished. (b) Flagging
+   * without filing is worse still: a flagged `needsReview` row is hidden from
+   * the triage queue by its own transfer guard AND excluded from every total —
+   * the pre-#165 wedge. So an unevidenced pair does not get a weaker action, it
+   * gets NO action, and the row stays visible and countable exactly as it is.
+   */
+  const evidenced = new Set<string>([...descriptorIds, ...coherentlyPaired]);
+
   const flagIds: string[] = [];
   const overturnIds: string[] = [];
   const fileIds: string[] = [];
   for (const t of transactions) {
-    if (!detected.has(t.id)) continue;
+    if (!evidenced.has(t.id)) continue;
     if (!t.isTransfer) {
-      if (!hasCompetingVerdict(t)) flagIds.push(t.id);
-      else if (descriptorDetected.has(t.id) || coherentlyPaired.has(t.id)) overturnIds.push(t.id);
-      // else: a pair-only guess against a recorded answer, with no coherent
-      // sending leg — the answer stands, and the row keeps counting.
+      if (hasCompetingVerdict(t)) overturnIds.push(t.id);
+      else flagIds.push(t.id);
     }
     if (t.needsReview && !t.reviewPinned && t.status === 'POSTED' && t.currencySupported) {
       fileIds.push(t.id);

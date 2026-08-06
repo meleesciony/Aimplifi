@@ -231,21 +231,109 @@ describe('planTransferUpdates (pure)', () => {
     });
 
     it("'uncategorized' and 'transfer' are not verdicts to overturn — they flag as before", () => {
+      // Deliberately a COHERENT pair (cash sends), so this isolates the VERDICT
+      // question. On the incoherent fixture nothing is written at all, and the
+      // test would pass for the wrong reason.
+      const coherent = (): TransferStateTxn[] => [
+        txn({
+          id: 'out-leg',
+          accountId: 'checking',
+          amountCents: -50_000,
+          rawDescriptor: 'ONLINE WITHDRAWAL',
+          categoryId: 'shopping',
+        }),
+        txn({
+          id: 'in-leg',
+          accountId: 'savings',
+          accountType: 'SAVINGS',
+          date: '2026-06-11',
+          amountCents: 50_000,
+          rawDescriptor: 'DEPOSIT',
+          categoryId: 'income',
+        }),
+      ];
       for (const categoryId of ['uncategorized', 'transfer', null]) {
         const plan = planTransferUpdates(
-          coincidence().map((t) => (t.id === 'distribution' ? { ...t, categoryId } : t)),
+          coherent().map((t) => (t.id === 'in-leg' ? { ...t, categoryId } : t)),
         );
-        expect(plan.flagIds, `categoryId=${categoryId}`).toEqual(['distribution']);
-        expect(plan.overturnIds, `categoryId=${categoryId}`).toEqual([]);
+        expect(plan.flagIds, `categoryId=${categoryId}`).toEqual(['in-leg']);
+        expect(plan.overturnIds, `categoryId=${categoryId}`).toEqual(['out-leg']);
       }
     });
 
-    it('an unsettled row is unaffected by the gate: still flagged AND filed on the same coincidence', () => {
+    /**
+     * Cycle-1 critic P0-1, executed: gating only the SETTLED case left the
+     * coincidence winning on the very first sweep, because every synced row is
+     * BORN needsReview — and filing is the heavier write (it also stamps
+     * categoryId 'transfer' and clears needsReview, removing the row from
+     * triage), so the owner would never see the income that vanished.
+     */
+    it('an UNSETTLED row on the same incoherent coincidence is neither flagged nor filed', () => {
       const plan = planTransferUpdates(
         coincidence().map((t) => (t.id === 'distribution' ? { ...t, needsReview: true } : t)),
       );
-      expect(plan.flagIds).toEqual(['distribution']);
-      expect(plan.fileIds).toEqual(['distribution']);
+      expect(plan.flagIds).toEqual([]);
+      expect(plan.overturnIds).toEqual([]);
+      expect(plan.fileIds).toEqual([]);
+    });
+
+    it('an unsettled row on a COHERENT pair is still flagged and filed (#165 preserved)', () => {
+      const plan = planTransferUpdates(ccPaidPair());
+      expect(plan.flagIds.sort()).toEqual(['in', 'out']);
+      expect(plan.fileIds.sort()).toEqual(['in', 'out']);
+    });
+
+    it('a LOAN draw can send: the sender vocabulary is not just cash (critic P1-2)', () => {
+      // A $20,000 HELOC draw the owner filed as Income. Refusing to overturn it
+      // left borrowed money in the income bars, the FI savings rate and the TAX
+      // EXPORT — so LOAN/MORTGAGE senders are inside the bar, CREDIT is not.
+      const plan = planTransferUpdates([
+        txn({
+          id: 'draw',
+          accountId: 'heloc',
+          accountType: 'LOAN',
+          amountCents: -2_000_000,
+          rawDescriptor: 'HELOC ADVANCE',
+          categoryId: 'loan-payment',
+        }),
+        txn({
+          id: 'landed',
+          accountId: 'checking',
+          amountCents: 2_000_000,
+          rawDescriptor: 'DEPOSIT',
+          categoryId: 'income',
+        }),
+      ]);
+      expect(plan.overturnIds.sort()).toEqual(['draw', 'landed']);
+    });
+
+    it('two rows on the SAME real account never pair, even across a confirmed duplicate', () => {
+      // The eBay case: a purchase and its own refund on one card that exists as
+      // two rows. Identity, not a filter on the input — see transfer-refresh.ts.
+      const plan = planTransferUpdates([
+        txn({
+          id: 'buy',
+          accountId: 'card-simplefin',
+          accountIdentityId: 'card-real',
+          accountType: 'CREDIT',
+          amountCents: -42_990,
+          rawDescriptor: 'eBay O*02-14853-76644',
+          categoryId: 'shopping',
+        }),
+        txn({
+          id: 'refund',
+          accountId: 'card-plaid',
+          accountIdentityId: 'card-real',
+          accountType: 'CREDIT',
+          date: '2026-06-11',
+          amountCents: 42_990,
+          rawDescriptor: 'eBay O*02-14853-76644',
+          categoryId: 'shopping',
+        }),
+      ]);
+      expect(plan.flagIds).toEqual([]);
+      expect(plan.overturnIds).toEqual([]);
+      expect(plan.fileIds).toEqual([]);
     });
   });
 
@@ -317,7 +405,7 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
     );
 
     const res = await refreshTransferFlags(USER);
-    expect(res).toEqual({ flagged: 2, filed: 2 });
+    expect(res).toEqual({ flagged: 2, overturned: 0, filed: 2 });
 
     const pair = await prisma.transaction.findMany({ where: { id: { in: [`${USER}-out`, `${USER}-in`] } } });
     for (const t of pair) {
@@ -335,7 +423,7 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
     expect(await getReviewCount(USER)).toBe(1);
 
     // Idempotent: a second run changes nothing.
-    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 0, filed: 0 });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 0, overturned: 0, filed: 0 });
   });
 
   it('never clobbers a user-resolved category: flag only', async () => {
@@ -346,7 +434,8 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
       ],
     });
     const res = await refreshTransferFlags(USER);
-    expect(res).toEqual({ flagged: 2, filed: 1 });
+    // The settled 'dining' row is an OVERTURN, reported separately now.
+    expect(res).toEqual({ flagged: 1, overturned: 1, filed: 1 });
     const out = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-out2` } });
     expect(out.isTransfer).toBe(true); // flagged (sums exclude it)
     expect(out.categoryId).toBe('dining'); // the user's call stands
@@ -361,7 +450,7 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
       ],
     });
     const res = await refreshTransferFlags(USER);
-    expect(res).toEqual({ flagged: 2, filed: 1 });
+    expect(res).toEqual({ flagged: 2, overturned: 0, filed: 1 });
     const out = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-out3` } });
     expect(out.isTransfer).toBe(true);
     expect(out.needsReview).toBe(true); // the pin holds the review
@@ -378,7 +467,7 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
         row({ id: `${USER}-inp`, accountId: CARD, date: '2026-06-11', amountCents: 123_456, rawDescriptor: 'PAYMENT RECEIVED - THANK YOU' }),
       ],
     });
-    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 2, filed: 1 });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 2, overturned: 0, filed: 1 });
     const out = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-outp` } });
     expect(out.isTransfer).toBe(true);
     expect(out.categoryId).toBe('uncategorized'); // no filing on provisional data
@@ -396,7 +485,7 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
         row({ id: `${USER}-ine`, accountId: EUR, date: '2026-06-11', amountCents: 123_456, rawDescriptor: 'PAYMENT RECEIVED - THANK YOU' }),
       ],
     });
-    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 2, filed: 1 });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 2, overturned: 0, filed: 1 });
     const eurRow = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-ine` } });
     expect(eurRow.isTransfer).toBe(true);
     expect(eurRow.categoryId).toBe('uncategorized'); // withheld accounts get no system writes
@@ -489,7 +578,7 @@ describe('cycle-1 critic locks: batch scope, undo pin, backfill guard (integrati
     // …so the restored card is actually VISIBLE (undo's contract)…
     expect((await getTriageGroups(USER)).flatMap((g) => g.rows.map((r) => r.id))).toEqual([`${USER}-und`]);
     // …and the next sync's pair pass cannot file over the user's re-decision.
-    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 0, filed: 0 });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 0, overturned: 0, filed: 0 });
     expect((await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-und` } })).needsReview).toBe(true);
   });
 

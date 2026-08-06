@@ -1091,7 +1091,7 @@ async function runSimplefinSync(
     const transfers = await refreshTransferFlags(userId);
     // Same contract as the Plaid path: these are rows the guarded writes actually
     // mutated, so they are a change the reader can see and should re-render for.
-    if (transfers.flagged + transfers.filed > 0) derivedChanged = true;
+    if (transfers.flagged + transfers.overturned + transfers.filed > 0) derivedChanged = true;
   } catch {
     // a derived re-classification; the ingest already succeeded
   }

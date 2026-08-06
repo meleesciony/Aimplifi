@@ -31,20 +31,19 @@ each replaying the REAL engine over 3,065 real rows rather than a replica):
   **$500.00** Zelle payment to a landscaper two days earlier, so a real income row
   AND a real expense row both vanished from their totals.
 
-**Two causes, two scopes, deliberately not merged.** (1) THE BOUNDARY, universal:
-`refreshTransferFlags` was the only transaction read surface in the app that
-skipped `getReconciliationTxnKeep` — the R1 rule the register, CSV export,
-budgets, recurring detection and triage all apply — so with 26 active links it
-read BOTH copies of a reconciled account (1,215 of 3,065 rows were not its to
-read) and paired rows against their own duplicates, defeating the same-account
-exclusion `transfers.ts` already declares. Applying the app's own keep-rule
-removed **53 of the 73**. (2) THE DIRECTION GATE, overturns only: an outflow on a
-credit line is a purchase, not money leaving for another account. That is what the
+**Two causes.** (1) ACCOUNT IDENTITY: with 26 active links the sweep saw BOTH
+copies of a reconciled account and paired rows against their own duplicates,
+defeating the same-account exclusion `transfers.ts` already declares. Rows now
+carry their confirmed identity (`activeTerminalSuccessorMap`) and two rows on one
+real account never pair. (Cycle 1 instead filtered the READ through
+`getReconciliationTxnKeep`; a critic showed that blinds the WRITER to a leg its
+readers still count — see CRITIC CYCLE 1 below — so the boundary moved out of the
+input and into the matching rule.) (2) THE DIRECTION GATE: an outflow on a credit
+line is a purchase, not money leaving for another account. That is what the
 remaining false overturns had in common ($500 KALSHI, $7.00 Tesla Supercharger,
-$100 AT&T bill). It is a heuristic with real counterexamples (balance transfer,
-cash advance), so it is scoped to the overturn decision and never suppresses
-detection generally — refusing to overturn leaves the row as its owner filed it
-and visible in every total, so its failure mode is inaction, never a rewrite.
+$100 AT&T bill). It applies to every write, not just the overturn, and its one
+counterexample class (cash advance, balance transfer) is recorded as residual 2
+rather than hidden.
 
 **Rejected after measuring, not assumed:** an AGE gate (it would refuse exactly the
 corrections a deep-history backfill exists to make) and a CONFIDENCE gate (measured
@@ -57,30 +56,100 @@ residue-checked: removing the overturn gate fails 6 of the 7 new pure locks;
 removing the boundary filter fails the duplicate-pair lock; removing the flag
 write's premise re-assertion fails the read→write race lock.
 
+### CRITIC CYCLE 1 (2026-08-05) — two fresh-context critics in isolated worktrees, both FAIL: 1 P0, 5 P1, 4 P2, 1 P3. All fixed and locked; the mechanism changed twice.
+
+**P0-1 — the gate never fired on the shape a row actually arrives in.** Every
+synced row is BORN `needsReview`, so gating only the SETTLED case left the
+coincidence winning on the very first sweep — and worse than before, because
+`fileIds` (untouched by cycle 1) also stamps `categoryId: 'transfer'` and clears
+`needsReview`, removing the row from triage entirely. The critic executed the
+slice's own live repro end to end: the $500.00 CEF distribution left every income
+total AND never reached the queue. Fixed by making the evidence bar ONE bar over
+every write, not just the overturn. **A second defect surfaced while fixing it,
+mine:** gating only `fileIds` and still flagging would have recreated the
+pre-#165 WEDGE, since a flagged `needsReview` row is hidden from triage by its own
+transfer guard while being excluded from every total. So an unevidenced pair now
+gets no action at all — the row stays visible and countable exactly as it is.
+
+**P1-2 — the direction gate manufactured false negatives.** A $20,000 HELOC draw
+the owner had filed as Income stayed Income: in the income bars, the FI savings
+rate, and the **tax export**. My comment had claimed refusing to overturn is
+"always the safe direction"; it is not, when the recorded verdict is itself wrong.
+`LOAN` and `MORTGAGE` now sit inside `CAN_SEND_ACCOUNT_TYPES` — a draw on a line
+of credit IS money moving between the owner's accounts, and those account types
+carry no merchant purchases to confuse it with. Only `CREDIT` stays withheld.
+
+**P1-3 — the sharpest: filtering the sweep's READ made the WRITER blind to a leg
+its readers still count.** `getReconciliationTxnKeep` disowns a successor row
+dated inside the predecessor's claim; when that row is the only copy of a
+transfer's paying leg, the sweep could no longer see it, while the counterpart on
+an unlinked card was counted by everyone. Executed: a $123.45 card payment read as
+negative spending, taking a month's expenses from $200.00 to $76.55. **The
+mechanism is therefore replaced, not patched:** each row now carries its confirmed
+account IDENTITY (`activeTerminalSuccessorMap`) and the pair rule refuses two rows
+on the same real account. Same protection, no blindness — a writer that guards a
+flag must see at least everything its readers see.
+
+**P1 (2nd critic) — "a row can only become MORE settled inside the window" was
+false.** `undoCorrections` returns a row to 'uncategorized' + `needsReview`, and
+flagging it then mints the hidden `needsReview + isTransfer` wedge — turning the
+user's request to re-review into a silent transfer filing. The overturn write now
+re-asserts its premise, like the flag write beside it.
+
+**P2s fixed:** the write's `['transfer','uncategorized']` was hand-mirrored from
+the engine and drifted freely (deleting `'uncategorized'` from the copy passed
+every test) — one exported constant now feeds both; the doubled pair+normalizer
+walk (measured +86% on 3,065 rows, inside every sync) is one walk; and the
+overstated "only read surface" claim is corrected in place, with the counterexample
+the critic found — `spending-plan.ts:198` reads LOAN/MORTGAGE inflows unboundaried
+and feeds them to `loanPaymentMerchantCanonicals`, which runs the SAME ±3-day
+pair rule — filed as **TASKS H.8**. **P3 fixed:** an overturn is now returned
+separately (`{flagged, overturned, filed}`) and counts toward `derivedChanged` in
+both providers, because reversing a verdict the owner recorded is the one of the
+three worth telling them about.
+
+**Re-measured with the SHIPPED cycle-2 code against the live corpus**
+(`h7-shipped-plan.mts`): all 3,065 rows read (identity replaces the filtered
+read), 26 reconciled accounts; a from-scratch replay justifies **114** flags and
+**39** overturns — the Capital One and Chase autopays, the brokerage fundings,
+three Truist mortgage payments, the "Overdraft Transfer from Brokerage" moves —
+against **two** residual false ones (the $0.07 "Interest Paid" rows, now visible
+on both copies). **Re-gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 /
+**6096 unit across 369 files** / build clean. Fail-old re-proven on five
+sabotages, each RED and each restored with a residue check: identity, the
+evidence bar, the LOAN/MORTGAGE vocabulary, and both write-premise
+re-assertions.
+
 ### STILL OPEN after H.7 (recorded, not fixed — ranked by money consequence)
 
-1. **A $0.07 residual false overturn.** After both guards, 16 settled overturns
-   remain; 15 are the genuinely correct ones (the brokerage fundings, the Chase
-   autopays, the Truist mortgage) and one is a $0.07 "Interest Paid" inflow matched
-   to a $0.07 Vanguard money-market row. Closing it means inventing an amount floor
-   with a magic number, which the evidence does not support.
-2. **A settled CASH outflow can still be overturned by a coincidental cash inflow**
-   — direction-coherence cannot distinguish that from a real checking-to-savings
-   transfer. Unmeasured after the boundary (the live instances were all duplicates);
-   needs its own corpus measurement before any rule is invented.
-3. **The 45 existing bad flags are NOT repaired.** Flags stay add-only by
-   construction, so this change stops new silent overturns but does not undo the
-   ones already written to the owner's rows. Un-flagging is itself a silent rewrite
-   in the opposite direction on figures he has already seen, and belongs to an
-   owner-visible decision, not a sync-path fix. Until then his income and spending
-   totals still carry the pre-H.7 exclusions.
-4. **A degenerate reconciliation claim keeps both copies.** `txnKeepRule` treats a
-   cutover predating the predecessor's first row as degenerate and keeps everything
-   (critic A-F8), so duplicates in that shape still reach the sweep. The live
-   measurement already reflects this — it ran the shipped rule — but it is the
-   reason the boundary removed 53 rather than all 45+.
-5. **Critic pass owed.** This slice has NOT been through a hostile-critic cycle;
-   the locks above are my own. Money-visible + data-integrity ⇒ it needs one.
+1. **The 53 flags already written are NOT repaired — the one that still affects
+   what the owner sees today.** Flags are add-only by construction. Re-measured
+   with the shipped rule: of the rows flagged on his corpus, it declines **53**
+   (**$29,848.84**, 4 of them income-categorised) and endorses the rest. Those 53
+   are still withheld from his income and spending totals right now.
+   **Deliberately not automated**, for the reason the app applies everywhere else
+   (#192/#221/#299 — disclose, never silently adjust): clearing a flag is itself a
+   silent rewrite in the opposite direction on figures he has already looked at,
+   and where a flag happens to be RIGHT, clearing it would double-count a real
+   transfer. The shape this should take is the existing repair-route idiom
+   (`/api/repair/plaid-provider-categories` is the precedent): an explicit,
+   owner-triggered pass that states what it will change before it changes it, and
+   is undoable. **Owner decision needed** — nobody else can authorise rewriting
+   money figures he has already seen.
+2. **A CREDIT-sourced transfer is refused.** A cash advance or a balance transfer
+   genuinely sends from a card, and `CAN_SEND_ACCOUNT_TYPES` withholds `CREDIT`
+   because a card outflow is overwhelmingly a purchase and type alone cannot tell
+   them apart. Consequence: such a row settled under a substantive category keeps
+   that category (a cash advance filed as Income stays Income). Narrower than the
+   cycle-1 version, which refused LOAN and MORTGAGE too, but real — and it needs a
+   measurement on a corpus that actually contains one before a rule is invented.
+3. **Two $0.07 false overturns survive.** An "Interest Paid" inflow matched to a
+   $0.07 Vanguard money-market row on each copy. Closing it means inventing an
+   amount floor with a magic number, which the evidence does not support.
+4. **Critic cycle 2 is owed.** Everything above was found by cycle-1 critics
+   reviewing commit `de9d32a`; the fixes themselves have been sabotage-locked and
+   re-gated but not adversarially reviewed. Money-visible + data-integrity ⇒ this
+   slice does not claim a pass until it has been.
 
 ## ✅ BUILT 2026-08-05 — the Plaid deep-history backfill mirror: superseded predecessors refused, runs capped+chunked, every server-performed un-supersede re-arms (DECISIONS #414)
 

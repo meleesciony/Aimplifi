@@ -4,6 +4,8 @@
  *
  * The pure engine (planTransferUpdates) decides; this applies:
  *  - flagIds → isTransfer: true (the pre-existing behavior);
+ *  - overturnIds → isTransfer: true on a row that already carries a settled
+ *    substantive verdict, which only well-evidenced detection may do (H.7);
  *  - fileIds → ALSO categoryId 'transfer' + needsReview false + transfer
  *    confidence. The old add-flag-only update left a pair-detected row whose
  *    descriptor the normalizer doesn't know (e.g. "CREDIT CARD PAID") excluded
@@ -11,30 +13,47 @@
  * Flags are only ever ADDED (never unflag a descriptor-based transfer), and a
  * user-resolved or review-pinned row is never re-filed (see the engine's plan).
  *
- * THE RECONCILIATION BOUNDARY, H.7. This sweep used to be the ONLY transaction
- * read surface in the app that skipped `getReconciliationTxnKeep` — the R1
- * ownership rule the register, CSV export, budgets, recurring detection and
- * triage all apply, under which a reconciled pair's overlap belongs to exactly
- * one side. Reading every row instead meant the sweep saw BOTH copies of a
- * duplicated account's history and paired a row against its own duplicate,
- * defeating the same-account exclusion the pair rule already declares
- * (`transfers.ts`) — a purchase matched its own refund, a Zelle payment matched
- * an unrelated deposit. Measured on the owner's live corpus (26 active links):
- * 1,215 of 3,065 rows were not the boundary's to read, and applying it removed
- * 53 of the 73 settled rows the sweep had silently overturned.
+ * ACCOUNT IDENTITY, H.7. A reconciled pair — the same real account arriving
+ * from two providers — made a purchase and its own refund look like two
+ * accounts, defeating the same-account exclusion the pair rule already declares
+ * and manufacturing a transfer out of two copies of one row. Measured on the
+ * owner's live corpus (26 active links): 45 of the 73 settled rows the sweep had
+ * silently overturned were this artifact.
+ *
+ * The fix passes each row its confirmed IDENTITY rather than filtering the read.
+ * Cycle 1 did filter the read, through `getReconciliationTxnKeep`, and a critic
+ * broke it: that rule disowns a successor row dated inside the predecessor's
+ * claim, so when the only copy of a leg is that row the sweep — a WRITER — goes
+ * blind to it while every reader still counts its counterpart on the unlinked
+ * side. A $123.45 card payment then read as negative spending, taking a month's
+ * expenses from $200.00 to $76.55. A writer that guards a flag must see at
+ * least everything its readers see, so the boundary belongs in the MATCHING
+ * rule, never in the input.
  */
 import { prisma } from '@/lib/db';
 import {
+  NON_COMPETING_CATEGORY_IDS,
   PAIR_TRANSFER_CONFIDENCE_BPS,
   planTransferUpdates,
 } from '@/lib/engine/categorize/transfers';
 import { ensureCategories } from '@/server/ensure-categories';
-import { getReconciliationTxnKeep } from '@/server/reconciliation';
+import { activeTerminalSuccessorMap } from '@/server/reconciliation';
+
+/** The write-side statement of `!hasCompetingVerdict` — one negation, term for
+ * term, built from the engine's own constant so the two cannot drift (cycle-1
+ * critic F3: deleting 'uncategorized' from a hand-typed copy passed every test). */
+const NO_COMPETING_VERDICT_WHERE = {
+  OR: [
+    { needsReview: true },
+    { categoryId: null },
+    { categoryId: { in: [...NON_COMPETING_CATEGORY_IDS] } },
+  ],
+};
 
 export async function refreshTransferFlags(
   userId: string,
-): Promise<{ flagged: number; filed: number }> {
-  const [rows, keepsReconciled] = await Promise.all([
+): Promise<{ flagged: number; overturned: number; filed: number }> {
+  const [rows, identity] = await Promise.all([
     prisma.transaction.findMany({
       where: { account: { userId }, isSplitParent: false },
       select: {
@@ -51,46 +70,52 @@ export async function refreshTransferFlags(
         account: { select: { currency: true, type: true } },
       },
     }),
-    getReconciliationTxnKeep(userId),
+    // pred → terminal live successor, over EFFECTIVE links only. Absent from the
+    // map (the overwhelming case) a row's identity is its own account.
+    activeTerminalSuccessorMap(userId),
   ]);
-  const txns = rows
-    .filter((r) => keepsReconciled(r.accountId, r.date))
-    .map((r) => ({
-      ...r,
-      // Same supported-currency predicate every queue/write guard uses (DECISIONS #135).
-      currencySupported: r.account.currency === null || r.account.currency === 'USD',
-      accountType: r.account.type,
-    }));
+  const txns = rows.map((r) => ({
+    ...r,
+    // Same supported-currency predicate every queue/write guard uses (DECISIONS #135).
+    currencySupported: r.account.currency === null || r.account.currency === 'USD',
+    accountType: r.account.type,
+    accountIdentityId: identity.get(r.accountId) ?? r.accountId,
+  }));
   const { flagIds, overturnIds, fileIds } = planTransferUpdates(txns);
 
   let flagged = 0;
+  let overturned = 0;
   let filed = 0;
   if (flagIds.length) {
     // Re-assert the read guard in the write (the backfill cycle-5 precedent, as
     // the file branch below already does): these ids were planned BECAUSE they
     // carried no verdict to overturn, and a row the user files inside the
-    // read->write window now carries one. Skip it rather than reverse a
-    // decision that was made a moment ago under a rule it never faced.
+    // read→write window now carries one. Skip it rather than reverse a decision
+    // that was made a moment ago under a rule it never faced.
     const res = await prisma.transaction.updateMany({
-      where: {
-        id: { in: flagIds },
-        account: { userId },
-        OR: [{ needsReview: true }, { categoryId: null }, { categoryId: { in: ['transfer', 'uncategorized'] } }],
-      },
+      where: { id: { in: flagIds }, account: { userId }, ...NO_COMPETING_VERDICT_WHERE },
       data: { isTransfer: true },
     });
     flagged = res.count;
   }
   if (overturnIds.length) {
-    // These DID carry a settled substantive verdict and cleared the evidence
-    // bar anyway (descriptor-named transfer, or a directionally coherent pair).
-    // No re-assertion: their premise is that a verdict exists, and a row can
-    // only become MORE settled inside the window.
+    // These DID carry a settled substantive verdict and cleared the evidence bar
+    // anyway. The premise is re-asserted here too: an earlier version argued a
+    // row "can only become MORE settled inside the window", which a critic
+    // falsified by executing `undoCorrections` — Undo returns a row to
+    // 'uncategorized' + needsReview, and flagging it then mints the wedged
+    // needsReview+isTransfer state the triage queue hides, turning the user's
+    // request to re-review into a silent transfer filing.
     const res = await prisma.transaction.updateMany({
-      where: { id: { in: overturnIds }, account: { userId } },
+      where: {
+        id: { in: overturnIds },
+        account: { userId },
+        needsReview: false,
+        categoryId: { notIn: [...NON_COMPETING_CATEGORY_IDS] },
+      },
       data: { isTransfer: true },
     });
-    flagged += res.count;
+    overturned = res.count;
   }
   if (fileIds.length) {
     // The 'transfer' Category row must exist to satisfy the FK on a fresh
@@ -118,7 +143,9 @@ export async function refreshTransferFlags(
     });
     filed = res.count;
   }
-  // Honest counts: what the guarded writes actually mutated, not what the
-  // stale read planned.
-  return { flagged, filed };
+  // Honest counts: what the guarded writes actually mutated, not what the stale
+  // read planned — and an OVERTURN is reported separately, because reversing a
+  // verdict the owner recorded is the only one of the three worth telling them
+  // about (cycle-1 critic P3-7).
+  return { flagged, overturned, filed };
 }

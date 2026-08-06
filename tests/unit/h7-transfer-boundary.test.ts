@@ -1,25 +1,25 @@
 /**
- * H.7 — the transfer sweep reads what the reconciliation boundary OWNS.
+ * H.7 — two rows on the SAME REAL ACCOUNT never pair, and the sweep still SEES
+ * every row while enforcing that.
  *
- * `refreshTransferFlags` was the only transaction read surface in the app that
- * skipped `getReconciliationTxnKeep` (the R1 ownership rule the register, CSV
- * export, budgets, recurring detection and triage all apply). With a reconciled
- * pair — the same real account arriving from two providers — it therefore saw
- * BOTH copies of every row, and could match a row against a row on its own
- * duplicate: exactly the same-account case the pair rule already refuses.
+ * A reconciled pair — the same real account arriving from two providers — makes
+ * a purchase and its own refund look like two accounts, which defeats the
+ * same-account exclusion the pair rule already declares and manufactures a
+ * transfer out of two copies of one row. Measured live on the owner's corpus
+ * (26 active links): 45 of the 73 settled rows the sweep had silently overturned
+ * were this artifact — an eBay purchase and its refund at $429.90 on one card,
+ * an Uber One charge and its Amex statement credit, a $500 Zelle payment matched
+ * to an unrelated $500 deposit.
  *
- * Measured live on the owner's corpus before the fix
- * (scripts/audit-probes/h7-boundary-effect.mts): 1,215 of 3,065 rows were not
- * the boundary's to read, and 45 of the 73 settled rows the sweep had silently
- * overturned were duplicate-account artifacts.
- *
- * THE FIXTURE IS THE LIVE CASE, and it is chosen to isolate the boundary: a
- * $500.00 Zelle payment to a landscaper and an unrelated $500.00 fund
- * distribution two days later, on ONE real checking account that exists as two
- * rows. Its sending leg is a checking account, so the direction gate passes it
- * — only the boundary can stop this one, which is what makes the premise lock
- * below meaningful rather than vacuous. (The eBay purchase/refund case measured
- * alongside it is caught by BOTH guards, so it could not isolate either.)
+ * WHY IDENTITY AND NOT A FILTERED READ. Cycle 1 filtered the sweep's read
+ * through `getReconciliationTxnKeep`. A hostile critic broke it: that rule
+ * disowns a SUCCESSOR row dated inside the predecessor's claim, so when the only
+ * copy of a leg is that row, the sweep — a WRITER — goes blind to it while every
+ * reader still counts its counterpart on the unlinked side. The executed
+ * consequence was a $123.45 card payment reading as negative spending, taking a
+ * month's expenses from $200.00 to $76.55. The last test here is that
+ * regression, locked: a writer that guards a flag must see at least everything
+ * its readers see.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -29,7 +29,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 import { prisma } from '@/lib/db';
 import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
 
-describe('H.7: the transfer sweep applies the reconciliation boundary', () => {
+describe('H.7: one real account cannot pair with itself', () => {
   const USER = `h7b-${Date.now()}-${process.pid}`;
   let OLD_CHK = '';
   let NEW_CHK = '';
@@ -86,29 +86,14 @@ describe('H.7: the transfer sweep applies the reconciliation boundary', () => {
   /**
    * Two unrelated settled rows — a landscaping payment out, a fund distribution
    * in — as BOTH feeds report them. Same |amount|, two days apart. Nothing here
-   * is a transfer; the only thing they have in common is $500.00.
+   * is a transfer; the only thing they have in common is $500.00. The sending
+   * leg is a checking account, so the direction gate passes it — identity is the
+   * only thing that can refuse this one, which is what makes the premise lock
+   * below meaningful rather than vacuous.
    */
   async function zelleAndDistributionOnBothCopies() {
     await prisma.transaction.createMany({
-      data: [
-        // The predecessor's own pre-cutover history. Without it the stored
-        // cutover would predate its FIRST row, which the boundary treats as a
-        // DEGENERATE claim and answers by keeping everything (A-F8: never erase
-        // a whole history that has no successor copies). A real reconciled pair
-        // always spans its cutover, and the sweep must be tested against the
-        // rule as it actually behaves, not a shape confirm cannot produce.
-        {
-          id: `${USER}-anchor`,
-          accountId: OLD_CHK,
-          date: '2026-05-15',
-          amountCents: -2_500,
-          rawDescriptor: 'SQ *BLUE BOTTLE',
-          categoryId: 'dining',
-          confidenceBps: 9000,
-          needsReview: false,
-        },
-      ].concat(
-        [OLD_CHK, NEW_CHK].flatMap((accountId, i) => [
+      data: [OLD_CHK, NEW_CHK].flatMap((accountId, i) => [
         {
           id: `${USER}-zelle${i}`,
           accountId,
@@ -129,8 +114,7 @@ describe('H.7: the transfer sweep applies the reconciliation boundary', () => {
           confidenceBps: 9900,
           needsReview: false,
         },
-        ]),
-      ),
+      ]),
     });
   }
 
@@ -138,60 +122,23 @@ describe('H.7: the transfer sweep applies the reconciliation boundary', () => {
     await link();
     await zelleAndDistributionOnBothCopies();
 
-    const res = await refreshTransferFlags(USER);
-    expect(res).toEqual({ flagged: 0, filed: 0 });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 0, overturned: 0, filed: 0 });
 
     const rows = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
-    expect(rows).toHaveLength(5);
-    for (const t of rows) {
-      expect(t.isTransfer, `${t.id} must keep counting`).toBe(false);
-    }
+    expect(rows).toHaveLength(4);
     // Named directly, because these are the two figures the defect moved: real
     // spending stayed spending, and real income stayed income.
-    const spend = rows.filter((t) => t.categoryId === 'lawn-garden');
-    const income = rows.filter((t) => t.categoryId === 'income');
-    expect(spend.every((t) => !t.isTransfer)).toBe(true);
-    expect(income.every((t) => !t.isTransfer)).toBe(true);
+    expect(rows.filter((t) => t.categoryId === 'lawn-garden').every((t) => !t.isTransfer)).toBe(true);
+    expect(rows.filter((t) => t.categoryId === 'income').every((t) => !t.isTransfer)).toBe(true);
   });
 
-  it('premise lock: WITHOUT the link those same four rows DO pair — the boundary is what stops it', async () => {
-    // No reconciliation row => the keep rule is constant-true (R8), so the two
+  it('premise lock: WITHOUT the link those same four rows DO pair — identity is what stops it', async () => {
+    // No reconciliation row => every account is its own identity, so the two
     // copies are four rows on two different accounts and the cross-copy match is
     // a pair whose sending leg is a checking account. Without this assertion the
     // test above could pass because nothing pairs at all.
     await zelleAndDistributionOnBothCopies();
-    expect((await refreshTransferFlags(USER)).flagged).toBe(4);
-  });
-
-  it('narrows the read WITHOUT blinding it: a pre-cutover pair still flags and files', async () => {
-    await link();
-    // Dated before the cutover, so the PREDECESSOR still owns this row — a real
-    // card payment from checking, which must still be detected and filed.
-    await prisma.transaction.createMany({
-      data: [
-        {
-          id: `${USER}-pay`,
-          accountId: OLD_CHK,
-          date: '2026-06-10',
-          amountCents: -12_345,
-          rawDescriptor: 'CREDIT CARD PAID',
-          categoryId: 'uncategorized',
-          confidenceBps: 5000,
-          needsReview: true,
-        },
-        {
-          id: `${USER}-got`,
-          accountId: CARD,
-          date: '2026-06-11',
-          amountCents: 12_345,
-          rawDescriptor: 'PAYMENT RECEIVED - THANK YOU',
-          categoryId: 'uncategorized',
-          confidenceBps: 5000,
-          needsReview: true,
-        },
-      ],
-    });
-    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 2, filed: 2 });
+    expect((await refreshTransferFlags(USER)).overturned).toBe(4);
   });
 
   it('an UNDONE link is inert: the rows pair again, exactly as with no link at all (R9)', async () => {
@@ -201,14 +148,76 @@ describe('H.7: the transfer sweep applies the reconciliation boundary', () => {
       data: { undoneAt: new Date() },
     });
     await zelleAndDistributionOnBothCopies();
-    expect((await refreshTransferFlags(USER)).flagged).toBe(4);
+    expect((await refreshTransferFlags(USER)).overturned).toBe(4);
   });
 
-  it('the flag write re-asserts its premise: a row settled inside the read->write window is skipped', async () => {
+  it('a genuine transfer BETWEEN two different real accounts still flags and files', async () => {
+    await link();
     await prisma.transaction.createMany({
       data: [
         {
-          id: `${USER}-race-out`,
+          id: `${USER}-pay`,
+          accountId: NEW_CHK,
+          date: '2026-07-10',
+          amountCents: -12_345,
+          rawDescriptor: 'CREDIT CARD PAID',
+          categoryId: 'uncategorized',
+          confidenceBps: 5000,
+          needsReview: true,
+        },
+        {
+          id: `${USER}-got`,
+          accountId: CARD,
+          date: '2026-07-11',
+          amountCents: 12_345,
+          rawDescriptor: 'PAYMENT RECEIVED - THANK YOU',
+          categoryId: 'uncategorized',
+          confidenceBps: 5000,
+          needsReview: true,
+        },
+      ],
+    });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 2, overturned: 0, filed: 2 });
+  });
+
+  /**
+   * The cycle-1 regression, locked. The R1 boundary rule disowns a SUCCESSOR row
+   * dated inside the predecessor's claim. When that row is the only copy of a
+   * transfer's paying leg, a sweep that FILTERED its read could not see it — and
+   * the card leg, on an account under no link at all, is counted by every
+   * reader. The card payment then read as negative spending.
+   */
+  it('sees a leg the reconciliation boundary would DISOWN, so its counterpart is still flagged', async () => {
+    await link('2026-06-30');
+    await prisma.transaction.createMany({
+      data: [
+        // Predecessor history that makes the claim non-degenerate and spans the
+        // date below, so the R1 rule genuinely disowns the successor row.
+        {
+          id: `${USER}-anchor-a`,
+          accountId: OLD_CHK,
+          date: '2026-05-15',
+          amountCents: -2_500,
+          rawDescriptor: 'SQ *BLUE BOTTLE',
+          categoryId: 'dining',
+          confidenceBps: 9000,
+          needsReview: false,
+        },
+        {
+          id: `${USER}-anchor-b`,
+          accountId: OLD_CHK,
+          date: '2026-06-20',
+          amountCents: -3_500,
+          rawDescriptor: 'SQ *BLUE BOTTLE',
+          categoryId: 'dining',
+          confidenceBps: 9000,
+          needsReview: false,
+        },
+        // The PAYING leg: on the successor, dated inside [first, cutover] — the
+        // predecessor's claim — so the boundary disowns it. No predecessor copy
+        // exists, which is the ordinary reason someone re-links a bank.
+        {
+          id: `${USER}-payer`,
           accountId: NEW_CHK,
           date: '2026-06-10',
           amountCents: -12_345,
@@ -217,8 +226,9 @@ describe('H.7: the transfer sweep applies the reconciliation boundary', () => {
           confidenceBps: 5000,
           needsReview: true,
         },
+        // The counterpart, on a card under no link: every reader counts it.
         {
-          id: `${USER}-race-in`,
+          id: `${USER}-cardleg`,
           accountId: CARD,
           date: '2026-06-11',
           amountCents: 12_345,
@@ -230,17 +240,106 @@ describe('H.7: the transfer sweep applies the reconciliation boundary', () => {
       ],
     });
 
-    // Execute the window rather than reason about it: the user files the
-    // outflow as real dining at the moment the first write goes out.
+    await refreshTransferFlags(USER);
+    const cardLeg = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-cardleg` } });
+    expect(cardLeg.isTransfer, 'a card payment must never read as negative spending').toBe(true);
+    expect(cardLeg.categoryId).toBe('transfer');
+  });
+
+  /**
+   * Cycle-1 critic F1, executed. The overturn write originally carried no
+   * re-assertion, justified by "a row can only become MORE settled inside the
+   * window" — which `undoCorrections` falsifies: Undo returns a row to
+   * 'uncategorized' + needsReview. Flagging it then mints needsReview +
+   * isTransfer, a state the triage queue HIDES, so the user's request to
+   * re-review silently becomes a transfer filing.
+   */
+  it('the overturn write re-asserts its premise: a row UNDONE inside the window is skipped', async () => {
+    await prisma.transaction.createMany({
+      data: [
+        {
+          id: `${USER}-ot-out`,
+          accountId: NEW_CHK,
+          date: '2026-07-10',
+          amountCents: -50_000,
+          rawDescriptor: 'ONLINE WITHDRAWAL',
+          categoryId: 'shopping',
+          confidenceBps: 9000,
+          needsReview: false,
+        },
+        {
+          id: `${USER}-ot-in`,
+          accountId: CARD,
+          date: '2026-07-11',
+          amountCents: 50_000,
+          rawDescriptor: 'DEPOSIT RECEIVED',
+          categoryId: 'income',
+          confidenceBps: 9900,
+          needsReview: false,
+        },
+      ],
+    });
+
     const real = prisma.transaction.updateMany.bind(prisma.transaction);
-    type UpdateManyArgs = Parameters<typeof real>[0];
-    // `updateMany` is generic and returns a PrismaPromise, which an async
-    // implementation cannot structurally satisfy; the cast is the repo's
-    // existing test idiom for spying on a Prisma method, and the delegation
-    // below keeps the real behaviour intact.
-    const spy = vi.spyOn(prisma.transaction, 'updateMany').mockImplementationOnce((async (
-      args: UpdateManyArgs,
-    ) => {
+    type Args = Parameters<typeof real>[0];
+    // Both rows are settled + coherent, so overturnIds is the ONLY write —
+    // making it call #1 and the mock unambiguous.
+    const spy = vi.spyOn(prisma.transaction, 'updateMany').mockImplementationOnce((async (args: Args) => {
+      await real({
+        where: { id: `${USER}-ot-out` },
+        data: { categoryId: 'uncategorized', needsReview: true, confidenceBps: 5000 },
+      });
+      return real(args);
+    }) as unknown as typeof prisma.transaction.updateMany);
+    try {
+      await refreshTransferFlags(USER);
+    } finally {
+      spy.mockRestore();
+    }
+
+    const undone = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-ot-out` } });
+    expect(undone.needsReview).toBe(true);
+    expect(undone.isTransfer, 'an undone row must not be flagged into the hidden wedge').toBe(false);
+  });
+
+  /**
+   * The FLAG write has the same exposure as the overturn write, from the other
+   * direction: its ids were planned BECAUSE they carried no verdict, and a row
+   * the user FILES inside the window now carries one. (Kept as its own test
+   * because a sabotage of the flag write's guard alone left the suite green
+   * when only the overturn lock existed.)
+   */
+  it('the flag write re-asserts its premise: a row FILED inside the read->write window is skipped', async () => {
+    await prisma.transaction.createMany({
+      data: [
+        {
+          id: `${USER}-race-out`,
+          accountId: NEW_CHK,
+          date: '2026-07-10',
+          amountCents: -12_345,
+          rawDescriptor: 'CREDIT CARD PAID',
+          categoryId: 'uncategorized',
+          confidenceBps: 5000,
+          needsReview: true,
+        },
+        {
+          id: `${USER}-race-in`,
+          accountId: CARD,
+          date: '2026-07-11',
+          amountCents: 12_345,
+          rawDescriptor: 'PAYMENT RECEIVED - THANK YOU',
+          categoryId: 'uncategorized',
+          confidenceBps: 5000,
+          needsReview: true,
+        },
+      ],
+    });
+
+    const real = prisma.transaction.updateMany.bind(prisma.transaction);
+    type Args = Parameters<typeof real>[0];
+    // Both rows are unsettled, so flagIds is the FIRST write — the mock is
+    // unambiguous. The user files the outflow as real dining right then.
+    const spy = vi.spyOn(prisma.transaction, 'updateMany').mockImplementationOnce((async (args: Args) => {
       await real({
         where: { id: `${USER}-race-out` },
         data: { categoryId: 'dining', needsReview: false, confidenceBps: 10_000 },
@@ -256,5 +355,37 @@ describe('H.7: the transfer sweep applies the reconciliation boundary', () => {
     const out = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-race-out` } });
     expect(out.categoryId).toBe('dining');
     expect(out.isTransfer, 'a just-filed row must not be reversed by a stale plan').toBe(false);
+  });
+
+  it('a resolved-but-UNCATEGORIZED row has no verdict to overturn: it flags, not overturns', async () => {
+    // Reachable in production: deleting a custom category re-files its rows to
+    // 'uncategorized' without touching needsReview. The write's OR clause and
+    // the engine's predicate are built from ONE exported constant, so this and
+    // `hasCompetingVerdict` cannot drift apart (cycle-1 critic F3).
+    await prisma.transaction.createMany({
+      data: [
+        {
+          id: `${USER}-uc-out`,
+          accountId: NEW_CHK,
+          date: '2026-07-10',
+          amountCents: -70_000,
+          rawDescriptor: 'ONLINE WITHDRAWAL',
+          categoryId: 'uncategorized',
+          confidenceBps: 5000,
+          needsReview: false,
+        },
+        {
+          id: `${USER}-uc-in`,
+          accountId: CARD,
+          date: '2026-07-11',
+          amountCents: 70_000,
+          rawDescriptor: 'DEPOSIT RECEIVED',
+          categoryId: 'uncategorized',
+          confidenceBps: 5000,
+          needsReview: false,
+        },
+      ],
+    });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 2, overturned: 0, filed: 0 });
   });
 });
