@@ -65,6 +65,33 @@ deleted in turn (self-audit, keyword-rules, backfill, fileMerchantGroup,
 applyToAllSimilar, recategorize, similarCount), each turning exactly its own
 lock RED, each restored, residue grep 0.
 
+### H.8 live deploy proof — PASS (7/7), www.aimplifi.app, 2026-08-06
+
+`node scripts/h8-live-deploy-check.mjs` against production deployment
+`aimplifi-8509v4fi5` (● Ready, aliased to www.aimplifi.app) on `a207b5f`:
+
+```
+PASS  signed into the shared demo on production — https://www.aimplifi.app
+PASS  settings (self-audit card) renders after the keep import — status=200
+PASS  the rules builder renders after the matchableHistory change — status=200
+PASS  the triage inbox renders after the similarCount/getTriageItems restructure — status=200
+PASS  the register renders and reads real transaction history — History available from Thu, Dec 12, 2024.
+PASS  the reports totals still render — status=200 money-rendered=true
+PASS  no uncaught client errors on the routes read — none
+
+7/7 checks passed
+```
+
+**What this proves and what it cannot.** The shared demo has no reconciliation
+links, so every keep on it is the constant-true fast path and no count differs
+from the old build — the discriminating behavior (a disowned duplicate excluded
+from tallies, previews, and batch writes) is proven by the unit gate's 10 locks
+and 7 executed sabotages, not by this script. What the script does establish is
+that the deploy's real risk did not land: seven server modules now import
+`getReconciliationTxnKeep` inside routes that never loaded it (/settings,
+/rules, /triage and the actions behind them), and a bad import or shape
+mismatch would have 500'd exactly the routes read above.
+
 ### STILL OPEN after H.8 (recorded, not fixed)
 
 1. **The hidden unresolved population on disowned rows is permanent while a
