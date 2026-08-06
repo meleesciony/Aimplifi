@@ -24,9 +24,9 @@ async function signIn(page: Page) {
  * The "no card listed twice" half does NOT move here: on a calendar a card legitimately recurs
  * across months, so counting labels would assert the wrong thing. That invariant is guarded where
  * it belongs — per-cardId rows on /cards, and dashboard-duplicate-disclosure.spec's explicit
- * two-copies fixture.
+ * two-copies fixture. The LOAN half could not move here either — see K.7 below.
  */
-test('upcoming card AND loan payments are listed by name — /calendar', async ({ page }) => {
+test('upcoming card payments are listed by name — /calendar', async ({ page }) => {
   await signIn(page);
   await page.goto('/calendar');
 
@@ -38,14 +38,39 @@ test('upcoming card AND loan payments are listed by name — /calendar', async (
   await expect(list).toContainText('Sapphire Card due');
   await expect(list.getByText('due', { exact: true }).first()).toBeVisible();
 
-  // The seed Auto Loan surfaces the same way (#134): loan payments share this surface with cards,
-  // while the cash-needed dollar headline stays card-only. It is not in the CURRENT month — its
-  // anchor sits on or before the pinned today (2026-06-10) and `build.ts` skips a due already
-  // past — so this steps to the next month rather than asserting a loan the fixture cannot show
-  // here. The claim under test is that a loan appears as a named due at all, not which month.
-  await page.getByTestId('cal-next').click();
-  await expect(page.getByTestId('calendar-list')).toContainText('Auto Loan');
+  // The loan half of #134 is NOT asserted here, and deliberately not asserted as an absence
+  // either: pinning "no loan due appears" would lock in the very gap K.7 exists to close, and this
+  // test would then go red when someone fixes it. See K.7 below.
 });
+
+/**
+ * TASKS K.7 — the half of #134 that this file can no longer assert anywhere.
+ *
+ * The test above USED to end `await expect(card).toContainText('Auto Loan')`, on the reminders card,
+ * for the #134 claim: "loan payments share the reminders surface with cards, while the cash-needed
+ * dollar headline stays card-only." #369 deleted that card, and while re-pointing this I first
+ * wrote the assertion against /calendar and it PASSED — for the wrong reason, which is why it is
+ * not here now.
+ *
+ * What /calendar actually paints for the demo's Auto Loan, verified on production 2026-08-06 across
+ * Jun/Jul/Sep/Oct/Nov 2026: a row labelled "Auto loan — CarMax" carrying the `scheduled` badge —
+ * a DETECTED RECURRING SERIES (an `outflow` event), never a `loan-due`. No month shows the
+ * `${accountName} due` label with the `due` badge that `build.ts` emits for a loan obligation.
+ *
+ * That contradicts the seed's own stated design (`src/lib/seed/build.ts:550`): the auto-loan
+ * payment was deliberately REMOVED from the scheduled rows because "the loan account drives a
+ * first-class loan-due obligation on the calendar + reminders (#134) … a duplicate scheduled row
+ * here would double-display it." The account is there with the right terms (`acct-autoloan`,
+ * `minimumPaymentCents: 38500`, `dueDayOfMonth: 5`) and $385.00 on the 5th is exactly what shows —
+ * as a series, not as a due.
+ *
+ * So either `selectLoanObligations` yields nothing for the demo loan and a detected series is
+ * standing in, or the calendar is not receiving it. Both are outside K.5 (a test-debt slice) and
+ * neither should be papered over by an assertion that matches the string "Auto loan" wherever it
+ * happens to appear — an assertion that would stay green if loan dues were deleted outright.
+ * Recorded in TASKS as K.7 rather than asserted here.
+ */
+
 
 test('reminder cron route requires the secret', async ({ browser }) => {
   const fresh = await browser.newContext();

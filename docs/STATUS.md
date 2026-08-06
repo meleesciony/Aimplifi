@@ -2200,3 +2200,27 @@ The eight re-pointed specs: **34/34** serialized.
 3. **A shipped fence has now left the full suite red three times** (#244, K.3, K.6) because
    `VERIFY_E2E=1` is opt-in. A cheap grep-level guard for demo-driven writes in specs would
    have caught all three.
+
+### K.5 addendum — a re-point that passed for the wrong reason (2026-08-06)
+
+The deploy proof caught what the local suite did not. My re-pointed
+`payment-reminders.spec` assertion read `calendar-list` for the string
+"Auto Loan" and passed locally — against a **detected recurring series**
+(`Auto loan — CarMax`, `scheduled` badge), not the `loan-due` obligation the
+#134 claim is about. It would have stayed green if loan dues were deleted
+outright.
+
+Verified on production across Jun/Jul/Sep/Oct/Nov 2026: no month paints a
+loan due. That contradicts the seed's own design note
+(`src/lib/seed/build.ts:550`), which removed the hand-authored auto-loan
+scheduled row precisely because the loan account "drives a first-class
+loan-due obligation on the calendar + reminders (#134)". Recorded as **K.7**;
+the loan half of #134 has no coverage on any surface today.
+
+The assertion is gone rather than inverted: pinning "no loan due appears"
+would lock the gap in and go red the day someone fixes it.
+
+**Deploy proof:** `node scripts/k5-live-deploy-check.mjs` → **10/10 PASS** on
+www.aimplifi.app, including the discriminator (a served chunk carries
+`today-feed-frozen-dues`, a string in no earlier build) and the abstention
+(nothing frozen on the demo ⇒ the new paragraph is absent).
