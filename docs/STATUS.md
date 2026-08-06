@@ -8,6 +8,13 @@ Living document; updated at each phase boundary and critic cycle.
 
 ## ✅ BUILT 2026-08-06 — K.1: the past half of /calendar is recorded fact, totaled by the register's own math (DECISIONS #419, critic-cycled ×2)
 
+**DEPLOYED + PROVEN LIVE 2026-08-06 16:25 ET — `scripts/k1-live-deploy-check.mjs`
+8/8 PASS against https://www.aimplifi.app on commit `a59c5ea`** (attempt 1, mid-
+deploy, correctly FAILED on the old build — the markers are change-unique). Live
+header reads "Posted + pending through Wed, Jun 10: in $0.00 · out $1,039.22 · 3
+pending" (the demo's three pending rows, named); May 2026 paints 23 posted days
+each linking to its one-day register window; January 2023 names the history floor.
+
 **Closes TASKS K.1** (owner: *"Calendar makes no sense. I have forward data but not
 trailing?"*). Days on or before today now paint what the banks actually reported —
 per-day Money in / Money out / count, each day linking to the register pre-filtered
