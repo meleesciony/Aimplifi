@@ -51,14 +51,14 @@ for (const r of sf.rows) {
 
 console.log('\n--- Plaid items ---');
 const pi = await c.query<Record<string, unknown>>(
-  `select "itemId", institution, "createdAt", "lastSyncedAt", "historyBackfilledAt", status
+  `select "itemId", institution, "createdAt", "lastSyncedAt", "historyBackfilledAt"
      from "PlaidItem" where "userId" = $1 order by institution nulls last, "createdAt"`,
   [u],
 );
 for (const r of pi.rows) {
   console.log(
     `  ${String(r.institution ?? '?').padEnd(22)} item=${String(r.itemId).slice(0, 10)} ` +
-      `created=${String(r.createdAt).slice(0, 10)} status=${r.status} backfill=${r.historyBackfilledAt ?? 'never'}`,
+      `created=${String(r.createdAt).slice(0, 10)} backfill=${r.historyBackfilledAt ?? 'never'}`,
   );
 }
 
