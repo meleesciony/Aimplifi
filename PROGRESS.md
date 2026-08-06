@@ -2,6 +2,37 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-06 — H.8: three unboundaried readers measured live; three fixed, three cleared (in flight)
+
+**MEASURED FIRST** (read-only probe `scripts/audit-probes/h8-boundary-readers.mts`
+against the production DB, owner's corpus, 26 active links, full output in the
+session log): **[1] spending-plan loan inflows — delta 0**, merchant sets
+byte-identical with and without the boundary, so the sharpest hypothesized reader
+is clean on this corpus and untouched; **[2] household digest — n/a** (no
+household exists, and the code already excludes superseded predecessors);
+**[3] self-audit — 75/2456 shipped vs 7/1332 boundaried**, a rendered
+contradiction on /settings against the triage queue it audits; **[4] keyword
+rules — 2,456 matchable vs 1,332 owned** ($271,467.59 on 1,124 invisible rows):
+inflated preview count AND an apply that wrote categories to rows no register
+shows; **[5] backfill — 75 vs 7 unresolved**: ~10× LLM fan-out over invisible
+rows, stamped `needsReview: false` so an undone combine would return them
+silently pre-filed; **[6] corrections — 146 of 827 on disowned rows**:
+deliberately NOT filtered (H.7 P1-3 — a correction is the user's decision about
+a payee; blinding the rule-learner to evidence is the known failure shape).
+
+**Fixed (3, one idiom):** `gatherSelfAuditCounts`, `matchableHistory`
+(keyword-rules — one site covers preview + all four writes, preserving "the
+number shown IS the population written"), and `runBackfillForUser` now apply
+`getReconciliationTxnKeep`, the same R1 rule as register/triage. Plus the
+`getRuleSourceTransaction` mirror: a `/rules?from=` link to a disowned duplicate
+names the reason instead of contradicting the count.
+
+**Locks:** `tests/unit/h8-boundary-readers.test.ts` — 5 tests over a real
+reconciled pair; fail-old proven by three executed sabotages (each filter
+deleted → 1–2 tests RED), all restored, residue grep = 0.
+
+**Next:** verify gate, fresh-context critic, commit/push/deploy proof.
+
 ## 2026-08-05 — H.7 critic cycle 2: identity is not a money question (DECISIONS #415)
 
 **One fresh-context critic, FAIL: 2 P1, 3 P2, 3 P3. Both P1s fixed and locked.**

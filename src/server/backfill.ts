@@ -30,6 +30,7 @@ import { assistUnsureRows } from '@/server/categorize-assist';
 import { assertOwnedCategory } from '@/server/category-meta';
 import { ensureCategories } from '@/server/ensure-categories';
 import { loadUserRules } from '@/server/rules';
+import { getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getThresholdTuning } from '@/server/tuning';
 
 export type SuggestCategoryFn = (input: {
@@ -78,7 +79,7 @@ export async function runBackfillForUser(
   // satisfy the FK on a fresh Postgres — same guard applyCategory uses (#65).
   await ensureCategories();
 
-  const [rows, rules, tuning] = await Promise.all([
+  const [fetched, keepsReconciled, rules, tuning] = await Promise.all([
     prisma.transaction.findMany({
       where: {
         account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } },
@@ -109,9 +110,21 @@ export async function runBackfillForUser(
         taxClass: true,
       },
     }),
+    getReconciliationTxnKeep(userId),
     loadUserRules(userId),
     getThresholdTuning(userId),
   ]);
+
+  // Reconciliation boundary (H.8): a combined connection's disowned duplicate
+  // rows arrive unresolved but count in no total and reach no triage screen —
+  // backfilling them spends the LLM on rows the reader cannot see (measured
+  // live: 68 of 75 unresolved rows were invisible copies, a 10× fan-out), and
+  // stamps `needsReview: false` on them so an UNDO of the combine would bring
+  // them back silently pre-categorized instead of into review. Filtered here,
+  // an undone combine returns them still unresolved, and the next backfill —
+  // whose keep-rule then owns them again — picks them up visibly. Same R1 rule
+  // as triage/register; the windowed keep cannot live in the where-clause.
+  const rows = fetched.filter((r) => keepsReconciled(r.accountId, r.date));
 
   // Pass 1 — deterministic.
   const plan = planBackfill(

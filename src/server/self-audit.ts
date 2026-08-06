@@ -11,6 +11,7 @@ import {
   type SelfAuditView,
 } from '@/lib/engine/audit/snapshot';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { getReconciliationTxnKeep } from '@/server/reconciliation';
 
 /** Monday of the ISO week containing `today` (same idiom as the digest cron). */
 export function weekStartMonday(today: ISODate): ISODate {
@@ -57,9 +58,18 @@ export async function gatherSelfAuditCounts(
   const win = windowBounds(weekStart);
   const register = spendingRegisterWhere(userId);
 
-  const [reviewNeeding, reviewTotal, unknownRows, sentRows, actRows] = await Promise.all([
-    prisma.transaction.count({ where: { ...register, needsReview: true } }),
-    prisma.transaction.count({ where: register }),
+  const [reviewRows, keepsReconciled, unknownRows, sentRows, actRows] = await Promise.all([
+    // Rows, not counts: the audit describes the register/triage the reader SEES,
+    // and both apply the R1 reconciliation keep (H.8 — measured live: a raw count
+    // said "75 of 2456 needed sorting" while the boundaried triage queue held 7 of
+    // 1332, so the settings card contradicted the queue it audits). A windowed keep
+    // cannot be expressed in a Prisma `count` where-clause, so fetch the three
+    // fields the filter and the tally need and count in memory.
+    prisma.transaction.findMany({
+      where: register,
+      select: { accountId: true, date: true, needsReview: true },
+    }),
+    getReconciliationTxnKeep(userId),
     prisma.unknownQuestion.findMany({
       where: { userId, createdAt: win },
       select: { resolvedIntent: true },
@@ -78,6 +88,9 @@ export async function gatherSelfAuditCounts(
     }),
   ]);
 
+  const ownedRows = reviewRows.filter((t) => keepsReconciled(t.accountId, t.date));
+  const reviewNeeding = ownedRows.filter((t) => t.needsReview).length;
+  const reviewTotal = ownedRows.length;
   const unknownAttempts = unknownRows.length;
   const unknownStayed = unknownRows.filter((r) => r.resolvedIntent === 'unknown').length;
   const alertsSent = sentRows.filter((r) => isAlertNotificationKey(r.key)).length;

@@ -71,6 +71,7 @@ import { auditLog, requireUserId } from '@/server/authz';
 import { assertOwnedCategory, getCategoryMeta } from '@/server/category-meta';
 import { ensureCategories } from '@/server/ensure-categories';
 import { getRecurringOutflowCadences } from '@/server/recurring-bill-merchants';
+import { getReconciliationTxnKeep } from '@/server/reconciliation';
 
 export interface KeywordRulePreview {
   /**
@@ -311,11 +312,30 @@ async function matchableHistory(
   client: FindManyClient,
   accountId?: string | null,
 ): Promise<MatchRow[]> {
-  return client.transaction.findMany({
-    where: matchableWhere(userId, accountId),
-    select: MATCH_SELECT,
-    orderBy: [{ date: 'desc' }, { id: 'desc' }],
-  });
+  const [rows, keepsReconciled] = await Promise.all([
+    client.transaction.findMany({
+      where: matchableWhere(userId, accountId),
+      select: MATCH_SELECT,
+      orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    }),
+    // Reconciliation boundary (H.8): a combined connection's disowned duplicate
+    // rows are in no register, no total, and no triage — but they passed
+    // `matchableWhere`, so the preview counted them and the apply WROTE to them
+    // (measured live: 1,124 of 2,456 matchable rows were invisible copies, so a
+    // broad rule's "Matches N" was nearly double what any screen shows, and an
+    // apply stamped categories on rows the reader could never see or undo from
+    // the register). Filtering HERE keeps this file's core invariant for free:
+    // preview and every write flow through this one function, so the number
+    // shown is still exactly the population written. The windowed keep cannot be
+    // expressed in the Prisma where-clause (it depends on each predecessor's
+    // full-history span), hence the post-fetch filter — the same idiom as
+    // triage/register. Safe to read outside `serializableTx`: links change only
+    // on an explicit user confirm/undo, and the write re-asserts `matchableWhere`
+    // per id, so the worst race is the pre-existing shape (a row disowned
+    // mid-apply is skipped by ids, not resurrected).
+    getReconciliationTxnKeep(userId),
+  ]);
+  return rows.filter((r) => keepsReconciled(r.accountId, r.date));
 }
 
 async function matchingRows(
@@ -1321,6 +1341,7 @@ export async function getRuleSourceTransaction(
       categoryId: true,
       date: true,
       amountCents: true,
+      accountId: true,
       isSplitParent: true,
       splitParentId: true,
       isTransfer: true,
@@ -1333,6 +1354,11 @@ export async function getRuleSourceTransaction(
 
   // Mirrors `matchableWhere` field for field — if that scope changes, this
   // sentence has to change with it, which is why they sit in the same file.
+  // Plus the H.8 reconciliation keep, which `matchableHistory` now applies
+  // post-fetch: a disowned duplicate row is in no register, so the only door here
+  // is a stale or hand-typed /rules?from= link — but a silent exclusion is still
+  // a contradiction, so it gets its sentence like the rest.
+  const keepsReconciled = await getReconciliationTxnKeep(userId);
   const excludedReason = t.isSplitParent
     ? 'This row was split, so a rule files the pieces rather than this container.'
     : t.splitParentId !== null
@@ -1347,7 +1373,9 @@ export async function getRuleSourceTransaction(
             ? 'Rules apply to your spending accounts, and this row is on another kind of account.'
             : t.account.currency !== null && t.account.currency !== 'USD'
               ? 'Rules apply to your US dollar accounts.'
-              : null;
+              : !keepsReconciled(t.accountId, t.date)
+                ? 'This row is a duplicate copy from a connection you combined, so rules read the copy your totals count.'
+                : null;
 
   return {
     id: t.id,
