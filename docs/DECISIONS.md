@@ -4480,3 +4480,62 @@ rewritten to cross the limits they name.
 available from <date>" derived from the OLDEST ACTUAL TRANSACTION, never from a promised
 window, so it states what came back and moves back on its own when the backfill lands. A
 critic flagged this as missing; it was verified present instead of rebuilt.
+
+## #414 — the Plaid deep-history backfill mirrors H.5, and every server-performed un-supersede re-arms both providers' backfills
+
+**2026-08-05 · Fable 5 session · commits `29d08be` + the cycle-2 fix commit**
+
+**The decision:** the Plaid deep-history backfill (`backfillItemHistory`) adopts the
+critic-tested SimpleFIN H.5 shape wholesale rather than receiving a minimal
+supersession patch, and backfill re-arming becomes ONE authored event
+(`rearmHistoryBackfills` in reconciliation.ts) invoked by BOTH server-performed
+un-supersede paths — the explicit `undoReconciliationFor` and
+`confirmReconciliationFor`'s direction-conflict auto-undo, after its SERIALIZABLE
+transaction commits.
+
+**Why the full mirror and not the one-line filter:** the shipped Plaid path carried
+four more of the exact defects H.5's critics had rated P1 on the twin — the LLM
+assist fanned out over the WHOLE plan before any commit (a killed serverless run
+made no progress and repeated forever), a truncated fetch marked done (an empty
+page with `total_transactions` still ahead read as "history complete", permanently,
+because the flag gates the only trigger), one malformed row aborted the entire run
+(`plan.rows.map(prepare)` — one throw, nothing lands, `.failed` forever), and no
+ordering/cap existed at all. Fixing only the reported defect would have shipped the
+known-fixed shape four more times (`a-fix-on-the-reported-surface-is-not-a-fix-on-the-pattern`).
+
+**Measured live BEFORE building** (`scripts/audit-probes/plaid-backfill-exposure.mts`,
+read-only, executed): no harm had occurred — all 12 items backfilled 2026-08-04 with
+`added: 0`; the sole plaid→plaid reconciliation's predecessor hangs off a
+disconnected item no live fetch can map. Prevention, not repair. The probe also
+answered H.6's gate (`added≈0` ⇒ fresh Link is the only deeper-history route) and
+found the owner's SimpleFinConnection row deleted (H.5's backfill awaits a
+reconnect).
+
+**Critics (two fresh-context, isolated worktrees — the H.5 sabotage-in-commit rule):
+0 P0, 4 P1, 6 P2 combined.** Critic B's three P1s fixed + locked same cycle: the
+auto-undo re-arm (executed: the fix-the-direction repair flow stranded the skipped
+history behind a set flag); the oldest-first lock that a pre-sorted fixture made
+vacuous (deleting the sort passed — the fixture is now served newest-first, the
+order a real feed uses); and the unlocked one-time guard (removing it passed 81
+tests while re-fetching 730 billed days on every sync — a second-sync
+zero-`/transactions/get` assertion now locks it). Critic B's P2-4 (race-loser catch
+exercised by nothing) locked via P2002 injection. Critic A's P1 — the transfer
+sweep's settled-row pair-flip, with the sharpened fact that H.5's dropped refresh
+was only a ONE-SYNC deferral — is a standing shared-sweep defect on every sync
+source, recorded as **TASKS H.7** (a measured semantics decision on
+`planTransferUpdates`, not patchable from the backfill).
+
+**Accepted residuals, recorded not fixed:** (a) TOCTOU — the superseded snapshot is
+read once per run; a reconciliation confirmed mid-run (requires an unstamped legacy
+predecessor or an item deleted mid-run to pass confirm's liveness refusals) can
+still receive rows; mirrored shape in the twin; the chunk-time re-read is the fix if
+it ever fires. (b) One undo re-arms EVERY item + the SimpleFIN connection
+(12×730d + 1×1095d fetches on the next sync) — the H.5 cycle-4 P2 stance, kept for
+one-author simplicity; add-only makes it cost, not corruption. (c) A backfill that
+dies mid-run reports `added: 0` while its committed chunks are real — cosmetic,
+converges next sync. (d) HYPOTHESIS: offset-pagination row-skip under server-side
+deletion between pages can complete while missing one row — inherent to
+`/transactions/get` offset paging, unprovable without a live drifting server.
+(e) The un-supersede paths NO write performs (successor deletion; feed-driven
+type/currency drift) still do not re-arm — the H.5 OPEN P1, now explicitly covering
+`PlaidItem.historyBackfilledAt`, still owed the state-derived redesign.

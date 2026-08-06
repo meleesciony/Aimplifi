@@ -407,3 +407,4 @@ refuses to write if it would drop any number this file already carries.
 - **#411** (Phase ?): C.19/H.3: a Fixed TOTAL its list cannot account for — the union emits the rows it summed, `...Cents` is implemented in terms of them, and each line states its own basis (built, critic-cycled)
 - **#412** (Phase ?): C.23/H.4: a reserve is a Fixed cost the reader declares, and the app does the division — reserves leave the savings max as they enter Fixed (built, critic pass in progress)
 - **#413** (Phase ?): H.5: history is a property of the CONNECTION ROW, and a re-pull is not a refresh at a different size — the deep-history backfill is add-only by construction (built, critic-cycled)
+- **#414** (Phase ?): The Plaid deep-history backfill mirrors H.5 wholesale (superseded refusal, cap+chunk, truncation-gate, malformed-skip), and every server-performed un-supersede re-arms both providers via one author (built, critic-cycled, live-measured: no harm had occurred)

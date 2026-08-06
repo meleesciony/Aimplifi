@@ -2,6 +2,40 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-05 — the Plaid deep-history backfill mirror (H.5's open Plaid P1 → closed; DECISIONS #414)
+
+**Done:** `backfillItemHistory` now refuses superseded predecessors, runs
+oldest-first capped 2000/chunked 250 (assist per chunk), gates every markDone on
+a COMPLETE fetch, skips malformed rows without aborting or charging the cap, and
+both server-performed un-supersede events (explicit undo + direction-conflict
+auto-undo) re-arm both providers' backfills through one author
+(`rearmHistoryBackfills`). 9 server tests driving the real `syncTransactions`
+against a mocked Plaid server; 10 sabotages executed across two cycles, all
+caught by the final suite.
+
+**Found (live, read-only probe `scripts/audit-probes/plaid-backfill-exposure.mts`):**
+no harm occurred — all 12 owner items backfilled 2026-08-04 with `added: 0`
+(probe output verbatim in the session; key lines: every item
+`backfilledAt=2026-08-04`, every audit row `"added":0`, depth plaid
+`[2026-04-24..2026-08-05]` n=1381, simplefin `[2026-03-25..2026-07-21]` n=1684,
+26 active reconciliations of which 24 have simplefin predecessors, and NO
+SimpleFinConnection row exists). H.6's gate is thereby answered (`added≈0` ⇒
+fresh Link is the only deeper-Plaid route) and H.1(a) is measured.
+
+**Critics:** two fresh-context, isolated worktrees. 0 P0 / 4 P1 / 6 P2 combined;
+three P1s fixed + locked same cycle (auto-undo re-arm, fixture-weak oldest-first
+lock, unlocked one-time guard), the fourth — the transfer sweep's settled-row
+pair-flip, a STANDING shared-sweep defect both providers whose H.5 "fix" was
+only a one-sync deferral — recorded as TASKS H.7 with the executed repro, not
+patched (shared machinery, semantics decision, own measured slice).
+
+**Gate:** verify GREEN cycle 1 (**6076 unit / 368 files**, tsc 0, eslint 0,
+build clean) and re-gated after cycle-2 fixes. No schema change, no prisma
+diff, no UI surface (deploy proof = sha-match, C.9 precedent).
+
+**Next:** H.1(b) the "earliest data" surface; H.2 CSV backfill; H.6 fresh-Link
+route (now unblocked); H.7 the sweep semantics (Fable).
+
 ## 2026-08-04 — C.13: half shipped, half reverted with its findings (audit P1-27 / P1-28, DECISIONS #409)
 
 **P1-27, shipped.** The audit blamed a POSTED-only classifier for $49.93 the linked

@@ -287,7 +287,48 @@ export async function confirmReconciliationFor(
     }
     throw e;
   }
+  // The direction-conflict auto-undo above un-supersedes an account exactly the
+  // way the explicit undo does, so it owes the same backfill re-arm — otherwise
+  // the history a backfill refused while the wrong-direction link was active
+  // stays permanently unreachable on precisely the repair flow that fixes the
+  // direction (Plaid-mirror critic P1-1, executed). AFTER the transaction: a
+  // re-arm inside it would roll back with a conflict loser, and best-effort
+  // writes do not belong under SERIALIZABLE.
+  if (result.ok && result.autoUndoneReverseId != null) {
+    await rearmHistoryBackfills(userId);
+  }
   return result;
+}
+
+/**
+ * Re-arm both providers' deep-history backfills after a link stops superseding an
+ * account. An un-superseded account is writable history again, and BOTH backfills
+ * (SimpleFIN, H.5; Plaid, its mirror) refuse to write to superseded predecessors —
+ * so a connection/item that finished (or skipped) its backfill while the link was
+ * active may now be owed one. The backfills are add-only and idempotent, so the
+ * worst case is one wasted plan that comes back empty and re-marks itself done;
+ * without the re-arm, a backfill would have to treat "every account superseded" as
+ * a permanent retry, paying a years-wide fetch and an audit row on every sync
+ * forever (H.5 critic cycle 3, P1-1). Unconditional across providers by accepted
+ * stance (H.5 cycle-4 P2, recorded open): scoping to the predecessor's provider
+ * would save one wasted fetch on the other side and is not worth a second query
+ * shape. Best-effort: no undo may fail over re-arming a backfill.
+ *
+ * ONE AUTHOR for every un-supersede EVENT the server performs — the explicit undo
+ * AND `confirmReconciliationFor`'s direction-conflict auto-undo (critic of the
+ * Plaid mirror, P1-1: the auto-undo un-superseded without re-arming, stranding the
+ * skipped history behind a set flag on exactly the fix-the-direction repair flow).
+ * The un-supersede paths NO write performs (successor deletion; feed-driven
+ * type/currency drift) are the recorded STATUS open — a state-derived redesign,
+ * not another call site of this helper.
+ */
+async function rearmHistoryBackfills(userId: string): Promise<void> {
+  await prisma.simpleFinConnection
+    .updateMany({ where: { userId }, data: { historyBackfilledAt: null } })
+    .catch(() => {});
+  await prisma.plaidItem
+    .updateMany({ where: { userId }, data: { historyBackfilledAt: null } })
+    .catch(() => {});
 }
 
 /**
@@ -308,24 +349,7 @@ export async function undoReconciliationFor(
     data: { undoneAt: new Date() },
   });
   if (res.count === 0) return { ok: false, error: 'Reconciliation not found.' };
-  // An undo can make a superseded account writable history again, and BOTH
-  // deep-history backfills (SimpleFIN, H.5; Plaid, its mirror) refuse to write to
-  // superseded predecessors — so a connection/item that finished (or skipped) its
-  // backfill while this link was active may now be owed one. Re-arm them: the
-  // backfills are add-only and idempotent, so the worst case is one wasted plan
-  // that comes back empty and re-marks itself done. Without this, a backfill would
-  // have to treat "every account superseded" as a permanent retry, paying a
-  // years-wide fetch and an audit row on every sync forever (critic cycle 3,
-  // P1-1). Unconditional across providers by accepted stance (H.5 cycle-4 P2,
-  // recorded open): scoping the re-arm to the predecessor's provider would save
-  // one wasted fetch on the other side and is not worth a second query shape
-  // here. Best-effort: an undo must not fail over re-arming a backfill.
-  await prisma.simpleFinConnection
-    .updateMany({ where: { userId }, data: { historyBackfilledAt: null } })
-    .catch(() => {});
-  await prisma.plaidItem
-    .updateMany({ where: { userId }, data: { historyBackfilledAt: null } })
-    .catch(() => {});
+  await rearmHistoryBackfills(userId);
   return { ok: true };
 }
 

@@ -6,6 +6,78 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-05 — the Plaid deep-history backfill mirror: superseded predecessors refused, runs capped+chunked, every server-performed un-supersede re-arms (DECISIONS #414)
+
+**Closes the H.5 OPEN P1 "the PLAID backfill has the same superseded-predecessor
+defect this slice rated P0" (the entry below).** `backfillItemHistory` (shipped
+2026-08-04 in `18b6ad6`) mapped every plaid account with no supersession filter,
+ran the LLM assist over the WHOLE plan before any commit, trusted a truncated
+fetch as done, aborted the entire run on one malformed row, and could never be
+re-armed after an undo. All five now mirror the critic-tested SimpleFIN H.5
+shape: `activeSupersededPredecessorIds` filters the account map (a filtered row
+lands in the planner's `unmappedAccount` skip — counted, never written);
+oldest-first, capped 2000/run, committed per 250-row chunk with the assist per
+chunk; `fetchComplete` gates every markDone; malformed rows skip without
+charging the cap; and `undoReconciliationFor` clears `PlaidItem.historyBackfilledAt`.
+
+**MEASURED LIVE BEFORE BUILDING** (read-only probe,
+`scripts/audit-probes/plaid-backfill-exposure.mts`, executed this session): **no
+harm occurred** — all 12 of the owner's items backfilled 2026-08-04 20:27 UTC
+with `added: 0` on every item (everything fetched was `alreadyExists`), and the
+only plaid→plaid reconciliation's predecessor belongs to a DISCONNECTED item no
+live fetch can map. The defect was dormant; this slice is prevention. Two more
+live facts fell out: **(1) H.6's gate is answered** — `added≈0` everywhere means
+Plaid holds nothing older than the ~90-day init window for these pre-730d items,
+so deeper Plaid history is reachable only through a fresh Link (H.6) or CSV
+(H.2); **(2) the owner's SimpleFinConnection row NO LONGER EXISTS** (simplefin
+history frozen at 2026-07-21; his simplefin accounts live on as the 24 superseded
+predecessors of his Plaid successors) — so H.5's backfill runs only if he
+reconnects SimpleFIN.
+
+**Two fresh-context critics in isolated worktrees, cycle 1: both FAIL — 0 P0,
+4 P1, 6 P2 combined.** Critic B's three P1s all fixed + sabotage-locked same
+cycle: **(1) the direction-conflict auto-undo un-superseded without re-arming**
+(executed: fixing a wrong-direction reconcile through the real
+`confirmReconciliationFor` left the flag set and the skipped years permanently
+unreachable) — `rearmHistoryBackfills` is now the ONE author for both
+server-performed un-supersede events, called after the SERIALIZABLE transaction
+commits; **(2) the oldest-first lock was fixture-weak** — DELETING the sort
+passed, because the fixture arrived pre-sorted; the over-cap fixture is now
+served newest-first (the order a real feed uses); **(3) nothing locked the
+one-time guard** — removing `if (!item.historyBackfilledAt)` passed 81 tests
+while re-fetching 730 days on every sync; a second-sync assertion now proves
+zero `/transactions/get` calls. Critic B's P2 (the race-loser catch was
+exercised by nothing) also locked with a P2002 injection. Critic A confirmed the
+headline claims under sabotage (superseded filter out → 2 red; truncation
+trusted → 1 red) and stored-row byte-identity; its one P1 is recorded OPEN below
+(the transfer sweep), its TOCTOU/counter/pagination P2s are recorded in
+DECISIONS #414.
+
+**OPEN P1 (recorded, NOT fixed here — needs its own measured slice): the
+transfer sweep pair-flips `isTransfer` on SETTLED rows, both providers, and the
+backfills enlarge its input.** Executed by critic A: a settled +$1,000 income
+row on another account flipped to `isTransfer: true` — leaving every income
+total, silently, `needsReview: false` — when a backfilled two-year-old row
+supplied a coincidental ±3-day same-|amount| counterpart in the same sync
+(`planTransferUpdates`'s flag branch has no settled-row guard,
+`transfers.ts:106`). The critic's sharpest fact: **H.5's "dropped the refresh on
+the backfill" was only a ONE-SYNC deferral** — the next cron sync's sweep
+performs the identical rewrite over SimpleFIN-backfilled rows, so this is a
+standing defect of the shared sweep, not a property of either backfill. It is
+also not uniformly harm: a backfill-revealed GENUINE counterpart flipping an old
+"expense" to a transfer CORRECTS double-counted flows — which is why the fix is
+a semantics decision on `planTransferUpdates` (when may a pair-only detection
+rewrite a settled row?), measured on the owner's corpus, with its own critic —
+filed as **TASKS H.7**, not patched here.
+
+**Gate:** `bash scripts/verify.sh` → VERIFY GREEN twice (cycle 1: **6076
+unit / 368 files**, tsc 0, eslint 0, build clean; cycle 2 re-gate after the
+fixes: see PROGRESS). 9 server tests, every behavioral claim sabotage-proven in
+both directions (10 sabotages executed across the two cycles, all caught by the
+final suite; sabotage residue grep = 0 — the `d38086e` check). **No schema
+change; no prisma diff; no UI surface** (the deploy proof is sha-match, the C.9
+precedent).
+
 ## ✅ BUILT 2026-08-05 — H.5: the deep-history backfill for existing SimpleFIN connections (DECISIONS #413)
 
 **The premise was measured before anything was built, and it held.** The owner's
@@ -109,18 +181,18 @@ line. **The rule this earns: never `git add -A` while a subagent is working in t
 same checkout** — give critics a worktree, or commit only explicit paths after the
 agent reports. This is the third instance of `a-subagents-green-is-a-hypothesis`.
 
-**OPEN P1 — three ways an account stops being superseded do NOT re-arm the backfill.**
-The terminal "zero mapped accounts → done" state is only safe because
-`undoReconciliationFor` clears `historyBackfilledAt`. It is not the only reversal:
-`confirmReconciliationFor`'s direction-conflict auto-undo writes `undoneAt` directly
-(`reconciliation.ts:251-256`); deleting the successor account drops the link via
-`effectiveReconciliationLinks` with no FK and no flag clear; and the successor's
-`type`/`currency` — which the SimpleFIN sync overwrites from the feed on every run —
-can drift the link out of effectiveness with no user action at all. Each leaves a
-connection permanently unable to widen its history. The by-construction fix is to stop
-gating on a stored flag for this case and derive "is a backfill owed" from state (the
-`learn.ts` recompute-from-scratch idiom), which is a design change, not a patch —
-hence not attempted at the cap.
+**OPEN P1 — was "three ways an account stops being superseded do NOT re-arm the
+backfill"; the first is CLOSED 2026-08-05 (#414), two remain, now for BOTH
+providers.** `confirmReconciliationFor`'s direction-conflict auto-undo now calls
+the same `rearmHistoryBackfills` the explicit undo uses (executed lock in
+`tests/unit/plaid-history-backfill-server.test.ts`). Still open: deleting the
+successor account drops the link via `effectiveReconciliationLinks` with no FK
+and no flag clear; and the successor's `type`/`currency` — which the feed sync
+overwrites on every run — can drift the link out of effectiveness with no user
+action at all. Each leaves a connection/item permanently unable to widen its
+history. The by-construction fix remains deriving "is a backfill owed" from
+state (the `learn.ts` recompute-from-scratch idiom) — a design change, not a
+patch, and it now owes coverage of `PlaidItem.historyBackfilledAt` too.
 
 **OPEN P1 — reconnect-after-disconnect can lose a pending row older than 5 days.**
 `connectSimplefin` now sets `lastSyncedAt: today` when history is retained (that is
@@ -133,13 +205,12 @@ narrower data-absence bug. Depends on SimpleFIN's `start-date` filtering on post
 time, which is the documented protocol semantics but was not observed against a live
 bridge.
 
-**OPEN P1 (NOT this slice — already on `main`) — the PLAID deep-history backfill has
-the same superseded-predecessor defect this slice rated P0.** `plaidAccountIdMap`
-(`plaid.ts:1097-1103`) maps every `provider: 'plaid'` account with no supersession
-filter, and `backfillItemHistory` creates rows from it — so it can drag a
-predecessor's `span.first` back and drop the successor's rows from every figure.
-`undoReconciliationFor` also does not clear `plaidItem.historyBackfilledAt`. Shipped
-2026-08-04 in `18b6ad6`; needs its own slice.
+**CLOSED 2026-08-05 (#414) — the PLAID deep-history backfill's
+superseded-predecessor defect.** Was: `plaidAccountIdMap` mapped every
+`provider: 'plaid'` account with no supersession filter, and
+`undoReconciliationFor` did not clear `plaidItem.historyBackfilledAt`. Fixed,
+critic-cycled and live-measured (no harm had occurred — every item's backfill
+added 0 rows). See the #414 entry at the top of this file.
 
 **OPEN P2s from cycle 4:** the effective-date sort and the new rate limit are both
 correct but unlocked by any test; `syncAllAccounts` double-charges the limiter

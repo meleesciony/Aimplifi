@@ -1704,8 +1704,12 @@ export class PlaidProvider implements DataProvider {
    * span.first back and silently DELETE the successor's rows (the ones carrying
    * the reader's corrections and splits) from every figure, without updating a
    * single row. Add-only is no defence against that; not writing is. The
-   * exclusion is temporary by construction: `undoReconciliationFor` re-arms
-   * this backfill by clearing `historyBackfilledAt`.
+   * exclusion is temporary for every un-supersede EVENT the server performs:
+   * `rearmHistoryBackfills` (reconciliation.ts) clears `historyBackfilledAt`
+   * on both the explicit undo and the direction-conflict auto-undo. The
+   * un-supersede paths no write performs (successor deletion, feed-driven
+   * type/currency drift) do NOT re-arm — the recorded STATUS open, inherited
+   * from the SimpleFIN twin by adopting the same flag-gated design.
    *
    * Run bounds mirror the SimpleFIN backfill (H.5 critics): oldest-first,
    * capped per run (PLAID_BACKFILL_MAX_ROWS_PER_RUN), committed per chunk

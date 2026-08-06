@@ -46,10 +46,11 @@ import {
   PlaidProvider,
 } from '@/lib/providers/plaid';
 import type { PlaidTransaction } from '@/lib/providers/plaid-map';
-import { undoReconciliationFor } from '@/server/reconciliation';
+import { confirmReconciliationFor, undoReconciliationFor } from '@/server/reconciliation';
 import { encryptToken } from '@/lib/crypto';
 import { addDays, isoDate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@/generated/prisma/client';
 
 const KEY = Buffer.alloc(32, 7).toString('base64');
 const TODAY = isoDate('2026-06-10');
@@ -239,6 +240,15 @@ describe('Plaid deep-history backfill — real syncTransactions, mocked Plaid se
     expect(await prisma.transaction.findUnique({ where: { id: stored!.id } })).toEqual(before);
     expect(await flag()).toBe(TODAY);
     expect((await lastAuditMeta())!.complete).toBe(true);
+
+    // ONE-TIME means one time (critic P1-3: removing the trigger's flag guard
+    // passed 81 tests — the regression cost is a Plaid-billed multi-page
+    // 730-day fetch on EVERY sync of EVERY item, invisible because the ingest
+    // is idempotent). With the flag set, a second sync must not touch
+    // /transactions/get at all.
+    getCalls = [];
+    await provider.syncTransactions(USER);
+    expect(getCalls).toEqual([]);
   });
 
   it('P0: never writes into a SUPERSEDED PREDECESSOR account', async () => {
@@ -322,6 +332,106 @@ describe('Plaid deep-history backfill — real syncTransactions, mocked Plaid se
     expect(await flag()).toBe(TODAY);
   });
 
+  it("the direction-conflict AUTO-undo re-arms too — fixing a wrong-direction reconcile can't strand the skipped history", async () => {
+    // Critic P1-1, executed against the pre-fix code: a plaid account P wrongly
+    // recorded as superseded (P→X) makes the backfill refuse P's history and
+    // mark done. The user then fixes the direction through the REAL
+    // `confirmReconciliationFor(X→P)`, whose auto-undo dissolves P→X — an
+    // un-supersede performed by a write that is NOT `undoReconciliationFor`.
+    // Without the shared re-arm, the flag stayed set and the two skipped years
+    // were permanently unreachable on exactly the repair flow.
+    await seedItem([]);
+    // P must read LIVE for the confirm's R3 check (succ side): stamp its item.
+    await prisma.account.update({ where: { id: accountId }, data: { plaidItemId: ITEM_ID } });
+    const manualX = await prisma.account.create({
+      data: {
+        userId: USER,
+        provider: 'manual',
+        name: 'Old checking (typed in)',
+        type: 'CHECKING',
+        currentBalanceCents: 100,
+      },
+    });
+    // The wrong-direction link: plaid P superseded by manual X.
+    await prisma.accountReconciliation.create({
+      data: {
+        userId: USER,
+        predecessorAccountId: accountId,
+        successorAccountId: manualX.id,
+        cutoverDate: '2026-06-01',
+        matchSignal: 'persistent',
+        confidence: 'high',
+        undoneAt: null,
+      },
+    });
+    mockServer({ deep: [ptxn('old-1', { date: '2024-11-20' })] });
+    await provider.syncTransactions(USER);
+    expect(await prisma.transaction.count({ where: { accountId } })).toBe(0);
+    expect(await flag()).toBe(TODAY); // refused + done, as designed
+
+    // The user fixes the direction: X is the stale predecessor, P the live successor.
+    const res = await confirmReconciliationFor(
+      USER,
+      {
+        predecessorAccountId: manualX.id,
+        successorAccountId: accountId,
+        cutoverDate: '2026-06-01',
+        matchSignal: 'persistent',
+        confidence: 'high',
+      },
+      TODAY,
+    );
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.autoUndoneReverseId).not.toBeNull();
+    expect(await flag()).toBeNull(); // re-armed by the auto-undo
+
+    await provider.syncTransactions(USER);
+    expect(await prisma.transaction.count({ where: { accountId } })).toBe(1);
+    expect(await flag()).toBe(TODAY);
+  });
+
+  it('a mid-run unique-violation race is counted as existing, never aborts the run', async () => {
+    // The cron sweep and a hand-pressed per-bank Sync can race: the loser lands
+    // on @@unique(accountId, providerRef). Critic P2-4: replacing the catch
+    // with an unconditional throw passed the whole suite — the branch the
+    // comment narrates was exercised by nothing.
+    await seedItem([]);
+    mockServer({
+      deep: [
+        ptxn('race-1', { date: '2025-01-10' }),
+        ptxn('race-2', { date: '2025-01-11' }),
+        ptxn('race-3', { date: '2025-01-12' }),
+      ],
+    });
+    const realCreate = prisma.transaction.create.bind(prisma.transaction);
+    let first = true;
+    const spy = vi
+      .spyOn(prisma.transaction, 'create')
+      .mockImplementation(((args: Parameters<typeof realCreate>[0]) => {
+        if (first) {
+          first = false;
+          // The exact shape the designated loser sees.
+          throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+            code: 'P2002',
+            clientVersion: 'test',
+          });
+        }
+        return realCreate(args);
+      }) as unknown as typeof prisma.transaction.create);
+    await provider.syncTransactions(USER);
+    spy.mockRestore();
+
+    expect(await prisma.transaction.count({ where: { accountId } })).toBe(2);
+    expect(await flag()).toBe(TODAY); // the run completed and marked done
+    const meta = await lastAuditMeta();
+    expect(meta!.skipped.alreadyExists).toBe(1);
+    expect(
+      await prisma.auditLog.count({
+        where: { userId: USER, action: 'plaid.item.history-backfill.failed' },
+      }),
+    ).toBe(0);
+  });
+
   it('a plan over the cap commits OLDEST-first, defers the rest, and stays owed', async () => {
     // A serverless timeout is not catchable, so a run that dies must leave
     // progress behind — and the progress must be the history the reader is
@@ -332,7 +442,12 @@ describe('Plaid deep-history backfill — real syncTransactions, mocked Plaid se
     const deep = Array.from({ length: over }, (_, i) =>
       ptxn(`bulk-${i}`, { date: addDays(TODAY, -700 + Math.floor(i / 4)) }),
     );
-    mockServer({ deep });
+    // Served NEWEST-first — the order a real feed actually uses, and the one
+    // the sort exists to defend against. With an ascending fixture, fetch
+    // order IS date order and DELETING the sort passes every assertion here
+    // (critic P1-2, executed): the lock would only catch an explicit
+    // newest-first sort, the least likely regression.
+    mockServer({ deep: [...deep].reverse() });
 
     const first = await provider.syncTransactions(USER);
     expect(first.added).toBe(PLAID_BACKFILL_MAX_ROWS_PER_RUN);
