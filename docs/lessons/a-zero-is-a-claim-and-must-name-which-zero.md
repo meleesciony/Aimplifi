@@ -93,3 +93,37 @@ not only in units: revert the label, rebuild, and watch the specs go red.
 
 Mutate in both directions: reverting the labels must fail tests, and offering the control
 unconditionally must fail others. Here both did (4 unit mutations + 1 e2e mutation, all killed).
+
+## Second instance, on a different surface — the register (K.3, #417, 2026-08-06)
+
+The owner set a custom window of Aug 6 2024 → Aug 6 2025 on /transactions, whose
+history starts Mar 25 2026, and got `$0.00 / $0.00 / $0.00`, "0 transactions",
+and **"No transactions match these filters."** — with **"History available from
+Wed, Mar 25, 2026."** four lines above. The page was already holding the reason
+and a different sentence was doing the talking. He reported it as "we have no
+trailing data in transactions", which was true of the DATA and unknowable from
+that screen.
+
+What this instance adds to the rules above:
+
+* **Rule 2 has a sharper form: the box under the zeros is not "where the zero
+  is."** The first version of the fix explained the emptiness in the empty-state
+  box, beneath all four figures the owner had named. A critic rejected it. The
+  naming clause has to ride the count line, next to the tiles.
+* **Order the branches by how little they need to consult.** `from` after `to`
+  is empty *whatever the data is*, so it must be decided before any branch that
+  explains emptiness by the data — otherwise the reader is told to import older
+  history for a window that would still be empty afterwards. Rank causes by
+  independence, not by which one you built first.
+* **Rule 10's remedy test applies to the READER, not the app.** The fix offered
+  "Import a CSV from your bank"; `importTransactionsCsv` refuses the demo user,
+  and on production every anonymous visitor *is* that user. The remedy existed
+  and was unavailable to almost everyone who would see the sentence.
+* **A corrective sentence inherits the scope of the value it quotes.** The bound
+  is read off a set narrowed to spending account types and USD and NOT narrowed
+  by the reader's own account filter — so the copy says "history here", never
+  "your history".
+* **And the same defect can survive the fix one filter away** (recorded as K.4):
+  a reader narrowed to one card who picks "Last year" lands back on the original
+  broken pair, because the bound is printed at one scope and the zero computed at
+  another.

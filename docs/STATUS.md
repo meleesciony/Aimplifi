@@ -69,6 +69,31 @@ reported surface.
 build clean; `transactions.spec` **24/24**; seven executed sabotages across the
 cycle, each restored and residue-checked.
 
+### K.3 live deploy proof — PASS (7/7), www.aimplifi.app, 2026-08-06
+
+`node scripts/k3-live-deploy-check.mjs` against production deployment
+`aimplifi-ahnwykodf` (Ready, aliased to www.aimplifi.app) on `10f2dfd`. Unlike
+H.5/H.7 this slice HAS a discriminator — `txn-empty-before-history` exists in no
+earlier build — so this proves the new code is the code serving, not merely a 200:
+
+```
+PASS  signed into the shared demo on production — https://www.aimplifi.app
+PASS  a window before the register history renders the NEW empty-state branch — status=200 History here goes back to Thu, Dec 12, 2024, and this window ends Tue, Dec 31, 2019 — so t
+PASS  the empty state names the same date the filter bar prints — both say "Thu, Dec 12, 2024"
+PASS  the old "matched nothing" sentence is gone from a disjoint window — absent
+PASS  the unfiltered register still renders (the empty-string bound path) — status=200
+PASS  a genuine no-match zero still gets the unchanged filter sentence — No transactions match these filters.
+PASS  no uncaught client errors on the routes read — none
+
+7/7 checks passed
+```
+
+The two dates agreeing on a LIVE corpus is the property, not the rendering: the
+defect was two surfaces disagreeing, so "a date appeared" would not have been a
+proof. Note the demo's own bound is Dec 12 2024, not the owner's Mar 25 2026 —
+production runs the shared demo dataset, so this proves the mechanism, and the
+owner's own screen is proved by the same code path with his own bounds.
+
 ### STILL OPEN after K.3
 
 0. **The owner's exact pair survives one filter away (TASKS K.4).** A reader
