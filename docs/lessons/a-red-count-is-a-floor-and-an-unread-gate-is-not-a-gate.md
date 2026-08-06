@@ -27,8 +27,9 @@ run since it was added — its failure was pure declaration order, and it was in
 the two fenced tests always aborted the file first.
 
 Then, checking the row's headline claim ("until this closes, `VERIFY_E2E=1` cannot go green"),
-`gh run list` returned `failure` for every recent push. The latest CI run failed **four unit
-tests that pass locally**. Root cause, reproduced not inferred: `businessToday()` reads
+`gh run list` returned `failure` for every recent push. Grouped over the last 100 runs
+(2026-08-02 → 2026-08-06): **50 `failure`, 49 `cancelled`, 0 `success`.** Not one green CI run
+in the whole window. The latest CI run failed **four unit tests that pass locally**. Root cause, reproduced not inferred: `businessToday()` reads
 `process.env.DEMO_TODAY` first; `.env` sets it to `2026-06-10` but **vitest does not load
 `.env`**, while GitHub Actions declares it as a job-level env var present in `process.env` for
 every step. So the identical suite answers as of August locally and as of June in CI.

@@ -2339,8 +2339,12 @@ K.6's row claimed closing it would make `VERIFY_E2E=1` green. That is false, and
 larger than K.6.
 
 `.github/workflows/verify.yml` has been running the full `VERIFY_E2E=1` gate on every push and
-PR the entire time. `gh run list` shows **failure on every recent push**, for at least two
-days. The latest run fails **four unit tests that pass locally** — `fi-real-basis` ×2,
+PR the entire time. Grouped over the last 100 runs the API returns (2026-08-02 → 2026-08-06):
+**50 `failure`, 49 `cancelled` (the concurrency-cancel of superseded pushes), and 0 `success`.**
+Not one green CI run in the entire window. `Skip for now` (#374) landed 2026-08-01, so it has
+literally never been observed passing in a full-file run.
+
+The latest run fails **four unit tests that pass locally** — `fi-real-basis` ×2,
 `loan-payment-flow-assembler` ×1, `merchant-lens-server` ×1 — so the "6,167 passed / 374 files"
 that every recent entry in this file reports is a fact about the maintainer's machine, not
 about a clean checkout.

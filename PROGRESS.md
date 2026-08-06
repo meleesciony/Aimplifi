@@ -2255,3 +2255,9 @@ because "it passes in isolation" is the exact misread K.5 cost a session to.
 **What this slice's own tests did inside that full run:** all 5 `phase2-triage` tests and both
 `triage-write-in` tests PASSED under 4-worker parallel load, not only in the serialized
 targeted run.
+
+**K.8 sharpened with the actual tally.** "At least two days" was conservative. Grouping the
+last 100 `verify.yml` runs the API returns (2026-08-02 → 2026-08-06): **50 `failure`, 49
+`cancelled` (concurrency-cancel of superseded pushes), 0 `success`.** There has not been one
+green CI run in the entire window. `Skip for now` (#374) landed 2026-08-01, so it has never
+once been observed passing in a full-file run anywhere.
