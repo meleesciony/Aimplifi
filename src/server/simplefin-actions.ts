@@ -73,7 +73,7 @@ export async function connectSimplefin(setupToken: string): Promise<SimplefinRes
   // Three critic cycles landed on this block; the rule it settled on is one line:
   // *a wide window must never reach the LIVE ingest over rows we already store.*
   // `runSimplefinSync` treats a null `lastSyncedAt` as a first-ever pull and fetches
-  // 1095 days through the ordinary ingest, where every stored row meets
+  // SIMPLEFIN_INITIAL_LOOKBACK_DAYS through the ordinary ingest, where every stored row meets
   // `guardedVerdictRefresh` and is re-filed against today's rules. Measured on a
   // probe: a stored 2024-11-20 row filed as Groceries came back as Coffee, silently,
   // with no audit row. Harmless when there is nothing stored; a silent mass

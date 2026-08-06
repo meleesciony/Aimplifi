@@ -50,17 +50,29 @@ import type { SyncResult } from './types';
  * (the a-default-is-a-decision-you-shipped lesson, third instance after Plaid's
  * days_requested). The SimpleFIN bridge accepts an arbitrary start-date (epoch
  * seconds), so the honest window is "as far back as the INSTITUTION provides" —
- * some cap around 90 days, many carry years. Asking for three years and taking
- * whatever comes back costs one wider first fetch per connection and is bounded
- * by the bank, not by us. DECISIONS #61 (a start-date is always required) is
- * unchanged: this only widens the value we send.
+ * some cap around 90 days, many carry years. Asking wide and taking whatever
+ * comes back costs one wider first fetch per connection and is bounded by the
+ * bank, not by us. DECISIONS #61 (a start-date is always required) is unchanged:
+ * this only widens the value we send.
  *
- * Deliberately NOT "all of time" (start-date 0): a few bridges reject or stall
- * on absurd windows, and three years is beyond every comparison the app makes
- * (the longest engine window is the FI signature's 12 months; the widest view a
- * reader can pick is 24 months of chart bars).
+ * WIDENED 1095 → 1460 (three years → four), owner instruction 2026-08-06:
+ * *"why haven't we populated 2023-2026 yet. I want all data possible."* Three
+ * years was chosen against the app's own comparison windows, not against the
+ * calendar the owner actually named: measured with `addDays`, 1095 days before
+ * today (2026-08-06) is **2023-08-07**, which would have left the first seven
+ * months of 2023 permanently unreachable through the only automatic route that
+ * reaches multi-year at all. 1460 days lands on **2022-08-07** — the owner's
+ * whole stated range plus a year of margin, so the answer does not go stale as
+ * "2023" recedes.
+ *
+ * Still deliberately NOT "all of time" (start-date 0): a few bridges reject or
+ * stall on absurd windows, and the cost of a too-wide ask is not theoretical —
+ * it is more capped backfill runs (BACKFILL_MAX_ROWS_PER_RUN) before the
+ * connection converges. Four years is the widest window with a NAMED reason
+ * behind it. `tests/unit/simplefin.test.ts` bounds this constant to
+ * [730, 1830] rather than pinning it, so widening again is a one-line change.
  */
-export const SIMPLEFIN_INITIAL_LOOKBACK_DAYS = 1095;
+export const SIMPLEFIN_INITIAL_LOOKBACK_DAYS = 1460;
 
 /**
  * Reconcile one INVESTMENT account's holdings against the brokerage feed
@@ -460,9 +472,10 @@ export async function syncFromSimplefin(
 /**
  * The one-time deep-history backfill for an EXISTING SimpleFIN connection (H.5).
  *
- * Deliberately NOT `syncFromSimplefin(userId, today, { fullLookbackDays: 1095 })`,
- * even though that parameter exists and was built for exactly this shape. A forced
- * full pull runs the whole live ingest over a three-year overlap, and that ingest
+ * Deliberately NOT `syncFromSimplefin(userId, today, { fullLookbackDays:
+ * SIMPLEFIN_INITIAL_LOOKBACK_DAYS })`, even though that parameter exists and was
+ * built for exactly this shape. A forced full pull runs the whole live ingest
+ * over a multi-year overlap, and that ingest
  * answers an already-stored row with `guardedVerdictRefresh` — which rewrites
  * categoryId / needsReview / isTransfer on every row the reader has not explicitly
  * corrected. On a 5-day overlap that is a refresh; over three years it is a silent
@@ -495,8 +508,9 @@ export async function syncFromSimplefin(
  * LLM assist (which ran over the entire plan before the first create) committed
  * nothing, and the retry repeated the identical work forever.
  *
- * The institution caps what actually comes back — asking for 1095 days does not
- * mean receiving them. This reports what it added; it never promises three years.
+ * The institution caps what actually comes back — asking for
+ * SIMPLEFIN_INITIAL_LOOKBACK_DAYS does not mean receiving them. This reports what
+ * it added; it never promises the window it asked for.
  */
 /** Rows one invocation will ingest before deferring the rest to the next sync. */
 export const BACKFILL_MAX_ROWS_PER_RUN = 2000;
@@ -587,7 +601,7 @@ async function backfillSimplefinHistory(
   // than a bad response: every SimpleFIN account is investment/loan, or superseded,
   // or not yet created locally. It marks done. Cycle 2 made this case retry instead,
   // on the grounds that supersession is reversible — which traded a permanent trap
-  // for a permanent LOOP (a 1095-day fetch, a full providerRef scan and an audit row
+  // for a permanent LOOP (a full-window fetch, a full providerRef scan and an audit row
   // on every sync, with nothing on this data able to end it). Reversibility now lives
   // where it belongs, as an EVENT: `undoReconciliationFor` clears
   // `historyBackfilledAt`, so undoing a combination re-arms the backfill. A terminal

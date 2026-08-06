@@ -6,6 +6,51 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ⚠️ FOUND + PARTIALLY BUILT 2026-08-06 — K.2: the multi-year history ask is not blocked by code, it is blocked by a connection that no longer exists (DECISIONS #421)
+
+**Owner:** *"why haven't we populated 2023-2026 yet. I want all data possible."*
+
+**Re-measured live this session** rather than quoted — `h1-connection-depth.mts`
+(read-only, committed) against Neon: 56 accounts, 3,087 rows, 1,872 after the R1
+keep, register floor **2026-03-25**.
+
+**Nothing was skipped — both automatic routes were already asked for their
+maximum.** Plaid sits at its documented 730-day ceiling (`plaid.ts:189`); all
+**13** items show `backfill=2026-08-04` and the oldest Plaid row anywhere is
+**2026-04-24**, so Plaid holds no more and a fresh Link (H.6) cannot reach 2023
+by construction. **The blocking fact is different and was not previously in
+STATUS: the `SimpleFinConnection` row is DELETED** — the probe buckets 25
+accounts and 1,684 rows under `simplefin:NO-CONNECTION-ROW`, frozen
+[2026-03-25..2026-07-21]. SimpleFIN is the only automatic route that reaches
+years, and it has had nothing to run against for ~16 days.
+
+**Shipped this session (#421):** `SIMPLEFIN_INITIAL_LOOKBACK_DAYS` 1095 → 1460.
+At 1095 the window stopped at **2023-08-07**, leaving Jan–Jul 2023 unreachable —
+the owner named 2023 and would have received five months of it. 1460 lands on
+2022-08-07. Locked as a property (from any "today" in 2026 the window still
+reaches 2023-01-01), which caught its own off-by-one pre-commit: 2026-12-31 maps
+to *exactly* 2023-01-01, so the assertion is `<=`. **This moves no data by
+itself** — it sizes the ask the add-only backfill makes the next time a
+connection exists to make it. `connectSimplefin` is already correct for the
+reconnect-after-disconnect case (`create:` with `lastSyncedAt = today` because
+1,684 rows are retained, `historyBackfilledAt` left null to arm the backfill).
+
+**STILL OPEN, ranked:** (1) **the owner reconnect** — a SimpleFIN setup token,
+owner-only, and the only thing that moves data; (2) **the accounts page cannot
+say the connection is gone** — with no connection row, freshness falls back to
+newest-txn-date and prints "No new data in 16 days — you may need to reconnect"
+(`health.ts:82`, `accounts-list.tsx:1317`) while `feedDroppedAt` stays null (its
+only writer is an active sync), so a DELETED connection is indistinguishable
+from a stale one and the entry point reads as first-time setup
+(`simplefin-connect-btn`) — traced read-only, **not** UI-verified, confirm before
+building; (3) `scripts/audit-probes/k2-institution-routes.mts` was written this
+session to name the 25 SimpleFIN accounts' institutions and was **BLOCKED by the
+permission classifier** — never ran, so the route table is Plaid-granularity only
+and no per-bank CSV instructions can be written yet; (4) H.2's guided per-bank
+CSV import remains the only route for institutions that cap short, and the only
+route to 2023 for the Plaid-only banks; (5) SimpleFIN's ask ≠ SimpleFIN's answer
+— the institution caps what comes back, so depth stays unknown until a real pull.
+
 ## ✅ BUILT 2026-08-06 — K.1: the past half of /calendar is recorded fact, totaled by the register's own math (DECISIONS #419, critic-cycled ×2)
 
 **DEPLOYED + PROVEN LIVE 2026-08-06 16:25 ET — `scripts/k1-live-deploy-check.mjs`

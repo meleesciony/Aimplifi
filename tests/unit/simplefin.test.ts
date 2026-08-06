@@ -14,7 +14,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 import { auth } from '@/auth';
 import { connectSimplefin, syncSimplefinNow } from '@/server/simplefin-actions';
 import { decryptToken } from '@/lib/crypto';
-import { isoDate, toEpochDays } from '@/lib/dates';
+import { addDays, isoDate, toEpochDays } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import { isSyncFailureReason } from '@/lib/providers/sync-status';
 import { SIMPLEFIN_INITIAL_LOOKBACK_DAYS } from '@/lib/providers/simplefin';
@@ -148,27 +148,54 @@ describe('SimpleFIN connect + sync (real actions, mocked server)', () => {
 
   /**
    * Owner request 2026-08-04: "why are we only pulling 6 months of data? Can we
-   * get at least 2-3 years?" The first pull used to ask for 90 days. These lock
+   * get at least 2-3 years?" — widened again 2026-08-06 (*"I want all data
+   * possible"*), 1095 → 1460. The first pull used to ask for 90 days. These lock
    * the widened window at the one place it is decided — bounded like the Plaid
    * days_requested lock (plaid-oauth.test.ts), plus one hand-verified calendar
-   * date: DEMO_TODAY pins "today" at 2026-06-10, and 1095 days before that is
-   * 2023-06-11 (the window crosses the 2024 leap day, which is what makes it
+   * date: DEMO_TODAY pins "today" at 2026-06-10, and 1460 days before that is
+   * 2022-06-11 (the window crosses the 2024 leap day, which is what makes it
    * the 11th, not the 10th — exactly the off-by-one this test exists to catch).
+   *
+   * The bound is deliberately a RANGE, not a pin on 1460: the number is a
+   * product judgement the owner can move, and a test that re-states it teaches
+   * nothing. What must never regress is the direction — the ask reaches years,
+   * not months, and the date arithmetic behind it is leap-correct.
    */
-  it('first sync asks for three years of history, not the old 90 days', async () => {
+  it('first sync asks for four years of history, not the old 90 days', async () => {
     expect(SIMPLEFIN_INITIAL_LOOKBACK_DAYS).toBeGreaterThanOrEqual(730); // never back below 2 years
     expect(SIMPLEFIN_INITIAL_LOOKBACK_DAYS).toBeLessThanOrEqual(1830); // sanity cap: 5 years
     await connectSimplefin(SETUP_TOKEN);
     const calls = vi.mocked(fetch).mock.calls as [unknown, { method?: string }][];
     const gets = calls.filter(([u, i]) => i?.method === 'GET' && String(u).includes('/accounts'));
     expect(gets.length).toBeGreaterThanOrEqual(1);
-    const wideStartSec = toEpochDays(isoDate('2023-06-11')) * 86400;
+    const wideStartSec = toEpochDays(isoDate('2022-06-11')) * 86400;
     // Asserted across the GETs rather than on the first one: since H.5 a RECONNECT
-    // keeps `lastSyncedAt` (nulling it drove a 1095-day pull through the live ingest,
+    // keeps `lastSyncedAt` (nulling it drove the wide pull through the live ingest,
     // which re-files stored rows — critic cycle 2 P0-1), so the wide window is
     // delivered by the add-only backfill instead of by the sync's first pass. The
-    // invariant the owner cares about is unchanged: the connection asks for 3 years.
+    // invariant the owner cares about is unchanged: the connection asks for years.
     expect(gets.some(([u]) => String(u).includes(`start-date=${wideStartSec}`))).toBe(true);
+  });
+
+  /**
+   * The 2026-08-06 widening exists to reach a CALENDAR the owner named
+   * ("2023-2026"), so lock the property that motivated it rather than only the
+   * DEMO_TODAY instance above: from any "today" in 2026, the window must still
+   * include 2023-01-01. A future session trimming the constant back toward
+   * three years would still satisfy the [730, 1830] bound and would silently
+   * re-open the seven-month hole this change closed.
+   *
+   * `<=`, not `<`, and the boundary case is the reason this test is written as a
+   * property: at 1460 days, 2026-12-31 maps to EXACTLY 2023-01-01 (verified with
+   * `addDays`, not by hand). A start-date of 2023-01-01 still asks for all of
+   * 2023 — the window is inclusive of its own start — so `<` would have failed a
+   * constant that satisfies the owner's ask precisely at the year's last day.
+   * That one-day margin is also why the constant is not trimmed below 1460.
+   */
+  it('the window still reaches 2023-01-01 from anywhere in 2026', () => {
+    for (const today of ['2026-01-01', '2026-08-06', '2026-12-31'] as const) {
+      expect(addDays(isoDate(today), -SIMPLEFIN_INITIAL_LOOKBACK_DAYS) <= isoDate('2023-01-01')).toBe(true);
+    }
   });
 
   it('connecting does NOT pre-mark the deep-history backfill as done (H.5 critic P1-3)', async () => {

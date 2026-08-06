@@ -2,7 +2,7 @@
  * Pure planner for the SimpleFIN deep-history BACKFILL (H.5; owner report
  * 2026-08-04: *"why aren't they showing, i see a max date of march this year"*).
  *
- * WHY THIS EXISTS: `SIMPLEFIN_INITIAL_LOOKBACK_DAYS` (1095) is applied ONLY on a
+ * WHY THIS EXISTS: `SIMPLEFIN_INITIAL_LOOKBACK_DAYS` is applied ONLY on a
  * connection's first-ever pull, or to an account first seen mid-sync. An EXISTING
  * connection always fetches from `lastSyncedAt - 5d` (simplefin.ts) — so a
  * connection whose first pull ran under the old 90-day default keeps that floor
@@ -13,11 +13,11 @@
  *
  * FAILURE DIRECTION: the backfill is ADD-ONLY, and that is enforced HERE rather
  * than promised in a comment. A forced full pull re-fetches everything already
- * stored — three years of overlap instead of the incremental path's five days —
+ * stored — years of overlap instead of the incremental path's five days —
  * and the live sync's ingest answers an already-stored row with
  * `guardedVerdictRefresh`, which rewrites `categoryId` / `needsReview` /
  * `isTransfer` on every row the user has not explicitly corrected. Routing a
- * 1095-day pull through that path would silently re-file three years of history
+ * full-window pull through that path would silently re-file years of history
  * against today's rules, moving every report total with no user action and no
  * audit trail. So the planner emits ONLY rows that do not exist yet, and the
  * caller creates exactly those: the worst this can do is add less than the bank

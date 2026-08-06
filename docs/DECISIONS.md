@@ -5012,3 +5012,70 @@ field appeared only as `frozenDues: []` in a fixture builder — so the composit
 nowhere and its only renderer could be deleted in silence. Five locks now exist; the
 regression one is sabotage-proven RED by re-gating the field on an empty feed. Lesson filed as
 `docs/lessons/deleting-a-surface-deletes-the-claims-it-carried.md`.
+
+## #421 — "all data possible" moved the SimpleFIN window from a comparison window to a calendar the owner named (2026-08-06)
+
+**Owner instruction, verbatim:** *"why haven't we populated 2023-2026 yet. I want all data
+possible."*
+
+**The measurement that has to come first, because the question contains a premise worth
+checking.** Re-ran `scripts/audit-probes/h1-connection-depth.mts` (read-only, committed) against
+the live Neon corpus this session rather than quoting the 2026-08-05 figures:
+
+```
+USER michael.lee.p@gmail.com
+accounts=56 (supported=56)  rows=3087  ownedRows=1872  activeLinks=26 (effective=26)
+Q1  register global earliest: 2026-03-25  ← Capital One Venture (0966) [simplefin]
+    Chase (item 0MLMzax8…)        raw=[2026-04-24..2026-08-05] n=295  backfill=2026-08-04
+    …13 Plaid items, ALL backfilled 2026-08-04…
+    simplefin:NO-CONNECTION-ROW   accts=25  raw=[2026-03-25..2026-07-21] n=1684
+```
+
+**So "we haven't populated it" is false in a specific and useful way: nothing was skipped —
+both automatic routes were already asked for their maximum and both answered.** Plaid's
+`days_requested` is at its documented ceiling of 730 (`plaid.ts:189`), the one-time deep-history
+backfill ran on all 13 items on 2026-08-04, and it added nothing older than 2026-04-24. Plaid
+holds no more. The SimpleFIN accounts hold 1684 rows reaching 2026-03-25 — that floor is the
+90-day default their first pull ran under, before H.5 — and **the `SimpleFinConnection` row is
+gone** (bucket `NO-CONNECTION-ROW`), so the mechanism built to widen exactly that floor has had
+nothing to run against since ~2026-07-21.
+
+**Decision — widen `SIMPLEFIN_INITIAL_LOOKBACK_DAYS` 1095 → 1460 (three years → four).** The
+three-year value was chosen on 2026-08-04 against the app's own comparison windows ("beyond
+every comparison the app makes — the longest engine window is 12 months, the widest chart 24"),
+which is a defensible reason for a number and the wrong axis entirely for this ask. Measured
+with `addDays`, not by hand: 1095 days before today is **2023-08-07**, so the previous constant
+would have left **January–July 2023 permanently unreachable** through the only automatic route
+that reaches multi-year at all — the owner names 2023, and the app would have quietly returned
+five months of it. 1460 lands on **2022-08-07**: the whole stated range plus a year of margin,
+so the answer does not decay as "2023" recedes.
+
+**Not "all of time" (start-date 0), and the reason is now a cost rather than a taste.** A
+too-wide ask does not fail loudly; it spends more capped `BACKFILL_MAX_ROWS_PER_RUN` runs (2000
+rows apiece, oldest-first) before a connection converges, and a few bridges stall on absurd
+windows. Four years is the widest window with a named reason behind it; the test bounds the
+constant to [730, 1830] rather than pinning it, so the owner can move it in one line.
+
+**The lock is a property, not a restatement.** `simplefin.test.ts` keeps its hand-verified
+DEMO_TODAY instance (1460 days before 2026-06-10 is 2022-06-11 — the window crosses the 2024
+leap day, which is what makes it the 11th) and gains a second test asserting the thing that
+motivated the change: from any "today" in 2026, the window still reaches 2023-01-01. That test
+found its own off-by-one before it was committed — at 1460 days, 2026-12-31 maps to **exactly**
+2023-01-01, so the assertion is `<=`, not `<`; a window is inclusive of its own start, and `<`
+would have failed a constant that satisfies the ask precisely at the year's last day. That
+one-day margin is also why the constant is not trimmed below 1460.
+
+**What this change does NOT do, stated because the gap is the whole point.** It moves no data
+by itself. It sets the size of the ask that the deep-history backfill will make **the next time
+a SimpleFIN connection exists to make it**. Reconnecting is an owner action (a setup token from
+his SimpleFIN account), and `connectSimplefin` is already correct for it: a reconnect after a
+disconnect takes the `create:` branch with `lastSyncedAt = today` (because 1684 rows are
+retained, so this is not a first-ever pull and must not re-file them through the live ingest),
+leaving `historyBackfilledAt` null — which arms the add-only backfill to supply the depth on the
+next sync. Nothing in the app is blocking; the credential is.
+
+**And the ceiling is the bank's, not ours.** Asking 1460 days does not mean receiving them —
+SimpleFIN returns what the institution provides, which for some banks is ~90 days. Per-bank CSV
+import (`/transactions/import`, shipped) remains the only route for institutions that cap short,
+and it is the only route to 2023 for the Plaid-only banks at all. TASKS K.2 carries the
+per-institution routing.
