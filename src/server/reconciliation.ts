@@ -20,6 +20,7 @@ import { type ISODate, compareDates, isoDate } from '@/lib/dates';
 import { DEMO_RECONCILE_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import type { DuplicateConfidence, ReconciliationMatchSignal } from '@/lib/engine/account/duplicates';
 import {
+  accountIdentityMap,
   effectiveReconciliationLinks,
   reconciliationTxnKeepFilter,
   terminalSuccessorMap,
@@ -429,6 +430,28 @@ export async function activeTerminalSuccessorMap(userId: string): Promise<Map<st
   ]);
   if (links.length === 0) return new Map();
   return terminalSuccessorMap(accounts.filter((a) => isSupportedCurrency(a.currency)), links);
+}
+
+/**
+ * Account id → the id of the REAL account it is part of, for callers asking
+ * about IDENTITY rather than about money (H.7 cycle-2 critic P1-1).
+ *
+ * Unlike `activeTerminalSuccessorMap` above, this does NOT filter through
+ * `effectiveReconciliationLinks`, and the difference is the whole point: that
+ * rule fails OPEN on an ambiguous link shape because for a money surface the
+ * failure is a visible double, whereas for the transfer sweep an inert link
+ * means one real account silently pairs with itself and true money leaves every
+ * total. Feed-driven type/currency drift makes a confirmed link inert on an
+ * ordinary sync (both providers rewrite `Account.type` unconditionally), so this
+ * is not a crafted-data concern. See `accountIdentityMap` for the full argument.
+ */
+export async function activeAccountIdentityMap(userId: string): Promise<Map<string, string>> {
+  const links = await prisma.accountReconciliation.findMany({
+    where: { userId, undoneAt: null },
+    select: { predecessorAccountId: true, successorAccountId: true, cutoverDate: true },
+  });
+  if (links.length === 0) return new Map();
+  return accountIdentityMap(links);
 }
 
 /**

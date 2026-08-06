@@ -278,6 +278,27 @@ export function planTransferUpdates(transactions: readonly TransferStateTxn[]): 
    */
   const evidenced = new Set<string>([...descriptorIds, ...coherentlyPaired]);
 
+  // EVIDENCE IS A PROPERTY OF THE PAIR, NOT OF ONE ROW (cycle-2 critic P1-2,
+  // executed). Descriptor evidence lands on the leg whose own name matched, so a
+  // pair the sender rule refuses could still have ONE leg acted on alone — and a
+  // half-actioned pair stops netting. The critic's case: a $5,000 cash advance
+  // out of a card, arriving as "ONLINE TRANSFER FROM VISA 4001". The inflow is
+  // descriptor-known and left income; the CREDIT outflow stayed in spending; and
+  // the result was a $5,000 expense that had not existed before this slice, in
+  // every budget, report and spending-plan figure.
+  //
+  // So if either leg of a matched pair is descriptor-known, both legs are. This
+  // cannot re-open the case this slice was built for — in the KALSHI/CEF
+  // coincidence NEITHER leg is descriptor-known, so it stays refused — and for a
+  // row dragged in this way the outcome is exactly the pre-H.7 one, which is the
+  // floor, not a regression.
+  for (const { outflow, inflow } of pairs) {
+    if (descriptorIds.has(outflow.id) || descriptorIds.has(inflow.id)) {
+      evidenced.add(outflow.id);
+      evidenced.add(inflow.id);
+    }
+  }
+
   const flagIds: string[] = [];
   const overturnIds: string[] = [];
   const fileIds: string[] = [];

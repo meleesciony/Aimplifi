@@ -357,6 +357,45 @@ describe('H.7: one real account cannot pair with itself', () => {
     expect(out.isTransfer, 'a just-filed row must not be reversed by a stale plan').toBe(false);
   });
 
+  /**
+   * Cycle-2 critic P1-1, executed four ways. The money boundary's
+   * `effectiveReconciliationLinks` fails OPEN on an ambiguous link shape —
+   * correct for a reader, where the failure is a visible double, and wrong here,
+   * where it means one real account pairs with itself and true money leaves
+   * every total. This is the CROSS-TYPE shape, and it is reachable on an
+   * ordinary sync: both providers rewrite `Account.type` unconditionally, so a
+   * feed reclassifying checking → money market makes a confirmed link inert.
+   */
+  it('identity survives a link the MONEY boundary treats as inert (feed-driven type drift)', async () => {
+    await link();
+    // The feed reclassifies the successor: the link is now cross-type, which
+    // `effectiveReconciliationLinks` drops — but the user's statement that these
+    // are one account has not stopped being true.
+    await prisma.account.update({ where: { id: NEW_CHK }, data: { type: 'SAVINGS' } });
+    await zelleAndDistributionOnBothCopies();
+
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 0, overturned: 0, filed: 0 });
+    const rows = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    for (const t of rows) {
+      expect(t.isTransfer, `${t.id} must not pair with its own duplicate`).toBe(false);
+    }
+  });
+
+  it('identity survives a CURRENCY drift the money boundary also treats as inert', async () => {
+    await link();
+    await prisma.account.update({ where: { id: NEW_CHK }, data: { currency: 'EUR' } });
+    await zelleAndDistributionOnBothCopies();
+    // The EUR side is currency-withheld from FILING either way; what must not
+    // happen is the two copies pairing with each other.
+    const rows = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    await refreshTransferFlags(USER);
+    const after = await prisma.transaction.findMany({ where: { account: { userId: USER } } });
+    expect(rows).toHaveLength(4);
+    for (const t of after) {
+      expect(t.isTransfer, `${t.id} must not pair with its own duplicate`).toBe(false);
+    }
+  });
+
   it('a resolved-but-UNCATEGORIZED row has no verdict to overturn: it flags, not overturns', async () => {
     // Reachable in production: deleting a custom category re-files its rows to
     // 'uncategorized' without touching needsReview. The write's OR clause and

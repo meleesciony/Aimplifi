@@ -2,6 +2,35 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-05 — H.7 critic cycle 2: identity is not a money question (DECISIONS #415)
+
+**One fresh-context critic, FAIL: 2 P1, 3 P2, 3 P3. Both P1s fixed and locked.**
+
+**P1-1:** the identity map was built from `effectiveReconciliationLinks`, which
+fails OPEN on an ambiguous link shape — correct for a reader (a visible double),
+wrong for this writer (a silent exclusion). Four inert shapes executed, each
+restoring the duplicate-pairing artifact, and reachable on an ORDINARY sync
+because both providers rewrite `Account.type` unconditionally. New sibling
+primitive `accountIdentityMap` reads every live link with only the cycle guard.
+Measured live: 26 vs 26 — no inert links today, so this is protection against
+drift, not a repair.
+
+**P1-2:** the evidence bar was per-ROW, so a pair could be half-actioned — a
+$5,000 cash advance whose inflow descriptor was transfer-known left income while
+the CREDIT outflow stayed in spending, minting a $5,000 expense that had not
+existed before this slice. Descriptor evidence now carries across a matched pair.
+
+Also fixed: `'INVESTMENT'` as a SENDER was completely unlocked (the fixture put
+the investment account on the inflow side); two of the file write's four
+re-assertions were deletable with the suite green.
+
+**Gate:** verify GREEN — tsc 0 / eslint 0 / **6103 unit / 369 files** / build
+clean. Six sabotages, all RED, restored in a `finally` — the cycle-1 harness had
+crashed mid-run and left one applied, which is now its own ledger entry.
+
+**Next:** the owner decision on repairing the 53 rows / $29,848.84 (and clearing
+`isTransfer`, which nothing in the app can do today); TASKS H.8.
+
 ## 2026-08-05 — H.7 critic cycle 1: the mechanism changed twice (DECISIONS #415)
 
 **Two fresh-context critics, isolated worktrees, both FAIL: 1 P0, 5 P1, 4 P2, 1 P3

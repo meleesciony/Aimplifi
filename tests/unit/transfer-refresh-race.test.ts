@@ -79,6 +79,42 @@ describe('refreshTransferFlags read→write race (cycle-2 P1 lock)', () => {
     expect(inn.categoryId).toBe('transfer'); // the unraced side files normally
   });
 
+  /**
+   * Cycle-2 critic P2-4: the file write claims to "re-assert EVERY read guard",
+   * and `needsReview`/`reviewPinned` above prove two of the four. Deleting the
+   * other two — `status: 'POSTED'` and the currency OR — left 115 tests green.
+   * Both matter only inside this window, which is exactly what this file exists
+   * to execute.
+   */
+  it('a row that goes PENDING inside the window is skipped, not filed', async () => {
+    midWindow = async () => {
+      await prisma.transaction.update({
+        where: { id: `${USER}-out` },
+        data: { status: 'PENDING' },
+      });
+    };
+    const res = await refreshTransferFlags(USER);
+    expect(res.filed).toBe(1); // only the untouched side
+    const out = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-out` } });
+    // A pending amount can resettle under a new id; filing it would leave a
+    // one-sided transfer (#165 critic F3).
+    expect(out.categoryId).toBe('uncategorized');
+    expect(out.needsReview).toBe(true);
+  });
+
+  it('a row whose ACCOUNT CURRENCY flips to non-USD inside the window is skipped', async () => {
+    midWindow = async () => {
+      await prisma.account.update({ where: { id: CHECKING }, data: { currency: 'EUR' } });
+    };
+    const res = await refreshTransferFlags(USER);
+    expect(res.filed).toBe(1); // only the still-USD side
+    const out = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-out` } });
+    // The currency guard withholds withheld-currency rows from every system
+    // write (DECISIONS #135), inside the window as well as before it.
+    expect(out.categoryId).toBe('uncategorized');
+    expect(out.needsReview).toBe(true);
+  });
+
   it('a row an UNDO PINS inside the window is skipped — no pinned-but-filed wedge', async () => {
     midWindow = async () => {
       await prisma.transaction.update({

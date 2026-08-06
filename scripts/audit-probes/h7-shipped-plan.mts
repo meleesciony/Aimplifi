@@ -20,7 +20,7 @@
  */
 import { readFileSync } from 'node:fs';
 import pg from 'pg';
-import { terminalSuccessorMap } from '../../src/lib/engine/account/reconcile-boundary';
+import { accountIdentityMap, terminalSuccessorMap } from '../../src/lib/engine/account/reconcile-boundary';
 import { isIncomeCategoryId } from '../../src/lib/engine/categorize/categories';
 import {
   hasCompetingVerdict,
@@ -69,8 +69,19 @@ for (const user of users.rows) {
      from "AccountReconciliation" where "userId" = $1 and "undoneAt" is null`,
     [user.id],
   );
-  // Cycle 2: identity, not a filtered read — the sweep must SEE every row.
-  const identity = terminalSuccessorMap(accRows, links.rows);
+  // Cycle 2: identity, not a filtered read — the sweep must SEE every row. And
+  // identity reads EVERY live link, not the money boundary's effective subset
+  // (cycle-2 critic P1-1), so the probe must do the same or it is measuring a
+  // rule the code does not run. The two are compared here, because a gap between
+  // them is exactly the population that would silently pair with itself.
+  const identity = accountIdentityMap(links.rows);
+  const moneyBasis = terminalSuccessorMap(accRows, links.rows);
+  console.log(
+    `identity entries=${identity.size}  money-boundary entries=${moneyBasis.size}` +
+      (identity.size !== moneyBasis.size
+        ? `  <-- ${identity.size - moneyBasis.size} link(s) the money boundary treats as INERT`
+        : '  (no inert links today)'),
+  );
 
   // Exactly the shape refreshTransferFlags builds (transfer-refresh.ts).
   const rows = await c.query<{

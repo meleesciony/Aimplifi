@@ -148,6 +148,64 @@ sabotages, each RED and each restored with a residue check: identity, the
 evidence bar, the LOAN/MORTGAGE vocabulary, and both write-premise
 re-assertions.
 
+### CRITIC CYCLE 2 (2026-08-05) — one fresh-context critic, FAIL: 2 P1, 3 P2, 3 P3. Both P1s fixed and locked; 27 sabotages run against the shipped code, 23 already RED.
+
+**P1-1 — the identity map inherited the money boundary's fail-OPEN default.**
+`activeTerminalSuccessorMap` keys off `effectiveReconciliationLinks`, whose
+documented doctrine is that an ambiguous link shape falls back to "both sides
+count fully" — right for a READER, where the failure is a visible double the
+duplicate disclosure already covers, and wrong for this WRITER, where an inert
+link means the two copies of one real account pair with each other again and REAL
+money leaves every total. The critic executed four inert shapes (cross-type,
+non-monotone, cycle, currency drift) and got the eBay purchase/refund artifact
+back every time. **It is reachable without crafted data:** both providers rewrite
+`Account.type` and `currency` unconditionally on every sync, so a feed
+reclassifying checking → money market makes a confirmed link cross-type and
+inert. Fixed with a sibling primitive, `accountIdentityMap` /
+`activeAccountIdentityMap`, which reads EVERY `undoneAt: null` link with only the
+cycle guard `chainMaps` already carries — because a confirmed link is the user's
+statement about identity, and that does not stop being true when a feed renames a
+type. **Measured live: 26 identity entries against 26 on the money basis — no
+inert links today**, so this is protection against drift rather than a repair of
+something already broken.
+
+**P1-2 — the evidence bar was per-ROW, so a pair could be half-actioned.**
+Descriptor evidence lands on the leg whose own name matched, so a pair the sender
+rule refuses could still have ONE leg written. Executed: a $5,000.00 cash advance
+out of a card, arriving as "ONLINE TRANSFER FROM VISA 4001" — the inflow was
+descriptor-known and left income, the CREDIT outflow stayed in spending, and the
+pair stopped netting. Before H.7 both legs were flagged and the net was $0.00; the
+first cut of this slice **minted a $5,000 expense that had not previously
+existed**, in every budget, report and spending-plan figure. It also falsified my
+own comment that "an unevidenced pair gets NO action". Fixed: if either leg of a
+matched pair is descriptor-known, both legs are. This cannot re-open the case the
+slice was built for — in the KALSHI/CEF coincidence neither leg is
+descriptor-known — and it is locked in both directions.
+
+**P2s fixed:** `'INVESTMENT'` in the sender set was completely unlocked (deleting
+it left 115 tests green, because the "brokerage funding" fixture puts the
+investment account on the INFLOW side) — the mirror case is now a test, since a
+$78,000 brokerage WITHDRAWAL filed as Income is the same shape as the HELOC draw
+cycle 1 fixed; and two of the file write's four re-assertions (`status: 'POSTED'`
+and the currency OR) were deletable with the suite green, now executed through the
+existing mid-window seam.
+
+**What the critic could NOT break, which is evidence too:** three-account chains
+and two-predecessors-one-successor both collapse to a single identity; three
+consecutive sweeps produce `[{2,0,2}, {0,0,0}, {0,0,0}]` — no oscillation and no
+growing state, because filing stamps `categoryId: 'transfer'` which
+`NON_COMPETING_CATEGORY_IDS` absorbs; `fileIds ∩ overturnIds = ∅` is proven from
+the predicates rather than observed; 2,600 pair rows sweep in 199 ms with an
+unchunked `updateMany` and no parameter-limit failure; the shared constant genuinely
+cannot drift; identity really does subsume the original same-account check (one
+sabotage reddens both the duplicate-account AND the plain refund test); and the
+sweep's only narrowing versus its readers is `isSplitParent`, which every total
+excludes anyway — so "a writer must see everything its readers see" holds.
+
+**Re-gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6103 unit
+across 369 files** / build clean. Six new sabotages, all RED, restored in a
+`finally` after the cycle-1 harness crashed mid-run and left one applied.
+
 ### STILL OPEN after H.7 (recorded, not fixed — ranked by money consequence)
 
 1. **The 53 flags already written are NOT repaired — the one that still affects
@@ -180,10 +238,22 @@ re-assertions.
 3. **Two $0.07 false overturns survive.** An "Interest Paid" inflow matched to a
    $0.07 Vanguard money-market row on each copy. Closing it means inventing an
    amount floor with a magic number, which the evidence does not support.
-4. **Critic cycle 2 is owed.** Everything above was found by cycle-1 critics
-   reviewing commit `de9d32a`; the fixes themselves have been sabotage-locked and
-   re-gated but not adversarially reviewed. Money-visible + data-integrity ⇒ this
-   slice does not claim a pass until it has been.
+4. **Nothing in the app can ever clear `isTransfer`.** `grep -rn "isTransfer: false" src/`
+   finds only read filters and derived-view spreads — no write path. A filed
+   transfer whose counterpart is later deleted by the feed stays out of every
+   total permanently, and recategorising it does not bring it back (cycle-2 P2-5,
+   executed). This predates H.7 (#165) and is the same family as residual 1, which
+   is why the repair pass should clear flags rather than only re-run the rule.
+5. **Three P3s recorded, not fixed** (cycle 2): `flagIds`/`overturnIds`
+   disjointness is per-row rather than per-id, so a caller passing the exported
+   pure function two rows with the SAME id gets it in both lists (unreachable
+   through Prisma, whose ids are unique); the returned counts sum per-write, so a
+   2-row pair reports `flagged: 2, filed: 2` and any future "N transfers found"
+   copy would say 4; and an unknown or lowercase `accountType` fails silently
+   closed (latent — both providers map to the same six types and Plaid's mapper
+   throws on anything else).
+6. **Critic cycles run: 2 of the 4-cycle cap.** Cycle 2's two P1s are fixed and
+   locked but have not themselves been adversarially reviewed.
 
 ## ✅ BUILT 2026-08-05 — the Plaid deep-history backfill mirror: superseded predecessors refused, runs capped+chunked, every server-performed un-supersede re-arms (DECISIONS #414)
 

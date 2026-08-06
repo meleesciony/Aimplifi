@@ -37,7 +37,7 @@ import {
   planTransferUpdates,
 } from '@/lib/engine/categorize/transfers';
 import { ensureCategories } from '@/server/ensure-categories';
-import { activeTerminalSuccessorMap } from '@/server/reconciliation';
+import { activeAccountIdentityMap } from '@/server/reconciliation';
 
 /** The write-side statement of `!hasCompetingVerdict` — one negation, term for
  * term, built from the engine's own constant so the two cannot drift (cycle-1
@@ -70,9 +70,13 @@ export async function refreshTransferFlags(
         account: { select: { currency: true, type: true } },
       },
     }),
-    // pred → terminal live successor, over EFFECTIVE links only. Absent from the
-    // map (the overwhelming case) a row's identity is its own account.
-    activeTerminalSuccessorMap(userId),
+    // pred → the real account it is part of, over EVERY live link. Absent from
+    // the map (the overwhelming case) a row's identity is its own account.
+    // Deliberately NOT the money boundary's effective-links basis: that rule
+    // fails OPEN on an ambiguous shape, which for THIS caller means one real
+    // account pairs with itself again and true money leaves every total — and
+    // ordinary feed-driven type drift is enough to trigger it (cycle-2 P1-1).
+    activeAccountIdentityMap(userId),
   ]);
   const txns = rows.map((r) => ({
     ...r,

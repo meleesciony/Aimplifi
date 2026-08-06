@@ -329,6 +329,34 @@ export function terminalSuccessorMap<A extends BoundaryAccountLike>(
   return new Map(eff.map((l) => [l.predecessorAccountId, remapToTerminal(l.predecessorAccountId)]));
 }
 
+/**
+ * pred id → terminal successor over EVERY live link, with only the cycle guard
+ * `chainMaps` already carries — deliberately NOT filtered by
+ * `effectiveReconciliationLinks` (H.7 cycle-2 critic P1-1, executed).
+ *
+ * The effectiveness rule exists to protect MONEY FIGURES, and its documented
+ * doctrine is to fail OPEN: an ambiguous link shape falls back to "both sides
+ * count fully", because for a reader the failure is a visible double that the
+ * duplicate disclosure already covers. That default inverts for a caller asking
+ * a question about IDENTITY rather than about money. The transfer sweep uses
+ * this map to refuse pairing a row against its own duplicate, so an inert link
+ * there means the two copies of one real account silently pair again and REAL
+ * money leaves every total — the 45-of-73 artifact H.7 exists to kill. And it is
+ * reachable without crafted data: both providers rewrite `Account.type` and
+ * `currency` on every ordinary sync, so a feed reclassifying checking → money
+ * market makes a confirmed link cross-type and inert.
+ *
+ * A confirmed link is the user's statement that two rows are the same account.
+ * That statement does not stop being true because the feed renamed a type, so
+ * identity reads every `undoneAt: null` link; refusing to pair is safe in both
+ * directions, which is exactly why the conservative choice here is the opposite
+ * of the boundary's.
+ */
+export function accountIdentityMap(links: readonly ReconciliationLinkLike[]): Map<string, string> {
+  const { remapToTerminal } = chainMaps(links);
+  return new Map(links.map((l) => [l.predecessorAccountId, remapToTerminal(l.predecessorAccountId)]));
+}
+
 /** A linked predecessor's FULL-history transaction span (min/max date). */
 export interface PredecessorSpanLike {
   accountId: string;

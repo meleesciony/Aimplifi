@@ -194,6 +194,79 @@ describe('planTransferUpdates (pure)', () => {
       expect(plan.overturnIds.sort()).toEqual(['funding', 'landed']);
     });
 
+    it('an INVESTMENT account can SEND: a brokerage withdrawal filed as income is overturned', () => {
+      // The mirror of the funding case below, which puts the investment account
+      // on the INFLOW side — so deleting 'INVESTMENT' from the sender set left
+      // the whole suite green (cycle-2 critic P2-3). A $78,000 withdrawal filed
+      // as Income would otherwise stay Income, in the income bars, the FI
+      // savings rate and the tax export.
+      const plan = planTransferUpdates([
+        txn({
+          id: 'withdrawal',
+          accountId: 'brokerage',
+          accountType: 'INVESTMENT',
+          amountCents: -7_800_000,
+          rawDescriptor: 'CASH WITHDRAWAL TO BANK',
+          categoryId: 'investment',
+        }),
+        txn({
+          id: 'received',
+          accountId: 'checking',
+          date: '2026-06-11',
+          amountCents: 7_800_000,
+          rawDescriptor: 'DEPOSIT',
+          categoryId: 'income',
+        }),
+      ]);
+      expect(plan.overturnIds.sort()).toEqual(['received', 'withdrawal']);
+    });
+
+    /**
+     * Cycle-2 critic P1-2, executed: evidence is a property of the PAIR, not of
+     * one row. A $5,000 cash advance out of a card arrives as "ONLINE TRANSFER
+     * FROM VISA", which the normalizer knows — so the inflow left income while
+     * the CREDIT outflow stayed in spending, minting a $5,000 expense that had
+     * not existed before this slice.
+     */
+    it('never half-actions a pair: descriptor evidence on one leg carries to the other', () => {
+      const advance = (): TransferStateTxn[] => [
+        txn({
+          id: 'advance-out',
+          accountId: 'visa',
+          accountType: 'CREDIT',
+          amountCents: -500_000,
+          rawDescriptor: 'CASH ADVANCE',
+          needsReview: true,
+        }),
+        txn({
+          id: 'advance-in',
+          accountId: 'checking',
+          date: '2026-06-11',
+          amountCents: 500_000,
+          rawDescriptor: 'ONLINE TRANSFER FROM VISA 4001',
+          needsReview: true,
+        }),
+      ];
+      // Premise: the inflow's descriptor really is transfer-known on its own.
+      expect(detectTransfers([advance()[1]])).toEqual(new Set(['advance-in']));
+
+      const plan = planTransferUpdates(advance());
+      expect(plan.flagIds.sort(), 'both legs or neither — never one').toEqual([
+        'advance-in',
+        'advance-out',
+      ]);
+      expect(plan.fileIds.sort()).toEqual(['advance-in', 'advance-out']);
+    });
+
+    it('carrying descriptor evidence across a pair does NOT re-open the live repro', () => {
+      // Neither leg of the KALSHI/CEF coincidence is descriptor-known, so the
+      // symmetry rule above cannot reach it.
+      const plan = planTransferUpdates(coincidence());
+      expect(plan.flagIds).toEqual([]);
+      expect(plan.overturnIds).toEqual([]);
+      expect(plan.fileIds).toEqual([]);
+    });
+
     it('still overturns a settled row for a card autopay (cash out, card in)', () => {
       const plan = planTransferUpdates([
         txn({
