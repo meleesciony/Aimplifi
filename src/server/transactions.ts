@@ -153,6 +153,15 @@ export interface TransactionsResult {
    * complete-sounding name.
    */
   oldestDate: string | null;
+  /**
+   * Date of the NEWEST transaction in that same pre-filter set, or null when
+   * there are none. The twin of `oldestDate`, and it exists for the same reason
+   * one step further on (owner report 2026-08-06): a chosen window that sits
+   * entirely outside [oldest, newest] returns zero rows, and without both bounds
+   * the register can only blame the filters for it. With them it can name WHICH
+   * zero this is — see `registerEmptyReason`.
+   */
+  newestDate: string | null;
 }
 
 /** Rows per register page. */
@@ -454,9 +463,13 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   // data, not the current slice. Explicit scan rather than trusting the sort:
   // an ordering change upstream must not silently move the disclosed bound.
   let oldestDate: string | null = null;
-  for (const r of rows) if (oldestDate === null || r.date < oldestDate) oldestDate = r.date;
+  let newestDate: string | null = null;
+  for (const r of rows) {
+    if (oldestDate === null || r.date < oldestDate) oldestDate = r.date;
+    if (newestDate === null || r.date > newestDate) newestDate = r.date;
+  }
 
-  return { rows: items, summary, accountOptions, pageInfo: info, lens, unclassifiedCount, oldestDate };
+  return { rows: items, summary, accountOptions, pageInfo: info, lens, unclassifiedCount, oldestDate, newestDate };
 }
 
 /** One piece of a split, as the detail view lists it. */

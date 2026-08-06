@@ -9,6 +9,8 @@ import { TransactionList } from '@/components/finance/transaction-list';
 import { buttonVariants } from '@/components/ui/button';
 import type { FlowType, TxnFilter } from '@/lib/engine/transactions/query';
 import { VALID_FLOW_TYPES, VALID_SPEND_CLASSES } from '@/lib/engine/transactions/links';
+import { registerEmptyReason } from '@/lib/engine/transactions/empty-reason';
+import { isoDate } from '@/lib/dates';
 import { SharedTransactionList } from '@/components/finance/shared-transaction-list';
 import { RegisterScrollRestorer } from '@/components/finance/register-scroll';
 import { getSharedTransactionsView } from '@/server/household';
@@ -23,6 +25,17 @@ const VALID_TYPES: FlowType[] = VALID_FLOW_TYPES;
 
 function str(v: string | string[] | undefined): string {
   return Array.isArray(v) ? (v[0] ?? '') : (v ?? '');
+}
+
+/** A URL date bound, or '' when it is not a readable calendar date. */
+function isoDateOrEmpty(v: string): string {
+  if (v === '') return '';
+  try {
+    isoDate(v);
+    return v;
+  } catch {
+    return '';
+  }
 }
 
 export const metadata = { title: "Transactions" };
@@ -42,8 +55,14 @@ export default async function TransactionsPage({
   const merchant = str(sp.merchant);
   const typeRaw = str(sp.type);
   const type = (VALID_TYPES as string[]).includes(typeRaw) ? (typeRaw as FlowType) : 'all';
-  const from = str(sp.from);
-  const to = str(sp.to);
+  // A date bound is only a bound if it IS a date. `filterTransactions` casts
+  // these with an unguarded `isoDate`, which THROWS — so before this guard
+  // `/transactions?to=banana` was a 500 on the register, reachable from any
+  // hand-edited or stale link (found by the K.3 critic, F5). An unreadable
+  // bound is dropped rather than fatal, which also keeps this page and
+  // `registerEmptyReason` agreeing on what counts as a date.
+  const from = isoDateOrEmpty(str(sp.from));
+  const to = isoDateOrEmpty(str(sp.to));
   // Owner request 2026-07-27 ("make it easier to see unclassified items in
   // activity"). Its own axis, not a value of `type` or `category`: it asks whether
   // the app has DECIDED, not what it decided — and the category dropdown cannot
@@ -81,7 +100,7 @@ export default async function TransactionsPage({
     reimbursement !== null ||
     spendClass !== null;
 
-  const [{ rows, summary, accountOptions, pageInfo, lens, unclassifiedCount, oldestDate }, categoryGroups, withheld, shared] =
+  const [{ rows, summary, accountOptions, pageInfo, lens, unclassifiedCount, oldestDate, newestDate }, categoryGroups, withheld, shared] =
     await Promise.all([
       getTransactions(session.user.id, filter, page),
       getVisibleGroups(session.user.id),
@@ -197,7 +216,27 @@ export default async function TransactionsPage({
         summary={summary}
         pageInfo={pageInfo}
         categoryGroups={categoryGroups}
-        hasFilters={hasFilters}
+        // Computed HERE, from the same two bounds the filter bar prints as
+        // "History available from …" above, so the empty state and that line
+        // can never tell the reader two different things (owner, 2026-08-06).
+        // `filter.from`/`filter.to`, never the raw `from`/`to`: those are '' when
+        // absent (`str()`), and an empty string is not null — it would reach
+        // `isoDate('')`. Reading the SAME values the query was run with is also
+        // the only way this sentence can describe the window that produced the
+        // zero it is explaining.
+        emptyReason={registerEmptyReason({
+          hasFilters,
+          from: filter.from ?? null,
+          to: filter.to ?? null,
+          oldest: oldestDate,
+          newest: newestDate,
+        })}
+        // The CSV remedy is REFUSED for the shared demo user
+        // (`transaction-actions.ts` returns DEMO_ENTRY_BLOCKED), and on
+        // production every anonymous visitor IS that user — so offering it
+        // there sends the reader to a form that will turn them away, and they
+        // stop looking for the real route (K.3 critic, F1).
+        canImportCsv={!isDemoUser(session.user.id)}
         canEditSpendClass={!isDemoUser(session.user.id)}
       />
 

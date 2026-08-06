@@ -4709,3 +4709,117 @@ fail-open lock proves an inert link reverts ALL readers together to pre-H.8 beha
 **Locks:** `tests/unit/h8-boundary-readers.test.ts`, 10 tests; fail-old proven by
 seven executed sabotages (each filter deleted → exactly its own lock RED), residue
 grep 0. Gate: verify GREEN twice; no schema change; no prisma diff.
+
+## #417 — a zero is a claim on the register too: the empty state names WHICH zero, from the bounds the page already printed
+
+**2026-08-06 · Fable 5 session · TASKS K.3 (owner report, LIVE)**
+
+**The decision, in one line:** when a surface already holds the fact that explains its
+own emptiness, the empty state must be computed FROM that fact — so `/transactions`
+answers a zero by comparing the reader's own window against the history bounds it just
+rendered, instead of branching on a boolean that can only ever say "filters".
+
+**The report.** The owner set a custom window of Aug 6 2024 → Aug 6 2025. His register's
+history starts Mar 25 2026. The page printed, in this order: "History available from Wed,
+Mar 25, 2026." · Money in $0.00 / Money out $0.00 / Net $0.00 · "0 transactions." · "No
+transactions match these filters." Every sentence was true and the screen was still
+incoherent — one line held the reason, another asserted a different one, and nothing
+joined them. His conclusion, verbatim: *"we have no trailing data in transactions."* He
+was right about the data and could not have known it from this screen.
+
+**Why the boolean could not have got this right.** `hasFilters` (#186) answers "is a
+filter on?", which has exactly two outcomes: "no data yet" and "filters matched nothing".
+The register's zeros have at least four causes — no rows at all, a window ending before
+the first row, a window starting after the last, and a genuine empty match inside the
+span — and the middle two are the only ones the reader cannot diagnose by looking. This
+is `a-zero-is-a-claim-and-must-name-which-zero` (four facts rendering one `− $0.00`),
+reached from the opposite direction: there, the figure was unnamed; here, the naming
+sentence existed and the wrong surface was doing the talking.
+
+**The shape.** A pure `registerEmptyReason` returns a discriminated
+`RegisterEmptyReason`, and each window kind carries BOTH dates it compared, so the copy
+states a comparison ("history starts X, this window ends Y") rather than asserting a
+bare bound. The two new kinds are tested FIRST because they are the certain ones —
+decided against the register's own loaded set — and everything else falls through to
+#186's answer verbatim, including the empty-register-with-a-filter case, which is
+deliberately left alone as a separate decision.
+
+**Agreement is the property, not the sentence.** The bounds come from the single scan
+that produces `oldestDate` (now `newestDate` too), which is the same value the filter
+bar prints as "History available from …". The e2e asserts the two name the SAME date by
+reading the printed one off the DOM and requiring the empty state to contain it — the
+defect was two surfaces disagreeing, so "a date rendered" would not have been a lock.
+
+**Failure direction, chosen deliberately.** `from`/`to` come off the URL and NOTHING
+upstream validates them (`str(sp.to)` is `''` when unset, and `?to=banana` is reachable),
+while `isoDate()` throws. A bare cast here would have converted a cosmetic empty state
+into a thrown page on a route that renders fine today — caught in this session by reading
+`isoDate`, not by a test. An unparseable bound is therefore treated as ABSENT and the
+reader falls through to #186.
+
+**What this does NOT do:** it does not add a second way to clear the window (Clear is
+already on screen), and it does not make the data reach further back. The owner's real
+ask — three trailing years — is TASKS K.2, and no copy change can satisfy it.
+
+**Gate:** verify GREEN — tsc 0 / eslint 0 / **6126 unit across 371 files** / build clean;
+`transactions.spec` 21/21. Fail-old proven by four executed sabotages, each restored and
+residue-checked: each window branch deleted fails only its own locks (3 red, then 1 red),
+removing the total-parse guard fails the two URL-input locks, and blanking the page wiring
+fails the e2e after a rebuild. No schema change, no prisma diff.
+
+### #417 critic cycle 1 — FAIL, 4 P1 + 5 P2 + 2 P3; all four P1s executed and locked
+
+A fresh-context critic in a separate context returned **FAIL**. The four P1s, and
+what each one actually was:
+
+* **F1 — the remedy was refused for the reader it shipped to.** The
+  `before-history` sentence offered "Import a CSV from your bank", and
+  `transaction-actions.ts` refuses `importTransactionsCsv` for the demo user —
+  who, on production, is *every anonymous visitor*. The slice's own e2e drove
+  that exact path and asserted only the date beside it. The remedy is now gated
+  on `canImportCsv`, and the e2e asserts its ABSENCE for the demo.
+* **F2 — the zero was named below the zeros.** The owner's report named four
+  figures: `$0.00 / $0.00 / $0.00` and "0 transactions." The first version
+  explained the emptiness in a box underneath all of them, which is the lesson's
+  own counter-example ("say which zero it is WHERE the zero is"). The count line
+  now carries the naming clause; `isWindowExplainedZero` is the shared predicate
+  so the box and the line can never disagree about whether a window explains it.
+* **F3 — an inverted window got a false cause AND a false remedy.** `from` after
+  `to` is two clicks away (the date inputs carry no `min`/`max`) and fell into
+  `before-history`: the reader was told to import older data for a window that is
+  empty by construction, so they would import it and still see zero. New
+  `inverted-window` kind, decided FIRST and without consulting the bounds at all
+  — locked by a test asserting the verdict is identical with and without history.
+* **F4 — `newestDate` and the whole `after-history` path had no lock.** The
+  critic's sabotage (`r.date > newestDate` → `<`) collapses the two bounds and
+  stayed green across 6,126 tests. New `register-history-bounds-server.test.ts`
+  drives the real loader; that sabotage now turns 3 of its 5 red.
+
+**P2s fixed with them:** the copy says "history here", not "your history" (the
+bound is read off a set narrowed to spending types and USD and NOT re-narrowed by
+the reader's account filter — F6/F9); `after-history` drops "yet" and points at
+`/accounts`, because its realistic cause is a feed that stopped and telling that
+reader to wait is the opposite of the right move (F7/F11).
+
+**F5 is the one worth recording on its own**, because the critic disproved a
+claim in this file's first version. The docblock justified `asBound`'s tolerance
+with "a bare `isoDate()` would throw a route that renders fine today" —
+`/transactions?to=banana` was **already a 500**: `filterTransactions` casts the
+same value with an unguarded `isoDate` and runs first. So the tolerant branch was
+unreachable and its comment asserted a defect did not exist
+(`a-dead-branch-is-a-claim-that-something-is-handled`). Fixed at the boundary
+instead: the page drops an unreadable bound before building the filter, which
+closes a live 500 on the reported surface and makes the engine's guard the
+second of two agreeing validations rather than dead code.
+
+**Open, recorded rather than fixed (TASKS K.4):** the owner's exact pair survives
+one filter away — a reader narrowed to a card connected last month who picks
+"Last year" gets `to` inside the GLOBAL span, falls through to `filters`, and
+sees "No transactions match these filters" under "History available from …"
+again. The real fix is to compute the printed bound at the filtered scope too,
+which changes the shipped filter-bar line as well; narrowing one without the
+other would re-create the disagreement this slice removed.
+
+**Re-gate:** verify GREEN — tsc 0 / eslint 0 / **6137 unit across 372 files** /
+build clean; `transactions.spec` **24/24**. Seven executed sabotages across the
+cycle, each restored and residue-checked.

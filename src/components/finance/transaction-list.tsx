@@ -48,6 +48,7 @@ import {
   provenanceBadgeView,
 } from '@/components/finance/provenance-badge';
 import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
+import { isWindowExplainedZero, type RegisterEmptyReason } from '@/lib/engine/transactions/empty-reason';
 import { SpendClassSelect } from '@/components/finance/spend-class-select';
 import { outOfScopeReason } from '@/lib/engine/spending-plan/spend-class';
 
@@ -77,7 +78,8 @@ export function TransactionList({
   summary,
   pageInfo,
   categoryGroups = ASSIGNABLE_GROUPS,
-  hasFilters = false,
+  emptyReason = { kind: 'no-rows-yet' },
+  canImportCsv = true,
   /** When false (shared demo), Fixed/Discretionary is a label only. */
   canEditSpendClass = true,
 }: {
@@ -87,9 +89,15 @@ export function TransactionList({
   /** Two-level picker source; defaults to the full set, but the page passes the
    *  user's VISIBLE groups so hidden categories don't appear here (DECISIONS #110). */
   categoryGroups?: { group: string; categories: { id: string; name: string }[] }[];
-  /** True when any register filter is active — distinguishes "no data yet" from
-   *  "filters matched nothing" (ROADMAP ALSO CONSIDER / #186). */
-  hasFilters?: boolean;
+  /** WHICH zero this is, decided server-side by `registerEmptyReason` against the
+   *  register's own history bounds. Supersedes the `hasFilters` boolean this prop
+   *  replaced: that could only distinguish "no data yet" from "filters matched
+   *  nothing" (#186), and so answered a window sitting entirely outside the
+   *  reader's history — the owner's 2026-08-06 report — by blaming the filters. */
+  emptyReason?: RegisterEmptyReason;
+  /** False for the shared demo, where `importTransactionsCsv` refuses — so the
+   *  empty state must not name an import it cannot perform (K.3 critic F1). */
+  canImportCsv?: boolean;
   canEditSpendClass?: boolean;
 }) {
   const searchParams = useSearchParams();
@@ -515,8 +523,23 @@ export function TransactionList({
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        {summary.count} transaction{summary.count === 1 ? '' : 's'}. Totals exclude
-        transfers between your own accounts
+        {summary.count} transaction{summary.count === 1 ? '' : 's'}
+        {/* The zero is named HERE, next to the tiles that are all $0.00 and on
+            the line that counts them — not only in the box below (K.3 critic
+            F2). The owner's report named these four figures, and the lesson's
+            rule is to say which zero it is where the zero is. */}
+        {rows.length === 0 && isWindowExplainedZero(emptyReason) && (
+          <>
+            {' '}
+            in this window
+            {emptyReason.kind === 'before-history'
+              ? ` — history here goes back to ${formatISODate(emptyReason.oldest, 'long')}`
+              : emptyReason.kind === 'after-history'
+                ? ` — the latest here is ${formatISODate(emptyReason.newest, 'long')}`
+                : ' — it ends before it starts'}
+          </>
+        )}
+        . Totals exclude transfers between your own accounts
         {/* Branches on the SUMMARY (set-scoped, critic P2-1), never the page
             slice: an excluded row on page 3 moves page 1's totals too. */}
         {summary.excludedCount > 0 ? ' and the rows marked “Excluded from totals”.' : '.'}
@@ -527,13 +550,60 @@ export function TransactionList({
 
       {rows.length === 0 ? (
         <div
-          className="flex flex-col items-center gap-2 rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground"
+          // `px-4` (K.3): the branches below are full sentences naming two dates,
+          // where every earlier branch was a short phrase — at 380px an unpadded
+          // box runs the text to the border on both edges.
+          className="flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground"
           data-testid="txn-empty"
         >
           <Receipt className="size-6" aria-hidden />
-          {hasFilters
-            ? 'No transactions match these filters.'
-            : 'No transactions yet. Add one, import a CSV, or connect an account.'}
+          {/* Each branch states the comparison it made rather than a bare bound:
+              "nothing here" and "nothing here BECAUSE your window ends before
+              your first row" send the reader to completely different next
+              actions, and only the second is true of the owner's screen. */}
+          {emptyReason.kind === 'inverted-window' ? (
+            // Decided without consulting the data at all, so it names no bound:
+            // this window is empty however much history exists, and offering
+            // "reach further back" here would be a remedy that cannot work.
+            <p data-testid="txn-empty-inverted-window">
+              This window ends before it starts — from{' '}
+              {formatISODate(emptyReason.from, 'long')} to {formatISODate(emptyReason.to, 'long')}.
+              Swap the two dates to see what is in between.
+            </p>
+          ) : emptyReason.kind === 'before-history' ? (
+            // "History here", not "your history": the bound is read off the
+            // register's own set, which excludes non-USD and non-spending
+            // accounts and is not narrowed by the reader's account filter.
+            <p data-testid="txn-empty-before-history">
+              History here goes back to {formatISODate(emptyReason.oldest, 'long')}, and this window
+              ends {formatISODate(emptyReason.to, 'long')} — so there is nothing in it to show.
+              {canImportCsv && (
+                <>
+                  {' '}
+                  <Link href="/transactions/import" className="underline underline-offset-2">
+                    Import a CSV from your bank
+                  </Link>{' '}
+                  to reach further back.
+                </>
+              )}
+            </p>
+          ) : emptyReason.kind === 'after-history' ? (
+            // No "yet": the realistic way to land here is a feed that stopped
+            // months ago, and telling that reader to wait is the opposite of
+            // what they should do (K.3 critic F7/F11).
+            <p data-testid="txn-empty-after-history">
+              The latest transaction here is {formatISODate(emptyReason.newest, 'long')}, and this
+              window starts {formatISODate(emptyReason.from, 'long')} — so there is nothing in it.{' '}
+              <Link href="/accounts" className="underline underline-offset-2">
+                Check your connections
+              </Link>{' '}
+              if you expected newer activity.
+            </p>
+          ) : emptyReason.kind === 'filters' ? (
+            'No transactions match these filters.'
+          ) : (
+            'No transactions yet. Add one, import a CSV, or connect an account.'
+          )}
         </div>
       ) : (
         groups.map((g) => (

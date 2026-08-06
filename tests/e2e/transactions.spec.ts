@@ -175,6 +175,76 @@ test('transaction register lists, summarizes, filters, and searches', async ({ p
   await expect(page.getByTestId('txn-empty')).not.toContainText(/No transactions yet/);
 });
 
+/**
+ * Owner report 2026-08-06: a custom window of Aug 6 2024 → Aug 6 2025 on a
+ * register whose history starts Mar 25 2026 answered "No transactions match
+ * these filters" while "History available from Wed, Mar 25, 2026" sat four
+ * lines above it. The unit locks cover the decision; this covers the WIRING —
+ * that the page hands the engine the window it actually queried and the bounds
+ * it actually printed, which no pure test can see.
+ */
+test('a window entirely before the register history names the history bound, not the filters', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/transactions?from=2019-01-01&to=2019-12-31');
+
+  const empty = page.getByTestId('txn-empty');
+  await expect(empty).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('txn-empty-before-history')).toBeVisible();
+  await expect(empty).not.toContainText(/No transactions match these filters/);
+
+  // The two sentences must name the SAME date. The whole defect was one surface
+  // holding the reason while the other blamed the filters, so agreement here is
+  // the property under test — not merely that some date rendered.
+  const span = await page.getByTestId('txn-history-span').textContent();
+  const printed = /History available from (.+)\./.exec(span ?? '')?.[1];
+  expect(printed, 'the filter bar must print its history bound').toBeTruthy();
+  await expect(empty).toContainText(printed!);
+
+  // The zero is named where the ZERO is, not only in the box below it — the
+  // owner's report named the tiles and the count line (critic cycle 1, F2).
+  await expect(page.getByText(/0 transactions in this window/)).toBeVisible();
+
+  // The CSV remedy is refused for the shared demo user, and this spec IS that
+  // user — so the sentence must not offer it here (critic cycle 1, F1).
+  await expect(empty).not.toContainText(/Import a CSV from your bank/);
+});
+
+test('a window that ends before it starts is named as such, not as missing history', async ({ page }) => {
+  await signIn(page);
+  // Two clicks apart in the real picker: the date inputs carry no min/max.
+  await page.goto('/transactions?from=2026-08-01&to=2024-01-01');
+
+  await expect(page.getByTestId('txn-empty-inverted-window')).toBeVisible({ timeout: 20000 });
+  const empty = page.getByTestId('txn-empty');
+  await expect(empty).toContainText(/ends before it starts/);
+  // The defect this replaced: it used to claim the history bound and offer an
+  // import, a remedy that cannot empty-proof a window empty by construction.
+  await expect(empty).not.toContainText(/History here goes back to/);
+  await expect(empty).not.toContainText(/Import a CSV/);
+});
+
+test('a window starting after the newest row names the newest row, and points at connections', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/transactions?from=2099-01-01&to=2099-12-31');
+
+  await expect(page.getByTestId('txn-empty-after-history')).toBeVisible({ timeout: 20000 });
+  const empty = page.getByTestId('txn-empty');
+  await expect(empty).toContainText(/The latest transaction here is/);
+  // No "yet": the realistic cause is a feed that stopped, where waiting is
+  // exactly the wrong next action (critic cycle 1, F7).
+  await expect(empty).not.toContainText(/nothing in it yet/);
+  await expect(empty.getByRole('link', { name: 'Check your connections' })).toBeVisible();
+});
+
+test('a malformed date bound no longer takes the register down', async ({ page }) => {
+  await signIn(page);
+  // Before K.3 this was a 500: `filterTransactions` cast it with an unguarded
+  // isoDate (found by the K.3 critic, F5). An unreadable bound is now dropped.
+  const res = await page.goto('/transactions?to=banana');
+  expect(res?.status()).toBeLessThan(400);
+  await expect(page.getByTestId('txn-history-span')).toBeVisible({ timeout: 20000 });
+});
+
 test('SimpleFIN connect affordance is present and opens its token form (dormant)', async ({ page }) => {
   await signIn(page);
   await page.goto('/accounts');

@@ -6,6 +6,88 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-06 — K.3: the register's empty state names WHICH zero, from the bounds it already printed (DECISIONS #417)
+
+**Closes TASKS K.3** — owner screenshot, same day. A custom window of Aug 6 2024 →
+Aug 6 2025 on a register whose history starts Mar 25 2026 rendered, in this order:
+"History available from Wed, Mar 25, 2026." · $0.00 / $0.00 / $0.00 · "0
+transactions." · **"No transactions match these filters."** Every sentence true,
+the screen incoherent — one line held the reason and another asserted a
+different one. His reading was *"we have no trailing data in transactions"*,
+which is correct about the DATA and was not derivable from this screen.
+
+**The fix is a decision, not copy.** Pure `registerEmptyReason` returns four
+kinds ('no-rows-yet' | 'filters' | 'before-history' | 'after-history'); each
+window kind carries BOTH dates it compared, so the sentence states a comparison
+rather than a bare bound. `getTransactions` now returns `newestDate` alongside
+`oldestDate` from the same single scan, so the empty state and the filter bar's
+"History available from …" are the same two values by construction. #186's
+answers are preserved verbatim, including the empty-register-with-a-filter case.
+
+**Caught in-session, before shipping, by reading rather than by a test:** the raw
+`from`/`to` are `''` when unset (`str(sp.to)`) and `?to=banana` is reachable
+with nothing upstream validating it, while `isoDate()` throws — so the first
+wiring would have converted a cosmetic empty state into a thrown /transactions
+on every unfiltered load. An unparseable bound is now treated as ABSENT and the
+reader falls through to #186.
+
+**Gate:** verify GREEN — tsc 0 / eslint 0 / **6126 unit across 371 files** /
+build clean; `transactions.spec` **21/21**. Fail-old by four executed sabotages,
+each restored and residue-checked: each window branch deleted turns only its own
+locks RED (3, then 1), removing the total-parse guard turns the two URL-input
+locks RED, and blanking the page wiring turns the e2e RED after a rebuild. No
+schema change, no prisma diff.
+
+### K.3 critic cycle 1 — FAIL, 4 P1 + 5 P2 + 2 P3; all four P1s executed
+
+A fresh-context critic broke four things worth having found:
+
+* **the remedy was refused for the reader it shipped to** — "Import a CSV from
+  your bank" is refused for the demo user, i.e. every anonymous visitor on
+  production, and the slice's own e2e drove that path; now gated, and the e2e
+  asserts the sentence's ABSENCE there;
+* **the zero was named below the zeros** — the owner's report named the four
+  `$0.00`/count figures and the first version explained them in a box under all
+  of them; the count line now carries the clause;
+* **an inverted window (`from` after `to`, two clicks apart — the date inputs
+  carry no min/max) was told the history bound and offered an import** that
+  cannot help a window empty by construction; new `inverted-window` kind decided
+  first and without consulting the data;
+* **`newestDate` and the whole `after-history` branch had no lock** — the
+  critic's sabotage (`>` → `<`) collapsed the two bounds and stayed green across
+  6,126 tests; `register-history-bounds-server.test.ts` now turns 3 red on it.
+
+**And it disproved a claim this slice had written down.** The docblock said a
+tolerant date parse was needed because a bare cast "would throw a route that
+renders fine today" — `/transactions?to=banana` was **already a 500**, because
+`filterTransactions` casts the same value with an unguarded `isoDate` first. The
+comment was asserting a defect did not exist. Fixed at the boundary: the page
+drops an unreadable bound before building the filter, closing a live 500 on the
+reported surface.
+
+**Re-gate:** verify GREEN — tsc 0 / eslint 0 / **6137 unit across 372 files** /
+build clean; `transactions.spec` **24/24**; seven executed sabotages across the
+cycle, each restored and residue-checked.
+
+### STILL OPEN after K.3
+
+0. **The owner's exact pair survives one filter away (TASKS K.4).** A reader
+   narrowed to a card connected last month who picks "Last year" gets a `to`
+   inside the GLOBAL span, falls through to `filters`, and sees "No transactions
+   match these filters" under "History available from …" — the identical broken
+   pair, one dropdown later. The bounds are computed pre-filter and the printed
+   line is too, so fixing it means moving BOTH to the filtered scope; narrowing
+   one alone would re-create the disagreement this slice removed.
+1. **It does not make the history deeper.** The owner's actual ask is three
+   trailing years (TASKS K.2); the oldest row he holds is 2026-04-24 and Plaid
+   cannot serve more than 730 days. This slice only stops the screen from
+   misattributing that.
+2. **"Your history starts …" is register-wide while a reader may be filtered to
+   one account.** Inherited from the existing "History available from" line,
+   which has the same scope; recorded rather than changed, because narrowing one
+   without the other would make the two disagree — which is the defect this
+   slice just removed.
+
 ## ✅ BUILT 2026-08-06 — H.8: every reader that describes or writes what a register shows now applies the register's own ownership rule (DECISIONS #416)
 
 **Closes TASKS H.8** — the measurement H.7's self-correction filed: six direct
