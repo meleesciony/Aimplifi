@@ -171,6 +171,12 @@ re-assertions.
    that category (a cash advance filed as Income stays Income). Narrower than the
    cycle-1 version, which refused LOAN and MORTGAGE too, but real — and it needs a
    measurement on a corpus that actually contains one before a rule is invented.
+   **Measured on his corpus** (`h7-sender-types.mts`): the only non-sender type
+   carrying outflows at all is CREDIT, with 2,508 of them — card purchases, which
+   is exactly what the gate is for; REAL_ESTATE has no transactions, and LOAN and
+   MORTGAGE have **zero** outflows today, so adding them to the sender set is
+   precautionary against the HELOC-draw class a critic executed, not a change
+   anything on this corpus needed.
 3. **Two $0.07 false overturns survive.** An "Interest Paid" inflow matched to a
    $0.07 Vanguard money-market row on each copy. Closing it means inventing an
    amount floor with a magic number, which the evidence does not support.
