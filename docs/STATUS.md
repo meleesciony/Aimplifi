@@ -59,7 +59,9 @@ write's premise re-assertion fails the read→write race lock.
 ### H.7 live deploy proof — PASS (6/6), www.aimplifi.app, 2026-08-05
 
 `node scripts/h7-live-deploy-check.mjs` against production deployment
-`aimplifi-9py4gtpn2` (Ready, aliased to www.aimplifi.app) on `52de853`:
+`aimplifi-9py4gtpn2` (Ready, aliased to www.aimplifi.app) on `52de853`, and
+**re-run 6/6 on `23f343b`** after critic cycle 2 against deployment
+`aimplifi-noi473ykv` (Ready, same alias):
 
 ```
 PASS  signed into the shared demo on production — https://www.aimplifi.app
