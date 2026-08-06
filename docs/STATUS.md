@@ -6,6 +6,82 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-05 — H.7: a pair-only transfer guess may supply a verdict, never silently reverse one — and the sweep now reads what the reconciliation boundary owns (DECISIONS #415)
+
+**Closes TASKS H.7**, the OPEN P1 the #414 critic executed and the entry below
+recorded rather than patched. The defect, restated: `isTransfer` is a
+categorization verdict wearing a different column — setting it withholds the row
+from every income, spending, budget, report, tax-export and cash-needed total —
+and only the FILE branch ever learned the #148 rule about not clobbering a
+resolved decision. So a coincidental same-|amount| counterpart landing within ±3
+days reversed a settled row silently: no category change, no confidence change,
+no audit row, no undo.
+
+**MEASURED LIVE FIRST, on the owner's production corpus** (read-only probes
+`scripts/audit-probes/h7-{transfer-sweep-exposure,pair-evidence,guard-blast-radius,boundary-effect}.mts`,
+each replaying the REAL engine over 3,065 real rows rather than a replica):
+
+* **92** settled rows carried `isTransfer: true` under a non-transfer category,
+  withholding **$21,411.05** of inflow and **$181,281.51** of outflow;
+* **73** of those stood on nothing but a pair. By the evidence they actually had:
+  **45** duplicate-account artifacts, **12** brokerage funding, **9** card/loan
+  payments, **7** nothing but an equal amount within 3 days;
+* the critic's repro was found LIVE and in both directions at once — a **$500.00**
+  "CEF I CEF IV PPD" distribution settled at 9900 bps, cancelled against a
+  **$500.00** Zelle payment to a landscaper two days earlier, so a real income row
+  AND a real expense row both vanished from their totals.
+
+**Two causes, two scopes, deliberately not merged.** (1) THE BOUNDARY, universal:
+`refreshTransferFlags` was the only transaction read surface in the app that
+skipped `getReconciliationTxnKeep` — the R1 rule the register, CSV export,
+budgets, recurring detection and triage all apply — so with 26 active links it
+read BOTH copies of a reconciled account (1,215 of 3,065 rows were not its to
+read) and paired rows against their own duplicates, defeating the same-account
+exclusion `transfers.ts` already declares. Applying the app's own keep-rule
+removed **53 of the 73**. (2) THE DIRECTION GATE, overturns only: an outflow on a
+credit line is a purchase, not money leaving for another account. That is what the
+remaining false overturns had in common ($500 KALSHI, $7.00 Tesla Supercharger,
+$100 AT&T bill). It is a heuristic with real counterexamples (balance transfer,
+cash advance), so it is scoped to the overturn decision and never suppresses
+detection generally — refusing to overturn leaves the row as its owner filed it
+and visible in every total, so its failure mode is inaction, never a rewrite.
+
+**Rejected after measuring, not assumed:** an AGE gate (it would refuse exactly the
+corrections a deep-history backfill exists to make) and a CONFIDENCE gate (measured
+useless — the genuine fundings and the false coincidences both sit at 9000-9900 bps).
+
+**Gate:** `bash scripts/verify.sh` **GREEN** — tsc 0 / eslint 0 / **6090 unit
+across 369 files** / build clean. **No schema change, no prisma diff, no UI
+surface.** Fail-old proven by three executed sabotages, each restored and
+residue-checked: removing the overturn gate fails 6 of the 7 new pure locks;
+removing the boundary filter fails the duplicate-pair lock; removing the flag
+write's premise re-assertion fails the read→write race lock.
+
+### STILL OPEN after H.7 (recorded, not fixed — ranked by money consequence)
+
+1. **A $0.07 residual false overturn.** After both guards, 16 settled overturns
+   remain; 15 are the genuinely correct ones (the brokerage fundings, the Chase
+   autopays, the Truist mortgage) and one is a $0.07 "Interest Paid" inflow matched
+   to a $0.07 Vanguard money-market row. Closing it means inventing an amount floor
+   with a magic number, which the evidence does not support.
+2. **A settled CASH outflow can still be overturned by a coincidental cash inflow**
+   — direction-coherence cannot distinguish that from a real checking-to-savings
+   transfer. Unmeasured after the boundary (the live instances were all duplicates);
+   needs its own corpus measurement before any rule is invented.
+3. **The 45 existing bad flags are NOT repaired.** Flags stay add-only by
+   construction, so this change stops new silent overturns but does not undo the
+   ones already written to the owner's rows. Un-flagging is itself a silent rewrite
+   in the opposite direction on figures he has already seen, and belongs to an
+   owner-visible decision, not a sync-path fix. Until then his income and spending
+   totals still carry the pre-H.7 exclusions.
+4. **A degenerate reconciliation claim keeps both copies.** `txnKeepRule` treats a
+   cutover predating the predecessor's first row as degenerate and keeps everything
+   (critic A-F8), so duplicates in that shape still reach the sweep. The live
+   measurement already reflects this — it ran the shipped rule — but it is the
+   reason the boundary removed 53 rather than all 45+.
+5. **Critic pass owed.** This slice has NOT been through a hostile-critic cycle;
+   the locks above are my own. Money-visible + data-integrity ⇒ it needs one.
+
 ## ✅ BUILT 2026-08-05 — the Plaid deep-history backfill mirror: superseded predecessors refused, runs capped+chunked, every server-performed un-supersede re-arms (DECISIONS #414)
 
 **Closes the H.5 OPEN P1 "the PLAID backfill has the same superseded-predecessor

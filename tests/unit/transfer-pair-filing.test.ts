@@ -35,6 +35,11 @@ const base = {
   reviewPinned: false,
   status: 'POSTED',
   currencySupported: true,
+  // H.7: the row's settled verdict and the type of the account it sits on.
+  // `null` here means "no verdict recorded", which is what every pre-H.7 case
+  // in this file was implicitly asserting.
+  categoryId: null as string | null,
+  accountType: 'CHECKING',
 };
 
 function txn(over: Partial<TransferStateTxn> & Pick<TransferStateTxn, 'id'>): TransferStateTxn {
@@ -56,6 +61,7 @@ function ccPaidPair(): TransferStateTxn[] {
     txn({
       id: 'in',
       accountId: 'card',
+      accountType: 'CREDIT',
       date: '2026-06-11',
       amountCents: 123_456,
       rawDescriptor: 'PAYMENT RECEIVED - THANK YOU',
@@ -119,6 +125,128 @@ describe('planTransferUpdates (pure)', () => {
     const plan = planTransferUpdates([{ ...out, currencySupported: false }, inn]);
     expect(plan.flagIds.sort()).toEqual(['in', 'out']);
     expect(plan.fileIds).toEqual(['in']);
+  });
+
+  /**
+   * H.7 — the flag branch may not silently reverse a recorded answer.
+   *
+   * Every fixture below is the shape of a row measured on the owner's live
+   * corpus (scripts/audit-probes/h7-pair-evidence.mts), not an invented one.
+   */
+  describe('H.7: a pair-only guess against a settled verdict', () => {
+    /** The live repro: a $500.00 distribution settled as income at 9900 bps,
+     * and an unrelated $500.00 card charge two days earlier. */
+    function coincidence(): TransferStateTxn[] {
+      return [
+        txn({
+          id: 'kalshi',
+          accountId: 'venture-card',
+          accountType: 'CREDIT',
+          date: '2026-06-13',
+          amountCents: -50_000,
+          rawDescriptor: 'KALSHI',
+          categoryId: 'entertainment',
+        }),
+        txn({
+          id: 'distribution',
+          accountId: 'checking',
+          date: '2026-06-15',
+          amountCents: 50_000,
+          rawDescriptor: '5006-DB/CR-CEF I CEF IV PPD',
+          categoryId: 'income',
+        }),
+      ];
+    }
+
+    it('does NOT flag a settled income row paired only with a card charge (the live repro)', () => {
+      const plan = planTransferUpdates(coincidence());
+      expect(plan.flagIds).toEqual([]);
+      expect(plan.overturnIds).toEqual([]);
+      expect(plan.fileIds).toEqual([]);
+    });
+
+    it('premise lock: that coincidence IS still a detected pair — only the WRITE is refused', () => {
+      // If this ever stops detecting, the test above would pass vacuously.
+      expect(detectTransfers(coincidence())).toEqual(new Set(['kalshi', 'distribution']));
+    });
+
+    it('still overturns a settled row when the pair can actually send money (brokerage funding)', () => {
+      const plan = planTransferUpdates([
+        txn({
+          id: 'funding',
+          accountId: 'checking',
+          date: '2026-05-06',
+          amountCents: -7_800_000,
+          rawDescriptor: 'Funds Transfer to Brokerage -7383',
+          categoryId: 'investment',
+        }),
+        txn({
+          id: 'landed',
+          accountId: 'brokerage',
+          accountType: 'INVESTMENT',
+          date: '2026-05-06',
+          amountCents: 7_800_000,
+          rawDescriptor: 'RECEIVED FROM BANK',
+          categoryId: 'investment',
+        }),
+      ]);
+      expect(plan.flagIds).toEqual([]);
+      expect(plan.overturnIds.sort()).toEqual(['funding', 'landed']);
+    });
+
+    it('still overturns a settled row for a card autopay (cash out, card in)', () => {
+      const plan = planTransferUpdates([
+        txn({
+          id: 'autopay',
+          accountId: 'checking',
+          date: '2026-07-06',
+          amountCents: -11_199,
+          rawDescriptor: 'CHASE CREDIT CRD AUTOPAYBUS 260705',
+          categoryId: 'credit-card-payment',
+        }),
+        txn({
+          id: 'received',
+          accountId: 'card',
+          accountType: 'CREDIT',
+          date: '2026-07-05',
+          amountCents: 11_199,
+          rawDescriptor: 'AUTOMATIC PAYMENT - THANK',
+          categoryId: 'credit-card-payment',
+        }),
+      ]);
+      expect(plan.overturnIds.sort()).toEqual(['autopay', 'received']);
+    });
+
+    it('a DESCRIPTOR-named transfer still overturns a settled verdict, unpaired (no regression)', () => {
+      const plan = planTransferUpdates([
+        txn({
+          id: 'named',
+          rawDescriptor: 'ONLINE TRANSFER TO SAVINGS',
+          amountCents: -25_000,
+          categoryId: 'rent',
+        }),
+      ]);
+      expect(plan.overturnIds).toEqual(['named']);
+      expect(plan.flagIds).toEqual([]);
+    });
+
+    it("'uncategorized' and 'transfer' are not verdicts to overturn — they flag as before", () => {
+      for (const categoryId of ['uncategorized', 'transfer', null]) {
+        const plan = planTransferUpdates(
+          coincidence().map((t) => (t.id === 'distribution' ? { ...t, categoryId } : t)),
+        );
+        expect(plan.flagIds, `categoryId=${categoryId}`).toEqual(['distribution']);
+        expect(plan.overturnIds, `categoryId=${categoryId}`).toEqual([]);
+      }
+    });
+
+    it('an unsettled row is unaffected by the gate: still flagged AND filed on the same coincidence', () => {
+      const plan = planTransferUpdates(
+        coincidence().map((t) => (t.id === 'distribution' ? { ...t, needsReview: true } : t)),
+      );
+      expect(plan.flagIds).toEqual(['distribution']);
+      expect(plan.fileIds).toEqual(['distribution']);
+    });
   });
 
   it('same-account opposite amounts (a refund) are NOT a pair', () => {

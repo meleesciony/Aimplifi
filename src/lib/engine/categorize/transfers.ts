@@ -27,6 +27,56 @@ export interface TransferTxn {
   isSplitParent?: boolean;
 }
 
+/**
+ * Account types money can LEAVE for another of the user's accounts (H.7).
+ *
+ * An OUTFLOW on a credit line is a purchase or an interest charge — money spent
+ * at a merchant, not money moved to another account — so it cannot be the
+ * sending leg of a transfer. Cash and brokerage accounts can send.
+ *
+ * This is a HEURISTIC with real counterexamples (a balance transfer debits the
+ * receiving card; a cash advance sends from a card), which is exactly why it is
+ * used ONLY as the extra evidence required to OVERTURN a settled verdict
+ * (`planTransferUpdates`) and never to suppress detection generally: refusing
+ * to overturn leaves the row exactly as its owner filed it, so the heuristic's
+ * failure mode is inaction, not a rewrite.
+ */
+export const CAN_SEND_ACCOUNT_TYPES: ReadonlySet<string> = new Set(['CHECKING', 'SAVINGS', 'INVESTMENT']);
+
+/** A matched pair: the leg money left, and the leg it arrived on. */
+export interface TransferPair {
+  outflow: TransferTxn;
+  inflow: TransferTxn;
+}
+
+/**
+ * The pair rule, in ONE place: equal/opposite amounts, different accounts,
+ * within ±3 days. Both `detectTransfers` and the overturn gate read it, so a
+ * row and the evidence cited for it can never come from two different rules
+ * (the L.30 idiom — implement the reason and the result in terms of each other).
+ */
+function matchTransferPairs<T extends TransferTxn>(transactions: readonly T[]): Array<{ outflow: T; inflow: T }> {
+  const byAmount = new Map<number, T[]>();
+  for (const t of transactions) {
+    const list = byAmount.get(Math.abs(t.amountCents)) ?? [];
+    list.push(t);
+    byAmount.set(Math.abs(t.amountCents), list);
+  }
+  const pairs: Array<{ outflow: T; inflow: T }> = [];
+  for (const [, group] of byAmount) {
+    for (const a of group) {
+      if (a.amountCents >= 0) continue;
+      for (const b of group) {
+        if (b.amountCents <= 0 || b.accountId === a.accountId) continue;
+        if (Math.abs(daysBetween(isoDate(a.date), isoDate(b.date))) <= 3) {
+          pairs.push({ outflow: a, inflow: b });
+        }
+      }
+    }
+  }
+  return pairs;
+}
+
 export function detectTransfers(transactions: readonly TransferTxn[]): Set<string> {
   const transferIds = new Set<string>();
 
@@ -40,23 +90,9 @@ export function detectTransfers(transactions: readonly TransferTxn[]): Set<strin
   }
 
   // Pair matching: equal/opposite amounts, different accounts, within 3 days.
-  const byAmount = new Map<number, TransferTxn[]>();
-  for (const t of transactions) {
-    const list = byAmount.get(Math.abs(t.amountCents)) ?? [];
-    list.push(t);
-    byAmount.set(Math.abs(t.amountCents), list);
-  }
-  for (const [, group] of byAmount) {
-    for (const a of group) {
-      if (a.amountCents >= 0) continue;
-      for (const b of group) {
-        if (b.amountCents <= 0 || b.accountId === a.accountId) continue;
-        if (Math.abs(daysBetween(isoDate(a.date), isoDate(b.date))) <= 3) {
-          transferIds.add(a.id);
-          transferIds.add(b.id);
-        }
-      }
-    }
+  for (const { outflow, inflow } of matchTransferPairs(transactions)) {
+    transferIds.add(outflow.id);
+    transferIds.add(inflow.id);
   }
 
   return transferIds;
@@ -74,11 +110,46 @@ export interface TransferStateTxn extends TransferTxn {
   /** Rows on withheld (non-USD) accounts are flagged but never FILED — the
    * currency guard (DECISIONS #135) withholds them from every system write. */
   currencySupported: boolean;
+  /** The row's settled verdict, if it has one. A substantive category on a
+   * resolved row is a RECORDED ANSWER a pair-only guess must not silently
+   * overturn (H.7) — see `hasCompetingVerdict`. */
+  categoryId: string | null;
+  /** The type of the account this row sits on (CHECKING | SAVINGS | CREDIT |
+   * INVESTMENT | LOAN | MORTGAGE …) — the overturn gate reads the SENDING
+   * leg's type. */
+  accountType: string;
+}
+
+/**
+ * Categories that assert nothing a transfer flag would contradict: no verdict
+ * yet ('uncategorized'), or a verdict that already agrees ('transfer').
+ */
+const NON_COMPETING_CATEGORY_IDS: ReadonlySet<string> = new Set(['transfer', 'uncategorized']);
+
+/**
+ * Whether this row already carries an answer that a pair-only guess would be
+ * OVERTURNING rather than supplying (H.7).
+ *
+ * `needsReview: false` is the repo's existing meaning of "resolved" — it is
+ * what the FILE branch below has always used to refuse clobbering a category
+ * (#148) — and it covers both a hand-filed row and one the pipeline auto-filed
+ * confidently. There is no column distinguishing those two, and this gate does
+ * not need one: both are recorded answers, and neither should be reversed
+ * without evidence.
+ */
+export function hasCompetingVerdict(t: TransferStateTxn): boolean {
+  return !t.needsReview && t.categoryId !== null && !NON_COMPETING_CATEGORY_IDS.has(t.categoryId);
 }
 
 export interface TransferUpdatePlan {
-  /** Newly detected transfers → set isTransfer: true. */
+  /** Newly detected transfers with NO competing verdict → set isTransfer: true. */
   flagIds: string[];
+  /** Newly detected transfers that DO carry a settled substantive verdict and
+   * carry evidence enough to overturn it (H.7): a descriptor the merchant table
+   * itself calls a transfer, or a directionally coherent pair. Planned — and
+   * written — separately from `flagIds` because the two answer different
+   * questions, and only `flagIds` can have its premise change under it. */
+  overturnIds: string[];
   /** Detected transfers still awaiting review → ALSO file them: categoryId
    * 'transfer', needsReview false, PAIR_TRANSFER_CONFIDENCE_BPS (flagged band). */
   fileIds: string[];
@@ -96,19 +167,69 @@ export interface TransferUpdatePlan {
  *  - PENDING and withheld-currency rows are flagged but never filed (critic F3);
  *  - already-flagged rows still needsReview ARE filed (heals rows wedged by
  *    the pre-#165 flag-only path).
+ *
+ * THE FLAG BRANCH, H.7 (TASKS H.7, found by the #414 critic and then measured
+ * live on the owner's corpus). `isTransfer` is a categorization verdict wearing
+ * a different column: setting it withholds the row from every income, spending,
+ * budget, report, tax-export and cash-needed total. The FILE branch has always
+ * refused to clobber a resolved category (#148); the flag branch never inherited
+ * that protection, so a coincidental same-|amount| counterpart arriving within
+ * ±3 days silently reversed a settled row — no category change, no confidence
+ * change, no audit row, no undo. The critic's repro (a settled +$1,000 income
+ * row leaving every income total) was found LIVE: a $500.00 "CEF I CEF IV PPD"
+ * distribution, settled at 9900 bps, withheld from income because an unrelated
+ * $500.00 Zelle payment to a landscaper had landed two days earlier.
+ *
+ * The rule is therefore evidentiary, not chronological: an AGE gate would have
+ * refused exactly the corrections a deep-history backfill exists to make, and a
+ * CONFIDENCE gate was measured useless (the genuine brokerage fundings and the
+ * false coincidences both sit at 9000-9900 bps). Instead —
+ *  - a row with no competing verdict is flagged exactly as before;
+ *  - a row carrying a settled substantive verdict is overturned ONLY by a
+ *    directionally coherent pair, i.e. one whose SENDING leg is an account
+ *    money can actually leave (`CAN_SEND_ACCOUNT_TYPES`). A purchase on a
+ *    credit line is not the sending leg of a transfer.
+ * Refusing to overturn is always the safe direction: the row keeps the category
+ * its owner gave it and stays visible in every total, which is a state they can
+ * see and correct — unlike a silent exclusion, which they cannot.
  */
 export function planTransferUpdates(transactions: readonly TransferStateTxn[]): TransferUpdatePlan {
   const detected = detectTransfers(transactions);
+
+  // Which rows the DESCRIPTOR alone reaches — the merchant table naming the row
+  // a transfer is not a coincidence of amount and date, so it keeps overturning
+  // a settled verdict exactly as it always has (TRANSFER_CONFIDENCE_BPS 9900).
+  const descriptorDetected = new Set<string>();
+  for (const t of transactions) {
+    const categoryId = normalizeMerchant(t.rawDescriptor).categoryId;
+    if (categoryId === 'transfer' || categoryId === 'auto-loan') descriptorDetected.add(t.id);
+  }
+
+  // The legs a directionally coherent pair reaches, from the SAME pair rule
+  // `detectTransfers` just used — never a second walk under a second rule.
+  const coherentlyPaired = new Set<string>();
+  for (const { outflow, inflow } of matchTransferPairs(transactions)) {
+    if (!CAN_SEND_ACCOUNT_TYPES.has(outflow.accountType)) continue;
+    coherentlyPaired.add(outflow.id);
+    coherentlyPaired.add(inflow.id);
+  }
+
   const flagIds: string[] = [];
+  const overturnIds: string[] = [];
   const fileIds: string[] = [];
   for (const t of transactions) {
     if (!detected.has(t.id)) continue;
-    if (!t.isTransfer) flagIds.push(t.id);
+    if (!t.isTransfer) {
+      if (!hasCompetingVerdict(t)) flagIds.push(t.id);
+      else if (descriptorDetected.has(t.id) || coherentlyPaired.has(t.id)) overturnIds.push(t.id);
+      // else: a pair-only guess against a recorded answer, with no coherent
+      // sending leg — the answer stands, and the row keeps counting.
+    }
     if (t.needsReview && !t.reviewPinned && t.status === 'POSTED' && t.currencySupported) {
       fileIds.push(t.id);
     }
   }
-  return { flagIds, fileIds };
+  return { flagIds, overturnIds, fileIds };
 }
 
 /** Sum spending (outflows) excluding transfers — the aggregation Phase 3 uses. */

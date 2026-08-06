@@ -2,6 +2,45 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-05 — H.7: the transfer sweep stops silently reversing settled rows (DECISIONS #415)
+
+**Done:** the flag branch of `planTransferUpdates` inherits the protection the file
+branch has had since #148 — a pair-only guess may SUPPLY a verdict, never silently
+REVERSE one. Two causes, two scopes: `refreshTransferFlags` now applies
+`getReconciliationTxnKeep` (it was the ONLY transaction read surface in the app that
+did not, so it paired rows against their own reconciled duplicates), and a settled
+substantively-categorized row is overturned only by a directionally coherent pair —
+one whose SENDING leg is an account money can actually leave. `flagIds` and
+`overturnIds` are planned separately because only the first can have its premise
+change under it, and the first re-asserts that premise in its write.
+
+**Found (live, read-only probes over 3,065 real rows, replaying the real engine):**
+92 settled rows were withholding $21,411.05 of inflow and $181,281.51 of outflow
+from every total; 73 stood on nothing but a pair (45 duplicate-account artifacts,
+12 brokerage funding, 9 card/loan payments, 7 pure coincidence). The critic's repro
+was live and bidirectional: a $500.00 fund distribution settled at 9900 bps and a
+$500.00 Zelle payment to a landscaper cancelled each other out, so a real income row
+and a real expense row both disappeared. Boundary alone removes 53 of 73; +direction
+leaves 16, of which 15 are genuinely correct.
+
+**Rejected after measuring:** an age gate (refuses the corrections a backfill exists
+to make) and a confidence gate (useless — genuine and false both sit at 9000-9900).
+
+**A fixture that lied, caught before it shipped:** the first boundary test passed
+against the UNFIXED code, because `txnKeepRule` treats a cutover predating the
+predecessor's first row as a DEGENERATE claim and keeps everything (A-F8) — the
+fixture had built the one shape where the boundary drops nothing. It now carries a
+pre-cutover anchor row with the reason inline.
+
+**Gate:** verify GREEN — tsc 0 / eslint 0 / **6090 unit / 369 files** / build clean.
+No schema change, no prisma diff, no UI surface. Three sabotages executed and
+restored (residue-checked): the gate, the boundary filter, the write's premise
+re-assertion — each fails its own lock.
+
+**Next:** a hostile-critic cycle on this slice (owed — money-visible + data
+integrity); then the repair question for the 45 flags already written; H.1(b) the
+"earliest data" surface; H.2 CSV backfill; H.6 fresh-Link route.
+
 ## 2026-08-05 — the Plaid deep-history backfill mirror (H.5's open Plaid P1 → closed; DECISIONS #414)
 
 **Done:** `backfillItemHistory` now refuses superseded predecessors, runs
