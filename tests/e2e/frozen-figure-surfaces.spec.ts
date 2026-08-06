@@ -119,11 +119,16 @@ test('the surfaces that print a frozen figure now say so — /cards, Ask and /co
   // The "Do this first" line gets its own qualifier, because a reader may act on that line alone.
   await expect(page.getByTestId('do-this-first-frozen')).toContainText('stopped sharing');
 
-  // ── The dashboard's payment reminders: the same instruction, on the page most people open ──
+  // ── The dashboard: the same fact, on the page most people open ─────────────────────────
+  // TASKS K.5. This read the reminders card's per-row note until #369 deleted that card. The
+  // per-ROW instruction is now /cards' alone — the assertions above — and what Home still owes the
+  // reader is that the frozen account is named at all, which the Today feed's `frozenDueNote`
+  // paragraph does. Asserting the row note here again would have been asserting /cards twice.
   await page.goto('/dashboard');
-  const reminderRow = page.getByTestId('payment-reminders-card').getByTestId(`card-frozen-${cardId}`);
-  await expect(reminderRow).toBeVisible({ timeout: 20_000 });
-  await expect(reminderRow).toContainText('Check the card with your bank before paying');
+  const feedDues = page.getByTestId('today-feed-frozen-dues');
+  await expect(feedDues).toBeVisible({ timeout: 20_000 });
+  await expect(feedDues).toContainText(cardName);
+  await expect(feedDues).toContainText('stopped sharing');
 
   // ── Ask: the reported figure, and the panel opened to audit it ─────────────────────────
   await page.goto('/ask');

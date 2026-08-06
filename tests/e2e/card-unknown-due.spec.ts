@@ -246,8 +246,11 @@ test('a $0 paid-off undatable card is never framed as a withheld obligation', as
   // The $0 card is NOT named as excluded — the amber note must be absent entirely.
   await expect(page.getByTestId('cash-needed-unknown-note')).toHaveCount(0);
 
-  // And the payment-reminders card does not claim a card is being withheld.
-  await expect(page.getByTestId('payment-reminders-card')).not.toContainText('no due date yet');
+  // And Home's own all-clear does not claim a card is being withheld. TASKS K.5: this read the
+  // reminders card until #369 deleted it, and the Today feed is the better target anyway — its
+  // `emptyReason` is built by `undatedCardsWithBalance`, the very rule under test, which fences out
+  // a zero-balance card because a card that owes nothing withholds nothing.
+  await expect(page.getByTestId('today-feed-card')).not.toContainText('no due date yet');
 
   // The $0 card is still VISIBLE on /cards (never invisible — #277).
   await page.goto('/cards');

@@ -105,7 +105,12 @@ test('first manual account → dashboard explains its sparse cards (no bare $0.0
   await page.goto('/dashboard');
   await expect(page.getByTestId('empty-dashboard')).toHaveCount(0);
   await expect(page.getByTestId('dashboard-safe-to-spend-empty')).toBeVisible({ timeout: 20000 });
-  await expect(page.getByTestId('dashboard-recurring-empty')).toBeVisible();
+  // TASKS K.5: this asserted the recurring summary's empty state until #369 moved recurring off
+  // Home entirely. The INVARIANT is "a sparse card on Home explains itself rather than showing a
+  // bare $0.00", not "the recurring card is on Home" — so it re-points at the card that took that
+  // slot (`RecentTransactionsCard`, added by the same commit), which is sparse in exactly this
+  // fixture: an account exists, no transactions do.
+  await expect(page.getByTestId('dashboard-recent-empty')).toBeVisible();
 
   // Coach page with zero transactions: opportunities and life-energy must explain
   // their emptiness rather than render a silent blank list (production-readiness

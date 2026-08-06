@@ -12,11 +12,23 @@ async function signIn(page: Page) {
   await page.waitForURL('**/dashboard');
 }
 
-test('dashboard surfaces a monthly recurring total', async ({ page }) => {
-  await signIn(page);
-  await expect(page.getByTestId('dashboard-recurring')).toBeVisible();
-  await expect(page.getByTestId('dashboard-recurring-total')).toContainText('$');
-});
+/**
+ * TASKS K.5 — a test stood here: 'dashboard surfaces a monthly recurring total'.
+ *
+ * #369 (2026-08-01) removed the recurring summary from Home deliberately — Home was reordered
+ * around the IWT loop, and that commit states analytics (Ask, top spending, trends, recurring,
+ * reminders, savings rate) belong on their own routes rather than stacked on Home. So there is no
+ * surface to re-point this one at: the claim it guarded is a claim Home no longer makes, and the
+ * monthly total itself is asserted below on /recurring.
+ *
+ * Deleting an assertion about a withdrawn claim is right; deleting it silently is not, which is why
+ * this note stands in its place.
+ *
+ * Found while re-pointing it, recorded rather than fixed here: the ONLY `/recurring` link in the
+ * whole app used to live on that summary card, so the route now has no entry point in the nav —
+ * it is reachable from a transaction's detail view and from /spending-plan, and nowhere else.
+ * That is a navigation question for the owner, not test debt.
+ */
 
 test('recurring view lists subscriptions, a monthly total, and flags the Netflix price increase', async ({
   page,

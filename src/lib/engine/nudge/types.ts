@@ -211,15 +211,35 @@ export interface NudgeFeed {
   /** headline + rest in one canonical-ordered array. */
   ordered: Proposal[];
   /**
-   * The all-clear sentence, with every qualifier this feed owes it already composed in — the
-   * undated cards carrying a balance, and the frozen rows it cannot speak for.
+   * The all-clear sentence, carrying the one qualifier that is only ever true OF an all-clear: the
+   * undated cards holding a balance, which no proposal could represent because nothing could date
+   * them.
    *
    * ALWAYS a string (L.20 critic cycle, finding C-2). It used to be null whenever the engine found
    * a headline, which left the client with a bare literal to fall back on when its own
    * session-dismiss filter emptied the feed — and that literal knew none of the qualifiers. The
    * engine composes the sentence; the surface decides whether it is shown.
+   *
+   * It no longer carries the FROZEN qualifier — see `frozenDueNote`, which had to leave this string
+   * because it is owed to the reader whether or not the all-clear is shown (TASKS K.5).
    */
   emptyReason: string;
+  /**
+   * The frozen rows this feed cannot speak for — a frozen card, a frozen dated loan, or an
+   * undatable frozen loan — or null when there are none. Composed by `frozenNothingDueNote`.
+   *
+   * Rendered UNCONDITIONALLY by the surface, never gated on the feed being empty, and that is the
+   * whole point of it being a field. Until TASKS K.5 it was spliced onto the end of `emptyReason`,
+   * which was safe only while a second surface — the dashboard reminders card #369 deleted —
+   * rendered the same sentence in the non-empty branch. With that card gone the sentence became
+   * reachable only on an empty feed, so a live card being due today silently removed a frozen
+   * mortgage from the page.
+   *
+   * Not exclusive with anything, unlike `fundingFrozen`: no proposal on this feed can carry a
+   * frozen DUE row's fact, because a row we cannot date produces no proposal to attach it to. That
+   * asymmetry is the reason the two halves of this disclosure are separate fields.
+   */
+  frozenDueNote: string | null;
   /**
    * The frozen funding balance NO proposal on this feed accounts for (TASKS L.20) — null when the
    * balance is live, and null when a proposal in `ordered` already carries the same fact.

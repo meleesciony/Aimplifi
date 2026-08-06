@@ -2124,3 +2124,79 @@ See PROGRESS.md and the 8 REGRESSION_LEDGER entries.
    "+ reserves you declared" suffix and once in the Glass-Box clause two lines
    below (copy critic P2). Both are true; neither is redundant on every surface,
    which is why it was not collapsed.
+
+## K.5 — the ten red e2e assertions, and the disclosure one of them was hiding (2026-08-06)
+
+**Shipped.** K.1's full-suite gate found ten deterministic e2e failures and the task row
+attributed all ten to `2e3bf72` (#369, "Home polish", 2026-08-01), which removed
+`PaymentRemindersCard`, `RecurringSummaryCard` and `AskAimplifiCard` from the dashboard.
+All ten reproduce, serialized, against a fresh build. **Eight are #369. Two are not.**
+
+### The premise that was wrong
+
+`phase2-triage.spec.ts:132` fails on `expected "10", received "11"` — a triage queue that
+never advances — and has no dashboard dependency of any kind. The cause is O.17's demo
+fence: `createCustomCategory` returns `DEMO_ENTRY_BLOCKED` for the shared demo user, both
+tests sign in as demo, and both then create a category. `:184` does the same and is masked
+behind `:132` by `mode:'serial'`. Split out as **K.6**; the fence is correct and stays.
+
+The three components are **orphaned** — no render site anywhere — so nothing "moved," and
+each assertion had to be judged on the claim it guarded rather than on its selector.
+
+### The regression the red tests were hiding
+
+`frozenNothingDueNote` composes the L.19/L.20 sentence naming a frozen card, a frozen dated
+loan, or an undatable frozen mortgage — rows an "all clear" cannot honestly cover. It was
+spliced onto the tail of `NudgeFeed.emptyReason`, which the Today feed renders **only in its
+empty branch**. That was safe while the reminders card rendered the same sentence in its
+list branch. #369 deleted that card, so from 2026-08-01 one live card being due today
+removed a frozen mortgage from every page in the web app, leaving the weekly digest **email**
+as the only surface that named it — precisely the gap all three L.20 critics found
+independently, reintroduced by deleting a renderer rather than by editing an engine.
+
+Fixed by promoting it to its own `NudgeFeed.frozenDueNote`, rendered unconditionally beside
+`fundingFrozen` — the other half of the same disclosure, which had been a separate ungated
+field since L.20 for exactly this reason.
+
+Nothing could have caught it: the nudge engine had **zero** `frozenDues` coverage (the field
+appeared only as `frozenDues: []` in a fixture builder), so the composition was asserted
+nowhere and its single renderer could be deleted in silence. Five locks now exist; the
+regression one is sabotage-proven RED by re-gating the field on an empty feed.
+
+Also corrected: `cards-breakdown.tsx` narrowed its all-clear to cards on the stated grounds
+that "the two surfaces whose all-clear covers both are the dashboard reminders card and the
+weekly digest" — a delegation to a surface deleted five days earlier, and a cross-file
+invariant with nothing enforcing it.
+
+### Where the eight went
+
+/cards took the duplicate disclosure and the undated-card section; /calendar took named card
+**and loan** dues (the Today feed's `payment_due` row names no account — `Proposal.merchant`
+is null for that kind — so Home could not take it); the Today feed took the frozen note and
+the zero-balance-undated fence; `dashboard-recent-empty` took the sparse-card invariant from
+the recurring card that used to sit in that slot. One was deleted with a note in its place,
+because Home deliberately no longer claims a recurring total.
+
+Two of my own re-points were wrong and the tests caught them before they shipped: /cards
+makes the **total**-claim, not the reminders card's instruction-claim (correctly — it prints
+`scenario-required` directly above the box, so the L.15 "where is the reader standing" rule
+is satisfied), and the demo Auto Loan is not due in the pinned month at all, so the calendar
+assertion had to step to the next month rather than assert a loan the fixture cannot show.
+
+### Gate
+
+tsc 0 / eslint 0 / **6,166 unit + 1 skipped across 374 files** (from 6,161/374) / build clean.
+The eight re-pointed specs: **34/34** serialized.
+
+### OPEN after K.5, ranked
+
+1. **K.6 — the last two reds.** They need a non-demo user holding a multi-row needs-review
+   group; the defect under test is a React dispatch ordering, so it cannot move to a unit
+   test. Until it closes, `VERIFY_E2E=1` still cannot exit 0.
+2. **`/recurring` has no nav-level entry point.** Its only link in the whole app lived on the
+   orphaned `RecurringSummaryCard`. The route is still reachable from a transaction's detail
+   view and from /spending-plan, so no figure is wrong — this is a navigation question for the
+   owner, recorded rather than fixed.
+3. **A shipped fence has now left the full suite red three times** (#244, K.3, K.6) because
+   `VERIFY_E2E=1` is opt-in. A cheap grep-level guard for demo-driven writes in specs would
+   have caught all three.

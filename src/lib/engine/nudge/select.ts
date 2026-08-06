@@ -430,15 +430,27 @@ export function buildNudgeFeed(input: NudgeInput): NudgeFeed {
   // all-clear will be shown; deciding WHETHER to show it is the surface's business, and composing
   // it honestly is this engine's.
   const undatedCount = cashNeeded ? undatedCardsWithBalance(cashNeeded).length : 0;
-  // The frozen rows this feed also cannot speak for (finding C-1) — a frozen card, a frozen dated
-  // loan, or an undatable frozen loan, none of which the funding-balance disclosure below covers.
-  const frozenDueNote = frozenNothingDueNote(input.frozenDues, { nextStep: 'accounts-route' });
   const emptyReason =
-    (undatedCount > 0
+    undatedCount > 0
       ? `Nothing needs you today on what we can date — ${
           undatedCount === 1 ? 'one card has' : `${undatedCount} cards have`
         } no due date yet, so ${undatedCount === 1 ? 'it isn’t' : 'they aren’t'} included.`
-      : 'Nothing needs you today.') + (frozenDueNote ? ` ${frozenDueNote}` : '');
+      : 'Nothing needs you today.';
+
+  // The frozen rows this feed cannot speak for (L.20 finding C-1) — a frozen card, a frozen dated
+  // loan, or an undatable frozen loan, none of which the funding-balance disclosure below covers.
+  //
+  // ITS OWN FIELD, no longer a tail spliced onto `emptyReason` (TASKS K.5). It was a substring
+  // because a second surface rendered it in the non-empty case: the dashboard reminders card, whose
+  // list branch appended the same sentence to "Upcoming card & loan payments this cycle". #369
+  // deleted that card, and nothing inherited the branch — so from 2026-08-01 the sentence reached a
+  // reader only while the feed was EMPTY, and one unrelated card being due removed a frozen
+  // mortgage from the only place on the web app that named it. That is precisely the gap all three
+  // L.20 critics found independently, reintroduced not by changing this engine but by deleting a
+  // renderer. A qualifier that is exclusive with the all-clear cannot survive as part of the
+  // all-clear's own sentence; `fundingFrozen` below is the same disclosure's other half and has
+  // been a separate, ungated field since L.20 for exactly this reason.
+  const frozenDueNote = frozenNothingDueNote(input.frozenDues, { nextStep: 'accounts-route' });
 
   // The frozen funding balance NOBODY above accounts for (TASKS L.20).
   //
@@ -468,5 +480,5 @@ export function buildNudgeFeed(input: NudgeInput): NudgeFeed {
     : null;
   const fundingFrozen = stated ? null : (fromCashNeeded ?? radar?.startingBalanceFrozen ?? null);
 
-  return { headline, rest, ordered, emptyReason, fundingFrozen };
+  return { headline, rest, ordered, emptyReason, frozenDueNote, fundingFrozen };
 }

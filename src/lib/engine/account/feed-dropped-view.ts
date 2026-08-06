@@ -810,6 +810,15 @@ export function frozenProjectionNote(
 export const FROZEN_FEED_TESTID = 'today-feed-frozen';
 
 /**
+ * The dashboard Today feed: `frozenNothingDueNote`'s output — the frozen DUE rows the feed cannot
+ * speak for. Distinct from `FROZEN_FEED_TESTID` above, which is the funding BALANCE half of the
+ * same disclosure: the two sentences name different accounts and can be true at once, so a reader
+ * (and a test) must be able to tell them apart. Separated in TASKS K.5, when this half lost the
+ * surface that used to render it in the non-empty case.
+ */
+export const FROZEN_DUES_TESTID = 'today-feed-frozen-dues';
+
+/**
  * The dashboard "Today" feed, when the funding balance is frozen and NO nudge on the feed says so
  * (TASKS L.20).
  *

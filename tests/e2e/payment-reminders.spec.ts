@@ -1,7 +1,7 @@
 /**
  * Payment reminders (ROADMAP #6) — the in-app surface + the cron mechanism's gate.
- * The dashboard shows upcoming card payments (derived from the same obligations as
- * the headline), and the reminder cron route is secret-guarded like sync.
+ * /calendar shows upcoming card and loan payments (derived from the same obligations
+ * as the headline), and the reminder cron route is secret-guarded like sync.
  */
 import { type Page, expect, test } from './helpers/test';
 
@@ -11,22 +11,40 @@ async function signIn(page: Page) {
   await page.waitForURL('**/dashboard');
 }
 
-test('dashboard surfaces upcoming card payments', async ({ page }) => {
+/**
+ * TASKS K.5 — re-pointed from the dashboard to /calendar.
+ *
+ * This asserted the dashboard reminders card, which #369 deleted on 2026-08-01. The capability it
+ * guarded — upcoming dues listed by NAME, cards and loans in one place — did not move to /cards,
+ * which is cards-only by design (L.19), and did not survive on Home: the Today feed's `payment_due`
+ * row prints "Payment due — $X by DATE" and names no account at all (`Proposal.merchant` is null
+ * for that kind). /calendar is the one surface that still names both, painting `card-due` and
+ * `loan-due` events with the account label and a "due" badge, which is what K.1 built.
+ *
+ * The "no card listed twice" half does NOT move here: on a calendar a card legitimately recurs
+ * across months, so counting labels would assert the wrong thing. That invariant is guarded where
+ * it belongs — per-cardId rows on /cards, and dashboard-duplicate-disclosure.spec's explicit
+ * two-copies fixture.
+ */
+test('upcoming card AND loan payments are listed by name — /calendar', async ({ page }) => {
   await signIn(page);
-  const card = page.getByTestId('payment-reminders-card');
-  await expect(card).toBeVisible();
-  await expect(card).toContainText('Payment reminders');
-  // The seed has cards due this cycle → at least one reminder row.
-  await expect(page.getByTestId('reminder-row').first()).toBeVisible();
+  await page.goto('/calendar');
 
-  // No card is listed twice (the cards/upcoming overlap double-count is fixed).
-  const names = await page.getByTestId('reminder-card-name').allInnerTexts();
-  expect(names.length).toBeGreaterThanOrEqual(1);
-  expect(new Set(names).size).toBe(names.length);
+  const list = page.getByTestId('calendar-list');
+  await expect(list).toBeVisible({ timeout: 20_000 });
 
-  // The seed Auto Loan now surfaces here too (#134): loan payments share the reminders
-  // surface with cards, while the cash-needed dollar headline stays card-only.
-  await expect(card).toContainText('Auto Loan');
+  // The seed has cards due this cycle → dated due events, each named and badged.
+  await expect(list).toContainText('Platinum Card due');
+  await expect(list).toContainText('Sapphire Card due');
+  await expect(list.getByText('due', { exact: true }).first()).toBeVisible();
+
+  // The seed Auto Loan surfaces the same way (#134): loan payments share this surface with cards,
+  // while the cash-needed dollar headline stays card-only. It is not in the CURRENT month — its
+  // anchor sits on or before the pinned today (2026-06-10) and `build.ts` skips a due already
+  // past — so this steps to the next month rather than asserting a loan the fixture cannot show
+  // here. The claim under test is that a loan appears as a named due at all, not which month.
+  await page.getByTestId('cal-next').click();
+  await expect(page.getByTestId('calendar-list')).toContainText('Auto Loan');
 });
 
 test('reminder cron route requires the secret', async ({ browser }) => {

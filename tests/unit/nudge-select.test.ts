@@ -1028,3 +1028,74 @@ describe('nudge feed — the frozen funding balance (L.20)', () => {
     for (const p of feed.ordered) expect(p.fundingFrozen).toBeNull();
   });
 });
+
+/**
+ * TASKS K.5 — the frozen DUE rows, and the field they had to become.
+ *
+ * Until this slice `frozenNothingDueNote`'s output was spliced onto the end of `emptyReason`, which
+ * was only ever safe because a second surface rendered the same sentence in the NON-empty case: the
+ * dashboard reminders card, whose list branch appended it under "Upcoming card & loan payments this
+ * cycle". #369 deleted that card on 2026-08-01 and nothing inherited the branch, so for five days
+ * the sentence reached a reader only while the feed was empty — one live card being due removed a
+ * frozen mortgage from the only place on the web app that named it.
+ *
+ * Nothing in this suite could catch that: the engine had no `frozenDues` coverage at all, so the
+ * composition was asserted nowhere and its single renderer could be deleted in silence. These are
+ * the locks that were missing, and they are written in BOTH directions — the note must appear when
+ * a frozen row exists whether or not a headline does, and must stay absent when none does.
+ */
+describe('TASKS K.5 — frozenDueNote is owed to the reader independently of the all-clear', () => {
+  const MORTGAGE = {
+    label: 'Home Mortgage',
+    frozenSince: '2026-05-02',
+    ownership: 'reader' as const,
+    kind: 'undatable-loan' as const,
+    missing: 'due-day' as const,
+  };
+
+  it('an undatable frozen loan is named on an EMPTY feed', () => {
+    const feed = buildNudgeFeed(input({ frozenDues: [MORTGAGE] }));
+    expect(feed.headline).toBeNull();
+    expect(feed.frozenDueNote).toContain('Home Mortgage');
+  });
+
+  it('THE REGRESSION: it is still named when an unrelated payment IS due', () => {
+    // The exact state #369 left broken. A live card due today produces a headline, the surface
+    // takes its non-empty branch, and before K.5 the only carrier of this sentence — `emptyReason`
+    // — went unrendered. The mortgage vanished from the page precisely when the reader was most
+    // likely to be looking at it.
+    const feed = buildNudgeFeed(
+      input({
+        frozenDues: [MORTGAGE],
+        cashNeeded: cashNeededOf({ shortfallCents: 25000 }),
+      }),
+    );
+    expect(feed.headline).not.toBeNull();
+    expect(feed.frozenDueNote).toContain('Home Mortgage');
+  });
+
+  it('the note is NOT inside emptyReason any more — one sentence, one carrier', () => {
+    // Both are rendered on the same card, so leaving the qualifier in both places would print it
+    // twice on an empty feed. The all-clear keeps only the qualifier that is true OF an all-clear.
+    const feed = buildNudgeFeed(input({ frozenDues: [MORTGAGE] }));
+    expect(feed.emptyReason).toBe('Nothing needs you today.');
+    expect(feed.emptyReason).not.toContain('Home Mortgage');
+  });
+
+  it('no frozen dues → no note, on an empty feed and a busy one alike (the abstention)', () => {
+    expect(buildNudgeFeed(input()).frozenDueNote).toBeNull();
+    expect(
+      buildNudgeFeed(input({ cashNeeded: cashNeededOf({ shortfallCents: 25000 }) })).frozenDueNote,
+    ).toBeNull();
+  });
+
+  it('a frozen CARD and a frozen dated LOAN reach it too, not just the undatable case', () => {
+    // `frozenNothingDueRows` emits three kinds and the note words each differently; this pins that
+    // the feed carries whatever it is given rather than the one kind the e2e happens to seed.
+    const card = { ...MORTGAGE, label: 'Sapphire', kind: 'card' as const, missing: null };
+    const loan = { ...MORTGAGE, label: 'Auto Loan', kind: 'loan' as const, missing: null };
+    const feed = buildNudgeFeed(input({ frozenDues: [card, loan] }));
+    expect(feed.frozenDueNote).toContain('Sapphire');
+    expect(feed.frozenDueNote).toContain('Auto Loan');
+  });
+});

@@ -13,7 +13,11 @@ import {
   tierRule,
   whyInputs,
 } from '@/components/dashboard/today-feed-copy';
-import { FROZEN_FEED_TESTID, frozenNoWarningNote } from '@/lib/engine/account/feed-dropped-view';
+import {
+  FROZEN_DUES_TESTID,
+  FROZEN_FEED_TESTID,
+  frozenNoWarningNote,
+} from '@/lib/engine/account/feed-dropped-view';
 import { logEngagement } from '@/server/engagement-actions';
 import { dismissNudge } from '@/server/nudge-actions';
 import { confirmIncomePauseAction, undoIncomePauseAction } from '@/server/income-pause-actions';
@@ -131,6 +135,18 @@ export function TodayFeedCard({
                 the engine's all-clear must be readable whenever that filter empties the feed —
                 and the literal that used to stand in here knew none of its qualifiers. */}
             {base.emptyReason}
+          </p>
+        )}
+
+        {/* The frozen DUE rows no proposal above can carry (TASKS K.5) — a frozen card, a frozen
+            dated loan, or an undatable frozen loan. Outside the branch above on purpose: a row the
+            feed cannot date produces no proposal, so nothing here can ever state this fact for it,
+            and gating it on the all-clear meant one live payment being due took a frozen mortgage
+            off the page. That was the state between #369 and K.5, and it is the same reasoning that
+            already keeps the funding balance below ungated. */}
+        {base.frozenDueNote && (
+          <p data-testid={FROZEN_DUES_TESTID} className="text-muted-foreground">
+            {base.frozenDueNote}
           </p>
         )}
 

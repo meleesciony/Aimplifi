@@ -30,6 +30,13 @@ const DROPPED_AT = '2026-05-20';
 
 const FEED = 'today-feed-card';
 const FEED_FROZEN = 'today-feed-frozen';
+/**
+ * The frozen DUE rows (TASKS K.5). Until K.5 these two tests read the dashboard reminders card,
+ * which #369 deleted on 2026-08-01; the sentence now renders on the Today feed as its own
+ * paragraph, ungated, exactly as `FEED_FROZEN` above already was. Different testid because the two
+ * name different accounts and can both be true at once.
+ */
+const FEED_FROZEN_DUES = 'today-feed-frozen-dues';
 const SHORTFALL_FROZEN = 'nudge-frozen-cash_needed_shortfall';
 
 async function signUpThrowaway(page: Page): Promise<string> {
@@ -222,17 +229,19 @@ test.describe('TASKS L.20 — the Today feed and a frozen funding balance', () =
     seedUndatableFrozenLoan(email, 'Home Mortgage');
     await page.goto('/dashboard');
 
-    const card = page.getByTestId('payment-reminders-card');
+    const card = page.getByTestId(FEED);
     await expect(card).toBeVisible();
-    // The positive half is still stated, then narrowed — never replaced (L.19 critic P2-2).
-    await expect(card).toContainText('You’re all caught up');
-    await expect(card).toContainText('Home Mortgage');
+    // The positive half is still stated, then narrowed — never replaced (L.19 critic P2-2). The
+    // all-clear moved surfaces with the card #369 deleted, so its wording is the feed's own.
+    await expect(page.getByTestId('today-feed-empty')).toContainText('Nothing needs you today');
+    const dues = page.getByTestId(FEED_FROZEN_DUES);
+    await expect(dues).toContainText('Home Mortgage');
     // This fixture holds a $1,842.50 payment and no due day, so the sentence must name the due
     // date as the thing we lack and NOT deny holding the payment (L.20 critic cycle, B-2).
-    await expect(card).toContainText('we hold no due date for it');
-    await expect(card).not.toContainText('no due date and no payment amount');
+    await expect(dues).toContainText('we hold no due date for it');
+    await expect(dues).not.toContainText('no due date and no payment amount');
     // Not the datable-loan wording, which would describe a stored due date it does not have.
-    await expect(card).not.toContainText('a change to its payment or due date since');
+    await expect(dues).not.toContainText('a change to its payment or due date since');
   });
 
   test('the undatable loan is still named when another payment IS due', async ({ page }) => {
@@ -240,6 +249,12 @@ test.describe('TASKS L.20 — the Today feed and a frozen funding balance', () =
     // into the empty branch, and an `undatable-loan` can never be a reminder — so one unrelated
     // card being due removed the mortgage from the only sentence that ever named it. The mixed
     // case is the likelier one and the cost is a missed mortgage payment.
+    //
+    // TASKS K.5: this test caught the gap a SECOND time, five days after #369 reintroduced it by
+    // deleting the reminders card — the surface that carried the sentence in this exact branch —
+    // while the engine that composed it was never touched. Hence `frozenDueNote` is now a field of
+    // its own, rendered whether or not the feed is empty, and the assertion below is the one that
+    // goes red if anything ever gates it on the all-clear again.
     const email = await signUpThrowaway(page);
     seedUndatableFrozenLoan(email, 'Home Mortgage');
     // A wholly LIVE card with a real statement due 2026-06-25, funded well above it: the dues list
@@ -252,14 +267,17 @@ test.describe('TASKS L.20 — the Today feed and a frozen funding balance', () =
     });
     await page.goto('/dashboard');
 
-    const card = page.getByTestId('payment-reminders-card');
+    const card = page.getByTestId(FEED);
     await expect(card).toBeVisible();
-    // The list is non-empty — this is the branch that used to say nothing at all.
-    await expect(card).toContainText('Upcoming card & loan payments this cycle');
-    await expect(card).toContainText('Home Mortgage');
-    await expect(card).toContainText('we hold no due date for it');
+    // The feed is non-empty — this is the branch that used to say nothing at all. The live card
+    // produces a headline, so the all-clear paragraph is absent by construction…
+    await expect(page.getByTestId('today-feed-empty')).toHaveCount(0);
+    // …and the mortgage is named anyway, which is the entire point.
+    const dues = page.getByTestId(FEED_FROZEN_DUES);
+    await expect(dues).toContainText('Home Mortgage');
+    await expect(dues).toContainText('we hold no due date for it');
     // The all-clear wording must NOT appear — there is something due, and the claim being made is
     // narrower: this list is incomplete, not empty.
-    await expect(card).not.toContainText('You’re all caught up');
+    await expect(card).not.toContainText('Nothing needs you today');
   });
 });

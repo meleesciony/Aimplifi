@@ -4958,3 +4958,57 @@ commit's intent read first, not a mechanical regex pass. I initially misread two
 truncated outputs as "passes in isolation" and called this flake — same lesson
 as the masked exit code: proof is the command's own `$?` and the FULL failure
 list, never a trimmed tail.
+
+## #420 — K.5: a qualifier exclusive with an all-clear becomes a field, not a substring (2026-08-06)
+
+**Context.** K.5 said ten e2e assertions "assert a dashboard that no longer exists" after
+#369 orphaned `PaymentRemindersCard`, `RecurringSummaryCard` and `AskAimplifiCard`. Eight do.
+Two (`phase2-triage:132`, and `:184` masked behind it by serial abort) are O.17's demo fence
+on `createCustomCategory` and have no dashboard dependency — split out as **K.6**. Reproducing
+before inheriting the diagnosis is what separated them; #419's own entry above records the
+same lesson one step earlier.
+
+**Decision 1 — `NudgeFeed.frozenDueNote` is its own field.** `frozenNothingDueNote` composes
+the L.19/L.20 sentence for rows an all-clear cannot cover (frozen card, frozen dated loan,
+undatable frozen loan). It was spliced onto the end of `emptyReason`, which the Today feed
+renders only in its empty branch — safe only because the reminders card rendered the same
+sentence in its list branch. #369 deleted that card, so a single live due card removed a
+frozen mortgage from every page of the web app, leaving the weekly digest email as the sole
+carrier. The rule adopted: **a qualifier that is owed to the reader whether or not the
+all-clear is shown may not live inside the all-clear's own sentence.** `fundingFrozen` — the
+other half of this disclosure — had already been a separate ungated field since L.20; this
+half stayed a substring only because a second renderer happened to exist. The two are not
+symmetric and the type now says why: `fundingFrozen` is exclusive with a proposal carrying the
+same fact, while nothing on the feed can ever carry a frozen DUE row's fact, because a row we
+cannot date produces no proposal to attach it to.
+
+**Decision 2 — the eight re-points are judged by claim, not by selector.** Nothing "moved":
+the components are orphaned. /cards took the duplicate disclosure and the undated section;
+/calendar took named card AND loan dues, because the Today feed's `payment_due` row names no
+account at all (`Proposal.merchant` is null for that kind); the Today feed took the frozen
+note and the zero-balance-undated fence; `dashboard-recent-empty` took the sparse-card
+invariant from the card that replaced the recurring one in that slot. `recurring.spec`'s
+dashboard test was DELETED with a note in its place — Home deliberately no longer claims a
+recurring total, so there is no surface to re-point at and no coverage lost.
+
+**Decision 3 — the cross-surface consistency tests were re-established, not dropped**, per the
+K.5 row's own instruction. "The hero and the reminders name the same card the same way" now
+spans /dashboard ↔ /cards, which run SEPARATE identity passes over separately-ordered lists —
+making the #299 residual more available than when both were on one page, not less. It passes.
+
+**Corrected en route.** `cards-breakdown.tsx` narrowed its all-clear to cards because "the two
+surfaces whose all-clear covers both are the dashboard reminders card and the weekly digest" —
+a delegation to a surface deleted five days earlier, and a cross-file invariant nothing
+enforced. True again now, and the comment says why it once wasn't.
+
+**Two of my own re-points were wrong and the tests caught them first:** /cards makes the
+total-claim rather than the reminders card's instruction-claim (correct — it prints
+`scenario-required` immediately above the box, satisfying L.15's "where is the reader
+standing" rule), and the demo Auto Loan has no due in the pinned month, so the calendar
+assertion steps to the next month rather than asserting a loan the fixture cannot show.
+
+**Why nothing caught the regression:** the nudge engine had ZERO `frozenDues` coverage — the
+field appeared only as `frozenDues: []` in a fixture builder — so the composition was asserted
+nowhere and its only renderer could be deleted in silence. Five locks now exist; the
+regression one is sabotage-proven RED by re-gating the field on an empty feed. Lesson filed as
+`docs/lessons/deleting-a-surface-deletes-the-claims-it-carried.md`.

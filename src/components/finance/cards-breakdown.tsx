@@ -209,8 +209,14 @@ export function CardsBreakdown({
                       ? ('partner' as const)
                       : ('reader' as const),
                     // /cards lists cards and nothing else, so this set cannot contain a loan
-                    // (TASKS L.19). The two surfaces whose all-clear covers both are the dashboard
-                    // reminders card and the weekly digest.
+                    // (TASKS L.19). The two surfaces whose all-clear covers BOTH are the dashboard
+                    // Today feed's `frozenDueNote` and the weekly digest.
+                    //
+                    // This comment used to name the dashboard reminders card, which #369 deleted on
+                    // 2026-08-01 — leaving a cards-only exclusion here justified by a surface that
+                    // no longer rendered, and the digest email as the only place a frozen loan's
+                    // all-clear could reach anyone. TASKS K.5 put the claim back on the dashboard;
+                    // this narrowing is safe again because that sentence exists again.
                     kind: 'card' as const,
                     // `missing` describes an undatable LOAN's absent field; a card is never one.
                     missing: null,

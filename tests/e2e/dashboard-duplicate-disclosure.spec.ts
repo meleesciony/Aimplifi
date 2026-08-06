@@ -114,59 +114,90 @@ test('the dashboard says a card may be counted twice — and still shows the una
 
   // DISCLOSE, NEVER ADJUST: the headline is still the sum of both copies. This is the assertion
   // that would catch a future "helpful" subtraction — which would assert two rows are one card.
-  const rows = page.getByTestId('reminder-row');
-  await expect(rows).toHaveCount(2);
-  const rowCents = await Promise.all(
-    (await rows.allInnerTexts()).map((t) => Promise.resolve(centsFrom(t))),
-  );
-  expect(rowCents[0]).toBe(rowCents[1]);
-  const headlineCents = centsFrom(await page.getByTestId('cash-needed-amount').innerText());
-  expect(headlineCents).toBe(rowCents[0] + rowCents[1]);
-
-  // The reminders list makes its OWN claim, about a duplicated instruction rather than a total it
-  // does not have.
-  const remindersCard = page.getByTestId('payment-reminders-card');
-  const listDisclosure = remindersCard.getByTestId('cards-duplicate');
-  await expect(listDisclosure).toBeVisible();
-  // Says nothing about WHICH CYCLE: the reminders list carries estimated obligations too, so a
-  // "this cycle" claim here contradicted the hero calling the same pair next-cycle estimates.
-  await expect(listDisclosure).toContainText('asking to be paid twice');
-  await expect(listDisclosure).not.toContainText('this cycle');
-  await expect(listDisclosure).toContainText('No amount below has been adjusted');
-  await expect(listDisclosure).not.toContainText('counted in the total above');
-
-  // Two rows for two Account ids, painted DIFFERENTLY — the whole point of naming them. With the
-  // same name and the same last-4 on both, only the positional marker can separate them.
-  const names = await remindersCard.getByTestId('reminder-card-name').allInnerTexts();
-  expect(names).toHaveLength(2);
-  expect(names[0].trim()).not.toBe(names[1].trim());
-
+  //
+  // TASKS K.5: the per-copy rows were the reminders card's, which #369 deleted. The same two rows
+  // are on /cards, keyed per cardId, so the sum identity is checked there instead — below.
+  //
   // Announced, not merely coloured: without this a screen-reader user meets the figure and the
   // transfer instruction under it with no signal that either is qualified.
   await expect(heroDisclosure).toHaveAttribute('role', 'alert');
-  // And EXACTLY one alert region. Both cards are on screen at load with the same title and a
-  // near-identical body, so a second alert announces the same sentence twice before the reader
-  // reaches either list (critic P2). The reminders copy is read in document order instead.
-  await expect(listDisclosure).not.toHaveAttribute('role', 'alert');
+  // And EXACTLY one alert region ON THIS PAGE (critic P2 — a second alert announced the same
+  // sentence twice before the reader reached either list). With the reminders card gone the hero is
+  // the only `cards-duplicate` Home renders, so this now also pins that nothing re-introduces a
+  // second one here.
   await expect(page.locator('[role="alert"][data-testid="cards-duplicate"]')).toHaveCount(1);
+  await expect(page.getByTestId('cards-duplicate')).toHaveCount(1);
 });
 
-test('the hero and the reminders call the same card the SAME thing', async ({ page }) => {
-  // A fresh-context critic reproduced the #299 residual across COMPONENTS: each ran its own
-  // `cardIdentityLabels` pass over its own list, and since the numbering is by position, "1." meant
-  // one account in the hero and a different one on the reminders card six inches below. The page
-  // now computes one pass and hands it down. With the same name AND the same last-4 on both rows,
-  // the positional marker is the only thing separating them, so this is the state that catches it.
+test('/cards discloses the pair over its OWN total, and the two rows still sum to it', async ({
+  page,
+}) => {
+  // The other half of the test above, which lived on the dashboard until #369 deleted the surface
+  // that carried it. It has to stay SOMEWHERE: the pair of rows is what proves the total was never
+  // quietly adjusted, and the disclosure is what stops a doubled figure reading as a real one.
+  //
+  // Written against what /cards ACTUALLY claims, which is the total-claim wording, not the
+  // reminders card's "asking to be paid twice". That is correct here and was not a copy-paste: the
+  // reminders card had no total of its own, so it could only speak about a duplicated instruction,
+  // while /cards prints "Needs $X by DATE" directly above this box. The L.15 rule — a qualifying
+  // sentence carries an implicit claim about where the reader is standing — is satisfied because
+  // the reader IS standing over a total here. Same reason its box keeps `role="alert"`: on this
+  // page it is the only one, so the double-announcement the dashboard critic caught cannot occur.
   const email = await signUpThrowaway(page);
   seedDuplicateCard(email);
+
   await page.goto('/dashboard');
   await expect(page.getByTestId('cash-needed-card')).toBeVisible({ timeout: 20_000 });
+  const headlineCents = centsFrom(await page.getByTestId('cash-needed-amount').innerText());
 
+  await page.goto('/cards');
+  const listDisclosure = page.getByTestId('cards-duplicate');
+  await expect(listDisclosure).toBeVisible({ timeout: 20_000 });
+  await expect(listDisclosure).toContainText('One card may be listed twice');
+  await expect(listDisclosure).toContainText('Both are counted in the total above');
+  await expect(listDisclosure).toContainText('No figure above has been adjusted');
+  await expect(listDisclosure).toHaveAttribute('role', 'alert');
+
+  // The total the sentence points at really is above it, and really does hold both copies.
+  const pageTotalCents = centsFrom(await page.getByTestId('scenario-required').innerText());
+  const amounts = await page.locator('[data-testid^="user-action-"]').allInnerTexts();
+  expect(amounts).toHaveLength(2);
+  const rowCents = amounts.map(centsFrom);
+  expect(rowCents[0]).toBe(rowCents[1]);
+  expect(pageTotalCents).toBe(rowCents[0] + rowCents[1]);
+  // …and it is the SAME total Home printed. Two routes, two engines' worth of assembly, one figure
+  // — which is what makes the disclosure's wording interchangeable between them in the first place.
+  expect(pageTotalCents).toBe(headlineCents);
+});
+
+test('the hero and /cards call the same card the SAME thing', async ({ page }) => {
+  // A fresh-context critic reproduced the #299 residual across COMPONENTS: each ran its own
+  // `cardIdentityLabels` pass over its own list, and since the numbering is by position, "1." meant
+  // one account in the hero and a different one on the reminders card six inches below. With the
+  // same name AND the same last-4 on both rows, the positional marker is the only thing separating
+  // them, so this is the state that catches it.
+  //
+  // TASKS K.5: #369 deleted the reminders card, so the two surfaces this invariant spans are no
+  // longer two components on one page — they are the dashboard hero and /cards, which run
+  // SEPARATE identity passes over separately-ordered lists. That makes the disagreement it guards
+  // against more available than before, not less, which is why it is re-pointed rather than
+  // dropped: a reader who reads "Card 1" on Home and acts on "Card 1" on /cards must be looking at
+  // one account.
+  const email = await signUpThrowaway(page);
+  seedDuplicateCard(email);
+
+  await page.goto('/dashboard');
+  await expect(page.getByTestId('cash-needed-card')).toBeVisible({ timeout: 20_000 });
   const heroText = await page.getByTestId('due-date-list').innerText();
-  const rowNames = (await page.getByTestId('reminder-card-name').allInnerTexts()).map((t) => t.trim());
+
+  await page.goto('/cards');
+  await expect(page.getByTestId('cards-duplicate')).toBeVisible({ timeout: 20_000 });
+  const rowNames = (await page.locator('[data-testid^="card-identity-"]').allInnerTexts()).map((t) =>
+    t.trim(),
+  );
   expect(rowNames).toHaveLength(2);
   expect(rowNames[0]).not.toBe(rowNames[1]);
-  // Every name the reminders card paints is painted by the hero too, character for character.
+  // Every name /cards paints is painted by the hero too, character for character.
   for (const name of rowNames) expect(heroText).toContain(name);
 });
 

@@ -2089,3 +2089,30 @@ construction, so a backfill cannot be made to run there. That it reaches past th
 90-day floor, stays add-only across a three-year overlap, and converges under the
 per-run cap is proven by `tests/unit/simplefin-history-backfill{,-server,-scale}.test.ts`
 against a mocked bridge — and by the fail-old checks recorded above, not by this script.
+
+## K.5 — ten red e2e assertions; eight closed, one live regression found (2026-08-06)
+
+**Done.** Reproduced all ten serialized against a fresh build before touching anything; the
+task row's attribution ("commit 2e3bf72 … so all ten fail deterministically") holds for eight
+and is wrong for two.
+
+**Found:** `PaymentRemindersCard`, `RecurringSummaryCard`, `AskAimplifiCard` are orphaned —
+no render site anywhere, so no assertion could simply be re-pointed by selector. The eighth
+failure was hiding a live regression: `frozenNothingDueNote` (the L.19/L.20 sentence naming a
+frozen card / loan / undatable mortgage) lived as a tail on `NudgeFeed.emptyReason`, which the
+Today feed renders only when empty; the deleted reminders card had been the non-empty renderer,
+so since 2026-08-01 one live due card removed a frozen mortgage from the whole web app, leaving
+only the weekly digest email. Promoted to `NudgeFeed.frozenDueNote`, rendered unconditionally
+beside `fundingFrozen`. Also corrected a `cards-breakdown.tsx` comment delegating its all-clear
+narrowing to that deleted card.
+
+**Blocked/split:** `phase2-triage.spec.ts:132` and `:184` are O.17's demo fence on
+`createCustomCategory`, not #369 — recorded as **K.6** with the fixture options ranked. `:184`
+was masked behind `:132` by serial abort, so the true red count in that file is 2, not 1.
+
+**Gate:** tsc 0 / eslint 0 / 6,166 unit + 1 skipped / 374 files / build clean; the eight
+re-pointed specs 34/34 serialized; the new engine lock sabotage-proven RED by re-gating
+`frozenDueNote` on an empty feed. Full-suite result recorded in docs/STATUS.md §K.5.
+
+**Next:** K.6 closes the last two reds and with them `VERIFY_E2E=1`; K.4 (the register's
+filtered-scope bounds) is the next product slice.
