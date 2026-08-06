@@ -93,7 +93,7 @@ export function similarTransactionsWhere(
 }
 
 export async function getTriageItems(userId: string): Promise<TriageItem[]> {
-  const [txns, rules, meta, tuning, corrections] = await Promise.all([
+  const [rawTxns, keepsReconciled, rules, meta, tuning, corrections] = await Promise.all([
     prisma.transaction.findMany({
       // Currency guard (DECISIONS #135): a withheld non-USD account's rows must not appear in the
       // categorization inbox either (consistency with /accounts + the register).
@@ -107,19 +107,21 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
       },
       include: { account: { select: { name: true, displayName: true } }, merchant: true },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
-    }).then(async (rows) => {
-      // Reconciliation boundary (slice-6 critic C-9): a successor backfill's copies of
-      // claim-span rows arrive needsReview, but the boundary excludes them from every sum —
-      // queueing them asks the user to categorize rows that count in nothing (and shows the
-      // same real purchase twice). Same shared R1 rule as the register; groups/badge match.
-      const keepsReconciled = await getReconciliationTxnKeep(userId);
-      return rows.filter((t) => keepsReconciled(t.accountId, t.date));
     }),
+    // Reconciliation boundary (slice-6 critic C-9): a successor backfill's copies of
+    // claim-span rows arrive needsReview, but the boundary excludes them from every sum —
+    // queueing them asks the user to categorize rows that count in nothing (and shows the
+    // same real purchase twice). Same shared R1 rule as the register; groups/badge match.
+    // Fetched once here because `similarCount` below needs the same rule (H.8
+    // critic P1-1): the "apply to N similar" number must be the set the batch
+    // writers actually touch, and those are now keep-filtered too.
+    getReconciliationTxnKeep(userId),
     loadUserRules(userId), // the user's own rules drive suggestions (cycle-1 C2)
     getCategoryMeta(userId), // a custom-category suggestion (via a user rule) resolves its name (#111)
     getThresholdTuning(userId), // suggestions use the same tuned boundary ingest does (#190)
     loadCorrectionInputs(userId), // personalized swipe-left alternatives (#207)
   ]);
+  const txns = rawTxns.filter((t) => keepsReconciled(t.accountId, t.date));
 
   const items: TriageItem[] = [];
   for (const t of txns) {
@@ -154,14 +156,21 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
     const alts = [...new Set([...pool, 'dining', 'groceries', 'household', 'cash'])]
       .filter((c) => c !== suggested)
       .slice(0, 3);
+    // Keep-filtered like the batch write it advertises (H.8 critic P1-1): a raw
+    // count here included disowned duplicate rows the queue itself hides, so the
+    // button promised more rows than any screen shows. A windowed keep cannot
+    // live in a Prisma count where-clause — fetch the two fields and count.
     const similarCount = t.merchantId
-      ? await prisma.transaction.count({
-          where: similarTransactionsWhere(userId, {
-            merchantId: t.merchantId,
-            rawDescriptor: t.rawDescriptor,
-            aggregate,
-          }),
-        })
+      ? (
+          await prisma.transaction.findMany({
+            where: similarTransactionsWhere(userId, {
+              merchantId: t.merchantId,
+              rawDescriptor: t.rawDescriptor,
+              aggregate,
+            }),
+            select: { accountId: true, date: true },
+          })
+        ).filter((r) => keepsReconciled(r.accountId, r.date)).length
       : 1;
     items.push({
       id: t.id,

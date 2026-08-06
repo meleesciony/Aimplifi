@@ -4666,3 +4666,46 @@ the whole suite stayed green.
 114 flags and 39 overturns justified from scratch, two residual false ones (the
 $0.07 interest rows). Unrepaired set: 53 rows / $29,848.84. Cycle 2 is owed — the
 fixes are sabotage-locked and re-gated, not yet adversarially reviewed.
+
+## #416 — a reader that describes or writes what a register shows must apply the register's own ownership rule
+
+**2026-08-06 · Fable 5 session · TASKS H.8**
+
+**The decision, in one line:** the R1 reconciliation keep (`getReconciliationTxnKeep`)
+is not a property of the register — it is the definition of which transaction rows the
+user OWNS on a screen — so every count rendered about those rows and every batch write
+aimed at them applies it, through one post-fetch filter site per reader, while a
+pure EVIDENCE reader (corrections feeding learned rules) deliberately does not.
+
+**Measured first, fixed second** (`scripts/audit-probes/h8-boundary-readers.mts`,
+read-only against production, 26 active links): of the six unboundaried readers H.8
+enumerated, two were clean (spending-plan loan inflows — delta 0, merchant sets
+byte-identical; household digest — structurally protected) and three reached rendered
+numbers or write sets: self-audit rendered "75 of 2,456 needed sorting" against a
+triage queue holding 7 of 1,332; the keyword-rule preview counted 1,124 invisible rows
+($271,467.59) and its Apply wrote categories onto them; the backfill scanned 75 where
+the register owns 7, spending the LLM ~10× and stamping `needsReview: false` on rows
+an undo would resurrect silently pre-filed.
+
+**Why corrections stay unfiltered.** A correction on a disowned row is the user's
+decision about a payee, and H.7 P1-3 is the standing lesson: filtering an evidence
+read blinds the learner to decisions its outputs still act on. The asymmetry is
+deliberate and now recorded in the reader itself: counts and writes take the filter,
+evidence does not. The critic's cycle-1 P2 sharpens this: the real hazard was never
+READING old corrections on disowned rows — it was WRITERS still minting new ones
+there, which the cycle-1 fix ends.
+
+**Critic cycle 1 (fresh context, isolated worktree): FAIL — 1 P1 (executed), fixed
+same cycle.** The merchant-batch writers (`fileMerchantGroup`, `applyToAllSimilar`,
+`recategorize scope:'merchant'`) and triage's `similarCount` were never swept: the
+keep-filtered group card said "File all 2" and the tap filed 3, minting a
+no-`sourceRuleId` Correction on the invisible row — a hand decision the user never
+made, feeding the unfiltered learner. All four sites now carry the filter the
+spend-class twin (#397) has had since it shipped. Also from the critic: the
+`excludedReason` sentence claims absence rather than a counted twin (true for a
+predecessor's own post-cutover row); the race comment states both directions; a
+fail-open lock proves an inert link reverts ALL readers together to pre-H.8 behavior.
+
+**Locks:** `tests/unit/h8-boundary-readers.test.ts`, 10 tests; fail-old proven by
+seven executed sabotages (each filter deleted → exactly its own lock RED), residue
+grep 0. Gate: verify GREEN twice; no schema change; no prisma diff.

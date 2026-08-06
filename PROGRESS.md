@@ -2,7 +2,32 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
-## 2026-08-06 — H.8: three unboundaried readers measured live; three fixed, three cleared (in flight)
+## 2026-08-06 — H.8 critic cycle 1: the merchant-batch writers were the door the slice left open
+
+**Fresh-context critic (isolated worktree): FAIL — 1 P1 (executed), 1 P2, 4 P3.
+P1 + P3s fixed and locked same cycle; P2 recorded (STATUS residuals).**
+
+**P1-1, executed by the critic's own probe:** the group card is keep-filtered
+(said "File all 2") but `fileMerchantGroup` was not — one tap filed 3, writing
+the disowned duplicate `needsReview: false` and minting a Correction with no
+`sourceRuleId`, i.e. a hand decision the user never made, feeding the
+deliberately-unfiltered learned-rule evidence with newly GENERATED duplicates.
+Same hole in `applyToAllSimilar`, `recategorize scope:'merchant'`, and triage's
+`similarCount`. All four now carry the keep filter — the identical idiom the
+spend-class twin of this gesture (#397 `setMerchantSpendClass`) has had since it
+shipped; `similarCount` shares the queue's own keep fetch so count and write set
+cannot drift.
+
+**P3s fixed:** excludedReason reworded to claim ABSENCE, not a counted twin
+(true for a superseded predecessor's own post-cutover row); the matchableHistory
+race comment now states both directions; a fail-open lock added (inert
+cross-type link → ALL readers revert together to pre-H.8 behavior).
+
+**Locks now 10; sabotages now SEVEN** (the three slice filters + the four
+cycle-1 sites), each executed RED against exactly its own lock, each restored,
+residue grep 0. Adjacent suites 128/128. Re-gate: see below.
+
+## 2026-08-06 — H.8: three unboundaried readers measured live; three fixed, three cleared (verify green)
 
 **MEASURED FIRST** (read-only probe `scripts/audit-probes/h8-boundary-readers.mts`
 against the production DB, owner's corpus, 26 active links, full output in the

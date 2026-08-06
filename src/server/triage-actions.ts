@@ -18,6 +18,7 @@ import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { SPLIT_BLOCKED_REIMBURSED } from '@/lib/engine/transactions/actions';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { type TriageGroupView, getTriageGroups, similarTransactionsWhere } from '@/server/triage';
+import { getReconciliationTxnKeep } from '@/server/reconciliation';
 
 /** Aggregate pseudo-merchants (Zelle/checks/ATM) never get merchant-wide rules. */
 function assertRuleEligible(rawDescriptor: string): void {
@@ -253,13 +254,22 @@ export async function applyToAllSimilar(input: {
 
   // SAME scope definition the button's count used (shared helper, can't drift)
   const aggregate = normalizeMerchant(txn.rawDescriptor).aggregate;
-  const targets = await prisma.transaction.findMany({
-    where: similarTransactionsWhere(userId, {
-      merchantId: txn.merchantId,
-      rawDescriptor: txn.rawDescriptor,
-      aggregate,
-    }),
-  });
+  // Reconciliation boundary (H.8 critic P1-1, executed): a combined connection's
+  // disowned duplicate arrives needsReview and shares the merchant, so without
+  // this filter one tap filed a row no register, queue, or total shows — and
+  // minted a Correction on it that reads back as a hand decision. Same keep rule
+  // the queue count applies (getTriageItems/getTriageGroups) and the same idiom
+  // as the spend-class twin of this gesture (#397, setMerchantSpendClass).
+  const keepsReconciled = await getReconciliationTxnKeep(userId);
+  const targets = (
+    await prisma.transaction.findMany({
+      where: similarTransactionsWhere(userId, {
+        merchantId: txn.merchantId,
+        rawDescriptor: txn.rawDescriptor,
+        aggregate,
+      }),
+    })
+  ).filter((t) => keepsReconciled(t.accountId, t.date));
   const correctionIds = await prisma.$transaction(async (tx) => {
     const ids: string[] = [];
     for (const t of targets) {
@@ -325,24 +335,34 @@ export async function fileMerchantGroup(input: {
   // DETECTED conflict → P2034 → serializableTx re-runs against fresh state, so
   // the raced case converges to the clean zero-target return with NOTHING
   // committed (DECISIONS #146).
+  // Reconciliation boundary (H.8 critic P1-1, executed): the group card is
+  // keep-filtered (getTriageGroups), so without the same filter here the card
+  // said "File all 2" and the write filed 3 — the third a disowned duplicate no
+  // surface shows, stamped needsReview:false with a Correction minted on it.
+  // Read once, outside the serializable tx (links change only on an explicit
+  // user confirm/undo; a retry reuses it, and the mid-apply race direction
+  // equals the pre-H.8 behavior).
+  const keepsReconciled = await getReconciliationTxnKeep(userId);
   const { correctionIds, ruleId, minted, affected } = await serializableTx(async (tx) => {
-    const targets = await tx.transaction.findMany({
-      // SAME scope + SAME spending-account/currency filter the group card was
-      // built from (groupKey ↔ similarTransactionsWhere, DECISIONS #23; checker:
-      // the action must never file more account types than the card counted).
-      where: {
-        ...similarTransactionsWhere(userId, {
-          merchantId: txn.merchantId,
-          rawDescriptor: txn.rawDescriptor,
-          aggregate,
-        }),
-        account: {
-          userId,
-          type: { in: [...SPENDING_ACCOUNT_TYPES] },
-          OR: [{ currency: null }, { currency: 'USD' }],
+    const targets = (
+      await tx.transaction.findMany({
+        // SAME scope + SAME spending-account/currency filter the group card was
+        // built from (groupKey ↔ similarTransactionsWhere, DECISIONS #23; checker:
+        // the action must never file more account types than the card counted).
+        where: {
+          ...similarTransactionsWhere(userId, {
+            merchantId: txn.merchantId,
+            rawDescriptor: txn.rawDescriptor,
+            aggregate,
+          }),
+          account: {
+            userId,
+            type: { in: [...SPENDING_ACCOUNT_TYPES] },
+            OR: [{ currency: null }, { currency: 'USD' }],
+          },
         },
-      },
-    });
+      })
+    ).filter((t) => keepsReconciled(t.accountId, t.date));
     if (targets.length === 0) {
       return { correctionIds: [] as string[], ruleId: null as string | null, minted: false, affected: 0 };
     }
@@ -527,14 +547,22 @@ export async function recategorize(input: {
   // and the rule mint deduped through the same helper as fileMerchantGroup
   // (cycle-2 gate gap: this path minted unconditionally — every repeat
   // recategorize stacked another equal-priority rule). DECISIONS #146.
+  // Reconciliation boundary (H.8 critic P1-1): the register's "re-file all N"
+  // count and detail views are keep-filtered, so the write set must be too, or
+  // the batch re-files disowned duplicates no screen counts. Read outside the
+  // tx for the fileMerchantGroup reason above; the spend-class twin of this
+  // gesture (#397) has carried the same filter since it shipped.
+  const keepsReconciled = await getReconciliationTxnKeep(userId);
   const { correctionIds, ruleId, minted, affected } = await serializableTx(async (tx) => {
-    const targets = await tx.transaction.findMany({
-      where: similarTransactionsWhere(
-        userId,
-        { merchantId: txn.merchantId, rawDescriptor: txn.rawDescriptor, aggregate: false },
-        { onlyNeedsReview: false },
-      ),
-    });
+    const targets = (
+      await tx.transaction.findMany({
+        where: similarTransactionsWhere(
+          userId,
+          { merchantId: txn.merchantId, rawDescriptor: txn.rawDescriptor, aggregate: false },
+          { onlyNeedsReview: false },
+        ),
+      })
+    ).filter((t) => keepsReconciled(t.accountId, t.date));
     const ids: string[] = [];
     let firstCorrectionId: string | null = null;
     for (const t of targets) {

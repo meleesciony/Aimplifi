@@ -6,6 +6,83 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-06 — H.8: every reader that describes or writes what a register shows now applies the register's own ownership rule (DECISIONS #416)
+
+**Closes TASKS H.8** — the measurement H.7's self-correction filed: six direct
+transaction readers skip `getReconciliationTxnKeep`, the R1 rule the
+register/triage/budgets/export apply; which of them reaches a rendered number?
+
+**MEASURED FIRST, on the owner's live corpus** (read-only probe
+`scripts/audit-probes/h8-boundary-readers.mts`, 26 active links, 1,124 rows the
+boundary does not own), and the verdicts followed the task row's own rule — only
+a delta that reaches a rendered number gets a fix:
+
+* **[1] spending-plan loan inflows — CLEAN, untouched.** The sharpest
+  hypothesized reader (it runs the same ±3-day pair rule H.7 fixed) has delta 0:
+  3 loan-side rows, all on the live Truist mortgage, merchant sets byte-identical
+  with and without the boundary.
+* **[2] household digest — n/a, untouched.** No household exists, and the code
+  already excludes superseded predecessors (verified, not assumed).
+* **[3] self-audit — FIXED.** /settings said "75 of 2,456 needed sorting" while
+  the triage queue it audits held 7 of 1,332 — a rendered contradiction.
+* **[4] keyword rules — FIXED.** The preview counted 1,124 invisible rows
+  ($271,467.59) and Apply WROTE categories onto rows no register shows. One
+  filter site (`matchableHistory`) covers the preview and all four writes, so
+  "the number shown IS the population written" survives by construction; a
+  `/rules?from=` link to a disowned row now names the reason.
+* **[5] backfill — FIXED.** 68 of 75 scanned unresolved rows were invisible
+  (~10× LLM fan-out), stamped `needsReview: false` so an undone combine would
+  return them silently pre-filed; now they return to triage unresolved.
+* **[6] learned-rule corrections — DELIBERATELY NOT FILTERED.** 146 of 827
+  corrections sit on disowned rows, but a correction is the user's decision
+  about a PAYEE — blinding the rule-learner to evidence is the H.7 P1-3 shape.
+  Recorded, with the residual below.
+
+**CRITIC CYCLE 1 (fresh context, isolated worktree): FAIL — 1 P1, 1 P2, 4 P3;
+the P1 fixed and locked same cycle.** The critic's probe executed what the slice
+declared impossible: the MERCHANT-BATCH writers were never swept. The triage
+group card (keep-filtered) said "File all 2" and one tap on it filed **3** —
+`fileMerchantGroup` wrote the disowned duplicate, stamped it `needsReview:
+false`, and minted a Correction with no `sourceRuleId`, which reads back as a
+HAND decision and feeds the deliberately-unfiltered learner with newly
+GENERATED duplicate evidence (the P2: worse than pre-H.8, because the backfill
+filter made the hidden population permanent fuel for exactly this). Fixed at
+all four sites with the slice's own idiom — `fileMerchantGroup`,
+`applyToAllSimilar`, `recategorize scope:'merchant'`, and triage's
+`similarCount`, which now shares the queue's own keep fetch — the same filter
+the spend-class twin of this gesture (#397) has carried since it shipped. P3s
+fixed: the excludedReason sentence overclaimed for a predecessor's own
+post-cutover row (now claims absence, never a counted twin); the race comment
+stated only the safe direction (now states both); no fail-open lock existed
+(an inert cross-type link now has a test proving all readers fall open TOGETHER
+to the pre-H.8 behavior — a visible double, never a reader disagreeing with the
+screen).
+
+**Gate:** `bash scripts/verify.sh` GREEN twice (slice: **6108 unit / 370
+files**; re-gate after critic fixes: see PROGRESS). **No schema change, no
+prisma diff.** Fail-old proven by SEVEN executed sabotages — each keep filter
+deleted in turn (self-audit, keyword-rules, backfill, fileMerchantGroup,
+applyToAllSimilar, recategorize, similarCount), each turning exactly its own
+lock RED, each restored, residue grep 0.
+
+### STILL OPEN after H.8 (recorded, not fixed)
+
+1. **The hidden unresolved population on disowned rows is permanent while a
+   combine is active.** Every categorization path now correctly refuses them,
+   so a disowned `needsReview: true` row stays unresolved until the combine is
+   undone (when it returns to triage visibly — the designed direction). Harmless
+   while invisible, but it is standing state; the repair-pass idea in H.7
+   residual 1 could clear it if the owner ever asks.
+2. **Corrections already minted on disowned rows (146 of 827) still feed
+   learned rules un-deduplicated.** The follow-up probe to classify them
+   (duplicate-copy vs sole-copy, `h8-correction-duplication.mts`, committed) was
+   blocked by the session's command classifier and has not run. LEARN_THRESHOLD
+   is 2, so a decision duplicated across copies can lower the effective bar to
+   one real decision. Unmeasured — run the probe before deciding anything.
+3. **`getTriageItems` similarCount is now a findMany per item** (the windowed
+   keep cannot live in a Prisma count) — same N+1 shape as before, marginally
+   heavier per query; the items view is bounded by the review queue.
+
 ## ✅ BUILT 2026-08-05 — H.7: a pair-only transfer guess may supply a verdict, never silently reverse one — and the sweep now reads what the reconciliation boundary owns (DECISIONS #415)
 
 **Closes TASKS H.7**, the OPEN P1 the #414 critic executed and the entry below

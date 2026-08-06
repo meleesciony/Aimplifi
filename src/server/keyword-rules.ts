@@ -330,9 +330,12 @@ async function matchableHistory(
     // expressed in the Prisma where-clause (it depends on each predecessor's
     // full-history span), hence the post-fetch filter — the same idiom as
     // triage/register. Safe to read outside `serializableTx`: links change only
-    // on an explicit user confirm/undo, and the write re-asserts `matchableWhere`
-    // per id, so the worst race is the pre-existing shape (a row disowned
-    // mid-apply is skipped by ids, not resurrected).
+    // on an explicit user confirm/undo. Race directions, stated exactly (H.8
+    // critic P3): an UNDO mid-apply widens ownership, and the previously-disowned
+    // rows are simply absent from this call's id set (they file on the next
+    // apply); a CONFIRM mid-apply means a just-disowned row IS still written —
+    // which is byte-identical to the pre-H.8 behavior for that row, not a new
+    // wrong write, and requires the user to confirm a combine mid-click.
     getReconciliationTxnKeep(userId),
   ]);
   return rows.filter((r) => keepsReconciled(r.accountId, r.date));
@@ -1374,7 +1377,11 @@ export async function getRuleSourceTransaction(
             : t.account.currency !== null && t.account.currency !== 'USD'
               ? 'Rules apply to your US dollar accounts.'
               : !keepsReconciled(t.accountId, t.date)
-                ? 'This row is a duplicate copy from a connection you combined, so rules read the copy your totals count.'
+                ? // Worded for BOTH disowned shapes (H.8 critic P3): the successor's
+                  // duplicate copy AND a superseded predecessor's own post-cutover row,
+                  // which may have no surviving copy at all — so the sentence claims
+                  // absence from the register, never that a counted twin exists.
+                  'This row is on a connection you combined, so it does not appear in your activity or totals — a rule cannot count or file it.'
                 : null;
 
   return {

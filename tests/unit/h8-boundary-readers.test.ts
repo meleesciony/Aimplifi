@@ -36,11 +36,16 @@ import {
   previewKeywordRule,
 } from '@/server/keyword-rules';
 import { gatherSelfAuditCounts, weekStartMonday } from '@/server/self-audit';
+import { getTriageItems } from '@/server/triage';
+import { applyToAllSimilar, fileMerchantGroup, recategorize } from '@/server/triage-actions';
 
 const USER = `h8-${Date.now()}-${process.pid}`;
+const MERCHANT_CANONICAL = `acme coffee ${USER}`;
 
 let OLD = ''; // predecessor (keeps its history)
 let NEW = ''; // successor (its in-claim copy is disowned)
+let MERCHANT_ID = '';
+let P2_ID = ''; // the predecessor's kept unresolved row (batch anchor)
 let DUP_ID = ''; // the successor's disowned duplicate row
 let LIVE_ID = ''; // the successor's own post-claim row
 
@@ -52,6 +57,7 @@ async function wipe() {
   await prisma.transaction.deleteMany({ where: { account: { userId: USER } } });
   await prisma.account.deleteMany({ where: { userId: USER } });
   await prisma.auditLog.deleteMany({ where: { userId: USER } });
+  await prisma.merchant.deleteMany({ where: { canonical: MERCHANT_CANONICAL } });
   await prisma.user.deleteMany({ where: { id: USER } });
 }
 
@@ -95,6 +101,14 @@ beforeEach(async () => {
     },
   });
 
+  MERCHANT_ID = (
+    await prisma.merchant.upsert({
+      where: { canonical: MERCHANT_CANONICAL },
+      create: { canonical: MERCHANT_CANONICAL },
+      update: {},
+    })
+  ).id;
+
   const row = (
     accountId: string,
     date: string,
@@ -109,13 +123,14 @@ beforeEach(async () => {
         amountCents: cents,
         status: 'POSTED',
         needsReview: opts.needsReview,
+        merchantId: MERCHANT_ID,
         ...(opts.categoryId ? { categoryId: opts.categoryId } : {}),
       },
     });
 
   // Predecessor history — span [2026-05-10 .. 2026-06-20], all kept (≤ cutover).
   await row(OLD, '2026-05-10', -5000, { categoryId: 'dining', needsReview: false });
-  await row(OLD, '2026-06-20', -1200, { needsReview: true });
+  P2_ID = (await row(OLD, '2026-06-20', -1200, { needsReview: true })).id;
   // Successor: one copy INSIDE the predecessor's claim (disowned duplicate) and
   // one row of its own after it (kept).
   DUP_ID = (await row(NEW, '2026-06-01', -800, { needsReview: true })).id;
@@ -162,9 +177,72 @@ describe('H.8 [4] keyword-rules preview and apply stop at the boundary', () => {
 
   it('a /rules?from= link to the duplicate names the reason instead of contradicting the count', async () => {
     const dup = await getRuleSourceTransaction(DUP_ID);
-    expect(dup?.excludedReason).toMatch(/duplicate copy from a connection you combined/);
+    // The sentence claims ABSENCE from activity/totals, never that a counted
+    // twin exists — it must stay true for a superseded predecessor's own
+    // post-cutover row, which can have no surviving copy (critic P3).
+    expect(dup?.excludedReason).toMatch(/connection you combined/);
+    expect(dup?.excludedReason).toMatch(/does not appear in your activity or totals/);
     const live = await getRuleSourceTransaction(LIVE_ID);
     expect(live?.excludedReason).toBeNull();
+  });
+});
+
+describe('H.8 critic P1-1: the merchant-batch writers stop at the boundary too', () => {
+  it('fileMerchantGroup files what the card counted — never the disowned duplicate', async () => {
+    const res = await fileMerchantGroup({ anchorTransactionId: P2_ID, categoryId: 'dining' });
+    // Review-queued kept rows: P2 + LIVE. Pre-fix this was 3 — the card said
+    // "File all 2" while the write filed the invisible duplicate and minted a
+    // Correction on it that read back as a hand decision.
+    expect(res.affected).toBe(2);
+    const dup = await prisma.transaction.findUniqueOrThrow({ where: { id: DUP_ID } });
+    expect(dup.categoryId).toBeNull();
+    expect(dup.needsReview).toBe(true);
+    expect(
+      await prisma.correction.count({ where: { userId: USER, transactionId: DUP_ID } }),
+    ).toBe(0);
+  });
+
+  it('applyToAllSimilar batches only rows a screen shows', async () => {
+    const res = await applyToAllSimilar({ transactionId: P2_ID, categoryId: 'dining' });
+    expect(res.affected).toBe(2); // P2 + LIVE, not the duplicate
+    const dup = await prisma.transaction.findUniqueOrThrow({ where: { id: DUP_ID } });
+    expect(dup.needsReview).toBe(true);
+  });
+
+  it("recategorize scope:'merchant' re-files every VISIBLE row, filed ones included", async () => {
+    const res = await recategorize({ transactionId: P2_ID, categoryId: 'coffee', scope: 'merchant' });
+    // onlyNeedsReview:false → all three kept rows (the filed 05-10 row too);
+    // pre-fix this was 4.
+    expect(res.affected).toBe(3);
+    const dup = await prisma.transaction.findUniqueOrThrow({ where: { id: DUP_ID } });
+    expect(dup.categoryId).toBeNull();
+    expect(dup.needsReview).toBe(true);
+  });
+
+  it('the "apply to N similar" count matches the batch write set', async () => {
+    const items = await getTriageItems(USER);
+    const anchor = items.find((i) => i.id === P2_ID);
+    expect(anchor).toBeDefined();
+    expect(anchor!.similarCount).toBe(2); // P2 + LIVE; pre-fix 3
+    // And the queue itself never shows the duplicate (pre-existing C-9 lock,
+    // re-asserted here because similarCount now shares its keep fetch).
+    expect(items.map((i) => i.id)).not.toContain(DUP_ID);
+  });
+});
+
+describe('H.8 fail direction: an INERT link falls open to the pre-H.8 behavior', () => {
+  it('a cross-type drift disables the filter everywhere at once — a visible double, never a silent split', async () => {
+    // Feed-driven type drift (the H.7 cycle-2 shape): the predecessor is
+    // reclassified, the confirmed link goes inert, and the keep-rule's
+    // documented fail-OPEN default keeps EVERYTHING. All three readers must
+    // then agree on the OLD counts — the failure is the same visible double
+    // the register shows, never a reader disagreeing with the screen.
+    await prisma.account.update({ where: { id: OLD }, data: { type: 'SAVINGS' } });
+    const counts = await gatherSelfAuditCounts(USER, weekStartMonday(getProvider().today()));
+    expect(counts.reviewTotal).toBe(4);
+    expect(counts.reviewNeeding).toBe(3);
+    const preview = await previewKeywordRule({ keywordsRaw: 'acme', categoryId: 'dining' });
+    expect(preview.matchCount).toBe(4);
   });
 });
 
