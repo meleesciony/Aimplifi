@@ -14,7 +14,7 @@ import { type Cents, cents } from '@/lib/money';
 import { compareDates, isoDate } from '@/lib/dates';
 import type { FreshnessResult } from '@/lib/engine/sync/health';
 import type { ProvenanceVerdict } from '@/lib/engine/categorize/provenance';
-import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
+import { type ExcludableTxn, isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import type { RowOrigin } from '@/lib/engine/transactions/origin';
 
@@ -312,7 +312,20 @@ export function paginate<T>(rows: readonly T[], page: number, pageSize: number):
   };
 }
 
-export function summarizeTransactions(rows: readonly TxnView[]): TxnSummary {
+/**
+ * The minimum a row must expose for the register's money totals to be computed
+ * from it. `TxnView` satisfies it, and the calendar's posted half (TASKS K.1)
+ * feeds its lean rows through the SAME `summarizeTransactions` below — one
+ * function, so the two surfaces cannot disagree on a total by construction
+ * (H.8's rule: a reader that describes what the register shows applies the
+ * register's own math, not a re-implementation of it).
+ */
+export interface TotalableTxn extends ExcludableTxn {
+  isTransfer: boolean;
+  amountCents: number;
+}
+
+export function summarizeTransactions(rows: readonly TotalableTxn[]): TxnSummary {
   let inflow = 0;
   let outflow = 0;
   let excluded = 0;

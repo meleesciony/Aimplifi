@@ -248,15 +248,82 @@ function suggestionForRow(t: SuggestibleRow, inputs: SuggestionLadderInputs): Tx
  * Loads the full set per call — fine at demo scale; server-side pagination is a
  * scale concern (see docs/ROADMAP.md #8), consistent with getDashboardData.
  */
+/**
+ * The register's row basis, as ONE expression (TASKS K.1). Spending accounts
+ * only — bank + cards; brokerage/loan activity isn't spending (#62). Currency
+ * guard (DECISIONS #135): exclude non-USD accounts so the register + its
+ * account dropdown match /accounts and net worth, which withhold them (no FX).
+ * Split PARENT containers excluded — their children carry the real amounts.
+ *
+ * Shared by `getTransactions` and the calendar's posted read below so the two
+ * surfaces query the same rows by construction; a second copy of this clause is
+ * how a reader starts disagreeing with the register (H.8).
+ */
+const registerRowWhere = (userId: string) => ({
+  account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' as const }] },
+  isSplitParent: false,
+});
+
+/**
+ * The calendar's posted half (TASKS K.1): lean register-basis rows for one
+ * month window, plus the register's own history bounds. Reuses the register's
+ * exact where-clause AND the R1 reconciliation keep, so the day totals the
+ * calendar prints (through the shared `summarizeTransactions`) equal the
+ * register summary for the same window by construction — the K.1 gate. The
+ * bounds are computed over the KEPT set: a bound read off disowned rows would
+ * name a date whose rows the register refuses to show (the K.3 direction).
+ */
+export interface PostedCalendarRead {
+  rows: {
+    date: string;
+    amountCents: number;
+    isTransfer: boolean;
+    excludeFromTotals: boolean;
+    /** PENDING rows stay in the figures (the register's summary counts them — the gate requires
+     *  it) but must be NAMED wherever the surface says "posted" (critics K.1 F-1). */
+    pending: boolean;
+  }[];
+  oldestPostedDate: string | null;
+  newestPostedDate: string | null;
+}
+
+export async function getPostedCalendarRows(
+  userId: string,
+  from: string, // inclusive YYYY-MM-DD
+  to: string, // inclusive YYYY-MM-DD
+): Promise<PostedCalendarRead> {
+  // Full history on purpose: the bounds must span the whole register, and the register itself
+  // loads every row per call (see getTransactions) — this select is a strict subset of that work.
+  const raw = await prisma.transaction.findMany({
+    where: registerRowWhere(userId),
+    select: { accountId: true, date: true, amountCents: true, isTransfer: true, excludeFromTotals: true, status: true },
+  });
+  const keepsReconciled = await getReconciliationTxnKeep(userId);
+  const kept = raw.filter((t) => keepsReconciled(t.accountId, t.date));
+  let oldestPostedDate: string | null = null;
+  let newestPostedDate: string | null = null;
+  for (const r of kept) {
+    if (oldestPostedDate === null || r.date < oldestPostedDate) oldestPostedDate = r.date;
+    if (newestPostedDate === null || r.date > newestPostedDate) newestPostedDate = r.date;
+  }
+  return {
+    rows: kept
+      .filter((r) => r.date >= from && r.date <= to)
+      .map((r) => ({
+        date: r.date,
+        amountCents: r.amountCents,
+        isTransfer: r.isTransfer,
+        excludeFromTotals: r.excludeFromTotals,
+        pending: r.status === 'PENDING',
+      })),
+    oldestPostedDate,
+    newestPostedDate,
+  };
+}
+
 export async function getTransactions(userId: string, filter: TxnFilter = {}, page = 1): Promise<TransactionsResult> {
   const rawTxns = await prisma.transaction.findMany({
-    // Spending accounts only — bank + cards; brokerage/loan activity isn't spending (#62).
-    // Currency guard (DECISIONS #135): exclude non-USD accounts so the register + its account
-    // dropdown match /accounts and net worth, which withhold them (no FX).
-    where: {
-      account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
-      isSplitParent: false,
-    },
+    where: registerRowWhere(userId),
     // Join the category row as a BACKSTOP only. The displayed label is resolved
     // through the per-user meta below, because a built-in the reader RENAMED
     // (O.17) keeps the canonical `Category.name` in the DB — the rename is an

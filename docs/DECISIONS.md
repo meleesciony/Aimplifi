@@ -4865,3 +4865,96 @@ loop stays — it is a fine benchmark for a flow; it is just not the app's ident
 **Standing consequence for prioritization:** ties between parity work and
 differentiator work (Waves W/P — coach intelligence, dials, wealth targets) break
 toward the differentiator, per this statement and Wave W's.
+
+## #419 — K.1: the past half of /calendar is recorded fact, totaled by the register's own math; the future half is labeled the projection it is
+
+**2026-08-06 · Fable 5 session · TASKS K.1 (owner report, LIVE: "Calendar makes no
+sense. I have forward data but not trailing?")**
+
+**The decision, in one line:** a calendar day on or before today shows what the
+banks actually reported for that day — read through the register's own basis and
+totaled by the register's own `summarizeTransactions`, so the two surfaces cannot
+disagree on a total by construction — and every event after today is a labeled
+projection, never something that reads like data.
+
+**The design.** New pure `buildPostedCalendarMonth` (engine/calendar/posted.ts)
+takes lean rows from `getPostedCalendarRows`, which reuses the register's exact
+where-clause (extracted once as `registerRowWhere`) plus the R1 reconciliation
+keep — the K.1 gate is not a test target, it is the shape: one where-clause, one
+keep, one summarize (`summarizeTransactions`'s signature widened to the minimal
+`TotalableTxn`, so the register's own function totals both surfaces). Each posted
+day paints Money in / Money out / count and links to
+`/transactions?from=D&to=D`, carrying its window so the drill-down describes the
+same basis (the O.16 borrowed-total lesson). Scheduled-series expansion in
+`buildCashFlowCalendar` now starts AT today — the replay of a series onto dates
+the bank already reported was exactly what the owner mistook for trailing data —
+while due events are untouched (an unpaid current-cycle due in the past is fact,
+not replay). Zeros follow K.3's rule with the bound inside the reason
+(no-history / before-history / after-history / quiet, discriminated union), the
+history floor and the trailing lag edge are named where the gap is, and the
+posted half is viewer-only at household scope by design (a partner shares
+scheduled flows and dues, never transaction rows) with the scope said on the page.
+
+**Two fresh-context critics, run in parallel — BOTH FAIL: 2 P1 (wiring) + 3 P1
+(copy, one shared with wiring) + 12 P2, all P1s and 8 P2s fixed and locked.**
+The converged P1: the header said "Posted" over PENDING money — the demo's own
+pinned month holds three pending rows inside the figure, a live hold can be
+repriced or vanish, and the aggregate erased the status badge the register shows
+per row. The money stays (the register's summary counts pending too — the gate
+demands it) but the words now carry it: "Posted + pending", per-day "(N
+pending)", footer states pending can change. The second wiring P1 was an
+off-by-one against the engine: the first clamp started projections at today+1
+while the cash-needed assembler expands `>= today` and can recommend a transfer
+FOR today — so a bill expected today painted nowhere on its most actionable day,
+and a projection going short TODAY on an already-low balance could lose the dip
+paragraph entirely while the frozen notice still claimed it was on the page (the
+day list now keeps the shortfall day unconditionally). The third: the
+before-history sentence declared reconstruction impossible while the register's
+own empty state offers the CSV import one click away — the sentence now states
+the floor and the page offers the same remedy, demo-fenced with the register's
+own predicate. P2s fixed with them: "the register" renamed to words this page
+actually uses; the after-history remedy link now renders in the header case (a
+stopped feed's future dues keep the grid non-empty, which is exactly when the
+link used to vanish); transfer/excluded-only days say what their zero is made of;
+past-day nets are labeled "net (recorded)" when a due sits beneath them and the
+footer names the two net semantics; "Scheduled:" became "Expected:" with already-
+due payments counted out loud; a fully empty month names its zero once, not
+twice; the household scope note no longer hides exactly when the viewer has zero
+rows; bank attribution dropped from sentences that cover manual rows. Residuals
+RECORDED, not fixed: the duplicate/frozen banners' "money-out total above" clause
+is ambiguous now that two out-figures sit above (their copy lives in two
+critic-cycled modules — own slice); a frozen non-card feed silently thins recent
+posted days (parity with the register today; belongs with the L.19 family); two
+full-history loads per calendar view (register precedent, ROADMAP #8).
+
+**Two process finds worth their own lines.** (1) The full-suite verify exposed
+THREE e2e failures that exist on clean main — proven by stashing this slice and
+rerunning — because O.16's `?back=` return-context param broke
+transaction-status.spec's URL regexes, which pinned detail URLs to end at the id;
+that session evidently never ran this spec. Repaired here (regexes tolerate the
+query; lookaheads still exclude /new and /import). (2) A background verify's
+`| tail` masked its exit code and nearly recorded a false "baseline passed" —
+the pipe returns tail's status, not verify's. Capture `$?` from the command
+itself, never from a pipeline over it.
+
+**Gate:** `npx tsc --noEmit` 0 · eslint 0 · **6,161 unit + 1 skipped across 374
+files** · `next build` clean (all from `VERIFY_E2E=1 bash scripts/verify.sh`,
+exit captured directly). New unit: calendar-posted (25) + calendar-posted-server
+(3, real loaders, register-equality asserted with hand-verified values). New e2e
+calendar-posted 3/3 incl. a DOM-to-DOM gate check (a day's painted out-figure
+equals the register's painted summary after following the day's own link);
+calendar-frozen 6/6 unchanged. Full-suite e2e serialized: **283/297** — and the
+14 non-passing (10 failed + 4 not-run behind them) are PROVEN pre-existing, not
+flake and not this slice: the IDENTICAL set fails on a stashed pre-K.1 tree,
+serialized. Three were O.16's `?back=` breakage (repaired this session); the
+other ten assert the dashboard that commit 2e3bf72 (#369 "Home polish", Aug 1)
+restructured — the recurring-total and payment-reminders cards were removed from
+Home and their specs (auth:82, recurring:15, payment-reminders:14,
+dashboard-duplicate-disclosure ×2, frozen-figure-surfaces:92, card-unknown-due:226,
+phase2-triage:132, today-feed-frozen ×2) were never updated, because that session
+did not run the full suite. Recorded as **TASKS K.5** — repairing them means
+re-pointing each assertion at where #369 moved the surface, which needs that
+commit's intent read first, not a mechanical regex pass. I initially misread two
+truncated outputs as "passes in isolation" and called this flake — same lesson
+as the masked exit code: proof is the command's own `$?` and the FULL failure
+list, never a trimmed tail.

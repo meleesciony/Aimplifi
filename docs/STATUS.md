@@ -6,6 +6,62 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-06 — K.1: the past half of /calendar is recorded fact, totaled by the register's own math (DECISIONS #419, critic-cycled ×2)
+
+**Closes TASKS K.1** (owner: *"Calendar makes no sense. I have forward data but not
+trailing?"*). Days on or before today now paint what the banks actually reported —
+per-day Money in / Money out / count, each day linking to the register pre-filtered
+to that one day — and every event after today is a labeled projection ("scheduled"
+badges, "Expected:" header line, `(est.)` on repeated card cycles). The gate (the
+two money surfaces must not disagree on a total) is structural: one where-clause,
+one reconciliation keep, one `summarizeTransactions`, locked at function, loader
+(register-equality with hand-verified values) and DOM-to-DOM (e2e reads both pages'
+painted figures). Zeros follow K.3's rule with the bound inside the reason;
+history floor and trailing-lag edge named where the gaps are. Posted half is
+viewer-only at household scope by design, said on the page.
+
+**Both fresh-context critics returned FAIL (4 P1 + 12 P2); all P1s and 8 P2s fixed
+and locked, 2 regression-ledger entries.** Converged P1: "Posted" over PENDING
+money (the demo's pinned month holds three pending rows) — now "Posted + pending"
+with per-day counts and a footer stating pending can change. Wiring P1: the first
+clamp started projections at today+1 while the assembler's window is `>= today` —
+a bill expected today painted nowhere, and the dip paragraph could vanish while
+the frozen notice claimed it was on screen (the day list now keeps the shortfall
+day unconditionally). Copy P1: before-history denied the CSV reconstruction the
+register's own empty state offers one click away.
+
+**STILL OPEN after K.1, ranked:** (1) **K.5** — see below, the biggest find of the
+session; (2) the duplicate/frozen banners' "the money-out total above" clause is
+ambiguous now that TWO out-figures sit above it (copy lives in
+`card-duplicate-view.ts` + `feed-dropped-view.ts`, both critic-cycled — own
+slice); (3) a frozen non-card feed silently thins recent posted days — the frozen
+notice qualifies dues and the funding projection, never the posted half (parity
+with the register today; belongs with the L.19 surface-(3) family); (4) two
+full-history loads per calendar view (`getCashNeeded` + the posted read) — the
+register's own load-all precedent, ROADMAP #8; (5) the past-day net label and
+shortfall-day-keep are page-level and locked only via the e2e labels, not
+independently.
+
+## ⚠️ FOUND 2026-08-06 — K.5: the full e2e suite has been red since 2026-08-01 and no session knew
+
+K.1's gate ran the FULL suite for the first time since Aug 1 and it cannot go
+green: **283/297 serialized**, and the identical 14 non-passes reproduce on a
+stashed pre-K.1 tree — pre-existing, deterministic, not flake. Three were
+transaction-status.spec's URL regexes pinning detail URLs to end at the id, broken
+by O.16's `?back=` return-context param — **repaired this session**. The other ten
+assert the pre-#369 dashboard: commit `2e3bf72` ("Home polish", Aug 1) removed the
+recurring-total and payment-reminders cards from Home, and its session never ran
+the full suite. Repair is TASKS K.5 (re-point each assertion at where #369 moved
+the surface — requires reading that commit's intent, not a regex pass). Until
+then, every slice's "full e2e" claim must run its targeted specs and say so.
+
+**Process locks from the same find (docs/lessons/proof-is-the-full-output.md):** a
+background verify piped to `tail` reported exit 0 — the pipe returns tail's
+status, so a FAILED verify read as a pass; and two truncated failure lists were
+misread as "passes in isolation", which sent the diagnosis toward "flake" until
+full listings were pulled. Proof is the command's own `$?` and the complete
+failure list.
+
 ## ✅ BUILT 2026-08-06 — K.3: the register's empty state names WHICH zero, from the bounds it already printed (DECISIONS #417)
 
 **Closes TASKS K.3** — owner screenshot, same day. A custom window of Aug 6 2024 →

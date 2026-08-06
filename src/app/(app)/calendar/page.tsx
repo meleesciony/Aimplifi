@@ -9,6 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { prisma } from '@/lib/db';
 import { buildCashFlowCalendar } from '@/lib/engine/calendar/build';
 import {
+  type PostedCalendarDay,
+  buildPostedCalendarMonth,
+  postedZeroCopy,
+} from '@/lib/engine/calendar/posted';
+import { getPostedCalendarRows } from '@/server/transactions';
+import { isDemoUser } from '@/lib/demo-user';
+import {
   CARD_DUPLICATE_PAIR_TESTID,
   CARD_DUPLICATE_TESTID,
   cardDuplicateCalendarView,
@@ -18,7 +25,7 @@ import {
   type FrozenCalendarRow,
   frozenCalendarNotice,
 } from '@/lib/engine/account/feed-dropped-view';
-import { addMonthsClamped, formatISODate, formatMonth, holidayTable, isoDate } from '@/lib/dates';
+import { addMonthsClamped, compareDates, daysInMonth, formatISODate, formatMonth, holidayTable, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { getCashNeeded } from '@/server/finance';
 
@@ -189,8 +196,10 @@ export default async function CalendarPage({
           // projection was computed from, which is the same row /accounts lists.
           { label: input.paymentAccount.name, frozenSince: result.fundingFrozen.frozenSince }
         : null,
-      // Read from what this run actually rendered, never from a status enum — the dip paragraph
-      // below is gated on exactly these two fields.
+      // Read from the same two fields that gate the dip paragraph below — and the paragraph's
+      // day is guaranteed to render, because dayVMs keeps the shortfall day even when nothing
+      // else paints it (K.1 critic F-2: a projection can go short TODAY on an already-low
+      // balance, with no posted rows and no events on that day).
       shows:
         result.headline.shortfallDate && result.headline.recommendation
           ? 'a-transfer'
@@ -200,9 +209,90 @@ export default async function CalendarPage({
     },
   );
 
+  // K.1 — the posted half: real income/spend on the dates they posted, for days on or before
+  // today. Read through the register's OWN basis and reconciliation keep (getPostedCalendarRows)
+  // and totaled by the register's own summarize inside buildPostedCalendarMonth — so a day
+  // printed here and the register filtered to that same day cannot disagree on a total.
+  // Viewer-only even at household scope, deliberately: a partner shares scheduled flows and
+  // dues, not their transaction rows (the register itself is viewer-only), and the note under
+  // the grid says so rather than letting the two halves read as one basis.
+  const canImportCsv = !isDemoUser(session.user.id);
+  const monthLastDay = `${month}-${String(daysInMonth(+month.slice(0, 4), +month.slice(5, 7))).padStart(2, '0')}`;
+  const postedRead = await getPostedCalendarRows(session.user.id, `${month}-01`, monthLastDay);
+  const posted = buildPostedCalendarMonth({
+    month,
+    today,
+    rows: postedRead.rows,
+    oldestPostedDate: postedRead.oldestPostedDate ? isoDate(postedRead.oldestPostedDate) : null,
+    newestPostedDate: postedRead.newestPostedDate ? isoDate(postedRead.newestPostedDate) : null,
+  });
+
   const prev = addMonthsClamped(isoDate(`${month}-01`), -1).slice(0, 7);
   const next = addMonthsClamped(isoDate(`${month}-01`), 1).slice(0, 7);
-  const eventDays = calendar.days.filter((d) => d.events.length > 0);
+  // One merged list: posted aggregates on past days, projected events ahead. A day's net is what
+  // POSTED for days on or before today (a due event sitting there is a reminder of an unpaid
+  // obligation, not a flow that happened — summing it into the day would mix fact with demand),
+  // and the projection's net for days ahead (the pre-K.1 semantic, unchanged). A past day with
+  // due events but no posted rows shows no net at all rather than a fabricated $0.00.
+  const postedByDate = new Map<string, PostedCalendarDay>(posted.days.map((d) => [d.date, d]));
+  const dayVMs = calendar.days
+    .map((d) => {
+      const p = postedByDate.get(d.date);
+      const isPast = compareDates(isoDate(d.date), today) <= 0;
+      const hasDue = d.events.some((e) => e.kind === 'card-due' || e.kind === 'loan-due');
+      return {
+        date: d.date,
+        posted: p,
+        events: d.events,
+        netCents: isPast ? (p ? (p.netCents as number) : null) : (d.netCents as number),
+        // A past day showing recorded rows AND a due says which arithmetic its net is (critic
+        // F-2): the due beneath it is an unpaid demand, not a flow, and is not in this figure.
+        netLabel: isPast && p && hasDue ? 'net (recorded)' : 'net',
+      };
+    })
+    .filter(
+      (d) =>
+        d.posted !== undefined ||
+        d.events.length > 0 ||
+        // The dip paragraph anchors to the shortfall day (wiring critic F-2): a projection can go
+        // short TODAY on an already-low balance with nothing else painting that day, and the
+        // frozen notice's `shows` field promises the instruction really is on the page.
+        (result.headline.shortfallDate === d.date && result.headline.recommendation != null),
+    );
+  const monthEmpty = dayVMs.length === 0;
+
+  // Header lines: recorded fact and projections never share a sentence. When the grid below is
+  // empty the body names the zero once, so the header stays quiet (critic F-10). "Posted +
+  // pending" whenever pending rows sit inside the figures (critic F-1, both critics
+  // independently): the money stays — the register's summary counts pending too, and the two
+  // surfaces must agree — but the word "posted" alone would claim a finality a pending charge
+  // does not have.
+  const partialPast = posted.postedThrough !== null && posted.postedThrough !== monthLastDay;
+  const postedZero =
+    !monthEmpty && posted.postedThrough !== null && posted.emptyReason
+      ? postedZeroCopy(posted.emptyReason)
+      : null;
+  const postedLine =
+    posted.postedThrough === null || posted.rowCount === 0
+      ? null
+      : `${posted.pendingCount > 0 ? 'Posted + pending' : 'Posted'}${partialPast ? ` through ${formatISODate(posted.postedThrough)}` : ''}: in ${formatCents(posted.totalInCents)} · out ${formatCents(posted.totalOutCents)}${posted.pendingCount > 0 ? ` · ${posted.pendingCount} pending` : ''}${posted.excludedCount > 0 ? ` · ${posted.excludedCount} excluded row${posted.excludedCount === 1 ? '' : 's'} left out` : ''}`;
+  const dueCount = calendar.days.reduce(
+    (n, d) => n + d.events.filter((e) => e.kind === 'card-due' || e.kind === 'loan-due').length,
+    0,
+  );
+  // Dues already at or past their date are not "scheduled" (critic F-7) — the line is named
+  // "Expected" because it holds both kinds, and the already-due ones are counted out loud.
+  const alreadyDueCount = calendar.days.reduce(
+    (n, d) =>
+      compareDates(isoDate(d.date), today) <= 0
+        ? n + d.events.filter((e) => e.kind === 'card-due' || e.kind === 'loan-due').length
+        : n,
+    0,
+  );
+  const scheduledLine =
+    partialPast || posted.postedThrough === null || dueCount > 0
+      ? `Expected: in ${formatCents(calendar.totalInCents)} · out ${formatCents(calendar.totalOutCents)} · ${dueCount} payment${dueCount === 1 ? '' : 's'} due across ${calendar.reminderDates.length} date${calendar.reminderDates.length === 1 ? '' : 's'}${alreadyDueCount > 0 ? ` · ${alreadyDueCount} already due` : ''}`
+      : null;
   // Month nav must carry the active scope too (TASKS 4.2 slice 5) — otherwise
   // paging months while in household scope silently drops back to 'mine'.
   const scopeQuery = scope === 'household' ? '&scope=household' : '';
@@ -241,17 +331,37 @@ export default async function CalendarPage({
 
       <Card>
         <CardHeader className="pb-2">
-          <CardDescription>
-            {(() => {
-              const dueCount = calendar.days.reduce(
-                (n, d) => n + d.events.filter((e) => e.kind === 'card-due' || e.kind === 'loan-due').length,
-                0,
-              );
-              const dates = calendar.reminderDates.length;
-              return `In ${formatCents(calendar.totalInCents)} · out ${formatCents(calendar.totalOutCents)} · ${dueCount} payment${dueCount === 1 ? '' : 's'} due across ${dates} date${dates === 1 ? '' : 's'}`;
-            })()}
+          <CardDescription data-testid="cal-summary">
+            {postedLine && (
+              <span className="block" data-testid="cal-posted-line">
+                {postedLine}
+              </span>
+            )}
+            {!postedLine && postedZero && (
+              // The zero-with-a-grid case (future events below, nothing recorded): the reason
+              // lives here, WITH its remedy when it has one (critic F-5 — the link used to
+              // render only on a fully empty month, which is exactly when a stopped feed's
+              // future dues keep the grid non-empty).
+              <span className="block" data-testid="cal-posted-line">
+                {postedZero.sentence}
+                {postedZero.showAccountsLink && (
+                  <>
+                    {' '}
+                    <Link href="/accounts" className="underline hover:text-foreground">
+                      Check Accounts
+                    </Link>
+                    .
+                  </>
+                )}
+              </span>
+            )}
+            {scheduledLine && (
+              <span className="block" data-testid="cal-scheduled-line">
+                {scheduledLine}
+              </span>
+            )}
           </CardDescription>
-          <CardTitle className="text-base">Inflows, outflows, and card due dates</CardTitle>
+          <CardTitle className="text-base">Posted activity and upcoming payments</CardTitle>
         </CardHeader>
         <CardContent>
           {duplicates && (
@@ -305,14 +415,69 @@ export default async function CalendarPage({
               )}
             </div>
           )}
-          {eventDays.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No scheduled activity this month. The calendar tracks scheduled income, bills, and
-              card due dates — day-to-day spending lives in Reports.
+          {posted.floorNote && (
+            // K.1: history begins INSIDE this month — the early blank days have a reason the
+            // reader can see, named where the gap is (the K.3 lesson applied forward).
+            <p className="mb-3 text-xs text-muted-foreground" data-testid="cal-floor-note">
+              {posted.floorNote}
             </p>
+          )}
+          {posted.edgeNote && (
+            // The trailing edge of the current month: blank-by-lag is not proven quiet.
+            <p className="mb-3 text-xs text-muted-foreground" data-testid="cal-edge-note">
+              {posted.edgeNote}
+            </p>
+          )}
+          {scope === 'household' && posted.postedThrough !== null && (
+            // Gated on the posted HALF existing, not on rows existing (critic F-11): a household
+            // viewer with zero own rows still reads a viewer-basis zero above a partner's grid,
+            // and that zero needs this scope note the most.
+            <p className="mb-3 text-xs text-muted-foreground" data-testid="cal-household-posted-note">
+              Recorded activity shows your accounts only — a partner shares scheduled flows and
+              dues, not their transactions.
+            </p>
+          )}
+          {dayVMs.length === 0 ? (
+            // K.1: which zero? A wholly-future month has nothing scheduled yet; a month with a
+            // posted half gets the reason computed from the history bounds this page holds —
+            // never "no activity" over a window the data cannot see (the K.3 rule).
+            <div className="text-sm text-muted-foreground" data-testid="cal-empty">
+              {posted.postedThrough === null ? (
+                <p>
+                  No scheduled activity this month yet. Scheduled income, bills, and card or loan
+                  dues appear here as they&apos;re detected.
+                </p>
+              ) : posted.emptyReason ? (
+                <p>
+                  {postedZeroCopy(posted.emptyReason).sentence}
+                  {postedZeroCopy(posted.emptyReason).showAccountsLink && (
+                    <>
+                      {' '}
+                      <Link href="/accounts" className="underline hover:text-foreground">
+                        Check Accounts
+                      </Link>
+                      .
+                    </>
+                  )}
+                  {posted.emptyReason.kind === 'before-history' && canImportCsv && (
+                    // The register's own before-history state offers this exact remedy (critic
+                    // F-3) — the two surfaces must agree on what is possible. Demo-fenced with
+                    // the register's own predicate: the importer refuses the demo user (K.3
+                    // critic P1), so the demo never gets a link that dead-ends.
+                    <>
+                      {' '}
+                      <Link href="/transactions/import" className="underline hover:text-foreground">
+                        Import a CSV from your bank
+                      </Link>{' '}
+                      to reach further back.
+                    </>
+                  )}
+                </p>
+              ) : null}
+            </div>
           ) : (
             <ul className="space-y-2" data-testid="calendar-list">
-              {eventDays.map((day) => (
+              {dayVMs.map((day) => (
                 <li key={day.date} className="rounded-lg border p-2">
                   <div className="flex items-baseline justify-between text-sm">
                     <span className="font-medium">
@@ -323,11 +488,80 @@ export default async function CalendarPage({
                         </Badge>
                       )}
                     </span>
-                    <span className="tabular-nums text-muted-foreground">
-                      net {formatCents(day.netCents, { signDisplay: 'always' })}
-                    </span>
+                    {day.netCents !== null && (
+                      <span className="tabular-nums text-muted-foreground">
+                        {day.netLabel} {formatCents(cents(day.netCents), { signDisplay: 'always' })}
+                      </span>
+                    )}
                   </div>
                   <ul className="mt-1 space-y-0.5">
+                    {day.posted && (
+                      <>
+                        {day.posted.inCents > 0 && (
+                          <li
+                            className="flex items-baseline justify-between gap-2 text-sm"
+                            data-testid="cal-posted-in"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <ArrowDownLeft className="size-3.5 text-emerald-500" aria-hidden />
+                              Money in
+                            </span>
+                            <span className="tabular-nums text-emerald-500">
+                              {formatCents(day.posted.inCents, { signDisplay: 'always' })}
+                            </span>
+                          </li>
+                        )}
+                        {day.posted.outCents > 0 && (
+                          <li
+                            className="flex items-baseline justify-between gap-2 text-sm"
+                            data-testid="cal-posted-out"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <ArrowUpRight className="size-3.5 text-muted-foreground" aria-hidden />
+                              Money out
+                            </span>
+                            <span className="tabular-nums">
+                              {formatCents(cents(-day.posted.outCents), { signDisplay: 'always' })}
+                            </span>
+                          </li>
+                        )}
+                        {day.posted.inCents === 0 &&
+                          day.posted.outCents === 0 &&
+                          (day.posted.transferCount > 0 || day.posted.excludedCount > 0) && (
+                            // A day where money visibly moved must not read "net $0.00"
+                            // unexplained (critic F-6): say what the zero is made of.
+                            <li className="text-xs text-muted-foreground" data-testid="cal-posted-nonmoney">
+                              {[
+                                day.posted.transferCount > 0
+                                  ? `${day.posted.transferCount} transfer${day.posted.transferCount === 1 ? '' : 's'} between your accounts`
+                                  : null,
+                                day.posted.excludedCount > 0
+                                  ? `${day.posted.excludedCount} row${day.posted.excludedCount === 1 ? '' : 's'} you excluded`
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(' and ')}{' '}
+                              — not counted as money in or out.
+                            </li>
+                          )}
+                        <li className="text-xs">
+                          {/* The drill-down IS the register, pre-filtered to this one day — the
+                              window rides the link so the rows and the figures above describe
+                              the same basis (the O.16 borrowed-total lesson). */}
+                          <Link
+                            href={`/transactions?from=${day.date}&to=${day.date}`}
+                            className="text-muted-foreground underline-offset-2 hover:underline"
+                            data-testid="cal-posted-day-link"
+                          >
+                            {day.posted.count} transaction{day.posted.count === 1 ? '' : 's'}
+                            {day.posted.pendingCount > 0
+                              ? ` (${day.posted.pendingCount} pending)`
+                              : ''}{' '}
+                            in Activity →
+                          </Link>
+                        </li>
+                      </>
+                    )}
                     {day.events.map((e, i) => (
                       <li key={i} className="flex items-baseline justify-between gap-2 text-sm">
                         <span className="flex items-center gap-1.5">
@@ -344,6 +578,15 @@ export default async function CalendarPage({
                           {(e.kind === 'card-due' || e.kind === 'loan-due') && (
                             <Badge variant="destructive" className="text-[10px]">
                               due
+                            </Badge>
+                          )}
+                          {(e.kind === 'inflow' || e.kind === 'outflow') && (
+                            // K.1: every inflow/outflow event is a scheduled-series projection —
+                            // the engine expands them strictly after today (build.ts) — and it
+                            // must not read like posted data, which is the owner's exact trust
+                            // complaint ("forward data" that is really a series replayed).
+                            <Badge variant="outline" className="text-[10px]">
+                              scheduled
                             </Badge>
                           )}
                         </span>
@@ -379,12 +622,19 @@ export default async function CalendarPage({
             </ul>
           )}
           <p className="mt-3 text-xs text-muted-foreground">
-            Card and loan amounts shown on their effective due dates (weekend/holiday dates roll back to
-            the prior business day), and each repeats monthly in later months — future card amounts are
-            estimates, repeating this cycle&apos;s amount (the current statement, or the balance estimate
-            when no statement exists) until the issuer sends the real one, and each is labeled (est.).
-            Each due day is badged here, the dashboard shows your upcoming payment reminders, and email
-            reminders activate once an email provider is configured.
+            Days up to today show recorded activity on the dates it was reported — open a day to
+            see its transactions in Activity. Pending charges are counted and marked; they can
+            still change or drop before they post. A due badge on a day that has passed is an
+            unpaid amount carried forward, not money that moved — past days net their recorded
+            activity only, while days ahead net their projected events. Days ahead are
+            projections: scheduled income and bills replay at their detected cadence (labeled
+            scheduled, from today until they post), and card and loan amounts appear on their
+            effective due dates (weekend/holiday dates roll back to the prior business day),
+            repeating monthly — future card amounts are estimates, repeating this cycle&apos;s
+            amount (the current statement, or the balance estimate when no statement exists)
+            until the issuer sends the real one, and each is labeled (est.). Each due day is
+            badged here, the dashboard shows your upcoming payment reminders, and email reminders
+            activate once an email provider is configured.
           </p>
         </CardContent>
       </Card>

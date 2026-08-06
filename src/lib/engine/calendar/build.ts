@@ -146,7 +146,20 @@ export function buildCashFlowCalendar(params: {
   // k=1's raw date is already past `last`, so the loop exits at once.
   const rawLimit = addDays(last, 7);
 
-  const events: CalendarEvent[] = expandScheduled(params.scheduled, first, last);
+  // K.1 (owner report 2026-08-06: "I have forward data but not trailing?"): the past half of the
+  // grid belongs to POSTED transactions now (calendar/posted.ts) — a scheduled series replayed
+  // onto dates the bank has already reported was a projection wearing data's clothes, and it is
+  // exactly what the owner mistook for history. Scheduled expansions therefore start AT `today`,
+  // never before it; a wholly-past month gets none. ON today deliberately (critic F-2): the
+  // cash-needed assembler includes occurrences on today (`assemble.ts`, `>= p.today`) and can
+  // recommend a transfer FOR today — a bill expected today that has not yet posted must paint on
+  // the one day it is most actionable, even though the posted half may later carry the same
+  // dollars as fact (both are labeled; the footer names the overlap). Due events are untouched: a
+  // current-cycle due sitting in the past is a real unpaid obligation, not a replay, and the
+  // synthesized future cycles already carry their own `> today` guard below.
+  const scheduledFrom = compareDates(first, today) >= 0 ? first : today;
+  const events: CalendarEvent[] =
+    compareDates(scheduledFrom, last) > 0 ? [] : expandScheduled(params.scheduled, scheduledFrom, last);
   for (const ob of params.cardObligations) {
     // THIS cycle: the engine's real obligation, exactly as before (C.8 left the
     // current-month event untouched — it added the OTHER months).

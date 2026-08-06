@@ -125,7 +125,12 @@ test('a transaction the bank owns shows the refusal, not a control', async ({ pa
   await row.getByTestId('txn-detail-link').click();
   // The demo seed's ids are `txn-00846`, not cuids, so this matches an id of any
   // shape while still excluding the two static sibling routes.
-  await page.waitForURL(/\/transactions\/(?!new$|import$)[a-z0-9-]+$/, { timeout: 20000 });
+  // O.16 attaches `?back=` to every register detail link (links.ts — place from
+  // Activity rides it), so the id may be followed by a query string. This spec
+  // predated that param and pinned the URL to END at the id, which broke all
+  // three of its detail navigations on main — found when K.1's full-verify ran
+  // the whole suite (proven pre-existing: same 3 failures on a stashed tree).
+  await page.waitForURL(/\/transactions\/(?!(?:new|import)(?:\?|$))[a-z0-9-]+(?:\?.*)?$/, { timeout: 20000 });
 
   // Disabled WITH its reason, never hidden — the rule the whole action menu follows.
   await expect(page.getByTestId('detail-status-toggle')).toHaveCount(0);
@@ -159,10 +164,16 @@ test('the register sends you to the detail view rather than flipping status in p
 
   const item = row.getByTestId('txn-action-status');
   await expect(item).toHaveText('Mark as pending');
-  // A link, not a button: the write cannot happen from here at all.
-  await expect(item).toHaveAttribute('href', /\/transactions\/[a-z0-9-]+$/);
+  // A link, not a button: the write cannot happen from here at all. (`?back=`
+  // is O.16's return-context — same reason as the waitForURL below.)
+  await expect(item).toHaveAttribute('href', /\/transactions\/[a-z0-9-]+(?:\?.*)?$/);
   await item.click();
-  await page.waitForURL(/\/transactions\/(?!new$|import$)[a-z0-9-]+$/, { timeout: 20000 });
+  // O.16 attaches `?back=` to every register detail link (links.ts — place from
+  // Activity rides it), so the id may be followed by a query string. This spec
+  // predated that param and pinned the URL to END at the id, which broke all
+  // three of its detail navigations on main — found when K.1's full-verify ran
+  // the whole suite (proven pre-existing: same 3 failures on a stashed tree).
+  await page.waitForURL(/\/transactions\/(?!(?:new|import)(?:\?|$))[a-z0-9-]+(?:\?.*)?$/, { timeout: 20000 });
   // …and the reader lands where the sentence is.
   await expect(page.getByTestId('detail-status-effect')).toContainText('Pending means', {
     timeout: 20000,
@@ -184,7 +195,12 @@ test('a tax-tagged row warns that going pending drops it from the tax export', a
   const row = page.getByTestId('txn-row').filter({ hasText: /64\.10/ });
   await expect(row).toBeVisible({ timeout: 20000 });
   await row.getByTestId('txn-detail-link').click();
-  await page.waitForURL(/\/transactions\/(?!new$|import$)[a-z0-9-]+$/, { timeout: 20000 });
+  // O.16 attaches `?back=` to every register detail link (links.ts — place from
+  // Activity rides it), so the id may be followed by a query string. This spec
+  // predated that param and pinned the URL to END at the id, which broke all
+  // three of its detail navigations on main — found when K.1's full-verify ran
+  // the whole suite (proven pre-existing: same 3 failures on a stashed tree).
+  await page.waitForURL(/\/transactions\/(?!(?:new|import)(?:\?|$))[a-z0-9-]+(?:\?.*)?$/, { timeout: 20000 });
 
   // Untagged: the effect sentence is there, the tax clause is NOT — or the caution
   // would be permanent furniture rather than a warning about this row.
