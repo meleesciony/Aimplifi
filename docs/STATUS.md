@@ -6,6 +6,98 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-07 — H.6: the 730-day Plaid window stops being discarded (DECISIONS #424, critic-cycled)
+
+**Owner, verbatim: *"Unacceptable we don't have at least plaid maximal dates."* He was right,
+and the cause was ours, not Plaid's.**
+
+**SHIPPED-GREEN 2026-08-07: CI run 31209654673 `success` on `211a4fd` — the full `VERIFY_E2E=1`
+gate, conclusion read via `ci-status.sh` (exit 0), 19:01:52Z → 19:12:56Z.** The two runs before
+it (31208665347 on `abe7c86`, 31208789658 on `5d83438`) came back `cancelled`, each superseded by
+this session's own next push — not test failures.
+
+**PROVEN LIVE 2026-08-07:** `scripts/h6-live-deploy-check.mjs` **11/11 PASS** against
+https://www.aimplifi.app — the served /accounts bundle carries the new door, the door does NOT
+render for a user with nothing to deepen, and all three critic-forced copy corrections shipped
+(including the anti-vacuity check that the pre-critic false promise is ABSENT from production
+JS). Local gate: tsc 0 / eslint 0 / **6,232 unit + 1 skipped / 379 files** / build clean; new
+e2e 2/2 and adjacent connect/duplicate specs 12/12.
+
+### What was actually wrong
+
+Plaid freezes an Item's transaction window when Transactions is added to it — *"Once
+Transactions has been added to an Item, this value cannot be updated"* (plaid.com/docs/api/link/,
+fetched this session) — and names `/item/remove` plus a fresh trip through Link as the only
+remedy. We have asked for the 730-day maximum on every new link since 2026-07-31, but all 13 of
+the owner's Items were created 2026-07-23/24, so each carries the 90-day default. The measured
+floor (oldest Plaid row `2026-04-24`) is exactly `2026-07-23 − 90d`; the arithmetic closes, and
+`backfillItemHistory` returned `added: 0` on all of them because Plaid holds nothing outside an
+Item's birth window.
+
+**The defect: the owner could not perform the remedy, because the app undid it.** A 730-day Item
+necessarily returns the SAME accounts as the 90-day one, so `classifyNewItem` marked it
+`whollyRedundant` and `decideAndPersistItem` handed it back to Plaid (`plaid.ts:505-522`) —
+keeping the shallow connection and destroying the deep one. That branch is L.10 layer 2 working
+correctly for the case it was built for; re-linking for DEPTH is the one case where *"it just
+refreshes"* is the wrong answer.
+
+**This corrects the record twice over.** K.2 said *"Route C is dead for depth, confirmed twice"* —
+both confirmations measured how much history the existing Items hold, neither executed the route
+and read what the app does with the result. TASKS H.6 budgeted 90k for a dedupe engine that was
+never needed: `combineDuplicateConnections` already folds the old connection into the new one, and
+`applyReconciliationBoundary` already keeps the successor's deeper rows
+(`reconcile-boundary.ts:17-23`, critic cycle-1 F2).
+
+### What shipped
+
+One explicit owner intent (`deepenHistory`), carried from a new /accounts door through the
+localStorage record that survives the OAuth redirect, into the server action and the provider. It
+exempts the wholly-redundant discard and nothing else — the lease, the live `/accounts/get`
+interrogation of every candidate, and the identity ladder all run unchanged, and the ordinary
+front door still refuses. Two sabotages: removing the exemption fails exactly its own lock (1 red
+/ 28 green); leaking it to every link fires 9 of L.10's tests.
+
+### Residuals — recorded, not fixed (fresh-context critic: 0 P0, 4 P1)
+
+1. **H.6c (P1, OPEN — highest-priority follow-up).** The /accounts combine card's PRIMARY button
+   proposes dropping the connection that holds the history. `keepRank` ties on health and on
+   `lastSyncedAt` (a calendar day, so same-day ties are the norm) and falls through to *"linked
+   first wins"*; the recommended proposal renders first as `variant="default"`. Critic-executed:
+   `RECOMMENDED keep=old drop=new`. Combine REVOKES the dropped Item, irreversibly, most likely
+   before Plaid's background historical pull has finished. **Mitigated in copy, not fixed:** the
+   flash now names the ordinal to keep and what the other choice costs (locked). The real fix is
+   a depth rule in `keepRank` ahead of the linked-first tie-break.
+2. **H.6b(a) (P1, DISCLOSED).** After combining, each account reads from the new connection's
+   copies, so categories, notes and splits filed by hand on the old copies stop being applied —
+   `handoverDate` clamps the cutover to the predecessor's FIRST transaction whenever the successor
+   reaches further back, which is what a successful deepen guarantees. No money moves, nothing is
+   deleted. Now an amber caveat on the door (e2e-locked as its own element); carrying the fields
+   across is the fix.
+3. **H.6b(b) (P1, OPEN — blocks the owner where he has split a transaction).** One split on the
+   old connection makes the whole combine refuse with a FALSE diagnosis (*"2 charges totalling
+   $100.00 appear on only one of them"*), because `rowsLostToTheSplit` is fed rows filtered
+   `isSplitParent: false` and compares split CHILDREN against the successor's PARENT. Refuses
+   safely — a blocked remedy, not data loss. Named fix in the TASKS row.
+4. **P2s not actioned:** two link-token minters now mount on /accounts and `createPlaidLinkToken`
+   has no rate limit (unlike its update-mode sibling); the exemption writes only the ordinary
+   `plaid.item.link` audit row, so nothing server-side distinguishes "the owner asked for depth"
+   from "the collision check abstained"; the door is one button for thirteen connections, with no
+   per-connection depth readout.
+
+### What the owner has to do (per institution, and only he can)
+
+Link the bank again from **Only seeing a few months? → Get the full two years of history**,
+sharing **the same accounts** as before → the app keeps both and says so → **wait** for the older
+transactions to appear → combine the two, keeping the connection just added (the highest-numbered
+one at that bank). Until H.6c lands, the card's prominent button proposes the opposite direction.
+
+### Suite flake, measured not diagnosed
+
+One full unit run failed 2 tests in `cron-notify.test.ts` (delivery counted 0, then a
+`pushSubscription.create` conflict). The same tree re-run passed 6,227; the file passes alone; the
+stashed clean tree at `ddd7682` passed 6,224. Same code, different verdicts — non-determinism in
+that file, outside this diff.
+
 ## ✅ BUILT 2026-08-07 — K.2(b): a deleted connection stops impersonating a stale one (DECISIONS #423, critic-cycled)
 
 **SHIPPED-GREEN + PROVEN LIVE 2026-08-07: CI run 31148722758 `success` on `82a8d7d`
