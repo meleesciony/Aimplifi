@@ -11,6 +11,7 @@ import {
   UPDATE_PULL_FAILED_AWAY,
   alreadyConnectedFlash,
   cannotReopenMessage,
+  linkedForHistoryFlash,
   linkedWithOverlapFlash,
   updatePullFailedMessage,
   updateSuccessFlash,
@@ -211,5 +212,38 @@ describe('linkedWithOverlapFlash — both connections kept, and the overlap said
   it('reads correctly when this login reaches exactly one new account', () => {
     const msg = linkedWithOverlapFlash({ bank: 'Chase', matchedAccountCount: 1, newAccountCount: 1 });
     expect(msg).toMatch(/reaches an account the other one can’t/);
+  });
+
+  // ---- H.6 / DECISIONS #424 — the deliberate second connection ---------------------------
+
+  describe('linkedForHistoryFlash', () => {
+    const one = { bank: 'Chase', matchedAccountCount: 1 };
+
+    it('names the duplicate as DELIBERATE — the app has spent a month promising it refuses these', () => {
+      // The owner reported duplicate accounts as a bug and this app answered by refusing to
+      // create them. A silent second Chase now reads as that bug coming back, so the very
+      // first thing this says is that it was asked for.
+      expect(linkedForHistoryFlash(one)).toMatch(/on purpose/i);
+    });
+
+    it('discloses the double-count, because a wrong figure is never allowed to be silent', () => {
+      const msg = linkedForHistoryFlash(one);
+      expect(msg).toMatch(/counted — twice/);
+    });
+
+    it('test_regression__says_which_connection_to_keep', () => {
+      // The expensive mistake this sentence prevents: combining the two the other way round
+      // drops the NEW connection and with it every extra month this whole exercise bought.
+      // The remedy is safe to promise here (unlike linkedWithOverlapFlash) because a wholly
+      // redundant old side strands nothing when dropped, which is what combine requires.
+      const msg = linkedForHistoryFlash(one);
+      expect(msg).toMatch(/combine/i);
+      expect(msg).toMatch(/keeping the NEW connection/);
+    });
+
+    it('pluralises the accounts that now appear on both connections', () => {
+      const msg = linkedForHistoryFlash({ bank: 'Chase', matchedAccountCount: 3 });
+      expect(msg).toMatch(/Those 3 accounts are now on both/);
+    });
   });
 });

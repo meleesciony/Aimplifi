@@ -26,6 +26,7 @@ import {
   clearStoredLinkToken,
   clearStoredOriginPath,
   isOAuthRedirect,
+  readStoredDeepenHistory,
   readStoredLinkToken,
   readStoredOriginPath,
   readStoredUpdateItemId,
@@ -94,7 +95,11 @@ export default function PlaidOAuthReturnPage() {
               error: r.error ? `${UPDATE_PULL_FAILED} (${r.error})` : UPDATE_PULL_FAILED,
             };
           })
-        : linkPlaidAccount(publicToken).then((r) => {
+        : // Read from the SAME stored record as the update marker, and read BEFORE the clear
+          // below — an OAuth bank is exactly where losing this would hurt, because the owner's
+          // deepest connections (Chase ×3, Capital One ×2, U.S. Bank) all return through here
+          // and would otherwise be discarded as redundant with no way to tell why (H.6).
+          linkPlaidAccount(publicToken, { deepenHistory: readStoredDeepenHistory() }).then((r) => {
             // This page navigates away the instant it succeeds, so an outcome that needs
             // saying — a redundant link refused, an overlapping one kept (TASKS L.10 layer 2)
             // — has to ride the flash to survive the redirect, the same way the update flow's

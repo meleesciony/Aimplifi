@@ -154,6 +154,38 @@ export function linkedWithOverlapFlash(opts: {
 }
 
 /**
+ * The outcome of a deliberate "get the full two years" link (TASKS H.6, DECISIONS #424):
+ * the new connection reaches exactly the same accounts as one the user already has, and was
+ * kept anyway, because only a brand-new Item can carry Plaid's 730-day window.
+ *
+ * Three things have to be said and none can be dropped. That the duplicate is DELIBERATE —
+ * the app has spent a month telling this owner it refuses to duplicate his accounts, so a
+ * silent second Chase would read as the bug he reported. That the accounts count twice UNTIL
+ * he combines them, which is a wrong figure he is owed a warning about (invariant D9). And
+ * WHICH ONE TO KEEP: the new connection is the one holding the history, so combining the
+ * wrong way round throws away everything this link was for.
+ *
+ * Unlike `linkedWithOverlapFlash` this one does promise the remedy, because here the remedy is
+ * guaranteed to be offered rather than guaranteed to refuse: `combineDuplicateConnections`
+ * offers a direction when dropping that side strands nothing, and the old connection reaching
+ * nothing the new one cannot is precisely what "wholly redundant" established.
+ */
+export function linkedForHistoryFlash(opts: {
+  bank: string;
+  matchedAccountCount: number;
+}): string {
+  const n = opts.matchedAccountCount;
+  return [
+    `Connected ${opts.bank} a second time — on purpose.`,
+    `Plaid fixes how far back a connection can see when it is created, so the only way to reach two years of history is a new connection, and it comes back with the same ${n === 1 ? 'account' : 'accounts'} as the old one.`,
+    n === 1
+      ? `That account is now on both connections, so it will be listed — and counted — twice until you combine them.`
+      : `Those ${n} accounts are now on both connections, so they will be listed — and counted — twice until you combine them.`,
+    `Open Accounts and combine the two, keeping the NEW connection — it is the one holding the longer history.`,
+  ].join(' ');
+}
+
+/**
  * The same message on the OAuth return page, which knows an item id but not the bank's
  * name, and where the user is not standing next to the Sync control.
  */

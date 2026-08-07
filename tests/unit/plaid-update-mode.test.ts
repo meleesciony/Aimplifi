@@ -25,6 +25,7 @@ import { PlaidProvider, linkTokenParams } from '@/lib/providers/plaid';
 import {
   OAUTH_LINK_TOKEN_KEY,
   clearStoredLinkToken,
+  readStoredDeepenHistory,
   readStoredLinkToken,
   readStoredUpdateItemId,
   storeLinkToken,
@@ -232,6 +233,48 @@ describe('OAuth round-trip record — an update must not be handled as a new con
     storeLinkToken('link-new', 'item-xyz');
     expect(readStoredLinkToken()).toBe('link-new');
     expect(readStoredUpdateItemId()).toBe('item-xyz');
+  });
+
+  // ---- H.6 / DECISIONS #424: the deepen intent rides the same one record ------------------
+
+  it('carries the deepen-history intent across the OAuth round-trip', () => {
+    // The banks the owner needs deepened (Chase ×3, Capital One ×2, U.S. Bank) are exactly the
+    // ones that navigate the browser away and come back through /plaid-oauth, so an intent that
+    // does not survive this hop is an intent that fails at precisely the banks it is for.
+    storeLinkToken('link-tok', undefined, true);
+    expect(readStoredLinkToken()).toBe('link-tok');
+    expect(readStoredDeepenHistory()).toBe(true);
+    expect(readStoredUpdateItemId()).toBeNull();
+  });
+
+  it('an ordinary new-connection session carries no deepen intent', () => {
+    storeLinkToken('link-tok');
+    expect(readStoredDeepenHistory()).toBe(false);
+  });
+
+  it('an UPDATE session is never a deepen session — update mode cannot widen a frozen window', () => {
+    // Mutually exclusive by construction: update mode reopens the EXISTING Item, whose history
+    // window Plaid has already fixed, so there is no depth down that path and nothing to exempt.
+    // Were both ever written, the update marker must win: its branch is the one that must NOT
+    // exchange the public token, and that is the more expensive mistake.
+    storeLinkToken('link-tok', 'item-abc', true);
+    expect(readStoredUpdateItemId()).toBe('item-abc');
+    expect(readStoredDeepenHistory()).toBe(false);
+  });
+
+  it('a stale record from another build never reads as an intent to keep a duplicate', () => {
+    // Only the literal `true` this module writes counts. The failure direction is deliberate:
+    // a missing intent costs the owner one repeated attempt, a fabricated one keeps a
+    // connection they never asked for.
+    store.set(OAUTH_LINK_TOKEN_KEY, JSON.stringify({ token: 'link-tok', deepenHistory: 'yes' }));
+    expect(readStoredLinkToken()).toBe('link-tok');
+    expect(readStoredDeepenHistory()).toBe(false);
+  });
+
+  it('a deepen session is forgotten with the rest of the record', () => {
+    storeLinkToken('link-tok', undefined, true);
+    clearStoredLinkToken();
+    expect(readStoredDeepenHistory()).toBe(false);
   });
 
   it('clearing removes both halves at once', () => {

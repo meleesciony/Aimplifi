@@ -5185,3 +5185,63 @@ stopped") over the proven fact — portfolio-scope surface, own slice; H.5 backf
 recent gap LAST (oldest-first batches) while rows read "Synced today" — machinery, own slice;
 pending-at-disconnect rows that post backdated can fall between the 5-day live window and an
 already-stamped backfill; SimpleFIN account-id stability across bridges UNVERIFIED.
+
+## #424 — H.6: a deliberate re-link for DEPTH is not the duplicate L.10 refuses (2026-08-07)
+
+**Owner instruction, verbatim:** *"Unacceptable we don't have at least plaid maximal dates."*
+
+**He is right, and the cause is ours.** Plaid freezes an Item's transaction window at birth —
+*"Once Transactions has been added to an Item, this value cannot be updated"*
+(plaid.com/docs/api/link/, fetched this session), with `/item/remove` plus a fresh trip through
+Link as the documented remedy. We ask for the 730-day maximum on every new link already
+(`PLAID_DAYS_REQUESTED`, `plaid.ts:189/293`), but the owner's 13 items were created
+2026-07-23/24, a week before that shipped, so every one carries the 90-day default. The live
+floor measured under K.2 — oldest Plaid row `2026-04-24` — is exactly `2026-07-23 − 90d`, and
+`backfillItemHistory` returned `added: 0` on all of them because Plaid holds nothing outside an
+Item's birth window. There is no missing data to go and find.
+
+**The defect: the owner cannot perform the documented remedy, because the app undoes it.** A
+fresh link at a bank he already has returns only accounts he already has, so `classifyNewItem`
+marks the new Item `whollyRedundant` and `decideAndPersistItem` hands it straight back to Plaid
+(`plaid.ts:505-522`) — discarding the 730-day connection and keeping the 90-day one. That branch
+is L.10 layer 2 doing exactly its job for the case it was built for (*"when I try to link same
+account again, it just refreshes"* — owner, 2026-07-24). Re-linking for DEPTH is the one case
+where "it just refreshes" is the wrong answer, and the two are indistinguishable from the
+accounts alone: both return an identical account set. The difference is not in the data, it is
+in what the owner asked for.
+
+**Decision: carry the owner's intent, and exempt only that.** A link started from the new
+"get the full two years" affordance is exempt from the wholly-redundant discard; the ordinary
+front door keeps refusing exactly as today, so L.10's promise does not regress. Rejected
+alternatives, and why:
+
+* **Infer it — keep any link that would bring deeper history than the one it duplicates.** Needs
+  no owner input and is true by construction, but it fires on EVERY re-link, including the
+  repair re-link that is the commonest reason anyone re-runs Link. Most items have shallow
+  history, so this quietly turns L.10's refusal off for nearly everyone.
+* **Do it automatically — remove the shallow Item and re-link it ourselves.** `/item/remove` is
+  irreversible and re-linking needs the owner's bank credentials regardless; a failed re-link
+  after an automatic remove leaves him disconnected with nothing gained
+  (`docs/lessons/irreversible-acts-need-live-proof.md`). Link first, drop second, owner's click
+  at both ends.
+* **Extend the existing Item.** Not offered by Plaid; verified above rather than assumed.
+
+**Why an intent parameter is safe even though it is client-supplied.** The failure direction is
+the one this whole path was designed around: a spoofed or mistaken intent produces a duplicate
+connection, which the app discloses at the moment it is created (#299/#306), can combine (#304),
+and can undo (R9). A wrong discard hands a live credential back to Plaid and cannot be undone.
+`plaid-link-collision-wiring.test.ts` states that asymmetry as the reason most of its tests
+assert the app did NOT act; this decision keeps the app on the same side of it.
+
+**Nothing new is needed downstream, and that is the finding that shrank this slice from TASKS
+H.6's 90k estimate.** Two live connections at one bank already combine
+(`combineDuplicateConnections`), and `applyReconciliationBoundary` already resolves this exact
+shape in the right direction: the successor keeps rows OUTSIDE the predecessor's claim span, so
+*"the successor's deeper backfill is NEVER dropped"* (`reconcile-boundary.ts:17-23`, critic
+cycle-1 F2). The owner's categories, splits and corrections live on the predecessor's rows and
+survive untouched — the boundary re-points nothing.
+
+**The owner's sequence, per institution:** link the bank again from the new affordance → the app
+keeps both and says so → combine them, keeping the NEW connection → the old one is revoked and
+its rows become the pre-cutover history of one continuous account. Two years, one account, no
+data lost.

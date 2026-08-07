@@ -2,6 +2,60 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-07 — H.6 diagnosis: the 730-day link is not missing, it is being DISCARDED
+
+Owner, verbatim: *"Unacceptable we don't have at least plaid maximal dates."* He is right about the
+data and the cause is ours, not Plaid's.
+
+**Established this session, each by reading the code or Plaid's own reference — no inference:**
+
+1. **Plaid's ceiling is 730 days and the window is frozen at Item birth.** `/link/token/create`
+   → `transactions.days_requested`: *"Once Transactions has been added to an Item, this value
+   cannot be updated"* (plaid.com/docs/api/link/, fetched 2026-08-07). The documented remedy is
+   `/item/remove` plus a fresh trip through Link. Update mode cannot widen it.
+2. **We already ask for the maximum on every NEW link.** `PLAID_DAYS_REQUESTED = 730`
+   (`plaid.ts:189`), sent at `plaid.ts:293`, bound-locked in `tests/unit/plaid-oauth.test.ts`.
+3. **The owner's 13 items were all created 2026-07-23/24**, a week before that shipped
+   (2026-07-31), so every one carries Plaid's 90-day default. The measured floor —
+   oldest Plaid row anywhere `2026-04-24` (K.2, re-measured live 2026-08-06) — is exactly
+   `2026-07-23 − 90d`. The arithmetic closes; there is no missing data to find.
+4. **The date-ranged `/transactions/get` backfill cannot rescue them.** `backfillItemHistory`
+   asks the full 730-day window (`plaid.ts:1774`) and returned `added: 0` on all of them,
+   because Plaid holds nothing outside the window the Item was born with.
+
+**The finding that turns this from an owner-click gap into a code defect:** the owner cannot
+fix it himself, because the app refuses the link that would. A fresh Chase link returns only
+accounts he already has, so `classifyNewItem` marks it `whollyRedundant` and
+`decideAndPersistItem` hands the new Item straight back to Plaid via `/item/remove`
+(`plaid.ts:505-522`) — keeping the 90-day connection and destroying the 730-day one. That
+branch is L.10 layer 2 working exactly as designed for the case it was built for (*"when I try
+to link same account again, it just refreshes"*, owner 2026-07-24). A deliberate re-link for
+DEPTH is the one case where "it just refreshes" is the wrong answer, and nothing today can tell
+the two apart.
+
+**Everything downstream of that branch already exists and is critic-hardened**, which is why the
+fix is small rather than the 90k rebuild TASKS H.6 budgeted:
+
+* `combineDuplicateConnections` (`src/server/combine-connections.ts`) already combines two LIVE
+  connections at one bank, drops the loser, revokes it, and records one reconciliation per
+  proven account pair.
+* `applyReconciliationBoundary` already makes the pair read as one account — and it already
+  decides this exact case in the right direction: the successor keeps rows OUTSIDE the
+  predecessor's claim span, so *"the successor's deeper backfill is NEVER dropped"*
+  (`reconcile-boundary.ts:17-23`, critic cycle-1 F2). The deep history survives the combine.
+* The pairing is user-confirmed and reversible (`AccountReconciliation.undoneAt`, R9).
+
+**Decision (DECISIONS #424): thread one explicit owner intent through the front door.** A link
+started from a new "get the full two years" affordance is exempt from the wholly-redundant
+discard; the ordinary front door keeps refusing exactly as it does today, so L.10's promise to
+the owner does not regress. Failure direction is the safe one by construction — a spoofed or
+mistaken intent yields a duplicate the app already discloses (#299/#306), can combine (#304),
+and can undo (R9), never a revoked credential, which is the asymmetry
+`plaid-link-collision-wiring.test.ts` was written around.
+
+**Status: diagnosis complete and recorded; build in progress in this session. Nothing shipped
+yet — no code changed at the time of this checkpoint.**
+
 ## 2026-08-06 — H.8 critic cycle 1: the merchant-batch writers were the door the slice left open
 
 **Fresh-context critic (isolated worktree): FAIL — 1 P1 (executed), 1 P2, 4 P3.

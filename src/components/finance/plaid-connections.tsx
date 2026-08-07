@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { connectionOrdinals } from '@/components/finance/duplicate-card-view';
 import { setFlash } from '@/components/finance/flash';
 import { ConfirmPrompt, useConfirmArm } from '@/components/ui/confirm-action';
+import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { PlaidUpdateButton } from '@/components/finance/plaid-update-button';
 import { disconnectPlaidItem, syncPlaidNow } from '@/server/plaid-actions';
 
@@ -240,6 +241,19 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
         the same bank — a business account, or a partner’s — is not a copy: connect that one
         normally, and it is kept.)
       </p>
+      {/* H.6 / DECISIONS #424 — the deliberate exception to the sentence directly above, placed
+          directly below it so the two are read together rather than found separately and taken
+          as a contradiction. Rendered only when there IS a connection to deepen: with none, the
+          ordinary Connect front door already asks for the full window. */}
+      {items.length > 0 && (
+        <div
+          className="mt-3 space-y-1 rounded-md border border-slate-700/50 bg-slate-900/30 p-3"
+          data-testid="deepen-history-panel"
+        >
+          <p className="text-xs font-medium text-slate-200">Only seeing a few months?</p>
+          <ConnectAccountsButton deepenHistory />
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-xs text-red-400" data-testid="plaid-disconnect-error">
           {error}

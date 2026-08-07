@@ -44,6 +44,23 @@ interface StoredLinkSession {
   token: string;
   /** Present ⇒ update mode on this item. Absent ⇒ a NEW connection, which must exchange. */
   updateItemId?: string;
+  /**
+   * Present ⇒ the owner opened this session from "get the full two years" (TASKS H.6,
+   * DECISIONS #424), so a connection that turns out to duplicate one they already have is
+   * KEPT rather than handed back to Plaid — it is the one carrying the deeper history.
+   *
+   * It rides in this record for the same reason the update marker does: an OAuth bank
+   * navigates the browser away and takes the calling component's state with it, and the
+   * banks that redirect through /plaid-oauth (Chase, Capital One, U.S. Bank) are exactly
+   * the ones the owner needs deepened. Losing the intent across that hop would put the
+   * deepening link straight back into the discard branch it exists to avoid — silently,
+   * and only at the big banks.
+   *
+   * Mutually exclusive with `updateItemId` by construction: update mode reopens the
+   * EXISTING Item, whose history window Plaid has already frozen, so there is no depth to
+   * be had down that path and nothing to exempt.
+   */
+  deepenHistory?: true;
 }
 
 /**
@@ -65,8 +82,17 @@ interface StoredLinkSession {
  * Only one Link session can be open at a time (it is a modal), so a single slot is the
  * right shape — provided it is stamped by whoever is opening it.
  */
-export function storeLinkToken(token: string, updateItemId?: string): void {
-  const session: StoredLinkSession = updateItemId ? { token, updateItemId } : { token };
+export function storeLinkToken(
+  token: string,
+  updateItemId?: string,
+  /** True only from the "get the full two years" door (H.6) — see StoredLinkSession. */
+  deepenHistory?: boolean,
+): void {
+  const session: StoredLinkSession = updateItemId
+    ? { token, updateItemId }
+    : deepenHistory
+      ? { token, deepenHistory: true }
+      : { token };
   try {
     window.localStorage.setItem(OAUTH_LINK_TOKEN_KEY, JSON.stringify(session));
   } catch {
@@ -86,11 +112,15 @@ function readStoredSession(): StoredLinkSession | null {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') {
-      const { token, updateItemId } = parsed as Record<string, unknown>;
+      const { token, updateItemId, deepenHistory } = parsed as Record<string, unknown>;
       if (typeof token !== 'string' || token.trim() === '') return null;
-      return typeof updateItemId === 'string' && updateItemId.trim() !== ''
-        ? { token, updateItemId }
-        : { token };
+      if (typeof updateItemId === 'string' && updateItemId.trim() !== '') {
+        return { token, updateItemId };
+      }
+      // Only the literal `true` this module writes counts. Anything else — a truthy
+      // string, a stale shape from another build — reads as absent, which lands on the
+      // ORDINARY front door: the link is checked for redundancy exactly as it is today.
+      return deepenHistory === true ? { token, deepenHistory: true } : { token };
     }
     return null;
   } catch {
@@ -181,4 +211,14 @@ export function clearStoredOriginPath(): void {
 /** The in-flight session's item id, or null when this is a NEW connection (browser-only). */
 export function readStoredUpdateItemId(): string | null {
   return readStoredSession()?.updateItemId ?? null;
+}
+
+/**
+ * True when the in-flight session was opened from "get the full two years" (H.6), so the
+ * connection it produces must be kept even if every account in it is one the user already
+ * has. Defaults to FALSE on anything unreadable — an absent intent costs the owner one
+ * repeated attempt, while a fabricated one keeps a connection they did not ask for.
+ */
+export function readStoredDeepenHistory(): boolean {
+  return readStoredSession()?.deepenHistory === true;
 }

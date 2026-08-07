@@ -27,7 +27,22 @@ import { usePlaidLink, type PlaidLinkError } from 'react-plaid-link';
 import { createPlaidLinkToken, linkPlaidAccount } from '@/server/plaid-actions';
 import { clearStoredLinkToken, storeLinkToken, storeOriginPath } from '@/lib/plaid-oauth';
 
-export function ConnectAccountsButton() {
+export interface ConnectAccountsButtonProps {
+  /**
+   * Open this session as a DEEPEN-HISTORY link (TASKS H.6, DECISIONS #424) rather than as an
+   * ordinary new connection: the owner is re-linking a bank he already has, on purpose, because
+   * Plaid freezes an Item's history window when it is created and only a new Item can carry the
+   * 730-day maximum. The resulting connection is exempt from the wholly-redundant discard.
+   *
+   * Same component rather than a sibling because everything difficult here — minting the token
+   * ahead of the click so `open()` stays inside the user gesture (#284), stashing the session
+   * for the OAuth round-trip, clearing it on every terminal outcome — is identical, and a copy
+   * would be a second place for the gesture rule to be got wrong.
+   */
+  deepenHistory?: boolean;
+}
+
+export function ConnectAccountsButton({ deepenHistory = false }: ConnectAccountsButtonProps = {}) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -82,7 +97,7 @@ export function ConnectAccountsButton() {
       setNotice(null);
       // A rejected exchange must NOT silently drop the public_token — clear busy and
       // surface an error, never strand the button on "Connecting…".
-      void linkPlaidAccount(publicToken)
+      void linkPlaidAccount(publicToken, { deepenHistory })
         .then((r) => {
           clearStoredLinkToken();
           setToken(null);
@@ -104,7 +119,7 @@ export function ConnectAccountsButton() {
           setError('Linking failed — please try again.');
         });
     },
-    [router],
+    [router, deepenHistory],
   );
 
   const onExit = useCallback(
@@ -130,7 +145,10 @@ export function ConnectAccountsButton() {
       // Stamp the session THIS click is about to open, so the OAuth return page resumes
       // the right token and knows this is a NEW connection (it must exchange). Must
       // happen here rather than at mint: see generateToken.
-      if (token) storeLinkToken(token);
+      // The deepen intent is stamped into the SAME record as the token, so it survives the
+      // OAuth round-trip that destroys this component — and the banks the owner needs
+      // deepened (Chase, Capital One, U.S. Bank) are exactly the ones that take that trip.
+      if (token) storeLinkToken(token, undefined, deepenHistory);
       storeOriginPath(window.location.pathname);
       // Synchronous open() INSIDE the click — this is what keeps the OAuth bank
       // popup allowed. Never move this into a useEffect.
@@ -146,13 +164,27 @@ export function ConnectAccountsButton() {
     <div className="space-y-1">
       <button
         type="button"
-        data-testid="connect-bank-btn"
+        data-testid={deepenHistory ? 'deepen-history-btn' : 'connect-bank-btn'}
         disabled={busy}
         onClick={handleClick}
         className="rounded-md border border-emerald-700/40 bg-emerald-950/30 px-3 py-1.5 text-sm font-medium text-emerald-300 hover:bg-emerald-950/50 disabled:opacity-50"
       >
-        {busy ? 'Connecting…' : '+ Connect a bank or brokerage (Plaid)'}
+        {busy
+          ? 'Connecting…'
+          : deepenHistory
+            ? 'Get the full two years of history'
+            : '+ Connect a bank or brokerage (Plaid)'}
       </button>
+      {deepenHistory && (
+        <p data-testid="deepen-history-explainer" className="text-[11px] text-slate-400">
+          Plaid fixes how far back a connection can see at the moment it is created, and it can’t
+          be widened afterwards — so reaching two years means connecting the bank again and
+          keeping the new connection. Pick the same bank, and share <b>the same accounts</b> you
+          shared before. You’ll briefly have two connections to that bank and its accounts will
+          count twice; the last step is to combine them here on this page, keeping the new one.
+          Your categories, splits and notes stay on the transactions you already have.
+        </p>
+      )}
       {sandbox && (
         <p data-testid="plaid-sandbox-notice" className="text-[11px] text-amber-300/80">
           Plaid is running in <b>sandbox (test) mode</b>: real banks, real logins, and real phone

@@ -391,6 +391,24 @@ export type LinkOutcome =
       readonly institutionName: string | null;
       readonly matchedAccountCount: number;
       readonly newAccountCount: number;
+    }
+  /**
+   * Both connections were kept even though this one reaches nothing new — because the owner
+   * asked for it, from "get the full two years" (TASKS H.6, DECISIONS #424). It is the SAME
+   * accounts on purpose: only a brand-new Item can carry Plaid's 730-day window, since
+   * `transactions.days_requested` is frozen once Transactions has been added to an Item
+   * (plaid.com/docs/api/link/), so the deeper history and the duplicate arrive together.
+   *
+   * Distinct from `linked-with-overlap` because the number that matters is the opposite one:
+   * there the news is what the new login reaches that the old cannot, here it is that it
+   * reaches exactly the same accounts and the owner's next step is to combine them.
+   */
+  | {
+      readonly kind: 'linked-for-history';
+      readonly itemId: string;
+      readonly existingItemId: string;
+      readonly institutionName: string | null;
+      readonly matchedAccountCount: number;
     };
 
 export class PlaidProvider implements DataProvider {
@@ -428,7 +446,15 @@ export class PlaidProvider implements DataProvider {
   }
 
   /** Step 2: exchange the public token; store it ENCRYPTED, then pull accounts. */
-  async exchangePublicToken(userId: string, publicToken: string): Promise<LinkOutcome> {
+  async exchangePublicToken(
+    userId: string,
+    publicToken: string,
+    /**
+     * `deepenHistory` — this Link session was opened from "get the full two years" (H.6).
+     * See `decideAndPersistItem` for what it exempts and why it exempts nothing else.
+     */
+    opts?: { deepenHistory?: boolean },
+  ): Promise<LinkOutcome> {
     const result = await plaidPost<{ access_token: string; item_id: string }>(
       '/item/public_token/exchange',
       { public_token: publicToken },
@@ -467,6 +493,7 @@ export class PlaidProvider implements DataProvider {
         result.item_id,
         institutionId,
         institution,
+        opts?.deepenHistory === true,
       );
     } finally {
       if (claim) await this.releaseLinkClaim(claim);
@@ -494,6 +521,32 @@ export class PlaidProvider implements DataProvider {
     itemId: string,
     institutionId: string | null,
     institution: string | null,
+    /**
+     * ---- H.6 / DECISIONS #424: the one case where "it just refreshes" is the wrong answer ----
+     *
+     * Plaid freezes an Item's transaction window when Transactions is added to it — *"Once
+     * Transactions has been added to an Item, this value cannot be updated"*
+     * (plaid.com/docs/api/link/) — and names `/item/remove` plus a fresh trip through Link as
+     * the only way to widen it. So the connection that carries two years of history is, by
+     * Plaid's own construction, a SECOND connection returning the SAME accounts: exactly the
+     * shape the discard below exists to destroy. Owner, 2026-08-07: *"Unacceptable we don't
+     * have at least plaid maximal dates."*
+     *
+     * What this flag exempts: the wholly-redundant discard, and nothing else. Every other
+     * guard on this path — the (user, bank) lease, the live `/accounts/get` interrogation of
+     * each candidate, the identity ladder's PROVEN-only verdict — runs unchanged, and the
+     * ordinary front door still refuses redundant links exactly as it does today, so L.10's
+     * promise to the owner (*"when I try to link same account again, it just refreshes"*) is
+     * not weakened for anyone who did not ask for this.
+     *
+     * Why it is safe to take the caller's word for it. The flag can only ADD a connection, and
+     * the failure direction of adding one is the one this whole path was designed around: a
+     * duplicate is disclosed at the moment it is created (#299/#306), can be combined (#304),
+     * and can be undone (R9). A wrong discard hands a live credential back to Plaid and cannot
+     * be undone at all. A spoofed flag therefore costs a duplicate the app already knows how to
+     * talk about; honouring it wrongly in the other direction costs a bank.
+     */
+    deepenHistory: boolean,
   ): Promise<LinkOutcome> {
     const decision = await this.classifyNewItem(
       userId,
@@ -502,7 +555,12 @@ export class PlaidProvider implements DataProvider {
       institutionId,
       institution,
     );
-    if (decision && decision.collision.kind === 'already-connected' && decision.whollyRedundant) {
+    if (
+      decision &&
+      decision.collision.kind === 'already-connected' &&
+      decision.whollyRedundant &&
+      !deepenHistory
+    ) {
       // Every account this login returned is one the user ALREADY has through another live
       // connection, so keeping it adds no account, no balance and no transaction source — it
       // only bills a second Item and paints every account twice. Discard it at Plaid and
@@ -566,6 +624,26 @@ export class PlaidProvider implements DataProvider {
     else await this.syncAccountsForItem(userId, itemId);
 
     if (decision && decision.collision.kind === 'already-connected') {
+      if (decision.whollyRedundant && deepenHistory) {
+        // Gated on the INTENT, not merely on redundancy — caught by
+        // `test_regression__a_failed_revoke_keeps_the_item_instead_of_orphaning_a_billed_connection`,
+        // which reaches here having wanted the discard and been refused by Plaid. That item is
+        // kept for want of a working revoke, not because anyone asked for history, and telling
+        // its owner "connected a second time — on purpose" would be a claim about a decision
+        // nobody made. Only the owner's own intent may produce that sentence.
+        //
+        // This connection reaches nothing new and was kept anyway, so the honest report is the
+        // fact that produced it: same accounts, deeper history, one step left to take.
+        // Reported as its own kind rather than as an overlap because `linked-with-overlap`
+        // would count ZERO new accounts and read as a mistake the owner should undo.
+        return {
+          kind: 'linked-for-history',
+          itemId,
+          existingItemId: decision.collision.itemId,
+          institutionName: decision.collision.institutionName ?? institution,
+          matchedAccountCount: decision.collision.matches.length,
+        };
+      }
       // A PARTIAL overlap: some accounts are provably ones they already have, at least one is
       // not. Both connections are kept — dropping this one would strand the accounts only it
       // can reach — but the overlap is said out loud at the moment it is created, rather than

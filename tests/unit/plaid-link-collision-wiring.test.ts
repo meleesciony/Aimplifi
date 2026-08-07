@@ -601,4 +601,100 @@ describe('exchangePublicToken — the door that refuses to create the duplicate 
 
     expect(accountsGetCalls).toEqual(['tok-p-billing']);
   });
+
+  // ---- H.6 / DECISIONS #424: the deliberate re-link for DEPTH ------------------------------
+  //
+  // Owner, 2026-08-07: "Unacceptable we don't have at least plaid maximal dates." Plaid freezes
+  // an Item's transaction window when Transactions is added to it and names /item/remove plus a
+  // fresh Link as the only way to widen it — so the connection carrying two years of history is
+  // necessarily a SECOND connection returning the SAME accounts, which is exactly the shape the
+  // tests above prove this door destroys. These lock the one exemption, and lock that it stays
+  // one: everything not started from "get the full two years" must still be refused.
+
+  it('a deepen-history link is KEPT even though it is wholly redundant — the 730-day window can arrive no other way', async () => {
+    const userId = await makeUser('deepen');
+    const shallow = await existingConnection(userId, 'deepen', 'ins_chase', [
+      acct({ account_id: 'have-1' }),
+    ]);
+    newItemAccounts = [acct({ account_id: 'new-1' })];
+
+    const outcome = await new PlaidProvider().exchangePublicToken(userId, 'p-deepen', {
+      deepenHistory: true,
+    });
+
+    expect(outcome).toEqual({
+      kind: 'linked-for-history',
+      itemId: 'item-p-deepen',
+      existingItemId: shallow,
+      institutionName: 'Chase',
+      matchedAccountCount: 1,
+    });
+    // The credential this link exists to obtain was NOT handed back to Plaid.
+    expect(removedTokens).toEqual([]);
+    // Both connections live: the shallow one still holds the history already stored, the deep
+    // one is the source going forward, and the owner combines them from /accounts.
+    expect(await liveItems(userId)).toBe(2);
+    expect(await prisma.plaidItem.findUnique({ where: { itemId: 'item-p-deepen' } })).not.toBeNull();
+    // A second Account row is the POINT, not a defect: it is the row the deeper history lands
+    // on, and it is what the combine step folds the old one into.
+    expect(await prisma.account.count({ where: { userId } })).toBe(2);
+  });
+
+  it('test_regression__the_deepen_exemption_is_the_flag_and_not_the_new_branch', async () => {
+    // The whole risk of #424 is that the exemption leaks into the ordinary front door and
+    // quietly repeals L.10 for everyone. Same fixture as the test above, flag explicitly OFF:
+    // the discard must still fire, or the owner's original complaint is back.
+    const userId = await makeUser('deepen-off');
+    const kept = await existingConnection(userId, 'deepen-off', 'ins_chase', [
+      acct({ account_id: 'have-1' }),
+    ]);
+    newItemAccounts = [acct({ account_id: 'new-1' })];
+
+    const outcome = await new PlaidProvider().exchangePublicToken(userId, 'p-deepen-off', {
+      deepenHistory: false,
+    });
+
+    expect(outcome).toMatchObject({ kind: 'already-connected', existingItemId: kept });
+    expect(removedTokens).toEqual(['tok-p-deepen-off']);
+    expect(await liveItems(userId)).toBe(1);
+  });
+
+  it('a deepen link that reaches something new is still reported as an OVERLAP, not as a history link', async () => {
+    // `linked-for-history` claims "same accounts, deeper history, go and combine them" — and
+    // combining is offered only when dropping a side strands nothing. A login that reaches an
+    // account the old one cannot is precisely the case where that promise would be false, so
+    // the flag must not be allowed to relabel it.
+    const userId = await makeUser('deepen-partial');
+    const kept = await existingConnection(userId, 'deepen-partial', 'ins_chase', [
+      acct({ account_id: 'have-1', mask: '1111' }),
+    ]);
+    newItemAccounts = [
+      acct({ account_id: 'new-1', mask: '1111' }),
+      acct({ account_id: 'new-2', mask: '2222' }),
+    ];
+
+    const outcome = await new PlaidProvider().exchangePublicToken(userId, 'p-deepen-partial', {
+      deepenHistory: true,
+    });
+
+    expect(outcome).toMatchObject({
+      kind: 'linked-with-overlap',
+      existingItemId: kept,
+      matchedAccountCount: 1,
+      newAccountCount: 1,
+    });
+    expect(removedTokens).toEqual([]);
+  });
+
+  it('a deepen link at a bank the user does NOT have is an ordinary link — the flag adds no state of its own', async () => {
+    const userId = await makeUser('deepen-fresh');
+    newItemAccounts = [acct({ account_id: 'new-1' })];
+
+    const outcome = await new PlaidProvider().exchangePublicToken(userId, 'p-deepen-fresh', {
+      deepenHistory: true,
+    });
+
+    expect(outcome).toMatchObject({ kind: 'linked' });
+    expect(await liveItems(userId)).toBe(1);
+  });
 });

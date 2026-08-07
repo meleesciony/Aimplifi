@@ -15,6 +15,7 @@ import { DEMO_CONNECT_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { PlaidProvider } from '@/lib/providers/plaid';
 import {
   alreadyConnectedFlash,
+  linkedForHistoryFlash,
   linkedWithOverlapFlash,
 } from '@/components/finance/plaid-update-copy';
 import { auditLog, rateLimitDurable, requireUserId } from '@/server/authz';
@@ -134,12 +135,28 @@ export async function createPlaidUpdateLinkToken(itemId: string): Promise<LinkTo
  * (plaid.com/docs/link/update-mode, fetched 2026-07-24). The update flow calls
  * `syncPlaidNow` instead, which is how newly-shared accounts arrive.
  */
-export async function linkPlaidAccount(publicToken: string): Promise<LinkResult> {
+export async function linkPlaidAccount(
+  publicToken: string,
+  /**
+   * `deepenHistory` — this session came from "get the full two years" (TASKS H.6), so a
+   * connection that duplicates one the user already has is KEPT rather than handed back to
+   * Plaid: it is the one carrying the 730-day window, which Plaid freezes at Item creation.
+   * See `PlaidProvider.decideAndPersistItem` for why taking the caller's word for this is the
+   * safe direction (a kept duplicate is disclosed, combinable and undoable; a wrong discard
+   * destroys a live credential).
+   */
+  opts?: { deepenHistory?: boolean },
+): Promise<LinkResult> {
   try {
     const userId = await requireUserId();
     if (isDemoUser(userId)) return { ok: false, error: DEMO_CONNECT_BLOCKED };
     if (!plaidConfigured()) return { ok: false, error: 'Bank linking isn’t configured yet.' };
     if (!publicToken) return { ok: false, error: 'Missing public token.' };
+    // Scalar-validate before the flag can reach a branch (#279): a server-action argument is
+    // attacker-controlled and TypeScript's types are erased at this boundary, so only the
+    // literal `true` counts. Anything else — a truthy string, a missing field — is FALSE,
+    // which is the ordinary front door with its redundancy check fully in force.
+    const deepenHistory = opts?.deepenHistory === true;
     const provider = new PlaidProvider();
     // The EXCHANGE is the only step that gates link success: once it resolves, the
     // item is persisted (encrypted) and its accounts are synced. The follow-on
@@ -148,7 +165,7 @@ export async function linkPlaidAccount(publicToken: string): Promise<LinkResult>
     // is required_if_supported, not required), and the sandbox often lags on
     // transactions. Neither must turn a real, successful link into an error, nor
     // skip the cache revalidation that surfaces the just-linked accounts.
-    const outcome = await provider.exchangePublicToken(userId, publicToken);
+    const outcome = await provider.exchangePublicToken(userId, publicToken, { deepenHistory });
     let added = 0;
     try {
       added = (await provider.syncTransactions(userId)).added;
@@ -182,6 +199,16 @@ export async function linkPlaidAccount(publicToken: string): Promise<LinkResult>
         ok: true,
         added,
         notice: alreadyConnectedFlash({
+          bank: outcome.institutionName ?? 'that bank',
+          matchedAccountCount: outcome.matchedAccountCount,
+        }),
+      };
+    }
+    if (outcome.kind === 'linked-for-history') {
+      return {
+        ok: true,
+        added,
+        notice: linkedForHistoryFlash({
           bank: outcome.institutionName ?? 'that bank',
           matchedAccountCount: outcome.matchedAccountCount,
         }),
