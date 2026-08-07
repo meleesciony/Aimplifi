@@ -20,6 +20,7 @@
  */
 import Database from 'better-sqlite3';
 import { expect, test, type Page } from './helpers/test';
+import { openAccountCleanup } from './helpers/account-cleanup';
 import { E2E_DB_URL } from '../setup/test-db';
 
 async function signUpThrowaway(page: Page): Promise<string> {
@@ -72,6 +73,14 @@ test('a card arriving through two live connections is combined into one, and wha
 
   // The symptom: one real card, counted twice → −$2,000.00 of liabilities.
   await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText(/2,000/, { timeout: 20_000 });
+
+  // O.19: the machinery is collapsed, and the MONEY CLAIM is not. The first cut asserted only
+  // "can be combined" here — a procedural clause — which is how a summary that never said the
+  // balance was counted twice passed its own test (critic P0-1). The word "twice" is the point.
+  await expect(page.getByTestId('account-cleanup-summary')).toContainText(
+    '1 duplicate connection counting a balance twice',
+  );
+  await openAccountCleanup(page);
 
   // The offer, naming both connections exactly as the connection list below it does.
   const card = page.getByTestId('combine-connections-card');
@@ -126,6 +135,7 @@ test('when it will NOT offer a combine, the page says why and offers the one-tap
 
   await page.goto('/accounts');
   await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText(/2,000/, { timeout: 20_000 });
+  await openAccountCleanup(page);
 
   // No Combine button…
   await expect(page.getByTestId('combine-connections-confirm')).toHaveCount(0);

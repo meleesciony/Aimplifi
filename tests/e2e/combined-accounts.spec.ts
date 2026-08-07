@@ -19,6 +19,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import Database from 'better-sqlite3';
 import { expect, test, type Page } from './helpers/test';
+import { openAccountCleanup } from './helpers/account-cleanup';
 import { E2E_DB_URL } from '../setup/test-db';
 
 async function signUpThrowaway(page: Page): Promise<string> {
@@ -87,6 +88,7 @@ test('two old accounts combined into one live account render as ONE block with t
   const email = await signUpThrowaway(page);
   seedTwoPredecessorsOneSuccessor(email);
   await page.goto('/accounts');
+  await openAccountCleanup(page);
 
   const card = page.getByTestId('reconcile-combined');
   await expect(card).toBeVisible({ timeout: 20_000 });
@@ -120,6 +122,7 @@ test('undoing one of the two links reverses only that link — the other stays c
   const email = await signUpThrowaway(page);
   seedTwoPredecessorsOneSuccessor(email);
   await page.goto('/accounts');
+  await openAccountCleanup(page);
 
   const card = page.getByTestId('reconcile-combined');
   await expect(card).toBeVisible({ timeout: 20_000 });
@@ -153,6 +156,7 @@ test('the combined card is WCAG AA clean and fits every phone width, even with a
   const email = await signUpThrowaway(page);
   seedTwoPredecessorsOneSuccessor(email, 'Venture Signature Rewards Preferred Cash Plus Account');
   await page.goto('/accounts');
+  await openAccountCleanup(page);
   await expect(page.getByTestId('reconcile-combined')).toBeVisible({ timeout: 20_000 });
 
   const results = await new AxeBuilder({ page })

@@ -7,7 +7,13 @@
  * about money that can be wrong in a state nobody rendered by hand — one says a balance
  * "keeps counting", another says what did and didn't happen after a Link session — and a
  * claim that can be wrong is a claim that needs a test.
+ *
+ * The two sentences here that END the deepen flow by sending the reader to the combine control
+ * name the section it lives in (O.18/O.19), importing the heading rather than retyping it: the
+ * card is collapsed on /accounts now, and "open Accounts and combine the two" would otherwise be
+ * an instruction whose last step is a search.
  */
+import { ACCOUNT_CLEANUP_HEADING } from '@/lib/engine/account/account-cleanup';
 
 /** What the /accounts flash says after an update-mode session that pulled successfully. */
 export function updateSuccessFlash(opts: {
@@ -149,7 +155,7 @@ export function linkedWithOverlapFlash(opts: {
     dupes === 1
       ? `One account is on both, so it may be listed — and counted — twice.`
       : `${dupes} accounts are on both, so they may be listed — and counted — twice.`,
-    `Open Accounts to see which accounts overlap and what you can do about it.`,
+    `Open Accounts and open “${ACCOUNT_CLEANUP_HEADING}” to see which accounts overlap and what you can do about it.`,
   ].join(' ');
 }
 
@@ -201,13 +207,13 @@ export function linkedForHistoryFlash(opts: {
     // and trusting the reader to map that onto two near-identical buttons. /accounts orders
     // connections oldest-first, so the one just added is always the highest number.
     opts.combinable
-      ? `Then open Accounts and combine the two — choosing the option that KEEPS the connection you just added, which is the highest-numbered one at ${opts.bank}. The other option would drop it and lose the extra history.`
+      ? `Then open Accounts, open “${ACCOUNT_CLEANUP_HEADING}”, and combine the two — choosing the option that KEEPS the connection you just added, which is the highest-numbered one at ${opts.bank}. The other option would drop it and lose the extra history.`
       : // Combine offers a direction only when dropping that side strands nothing, and the old
         // connection is still reaching something this login did not share — so the only
         // direction on offer would drop the connection the history is on. Naming the repair
         // (share the rest through the new connection) beats sending the reader to a control
         // that will either refuse or quietly undo their afternoon.
-        `One thing first: the old connection still reaches an account you didn’t share this time, so combining isn’t offered yet. Use Add or fix accounts on the NEW connection to share the rest, then combine the two — keeping the NEW one.`,
+        `One thing first: the old connection still reaches an account you didn’t share this time, so combining isn’t offered yet. Use Add or fix accounts on the NEW connection to share the rest, then open “${ACCOUNT_CLEANUP_HEADING}” on Accounts and combine the two — keeping the NEW one.`,
   ].join(' ');
 }
 

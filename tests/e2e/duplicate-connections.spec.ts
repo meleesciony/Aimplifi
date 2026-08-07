@@ -19,6 +19,7 @@
  */
 import Database from 'better-sqlite3';
 import { expect, test, type Page } from './helpers/test';
+import { openAccountCleanup } from './helpers/account-cleanup';
 import { E2E_DB_URL } from '../setup/test-db';
 
 async function signUpThrowaway(page: Page): Promise<string> {
@@ -85,6 +86,10 @@ test('two connections to one bank are told apart on the duplicate card, without 
   const email = await signUpThrowaway(page);
   seedTwoUsBankConnections(email);
   await page.goto('/accounts');
+
+  // O.19: the summary line carries the money claim unconditionally; the evidence is one tap in.
+  await expect(page.getByTestId('account-cleanup-summary')).toContainText('counted twice');
+  await openAccountCleanup(page);
 
   await expect(page.getByTestId('duplicate-accounts-warning')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('duplicate-pair')).toHaveCount(1);
@@ -161,10 +166,58 @@ test('two connections to one bank are told apart on the duplicate card, without 
   ]);
 });
 
+test('O.19 — the machinery is collapsed on arrival, and the claim about the money is not', async ({
+  page,
+}) => {
+  // The owner's report: "Can we get rid of all the combine accounts on accounts page. Looks like
+  // a beta website … Maybe hide it for now." HIDE, NEVER DELETE — so this test asserts both
+  // halves, because either one alone is a defect. Hiding the warning without keeping its claim
+  // would be `deleting-a-surface-deletes-the-claims-it-carried`; keeping the wall would be no fix.
+  const email = await signUpThrowaway(page);
+  seedTwoUsBankConnections(email);
+  await page.goto('/accounts');
+
+  const section = page.getByTestId('account-cleanup');
+  await expect(section).toBeAttached({ timeout: 20_000 });
+  expect(await section.evaluate((el) => (el as HTMLDetailsElement).open)).toBe(false);
+
+  // The cards are in the DOM (never deleted) and none of them is on screen.
+  await expect(page.getByTestId('duplicate-accounts-warning')).toBeAttached();
+  await expect(page.getByTestId('duplicate-accounts-warning')).not.toBeVisible();
+  await expect(page.getByTestId('duplicate-pair-why')).not.toBeVisible();
+
+  // What survives the collapse is the sentence that says a printed figure may be wrong — the
+  // net worth is directly above it on this same page.
+  await expect(page.getByTestId('account-cleanup-summary')).toBeVisible();
+  await expect(page.getByTestId('account-cleanup-summary')).toContainText('Account cleanup');
+  await expect(page.getByTestId('account-cleanup-summary')).toContainText(
+    '2 entries that may be the same account, counted twice',
+  );
+
+  // And it is reachable, not deleted.
+  await openAccountCleanup(page);
+  await expect(page.getByTestId('duplicate-accounts-warning')).toBeVisible();
+});
+
+test('O.19 — the reader keeps their place across the reload a remedy costs', async ({ page }) => {
+  // The remedies here are deliberately two-step (#192: disconnect the bank, THEN delete the
+  // copy), and the mutation recipe confirms with a FULL reload (#167). A section that shut on
+  // every reload would make the reader re-find it mid-remedy — the O.16 complaint, which this
+  // repo already has a lesson about.
+  const email = await signUpThrowaway(page);
+  seedTwoUsBankConnections(email);
+  await page.goto('/accounts');
+  await openAccountCleanup(page);
+
+  await page.reload();
+  await expect(page.getByTestId('duplicate-accounts-warning')).toBeVisible({ timeout: 20_000 });
+});
+
 test('arming one side keeps the other side’s evidence on screen', async ({ page }) => {
   const email = await signUpThrowaway(page);
   seedTwoUsBankConnections(email);
   await page.goto('/accounts');
+  await openAccountCleanup(page);
   await expect(page.getByTestId('duplicate-accounts-warning')).toBeVisible({ timeout: 20_000 });
 
   await expect(page.getByTestId('duplicate-dismiss')).toBeVisible();
@@ -225,6 +278,7 @@ test('step 2 — deleting the orphaned copy is what actually stops the double-co
   const email = await signUpThrowaway(page);
   seedOrphanedDuplicate(email);
   await page.goto('/accounts');
+  await openAccountCleanup(page);
   await expect(page.getByTestId('duplicate-accounts-warning')).toBeVisible({ timeout: 20_000 });
 
   // Both copies still count while only the connection is gone — that is the whole point of the
@@ -249,6 +303,13 @@ test('step 2 — deleting the orphaned copy is what actually stops the double-co
   await page.getByTestId(orphanSide).click();
   await expect(page.getByTestId('duplicate-action-confirm-row')).toContainText('The other copy keeps counting');
   await page.getByTestId('duplicate-action-confirm').click();
+
+  // Assert the ACTION first, not just the end state. `refreshAfter` does not reload when an
+  // action returns ok:false — it renders the error and leaves the page byte-identical — so a
+  // failed delete and a stale UI produce the identical symptom below: this card stuck at 1 for
+  // the full 30s. That is exactly what CI reported on 4103f52, and the run could not say which
+  // it was. Naming the failure here costs one assertion and saves a session.
+  await expect(page.getByTestId('manual-error')).toHaveCount(0);
 
   await expect(page.getByTestId('duplicate-accounts-warning')).toHaveCount(0, { timeout: 30_000 });
   await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText(/23,800/);
@@ -344,6 +405,7 @@ test('the duplicate blocks stay inside the viewport on a phone', async ({ page }
   const email = await signUpThrowaway(page);
   seedTwoUsBankConnections(email);
   await page.goto('/accounts');
+  await openAccountCleanup(page);
   await expect(page.getByTestId('duplicate-accounts-warning')).toBeVisible({ timeout: 20_000 });
 
   for (const width of [360, 393, 430]) {

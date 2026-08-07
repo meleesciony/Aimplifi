@@ -200,7 +200,10 @@ describe('linkedWithOverlapFlash — both connections kept, and the overlap said
     // guaranteed refusal.
     const msg = linkedWithOverlapFlash(both);
     expect(msg).not.toMatch(/combine/i);
-    expect(msg).toMatch(/Open Accounts to see which accounts overlap/);
+    // O.19 names the collapsed section the explanation now lives in. The guard above is the real
+    // point of this test and is unchanged: what the reader is sent to see is the blocked REASON,
+    // never an offer that would refuse them.
+    expect(msg).toMatch(/open “Account cleanup” to see which accounts overlap/);
   });
 
   it('pluralises the overlap', () => {

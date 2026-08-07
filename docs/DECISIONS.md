@@ -5340,3 +5340,110 @@ the depth rule itself decides (null or a recent floor loses to the dated/older s
 **Re-gate:** five executed sabotages on the reworked code — successor-side bank shape, orphan
 arm, severed check, fold direction, view-site feed filter — each turning exactly its own lock
 RED, each restored. Full verify re-run after the fixes (numbers in STATUS).
+
+## #426 — O.19: the /accounts combine machinery goes behind a tap, and its claim about the money does not (2026-08-07)
+
+**Owner, verbatim, right after closing H.6c: *"Can we get rid of all the combine accounts on
+accounts page. Looks like a beta website. Perhaps do[n']t delete that if we ever need to come
+back to it. Maybe hide it for now. It's ugly."* Five cards — combine offers and their blocked
+reasons, reconciliation candidates, reconciliation ambiguities, the combined-accounts card with
+its Undo, and the #192 advisory duplicate warning — rendered as one contiguous run ABOVE the
+reader's own accounts. Each is correct alone; stacked, on a corpus with several connections at
+one bank, they are a wall.**
+
+**The rule that bounded the hiding.** `deleting-a-surface-deletes-the-claims-it-carried` (K.5)
+says putting a surface out of view removes every claim it was the only renderer of, and the
+engine that composes those claims stays green while it happens. Two of these five are not
+offers: the #192 warning says a balance may be counted TWICE, which is a claim that the net
+worth printed directly above it may be overstated; and the combined-accounts card is the only
+explanation for an account that is missing from the list because it was folded into another. So
+the decision is not "hide five cards" but **hide the machinery, keep the claim**: the collapsed
+state still prints one sentence, and that sentence is chosen by money consequence.
+
+`connectionMattersSummary` (pure, `connection-matters-view.ts`) takes the six counts and returns
+a constant heading plus one detail clause, leading with the strongest thing true of this reader
+— a balance that may be double-counted, else an offered combine, else a candidate, else an
+already-combined account, else the two kinds that only explain why nothing was offered — with
+everything else collapsed to "· N more". The order is the FAILURE DIRECTION, not the data
+model's order (L.30's idiom): the clause a reader most needs when they are NOT going to tap.
+Total zero returns null, so a tidy reader gets no line at all, exactly as the five cards each
+returned null.
+
+**Collapsed by default, always — no auto-expand.** The task row floated auto-expanding while a
+deepen-shaped pair exists (constraint (b): the deepen flow's closing step IS combine). Rejected:
+the reader whose screen prompted this would be the one it auto-expanded for, which is the
+complaint restated. The deepen path is served instead by copy — every sentence that sends a
+reader back to the Combine control now NAMES the section, importing `ACCOUNT_CLEANUP_HEADING`
+rather than retyping it. Four such sentences existed ("the Combine option is on this page"), all
+written when the card was the first thing on the page; behind a tap that is a scavenger hunt,
+the L.14 F-4 defect where a remedy names a control the reader cannot find. One of them lived
+inline in the page's JSX, outside every copy lock, and was moved into the copy module
+(`duplicateReconsideredFlash`) so the locking test's claim — *every* sentence that sends a
+reader back names the section — is true rather than nearly true.
+
+**One filter, not two.** The summary must count exactly what is behind the tap, so the card's
+`kind !== 'already-linked'` predicate moved into the shared `visibleBlockedReasons` and the card
+now imports it (`a-guard-must-read-what-it-guards`, at UI scale): two copies could let the line
+promise a block that is not there. Verified by reading the other four builders that they are
+1:1 with their inputs — `duplicateCardView` and `continuedAccountsView` both map without
+dropping — so no count can exceed what renders, and the section can never open onto nothing.
+
+**The open state is sticky for the session.** The reliable-mutation recipe on this page confirms
+with a FULL reload (#167), and these remedies are deliberately two-step (#192: disconnect the
+bank, THEN delete the copy it leaves). A section that shut on every reload would make the reader
+re-find it mid-remedy — the O.16 complaint, which this repo already has a lesson about. So the
+open flag rides sessionStorage the way the flash beside it does; best-effort, degrading to
+closed rather than crashing when storage throws.
+
+**No guard moved.** Nothing about visibility reaches an action: `suppressCombineProposals` and
+every server-side validation are byte-identical, and the cards remain mounted in the DOM (hidden,
+never unmounted), so armed two-step confirm state survives a collapse.
+
+**CRITIC CYCLE 1 (two fresh-context critics, both FAIL — 1 P0 + 4 P1 + 4 P2, every finding
+executed, all fixed same cycle).** They converged independently on the dead `role="alert"`, and
+the P0 is the one this slice existed to prevent.
+
+**P0-1 — the money claim went to the WEAKER evidence.** `transactions.ts:1352` filters out of
+`duplicates` every pair that has a combine offer, a candidate or a reconciliation, so the
+advisory set is the RESIDUE — the pairs with no proven remedy — while two live connections
+pulling one account is the case the app is certain about (`combineEvidence`: the balance "counts
+twice everywhere this app adds your accounts up"). The first cut gave "N balances may be counted
+twice" to the residue and a purely procedural "N duplicate connections can be combined" to the
+certain one. Critic executed it on this slice's own fixture: net worth **$2,000.00 for $1,000.00
+of real money**, and the word "twice" nowhere on the page — the exact claim-loss the slice's
+governing lesson is about, shipped by the slice written to avoid it. Worse, the slice's own e2e
+asserted `toContainText('can be combined')`, so the test RATIFIED the weakened claim. Fixed by
+ordering on certainty (offers lead) and giving every kind that describes a double count the
+consequence, not the remedy; the e2e now asserts the sentence with "twice" in it.
+
+**P1-1 — the top clause printed a PAIR count as a BALANCE count.** `detectDuplicateAccounts` is
+an all-pairs loop with no transitive collapse (`duplicates.ts:268`), so three copies of one
+account emit three pairs: the line read "3 balances may be counted twice" directly above a card
+headed "One account may be counted twice". The summary now counts DISTINCT ROWS and says
+"entries", which cannot overstate for any N.
+
+**P1-3 — "an account is missing from your list" survived only when it happened to be loudest.**
+The predecessor row is removed from the groups, so the combined card is its only explanation, and
+`combined` sat 4th of 6 where anything louder collapsed it into "· N more" (three reachable mixes
+executed). It is exclusive with whatever leads, so per the lesson's own rule 2 it now gets its own
+clause rather than a place in the queue.
+
+**P1-4 — the rule was applied to 4 sentences and skipped on 11**, including one an EMAIL reader
+sees, who cannot be sent hunting around a page. `src/lib` may not import from `src/components`,
+so the heading moved to `src/lib/engine/account/account-cleanup.ts` and is re-exported; the
+disclosures in `card-duplicate-view.ts` (/cards, /calendar, dashboard, digest + reminder emails)
+and `row-labels.ts` now name the section. Deliberately NOT changed: "Open Accounts and tap Sync
+on that bank" — Sync is not in this section, and naming it there would be the same defect
+inverted.
+
+**P2 — the dead `role="alert"`.** The #192 card is now born inside a collapsed `<details>`, so it
+mounts already hidden; a live region whose content was never visible does not announce, and
+expanding does not reliably re-announce it. The role is removed rather than left as a promise the
+platform will not keep — the claim it made on load is now in the summary line, which is visible
+and in document order.
+
+**Sabotage:** restoring the procedural offers clause turns FOUR locks red at once; reverted and
+re-gated. **Left open, recorded not fixed:** the section paints closed on first render after every
+mutation reload (`useState(false)` + post-hydration read), so there is a brief layout shift; a
+session cookie read server-side would remove it and also close a theoretical pre-hydration toggle
+race. Both are P2 and neither can print a wrong figure.

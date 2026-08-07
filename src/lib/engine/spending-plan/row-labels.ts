@@ -40,6 +40,7 @@
  */
 import type { SpendingPlan, SpendingPlanDisclosures } from './plan';
 import { REVIEW_FIXED_HREF } from './fixed-review';
+import { ACCOUNT_CLEANUP_HEADING } from '@/lib/engine/account/account-cleanup';
 import { reserveLabelSuffix } from './reserves';
 
 /** One printed line's label, plus the control a "not set up" zero should offer. */
@@ -479,7 +480,7 @@ export function planCardNoteParts(
           : ` If so, ${container} is higher than you owe and ${fixedLower}${higher}.`;
         notes.push({
           fact: 'duplicate',
-          text: `${p.aName} and ${p.bName} in ${container} look like the same card counted twice (${match}).${consequence} No amount was adjusted — only you can confirm it, on Accounts.`,
+          text: `${p.aName} and ${p.bName} in ${container} look like the same card counted twice (${match}).${consequence} No amount was adjusted — only you can confirm it, under “${ACCOUNT_CLEANUP_HEADING}” on Accounts.`,
         });
       }
     } else {
@@ -499,8 +500,8 @@ export function planCardNoteParts(
       notes.push({
         fact: 'duplicate',
         text: noFigure
-          ? `${subject}. Nothing was adjusted — only you can confirm it, on Accounts.`
-          : `${subject}; if so ${fixedLower}${higher}. Nothing was adjusted — only you can confirm it, on Accounts.`,
+          ? `${subject}. Nothing was adjusted — only you can confirm it, under “${ACCOUNT_CLEANUP_HEADING}” on Accounts.`
+          : `${subject}; if so ${fixedLower}${higher}. Nothing was adjusted — only you can confirm it, under “${ACCOUNT_CLEANUP_HEADING}” on Accounts.`,
       });
     }
   }

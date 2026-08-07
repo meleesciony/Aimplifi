@@ -42,6 +42,7 @@ import {
   connectionLabel,
 } from '@/components/finance/combine-connections-copy';
 import { connectionOrdinals } from '@/components/finance/duplicate-card-view';
+import { visibleBlockedReasons } from '@/components/finance/connection-matters-view';
 
 export interface CombineConnectionsCardProps {
   proposals: readonly CombineConnectionsProposal[];
@@ -73,8 +74,11 @@ export function CombineConnectionsCard({
 }: CombineConnectionsCardProps) {
   const { isArmed, arm, disarm } = useConfirmArm();
   // `already-linked` is not a problem the reader needs told about — the Combined-accounts card
-  // above already says so — but every other reason is a conclusion this page owes them.
-  const explained = blocked.filter((b) => b.kind !== 'already-linked');
+  // in this same section already says so — but every other reason is a conclusion this page owes
+  // them. The filter lives in `connection-matters-view` because the O.19 summary line has to
+  // count exactly what this card renders: two copies of the predicate could let the collapsed
+  // line promise a block that is not behind the tap.
+  const explained = visibleBlockedReasons(blocked);
   if (proposals.length === 0 && explained.length === 0) return null;
   const ordinals = connectionOrdinals(items);
   const institutionOf = new Map(items.map((i) => [i.itemId, i.institution]));

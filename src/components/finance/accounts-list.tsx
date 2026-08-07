@@ -82,12 +82,17 @@ import {
   bankIdentityRefreshedFlash,
   combineRevokeWarning,
   combineSuccessFlash,
+  duplicateReconsideredFlash,
 } from '@/components/finance/combine-connections-copy';
 import { dismissDuplicatePair, reconsiderDuplicatePair } from '@/server/duplicate-actions';
 import { disconnectPlaidItem, refreshBankIdentity } from '@/server/plaid-actions';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { setFlash, takeFlash } from '@/components/finance/flash';
+import {
+  connectionMattersSummary,
+  visibleBlockedReasons,
+} from '@/components/finance/connection-matters-view';
 import type { AccountGroup, AccountView } from '@/lib/engine/transactions/query';
 import type { AccountsView, ManualCardBilling, ReconciledPairView, ReconciliationCandidateView } from '@/server/transactions';
 
@@ -220,6 +225,30 @@ function AccountsEmptyState({ withheldCount }: { withheldCount: number }) {
   );
 }
 
+/**
+ * Whether the reader had the Account cleanup section open (O.19). Sticky for the session, not
+ * one-shot like `takeFlash`: its remedies span several reloads and the reader should not have to
+ * re-find them between steps. Best-effort — a storage error degrades to closed, never a crash.
+ */
+const CLEANUP_OPEN_KEY = 'aimplifi-accounts-cleanup-open';
+
+function readCleanupOpen(): boolean {
+  try {
+    return sessionStorage.getItem(CLEANUP_OPEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeCleanupOpen(open: boolean): void {
+  try {
+    if (open) sessionStorage.setItem(CLEANUP_OPEN_KEY, '1');
+    else sessionStorage.removeItem(CLEANUP_OPEN_KEY);
+  } catch {
+    /* best-effort */
+  }
+}
+
 export function AccountsList({ data }: { data: AccountsView }) {
   const [adding, setAdding] = useState<null | 'asset' | 'liability'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -235,7 +264,32 @@ export function AccountsList({ data }: { data: AccountsView }) {
   // (scripts/audit-probes/recategorize-mutation.ts witnessed the class 0/2;
   // accounts-mutation.ts shares this wiring).
   const [pending, setPending] = useState(false);
+  // O.19. The reliable-mutation recipe above confirms with a FULL reload, which would slam this
+  // section shut after every step — and its remedies are deliberately two-step ("disconnect the
+  // bank", THEN "delete the copy", #192). Losing the reader's place in the middle of a remedy is
+  // the O.16 complaint, so the open state rides sessionStorage exactly as the flash does.
+  const [cleanupOpen, setCleanupOpen] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration one-shot sessionStorage read (#167); the server renders this section closed, so a lazy initializer would hydration-mismatch
+    if (readCleanupOpen()) setCleanupOpen(true);
+  }, []);
   const isEmpty = data.assets.accounts.length === 0 && data.liabilities.accounts.length === 0;
+
+  // The one line that stays visible when the duplicate/combine machinery is collapsed. Counted
+  // from the SAME arrays the cards below render, and the blocked reasons through the same filter
+  // the card itself applies — a summary that counts more than is behind the tap would send the
+  // reader looking for something that is not there.
+  const cleanup = connectionMattersSummary({
+    combineOffers: data.combinableConnections.length,
+    // DISTINCT ROWS, not pairs: the detector fans out N copies of one account into N(N-1)/2
+    // pairs, so `duplicates.length` printed as a money figure says "3" where the card behind
+    // the tap says "One account may be counted twice" (critic P1-1).
+    duplicateEntries: new Set(data.duplicates.flatMap((d) => [d.a.id, d.b.id])).size,
+    candidates: data.reconciliationCandidates.length,
+    combined: data.reconciliations.length,
+    ambiguities: data.reconciliationAmbiguities.length,
+    blockedReasons: visibleBlockedReasons(data.uncombinableConnections).length,
+  });
 
   // A success message set before the confirming reload (e.g. "Statement saved")
   // rides sessionStorage across it — the reload IS the confirmation, the flash
@@ -320,125 +374,147 @@ export function AccountsList({ data }: { data: AccountsView }) {
         </p>
       )}
 
-      <CombineConnectionsCard
-        proposals={data.combinableConnections}
-        items={data.plaid.items}
-        pending={pending}
-        onCombine={(direction, keepLabel, dropLabel) =>
-          refreshAfter(
-            () =>
-              combineDuplicateConnections({
-                keepItemId: direction.keepItemId,
-                dropItemId: direction.dropItemId,
-              }).then((r) =>
-                r.ok
-                  ? {
-                      ok: true,
-                      flash:
-                        combineSuccessFlash(r.combined, r.failures) +
-                        (r.revokeFailed !== null ? combineRevokeWarning(dropLabel) : ''),
-                    }
-                  : { ok: false, errors: [r.error] },
-              ),
-            // Fallback only: the real message is computed from the RESULT above, because a
-            // partial combine must never read as a clean one.
-            `${dropLabel} disconnected; continuing on ${keepLabel}.`,
-          )
-        }
-        onDismiss={(aId, bId) =>
-          refreshAfter(
-            () =>
-              dismissDuplicatePair(aId, bId).then((r) =>
-                r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not dismiss — please try again.'] },
-              ),
-            'Dismissed — we won’t offer to combine those two again.',
-          )
-        }
-        blocked={data.uncombinableConnections}
-        onFetchBankId={() =>
-          refreshAfter(() =>
-            refreshBankIdentity().then((r) =>
-              r.ok
-                ? { ok: true, flash: bankIdentityRefreshedFlash(r.updated ?? 0) }
-                : { ok: false, errors: [r.error ?? 'Could not reach your bank just now.'] },
-            ),
-          )
-        }
-        onReconsider={(aId, bId) =>
-          refreshAfter(
-            () =>
-              reconsiderDuplicatePair(aId, bId).then((r) =>
-                r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not undo that — please try again.'] },
-              ),
-            'Back in play — if they are the same account, the Combine option is on this page.',
-          )
-        }
-      />
-      <ReconciliationCandidatesCard
-        candidates={data.reconciliationCandidates}
-        today={data.today}
-        pending={pending}
-        onConfirm={(c, cutoverDate) =>
-          refreshAfter(
-            () =>
-              confirmReconciliation({
-                predecessorAccountId: c.predecessor.id,
-                successorAccountId: c.successor.id,
-                cutoverDate,
-                matchSignal: c.matchSignal,
-                confidence: c.confidence,
-              }).then((r) => (r.ok ? { ok: true } : { ok: false, errors: [r.error] })),
-            'Accounts combined — the old balance now counts once.',
-          )
-        }
-      />
-      <ReconciliationAmbiguitiesCard ambiguities={data.reconciliationAmbiguities} />
-      <ContinuedAccountsCard
-        reconciliations={data.reconciliations}
-        pending={pending}
-        onUndo={(id) =>
-          refreshAfter(
-            () => undoReconciliation(id).then((r) => (r.ok ? { ok: true } : { ok: false, errors: [r.error] })),
-            // Speaks about the PREDECESSOR only. "Both accounts count on their own again" was
-            // false in a chain (#297 critic): undoing Q→P restores Q, but P stays zeroed while
-            // P→S is still active, so the user was promised two accounts back and got one.
-            'Undone — that old account counts on its own again.',
-          )
-        }
-      />
-
-      <DuplicateAccountsWarning
-        pairs={data.duplicates}
-        pending={pending}
-        accountsById={
-          new Map([...data.assets.accounts, ...data.liabilities.accounts].map((a) => [a.id, a] as const))
-        }
-        itemsById={connectionsById(data.plaid.items)}
-        onDelete={(accountId) =>
-          refreshAfter(
-            () => deleteDisconnectedSyncedAccount(accountId),
-            'Removed — that balance is no longer counted twice.',
-          )
-        }
-        onDisconnect={(itemId) =>
-          refreshAfter(
-            () =>
-              disconnectPlaidItem(itemId).then((r) =>
-                r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not disconnect that bank.'] },
-              ),
-            'Bank disconnected. Every account it fed keeps its history but stops updating, and each now has a Delete control. Delete the duplicate copy to stop it counting twice.',
-          )
-        }
-        onDismiss={(aId, bId) =>
-          refreshAfter(
-            () =>
-              dismissDuplicatePair(aId, bId).then((r) =>
-                r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not dismiss — please try again.'] },
-              ),
-            'Dismissed — we won’t flag those two as a possible duplicate again.',
-          )
-        }
-      />
+      {cleanup && (
+        <details
+          className="rounded-md border border-border/60 bg-muted/20"
+          data-testid="account-cleanup"
+          open={cleanupOpen}
+          onToggle={(e) => {
+            const open = (e.currentTarget as HTMLDetailsElement).open;
+            setCleanupOpen(open);
+            writeCleanupOpen(open);
+          }}
+        >
+          <summary
+            className="cursor-pointer select-none px-3 py-2 text-sm"
+            data-testid="account-cleanup-summary"
+          >
+            <span className="font-medium">{cleanup.heading}</span>
+            <span className="text-muted-foreground"> — {cleanup.detail}</span>
+          </summary>
+          <div className="space-y-4 px-3 pb-3 pt-1">
+            <CombineConnectionsCard
+              proposals={data.combinableConnections}
+              items={data.plaid.items}
+              pending={pending}
+              onCombine={(direction, keepLabel, dropLabel) =>
+                refreshAfter(
+                  () =>
+                    combineDuplicateConnections({
+                      keepItemId: direction.keepItemId,
+                      dropItemId: direction.dropItemId,
+                    }).then((r) =>
+                      r.ok
+                        ? {
+                            ok: true,
+                            flash:
+                              combineSuccessFlash(r.combined, r.failures) +
+                              (r.revokeFailed !== null ? combineRevokeWarning(dropLabel) : ''),
+                          }
+                        : { ok: false, errors: [r.error] },
+                    ),
+                  // Fallback only: the real message is computed from the RESULT above, because a
+                  // partial combine must never read as a clean one.
+                  `${dropLabel} disconnected; continuing on ${keepLabel}.`,
+                )
+              }
+              onDismiss={(aId, bId) =>
+                refreshAfter(
+                  () =>
+                    dismissDuplicatePair(aId, bId).then((r) =>
+                      r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not dismiss — please try again.'] },
+                    ),
+                  'Dismissed — we won’t offer to combine those two again.',
+                )
+              }
+              blocked={data.uncombinableConnections}
+              onFetchBankId={() =>
+                refreshAfter(() =>
+                  refreshBankIdentity().then((r) =>
+                    r.ok
+                      ? { ok: true, flash: bankIdentityRefreshedFlash(r.updated ?? 0) }
+                      : { ok: false, errors: [r.error ?? 'Could not reach your bank just now.'] },
+                  ),
+                )
+              }
+              onReconsider={(aId, bId) =>
+                refreshAfter(
+                  () =>
+                    reconsiderDuplicatePair(aId, bId).then((r) =>
+                      r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not undo that — please try again.'] },
+                    ),
+                  duplicateReconsideredFlash(),
+                )
+              }
+            />
+            <ReconciliationCandidatesCard
+              candidates={data.reconciliationCandidates}
+              today={data.today}
+              pending={pending}
+              onConfirm={(c, cutoverDate) =>
+                refreshAfter(
+                  () =>
+                    confirmReconciliation({
+                      predecessorAccountId: c.predecessor.id,
+                      successorAccountId: c.successor.id,
+                      cutoverDate,
+                      matchSignal: c.matchSignal,
+                      confidence: c.confidence,
+                    }).then((r) => (r.ok ? { ok: true } : { ok: false, errors: [r.error] })),
+                  'Accounts combined — the old balance now counts once.',
+                )
+              }
+            />
+            <ReconciliationAmbiguitiesCard ambiguities={data.reconciliationAmbiguities} />
+            <ContinuedAccountsCard
+              reconciliations={data.reconciliations}
+              pending={pending}
+              onUndo={(id) =>
+                refreshAfter(
+                  () => undoReconciliation(id).then((r) => (r.ok ? { ok: true } : { ok: false, errors: [r.error] })),
+                  // Speaks about the PREDECESSOR only. "Both accounts count on their own again" was
+                  // false in a chain (#297 critic): undoing Q→P restores Q, but P stays zeroed while
+                  // P→S is still active, so the user was promised two accounts back and got one.
+                  'Undone — that old account counts on its own again.',
+                )
+              }
+            />
+      
+            <DuplicateAccountsWarning
+              pairs={data.duplicates}
+              pending={pending}
+              accountsById={
+                new Map([...data.assets.accounts, ...data.liabilities.accounts].map((a) => [a.id, a] as const))
+              }
+              itemsById={connectionsById(data.plaid.items)}
+              onDelete={(accountId) =>
+                refreshAfter(
+                  () => deleteDisconnectedSyncedAccount(accountId),
+                  'Removed — that balance is no longer counted twice.',
+                )
+              }
+              onDisconnect={(itemId) =>
+                refreshAfter(
+                  () =>
+                    disconnectPlaidItem(itemId).then((r) =>
+                      r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not disconnect that bank.'] },
+                    ),
+                  'Bank disconnected. Every account it fed keeps its history but stops updating, and each now has a Delete control. Delete the duplicate copy to stop it counting twice.',
+                )
+              }
+              onDismiss={(aId, bId) =>
+                refreshAfter(
+                  () =>
+                    dismissDuplicatePair(aId, bId).then((r) =>
+                      r.ok ? { ok: true } : { ok: false, errors: [r.error ?? 'Could not dismiss — please try again.'] },
+                    ),
+                  'Dismissed — we won’t flag those two as a possible duplicate again.',
+                )
+              }
+            />
+          </div>
+        </details>
+      )}
 
       <Group
         group={assetsShown}
@@ -664,7 +740,13 @@ function DuplicateAccountsWarning({
     <Card
       data-testid="duplicate-accounts-warning"
       className="border-amber-900/50 bg-amber-950/30"
-      role="alert"
+      // NO `role="alert"` since O.19 (both critics, independently). This card is now born inside
+      // a collapsed <details>, so it mounts already hidden — and a live region whose content was
+      // never visible does not announce, nor is it reliably re-announced when expanding merely
+      // reveals it. Keeping the role would be a promise the platform will not honour. The claim
+      // it used to make on load ("One account may be counted twice") is now carried by the
+      // summary line, which is visible and in document order, so a screen reader reaches it
+      // exactly where a sighted reader does.
     >
       <CardHeader className="pb-2">
         <CardDescription className="text-amber-300">Possible duplicate accounts</CardDescription>

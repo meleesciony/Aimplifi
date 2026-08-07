@@ -6,6 +6,50 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-07 — O.19: /accounts hides the combine machinery and keeps its claim (DECISIONS #426, critic-cycled)
+
+**Closes TASKS O.19** (filed as "O.18"; renumbered because Wave O.18 — expandable rows — already
+owns that id). Owner: *"Can we get rid of all the combine accounts on accounts page. Looks like a
+beta website … Maybe hide it for now."* Five cards that stacked above his own accounts — combine
+offers + blocked reasons, reconciliation candidates, ambiguities, the combined-accounts card with
+its Undo, and the #192 duplicate warning — are now behind one collapsed `Account cleanup`
+disclosure. HIDE, NEVER DELETE: nothing is unmounted, the cards keep every string they had, and
+the server-side guards are untouched (`git diff --name-only` shows **zero** files under
+`src/server/` or `src/lib/engine/` in the build half of the slice).
+
+**What stays visible is the claim, not the machinery.** Two of those five say something about a
+figure printed on the same page — a balance counted twice, and an account missing from the list
+because it was folded into another — so the collapsed line carries them: a constant heading plus a
+detail clause chosen by evidence strength, with the fold always named in its own clause. Every
+sentence anywhere in the app that sends a reader to the Combine control now names the section by
+importing the heading (15 sentences across the page, /cards, /calendar, the dashboard, the digest
+and reminder emails).
+
+**Critic cycle 1: two fresh-context critics, both FAIL — 1 P0 + 4 P1 + 4 P2, all executed, all
+fixed** (detail in DECISIONS #426). The P0 is the slice's own governing lesson turned on itself:
+the money sentence went to the ADVISORY pairs (the residue with no proven remedy) while the case
+the app is certain about got a procedural "can be combined", so a critic's executed fixture showed
+net worth **$2,000.00 for $1,000.00 of real money with the word "twice" nowhere on the page** — and
+this slice's e2e had asserted the weakened clause, ratifying it. Also fixed: a pair count printed
+as a balance count (three copies of one account read "3 balances"), the missing-account claim
+collapsing into "· N more", 11 unfixed "Accounts lists the choices" sentences including one in an
+email, and a `role="alert"` that can no longer fire because it is born hidden.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,274 unit + 1 skipped / 381
+files** / build clean; family e2e **22/22** serialized on a fresh build (duplicate-connections,
+combine-connections, combined-accounts, deepen-history, connection-health), including the WCAG AA
+scan of the expanded section. One executed sabotage (restoring the procedural clause) turns four
+locks red at once; reverted and re-gated. **No schema change** — `git diff --stat -- prisma/` empty.
+
+**Open behind it, recorded not fixed:** (1) the section paints closed on first render after every
+mutation reload, so there is a brief layout shift — a session cookie read server-side would remove
+it and also close a theoretical pre-hydration toggle race (both P2; neither can print a wrong
+figure); (2) the read-only probe `scripts/audit-probes/o18-accounts-clutter.mts`, which would
+measure how tall the wall actually was on the owner's live corpus, is **committed but UNRUN** —
+blocked by the permission classifier, same as K.2(a); (3) with 13 connections the Bank-sync list
+below is now the densest thing on /accounts and is the next candidate for the owner's
+"beta website" signal — out of scope here by the task row's own boundary.
+
 ## ✅ BUILT 2026-08-07 — H.6c + H.6b(b): the combine's last step goes the right way (DECISIONS #425 + addendum, critic-cycled)
 
 **Closes TASKS H.6c and the (b) half of H.6b — the two follow-ups H.6's critic filed.** The

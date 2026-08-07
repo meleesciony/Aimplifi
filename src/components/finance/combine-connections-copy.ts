@@ -14,8 +14,14 @@
  *     reconnecting a disconnected bank means going through Link again.
  *   * Never claim a total was corrected. State what stops counting; the figures on the page are
  *     what they are once it does.
+ *   * Any sentence that sends the reader BACK to the Combine control names the collapsed section
+ *     it now lives in, by importing the heading rather than retyping it (O.19). "on this page"
+ *     was true while the card was the first thing on the page and became a scavenger hunt the
+ *     moment it went behind a tap — the L.14 F-4 defect, where a remedy named a control the
+ *     reader could not find.
  */
 
+import { ACCOUNT_CLEANUP_HEADING } from '@/lib/engine/account/account-cleanup';
 import { formatISODate, isoDate } from '@/lib/dates';
 
 export interface CombineAccountLabel {
@@ -144,13 +150,13 @@ export function combineSuccessFlash(combined: number, failures: readonly string[
     return `Done — ${combined} ${noun} now ${combined === 1 ? 'counts' : 'count'} once, and the duplicate connection is disconnected.`;
   }
   if (combined === 0) {
-    return `The duplicate connection was disconnected, but combining didn’t finish, so nothing has been linked yet. You’ll see a “Combine” offer for the pair on this page — try it there. (${failures.join(
+    return `The duplicate connection was disconnected, but combining didn’t finish, so nothing has been linked yet. You’ll see a “Combine” offer for the pair under “${ACCOUNT_CLEANUP_HEADING}” on this page — try it there. (${failures.join(
       ' ',
     )})`;
   }
   return `Partly done: ${combined} ${noun} now ${
     combined === 1 ? 'counts' : 'count'
-  } once, and the duplicate connection is disconnected — but ${failures.length} didn’t link. You’ll see a “Combine” offer for the rest on this page. (${failures.join(
+  } once, and the duplicate connection is disconnected — but ${failures.length} didn’t link. You’ll see a “Combine” offer for the rest under “${ACCOUNT_CLEANUP_HEADING}” on this page. (${failures.join(
     ' ',
   )})`;
 }
@@ -213,8 +219,18 @@ export function combineBlockedActionLabel(kind: string): string | null {
   return null;
 }
 
+/**
+ * A pair the reader had dismissed is back in play. Lives here rather than inline in the page so
+ * it sits inside the same lock as the other sentences that send a reader to the Combine control
+ * (O.19) — an instruction naming a collapsed section is exactly the kind of claim that goes stale
+ * silently when it is the only copy of itself.
+ */
+export function duplicateReconsideredFlash(): string {
+  return `Back in play — if they are the same account, the Combine option is under “${ACCOUNT_CLEANUP_HEADING}” on this page.`;
+}
+
 export function bankIdentityRefreshedFlash(updated: number): string {
   return updated > 0
-    ? `Got it — ${updated} ${updated === 1 ? 'connection' : 'connections'} identified. If they are the same account, the Combine option is on this page now.`
+    ? `Got it — ${updated} ${updated === 1 ? 'connection' : 'connections'} identified. If they are the same account, the Combine option is under “${ACCOUNT_CLEANUP_HEADING}” on this page now.`
     : 'Your bank didn’t return an ID for those connections just now. Nothing changed — try again in a few minutes, or tap Sync on each connection first.';
 }

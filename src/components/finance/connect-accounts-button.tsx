@@ -25,6 +25,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePlaidLink, type PlaidLinkError } from 'react-plaid-link';
 import { createPlaidLinkToken, linkPlaidAccount } from '@/server/plaid-actions';
+import { ACCOUNT_CLEANUP_HEADING } from '@/lib/engine/account/account-cleanup';
 import { clearStoredLinkToken, storeLinkToken, storeOriginPath } from '@/lib/plaid-oauth';
 
 export interface ConnectAccountsButtonProps {
@@ -181,7 +182,8 @@ export function ConnectAccountsButton({ deepenHistory = false }: ConnectAccounts
           be widened afterwards — so reaching two years means connecting the bank again and
           keeping the new connection. Pick the same bank, and share <b>the same accounts</b> you
           shared before. You’ll have two connections to that bank and its accounts will count
-          twice until you combine them here on this page, keeping the new one.
+          twice until you combine them under “{ACCOUNT_CLEANUP_HEADING}” on this page, keeping the
+          new one.
         </p>
       )}
       {deepenHistory && (
