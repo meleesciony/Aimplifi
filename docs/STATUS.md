@@ -2374,6 +2374,28 @@ of these merchants fails loudly at the top of the test rather than subtly inside
 **6,167 unit passed + 1 skipped / 374 files** / build clean / **e2e 295 passed, 2 failed** /
 `VERIFY_EXIT=1`.
 
+### CI proof — what a test-only slice can actually prove live
+
+There is no change-unique marker to grep on production: this slice touches no `src/`, no client
+bundle and no schema, so the deploy is a no-op for readers (deployment for the SHA is `● Ready`,
+and the standing live check passes 10/10, but its discriminator is K.5's, not this slice's). For
+a change to the test suite, the CI run IS the proof. Run 31132827368 (`e78d863`) against
+31129722042 (`3994e9d`, before):
+
+| | before | after |
+|---|---|---|
+| e2e passed | 291 | **296** |
+| e2e failed | 2 — incl. `phase2-triage.spec.ts:132` | 1 — `category-rename.spec.ts:110` |
+| e2e did not run | **4** | **0** |
+| unit failed | 4 | 4 (unchanged — K.8) |
+
+All five remaining `phase2-triage` tests and both `triage-write-in` tests pass on the Linux
+runner. `did not run` is 0, so the file's verdict is complete rather than a floor.
+`budget-targets:20` PASSED on CI here after failing locally and on the previous CI run, and the
+single e2e failure is a DIFFERENT test — exactly the pattern `ci-e2e-timing-flake.md` documents.
+
+### Local gate
+
 All 5 remaining `phase2-triage` tests and both `triage-write-in` tests passed inside that run,
 under 4-worker parallel load. The two non-passes are outside this slice:
 `budget-targets.spec.ts:20` and `transactions.spec.ts:145`. `budget-targets:20` was already red

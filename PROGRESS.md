@@ -2261,3 +2261,25 @@ last 100 `verify.yml` runs the API returns (2026-08-02 → 2026-08-06): **50 `fa
 `cancelled` (concurrency-cancel of superseded pushes), 0 `success`.** There has not been one
 green CI run in the entire window. `Skip for now` (#374) landed 2026-08-01, so it has never
 once been observed passing in a full-file run anywhere.
+
+**K.6 CONFIRMED ON CI — this is the deploy proof a test-only slice can actually have.**
+Run 31132827368 (`e78d863`), against run 31129722042 (`3994e9d`, before):
+
+| | before | after |
+|---|---|---|
+| e2e passed | 291 | **296** |
+| e2e failed | 2 — incl. `phase2-triage.spec.ts:132` | 1 — `category-rename.spec.ts:110` |
+| e2e did not run | **4** | **0** |
+| unit failed | 4 | 4 (unchanged — K.8) |
+
+All five remaining `phase2-triage` tests and both `triage-write-in` tests pass on the Linux
+runner. The masking is gone: `did not run` is 0, so the file's verdict is now complete rather
+than a floor. `budget-targets:20` PASSED here after failing both locally and on the previous CI
+run, and the single e2e failure is a DIFFERENT test — precisely the pattern
+`docs/lessons/ci-e2e-timing-flake.md` documents ("a different `toHaveCount`/timeout assertion
+fails each rerun of the same unchanged commit"). Unit is unchanged at 4 failed / 6,149 passed,
+which is K.8 and nothing to do with this slice.
+
+Process note, learned by breaking it: the first push's CI run (31132538431, `4a612c7`) was
+CANCELLED by my own follow-up docs push five minutes later. The docs commits for this slice were
+then held locally and pushed only after the run reported.
