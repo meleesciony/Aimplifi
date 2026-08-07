@@ -480,7 +480,7 @@ export function planCardNoteParts(
           : ` If so, ${container} is higher than you owe and ${fixedLower}${higher}.`;
         notes.push({
           fact: 'duplicate',
-          text: `${p.aName} and ${p.bName} in ${container} look like the same card counted twice (${match}).${consequence} No amount was adjusted — only you can confirm it, under “${ACCOUNT_CLEANUP_HEADING}” on Accounts.`,
+          text: `${p.aName} and ${p.bName} in ${container} look like the same card counted twice (${match}).${consequence} No amount was adjusted — only you can confirm it, in the ${ACCOUNT_CLEANUP_HEADING} section on Accounts.`,
         });
       }
     } else {
@@ -500,8 +500,8 @@ export function planCardNoteParts(
       notes.push({
         fact: 'duplicate',
         text: noFigure
-          ? `${subject}. Nothing was adjusted — only you can confirm it, under “${ACCOUNT_CLEANUP_HEADING}” on Accounts.`
-          : `${subject}; if so ${fixedLower}${higher}. Nothing was adjusted — only you can confirm it, under “${ACCOUNT_CLEANUP_HEADING}” on Accounts.`,
+          ? `${subject}. Nothing was adjusted — only you can confirm it, in the ${ACCOUNT_CLEANUP_HEADING} section on Accounts.`
+          : `${subject}; if so ${fixedLower}${higher}. Nothing was adjusted — only you can confirm it, in the ${ACCOUNT_CLEANUP_HEADING} section on Accounts.`,
       });
     }
   }

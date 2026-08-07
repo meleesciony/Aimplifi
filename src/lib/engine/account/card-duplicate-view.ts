@@ -50,7 +50,7 @@ export const CARD_DUPLICATE_TITLE = 'One card may be listed twice';
  * different cards (the reason /accounts carries a "not duplicates" dismissal at all).
  */
 export const CARD_DUPLICATE_HOWTO =
-  `No figure above has been adjusted — only you can confirm whether two rows are one card. Accounts lists this pair under “${ACCOUNT_CLEANUP_HEADING}”, with the choices that fit it, including marking them as not duplicates. If a copy’s bank is still connected, removing it takes two steps there — disconnect, then delete — and its balance keeps counting until it is deleted.`;
+  `No figure above has been adjusted — only you can confirm whether two rows are one card. Accounts lists this pair in its ${ACCOUNT_CLEANUP_HEADING} section, with the choices that fit it, including marking them as not duplicates. If a copy’s bank is still connected, removing it takes two steps there — disconnect, then delete — and its balance keeps counting until it is deleted.`;
 
 export interface CardDuplicatePairInput {
   aId: string;
@@ -434,7 +434,7 @@ export function cardDuplicateBalanceView(
  * makes no claim about any total, because this surface has none.
  */
 export const CARD_DUPLICATE_HOWTO_LIST =
-  `No amount below has been adjusted — only you can confirm whether two rows are one card. Accounts lists this pair under “${ACCOUNT_CLEANUP_HEADING}”, with the choices that fit it, including marking them as not duplicates. If a copy’s bank is still connected, removing it takes two steps there — disconnect, then delete — and its balance keeps counting until it is deleted.`;
+  `No amount below has been adjusted — only you can confirm whether two rows are one card. Accounts lists this pair in its ${ACCOUNT_CLEANUP_HEADING} section, with the choices that fit it, including marking them as not duplicates. If a copy’s bank is still connected, removing it takes two steps there — disconnect, then delete — and its balance keeps counting until it is deleted.`;
 
 /* ─────────────────────────────────────────────────────────────────────────────
  * TASKS L.15 — the same pair, on the surfaces the reader meets AWAY from the app.
@@ -489,7 +489,7 @@ export function cardDuplicateCalendarView(
  * Aimplifi" instead of naming a page the reader is already on.
  */
 export const CARD_DUPLICATE_HOWTO_EMAIL =
-  `No amount in this email has been adjusted — only you can confirm whether two rows are one card. Open Accounts in Aimplifi and open “${ACCOUNT_CLEANUP_HEADING}” to see this pair with the choices that fit it, including marking them as not duplicates. If a copy’s bank is still connected, removing it takes two steps there — disconnect, then delete — and its balance keeps counting until it is deleted.`;
+  `No amount in this email has been adjusted — only you can confirm whether two rows are one card. Open Accounts in Aimplifi and open its ${ACCOUNT_CLEANUP_HEADING} section to see this pair with the choices that fit it, including marking them as not duplicates. If a copy’s bank is still connected, removing it takes two steps there — disconnect, then delete — and its balance keeps counting until it is deleted.`;
 
 /**
  * The disclosure as plain-text lines for an email body — the reminder email and the weekly digest
@@ -561,8 +561,8 @@ export function cardDuplicatePushNotes(
     // title — two pushes with identical titles, each telling the reader to compare against itself.
     const note = (other: string) =>
       p.sameLabel
-        ? `${strength} duplicate: a second entry with this same name looks like the same card, so this may be one payment asked for twice. Accounts lists the choices under “${ACCOUNT_CLEANUP_HEADING}”.`
-        : `${strength} duplicate: “${other}” looks like the same card, so this may be one payment asked for twice. Accounts lists the choices under “${ACCOUNT_CLEANUP_HEADING}”.`;
+        ? `${strength} duplicate: a second entry with this same name looks like the same card, so this may be one payment asked for twice. Accounts lists the choices in its ${ACCOUNT_CLEANUP_HEADING} section.`
+        : `${strength} duplicate: “${other}” looks like the same card, so this may be one payment asked for twice. Accounts lists the choices in its ${ACCOUNT_CLEANUP_HEADING} section.`;
     // A card in two pairs keeps its FIRST note rather than concatenating: a push body is truncated
     // by the operating system, and two stacked sentences would push the actionable half off screen.
     if (!out.has(p.first.cardId)) out.set(p.first.cardId, note(p.nameB));
@@ -586,8 +586,8 @@ export function cardDuplicateTraceBasis(
   // `false`: the trace lists rows under their own names and numbers nothing.
   return resolvePairs(pairs, cards, false).map((p) =>
     p.sameLabel
-      ? `Two rows listed here are both named “${p.nameA}” and look like the same card reaching Aimplifi twice. ${basisOf(p.confidence, p.reasons)} Both are included in this number; nothing has been adjusted. Accounts lists the choices under “${ACCOUNT_CLEANUP_HEADING}”.`
-      : `Two rows listed here — “${p.nameA}” and “${p.nameB}” — look like the same card reaching Aimplifi twice. ${basisOf(p.confidence, p.reasons)} Both are included in this number; nothing has been adjusted. Accounts lists the choices under “${ACCOUNT_CLEANUP_HEADING}”.`,
+      ? `Two rows listed here are both named “${p.nameA}” and look like the same card reaching Aimplifi twice. ${basisOf(p.confidence, p.reasons)} Both are included in this number; nothing has been adjusted. Accounts lists the choices in its ${ACCOUNT_CLEANUP_HEADING} section.`
+      : `Two rows listed here — “${p.nameA}” and “${p.nameB}” — look like the same card reaching Aimplifi twice. ${basisOf(p.confidence, p.reasons)} Both are included in this number; nothing has been adjusted. Accounts lists the choices in its ${ACCOUNT_CLEANUP_HEADING} section.`,
   );
 }
 
@@ -608,7 +608,7 @@ export function cardDuplicateAnswerNote(
   // `false`: this answer paints no card list at all, so nothing here can be numbered.
   return resolvePairs(pairs, cards, false).map(
     (p) =>
-      `${sentenceFor(p)} Both are inside the amount and the card count in this answer, so if they are one card, both figures include it twice. ${basisOf(p.confidence, p.reasons)} Nothing has been adjusted — Accounts lists the choices under “${ACCOUNT_CLEANUP_HEADING}”.`,
+      `${sentenceFor(p)} Both are inside the amount and the card count in this answer, so if they are one card, both figures include it twice. ${basisOf(p.confidence, p.reasons)} Nothing has been adjusted — Accounts lists the choices in its ${ACCOUNT_CLEANUP_HEADING} section.`,
   );
 }
 
@@ -632,7 +632,7 @@ export function cardDuplicateUndatedNote(
   // `false`: this branch prints a comma-joined fact line, not a numbered list.
   return resolvePairs(pairs, cards, false).map(
     (p) =>
-      `${sentenceFor(p)} If they are one card, the count in this answer is one higher than the number of real cards — no amount here is affected, since neither is in any total. ${basisOf(p.confidence, p.reasons)} Nothing has been adjusted — Accounts lists the choices under “${ACCOUNT_CLEANUP_HEADING}”.`,
+      `${sentenceFor(p)} If they are one card, the count in this answer is one higher than the number of real cards — no amount here is affected, since neither is in any total. ${basisOf(p.confidence, p.reasons)} Nothing has been adjusted — Accounts lists the choices in its ${ACCOUNT_CLEANUP_HEADING} section.`,
   );
 }
 
@@ -660,7 +660,7 @@ export function cardDuplicateRadarNote(
     const who = p.sameLabel
       ? `Two of the cards in this projection are both named “${p.nameA}” and look like the same card reaching Aimplifi twice.`
       : `“${p.nameA}” and “${p.nameB}” look like the same card reaching Aimplifi twice.`;
-    return `${who} If they are one card, every cycle in this projection counts it twice, so the dip date may be earlier and the amount to move larger than you actually need. ${basisOf(p.confidence, p.reasons)} Nothing has been adjusted — Accounts lists the choices under “${ACCOUNT_CLEANUP_HEADING}”.`;
+    return `${who} If they are one card, every cycle in this projection counts it twice, so the dip date may be earlier and the amount to move larger than you actually need. ${basisOf(p.confidence, p.reasons)} Nothing has been adjusted — Accounts lists the choices in its ${ACCOUNT_CLEANUP_HEADING} section.`;
   });
 }
 

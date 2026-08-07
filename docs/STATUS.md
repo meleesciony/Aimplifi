@@ -35,11 +35,23 @@ as a balance count (three copies of one account read "3 balances"), the missing-
 collapsing into "· N more", 11 unfixed "Accounts lists the choices" sentences including one in an
 email, and a `role="alert"` that can no longer fire because it is born hidden.
 
-**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,274 unit + 1 skipped / 381
-files** / build clean; family e2e **22/22** serialized on a fresh build (duplicate-connections,
-combine-connections, combined-accounts, deepen-history, connection-health), including the WCAG AA
-scan of the expanded section. One executed sabotage (restoring the procedural clause) turns four
-locks red at once; reverted and re-gated. **No schema change** — `git diff --stat -- prisma/` empty.
+**Gate:** `VERIFY_E2E=1 bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,274 unit + 1
+skipped / 381 files** / build clean / **full e2e 303 passed**. One executed sabotage (restoring the
+procedural clause) turns four locks red at once; reverted and re-gated. **No schema change** —
+`git diff --stat -- prisma/` empty. Live deploy proof `scripts/o19-live-deploy-check.mjs` **9/9 on
+production**, including an anti-vacuity check that the JS actually served contains the new heading
+(the demo has zero `PlaidItem` rows, so the section's ABSENCE there is the contract — which would
+pass against the old build too).
+
+**CI caught five failures a targeted run did not, and both mechanisms are now a lesson.** The first
+push (`319f161`) was gated only against the four specs the task row named; the full CI gate failed
+**5**. Four were `reconcile.spec.ts` — it drives the reconciliation candidate cards and was simply
+not on the row's list, which a `getByTestId` grep for every wrapped testid finds in one command. The
+fifth was a REAL copy defect, not test debt: `dashboard-duplicate-disclosure.spec.ts` extracts every
+curly-quoted string from the disclosure and asserts each names a card the reader can find, so
+writing the section as `“Account cleanup”` borrowed a convention that means "a row on this page".
+The lib-side copy now says `in its Account cleanup section`, unquoted. Both recorded in
+`docs/lessons/hiding-a-surface-reassigns-its-claims-by-certainty.md` (rules 8–9).
 
 **Open behind it, recorded not fixed:** (1) the section paints closed on first render after every
 mutation reload, so there is a brief layout shift — a session cookie read server-side would remove

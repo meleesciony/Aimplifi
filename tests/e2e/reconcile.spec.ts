@@ -13,6 +13,7 @@
  */
 import Database from 'better-sqlite3';
 import { expect, test, type Page } from './helpers/test';
+import { openAccountCleanup } from './helpers/account-cleanup';
 import { E2E_DB_URL } from '../setup/test-db';
 
 async function signUpThrowaway(page: Page): Promise<string> {
@@ -184,6 +185,7 @@ test('reconciling a stale account with its live twin stops net worth from doubli
   const email = await signUpThrowaway(page);
   seedReconcilePair(email);
   await page.goto('/accounts');
+  await openAccountCleanup(page);
 
   // Both accounts count → $2,400 + $2,500 = $4,900.00, and a "continue this account?" candidate.
   await expect(page.getByTestId('accounts-net-worth-amount')).toHaveText(/4,900/, { timeout: 20_000 });
@@ -209,6 +211,7 @@ test('slice 6: the register agrees with the dashboard after combining — overla
   seedReconcilePair(email);
   seedOverlapTransactions(email);
   await page.goto('/accounts');
+  await openAccountCleanup(page);
 
   // The confirm card discloses the REAL claim span from the predecessor's own history
   // (slice-6 critics C-6/C-12): span [2026-05-01, 2026-06-10], cutover defaulted to its
@@ -224,6 +227,7 @@ test('slice 6: the register agrees with the dashboard after combining — overla
   // Combine, then the register must match the dashboard: 3 real transactions, $150.00 out
   // (pre-fix: still 5 rows / $270.00 — an 80% inflation contradicting /reports on screen).
   await page.goto('/accounts');
+  await openAccountCleanup(page);
   await page.getByTestId('reconcile-confirm').click();
   await expect(page.getByTestId('reconcile-combined')).toBeVisible({ timeout: 20_000 });
   await page.goto('/transactions');
@@ -236,6 +240,7 @@ test('L.9: a Roth is never offered against a Traditional — the wrong pair is v
   const email = await signUpThrowaway(page);
   seedRetirementTrio(email);
   await page.goto('/accounts');
+  await openAccountCleanup(page);
 
   // The veto dissolves the owner's ambiguity into ONE offerable candidate: the Roth→Roth pair.
   // No ambiguity card (the Traditional is not "one we can't tell apart" — it is provably a
@@ -262,6 +267,7 @@ test('L.9: one stale row matching two live accounts offers NEITHER — stated, w
   const email = await signUpThrowaway(page);
   seedAmbiguousTrio(email);
   await page.goto('/accounts');
+  await openAccountCleanup(page);
 
   // The withheld conclusion renders as a disclosure, never silence and never a Combine button.
   await expect(page.getByTestId('reconcile-ambiguities')).toBeVisible({ timeout: 20_000 });

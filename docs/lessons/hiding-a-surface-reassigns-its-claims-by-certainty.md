@@ -71,3 +71,25 @@ lock inherits whatever the author already believed.
    a collapsed `<details>` never announces, and expanding does not reliably re-announce it. Two
    critics found this independently. Remove the role and put the claim where the reader actually
    reaches it.
+
+## Addendum, from the CI gate on the same slice
+
+The verify above was run against the four specs the task row named. CI then failed **five** tests
+the row did not name, and both mechanisms are worth writing down:
+
+8. **The task row's list of affected specs is a hypothesis, not an inventory.** `reconcile.spec.ts`
+   drives the reconciliation candidate cards — four of the five failures — and was simply not on the
+   row's list of "four e2e specs [that] drive these cards". A `getByTestId` grep for every wrapped
+   testid finds it in one command, and that grep should be the FIRST thing a hide-behind-a-tap slice
+   runs, before any of the work.
+9. **A phrase-grep cannot find a structural assertion.** The fifth failure was
+   `dashboard-duplicate-disclosure.spec.ts`, which extracts every curly-quoted string from the
+   disclosure and asserts each one names a card the reader can see. Naming the section as
+   `“Account cleanup”` borrowed that exact typographic convention, so the test was right and the
+   copy was wrong: in a disclosure whose quotes mean "a row you can find on this page", a section
+   name has to be written plainly (`in its Account cleanup section`). No amount of grepping for the
+   sentences I had edited would have found this — only running the suite did.
+
+The general form: when a change is a UI-shape change plus a copy change, the copy half has no
+testid to grep and no phrase to grep either, because the assertions that guard copy are often
+*rules about the copy* rather than the copy itself. Run the full suite before the push, not after.
