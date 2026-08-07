@@ -2283,3 +2283,31 @@ which is K.8 and nothing to do with this slice.
 Process note, learned by breaking it: the first push's CI run (31132538431, `4a612c7`) was
 CANCELLED by my own follow-up docs push five minutes later. The docs commits for this slice were
 then held locally and pushed only after the run reported.
+
+## K.8 — DONE (2026-08-06, DECISIONS #422): the unit gate answers one question everywhere
+
+Built exactly what the row named plus what its critics surfaced: (1) `vitest.config.ts` pins
+`DEMO_TODAY=2026-06-10` + `TZ=UTC` + blank LLM keys, unconditionally, process.env + test.env —
+proven against a hostile shell (`DEMO_TODAY=2031-12-25 TZ=Australia/Eucla` → 45/45); (2) the
+three drifting files pin their own fixture-consistent dates (no money expectation edited);
+(3) `tests/unit/gate-clock-pin.test.ts` tripwire; (4) `scripts/ci-status.sh` + CLAUDE.md rule 5
+"Read the gate, not just the deploy" + rule 2 cross-reference; (5) **verify.yml Node 20 → 24**,
+the gate critic's P0: undici@8 (jsdom) needs ≥22.19, so the C.26 render harness's 14 assertions
+had NEVER run on CI.
+
+Critics: money-math PASS (0 P0/P1/P2; 7 executed sabotages, 5 P3 comment fixes applied);
+gate critic FAIL cycle 1 (1 P0 + 1 P1 + 4 P2 + 5 P3, all fixed or accepted in place — the
+acceptances written at the site they bind: tripwire scope, TZ-coverage tradeoff, verify.yml
+precedence note).
+
+Gate (final tree): `bash scripts/verify.sh` → **✅ VERIFY GREEN** (tsc 0 / eslint 0 / build
+clean); unit re-captured unpiped: **`Tests 6169 passed | 1 skipped (6170)`** across 376 files.
+Reproduction before the fix, same session: `DEMO_TODAY=2026-06-10 npx vitest run` on the three
+files → 4 failed / 39 passed, byte-identical to CI run 31137388350.
+
+Process notes: launched two tree-mutating critics plus a local verify into ONE working tree
+(rule 9 violation) — caught it, killed the verify, warned both agents; both flagged the shared
+temp SQLite DB in their reports and handled it (disjoint-failure-set runs discarded, isolated
+TEST_DB_DIR reruns clean). Docs and code go in ONE commit/push per the 49-cancelled-runs
+finding. CI watch for this push: `bash scripts/ci-status.sh` (exit 0 = the first green run in
+the last 100+; its `success` path is executed for the first time by this very push).

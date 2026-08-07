@@ -17,7 +17,7 @@
  * with the bug restored, because `projectionReturnBps` would have moved with it — the
  * `f(x, null) === f(x)` shape the L.15 finding warns about.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { prisma } from '@/lib/db';
 import { cents, formatCents } from '@/lib/money';
@@ -61,10 +61,13 @@ const REAL_BPS = 450;
 /**
  * Twelve complete months of identical income and spending, ending 2026-06.
  *
- * Identical months mean the six the server picks are the same six whatever the wall clock
- * says: `monthlyFlows` emits only months that CONTAIN rows and `getCoachData` takes the last
- * six COMPLETE ones, so any "today" after 2026-06 selects 2026-01..2026-06 and yields the same
- * figures. The alternative — dating rows relative to `new Date()` — would make the fixture's
+ * Identical months mean the six the server picks yield the same figures wherever the six-month
+ * window lands: `monthlyFlows` emits only months that CONTAIN rows and `getCoachData` takes
+ * the last six COMPLETE ones (strictly before the current month — K.8 critic: at the gate's
+ * pinned today of 2026-06-10 the window is 2025-12..2026-05, NOT "2026-01..2026-06" as this
+ * comment used to claim). Because all twelve months are identical, the arithmetic is invariant
+ * to which six are chosen; only C.9 below asserts a window SIZE, and it pins its own today.
+ * The alternative — dating rows relative to `new Date()` — would make the fixture's
  * arithmetic drift with the calendar, and this file's assertions are exact.
  */
 const MONTHS = [
@@ -925,12 +928,21 @@ describe("W.10 — the opportunity list is denominated in today's money", () => 
 describe('C.9 — annual spending scales by the REAL window (fail-old: expenses6 × 2)', () => {
   const U = `c9-window-${Date.now()}-${process.pid}`;
   // Only the last three COMPLETE months, same per-month money as the 12-month fixture, so the
-  // TRUE annual spending is identical ($36,000/yr). Stable against the wall clock: the engine
-  // drops the partial current month and `monthlyFlows` only emits months containing rows, so
-  // these three are the window on any run date.
+  // TRUE annual spending is identical ($36,000/yr).
+  //
+  // K.8 — this block PINS its own "today". The comment that used to sit here claimed the
+  // fixture was "stable against the wall clock", and it was false: the engine keeps only
+  // complete months BEFORE the current one, so under the gate's default DEMO_TODAY
+  // (2026-06-10) the window collapses to one month ('2026-05') and the assertions below
+  // read "expected 1 to be 3" — exactly what CI showed on every push while the ambient
+  // local clock (past July 2026) kept them green. Any pinned date whose month is at or
+  // after 2026-08 makes all three fixture months complete; the pin makes that hold on
+  // every machine, forever.
   const SHORT_MONTHS = ['2026-05', '2026-06', '2026-07'];
+  const PINNED_TODAY = '2026-08-15';
 
   beforeAll(async () => {
+    vi.stubEnv('DEMO_TODAY', PINNED_TODAY);
     await prisma.user.deleteMany({ where: { id: U } });
     await prisma.user.create({
       data: {
@@ -973,6 +985,7 @@ describe('C.9 — annual spending scales by the REAL window (fail-old: expenses6
     });
   });
   afterAll(async () => {
+    vi.unstubAllEnvs();
     await prisma.user.deleteMany({ where: { id: U } });
   });
 

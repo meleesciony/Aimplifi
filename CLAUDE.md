@@ -73,7 +73,8 @@ cannot run something, say so and mark it `UNVERIFIED`.
    * At least one e2e flow for the phase passes (Playwright; if Playwright cannot run in
 this environment, a scripted simulation with logged assertions, clearly labeled)
    * Hostile Critic review (docs/CRITIC_RUBRIC.md) returns **zero P0/P1 findings**
-   * Run `bash scripts/verify.sh` as the single source of truth before declaring done.
+   * Run `bash scripts/verify.sh` as the single source of truth for LOCAL done; for
+work that ships, the CI conclusion is additionally required (rule 5, "Read the gate").
 3. **Financial math is sacred.** All money values are **integer cents** (`number` of
 cents, or `bigint` where sums could overflow). Never floats for money. Every financial
 calculation has unit tests with the hand-verified expected values in
@@ -96,6 +97,19 @@ there is no separate deploy step, but there IS a separate **verification** step.
 **and** fetch the live URL and grep for a marker unique to the change
 (`curl -s https://www.aimplifi.app/<route> | grep '<new testid or label>'`). An old
 deployment answers `200` perfectly well, so a status code proves nothing.
+   * **Read the gate, not just the deploy (K.8).** After every push, run
+`bash scripts/ci-status.sh` — GitHub Actions runs the FULL `VERIFY_E2E=1` gate on
+every push, and it sat red on every push for days (50 failure / 49 cancelled /
+0 success, 2026-08-02..06) while sessions reported "verify green", because nobody read
+it. `scripts/verify.sh` stays the local Definition-of-Done gate (rule 2); the CI
+conclusion is the SHIP gate. Precisely: start the wait in the background and keep
+working; the turn may not claim the slice SHIPPED-green until the conclusion is read.
+On `success` → done. On `cancelled` (exit 3) → a newer push superseded this one;
+re-run against the newest sha. On `failure` → never silent: if any failing test is one
+this push touched, that is a stop — fix it. If every failure is proven pre-existing
+(red on the prior run or a stashed tree), the slice may close, but only by recording
+the run id + the failing tests in docs/STATUS.md and naming them in the turn's
+PASS/FAIL contract.
    * Before pushing, check `git diff origin/main..main --stat -- prisma/`: a schema
 change means `prisma db push` runs against the live Neon database on deploy. No schema
 diff = the database is untouched.

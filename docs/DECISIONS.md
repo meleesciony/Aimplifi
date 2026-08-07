@@ -5079,3 +5079,55 @@ SimpleFIN returns what the institution provides, which for some banks is ~90 day
 import (`/transactions/import`, shipped) remains the only route for institutions that cap short,
 and it is the only route to 2023 for the Plaid-only banks at all. TASKS K.2 carries the
 per-institution routing.
+
+## #422
+
+**K.8 — the unit gate's clock is pinned at the config, CI's Node is pinned to the local major,
+and reading CI is now part of rule 5 (2026-08-06, Fable).**
+
+**The defect (reproduced, not inferred):** `businessToday()` gives `process.env.DEMO_TODAY` top
+precedence; `.env` sets it but vitest does not load `.env`, so the local unit gate ran on the
+ambient wall clock while GitHub Actions supplied the pin as job-level env. Four money-math tests
+(fi-real-basis ×2, loan-payment-flow-assembler, merchant-lens-server) passed locally and failed
+on every CI push for days — `DEMO_TODAY=2026-06-10 npx vitest run` on the three files reproduced
+all four byte-identically before the fix.
+
+**Decision 1 — pin at the gate, not per-test-file-by-convention.** `vitest.config.ts` now sets
+`DEMO_TODAY=2026-06-10` and `TZ=UTC` UNCONDITIONALLY (process.env + test.env, so forked workers
+inherit at spawn and a shell-exported value cannot change the unit verdict — executed against
+`DEMO_TODAY=2031-12-25 TZ=Australia/Eucla`, 45/45). The alternative — requiring every test that
+reads the clock to pin its own — was rejected as a convention with no enforcement: the three
+broken files are what that convention produces. Tests that need a different date still win via
+`vi.stubEnv`. Tripwire: `tests/unit/gate-clock-pin.test.ts` (critic-proven non-vacuous; scope
+honestly documented — it cannot see the deletion of just ONE of the two redundant mechanisms).
+
+**Decision 2 — the three repairs pin the date their fixtures were written for; no hand-verified
+money expectation changed.** fi-real-basis C.9 and the loan assembler stub `2026-08-15` (their
+fixtures' months need an August+ today); merchant-lens-server derives its fixture dates FROM the
+pin instead of a raw `new Date()` (fixture and engine can no longer disagree by construction).
+Critic-executed fail-old on all three: the expenses6×2 sabotage, the C.25-disabled sabotage and
+the POSTED-filter sabotage each turn the repaired tests RED.
+
+**Decision 3 — CI's Node goes to 24 (the local major); no `engines` field.** The gate critic
+found a FIFTH CI-red cause the clock work did not touch: verify.yml ran Node 20, and jsdom's
+undici dependency requires ≥22.19, so the repo's only jsdom file (spend-window-render.test.tsx,
+14 render-copy assertions) had NEVER executed on CI — an unhandled worker error on every run.
+`node-version: "24"` matches the maintainer's v24.16. A `package.json` `engines` field was
+considered and REJECTED this slice: Vercel reads `engines.node` to select the production
+runtime, so adding it silently changes the deploy — bigger blast radius than a test-gate fix.
+
+**Decision 4 — LLM keys are blanked in the unit gate.** The ambient machine carries a real
+`XAI_API_KEY` (.env.local) that reached every vitest worker; CI has none. Same parity treatment
+playwright.config.ts already applies: blank both keys at the config, tests simulate configured
+providers with stubs. Executed: the three LLM-gated test files pass identically.
+
+**Decision 5 — reading CI is part of shipping.** `scripts/ci-status.sh` (5 distinct exit codes;
+short-sha resolution via git; gh auth failure reported as UNKNOWN, never as "no run";
+cancelled = superseded, its own code) + CLAUDE.md rule 5 "Read the gate, not just the deploy"
++ rule 2 cross-reference (verify.sh = LOCAL done; CI conclusion = SHIP gate). Four of five exit
+paths executed against real runs; `success` was unverifiable at decision time because no green
+run existed in the last 100 — this slice's own push is the first candidate.
+
+**Critic verdicts:** money-math critic PASS (0 P0/P1/P2, 5 P3 comment corrections, all applied);
+gate critic FAIL cycle 1 (1 P0 = the Node finding, 1 P1 = the rule's self-contradiction, 4 P2,
+5 P3 — all fixed or explicitly accepted with the acceptance written at the site).

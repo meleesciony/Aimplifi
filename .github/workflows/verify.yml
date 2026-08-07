@@ -38,13 +38,23 @@ jobs:
       DATA_PROVIDER: demo
       DATABASE_URL: "file:./dev.db"
       AUTH_SECRET: "ci-verify-dev-secret-not-used-in-production"
+      # NOTE (K.8): for the UNIT step this value is shadowed — vitest.config.ts pins
+      # DEMO_TODAY unconditionally so the unit gate is environment-independent. This
+      # job-level value is live for `next build` and the e2e server only. If the pinned
+      # date ever changes, change vitest.config.ts + tests/unit/gate-clock-pin.test.ts
+      # + .env + this line together.
       DEMO_TODAY: "2026-06-10"
     steps:
       - uses: actions/checkout@v4
 
+      # K.8 critic F1: Node 20 could not load jsdom at all — undici@8 (jsdom's dep)
+      # requires Node >= 22.19, so the forks worker for the repo's one jsdom test file
+      # (spend-window-render.test.tsx, the C.26 render harness) threw an Unhandled
+      # Error on every CI run and its 14 copy assertions never executed here. 24
+      # matches the maintainer's machine (v24.16), so local and CI run the same major.
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
 
       # postinstall runs `prisma generate` (needs the committed sqlite schema).

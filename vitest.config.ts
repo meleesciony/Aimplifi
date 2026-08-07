@@ -10,6 +10,37 @@ import { UNIT_DB_URL } from './tests/setup/test-db';
 // (DECISIONS #35).
 process.env.DATABASE_URL = UNIT_DB_URL;
 
+// K.8 — the unit gate's clock is PINNED, not ambient. Before this, `businessToday()`
+// fell through to the real machine clock locally (vitest does not load .env) while CI
+// declares DEMO_TODAY as a job-level env var, so the same commit answered "6,167 passed"
+// on the maintainer's machine and "4 failed" on every CI run for days — and any test
+// that read the clock without stubbing it drifted with the calendar. Both values are
+// set unconditionally (a shell-exported DEMO_TODAY must not change the gate's verdict)
+// and mirrored into `test.env` so every forked worker inherits them at spawn. The date
+// matches .env and .github/workflows/verify.yml; TZ=UTC matches the CI runner's default
+// (an assumption about the runner, but a safe one: this config forces UTC on BOTH sides
+// regardless), so the local unit gate and CI's unit step answer the SAME question. Note
+// the scope: this immunizes the UNIT step only — `next build` and the e2e server still
+// read the ambient env/.env. A test that needs a different date pins its own via
+// `vi.stubEnv('DEMO_TODAY', …)` — that still wins over this default.
+// Locked by tests/unit/gate-clock-pin.test.ts. Lock scope (critic-verified): it fails
+// if BOTH this assignment and the test.env mirror are removed, or if the pinned VALUES
+// change; deleting just one of the two redundant mechanisms is invisible to it (and
+// changes no behavior on the forks pool). Known tradeoff (critic F5): forcing UTC means
+// no test exercises `realClockToday()` outside UTC any more — that function is 3 lines
+// of local-date formatting, accepted.
+process.env.DEMO_TODAY = '2026-06-10';
+process.env.TZ = 'UTC';
+
+// K.8 critic F4 — same parity discipline for LLM keys: the maintainer's ambient env
+// carries a REAL XAI_API_KEY (via .env.local) which would reach every vitest worker,
+// while CI has none — so `isLlmConfigured()` could answer differently per machine and,
+// worse, a unit test could make a live paid call. playwright.config.ts already blanks
+// both keys at module scope for exactly this reason; the unit gate now matches it.
+// A test that needs "configured" simulates it with vi.stubEnv, same as the date.
+process.env.XAI_API_KEY = '';
+process.env.ANTHROPIC_API_KEY = '';
+
 export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
@@ -19,8 +50,16 @@ export default defineConfig({
     // fails to load with "Cannot find package 'server-only'".
     alias: { 'server-only': fileURLToPath(new URL('./tests/setup/server-only-stub.ts', import.meta.url)) },
     // Injected into the test runtime (workers) — belt-and-suspenders with the
-    // process.env assignment above.
-    env: { DATABASE_URL: UNIT_DB_URL },
+    // process.env assignments above. TZ is injected at worker spawn, which is the
+    // reliable mechanism on Windows (runtime TZ changes were verified to work on
+    // this Node, but spawn-time env needs no such guarantee).
+    env: {
+      DATABASE_URL: UNIT_DB_URL,
+      DEMO_TODAY: '2026-06-10',
+      TZ: 'UTC',
+      XAI_API_KEY: '',
+      ANTHROPIC_API_KEY: '',
+    },
     environment: 'node',
     // `.tsx` is included for the component-render harness added in C.26 (critic
     // cycle 2, F2): two cycles of user-visible copy shipped unlocked because

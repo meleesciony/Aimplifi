@@ -13,11 +13,19 @@
  * (no counterpart / 4-day settlement) — the month-to-month flip the
  * read-side exclusion must level out.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const USER = `loanflow-${Date.now()}-${process.pid}`;
 const MTG_AMOUNT = -621_707;
 const DESCRIPTOR = 'TRUIST MORTG OL B MTGPMT';
+/**
+ * K.8 — the file pins its own "today". The fixture's four months are 2026-04..07, and
+ * `getReports` only reaches back from the CURRENT month: under the gate's default
+ * DEMO_TODAY (2026-06-10) the Apr–Jul filter finds 2 months, not 4 ("length of 4 but
+ * got 2" on every CI run, green locally only while the ambient clock sat past July).
+ * Any pinned date in or after 2026-08 holds all four months in the window.
+ */
+const PINNED_TODAY = '2026-08-15';
 
 let prisma: typeof import('@/lib/db').prisma;
 let DemoProvider: typeof import('@/lib/providers/demo').DemoProvider;
@@ -25,6 +33,7 @@ let getReports: typeof import('@/server/reports').getReports;
 let DEMO_USER_ID: string;
 
 beforeAll(async () => {
+  vi.stubEnv('DEMO_TODAY', PINNED_TODAY);
   ({ prisma } = await import('@/lib/db'));
   ({ DemoProvider } = await import('@/lib/providers/demo'));
   ({ getReports } = await import('@/server/reports'));
@@ -88,6 +97,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await prisma.transaction.deleteMany({ where: { account: { userId: USER } } });
   await prisma.account.deleteMany({ where: { userId: USER } });
   await prisma.user.deleteMany({ where: { id: USER } });
@@ -120,6 +130,11 @@ describe('C.25 assembler wiring (real Prisma client)', () => {
   });
 
   it('the demo golden is untouched: no exclusion on the seeded dataset', async () => {
+    // K.8 critic F3, measured at both 2026-06-10 and this file's pinned 2026-08-15: the
+    // demo loan account has ZERO posted inflow rows, so `inflowsByLoanAccount` is empty
+    // and the exclusion is undefined at ANY clock value — this guard is structural, not
+    // date-dependent, and the file-level pin (which the demo user also sees here) does
+    // not weaken it. It is, knowingly, a weak lock: it stayed green with C.25 disabled.
     const snap = await new DemoProvider().getFinanceSnapshot(DEMO_USER_ID);
     expect(snap.loanPaymentFlowExclusions).toBeUndefined();
   });

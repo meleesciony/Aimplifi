@@ -62,6 +62,23 @@ Every session ended on a real, honestly-run local `verify.sh`. None of them was 
    never the assertion** — and give the fixture a self-check on arrival, so a drifted premise
    fails loudly at the top instead of deep inside a flow.
 
+## Resolution (K.8, 2026-08-06) — and the finding that proves rule 3 generalizes
+
+The clock is now pinned at the GATE, not per-machine: `vitest.config.ts` sets
+`DEMO_TODAY=2026-06-10` + `TZ=UTC` unconditionally (process.env + test.env), blanks the
+LLM keys the ambient machine carries and CI doesn't, and `tests/unit/gate-clock-pin.test.ts`
+trips if the pin goes missing. The three drifting files pin their own dates. Rule 5 gained
+"Read the gate, not just the deploy" (`scripts/ci-status.sh` after every push).
+
+The strongest confirmation of rule 3 came from the K.8 critic pass itself: the clock was
+only four-fifths of the story. **CI ran Node 20 while the local machine runs Node 24, and
+jsdom's undici dependency requires ≥22.19 — so the repo's one jsdom test file (14 render-copy
+assertions, the C.26 harness) had NEVER executed on CI**, failing the worker with an unhandled
+error on every run. Same disease, different axis: the environment divergence you know about
+(the clock) is evidence there are ones you don't (the runtime). When a gate splits from its
+CI twin, enumerate EVERY axis — env vars, TZ, runtime version, installed browsers — and pin
+or reconcile each, or the fix ships four-fifths done.
+
 ## Also settled here
 
 The prior row proposed "a cheap grep-level guard for demo-driven writes in specs." **Assessed

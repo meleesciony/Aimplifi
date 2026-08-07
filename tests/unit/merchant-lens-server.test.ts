@@ -10,7 +10,7 @@
  * Integration-style over the real getTransactions + test DB, same idiom as
  * household-shared-txns.test.ts.
  */
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { prisma } from '@/lib/db';
 import { addMonthsClamped, isoDate } from '@/lib/dates';
 import { getTransactions } from '@/server/transactions';
@@ -18,7 +18,22 @@ import { getTransactions } from '@/server/transactions';
 const stamp = `${Date.now()}-${process.pid}`;
 const userId = `mls-user-${stamp}`;
 
+/**
+ * K.8 — the fixture and the engine must read the SAME clock. This file used to date its
+ * rows off a raw `new Date()` while `getTransactions` resolves "today" through
+ * `businessToday()`, which DEMO_TODAY pins — so whenever the two clocks disagreed (every
+ * CI run) the newest posted charge slid outside the engine's window and the facts line
+ * read "$50.00 in all" against the expected "$60.00". The pin below is what the fixture
+ * dates are derived from, so the two clocks cannot disagree by construction.
+ */
+const PINNED_TODAY = '2026-06-10';
+
+beforeAll(() => {
+  vi.stubEnv('DEMO_TODAY', PINNED_TODAY);
+});
+
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await prisma.user.deleteMany({ where: { id: userId } });
 });
 
@@ -36,9 +51,9 @@ describe('merchant lens server composition (#250 F1/F2)', () => {
       },
     });
 
-    // A monthly Netflix series relative to the REAL today (non-demo user):
+    // A monthly Netflix series relative to the ENGINE's today (the pin above):
     // 6 POSTED −$10.00 charges, newest one month ago → ACTIVE, MONTHLY.
-    const today = isoDate(new Date().toISOString().slice(0, 10));
+    const today = isoDate(PINNED_TODAY);
     const dates = [6, 5, 4, 3, 2, 1].map((m) => addMonthsClamped(today, -m));
     for (const d of dates) {
       await prisma.transaction.create({
@@ -54,9 +69,13 @@ describe('merchant lens server composition (#250 F1/F2)', () => {
         },
       });
     }
-    // The attack row: a larger PENDING charge dated yesterday. On the F2 bug it
-    // becomes the series' newest amount → "typically $25.00" + phantom price
-    // change; /recurring (POSTED-only) would keep saying $10.00.
+    // The attack row: a larger PENDING charge dated ON today (addMonthsClamped(today, 0)
+    // === today — K.8 critic: this comment used to say "yesterday"). The date matters:
+    // the profile's inclusion rule is `date <= today` (merchant/profile.ts), so a row
+    // even one day later would be dropped by the DATE filter and this would silently
+    // stop testing the STATUS filter at all. On the F2 bug the pending row becomes the
+    // series' newest amount → "typically $25.00" + phantom price change; /recurring
+    // (POSTED-only) would keep saying $10.00.
     await prisma.transaction.create({
       data: {
         accountId: acct.id,

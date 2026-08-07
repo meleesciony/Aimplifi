@@ -2447,6 +2447,43 @@ deterministic clock for the unit gate and then repairs to whatever that surfaces
 money-math expectations (FI number, loan flows, merchant totals), so it takes its own slice with
 a critic pass. Tracked as **K.8**.
 
+### K.8 RESOLVED (2026-08-06, DECISIONS #422) — and the critic found a FIFTH cause
+
+The clock: `vitest.config.ts` pins `DEMO_TODAY=2026-06-10` + `TZ=UTC` unconditionally
+(process.env + test.env; executed against a hostile shell `DEMO_TODAY=2031-12-25
+TZ=Australia/Eucla` — the pin wins) and blanks `XAI_API_KEY`/`ANTHROPIC_API_KEY` (the ambient
+machine carries a real key CI lacks; playwright.config already did this). The three files pin
+the dates their fixtures were written for — fi-real-basis C.9 and the loan assembler at
+2026-08-15; merchant-lens-server now derives its fixture FROM the pin instead of a raw
+`new Date()`. No hand-verified money expectation changed. Tripwire:
+`tests/unit/gate-clock-pin.test.ts`.
+
+**Two fresh-context critics.** Money-math critic: **PASS, 0 P0/P1/P2** — earned by seven
+executed sabotages (expenses6×2 → RED at :994; stub removals reproduce the exact CI failures;
+POSTED-filter removal → RED; C.25 disabled → RED; insurance-reshop suppressed → the W.10
+escape hatches proven non-vacuous; pin fully removed → tripwire RED); 5 P3 stale-comment
+corrections, all applied. Gate critic: **FAIL — 1 P0, 1 P1, 4 P2, 5 P3, all fixed or accepted
+in place.** The P0 is the fifth CI-red cause: **CI ran Node 20, and jsdom's undici dependency
+requires ≥ 22.19, so `spend-window-render.test.tsx` (the C.26 render harness, 14 copy
+assertions) had NEVER executed on CI** — an unhandled forks-worker error on every run.
+verify.yml now pins `node-version: "24"` (the local major, v24.16); a package.json `engines`
+field was REJECTED because Vercel reads it to select the production runtime (blast radius).
+The P1: the first draft of the new CLAUDE.md rule both mandated waiting for a `success` that
+had never existed and offered a ship-past escape in the same breath — rewritten: verify.sh =
+LOCAL done, CI conclusion = SHIP gate, `cancelled` = superseded (re-run against the newest
+sha), and a pre-existing-failure close requires the run id + failing tests recorded here.
+
+The unread gate: `scripts/ci-status.sh` (5 exit codes — success/failure/no-run/cancelled/
+gh-broken; short shas resolved through git; a gh auth failure reports UNKNOWN, never "no run";
+4 of 5 paths executed against real runs, `success` unverifiable until one exists) + CLAUDE.md
+rule 5 "Read the gate, not just the deploy" + the rule 2 cross-reference.
+
+**Gate on the final tree:** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0 / eslint 0 /
+build clean); unit **6,169 passed + 1 skipped / 376 files** — same count with the pin as the
+ambient run, i.e. the pin flips nothing beyond the three repaired files (the gate critic's
+independent full run on an isolated TEST_DB_DIR agrees). CI confirmation of this slice's own
+push is recorded below when it lands — per the rule this slice just wrote.
+
 ## K.2 CORRECTION — Plaid is at the 90-day DEFAULT, not the 730-day ceiling (2026-08-07)
 
 Owner: *"All I want is max plaid data."* The recorded answer was wrong and the new one is
