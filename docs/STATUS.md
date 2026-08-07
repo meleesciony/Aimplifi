@@ -2446,3 +2446,46 @@ their verdicts drift with the calendar as well as with the environment; the deli
 deterministic clock for the unit gate and then repairs to whatever that surfaces. It moves
 money-math expectations (FI number, loan flows, merchant totals), so it takes its own slice with
 a critic pass. Tracked as **K.8**.
+
+## K.2 CORRECTION — Plaid is at the 90-day DEFAULT, not the 730-day ceiling (2026-08-07)
+
+Owner: *"All I want is max plaid data."* The recorded answer was wrong and the new one is
+measured, not inferred. Probe: `scripts/audit-probes/plaid-depth-why.mts` (read-only, live Neon).
+
+**What K.2 said:** "Plaid is at its documented 730-day ceiling … Plaid holds no more."
+**What is true:** 730 days is two years; the corpus holds ~90 days. The ceiling was never the
+binding constraint — our own request was. K.2 read `historyBackfilledAt` set on every item as
+"backfilled, therefore exhausted", which the flag cannot mean.
+
+**Measured, all 12 items (not 13 — three of the 15 `plaid.item.link` audit rows were removed):**
+every Item was created **2026-07-23/24**, one week before `PLAID_DAYS_REQUESTED = 730` shipped
+on 2026-07-31. Plaid applies `days_requested` only where Transactions was not already
+initialized, so all twelve are pinned to Plaid's 90-day default permanently. Reach-back from
+link date is 67–90 days on every item holding rows.
+
+**The backfill ran and provably bought nothing — this is the important part.** All 12
+`plaid.item.history-backfill` audit rows read `windowStart: "2024-08-04"` (a correct 730-day
+ask), `added: 0`, and `alreadyExists: N` equal to the rows already held (289 Chase, 392 Capital
+One, 189 Schwab, …). So `/transactions/get` over two years returned ONLY the existing 90-day
+window and nothing older. That is a clean, complete fetch — not an error.
+
+**Therefore the core assumption in `plaid-history-backfill.ts` is FALSE:** its header claims
+`/transactions/get` "DOES return already-delivered rows and, for most institutions, up to about
+two years of them." It does not return rows outside the Item's initialized window. That file
+flagged itself "UNVERIFIED against a live sandbox"; it is now verified, and it is wrong. The
+backfill cannot deepen any existing Item and no amount of syncing will change that.
+
+**The only remaining lever is remove + fresh Link**, which the code already said
+(`plaid.ts:280`) and which is now the ONLY route rather than one of two. `disconnectPlaidItem`
+is safe for data — it revokes at Plaid and deletes the item row, but keeps accounts and
+transactions ("they just won't update"), so the 90 days already held survive the round trip and
+the reconciliation boundary handles the overlap when the fresh link lands.
+
+**Do ONE bank first.** `days_requested: 730` has never been exercised against a live bank —
+every network path in `plaid.ts` carries the same UNVERIFIED note that just proved wrong once.
+Re-link the smallest connection (Truist, 3 rows) and confirm it returns ~730 days before
+spending the clicks on the other six institutions.
+
+**Ceiling regardless: 730 days is Plaid's documented maximum.** Even a perfect re-link of every
+bank reaches 2024, not 2023. The owner's three-year ask cannot come from Plaid at all — that is
+SimpleFIN (connection currently deleted) or per-bank CSV.
