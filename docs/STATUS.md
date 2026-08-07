@@ -32,12 +32,16 @@ guard filter reverted, successor-side raw, orphan arm dropped, severed check del
 inverted, feed filter dropped) — each turning exactly its own lock RED, each restored. No
 schema change, no prisma diff. 2 + 3 regression-ledger rows.
 
-**CI note (K.8 discipline):** the first push (`015c42b`) came back `failure` twice on
-`category-rename.spec.ts:110` — a test in NO file this slice touches, green on the prior sha's
-run, **18/18 green locally** (6 consecutive runs) on the identical tree, and timing-shaped (a
-stale picker after a /settings mutation under CI load). budget-targets (the documented CI
-flake) failed attempt 1 only. Watch it on this push's gate; if it reds a third consecutive
-time it stops being called flake and gets its own row.
+**CI: red three consecutive runs, then DIAGNOSED as a test defect rather than re-run until
+green.** `category-rename.spec.ts:110` failed the gate on `015c42b` (×2, unit fully green both
+times) and `109b23e` (×1) while passing 18/18 locally — because the settings remove-category
+toggle is deliberately OPTIMISTIC with rollback (#167), so the spec's "removed" assertion was
+the client's echo, not the committed write; on a loaded CI runner the next navigation's server
+read beat the commit, and a full document response never re-polls. The spec now confirms on a
+RE-RENDERED /settings (reload inside `toPass`) before reading the picker — the component's own
+rename-flow rule ("the re-rendered page is the confirmation that can't lie"). Ledger row
+2026-08-07. budget-targets (the documented CI flake) failed attempt 1 only. The closing push's
+CI conclusion is recorded below when read.
 
 **STILL OPEN after H.6c/H.6b(b):** (1) **H.6b(a)** — hand-filed categories/notes/splits still
 stop being applied after a combine (the deepen door's amber caveat discloses it; carrying the

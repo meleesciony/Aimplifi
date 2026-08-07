@@ -120,7 +120,18 @@ test('removing a built-in category takes it out of the picker and says so', asyn
   await page.goto('/settings');
   await expect(page.getByTestId('cat-visibility-car-wash')).toBeVisible();
   await page.getByTestId('cat-visibility-car-wash').click();
+  // The remove toggle is deliberately OPTIMISTIC with rollback (#167, the component's own
+  // docblock) — so the count appearing here is the CLIENT's echo, not the committed write. On a
+  // loaded CI runner the next navigation's server read raced ahead of the commit, and a full
+  // document response never re-polls, so the final assertion failed three consecutive gate runs
+  // while passing on every idle local machine. Confirm on a RE-RENDERED page first — the same
+  // "the reloaded page is the confirmation that can't lie" rule the rename flow beside this
+  // toggle already follows — and only then read the picker.
   await expect(page.getByTestId('hidden-count')).toContainText('removed', { timeout: 20000 });
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByTestId('hidden-count')).toContainText('removed', { timeout: 2000 });
+  }).toPass({ timeout: 20000 });
 
   await page.goto('/transactions');
   await expect(
