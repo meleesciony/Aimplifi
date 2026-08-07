@@ -2593,3 +2593,13 @@ spending the clicks on the other six institutions.
 **Ceiling regardless: 730 days is Plaid's documented maximum.** Even a perfect re-link of every
 bank reaches 2024, not 2023. The owner's three-year ask cannot come from Plaid at all — that is
 SimpleFIN (connection currently deleted) or per-bank CSV.
+
+## ⚠️ CI flake record 2026-08-07 — run 31189535166 (docs-only push e772d8f): failure
+
+One failing test: `budget-targets.spec.ts:20` (`toHaveCount` timeout at :58) — the
+named repeat offender in `docs/lessons/ci-e2e-timing-flake.md`, on a push whose
+entire diff is PROGRESS.md; the identical code passed as a15c790 (31186804353)
+twenty minutes earlier. Recorded per rule 5 (failure never silent; proven
+pre-existing by diff scope). Further docs-only flakes of this same test need no
+fresh record — the lesson file owns the class; a flake on a CODE push still gets
+judged against its own diff every time.
