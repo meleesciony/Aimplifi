@@ -39,9 +39,12 @@ export interface CombineConnectionItem {
   readonly lastSyncedAt: string | null;
   /** Sanitized failure reason from the last attempt; null = healthy. */
   readonly lastSyncError: string | null;
-  /** YYYY-MM-DD of the OLDEST stored transaction across this connection's accounts, or null when
-   *  none of them holds a row yet. This is `keepRank`'s depth evidence (TASKS H.6c): the stored
-   *  rows themselves, never a promise about what a feed might deliver later. */
+  /** YYYY-MM-DD of the OLDEST FEED-DELIVERED transaction (providerRef non-null) across this
+   *  connection's accounts, or null when its feed has stored nothing yet. This is `keepRank`'s
+   *  depth evidence (TASKS H.6c): what the connection's own feed actually reached — never a
+   *  promise about what it might deliver later, and never a hand-typed or CSV-imported row,
+   *  which says nothing about the feed and would otherwise let one backdated manual entry flip
+   *  which connection an irreversible combine proposes to revoke (H.6c critic P1, executed). */
   readonly earliestTxnDate: string | null;
   /** Stable ascending key for "which connection came first" (an ISO timestamp). */
   readonly linkedAtKey: string;
@@ -85,6 +88,14 @@ export interface CombineDirection {
   readonly dropItemId: string;
   /** True when every account under `dropItemId` is a proven duplicate of one under `keepItemId`. */
   readonly offerable: boolean;
+  /** Each side's feed depth (`CombineConnectionItem.earliestTxnDate`), carried onto the
+   *  direction so the card can DISCLOSE, beside the irreversible button itself, when this choice
+   *  would disconnect the side whose feed reaches further back — or a side whose feed has stored
+   *  nothing yet, which is exactly a deepen link mid-pull (H.6c critic P1: the ranking cannot
+   *  know a partially-landed feed will become deeper, so the reader has to be told what each
+   *  side holds at the moment of the tap). */
+  readonly keepEarliestTxnDate: string | null;
+  readonly dropEarliestTxnDate: string | null;
   /** Accounts under the dropped connection this combine would NOT resolve — the reason it is
    *  not offerable. Named so the UI can say exactly what would be frozen. */
   readonly strandedAccountNames: readonly string[];
@@ -161,6 +172,8 @@ function planDirection(
     // An empty connection (no rows yet) resolves nothing, so it is not a combine — the user
     // disconnects it if they want it gone. Requiring a pair keeps this action about duplicates.
     offerable: stranded.length === 0 && pairs.length > 0,
+    keepEarliestTxnDate: keep.earliestTxnDate,
+    dropEarliestTxnDate: drop.earliestTxnDate,
     strandedAccountNames: stranded,
     pairs,
   };

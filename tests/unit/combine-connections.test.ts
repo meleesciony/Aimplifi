@@ -117,6 +117,11 @@ describe('planCombinableConnections — depth outranks linked-first (TASKS H.6c)
     expect(p.recommended.dropItemId).toBe('item-old');
     // The other direction stays available — the user can still choose the old side on purpose.
     expect(p.alternative?.keepItemId).toBe('item-old');
+    // Each direction carries both sides' depth, so the card can disclose what a tap would drop.
+    expect(p.recommended.keepEarliestTxnDate).toBe('2024-08-08');
+    expect(p.recommended.dropEarliestTxnDate).toBe('2026-05-09');
+    expect(p.alternative?.keepEarliestTxnDate).toBe('2026-05-09');
+    expect(p.alternative?.dropEarliestTxnDate).toBe('2024-08-08');
   });
 
   it('is deterministic in the deepen shape — input order never flips which side survives', () => {

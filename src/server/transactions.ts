@@ -931,7 +931,7 @@ export type ReconciliationCandidateView = ReconciliationCandidate & {
 
 /** Every account, grouped into assets vs liabilities with net worth + trend. */
 export async function getAccountsView(userId: string): Promise<AccountsView> {
-  const [user, accounts, snapshots, statements, autopays, sfConn, plaidItems, newestByAccount, activeReconciliations, dismissedDupKeys] =
+  const [user, accounts, snapshots, statements, autopays, sfConn, plaidItems, newestByAccount, plaidFeedFloors, activeReconciliations, dismissedDupKeys] =
     await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
@@ -968,6 +968,17 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     // slice 6: with `_max` it is each account's full-history span, which the confirm
     // card needs for the honest claim-span disclosure + the cutover default/min bounds.
     prisma.transaction.groupBy({ by: ['accountId'], where: { account: { userId } }, _min: { date: true }, _max: { date: true } }),
+    // Each plaid account's oldest FEED-DELIVERED row — `providerRef` non-null, because manual
+    // and CSV rows say nothing about how far a connection's own feed reaches, and the combine
+    // ranking below must not let one backdated hand-typed row decide which connection an
+    // irreversible revoke proposes to keep (H.6c critic P1, executed). Deliberately a separate
+    // groupBy from the all-rows span above, whose per-row freshness/claim-span jobs need every
+    // row.
+    prisma.transaction.groupBy({
+      by: ['accountId'],
+      where: { account: { userId, provider: 'plaid' }, providerRef: { not: null } },
+      _min: { date: true },
+    }),
     getActiveReconciliations(userId),
     // Pairs the user has marked "not a duplicate" — filtered out of the advisory warning below.
     getDismissedDuplicateKeys(userId),
@@ -1244,11 +1255,11 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   // binds the warning and the candidate card, and an already-reconciled pair is resolved rather
   // than offered again. Only the currency-supported rows take part, so the offer can never name
   // an account the page is withholding.
-  // Each account's oldest stored row, from the span groupBy this view already runs — the depth
-  // evidence `keepRank` ranks on (TASKS H.6c), so the prominent Combine button proposes keeping
-  // the connection whose history reaches further back (the deepen flow's whole point).
+  // Each plaid account's oldest FEED-delivered row — the depth evidence `keepRank` ranks on
+  // (TASKS H.6c), so the prominent Combine button proposes keeping the connection whose own feed
+  // reaches further back (the deepen flow's whole point).
   const earliestTxnByAccount = new Map(
-    newestByAccount.flatMap((g) => (g._min.date != null ? [[g.accountId, g._min.date] as const] : [])),
+    plaidFeedFloors.flatMap((g) => (g._min.date != null ? [[g.accountId, g._min.date] as const] : [])),
   );
   const combinableConnections: CombineConnectionsProposal[] = suppressCombineProposals(
     combinableConnectionsFor(userId, plaidItems, accounts, earliestTxnByAccount),

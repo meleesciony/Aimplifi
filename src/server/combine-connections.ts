@@ -216,11 +216,13 @@ export function suppressCombineProposals(
   );
 }
 
-/** The direction the caller asked for, if these proposals still offer it. */
+/** The direction the caller asked for, if these proposals still offer it — plus whether the SAME
+ *  pair offers the opposite direction, which the no-loss refusal needs before it may name
+ *  "combine the other way round" as the remedy (a remedy that would refuse is worse than none). */
 function requestedDirection(
   proposals: readonly CombineConnectionsProposal[],
   input: CombineConnectionsInput,
-): CombineDirection | null {
+): { direction: CombineDirection; otherDirectionOffered: boolean } | null {
   for (const proposal of proposals) {
     for (const direction of [proposal.recommended, proposal.alternative]) {
       if (
@@ -228,7 +230,8 @@ function requestedDirection(
         direction.keepItemId === input.keepItemId &&
         direction.dropItemId === input.dropItemId
       ) {
-        return direction;
+        const other = direction === proposal.recommended ? proposal.alternative : proposal.recommended;
+        return { direction, otherDirectionOffered: other?.offerable === true };
       }
     }
   }
@@ -279,30 +282,100 @@ interface DatedAmount {
   amountCents: number;
 }
 
+/** The guard's read of one account: every stored row, with the split linkage that decides which
+ *  rows the register actually counts. Fetched UNFILTERED because the guard has to see the same
+ *  world the boundary will operate on. */
+interface GuardRow extends DatedAmount {
+  id: string;
+  isSplitParent: boolean;
+  splitParentId: string | null;
+}
+
 function firstDate(rows: readonly DatedAmount[]): ISODate | null {
   let min: string | null = null;
   for (const r of rows) if (min === null || r.date < min) min = r.date;
   return min === null ? null : isoDate(min);
 }
 
+function lastDate(rows: readonly DatedAmount[]): ISODate | null {
+  let max: string | null = null;
+  for (const r of rows) if (max === null || r.date > max) max = r.date;
+  return max === null ? null : isoDate(max);
+}
+
+/**
+ * The rows AS THE BANK DELIVERED THEM (TASKS H.6b(b), reworked by its critic cycle): a split
+ * parent stands in for its children — the children are the reader's own re-labelling of one bank
+ * charge and sum exactly to it by `splitTransaction`'s validation — an unsplit row stands as
+ * itself, and a child whose parent row NO LONGER EXISTS on this account (dangling
+ * `splitParentId`; the column has no FK, and the sync's dissolve path has historically dangled
+ * children) stands as itself too, because the register counts it as real money. The critic
+ * executed the version that dropped dangling children from this multiset: a counted $60.00
+ * vanished from the register behind an `ok: true`.
+ */
+function bankShapeRows(rows: readonly GuardRow[]): GuardRow[] {
+  const parentIds = new Set(rows.filter((r) => r.isSplitParent).map((r) => r.id));
+  return rows.filter((r) => r.splitParentId === null || !parentIds.has(r.splitParentId));
+}
+
+/**
+ * A split family whose rows fall on BOTH sides of an ownership line (H.6b(b) critic P0,
+ * executed). The parent-stands-in accounting above is sound only while the boundary treats a
+ * family as one unit — and the dates genuinely drift apart in production: the pending→posted
+ * sync moves the PARENT to the posted date while leaving the children at the pending date
+ * (plaid.ts, both the preserve branch and the id-churn transplant). A severed family either
+ * stops counting its children (successor side: children inside the predecessor's claim are
+ * dropped while the surviving parent counts in no total) or double-counts against the other
+ * side's surviving copy (predecessor side: kept children plus the successor's kept copy). Both
+ * are silent money errors, so a straddling family refuses the whole combine — fail closed,
+ * nothing changed, and the message names the remedy the reader actually has (undo the split).
+ */
+function splitFamilySevered(rows: readonly GuardRow[], dropped: (r: GuardRow) => boolean): boolean {
+  const parents = new Map<string, GuardRow>();
+  const childrenByParent = new Map<string, GuardRow[]>();
+  for (const r of rows) {
+    if (r.isSplitParent) parents.set(r.id, r);
+    else if (r.splitParentId !== null) {
+      const list = childrenByParent.get(r.splitParentId) ?? [];
+      list.push(r);
+      childrenByParent.set(r.splitParentId, list);
+    }
+  }
+  for (const [parentId, children] of childrenByParent) {
+    const parent = parents.get(parentId);
+    if (!parent) continue; // dangling children stand alone in the multiset instead
+    const verdicts = [parent, ...children].map(dropped);
+    if (verdicts.some(Boolean) && !verdicts.every(Boolean)) return true;
+  }
+  return false;
+}
+
+function splitSeveredMessage(accountLabelText: string): string {
+  return `A transaction you split on ${accountLabelText} has pieces dated on both sides of the day these two connections would hand over, so combining would miscount that charge. Nothing was changed. Undo that split, sync both connections, and try the combine again — you can split the charge again afterwards on the connection you keep.`;
+}
+
 /**
  * Which rows the date split would drop that are NOT duplicated on the surviving side.
  *
- * The boundary gives the predecessor `[its first, min(cutover, its last)]` and the successor
- * everything outside that window, so the dropped set is: predecessor rows after the cutover, plus
- * successor rows inside the window. A dropped row is harmless only if the side that survives that
- * day holds an identical (date, amount) row — a real duplicate. Matched as a MULTISET, so two
- * genuine $5.00 charges on one day need two survivors, not one.
+ * The window is the boundary's OWN claim — `[predFirst, claimEnd]` with
+ * `claimEnd = min(cutover, predLast)`, both computed by the caller over ALL stored rows, exactly
+ * as `txnKeepRule` computes its spans (reconcile-boundary.ts) — so the guard predicts the same
+ * ownership the combine will create, never a window of its own invention (H.6b(b) critic P0:
+ * recomputing the window from the bank-shape subset diverged from the boundary the moment a
+ * split's dates drifted). The dropped set is: predecessor rows outside the claim, plus successor
+ * rows inside it. A dropped row is harmless only if the side that survives that day holds an
+ * identical (date, amount) row — a real duplicate. Matched as a MULTISET, so two genuine $5.00
+ * charges on one day need two survivors, not one.
  */
 function rowsLostToTheSplit(
   predRows: readonly DatedAmount[],
   succRows: readonly DatedAmount[],
-  cutover: ISODate,
-): { count: number; cents: number } {
-  const predFirst = firstDate(predRows);
+  window: { predFirst: ISODate | null; claimEnd: ISODate },
+): { count: number; cents: number; allOnDroppedConnection: boolean } {
+  const { predFirst, claimEnd } = window;
   const key = (r: DatedAmount) => `${r.date}|${r.amountCents}`;
   const inWindow = (r: DatedAmount) =>
-    predFirst !== null && r.date >= predFirst && r.date <= cutover;
+    predFirst !== null && r.date >= predFirst && r.date <= claimEnd;
 
   const tally = (rows: readonly DatedAmount[]) => {
     const m = new Map<string, number>();
@@ -315,6 +388,7 @@ function rowsLostToTheSplit(
 
   let count = 0;
   let cents = 0;
+  let chargedOnSuccessor = 0;
   const charge = (r: DatedAmount) => {
     count += 1;
     cents += Math.abs(r.amountCents);
@@ -330,19 +404,39 @@ function rowsLostToTheSplit(
   const predAvailable = new Map(predKept);
   for (const r of succRows.filter(inWindow)) {
     const left = predAvailable.get(key(r)) ?? 0;
-    if (left <= 0) charge(r);
-    else predAvailable.set(key(r), left - 1);
+    if (left <= 0) {
+      charge(r);
+      chargedOnSuccessor += 1;
+    } else predAvailable.set(key(r), left - 1);
   }
-  return { count, cents };
+  // The predecessor IS the dropped connection's row set, so "every lost row came from the
+  // predecessor side" means the missing money lives entirely on the connection this direction
+  // disconnects — the deepen flow's wrong direction has exactly this shape, and there "keep the
+  // other one instead" is a true remedy the refusal can name (H.6c critic P1: the old copy told
+  // that reader to "sync and try again" — permanently false there — or to delete real history).
+  return { count, cents, allOnDroppedConnection: count > 0 && chargedOnSuccessor === 0 };
 }
 
-function cannotSplitCleanly(lost: { count: number; cents: number }): string {
+function cannotSplitCleanly(
+  lost: { count: number; cents: number; allOnDroppedConnection: boolean },
+  otherDirectionOffered: boolean,
+): string {
   const amount = (lost.cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-  return `These two connections don't hold the same transactions — ${lost.count} ${
+  const head = `These two connections don't hold the same transactions — ${lost.count} ${
     lost.count === 1 ? 'charge' : 'charges'
   } totalling ${amount} ${lost.count === 1 ? 'appears' : 'appear'} on only one of them, and combining would stop ${
     lost.count === 1 ? 'it' : 'them'
-  } being counted. Nothing was changed. Sync both connections and try again; if it keeps happening, keep them separate and delete the copy you don't want.`;
+  } being counted. Nothing was changed.`;
+  if (lost.allOnDroppedConnection && otherDirectionOffered) {
+    // Every missing charge sits on the side this choice disconnects — deeper history is the
+    // classic cause — and the opposite direction is actually on offer, so name it.
+    return `${head} ${
+      lost.count === 1 ? 'That charge lives' : 'Those charges live'
+    } only on the connection this choice would disconnect, so combine the other way round instead — keep that connection, and ${
+      lost.count === 1 ? 'it keeps' : 'they keep'
+    } counting. If you recently re-linked this bank for more history, its older transactions may also still be arriving; waiting costs nothing.`;
+  }
+  return `${head} Sync both connections and try again; if it keeps happening, the two genuinely differ in places — keep them both, and use “Not the same account” below to stop this offer.`;
 }
 
 type Claim =
@@ -406,12 +500,16 @@ export async function combineDuplicateConnectionsFor(
             where: { userId, undoneAt: null },
             select: { predecessorAccountId: true, successorAccountId: true },
           }),
-          // Each plaid account's oldest stored row — the same depth evidence the /accounts card
-          // ranks on (H.6c), re-read inside this transaction like everything else the plan is
-          // derived from, so the action and the card feed the shared mapper the same shape.
+          // Each plaid account's oldest FEED-DELIVERED row (`providerRef` non-null — manual and
+          // CSV rows say nothing about a feed's reach, H.6c critic P1) — the same depth evidence
+          // the /accounts card ranks on, re-read inside this transaction so the shared mapper is
+          // fed the same shape at both sites. Honesty note (H.6c critic P2): this CANNOT change
+          // whether the action accepts or refuses — `requestedDirection` matches either offerable
+          // direction by id, and the ranking only orders the card's buttons — it keeps the plan's
+          // inputs truthful for anything that later reads them, nothing more.
           tx.transaction.groupBy({
             by: ['accountId'],
-            where: { account: { userId, provider: 'plaid' } },
+            where: { account: { userId, provider: 'plaid' }, providerRef: { not: null } },
             _min: { date: true },
           }),
         ]);
@@ -428,52 +526,60 @@ export async function combineDuplicateConnectionsFor(
         });
         // Ownership is implicit and total: both lists are scoped to this user, so an id belonging
         // to anyone else is simply absent and refused exactly like a made-up one.
-        const direction = requestedDirection(proposals, input);
-        if (!direction) return { ok: false, error: NOT_COMBINABLE };
+        const requested = requestedDirection(proposals, input);
+        if (!requested) return { ok: false, error: NOT_COMBINABLE };
+        const { direction, otherDirectionOffered } = requested;
         const dropItem = items.find((i) => i.itemId === direction.dropItemId);
         if (!dropItem) return { ok: false, error: NOT_COMBINABLE };
 
         const cutovers = new Map<string, string>();
-        // The no-loss guard compares the rows AS THE BANK DELIVERED THEM (TASKS H.6b(b)): split
-        // parents and unsplit rows, never split children. A split is the reader's own re-labelling
-        // of one bank charge — the children share the parent's date and sum exactly to its amount
-        // by `splitTransaction`'s own validation — so the parent is the row the other connection
-        // can be expected to hold a copy of. The previous filter (`isSplitParent: false`) presented
-        // the CHILDREN (−60.00, −40.00) where the other side holds the parent (−100.00), and one
-        // hand-split transaction made the whole combine refuse with a false diagnosis ("2 charges
-        // … appear on only one of them") — a blocked remedy on exactly the flow H.6 built. What a
-        // combine does to the split STRUCTURE is a separate, disclosed fact (H.6b(a), the amber
-        // caveat on the deepen door); this guard's question is whether MONEY would vanish, and for
-        // that the bank's own shape is the honest basis on both sides.
-        const bankShape = { OR: [{ isSplitParent: true }, { splitParentId: null }] };
+        // THE GUARD THIS FEATURE RESTS ON (critic P0 #304, executed in both directions; reworked
+        // by the H.6b(b) critic's P0). The boundary splits two rows by a DATE, so whichever side
+        // does not own a day loses its copy of it — exactly right when the copies are duplicates,
+        // and a silent deletion of real money when they are not. So every row the split would
+        // drop must have a same-day, same-amount survivor on the other side, or the combine is
+        // refused with the amount named.
+        //
+        // The comparison runs over the rows AS THE BANK DELIVERED THEM (TASKS H.6b(b)): a split
+        // parent stands in for its children (they sum to it by `splitTransaction`'s validation),
+        // and a dangling child with no surviving parent stands as itself, because the register
+        // counts it (`bankShapeRows`). The previous `isSplitParent: false` read presented split
+        // CHILDREN against the other side's PARENT, and one hand-split row falsely refused the
+        // whole combine. That accounting is sound only while the boundary treats a split family
+        // as one unit — and the pending→posted sync drifts a parent's date away from its
+        // children's — so a family the claim window would SEVER refuses outright first
+        // (`splitFamilySevered`): on the successor side a severed family's children silently
+        // stop counting; on the predecessor side they double-count. Fail closed, name the split.
+        const guardSelect = { id: true, date: true, amountCents: true, isSplitParent: true, splitParentId: true };
         for (const pair of direction.pairs) {
-          const [predRows, succRows] = await Promise.all([
-            tx.transaction.findMany({
-              where: { accountId: pair.predecessorAccountId, ...bankShape },
-              select: { date: true, amountCents: true },
-            }),
-            tx.transaction.findMany({
-              where: { accountId: pair.successorAccountId, ...bankShape },
-              select: { date: true, amountCents: true },
-            }),
+          const [predAll, succAll] = await Promise.all([
+            tx.transaction.findMany({ where: { accountId: pair.predecessorAccountId }, select: guardSelect }),
+            tx.transaction.findMany({ where: { accountId: pair.successorAccountId }, select: guardSelect }),
           ]);
-          const cutover = handoverDate(firstDate(predRows), firstDate(succRows), today);
-          const lost = rowsLostToTheSplit(predRows, succRows, cutover);
+          // The window is the boundary's own claim, spans computed over ALL rows exactly as
+          // txnKeepRule computes them: [predFirst, min(cutover, predLast)].
+          const predFirst = firstDate(predAll);
+          const predLast = lastDate(predAll);
+          const cutover = handoverDate(predFirst, firstDate(succAll), today);
+          const claimEnd = predLast !== null && compareDates(cutover, predLast) > 0 ? predLast : cutover;
+          const inClaim = (r: DatedAmount) => predFirst !== null && r.date >= predFirst && r.date <= claimEnd;
+          // Predecessor keeps date <= cutover (rows before its own first cannot exist); the
+          // successor loses exactly the rows inside the claim.
+          const predDropped = (r: GuardRow) => compareDates(isoDate(r.date), cutover) > 0;
+          const severedSide = splitFamilySevered(predAll, predDropped)
+            ? pair.predecessorName
+            : splitFamilySevered(succAll, inClaim)
+              ? pair.successorName
+              : null;
+          if (severedSide !== null) {
+            return {
+              ok: false,
+              error: splitSeveredMessage(pair.mask ? `${severedSide} ····${pair.mask}` : severedSide),
+            };
+          }
+          const lost = rowsLostToTheSplit(bankShapeRows(predAll), bankShapeRows(succAll), { predFirst, claimEnd });
           if (lost.count > 0) {
-            // THE GUARD THIS FEATURE RESTS ON (critic P0, executed in both directions). The
-            // boundary splits two rows by a DATE, so whichever side does not own a day loses its
-            // copy of it. That is exactly right when the copies are duplicates — which is the
-            // whole point — and it silently deletes real money when they are not. Two LIVE feeds
-            // are both partial, in different places: one was broken for two days, the other
-            // backfills further, so a date line cannot be assumed lossless the way it can when
-            // only one feed ever covered the era (the cross-provider case this machinery was
-            // built for).
-            //
-            // So: never act on an assumption. Every row the split would drop must have a
-            // same-day, same-amount survivor on the other side. If one does not, the combine is
-            // refused with the amount named — the pair keeps its advisory card, and no figure
-            // moves. An honest gap beats a silent deletion.
-            return { ok: false, error: cannotSplitCleanly(lost) };
+            return { ok: false, error: cannotSplitCleanly(lost, otherDirectionOffered) };
           }
           cutovers.set(pair.predecessorAccountId, cutover);
         }

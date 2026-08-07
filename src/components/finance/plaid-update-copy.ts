@@ -192,13 +192,14 @@ export function linkedForHistoryFlash(opts: {
     `Give it a little while first: the older transactions arrive in the background, so wait until you can see them before finishing.`,
     // NAMES THE CONTROL. H.6c gave `keepRank` a depth rule, so once the deeper history has
     // LANDED, the card's prominent button proposes keeping this connection. But depth is
-    // measured on STORED rows — deliberately, never on a promise about what a feed might
-    // deliver — so a reader who opens the card before the background pull finishes still sees
-    // the tie fall to "linked first wins" and the default point at the old side. This sentence
-    // therefore stays specific enough to override that default, naming the ordinal rather than
-    // saying "the new one" and trusting the reader to map that onto two near-identical buttons.
-    // /accounts orders connections oldest-first, so the one just added is always the highest
-    // number.
+    // measured on STORED feed rows — deliberately, never on a promise about what a feed might
+    // deliver — so before the background pull finishes, the depth rule ITSELF prefers the old
+    // side (the new side's stored floor is recent, or nothing at all; a critic executed both
+    // states) and the default points at the old connection. The card now carries its own
+    // depth note beside that button (`combineDepthNote`), and this sentence stays specific
+    // enough to override the default too, naming the ordinal rather than saying "the new one"
+    // and trusting the reader to map that onto two near-identical buttons. /accounts orders
+    // connections oldest-first, so the one just added is always the highest number.
     opts.combinable
       ? `Then open Accounts and combine the two — choosing the option that KEEPS the connection you just added, which is the highest-numbered one at ${opts.bank}. The other option would drop it and lose the extra history.`
       : // Combine offers a direction only when dropping that side strands nothing, and the old

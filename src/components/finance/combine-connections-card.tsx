@@ -33,6 +33,7 @@ import {
   combineBlockedReason,
   combineCardTitle,
   combineConfirmPrompt,
+  combineDepthNote,
   combineEvidence,
   combineHeading,
   combineOutcome,
@@ -105,6 +106,16 @@ export function CombineConnectionsCard({
                 const armKey = `combine:${direction.keepItemId}|${direction.dropItemId}`;
                 const armedNow = isArmed(armKey);
                 const testid = i === 0 ? 'combine-connections-confirm' : 'combine-connections-alternative';
+                // What each side's feed has actually pulled, said beside the button that would
+                // revoke one of them (H.6c critic P1): mid-pull, only the reader knows the new
+                // connection exists to fetch deeper history, so the card must say what this
+                // choice would disconnect before the ranking can know it matters.
+                const depthNote = combineDepthNote(
+                  keepLabel,
+                  dropLabel,
+                  direction.keepEarliestTxnDate,
+                  direction.dropEarliestTxnDate,
+                );
                 return (
                   <div
                     key={armKey}
@@ -115,6 +126,11 @@ export function CombineConnectionsCard({
                       {combineOutcome(keepLabel, dropLabel, direction.pairs.map((pair) => ({ name: pair.successorName, mask: pair.mask })))}
                     </p>
                     <p className="text-muted-foreground">{combineReversibilityNote(dropLabel)}</p>
+                    {depthNote !== null && (
+                      <p className="text-amber-300/90" data-testid="combine-depth-note">
+                        {depthNote}
+                      </p>
+                    )}
                     {armedNow ? (
                       <ConfirmPrompt
                         prompt={combineConfirmPrompt(keepLabel, dropLabel)}

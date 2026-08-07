@@ -5292,3 +5292,51 @@ parent the successor genuinely lacks still refuses, naming the bank's $100.00.
 successor rows) is not built here; the deepen door's caveat continues to disclose it. The
 deepen flash's ordinal-naming sentence stays, comment updated from "until H.6c lands" to the
 mid-pull window it still covers.
+
+### #425 critic cycle 1 (addendum) — two fresh-context critics, both FAIL (1 P0, 5 P1, 3 P2); every finding executed, all fixed same cycle (2026-08-07)
+
+**The P0 (split-guard critic): the bank-shape premise was unsound against the sync's own
+behavior.** "Children share the parent's date" is false after the ordinary pending→posted sync —
+both Plaid writers (the preserve branch and the id-churn transplant) move the PARENT to the
+posted date and leave the children at the pending date — and with the guard's window then
+computed from the bank-shape subset, a drifted split let the combine pass while the boundary's
+claim severed the family: every copy of a real $100.00 charge stopped counting behind an
+`ok: true` (executed on real Prisma; the mirror shape double-counts instead). **Fix, three
+parts:** the guard now fetches ALL rows and computes the window exactly as the boundary does
+(`[predFirst, min(cutover, predLast)]` over all stored rows, `txnKeepRule`'s own spans); a split
+family the window would SEVER refuses the whole combine first (`splitFamilySevered`, fail
+closed, message names the split and the undo remedy); and a dangling child whose parent row no
+longer exists counts as itself in the multiset (`splitParentId` has no FK — the critic executed
+$60.00 of counted money vanishing). The false-refusal fix survives: a same-date split combines,
+on EITHER side (the successor side was previously unlocked — the critic reverted it alone with
+33 tests green).
+
+**The depth critic's P1s.** (1) Depth read ANY stored row, so one hand-typed or CSV-imported
+backdated row flipped which connection the irreversible combine proposes to keep — onto a
+direction the no-loss guard then refuses with advice that was permanently false there ("sync and
+try again") or destructive ("delete the copy you don't want"). Depth is now FEED depth
+(`providerRef` non-null) at both fetch sites, and the refusal, when every missing charge sits on
+the dropped connection and the opposite direction is offered, names the true remedy: combine the
+other way round. (2) Mid-pull, the partially-landed new connection has a RECENT stored floor —
+not null — so rule 3 itself prefers the old side and the prominent button proposes revoking the
+connection still downloading; no surface at the point of the tap said anything about depth. The
+card now renders `combineDepthNote` beside each direction (engine carries
+`keep/dropEarliestTxnDate`), warning when a choice would drop the deeper side or a side that has
+stored nothing yet — jsdom-locked, since the card was the untested hop. (3) The per-connection
+fold across multiple accounts was unlocked (min→max inversion stayed green on 90 tests, because
+every fixture gave a connection one account) — now locked with a two-account fixture.
+
+**Corrections to #425's own record (depth critic P2s, both executed):** the original entry's
+"the action re-reads it inside its SERIALIZABLE transaction like everything else its plan
+derives from" OVERCLAIMED — the action's depth data cannot change accept/refuse
+(`requestedDirection` matches either offerable direction by id; the ranking only orders the
+card's buttons), and an empty map fed to the action passed the full 6,246-test suite. The fetch
+is KEPT, with a comment stating exactly what it can and cannot change, so the shared mapper's
+inputs stay truthful at both sites. Likewise the first ledger row's "sabotage-proven both
+directions" covered the view's map only; the action's is unfalsifiable by construction. And the
+flash comment's "the tie falls through to linked-first" named the wrong mechanism — mid-pull,
+the depth rule itself decides (null or a recent floor loses to the dated/older side).
+
+**Re-gate:** five executed sabotages on the reworked code — successor-side bank shape, orphan
+arm, severed check, fold direction, view-site feed filter — each turning exactly its own lock
+RED, each restored. Full verify re-run after the fixes (numbers in STATUS).

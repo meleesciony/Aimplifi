@@ -6,6 +6,48 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-07 — H.6c + H.6b(b): the combine's last step goes the right way (DECISIONS #425 + addendum, critic-cycled)
+
+**Closes TASKS H.6c and the (b) half of H.6b — the two follow-ups H.6's critic filed.** The
+/accounts combine card's PRIMARY button now proposes keeping the connection whose FEED reaches
+further back (`keepRank` rule 3, ahead of linked-first), and one hand-split transaction no
+longer refuses the whole combine with a false diagnosis.
+
+**Critic cycle 1: two fresh-context critics in isolated worktrees, both FAIL — 1 P0 + 5 P1 +
+3 P2, every finding executed, all fixed same cycle** (full detail: DECISIONS #425 addendum).
+The P0: the first bank-shape guard assumed split children share the parent's date, and the
+pending→posted sync drifts them apart — a drifted split let the combine DELETE a counted
+$100.00 behind `ok: true`. The guard now computes the boundary's own window over ALL rows,
+refuses outright when it would sever a split family, and counts dangling children as the money
+they are. The depth P1s: depth is now FEED depth (`providerRef` non-null — one hand-typed
+backdated row must not flip an irreversible default), the multi-account fold is locked, the
+deep-history refusal names the true remedy ("combine the other way round"), and the card
+renders `combineDepthNote` beside each direction — the mid-pull deepen state's only on-page
+warning that a tap would revoke the connection still downloading (jsdom-locked wiring).
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,256 unit + 1 skipped / 380
+files** / build clean; combine-connections + deepen-history e2e **4/4** serialized on a fresh
+build. **Eight executed sabotages across the slice** (depth rule deleted, view map starved,
+guard filter reverted, successor-side raw, orphan arm dropped, severed check deleted, fold
+inverted, feed filter dropped) — each turning exactly its own lock RED, each restored. No
+schema change, no prisma diff. 2 + 3 regression-ledger rows.
+
+**CI note (K.8 discipline):** the first push (`015c42b`) came back `failure` twice on
+`category-rename.spec.ts:110` — a test in NO file this slice touches, green on the prior sha's
+run, **18/18 green locally** (6 consecutive runs) on the identical tree, and timing-shaped (a
+stale picker after a /settings mutation under CI load). budget-targets (the documented CI
+flake) failed attempt 1 only. Watch it on this push's gate; if it reds a third consecutive
+time it stops being called flake and gets its own row.
+
+**STILL OPEN after H.6c/H.6b(b):** (1) **H.6b(a)** — hand-filed categories/notes/splits still
+stop being applied after a combine (the deepen door's amber caveat discloses it; carrying the
+fields across is the fix); (2) the guard compares only (date, amount) — `excludeFromTotals` /
+`isTransfer` parity between the two copies is not checked, so a combine can revert an exclusion
+decision on the dropped side (pre-existing, critic-noted, unmeasured); (3) H.6's P2s stand
+(two link-token minters on /accounts; no rate limit on `createPlaidLinkToken`; no server-side
+deepen audit mark); (4) the owner's per-institution deepen walk-through (STATUS §H.6) is
+unchanged and still the only thing that moves data.
+
 ## ✅ BUILT 2026-08-07 — H.6: the 730-day Plaid window stops being discarded (DECISIONS #424, critic-cycled)
 
 **Owner, verbatim: *"Unacceptable we don't have at least plaid maximal dates."* He was right,

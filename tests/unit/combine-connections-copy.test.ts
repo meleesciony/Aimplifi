@@ -11,6 +11,7 @@ import {
   accountLabel,
   combineCardTitle,
   combineConfirmPrompt,
+  combineDepthNote,
   combineEvidence,
   combineRevokeWarning,
   combineHeading,
@@ -133,5 +134,41 @@ describe('the flash after the action', () => {
     expect(s).toContain('nothing has been linked');
     // Still discloses the half that DID happen — the bank is disconnected either way.
     expect(s).toContain('disconnected');
+  });
+});
+
+describe('combineDepthNote — what each side has actually pulled, beside the irreversible button (H.6c critic P1)', () => {
+  const KEEP = 'Chase · connection 1 of 2';
+  const DROP = 'Chase · connection 2 of 2';
+
+  it('warns when the choice would disconnect the side holding the older history, naming both dates', () => {
+    const note = combineDepthNote(KEEP, DROP, '2026-05-09', '2024-08-08');
+    expect(note).toContain(DROP);
+    expect(note).toContain('Thu, Aug 8, 2024');
+    expect(note).toContain('Sat, May 9, 2026');
+    expect(note).toContain('older history');
+    expect(note).toContain('pick the other option');
+  });
+
+  it('warns when the dropped side has stored NOTHING yet — the mid-pull deepen shape', () => {
+    const note = combineDepthNote(KEEP, DROP, '2026-05-09', null);
+    expect(note).toContain(DROP);
+    expect(note).toContain('hasn’t stored any transactions yet');
+    expect(note).toContain('wait');
+  });
+
+  it('says nothing when the choice drops the shallower side — the safe direction needs no caveat', () => {
+    expect(combineDepthNote(KEEP, DROP, '2024-08-08', '2026-05-09')).toBeNull();
+    expect(combineDepthNote(KEEP, DROP, '2026-05-09', '2026-05-09')).toBeNull();
+  });
+
+  it('says nothing when neither side has stored anything — there is no depth claim to make', () => {
+    expect(combineDepthNote(KEEP, DROP, null, null)).toBeNull();
+  });
+
+  it('warns when the dropped side is the ONLY side with history', () => {
+    const note = combineDepthNote(KEEP, DROP, null, '2024-08-08');
+    expect(note).toContain('hasn’t stored any yet');
+    expect(note).toContain('older history');
   });
 });

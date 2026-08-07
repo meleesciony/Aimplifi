@@ -16,6 +16,8 @@
  *     what they are once it does.
  */
 
+import { formatISODate, isoDate } from '@/lib/dates';
+
 export interface CombineAccountLabel {
   name: string;
   mask: string | null;
@@ -85,6 +87,37 @@ export function combineOutcome(keepLabel: string, dropLabel: string, accounts: C
 /** The two-step confirm. Names the irreversible half in the prompt itself. */
 export function combineConfirmPrompt(keepLabel: string, dropLabel: string): string {
   return `Disconnect ${dropLabel} and continue on ${keepLabel}? Disconnecting can’t be undone from this page.`;
+}
+
+/**
+ * The depth caveat, rendered beside the button it describes (TASKS H.6c critic P1). The ranking
+ * prefers the deeper feed once its history has LANDED, but it cannot know that a just-created
+ * 730-day connection is still mid-pull — at that moment its stored floor is recent (or nothing),
+ * the tie legitimately resolves toward the old side, and the prominent button proposes revoking
+ * the connection that is still downloading. Only the reader knows why they created the second
+ * connection, so the card states what each side has actually pulled and lets that reader stop.
+ * Null when the choice carries no depth risk: dropping the shallower side, or two sides with
+ * nothing stored on either.
+ */
+export function combineDepthNote(
+  keepLabel: string,
+  dropLabel: string,
+  keepEarliestTxnDate: string | null,
+  dropEarliestTxnDate: string | null,
+): string | null {
+  const fmt = (d: string) => formatISODate(isoDate(d), 'long');
+  if (dropEarliestTxnDate === null) {
+    if (keepEarliestTxnDate === null) return null; // nothing stored on either side — no depth claim to make
+    return `${dropLabel} hasn’t stored any transactions yet. If you added it on purpose — for example to pull more history — wait until its transactions appear before combining, because this option would disconnect it before they arrive.`;
+  }
+  if (keepEarliestTxnDate === null || dropEarliestTxnDate < keepEarliestTxnDate) {
+    return `${dropLabel} has pulled transactions back to ${fmt(dropEarliestTxnDate)}${
+      keepEarliestTxnDate === null
+        ? `, while ${keepLabel} hasn’t stored any yet`
+        : `, while ${keepLabel} only reaches back to ${fmt(keepEarliestTxnDate)}`
+    }. This option disconnects the connection holding the older history — if you re-linked this bank to get more history, pick the other option instead.`;
+  }
+  return null;
 }
 
 /** The half that cannot be undone from inside the app — stated before the tap, never after. */
