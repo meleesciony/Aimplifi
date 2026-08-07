@@ -23,7 +23,7 @@
  */
 import { type ISODate, compareDates, daysBetween } from '@/lib/dates';
 
-export type FreshnessLevel = 'fresh' | 'stale' | 'very_stale' | 'unknown' | 'not_shared';
+export type FreshnessLevel = 'fresh' | 'stale' | 'very_stale' | 'unknown' | 'not_shared' | 'disconnected';
 
 /**
  * Thresholds in whole days since the reference date. A healthy feed normally posts
@@ -78,6 +78,18 @@ export function freshnessMessage(result: FreshnessResult): string {
       : `Your bank stopped sharing this account ${
           daysSince === 0 ? 'today' : daysSince === 1 ? 'yesterday' : `${daysSince} days ago`
         }`;
+  }
+  // `disconnected` states a PROVEN fact (the connection row is gone), so it must not read like
+  // the stale-feed guess one level down ("you may need to reconnect" implies a feed that might
+  // still be live). Its day count is measured from the newest data this account holds — the
+  // moment updates stopped for the reader — because nothing records WHEN the connection was
+  // removed (the row that would carry that date is the thing that no longer exists).
+  if (level === 'disconnected') {
+    return daysSince == null
+      ? 'Bank connection removed — this account isn’t updating'
+      : `Bank connection removed — last data ${
+          daysSince === 0 ? 'today' : daysSince === 1 ? 'yesterday' : `${daysSince} days ago`
+        }. Reconnect to resume updates.`;
   }
   if (level === 'unknown' || daysSince == null) return 'Not synced yet';
   const ago = daysSince === 0 ? 'today' : daysSince === 1 ? 'yesterday' : `${daysSince} days ago`;
@@ -159,6 +171,17 @@ export interface AccountFreshnessInput {
    *  argument fails silent, and the whole point of this field is that a caller which forgets it
    *  goes on printing "Synced today" over a frozen balance (the L.15 lesson, applied forward). */
   feedDroppedAt: ISODate | null;
+  /** True ONLY when the connection this account came through PROVABLY no longer exists —
+   *  SimpleFIN account with no SimpleFinConnection row, or a Plaid account whose stamped
+   *  plaidItemId matches no live PlaidItem (removeItem stamps the linkage, then deletes the
+   *  item, so a dangling ref only arises via a delete path). A NULL plaidItemId is UNKNOWN,
+   *  never removed: pre-#256 rows are live-but-unstamped and self-heal on the next sync, and
+   *  claiming "connection removed" over a live feed is the false direction (K.2b). Note the
+   *  deliberate asymmetry with the delete affordance's `connectionLive`, which treats unknown
+   *  as false — deleting an unlinked row is safe, telling its owner the connection is gone is
+   *  not. REQUIRED for the same reason as feedDroppedAt: a caller that forgets it goes on
+   *  printing a reconnect *hint* over a connection that is definitively gone (TASKS K.2). */
+  connectionRemoved: boolean;
 }
 
 /**
@@ -176,6 +199,17 @@ export function perAccountFreshness(
 ): Record<string, FreshnessResult | null> {
   const out: Record<string, FreshnessResult | null> = {};
   for (const a of accounts) {
+    // A PROVEN-removed connection outranks everything below, including feedDroppedAt: "your
+    // bank stopped sharing this account" presumes a connection that is still syncing, and
+    // "no new data in N days — you may need to reconnect" hedges a fact we hold outright.
+    // Ordered before the INVESTMENT early-return for the same reason as not_shared — a
+    // disconnected brokerage keeps counting toward net worth while frozen, so it must speak.
+    // Reference date is the newest data the account holds (when updates stopped for the
+    // reader); nothing records when the connection itself was removed.
+    if (a.isLinkedFeed && a.connectionRemoved) {
+      out[a.id] = { ...classifyFreshness(a.newestTxnDate, today), level: 'disconnected' };
+      continue;
+    }
     // Ordered BEFORE the INVESTMENT early-return on purpose. A brokerage row is normally
     // valued by holdings rather than a transaction feed, so it renders no freshness line at
     // all — but it can be unticked in update mode like any other account, and it counts toward

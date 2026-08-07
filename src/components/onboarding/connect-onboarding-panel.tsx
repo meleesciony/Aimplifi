@@ -24,7 +24,11 @@ export function ConnectOnboardingPanel({ footnote = DEFAULT_FOOTNOTE }: { footno
     <div className="space-y-4">
       <div className="space-y-2">
         <p className="text-sm font-medium">Connect a bank — takes about a minute:</p>
-        <ConnectSimplefin connected={false} health={NEVER_SYNCED} />
+        {/* orphaned={null}: this panel renders only for a first-run user with nothing
+            connected — a user whose SimpleFIN accounts outlived their connection has data
+            and therefore never sees the onboarding empty state; /accounts carries the
+            reconnect framing for them (K.2b). */}
+        <ConnectSimplefin connected={false} health={NEVER_SYNCED} orphaned={null} />
         <ConnectAccountsButton />
       </div>
       <div className="space-y-2 border-t pt-3">

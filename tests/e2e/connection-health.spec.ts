@@ -124,3 +124,60 @@ test('a connection whose last sync FAILED surfaces the dashboard reconnect alert
     .analyze();
   expect(axe.violations).toEqual([]);
 });
+
+test('SimpleFIN accounts that OUTLIVED their connection get the honest disconnected surfaces (K.2b)', async ({ page }) => {
+  const email = `e2e-orphan-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  const password = 'e2e-password-123';
+
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill(password);
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+  await expect(page.getByTestId('empty-dashboard')).toBeVisible();
+
+  // The K.2b production state: SimpleFIN accounts kept, connection row DELETED — the exact
+  // shape disconnectSimplefin leaves behind (guarded helper; off-tree e2e DB only).
+  execSync(`npx tsx scripts/e2e-orphan-simplefin.ts ${email}`, {
+    env: { ...process.env, DATABASE_URL: E2E_DB_URL },
+    stdio: 'inherit',
+  });
+
+  await page.goto('/accounts');
+  await expect(page.getByTestId('accounts-net-worth')).toBeVisible({ timeout: 20000 });
+
+  // The front door states the connection is GONE and names what it stranded — never
+  // first-time setup over frozen accounts. Date is the helper's literal LAST_DATA_DATE.
+  const notice = page.getByTestId('simplefin-disconnected-notice');
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText('Your SimpleFIN connection was removed');
+  await expect(notice).toContainText('2 accounts');
+  await expect(notice).toContainText('no updates since Fri, May 1, 2026');
+  await expect(notice).toContainText('your saved transactions are kept');
+  await expect(page.getByTestId('simplefin-connect-btn')).toHaveText('Reconnect your bank (SimpleFIN)');
+  await expect(page.getByTestId('simplefin-connected')).toHaveCount(0);
+
+  // Per-row freshness: the PROVEN fact, not the stale-feed hedge. The card carries the last
+  // data date; the checking row (no transactions) still names the fact without a date.
+  const freshness = page.getByTestId('account-freshness');
+  await expect(freshness).toHaveCount(2);
+  await expect(freshness.filter({ hasText: 'last data' })).toHaveCount(1);
+  for (const line of await freshness.all()) {
+    await expect(line).toContainText('Bank connection removed');
+    await expect(line).not.toContainText('may need to reconnect');
+  }
+
+  // Opening the door shows the reconnect-specific promise (history via backfill) and the
+  // submit reads Reconnect — the reader is resuming, not starting over.
+  await page.getByTestId('simplefin-connect-btn').click();
+  await expect(page.getByTestId('simplefin-form')).toBeVisible();
+  await expect(page.getByTestId('simplefin-form')).toContainText('Reconnecting resumes where your data stopped');
+  await expect(page.getByTestId('simplefin-submit')).toHaveText('Reconnect');
+
+  // Axe on the disconnected state — no other spec renders this notice.
+  const axe = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(axe.violations).toEqual([]);
+});

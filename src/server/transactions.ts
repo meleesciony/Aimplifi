@@ -862,8 +862,18 @@ export interface AccountsView extends AccountsSummary {
   /** Per-account billing for manual credit cards, keyed by account id. */
   cardBilling: Record<string, ManualCardBilling>;
   /** SimpleFIN bank-sync connection status (ROADMAP: cheaper Plaid alternative).
-   *  `health` grades how recently the connection last synced (Gap 1 §3). */
-  simplefin: { connected: boolean; lastSyncedAt: string | null; health: FreshnessResult };
+   *  `health` grades how recently the connection last synced (Gap 1 §3).
+   *  `orphaned` (K.2b): non-null exactly when SimpleFIN accounts exist but the connection row
+   *  does not — i.e. the connection was removed while the disconnect flow deliberately kept the
+   *  data. The connect front door must then read as a RECONNECT with the accounts named, never
+   *  as first-time setup; `lastDataAt` is the newest transaction date across those accounts
+   *  (when updates stopped), null when none of them holds a row. */
+  simplefin: {
+    connected: boolean;
+    lastSyncedAt: string | null;
+    health: FreshnessResult;
+    orphaned: { count: number; lastDataAt: string | null } | null;
+  };
   /** Plaid bank connections (#256) — one row per linked item, for the per-bank
    *  Disconnect control. Empty for users with no Plaid links. */
   plaid: {
@@ -1082,6 +1092,18 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       // Overrides both reference dates above: the bank syncing today says nothing about an
       // account it has stopped sending (TASKS L.14).
       feedDroppedAt: a.feedDroppedAt ? isoDate(a.feedDroppedAt) : null,
+      // PROVEN-removed only (K.2b): a SimpleFIN row with no connection row (the model is one
+      // connection per user, so its absence is definitive for every simplefin account), or a
+      // Plaid row whose stamped itemId matches no live item (removeItem stamps linkage before
+      // deleting, so a dangling ref only arises via a delete path). `plaidItemId: null` is
+      // UNKNOWN — pre-#256 rows keep the fallback path rather than being told their
+      // connection is gone (the false direction; locked in accounts-freshness.test.ts).
+      connectionRemoved:
+        a.provider === 'simplefin'
+          ? sfConn === null
+          : a.provider === 'plaid' && a.plaidItemId != null
+            ? !plaidSyncedByItem.has(a.plaidItemId)
+            : false,
     })),
     today,
   );
@@ -1368,6 +1390,20 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       connected: sfConn !== null,
       lastSyncedAt: sfConn?.lastSyncedAt ?? null,
       health: classifyFreshness(sfConn?.lastSyncedAt ? isoDate(sfConn.lastSyncedAt) : null, today),
+      // K.2b: rows that came through a connection that no longer exists. Counted over ALL
+      // simplefin accounts (not the currency-`supported` subset — a withheld row's connection
+      // is just as gone), from data already in hand: no extra query.
+      orphaned: (() => {
+        if (sfConn !== null) return null;
+        const sfAccounts = accounts.filter((a) => a.provider === 'simplefin');
+        if (sfAccounts.length === 0) return null;
+        let lastDataAt: string | null = null;
+        for (const a of sfAccounts) {
+          const d = newestTxnByAccount.get(a.id);
+          if (d && (lastDataAt === null || d > lastDataAt)) lastDataAt = d;
+        }
+        return { count: sfAccounts.length, lastDataAt: lastDataAt ? isoDate(lastDataAt) : null };
+      })(),
     },
     plaid: {
       // Attach each connection's accounts (name + last-4) so two same-bank connections are

@@ -495,7 +495,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
       <SyncAllButton connected={data.simplefin.connected || data.plaid.items.length > 0} />
 
       {/* Link real accounts: SimpleFIN (cheaper, no Plaid gatekeeping) or Plaid */}
-      <ConnectSimplefin connected={data.simplefin.connected} health={data.simplefin.health} />
+      <ConnectSimplefin connected={data.simplefin.connected} health={data.simplefin.health} orphaned={data.simplefin.orphaned} />
       <PlaidConnections items={data.plaid.items} />
       <ConnectAccountsButton />
 
@@ -1318,7 +1318,9 @@ function LinkedRow({
               <div
                 data-testid="account-freshness"
                 className={`text-xs ${
-                  account.freshness.level === 'very_stale' || account.freshness.level === 'not_shared'
+                  account.freshness.level === 'very_stale' ||
+                  account.freshness.level === 'not_shared' ||
+                  account.freshness.level === 'disconnected'
                     ? 'text-amber-500'
                     : 'text-muted-foreground'
                 }`}

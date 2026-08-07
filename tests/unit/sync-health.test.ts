@@ -136,6 +136,7 @@ describe('perAccountFreshness — per-row /accounts freshness (today = 2026-06-1
     newestTxnDate: null,
     connectionLastSyncedAt: null,
     feedDroppedAt: null,
+    connectionRemoved: false,
     ...over,
   });
 
@@ -249,6 +250,74 @@ describe('perAccountFreshness — per-row /accounts freshness (today = 2026-06-1
     expect(out.a?.level).toBe('fresh');
     expect(out.b).toBeNull();
     expect(out.c).toBeNull();
+  });
+
+  // ── TASKS K.2b: an account whose CONNECTION no longer exists ─────────────────────────────
+  // The production state these lock: the owner's SimpleFinConnection row was DELETED (~16 days
+  // unnoticed), so 25 accounts' freshness fell back to newest-txn-date and printed "No new data
+  // in 16 days — you may need to reconnect" — a stale-feed HEDGE over a connection that is
+  // provably gone, on a page whose connect button simultaneously read as first-time setup.
+
+  it('a proven-removed connection reads disconnected, measured from the newest data it holds', () => {
+    const out = perAccountFreshness(
+      [acct({ id: 'chk', newestTxnDate: d('2026-05-25'), connectionRemoved: true })],
+      TODAY,
+    );
+    expect(out.chk).toMatchObject({ level: 'disconnected', daysSince: 16, referenceDate: d('2026-05-25') });
+    expect(freshnessMessage(out.chk!)).toBe(
+      'Bank connection removed — last data 16 days ago. Reconnect to resume updates.',
+    );
+    // The stale-feed hedge must be gone: the fact is proven, not guessed.
+    expect(freshnessMessage(out.chk!)).not.toContain('may need');
+  });
+
+  it('disconnected outranks not_shared — "your bank stopped sharing" presumes a live connection', () => {
+    const out = perAccountFreshness(
+      [
+        acct({
+          id: 'chk',
+          newestTxnDate: d('2026-06-01'),
+          feedDroppedAt: d('2026-05-20'), // dropped first…
+          connectionRemoved: true, // …then the whole connection went away
+        }),
+      ],
+      TODAY,
+    );
+    expect(out.chk?.level).toBe('disconnected');
+  });
+
+  it('a disconnected BROKERAGE still speaks (it counts toward net worth while frozen)', () => {
+    const out = perAccountFreshness(
+      [acct({ id: 'brk', type: 'INVESTMENT', newestTxnDate: d('2026-05-29'), connectionRemoved: true })],
+      TODAY,
+    );
+    expect(out.brk).toMatchObject({ level: 'disconnected', daysSince: 12 });
+  });
+
+  it('a disconnected account with NO data still names the fact, without inventing a date', () => {
+    const out = perAccountFreshness([acct({ id: 'empty', connectionRemoved: true })], TODAY);
+    expect(out.empty).toMatchObject({ level: 'disconnected', daysSince: null, referenceDate: null });
+    expect(freshnessMessage(out.empty!)).toBe('Bank connection removed — this account isn’t updating');
+  });
+
+  it('a MANUAL row is never disconnected — it has no connection to lose', () => {
+    const out = perAccountFreshness(
+      [acct({ id: 'manual', isLinkedFeed: false, connectionRemoved: true })],
+      TODAY,
+    );
+    expect(out.manual).toBeNull();
+  });
+
+  it('connectionRemoved=false changes nothing — the flag only ever ADDS the proven claim', () => {
+    // The false direction (a live connection told it was removed) is guarded at the SERVER:
+    // only a missing SimpleFinConnection row or a dangling plaidItemId may set the flag
+    // (accounts-freshness.test.ts drives that wiring). Here: flag off ⇒ byte-identical grades.
+    const out = perAccountFreshness(
+      [acct({ id: 'chk', newestTxnDate: d('2026-05-01'), connectionLastSyncedAt: d('2026-05-01') })],
+      TODAY,
+    );
+    expect(out.chk?.level).toBe('very_stale');
+    expect(freshnessMessage(out.chk!)).toContain('you may need to reconnect');
   });
 });
 

@@ -21,6 +21,7 @@ import { useState } from 'react';
 import { setFlash } from '@/components/finance/flash';
 import { connectSimplefin, disconnectSimplefin, syncSimplefinNow } from '@/server/simplefin-actions';
 import { type FreshnessResult, freshnessMessage } from '@/lib/engine/sync/health';
+import { formatISODate, isoDate } from '@/lib/dates';
 
 interface Result {
   ok: boolean;
@@ -32,10 +33,17 @@ interface Result {
 export function ConnectSimplefin({
   connected,
   health,
+  orphaned,
 }: {
   connected: boolean;
   /** Freshness of the last sync (Gap 1 §3) — drives the "synced N days ago / reconnect" hint. */
   health: FreshnessResult;
+  /** K.2b: non-null when SimpleFIN accounts exist but their connection row does NOT — the
+   *  disconnect flow deletes the row and keeps the data, so this state is a designed
+   *  destination, not corruption. The front door must then say the connection is GONE and
+   *  read as a reconnect; the plain "+ Connect a bank" first-time door over 25 frozen
+   *  accounts is how a deleted connection stayed invisible for 16 days on production. */
+  orphaned: { count: number; lastDataAt: string | null } | null;
 }) {
   const [open, setOpen] = useState(false);
   const [token, setToken] = useState('');
@@ -108,6 +116,19 @@ export function ConnectSimplefin({
 
   return (
     <div className="space-y-1">
+      {orphaned && (
+        // The connection is PROVEN gone (no row), while these accounts remain — state the fact
+        // and the consequence before offering the door, so the button below cannot read as
+        // first-time setup over frozen data. The date is when DATA stopped, not when the
+        // connection was removed: nothing records the removal moment (the row that would is
+        // the thing that was deleted), so the copy claims only what the data shows.
+        <p className="text-xs text-amber-300" data-testid="simplefin-disconnected-notice" role="status">
+          Your SimpleFIN connection was removed, but {orphaned.count === 1 ? 'the account' : `${orphaned.count} accounts`} linked
+          through it {orphaned.count === 1 ? 'is' : 'are'} still here
+          {orphaned.lastDataAt ? ` — no updates since ${formatISODate(isoDate(orphaned.lastDataAt), 'long')}` : ' and not updating'}.
+          Reconnect below to resume updates; your saved transactions are kept.
+        </p>
+      )}
       <button
         type="button"
         data-testid="simplefin-connect-btn"
@@ -115,7 +136,7 @@ export function ConnectSimplefin({
         onClick={() => { setOpen(!open); setError(null); }}
         className="rounded-md border border-emerald-700/40 bg-emerald-950/30 px-3 py-1.5 text-sm font-medium text-emerald-300 hover:bg-emerald-950/50 disabled:opacity-50"
       >
-        + Connect a bank (SimpleFIN)
+        {orphaned ? 'Reconnect your bank (SimpleFIN)' : '+ Connect a bank (SimpleFIN)'}
       </button>
       {open && (
         <div className="space-y-2 rounded-lg border p-3" data-testid="simplefin-form">
@@ -123,6 +144,12 @@ export function ConnectSimplefin({
             A cheaper, privacy-first alternative to Plaid. Create a one-time <b>setup token</b> at
             simplefin.org (a few dollars/year, read-only) and paste it below — Aimplifi stores only an
             encrypted read-only access URL, never your bank password.
+            {orphaned && (
+              <>
+                {' '}Reconnecting resumes where your data stopped and pulls older history in the
+                background over the next few syncs.
+              </>
+            )}
           </p>
           <textarea
             data-testid="simplefin-token"
@@ -141,7 +168,7 @@ export function ConnectSimplefin({
               onClick={() => run(() => connectSimplefin(token))}
               className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/80 disabled:opacity-50"
             >
-              {pending ? 'Connecting…' : 'Connect'}
+              {pending ? (orphaned ? 'Reconnecting…' : 'Connecting…') : orphaned ? 'Reconnect' : 'Connect'}
             </button>
             <button type="button" disabled={pending} onClick={() => { setOpen(false); setError(null); }} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent disabled:opacity-50">
               Cancel

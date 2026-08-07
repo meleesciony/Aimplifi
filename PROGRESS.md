@@ -2311,3 +2311,23 @@ temp SQLite DB in their reports and handled it (disjoint-failure-set runs discar
 TEST_DB_DIR reruns clean). Docs and code go in ONE commit/push per the 49-cancelled-runs
 finding. CI watch for this push: `bash scripts/ci-status.sh` (exit 0 = the first green run in
 the last 100+; its `success` path is executed for the first time by this very push).
+
+## K.2(b) IN FLIGHT (2026-08-07) — the accounts page says the connection is GONE
+
+**Probe (a) RAN this session** (was permission-blocked): SimpleFIN's 25 frozen accounts =
+Amex 2 / CapOne 5 / Schwab 10 / Chase 4 / Vanguard 4; Truist + U.S. Bank are Plaid-only
+(CSV is their only multi-year route); one Plaid CREDIT account (264 rows) joins to NO
+PlaidItem — orphaned by the 3 removed items, can never update.
+
+**Trace CONFIRMED at the assembly sites** (transactions.ts:1368 connected=sfConn!==null;
+:1068 freshness falls back to newestTxnDate; views:1002 already compute connectionLive
+and freshness never reads it). removeItem STAMPS plaidItemId before deleting the item →
+a disconnected Plaid account keeps a DANGLING ref = proven-removed predicate.
+
+**Design:** engine-first. health.ts gains level `disconnected` + REQUIRED input
+`connectionRemoved` (true only when PROVEN: simplefin ∧ no conn row; plaid ∧ dangling
+itemId; null plaidItemId = unknown, NEVER removed — the pre-#256 lock at
+accounts-freshness.test.ts:90 stays green). Checked BEFORE feedDroppedAt (removed
+supersedes "bank stopped sharing") and BEFORE the INVESTMENT null-return (L.14 rationale).
+ConnectSimplefin gains orphaned:{count,lastDataAt}|null → reconnect door, not first-time
+setup. Steps: engine → server mapping+payload → UI → unit locks → e2e → verify → critic.

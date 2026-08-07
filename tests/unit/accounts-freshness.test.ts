@@ -28,6 +28,7 @@ describe('getAccountsView — a Plaid account is fresh when its BANK synced, eve
   const wipe = async () => {
     await prisma.account.deleteMany({ where: { userId: uid } }); // cascades transactions
     await prisma.plaidItem.deleteMany({ where: { userId: uid } });
+    await prisma.simpleFinConnection.deleteMany({ where: { userId: uid } });
     await prisma.user.deleteMany({ where: { id: uid } });
   };
   beforeAll(async () => {
@@ -39,6 +40,7 @@ describe('getAccountsView — a Plaid account is fresh when its BANK synced, eve
     vi.stubEnv('DEMO_TODAY', TODAY);
     await prisma.account.deleteMany({ where: { userId: uid } });
     await prisma.plaidItem.deleteMany({ where: { userId: uid } });
+    await prisma.simpleFinConnection.deleteMany({ where: { userId: uid } });
   });
 
   const rows = async () => {
@@ -96,6 +98,80 @@ describe('getAccountsView — a Plaid account is fresh when its BANK synced, eve
     });
     const row = (await rows()).find((a) => a.name === 'Legacy Card')!;
     // No linkage → no connection floor → no transactions → "Not synced yet" (documented, not a claim).
+    // ALSO the K.2b false-direction lock: unknown linkage must never be told its connection was
+    // removed — this row's item is alive; the stamp just hasn't landed yet.
     expect(row.freshness!.level).toBe('unknown');
+  });
+
+  // ── TASKS K.2b: the connection is GONE, and the row says so instead of hedging ──────────
+  // Production state 2026-08-06: SimpleFinConnection row DELETED, 25 accounts frozen for 16
+  // days reading "No new data in 16 days — you may need to reconnect" (a guess about a feed
+  // that provably no longer exists), while the connect button offered first-time setup.
+
+  it('a SimpleFIN account with NO connection row reads disconnected, not the stale-feed hedge', async () => {
+    const card = await prisma.account.create({
+      data: { userId: uid, provider: 'simplefin', providerRef: 'sf-1', name: 'Venture', type: 'CREDIT', mask: '6271', currentBalanceCents: -50000, currency: 'USD' },
+    });
+    await prisma.transaction.create({
+      data: { accountId: card.id, date: '2026-05-25', amountCents: -1000, rawDescriptor: 'LAST CHARGE', categoryId: 'shopping', confidenceBps: 9000, needsReview: false },
+    });
+    const row = (await rows()).find((a) => a.name === 'Venture')!;
+    expect(row.freshness!.level).toBe('disconnected');
+    expect(freshnessMessage(row.freshness!)).toBe(
+      'Bank connection removed — last data 16 days ago. Reconnect to resume updates.',
+    );
+  });
+
+  it('the same SimpleFIN account WITH a live connection row is NEVER called disconnected', async () => {
+    await prisma.simpleFinConnection.create({
+      data: { userId: uid, accessUrl: 'enc', lastSyncedAt: TODAY },
+    });
+    await prisma.account.create({
+      data: { userId: uid, provider: 'simplefin', providerRef: 'sf-1', name: 'Venture', type: 'CREDIT', mask: '6271', currentBalanceCents: -50000, currency: 'USD' },
+    });
+    const row = (await rows()).find((a) => a.name === 'Venture')!;
+    expect(row.freshness!.level).toBe('fresh'); // graded from the connection's own sync date
+  });
+
+  it('a Plaid account whose stamped item was DELETED reads disconnected (dangling ref = proven removed)', async () => {
+    // No plaidItem row for 'it-gone' — removeItem stamps plaidItemId, then deletes the item,
+    // which is exactly the orphan the K.2 probe found live (264 rows, institution "?").
+    const card = await prisma.account.create({
+      data: { userId: uid, provider: 'plaid', providerRef: 'or-1', plaidItemId: 'it-gone', name: 'Orphan Card', type: 'CREDIT', mask: '4242', currentBalanceCents: 0, currency: 'USD' },
+    });
+    await prisma.transaction.create({
+      data: { accountId: card.id, date: '2026-06-01', amountCents: -1000, rawDescriptor: 'LAST CHARGE', categoryId: 'shopping', confidenceBps: 9000, needsReview: false },
+    });
+    const row = (await rows()).find((a) => a.name === 'Orphan Card')!;
+    expect(row.freshness!.level).toBe('disconnected');
+    expect(freshnessMessage(row.freshness!)).toBe(
+      'Bank connection removed — last data 9 days ago. Reconnect to resume updates.',
+    );
+  });
+
+  it('simplefin.orphaned names the count and the newest data date exactly when the row is gone', async () => {
+    const a = await prisma.account.create({
+      data: { userId: uid, provider: 'simplefin', providerRef: 'sf-1', name: 'Venture', type: 'CREDIT', mask: '6271', currentBalanceCents: 0, currency: 'USD' },
+    });
+    await prisma.account.create({
+      data: { userId: uid, provider: 'simplefin', providerRef: 'sf-2', name: 'Sapphire', type: 'CREDIT', mask: '0977', currentBalanceCents: 0, currency: 'USD' },
+    });
+    await prisma.transaction.create({
+      data: { accountId: a.id, date: '2026-05-25', amountCents: -1000, rawDescriptor: 'LAST', categoryId: 'shopping', confidenceBps: 9000, needsReview: false },
+    });
+    const v = await getAccountsView(uid);
+    expect(v.simplefin.connected).toBe(false);
+    expect(v.simplefin.orphaned).toEqual({ count: 2, lastDataAt: '2026-05-25' });
+  });
+
+  it('simplefin.orphaned is null when connected, and null when there are no SimpleFIN accounts', async () => {
+    // No simplefin rows at all → null (a genuinely new user gets the first-time door).
+    expect((await getAccountsView(uid)).simplefin.orphaned).toBeNull();
+    // Connected with rows → null (the ordinary connected card renders instead).
+    await prisma.simpleFinConnection.create({ data: { userId: uid, accessUrl: 'enc', lastSyncedAt: TODAY } });
+    await prisma.account.create({
+      data: { userId: uid, provider: 'simplefin', providerRef: 'sf-1', name: 'Venture', type: 'CREDIT', mask: '6271', currentBalanceCents: 0, currency: 'USD' },
+    });
+    expect((await getAccountsView(uid)).simplefin.orphaned).toBeNull();
   });
 });
