@@ -2353,3 +2353,19 @@ in that file (caught by the next grep: the superseded exclusion was gone; re-app
 on a tree carrying uncommitted work needs `git stash`-based revert or a worktree, never
 checkout. Also: first background verify was piped to tail (the exact proof-is-the-full-output
 lesson) — discarded and re-run unpiped before any green claim.
+
+## K.2 one-bank 730d test: PENDING at Plaid (2026-08-07) + sync observability shipped (a15c790)
+
+Owner ran the Truist remove+re-link (old item MENdp0DQ removed 13:22Z, new item mJpXwvYZ
+born 13:25Z asking 730d; owner also confirmed the old-row/new-row combine at 13:45Z).
+Three real syncs returned 0 rows and the DB could not say why — .env.prod.tmp's
+PLAID_SECRET is a Vercel-sensitive placeholder (len 11, not hex), so no direct Plaid
+probe from this machine. Shipped plaid.sync.result (per-item audit: pages/added/modified/
+removed/transactions_update_status; 4 mocked-server locks incl. the exact 0-rows+NOT_READY
+shape; verify exit 0 — 6186+1/377; CI success 31186804353). First live read: Truist
+status=NOT_READY (×2) ~1.6h post-link — Plaid still preparing, NO defect; all 11 other
+items HISTORICAL_UPDATE_COMPLETE/quiet. VERDICT PENDING: next session, read
+plaid.sync.result + Truist row count after the owner's next app-open sync. Success shape
+~24 monthly payments to ~Aug 2024; 0 rows AFTER HISTORICAL_UPDATE_COMPLETE ⇒ Truist
+depth is CSV-only. NOTE for probes: AuditLog.createdAt is timestamp-without-tz (UTC);
+pg driver renders it shifted +4h on this machine — compare relatively, never absolutely.
