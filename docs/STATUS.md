@@ -2481,8 +2481,16 @@ rule 5 "Read the gate, not just the deploy" + the rule 2 cross-reference.
 **Gate on the final tree:** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0 / eslint 0 /
 build clean); unit **6,169 passed + 1 skipped / 376 files** — same count with the pin as the
 ambient run, i.e. the pin flips nothing beyond the three repaired files (the gate critic's
-independent full run on an isolated TEST_DB_DIR agrees). CI confirmation of this slice's own
-push is recorded below when it lands — per the rule this slice just wrote.
+independent full run on an isolated TEST_DB_DIR agrees).
+
+**CI CONFIRMED — the first `success` in the repo's recorded history.** Push `ba442f4`, run
+31141077515 (read via `bash scripts/ci-status.sh ba442f4`, its success path executed live for
+the first time): conclusion **success**; unit on the Linux runner **375 passed + 1 skipped
+(376 files)** — byte-identical to local, which is the whole point of the slice; full e2e
+**297 passed** in 6.2m, zero failed, zero did not run. Against the prior window's 50 failure /
+49 cancelled / 0 success, this is the run that proves the local gate and CI now answer the
+same question — and the C.26 render harness's 14 assertions executed on CI for the first time
+since the file was created (Node 24).
 
 ## K.2 CORRECTION — Plaid is at the 90-day DEFAULT, not the 730-day ceiling (2026-08-07)
 
