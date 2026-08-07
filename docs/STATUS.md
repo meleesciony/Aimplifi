@@ -2630,3 +2630,12 @@ register displays `Merchant.canonical`, and `no-dead-ends.spec.ts` checks hrefs 
 navigating. (2) **K.2 Truist 730-day verdict stays PENDING** — the read-only probe
 `scripts/audit-probes/register-zero-2026-08-07.mts` is committed UNRUN because `npx tsx` against
 the production connection string was refused by the permission classifier twice this session.
+
+**SHIP GATE READ (rule 5).** CI run **31203380818 on `d5898ad` = success**: unit **6,211 passed +
+1 skipped / 378 files** — byte-identical to local — and the full e2e **299 passed** in 6.0m, zero
+failed, `budget-targets:20` included. The preceding run 31200587384 on `7f70328` failed twice on
+the SAME code with DIFFERENT sets (attempt 2: transactions:785 + phase4-features:33; attempt 3:
+mobile-overflow:408 webkit; budget-targets:20 in both), which is what identified the class — a
+bare first click after a load, dropped before hydration — now barriered with a state-GUARDED
+retry in all three. Production deploy Ready; `d5898ad` touches no `src/`, so the behaviour proven
+live on `7f70328` (7/7) is the behaviour running now.
