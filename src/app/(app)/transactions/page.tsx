@@ -92,13 +92,16 @@ export default async function TransactionsPage({
     spendClass,
   };
   // Same predicate as TransactionFilters.hasFilters — empty-register copy
-  // branches on it (ROADMAP ALSO CONSIDER / #186).
-  const hasFilters =
-    !!(search || account || category || merchant || from || to) ||
+  // branches on it (ROADMAP ALSO CONSIDER / #186). Split at the merchant axis
+  // (owner, 2026-08-07): the empty state may name a merchant as THE cause only
+  // when nothing else is narrowing the set too.
+  const hasFiltersBesidesMerchant =
+    !!(search || account || category || from || to) ||
     type !== 'all' ||
     unclassified ||
     reimbursement !== null ||
     spendClass !== null;
+  const hasFilters = hasFiltersBesidesMerchant || !!merchant;
 
   const [{ rows, summary, accountOptions, pageInfo, lens, unclassifiedCount, oldestDate, newestDate }, categoryGroups, withheld, shared] =
     await Promise.all([
@@ -230,6 +233,11 @@ export default async function TransactionsPage({
           to: filter.to ?? null,
           oldest: oldestDate,
           newest: newestDate,
+          // `filter.merchant`, for the same reason the dates are read off the
+          // filter: this sentence must describe the query that produced the
+          // zero it is explaining.
+          merchant: filter.merchant ?? null,
+          otherFilters: hasFiltersBesidesMerchant,
         })}
         // The CSV remedy is REFUSED for the shared demo user
         // (`transaction-actions.ts` returns DEMO_ENTRY_BLOCKED), and on

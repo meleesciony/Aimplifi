@@ -599,6 +599,21 @@ export function TransactionList({
               </Link>{' '}
               if you expected newer activity.
             </p>
+          ) : emptyReason.kind === 'merchant' ? (
+            // Names the string being matched, because the reader did not type
+            // it — a merchant link did (owner, 2026-08-07). "here" for the same
+            // reason the history bounds say it: the set excludes non-USD and
+            // non-spending accounts. The way out is a LINK to the unfiltered
+            // register rather than a bare instruction to clear: the reader who
+            // meets this sentence has already failed to find the control.
+            <p data-testid="txn-empty-merchant">
+              No transactions here match “{emptyReason.merchant}”
+              {emptyReason.withOtherFilters ? ' with your other filters' : ''}.{' '}
+              <Link href="/transactions" className="underline underline-offset-2">
+                Show all transactions
+              </Link>
+              .
+            </p>
           ) : emptyReason.kind === 'filters' ? (
             'No transactions match these filters.'
           ) : (

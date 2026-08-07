@@ -284,6 +284,37 @@ export function TransactionFilters({
           />
         </label>
 
+        {/* The merchant axis, made readable and clearable (owner, 2026-08-07).
+            It was the only filter in the bar's predicate with nothing in the
+            bar: a reader arriving from any of the dozen merchant links — the
+            register's own rows, the lens, /recurring, /trends, the coach —
+            landed on a set narrowed by a name they could not see, and when
+            that name matched nothing (the match is EXACT on the display name)
+            the page showed every control on its default, zero rows, and
+            "No transactions match these filters". Same shape as the
+            reimbursement chip below, deliberately: one control, states its
+            value, clears itself in one tap.
+
+            The name goes into the DOM VERBATIM inside quotes rather than
+            summarized — it is the evidence for why the set is empty, and a
+            rewritten version of it would be a different string from the one
+            being matched. `truncate` clips it VISUALLY at 14rem so a long raw
+            descriptor cannot push the × off a 380px screen; the full string
+            stays in the accessible name and in the empty-state sentence below,
+            which is not clipped. */}
+        {current.merchant !== '' && (
+          <button
+            type="button"
+            aria-pressed
+            onClick={() => commit({ merchant: '' })}
+            data-testid="txn-filter-merchant"
+            className="tap-target inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-input bg-accent px-3 text-sm font-medium"
+          >
+            <span className="max-w-[14rem] truncate">Merchant: “{current.merchant}”</span>
+            <span aria-hidden>×</span>
+          </button>
+        )}
+
         {current.reimbursement !== null && (
           <button
             type="button"

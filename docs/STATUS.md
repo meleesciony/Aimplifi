@@ -2603,3 +2603,30 @@ twenty minutes earlier. Recorded per rule 5 (failure never silent; proven
 pre-existing by diff scope). Further docs-only flakes of this same test need no
 fresh record — the lesson file owns the class; a flake on a CODE push still gets
 judged against its own diff every time.
+
+## Register "still not showing up" (owner, 2026-08-07) — FIXED: the merchant filter had no control
+
+The screenshot decided it without a database read: **Clear** was rendered (so a filter was
+active) while Type/Account/Category/Class/Period/dates/search all read their defaults, and
+"History available from Wed, Mar 25, 2026" proved the rows exist (that bound is computed over
+the FULL pre-filter set). `?merchant=` was the only axis in the page's `hasFilters` predicate
+with nothing in the filter bar — invisible, exact-matched on the display name, and set from a
+dozen link surfaces, so an unmatched name reads as "the app lost my data".
+
+Shipped: a merchant chip that names and clears it; a `merchant` kind in `registerEmptyReason`
+(ordered below the window branches, blank/whitespace reads as OFF) rendering «No transactions
+here match "X"» plus a link to the whole register; a table-driven render lock over ALL TEN
+filter axes so the next invisible filter fails a test instead of reaching a phone. Sabotage
+proven RED (chip deleted → 5 failures). Third instance of
+`docs/lessons/a-zero-is-a-claim-and-must-name-which-zero.md`, appended there.
+
+Local gate on the final tree: **✅ VERIFY GREEN** — tsc 0, eslint 0, unit **6,211 passed +
+1 skipped / 378 files**, `next build` clean; new e2e `a merchant filter shows itself, names its
+own zero, and clears in one tap` passed on a real build (mobile-380).
+
+Open after this slice: (1) WHICH merchant link produced the empty set — the chip now prints the
+name; the candidate mechanism is `/recurring` grouping by the normalized descriptor while the
+register displays `Merchant.canonical`, and `no-dead-ends.spec.ts` checks hrefs without ever
+navigating. (2) **K.2 Truist 730-day verdict stays PENDING** — the read-only probe
+`scripts/audit-probes/register-zero-2026-08-07.mts` is committed UNRUN because `npx tsx` against
+the production connection string was refused by the permission classifier twice this session.

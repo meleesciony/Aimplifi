@@ -127,3 +127,44 @@ What this instance adds to the rules above:
   a reader narrowed to one card who picks "Last year" lands back on the original
   broken pair, because the bound is printed at one scope and the zero computed at
   another.
+
+## Third instance, same surface, one day later — the filter with no control (2026-08-07)
+
+The owner sent one screenshot and three words: **"Still not showing up."** The register read
+`0 transactions`, `$0.00 / $0.00 / $0.00`, and **"No transactions match these filters."** —
+with **"History available from Wed, Mar 25, 2026."** four lines above it, and Type, Account,
+Category, Class and Period all displaying their defaults, both date boxes empty, the search
+box empty.
+
+The screen contained its own proof that it was lying: a **"Clear" link**. That control renders
+on exactly the predicate the page uses to switch its standing copy to "Showing a filtered slice
+of your transactions". So a filter was on, and no control on the page held it. Reading the
+predicate against the bar showed why: `?merchant=` was in `hasFilters` and had **no control at
+all** — the one axis of ten that the reader could not see, set from a dozen surfaces (register
+rows, the lens, /recurring, /trends, the coach), matched EXACTLY against the display name, and
+therefore capable of returning zero forever.
+
+What this instance adds:
+
+* **An axis a page can filter by is an axis the page must render.** The gap was not unknown —
+  `links.ts` had written it down ("the fence would have to be a merchant control on the
+  register, which is a UI task and is queued as one") and the reimbursement chip had already
+  been through a critic for the identical reason ("a filter the bar denies is a dead end
+  wearing a page"). A known gap with a queued ticket is still shipped behaviour. Prefer the
+  general lock — *every* member of the predicate, table-driven — over one more chip.
+* **A zero cannot be explained by a set the reader cannot see.** "No transactions match these
+  filters" is the correct sentence only if the filters are legible. Against an invisible filter
+  it is worse than silence: it names a cause and points at controls the reader can verify are
+  innocent, so the honest conclusion available to them is "the app is broken" or "my data is
+  gone". Both were wrong, and one of them was the owner's.
+* **Rank the branches by independence — again.** The merchant branch sits BELOW the three
+  window branches, because a window that ends before the first row is empty whatever the
+  merchant matches, and the date bounds are read off the register's own set.
+* **A remedy for a filter the reader did not set is a link, not an instruction.** Whoever meets
+  this sentence has already failed to find the control; "Show all transactions" gets them out
+  in one tap, and the chip tells them what was excluded on the way.
+* **Report-to-cause was one screenshot, because the page carried a discriminator.** The Clear
+  link, the history line and the five defaulted controls were jointly consistent with exactly
+  one state. That is the payoff of rules 1–2 compounding: the previous fix (printing the
+  history bound) is what made this screenshot decidable without a database query — worth
+  remembering when a disclosure looks like it is only for the reader.

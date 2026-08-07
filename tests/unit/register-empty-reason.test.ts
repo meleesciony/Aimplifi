@@ -16,6 +16,8 @@ const base = {
   to: null as string | null,
   oldest: '2026-03-25' as string | null,
   newest: '2026-08-05' as string | null,
+  merchant: null as string | null,
+  otherFilters: false,
 };
 
 describe('registerEmptyReason', () => {
@@ -149,6 +151,66 @@ describe('registerEmptyReason', () => {
     for (const r of window) expect(isWindowExplainedZero(r)).toBe(true);
     expect(isWindowExplainedZero(registerEmptyReason({ ...base, hasFilters: true }))).toBe(false);
     expect(isWindowExplainedZero(registerEmptyReason({ ...base }))).toBe(false);
+  });
+
+  // ── the merchant axis (owner report 2026-08-07) ─────────────────────────────
+
+  it("the owner's second live shape: a merchant filter and nothing else names the merchant, not 'these filters'", () => {
+    // The screen: 0 transactions, $0.00 × 3, every visible control on its
+    // default, "History available from Wed, Mar 25, 2026". Before this branch
+    // it answered 'filters' — blaming controls the reader could see were all
+    // set to All.
+    const r = registerEmptyReason({ ...base, hasFilters: true, merchant: 'Truist Mortg Olb Mtgpmt' });
+    expect(r).toEqual({ kind: 'merchant', merchant: 'Truist Mortg Olb Mtgpmt', withOtherFilters: false });
+  });
+
+  it('says so when the merchant is NOT the only narrowing — the sentence may not claim a cause it did not establish', () => {
+    const r = registerEmptyReason({ ...base, hasFilters: true, merchant: 'Peloton', otherFilters: true });
+    expect(r).toEqual({ kind: 'merchant', merchant: 'Peloton', withOtherFilters: true });
+  });
+
+  it('a window that ends before the first row still wins over the merchant — the date comparison is the certain one', () => {
+    // Both are true of this reader; only one is decidable from bounds the
+    // register itself loaded, and "import older data" is the remedy that fits.
+    const r = registerEmptyReason({
+      ...base,
+      hasFilters: true,
+      merchant: 'Peloton',
+      otherFilters: true,
+      to: '2025-08-06',
+    });
+    expect(r.kind).toBe('before-history');
+  });
+
+  it('an inverted window wins over the merchant too', () => {
+    const r = registerEmptyReason({
+      ...base,
+      hasFilters: true,
+      merchant: 'Peloton',
+      otherFilters: true,
+      from: '2026-08-01',
+      to: '2024-01-01',
+    });
+    expect(r.kind).toBe('inverted-window');
+  });
+
+  it('a merchant param that narrows NOTHING is not a cause — `?merchant=` and whitespace read as off, exactly as the query engine reads them', () => {
+    // query.ts: `filter.merchant?.trim().toLowerCase() ?? ''` then `if (merchant …)`.
+    // A blank here that this module treated as a filter would print a sentence
+    // with empty quotes and blame a filter that matched every row.
+    expect(registerEmptyReason({ ...base, hasFilters: true, merchant: '' }).kind).toBe('filters');
+    expect(registerEmptyReason({ ...base, hasFilters: true, merchant: '   ' }).kind).toBe('filters');
+    expect(registerEmptyReason({ ...base, merchant: null }).kind).toBe('no-rows-yet');
+  });
+
+  it('the merchant zero is NOT a window-explained zero — nothing about it belongs on the "in this window" line', () => {
+    expect(isWindowExplainedZero(registerEmptyReason({ ...base, hasFilters: true, merchant: 'Peloton' }))).toBe(false);
+  });
+
+  it('the merchant name is carried VERBATIM, so the copy can quote the string actually being matched', () => {
+    const r = registerEmptyReason({ ...base, hasFilters: true, merchant: 'SQ *BLUE BOTTLE 0042 OAK' });
+    if (r.kind !== 'merchant') throw new Error(`expected merchant, got ${r.kind}`);
+    expect(r.merchant).toBe('SQ *BLUE BOTTLE 0042 OAK');
   });
 
   it('never claims a window is disjoint when the register holds no bound to compare against', () => {

@@ -209,6 +209,43 @@ test('a window entirely before the register history names the history bound, not
   await expect(empty).not.toContainText(/Import a CSV from your bank/);
 });
 
+/**
+ * Owner report 2026-08-07 ("still not showing up"): a register reading 0
+ * transactions and $0.00 × 3 with Type, Account, Category, Class and Period all
+ * on their defaults, the search box empty, "No transactions match these
+ * filters" in the box — and "History available from Wed, Mar 25, 2026" above
+ * it, so the data was there. The only axis that can narrow the set while every
+ * control reads its default is `?merchant=`, which the bar rendered nothing
+ * for. This covers the WIRING the unit locks cannot see: the page hands the
+ * bar the merchant it queried with, and the chip's tap actually lands on the
+ * unfiltered register.
+ */
+test('a merchant filter shows itself, names its own zero, and clears in one tap', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/transactions?merchant=ZZZ_NO_MATCH_E2E_MERCHANT');
+
+  // 1. The filter is on the page now, carrying the name being matched.
+  const chip = page.getByTestId('txn-filter-merchant');
+  await expect(chip).toBeVisible({ timeout: 20000 });
+  await expect(chip).toContainText('ZZZ_NO_MATCH_E2E_MERCHANT');
+
+  // 2. The zero says which zero it is, instead of blaming controls the reader
+  //    can see are all set to All.
+  const empty = page.getByTestId('txn-empty');
+  await expect(page.getByTestId('txn-empty-merchant')).toBeVisible();
+  await expect(empty).toContainText('ZZZ_NO_MATCH_E2E_MERCHANT');
+  await expect(empty).not.toContainText(/No transactions match these filters/);
+
+  // 3. The data was there the whole time — the same screen prints its bound.
+  await expect(page.getByTestId('txn-history-span')).toContainText(/History available from/);
+
+  // 4. One tap, and the register is whole again.
+  await chip.click();
+  await page.waitForURL((u) => u.pathname === '/transactions' && u.search === '', { timeout: 20000 });
+  await expect(page.getByTestId('txn-row').first()).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('txn-filter-merchant')).toHaveCount(0);
+});
+
 test('a window that ends before it starts is named as such, not as missing history', async ({ page }) => {
   await signIn(page);
   // Two clicks apart in the real picker: the date inputs carry no min/max.

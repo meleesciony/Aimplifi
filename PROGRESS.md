@@ -2369,3 +2369,58 @@ plaid.sync.result + Truist row count after the owner's next app-open sync. Succe
 ~24 monthly payments to ~Aug 2024; 0 rows AFTER HISTORICAL_UPDATE_COMPLETE ⇒ Truist
 depth is CSV-only. NOTE for probes: AuditLog.createdAt is timestamp-without-tz (UTC);
 pg driver renders it shifted +4h on this machine — compare relatively, never absolutely.
+
+## Owner report 2026-08-07 "still not showing up" — the register was filtered by a name the page never showed
+
+**One screenshot, one decidable state.** Register at 0 transactions / `$0.00` × 3 / "No
+transactions match these filters", with "History available from Wed, Mar 25, 2026" four lines
+above and Type, Account, Category, Class, Period, both date boxes and the search box ALL on
+their defaults. The discriminator was on the screen: the **Clear** link renders on exactly the
+predicate that flips the standing copy to "Showing a filtered slice", so a filter WAS on.
+Reading that predicate against the bar named the axis without a query: `?merchant=` was in
+`hasFilters` and had **no control at all** — the only one of ten that could be active while
+every visible control read its default. It matches EXACTLY on the display name (`query.ts:265`)
+and is set from a dozen surfaces (register rows, lens, /recurring, /trends, coach), so a name
+no row carries returns zero indefinitely. The gap was already written down and queued in
+`links.ts` ("the fence would have to be a merchant control on the register") — a known gap is
+still shipped behaviour.
+
+**NOT a data loss and NOT the Plaid depth question:** `oldestDate` is computed over the FULL
+pre-filter set (`transactions.ts:529`), so the "History available from Mar 25, 2026" line the
+page printed is itself proof the rows were there.
+
+**Shipped:** merchant chip in the filter bar (names the string being matched, clears in one
+tap, `truncate` at 14rem so a long raw descriptor can't push the × off a 380px screen);
+`registerEmptyReason` gains a `merchant` kind carrying `withOtherFilters`, ordered BELOW the
+three window branches (a window ending before the first row is empty whatever the merchant
+matches) and reading `''`/whitespace as OFF exactly as the query engine does; empty state says
+«No transactions here match "X"» + a **link** out (whoever reaches that sentence already failed
+to find the control), and adds "with your other filters" when merchant isn't the only axis.
+
+**Locks — the rule, not the instance:** `tests/unit/register-merchant-filter-render.test.tsx`
+reproduces the screenshot control-by-control (including the history line byte-for-byte) and
+then table-drives ALL TEN axes of `hasFilters`: each must be readable in the bar and clearable.
+A future axis added to the predicate with no control fails there instead of in an owner's
+screenshot. Sabotage executed: `{false && current.merchant …}` → 5 RED, reverted by Edit (never
+`git checkout --` on a tree carrying uncommitted work). Plus 8 engine locks in
+`register-empty-reason.test.ts` and an e2e wiring test in `transactions.spec.ts`.
+
+**Process note — my own flake, recorded so it isn't diagnosed as a code defect later:** I left
+a first `verify.sh` running and started a second; both vitest processes share ONE temp SQLite
+DB (`aimplifi-test-unit-<hash>.db`), and the collision produced ~9 unrelated DB-backed failures
+(simplefin, cron-notify, sync-preserves-corrections). Killed both, re-ran ONE: green. Never run
+two verifies at once.
+
+**Blocked, and not worked around:** `npx tsx scripts/audit-probes/register-zero-2026-08-07.mts`
+(read-only, live Neon) was refused by the permission classifier twice. The probe is committed
+UNRUN and says so in its header. Its second half is the still-open K.2 question — Truist row
+count + newest `plaid.sync.result` after the 730-day re-link — which therefore stays PENDING
+from the previous session, untouched by this slice.
+
+**Next question, unanswered on purpose:** WHICH merchant link landed him on an empty set. The
+chip now prints the name, which is the cheapest possible instrument. Candidate mechanism worth
+checking then: `/recurring` groups by `normalizeMerchant(rawDescriptor).canonical` (its query
+selects no merchant relation, `recurring.ts:174`) while the register displays
+`merchant?.canonical ?? normalizeMerchant(rawDescriptor).canonical` — so any row whose Merchant
+record diverges from its normalized descriptor produces a link that cannot match. `no-dead-ends.spec.ts`
+asserts every merchant href is well-formed but never navigates, so this class is uncovered.

@@ -25,6 +25,18 @@
  * "your" history starts using a date from an account they filtered away, and
  * would tell a reader with a CAD card about a set that excludes it.
  *
+ * SECOND owner report, 2026-08-07, same sentence and a different zero behind
+ * it: "still not showing up" — a register reading 0 transactions / $0.00 with
+ * the type, account, category, class and period controls ALL on their defaults,
+ * the search box empty, and "History available from Wed, Mar 25, 2026" above
+ * it. The one thing on that screen that could not happen without a filter was
+ * the "Clear" link, which renders on the same predicate as the "Showing a
+ * filtered slice" copy. Only ONE axis can be active while every control reads
+ * its default: `?merchant=`, which had no control at all. So the register was
+ * filtered to a merchant name, the page said the filters were to blame, and no
+ * filter was visible to blame. This module now names that axis, and the bar
+ * renders a chip for it — the fence `links.ts` predicted would be needed.
+ *
  * Deliberately NOT a suggestion engine: it names the fact and stops. Which
  * remedy (if any) is offered is the caller's decision, because availability is
  * the caller's knowledge — the CSV import is refused for the shared demo user,
@@ -69,7 +81,13 @@ export type RegisterEmptyReason =
   | { kind: 'filters' }
   | { kind: 'inverted-window'; from: ISODate; to: ISODate }
   | { kind: 'before-history'; oldest: ISODate; to: ISODate }
-  | { kind: 'after-history'; newest: ISODate; from: ISODate };
+  | { kind: 'after-history'; newest: ISODate; from: ISODate }
+  // The merchant axis, named because it is the one filter the reader cannot
+  // see (owner report 2026-08-07, below). `withOtherFilters` keeps the copy
+  // honest when the merchant is not the only narrowing in play: with a
+  // category and a type also set, "nothing matches X" would assert a cause
+  // this function did not establish.
+  | { kind: 'merchant'; merchant: string; withOtherFilters: boolean };
 
 export interface RegisterEmptyInput {
   /** The #186 predicate: any register filter active. Unchanged in meaning. */
@@ -84,6 +102,25 @@ export interface RegisterEmptyInput {
    */
   oldest: string | null;
   newest: string | null;
+  /**
+   * The `?merchant=` axis, exactly as the URL carries it. Null or '' when off.
+   *
+   * Owner report 2026-08-07: a register with every visible control on its
+   * default, a "Clear" link, and "No transactions match these filters" printed
+   * over "History available from Wed, Mar 25, 2026" — data present, zero shown,
+   * and nothing on the page naming what was narrowing it. `merchant` is an
+   * EXACT case-insensitive match on the register's display name (query.ts:265)
+   * reachable from a dozen surfaces, so a name no row carries returns zero
+   * forever — and until this slice it was the ONE axis the filter bar rendered
+   * no control for (the gap `links.ts` had already written down and queued).
+   */
+  merchant: string | null;
+  /**
+   * Whether any NON-merchant axis is also active. Kept separate from
+   * `hasFilters` because it is the only thing that decides whether the merchant
+   * sentence may stand alone as the cause.
+   */
+  otherFilters: boolean;
 }
 
 export function registerEmptyReason(input: RegisterEmptyInput): RegisterEmptyReason {
@@ -119,6 +156,19 @@ export function registerEmptyReason(input: RegisterEmptyInput): RegisterEmptyRea
   // its first version untested — critic cycle 1, F8.)
   if (newest !== null && from !== null && compareDates(from, newest) > 0) {
     return { kind: 'after-history', newest, from };
+  }
+
+  // The merchant axis, AFTER the three window branches because those are
+  // decided by comparing dates against bounds the register itself loaded and
+  // are true whatever else is set: a reader whose window ends before their
+  // first row sees nothing for that reason even if the merchant matches
+  // hundreds of rows. Below them, a merchant filter is the most specific thing
+  // this function knows, and — unlike every other axis — the one the reader
+  // cannot read off the page. `.trim()`, because `?merchant=` and `?merchant=%20`
+  // arrive as strings that are present and narrow nothing.
+  const merchant = (input.merchant ?? '').trim();
+  if (merchant !== '') {
+    return { kind: 'merchant', merchant, withOtherFilters: input.otherFilters };
   }
 
   // Everything else keeps #186's answer verbatim, INCLUDING the empty-register
