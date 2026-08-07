@@ -81,15 +81,19 @@ export function freshnessMessage(result: FreshnessResult): string {
   }
   // `disconnected` states a PROVEN fact (the connection row is gone), so it must not read like
   // the stale-feed guess one level down ("you may need to reconnect" implies a feed that might
-  // still be live). Its day count is measured from the newest data this account holds — the
-  // moment updates stopped for the reader — because nothing records WHEN the connection was
-  // removed (the row that would carry that date is the thing that no longer exists).
+  // still be live). Its day count is measured from the newest TRANSACTION this account holds —
+  // named as such, because balances can update on paths this reference never sees — and nothing
+  // records WHEN the connection was removed (the row that would carry that date is the thing
+  // that no longer exists). Deliberately NO remedy sentence here (K.2b critic P1-2/P1-3): a
+  // Plaid re-link mints new account ids and can never resume THIS row, and a reconciliation
+  // predecessor is frozen by design — the one case where "reconnect" is the true remedy
+  // (SimpleFIN) carries it on the connect front door, which renders on the same page.
   if (level === 'disconnected') {
     return daysSince == null
       ? 'Bank connection removed — this account isn’t updating'
-      : `Bank connection removed — last data ${
+      : `Bank connection removed — last transaction ${
           daysSince === 0 ? 'today' : daysSince === 1 ? 'yesterday' : `${daysSince} days ago`
-        }. Reconnect to resume updates.`;
+        }`;
   }
   if (level === 'unknown' || daysSince == null) return 'Not synced yet';
   const ago = daysSince === 0 ? 'today' : daysSince === 1 ? 'yesterday' : `${daysSince} days ago`;

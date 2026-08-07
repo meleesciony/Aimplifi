@@ -2331,3 +2331,25 @@ accounts-freshness.test.ts:90 stays green). Checked BEFORE feedDroppedAt (remove
 supersedes "bank stopped sharing") and BEFORE the INVESTMENT null-return (L.14 rationale).
 ConnectSimplefin gains orphaned:{count,lastDataAt}|null → reconnect door, not first-time
 setup. Steps: engine → server mapping+payload → UI → unit locks → e2e → verify → critic.
+
+## K.2(b) DONE (2026-08-07, DECISIONS #423) — built, critic-cycled, verify green
+
+Shipped as designed (see the in-flight entry above) plus the critic cycle: two fresh-context
+critics in isolated worktrees, both FAIL, 0 P0. Copy critic 3 P1 (false per-row "Reconnect to
+resume updates." on plaid dangling rows + superseded predecessors — both EXECUTED against the
+real getAccountsView; "resumes where your data stopped" false in sequencing — H.5 backfill is
+oldest-first so the disconnect gap fills LAST) + 3 P2 + 2 P3. Wiring critic 1 P1 (sabotage (e):
+the orphaned count's declared all-accounts basis flipped to supported-only and ALL 6,180 tests
+stayed green — zero coverage on a documented decision) + sabotages (a)-(d) all RED on their
+named locks; false-direction hunt 6/6 held. All P1s fixed: remedy tail deleted (front door
+carries it), orphaned excludes superseded predecessors + EUR sabotage-e lock added
+(REGRESSION_LEDGER 2026-08-07), form copy promises kept-data + "as far back as your bank still
+shares". Gates: verify exit 0 (unpiped) 6180+1 pre-fix and re-run post-fix; unit 61/61 touched
+files; hostile-env 60/60; connection-health e2e 4/4 on a fresh build; fail-old 8 RED on stash.
+
+Process note: reproduced the sabotage myself to prove the new lock RED and reverted with
+`git checkout -- src/server/transactions.ts` — which also wiped my UNCOMMITTED post-critic fix
+in that file (caught by the next grep: the superseded exclusion was gone; re-applied). Sabotage
+on a tree carrying uncommitted work needs `git stash`-based revert or a worktree, never
+checkout. Also: first background verify was piped to tail (the exact proof-is-the-full-output
+lesson) — discarded and re-run unpiped before any green claim.

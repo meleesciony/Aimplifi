@@ -117,9 +117,7 @@ describe('getAccountsView — a Plaid account is fresh when its BANK synced, eve
     });
     const row = (await rows()).find((a) => a.name === 'Venture')!;
     expect(row.freshness!.level).toBe('disconnected');
-    expect(freshnessMessage(row.freshness!)).toBe(
-      'Bank connection removed — last data 16 days ago. Reconnect to resume updates.',
-    );
+    expect(freshnessMessage(row.freshness!)).toBe('Bank connection removed — last transaction 16 days ago');
   });
 
   it('the same SimpleFIN account WITH a live connection row is NEVER called disconnected', async () => {
@@ -144,9 +142,10 @@ describe('getAccountsView — a Plaid account is fresh when its BANK synced, eve
     });
     const row = (await rows()).find((a) => a.name === 'Orphan Card')!;
     expect(row.freshness!.level).toBe('disconnected');
-    expect(freshnessMessage(row.freshness!)).toBe(
-      'Bank connection removed — last data 9 days ago. Reconnect to resume updates.',
-    );
+    // No remedy sentence, and that matters MOST here (critic P1-3): a Plaid re-link mints new
+    // account ids, so "reconnect" could never resume this row — delete or combine is the remedy.
+    expect(freshnessMessage(row.freshness!)).toBe('Bank connection removed — last transaction 9 days ago');
+    expect(freshnessMessage(row.freshness!)).not.toContain('Reconnect');
   });
 
   it('simplefin.orphaned names the count and the newest data date exactly when the row is gone', async () => {
@@ -162,6 +161,62 @@ describe('getAccountsView — a Plaid account is fresh when its BANK synced, eve
     const v = await getAccountsView(uid);
     expect(v.simplefin.connected).toBe(false);
     expect(v.simplefin.orphaned).toEqual({ count: 2, lastDataAt: '2026-05-25' });
+  });
+
+  it('an actively-superseded predecessor is EXCLUDED from orphaned — a user who migrated away on purpose gets no reconnect nag', async () => {
+    // Critic P1-2: the product's own migration flow (reconcile old SimpleFIN account → new
+    // account, then disconnect SimpleFIN) ends in exactly the orphaned shape. Every frozen-
+    // disclosure surface already excludes active superseded predecessors (K.1 P0-1 precedent);
+    // orphaned follows the same rule. Both simplefin rows here are superseded ⇒ orphaned is
+    // NULL ⇒ the plain first-time door, no amber notice.
+    const pred = await prisma.account.create({
+      data: { userId: uid, provider: 'simplefin', providerRef: 'sf-old', name: 'Old Checking', type: 'CHECKING', currentBalanceCents: 0, currency: 'USD' },
+    });
+    const succ = await prisma.account.create({
+      data: { userId: uid, provider: 'plaid', providerRef: 'pl-new', plaidItemId: 'it-live', name: 'New Checking', type: 'CHECKING', currentBalanceCents: 100000, currency: 'USD' },
+    });
+    await prisma.plaidItem.create({
+      data: { userId: uid, itemId: 'it-live', accessToken: 'enc', institution: 'Chase', lastSyncedAt: TODAY },
+    });
+    await prisma.accountReconciliation.create({
+      data: {
+        userId: uid,
+        predecessorAccountId: pred.id,
+        successorAccountId: succ.id,
+        cutoverDate: '2026-06-01',
+        matchSignal: 'mask',
+        confidence: 'high',
+        confirmedByUserAt: new Date(),
+      },
+    });
+    try {
+      expect((await getAccountsView(uid)).simplefin.orphaned).toBeNull();
+    } finally {
+      await prisma.accountReconciliation.deleteMany({ where: { userId: uid } });
+    }
+  });
+
+  it('orphaned counts a currency-WITHHELD account too, and lastDataAt may come from it (sabotage-e lock)', async () => {
+    // Wiring critic P1: flipping the basis to the currency-`supported` subset survived the
+    // entire suite — the declared decision had zero coverage. The discriminating fixture: a
+    // EUR account (withheld from figures and from the painted rows) whose connection is just
+    // as gone, holding the NEWER transaction. Basis = ALL simplefin accounts (minus active
+    // superseded predecessors): count includes it, and "no new transactions since" reads the
+    // newest arrival wherever it landed. Under sabotage (e) this reads {count:1, older date}.
+    const usd = await prisma.account.create({
+      data: { userId: uid, provider: 'simplefin', providerRef: 'sf-usd', name: 'Venture', type: 'CREDIT', mask: '6271', currentBalanceCents: 0, currency: 'USD' },
+    });
+    const eur = await prisma.account.create({
+      data: { userId: uid, provider: 'simplefin', providerRef: 'sf-eur', name: 'EU Card', type: 'CREDIT', mask: '1111', currentBalanceCents: 0, currency: 'EUR' },
+    });
+    await prisma.transaction.create({
+      data: { accountId: usd.id, date: '2026-05-01', amountCents: -1000, rawDescriptor: 'OLDER USD', categoryId: 'shopping', confidenceBps: 9000, needsReview: false },
+    });
+    await prisma.transaction.create({
+      data: { accountId: eur.id, date: '2026-06-01', amountCents: -1000, rawDescriptor: 'NEWER EUR', categoryId: 'shopping', confidenceBps: 9000, needsReview: false },
+    });
+    const v = await getAccountsView(uid);
+    expect(v.simplefin.orphaned).toEqual({ count: 2, lastDataAt: '2026-06-01' });
   });
 
   it('simplefin.orphaned is null when connected, and null when there are no SimpleFIN accounts', async () => {

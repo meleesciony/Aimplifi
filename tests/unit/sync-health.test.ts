@@ -264,11 +264,14 @@ describe('perAccountFreshness — per-row /accounts freshness (today = 2026-06-1
       TODAY,
     );
     expect(out.chk).toMatchObject({ level: 'disconnected', daysSince: 16, referenceDate: d('2026-05-25') });
-    expect(freshnessMessage(out.chk!)).toBe(
-      'Bank connection removed — last data 16 days ago. Reconnect to resume updates.',
-    );
+    // "last transaction", not "last data": balances can move on paths this reference never
+    // sees (critic P2-3). And NO remedy sentence: a Plaid re-link mints new account ids and
+    // can never resume THIS row, a reconciliation predecessor is frozen by design (critic
+    // P1-2/P1-3) — the SimpleFIN front door on the same page carries the reconnect remedy.
+    expect(freshnessMessage(out.chk!)).toBe('Bank connection removed — last transaction 16 days ago');
     // The stale-feed hedge must be gone: the fact is proven, not guessed.
     expect(freshnessMessage(out.chk!)).not.toContain('may need');
+    expect(freshnessMessage(out.chk!)).not.toContain('Reconnect');
   });
 
   it('disconnected outranks not_shared — "your bank stopped sharing" presumes a live connection', () => {

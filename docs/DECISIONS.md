@@ -5131,3 +5131,57 @@ run existed in the last 100 — this slice's own push is the first candidate.
 **Critic verdicts:** money-math critic PASS (0 P0/P1/P2, 5 P3 comment corrections, all applied);
 gate critic FAIL cycle 1 (1 P0 = the Node finding, 1 P1 = the rule's self-contradiction, 4 P2,
 5 P3 — all fixed or explicitly accepted with the acceptance written at the site).
+
+## #423
+
+**K.2(b) — a deleted connection stops impersonating a stale one: /accounts states the proven
+fact, and the front door becomes a reconnect (2026-08-07, Fable).**
+
+**The state (measured live, K.2/#421):** the owner's `SimpleFinConnection` row was DELETED
+~2026-07-21; 25 accounts sat frozen 16 days printing "No new data in 16 days — you may need to
+reconnect" — a stale-feed HEDGE over a connection that provably no longer existed — while the
+connect button read "+ Connect a bank (SimpleFIN)", i.e. first-time setup. The fact was in hand
+(views already computed `connectionLive`) and freshness never read it.
+
+**Decision 1 — "removed" is claimed only when PROVEN, and unknown is never removed.** New
+freshness level `disconnected` + REQUIRED `AccountFreshnessInput.connectionRemoved` (the L.14
+required-argument rule). Proof shapes: a simplefin account with no connection row (single-
+connection model — the row IS the connection, deleted only by `disconnectSimplefin`); a plaid
+account whose STAMPED `plaidItemId` matches no live item (`removeItem` stamps linkage before
+deleting, so a dangling ref only arises via a delete path). `plaidItemId: null` (pre-#256) stays
+on the fallback: claiming "removed" over a live-but-unstamped feed is the catastrophic
+direction. Deliberate asymmetry with the delete affordance's `connectionLive` (unknown ⇒ false
+there) — deleting an unlinked row is safe, telling its owner the connection is gone is not.
+`disconnected` outranks `not_shared` ("your bank stopped sharing" presumes a live connection)
+and the INVESTMENT early-return (a disconnected brokerage keeps counting toward net worth).
+
+**Decision 2 — the per-row line carries NO remedy; the front door carries it (critic cycle).**
+Both fresh-context critics returned FAIL (0 P0; copy lens 3 P1 + 3 P2 + 2 P3, wiring lens 1 P1 +
+1 P2 + 2 P3); all P1s fixed same-session. The per-row "Reconnect to resume updates." was FALSE
+in two reachable states the copy critic executed: a Plaid re-link mints new account ids and can
+never resume the old row (the probe's own orphaned card, 264 rows), and a reconciliation
+predecessor is frozen by design. The row now states only the fact ("Bank connection removed —
+last transaction N days ago" — transaction-precise, because balances can move on paths that
+reference never sees); the SimpleFIN front-door notice, on the same page, carries the reconnect
+instruction for the one provider where it is true. `orphaned` excludes active superseded
+predecessors (K.1 P0-1 precedent): a user who migrated away on purpose gets the plain door, not
+a permanent amber nag. "Resumes where your data stopped" was cut from the form copy — the H.5
+backfill is oldest-first in capped batches, so the disconnect gap fills LAST; the copy now
+promises kept data + background reach-back "as far back as your bank still shares".
+
+**Decision 3 — the count's basis is ALL simplefin accounts (minus superseded), and it is now
+sabotage-locked.** The wiring critic's sabotage (e) flipped the basis to the currency-supported
+subset and the ENTIRE suite stayed green — the declared decision had zero coverage
+(REGRESSION_LEDGER 2026-08-07). Locked with a EUR-holds-the-newer-transaction fixture that
+makes the rejected basis fail on both fields.
+
+**Also this session:** the K.2(a) probe ran (was permission-blocked): SimpleFIN's 25 accounts =
+Amex 2 / CapOne 5 / Schwab 10 / Chase 4 / Vanguard 4; Truist + U.S. Bank are Plaid-only (CSV is
+their only multi-year route); one orphaned Plaid card (264 rows, item removed) — which this
+slice now names on /accounts by construction.
+
+**Open residuals (recorded in STATUS §K.2b):** dashboard banner still hedges ("a sync may have
+stopped") over the proven fact — portfolio-scope surface, own slice; H.5 backfill fills the
+recent gap LAST (oldest-first batches) while rows read "Synced today" — machinery, own slice;
+pending-at-disconnect rows that post backdated can fall between the 5-day live window and an
+already-stamped backfill; SimpleFIN account-id stability across bridges UNVERIFIED.

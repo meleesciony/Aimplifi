@@ -123,9 +123,9 @@ export function ConnectSimplefin({
         // connection was removed: nothing records the removal moment (the row that would is
         // the thing that was deleted), so the copy claims only what the data shows.
         <p className="text-xs text-amber-300" data-testid="simplefin-disconnected-notice" role="status">
-          Your SimpleFIN connection was removed, but {orphaned.count === 1 ? 'the account' : `${orphaned.count} accounts`} linked
-          through it {orphaned.count === 1 ? 'is' : 'are'} still here
-          {orphaned.lastDataAt ? ` — no updates since ${formatISODate(isoDate(orphaned.lastDataAt), 'long')}` : ' and not updating'}.
+          Your SimpleFIN connection was removed. {orphaned.count === 1 ? 'The account' : `${orphaned.count} accounts`} linked
+          through it stopped updating
+          {orphaned.lastDataAt ? ` — no new transactions since ${formatISODate(isoDate(orphaned.lastDataAt), 'long')}` : ''}.
           Reconnect below to resume updates; your saved transactions are kept.
         </p>
       )}
@@ -145,9 +145,14 @@ export function ConnectSimplefin({
             simplefin.org (a few dollars/year, read-only) and paste it below — Aimplifi stores only an
             encrypted read-only access URL, never your bank password.
             {orphaned && (
+              // No "resumes where your data stopped" (critic P1-1): the backfill that covers
+              // the disconnected gap works oldest-first in capped batches, so the most recent
+              // gap is the LAST to fill — promise the kept data and the direction, not a
+              // sequencing the machinery doesn't deliver.
               <>
-                {' '}Reconnecting resumes where your data stopped and pulls older history in the
-                background over the next few syncs.
+                {' '}Reconnecting keeps everything already saved and restarts updates going
+                forward; a background backfill then reaches back for the missed days and older
+                history over the next several syncs, as far back as your bank still shares.
               </>
             )}
           </p>

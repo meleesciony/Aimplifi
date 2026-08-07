@@ -153,26 +153,34 @@ test('SimpleFIN accounts that OUTLIVED their connection get the honest disconnec
   await expect(notice).toBeVisible();
   await expect(notice).toContainText('Your SimpleFIN connection was removed');
   await expect(notice).toContainText('2 accounts');
-  await expect(notice).toContainText('no updates since Fri, May 1, 2026');
+  // "no new transactions since" — transaction-precise, because balances can move on paths
+  // this date never sees (critic P2-3).
+  await expect(notice).toContainText('no new transactions since Fri, May 1, 2026');
   await expect(notice).toContainText('your saved transactions are kept');
   await expect(page.getByTestId('simplefin-connect-btn')).toHaveText('Reconnect your bank (SimpleFIN)');
   await expect(page.getByTestId('simplefin-connected')).toHaveCount(0);
 
-  // Per-row freshness: the PROVEN fact, not the stale-feed hedge. The card carries the last
-  // data date; the checking row (no transactions) still names the fact without a date.
+  // Per-row freshness: the PROVEN fact, not the stale-feed hedge — and NO per-row remedy
+  // (critic P1-2/P1-3: "reconnect" cannot resume a Plaid dangling row or a superseded
+  // predecessor, so the instruction lives only on the SimpleFIN front door above). The card
+  // carries the last-transaction date; the checking row (no transactions) names the fact
+  // without a date.
   const freshness = page.getByTestId('account-freshness');
   await expect(freshness).toHaveCount(2);
-  await expect(freshness.filter({ hasText: 'last data' })).toHaveCount(1);
+  await expect(freshness.filter({ hasText: 'last transaction' })).toHaveCount(1);
   for (const line of await freshness.all()) {
     await expect(line).toContainText('Bank connection removed');
     await expect(line).not.toContainText('may need to reconnect');
+    await expect(line).not.toContainText('Reconnect to resume');
   }
 
-  // Opening the door shows the reconnect-specific promise (history via backfill) and the
-  // submit reads Reconnect — the reader is resuming, not starting over.
+  // Opening the door shows the reconnect framing (kept data + background backfill, bounded
+  // by what the bank still shares — never "resumes where your data stopped", critic P1-1)
+  // and the submit reads Reconnect — the reader is resuming, not starting over.
   await page.getByTestId('simplefin-connect-btn').click();
   await expect(page.getByTestId('simplefin-form')).toBeVisible();
-  await expect(page.getByTestId('simplefin-form')).toContainText('Reconnecting resumes where your data stopped');
+  await expect(page.getByTestId('simplefin-form')).toContainText('keeps everything already saved');
+  await expect(page.getByTestId('simplefin-form')).toContainText('as far back as your bank still shares');
   await expect(page.getByTestId('simplefin-submit')).toHaveText('Reconnect');
 
   // Axe on the disconnected state — no other spec renders this notice.

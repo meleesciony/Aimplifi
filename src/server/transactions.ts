@@ -1390,12 +1390,19 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       connected: sfConn !== null,
       lastSyncedAt: sfConn?.lastSyncedAt ?? null,
       health: classifyFreshness(sfConn?.lastSyncedAt ? isoDate(sfConn.lastSyncedAt) : null, today),
-      // K.2b: rows that came through a connection that no longer exists. Counted over ALL
-      // simplefin accounts (not the currency-`supported` subset — a withheld row's connection
-      // is just as gone), from data already in hand: no extra query.
+      // K.2b: rows that came through a connection that no longer exists, counted over ALL
+      // simplefin accounts (a currency-withheld row's connection is just as gone; the notice
+      // copy claims "stopped updating", never on-page visibility — sabotage-e-locked in
+      // accounts-freshness.test.ts) MINUS active superseded predecessors (critic P1-2: a
+      // reconciled-away row is frozen by design — the product's own migration flow ends here,
+      // and a user who migrated on purpose must not get a permanent reconnect nag; same
+      // exclusion every frozen-disclosure surface applies, K.1 P0-1 precedent).
+      // All-superseded ⇒ null ⇒ the plain first-time door.
       orphaned: (() => {
         if (sfConn !== null) return null;
-        const sfAccounts = accounts.filter((a) => a.provider === 'simplefin');
+        const sfAccounts = accounts.filter(
+          (a) => a.provider === 'simplefin' && !effectivePredIds.has(a.id),
+        );
         if (sfAccounts.length === 0) return null;
         let lastDataAt: string | null = null;
         for (const a of sfAccounts) {

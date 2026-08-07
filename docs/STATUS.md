@@ -6,6 +6,54 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-07 — K.2(b): a deleted connection stops impersonating a stale one (DECISIONS #423, critic-cycled)
+
+**Closes K.2 sub-items (a) and (b); the DATA remains gated on the owner reconnect.**
+
+**(a) The probe RAN** (was permission-blocked): the 25 frozen SimpleFIN accounts are
+**Amex 2 / Capital One 5 / Schwab 10 / Chase 4 / Vanguard 4** — so ONE SimpleFIN
+reconnect serves five of seven institutions; **Truist (mortgage) and U.S. Bank (2
+loans) are Plaid-only**, so their only multi-year route is per-bank CSV (H.2), and
+Truist stays the designated one-bank 730-day re-link test (K.2 correction). Anomaly:
+one Plaid CREDIT account with **264 rows joins to NO PlaidItem** (the 3 removed
+items) — permanently frozen, and now NAMED on /accounts by this slice.
+
+**(b) Built, engine-first:** freshness level `disconnected` + REQUIRED
+`connectionRemoved`, claimed only on PROOF — a simplefin account with no connection
+row (the row IS the connection), or a plaid account whose stamped `plaidItemId`
+matches no live item (removeItem stamps before deleting ⇒ dangling = removed).
+`plaidItemId: null` (pre-#256) stays unknown, NEVER "removed" — the catastrophic
+direction, sabotage-locked. Outranks `not_shared` and the INVESTMENT early-return.
+The /accounts front door over orphaned accounts becomes a RECONNECT (amber notice
+naming the count + "no new transactions since <date>"; "Reconnect your bank"), never
+first-time setup; per-row copy drops the "you may need to reconnect" hedge for
+"Bank connection removed — last transaction N days ago".
+
+**Two fresh-context critics (isolated worktrees), both FAIL, 0 P0 — all P1s fixed
+same-session:** (copy lens, 3 P1) the per-row "Reconnect to resume updates." was
+FALSE on a Plaid dangling row (re-link mints new ids — executed) and on a superseded
+predecessor (frozen by design; the migration flow's own end state) → remedy tail
+DELETED, the front door carries it for the one provider where it's true, and
+`orphaned` excludes active superseded predecessors (K.1 P0-1 precedent); "resumes
+where your data stopped" cut (H.5 backfill is oldest-first — the gap fills LAST).
+(wiring lens, 1 P1) sabotage (e) flipped the count's declared all-accounts basis to
+supported-only and ALL 6,180 tests stayed green → EUR-holds-the-newer-transaction
+lock added, sabotage re-run RED (REGRESSION_LEDGER 2026-08-07). Wiring critic's
+false-direction hunt: 6/6 probes held; every deleter of both connection-row types
+enumerated; no level leak (only accounts-list + freshnessMessage consume it). Clock
+pin: 60/60 under `DEMO_TODAY=2031-12-25 TZ=Australia/Eucla`.
+
+**STILL OPEN after K.2b, ranked:** (1) **the owner reconnect** — unchanged, the only
+thing that moves data (setup token at simplefin.org → the new Reconnect door); (2)
+**the dashboard banner still hedges** ("a sync may have stopped — check your
+connections") over the proven fact — portfolio-scope, own slice; (3) **H.5 fills the
+disconnect gap LAST** (oldest-first capped batches) while rows read "Synced today" —
+after a reconnect, current-month spending is understated until the backfill reaches
+2026; machinery, own slice; (4) H.2 per-bank CSV instructions (route table above
+names the banks); (5) pending-at-disconnect rows that later post backdated can fall
+between the 5-day live window and a stamped backfill (P3, recorded); (6) SimpleFIN
+account-id stability across bridges UNVERIFIED (P3 hypothesis).
+
 ## ⚠️ FOUND + PARTIALLY BUILT 2026-08-06 — K.2: the multi-year history ask is not blocked by code, it is blocked by a connection that no longer exists (DECISIONS #421)
 
 **Owner:** *"why haven't we populated 2023-2026 yet. I want all data possible."*
