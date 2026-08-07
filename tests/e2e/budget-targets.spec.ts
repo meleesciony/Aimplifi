@@ -52,8 +52,21 @@ test('budget targets: set, scan a11y, overwrite atomically, then clear', async (
   await expect(page.getByTestId('budget-row-dining')).toHaveCount(1); // not duplicated
 
   // Clear it — this is also the cleanup, leaving the shared demo DB target-free.
+  //
+  // The clear awaits its server action UNDER A DEADLINE and reloads in `finally` — the
+  // component's own comment says the clear "usually COMMITTED" when the deadline fires. On a
+  // loaded CI runner that reload can beat the commit, and one reload is ONE read: the old 15s
+  // poll then watched a static post-reload DOM forever ("33 × resolved to 1" — the long-lived
+  // "documented CI flake" at this exact line, same family as category-rename:110). So: wait for
+  // the action's own response first, then poll with RELOADS, so a slow commit is re-read rather
+  // than immortalised.
+  const actionSettled = page
+    .waitForResponse((r) => r.request().method() === 'POST', { timeout: 12000 })
+    .catch(() => null);
   await page.getByTestId('budget-clear-dining').click();
-  // 15s: the clear confirms then FULL-RELOADS (#166 reliable-mutation pattern);
-  // deadline (8s worst case) + reload under full-suite load exceeds the default 5s.
-  await expect(page.getByTestId('budget-clear-dining')).toHaveCount(0, { timeout: 15000 });
+  await actionSettled;
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByTestId('budget-clear-dining')).toHaveCount(0, { timeout: 2000 });
+  }).toPass({ timeout: 20000 });
 });

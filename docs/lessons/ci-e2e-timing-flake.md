@@ -33,3 +33,19 @@ Same commit (`9c60cc3`), three consecutive full `verify` job runs:
    (CI Linux runner vs. local Windows), different error signature (assertion timeout vs.
    pointer-interception). If a NEW distinct signature shows up, it may deserve its own note
    rather than being folded in here.
+
+## CORRECTED 2026-08-07 — two of this lesson's "flake" signatures were real test defects, diagnosed by reading the components
+
+The headline "a different test each time, never the same one twice" stopped being true on
+2026-08-07: `category-rename.spec.ts:110` failed the gate three consecutive runs across two
+shas, and `budget-targets.spec.ts:58` carried a recurring signature at the same line. Both were
+the SAME defect class, not contention: **a spec asserting convergence off a single
+post-mutation read.** The category-remove toggle is optimistic with rollback (#167), so the
+spec's confirmation was the client's echo and the next navigation's server read could beat the
+commit; the budget clear awaits its action under a DEADLINE and reloads in `finally`, so on a
+deadline the reload precedes the commit — and in both cases a full-document response never
+re-polls, making the failure permanent for that run while remaining unreproducible on an idle
+local machine. Both specs now confirm on a re-rendered page (reload inside `toPass`) before the
+final assertion. The rule: before filing a CI-only e2e failure under this lesson, check whether
+the asserted state is separated from the mutation by an optimistic echo, a deadline, or a
+single reload — CI load does not create those races, it only wins them.
