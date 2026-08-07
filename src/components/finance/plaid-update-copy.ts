@@ -173,15 +173,39 @@ export function linkedWithOverlapFlash(opts: {
 export function linkedForHistoryFlash(opts: {
   bank: string;
   matchedAccountCount: number;
+  /** Whether combine will offer the direction that KEEPS this connection — see LinkOutcome. */
+  combinable: boolean;
 }): string {
   const n = opts.matchedAccountCount;
+  const noun = n === 1 ? 'account' : 'accounts';
   return [
     `Connected ${opts.bank} a second time — on purpose.`,
-    `Plaid fixes how far back a connection can see when it is created, so the only way to reach two years of history is a new connection, and it comes back with the same ${n === 1 ? 'account' : 'accounts'} as the old one.`,
+    `Plaid fixes how far back a connection can see when it is created, so the only way to reach two years of history is a new connection, and it comes back with the same ${noun} as the old one.`,
     n === 1
       ? `That account is now on both connections, so it will be listed — and counted — twice until you combine them.`
       : `Those ${n} accounts are now on both connections, so they will be listed — and counted — twice until you combine them.`,
-    `Open Accounts and combine the two, keeping the NEW connection — it is the one holding the longer history.`,
+    // Plaid delivers the deep window in the BACKGROUND — the initial historical pull lands over
+    // later syncs, not in the round-trip the user just watched — and combining revokes the
+    // connection that is fetching it. Telling someone to combine immediately is telling them to
+    // hang up mid-download, which is the one way to finish this flow with less history than they
+    // started the day with.
+    `Give it a little while first: the older transactions arrive in the background, so wait until you can see them before finishing.`,
+    // NAMES THE CONTROL, because the card's own default points the other way. A critic executed
+    // the planner: with both connections healthy and synced the same day, `keepRank` falls
+    // through to "linked first wins", so the RECOMMENDED button — the prominent one — proposes
+    // keeping the OLD connection and dropping the one that just fetched two years, irreversibly.
+    // Correcting that ranking is TASKS H.6c; until it lands, this sentence has to be specific
+    // enough to override a wrong default, so it names the ordinal rather than saying "the new
+    // one" and trusting the reader to map that onto two near-identical buttons. /accounts orders
+    // connections oldest-first, so the one just added is always the highest number.
+    opts.combinable
+      ? `Then open Accounts and combine the two — choosing the option that KEEPS the connection you just added, which is the highest-numbered one at ${opts.bank}. The other option would drop it and lose the extra history.`
+      : // Combine offers a direction only when dropping that side strands nothing, and the old
+        // connection is still reaching something this login did not share — so the only
+        // direction on offer would drop the connection the history is on. Naming the repair
+        // (share the rest through the new connection) beats sending the reader to a control
+        // that will either refuse or quietly undo their afternoon.
+        `One thing first: the old connection still reaches an account you didn’t share this time, so combining isn’t offered yet. Use Add or fix accounts on the NEW connection to share the rest, then combine the two — keeping the NEW one.`,
   ].join(' ');
 }
 

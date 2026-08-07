@@ -211,6 +211,7 @@ export async function linkPlaidAccount(
         notice: linkedForHistoryFlash({
           bank: outcome.institutionName ?? 'that bank',
           matchedAccountCount: outcome.matchedAccountCount,
+          combinable: outcome.combinable,
         }),
       };
     }

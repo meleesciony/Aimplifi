@@ -628,6 +628,8 @@ describe('exchangePublicToken — the door that refuses to create the duplicate 
       existingItemId: shallow,
       institutionName: 'Chase',
       matchedAccountCount: 1,
+      // Same accounts on both sides, so combine will offer the direction that keeps THIS one.
+      combinable: true,
     });
     // The credential this link exists to obtain was NOT handed back to Plaid.
     expect(removedTokens).toEqual([]);
@@ -657,6 +659,35 @@ describe('exchangePublicToken — the door that refuses to create the duplicate 
     expect(outcome).toMatchObject({ kind: 'already-connected', existingItemId: kept });
     expect(removedTokens).toEqual(['tok-p-deepen-off']);
     expect(await liveItems(userId)).toBe(1);
+  });
+
+  it('test_regression__a_deepen_link_that_covers_less_than_the_old_connection_is_not_called_combinable', async () => {
+    // The owner shares ONE of the two accounts his existing Chase connection carries. That is
+    // still wholly redundant — nothing in this login is new — so the link is kept. But dropping
+    // the OLD connection would now strand the account he did not re-share, so
+    // `combineDuplicateConnections` will not offer that direction, and the only direction it
+    // WILL offer drops the connection holding the two years. The outcome has to know the
+    // difference, because the closing sentence of the flash is different in each case.
+    const userId = await makeUser('deepen-partial-cover');
+    const shallow = await existingConnection(userId, 'deepen-partial-cover', 'ins_chase', [
+      acct({ account_id: 'have-1', mask: '1111' }),
+      acct({ account_id: 'have-2', mask: '2222' }),
+    ]);
+    newItemAccounts = [acct({ account_id: 'new-1', mask: '1111' })];
+
+    const outcome = await new PlaidProvider().exchangePublicToken(userId, 'p-deepen-pc', {
+      deepenHistory: true,
+    });
+
+    expect(outcome).toEqual({
+      kind: 'linked-for-history',
+      itemId: 'item-p-deepen-pc',
+      existingItemId: shallow,
+      institutionName: 'Chase',
+      matchedAccountCount: 1,
+      combinable: false,
+    });
+    expect(removedTokens).toEqual([]);
   });
 
   it('a deepen link that reaches something new is still reported as an OVERLAP, not as a history link', async () => {

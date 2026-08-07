@@ -53,8 +53,54 @@ mistaken intent yields a duplicate the app already discloses (#299/#306), can co
 and can undo (R9), never a revoked credential, which is the asymmetry
 `plaid-link-collision-wiring.test.ts` was written around.
 
-**Status: diagnosis complete and recorded; build in progress in this session. Nothing shipped
-yet — no code changed at the time of this checkpoint.**
+**BUILT AND GATED (verify green: tsc 0 / eslint 0 / 6,232 unit + 1 skipped / 379 files / build
+clean; e2e 2/2 new + 12/12 adjacent).** One explicit owner intent, carried from a new /accounts
+door through the OAuth round-trip into the provider, exempts that link from the discard and
+nothing else. Two sabotages: removing the exemption kills exactly its own lock; leaking it to
+every link fires 9 of L.10's tests.
+
+**Caught by the existing suite, not by me:** gating the new outcome on redundancy alone told an
+owner whose REVOKE had merely failed that he had connected a bank "on purpose" — a claim about a
+decision nobody made. The branch is gated on the intent, not the shape.
+
+**Fresh-context critic (isolated, had not seen this reasoning): 0 P0, 4 P1.** Three fixed in
+cycle 1, one split out because its fix is a money-adjacent planner change that needs its own
+critic:
+
+* **F5 (fixed) — the flash promised a remedy that can refuse.** `whollyRedundant` only requires
+  the NEW login to reach nothing new; the OLD connection may reach more, and combine offers a
+  direction only when dropping that side strands nothing. Critic executed it: with old =
+  ····0977 + ····1234 and new = ····0977, the ONLY offered direction drops the new connection.
+  The outcome now carries `combinable` (computed against the connection the collision NAMED, from
+  what it answered `/accounts/get` with a moment ago, not from its stored rows) and the copy has
+  two closing sentences instead of one.
+* **F6 (fixed) — "combine now" raced Plaid's background historical pull.** The deep window
+  arrives on later syncs, and combining REVOKES the Item fetching it. The copy now says to wait
+  until the older transactions are visible. Locked on both branches.
+* **F4 (fixed) — the three lines that actually CARRY the intent had zero coverage.** Deleting the
+  `{ deepenHistory }` argument left every other test in the slice green while the feature
+  silently reverted. New jsdom spec `tests/unit/deepen-history-wiring.test.tsx`; two sabotages,
+  each killing exactly its own pair (drop the server argument → 2 red; drop the stash argument →
+  2 red).
+* **F2 (disclosed, fix split to H.6b) — the explainer promised the owner's hand-filed work would
+  survive, and the critic executed the combine and disproved it.** `handoverDate` clamps the
+  cutover to the predecessor's FIRST transaction whenever the successor reaches further back,
+  which is what a successful deepen guarantees, so the old side keeps one day and its categories,
+  notes and splits stop being applied. That sentence is now an amber caveat stating the cost,
+  e2e-locked as its own element so it cannot be lost in an edit to the paragraph above it.
+* **F1 (mitigated, fix split to H.6c) — the combine card's PRIMARY button drops the deep
+  connection.** `keepRank` ties on health and same-day sync, falls through to "linked first
+  wins", and the recommended button renders first as `variant="default"`. The flash now names the
+  ordinal to keep and what the other choice costs — copy overriding a wrong default, which is a
+  mitigation and not a fix.
+* **F3 (recorded, H.6b(b)) — one split on the old connection makes the combine refuse** with a
+  false diagnosis, because the guard compares split CHILDREN against the successor's PARENT.
+  Refuses safely; a blocked remedy, not data loss. The owner has splits.
+
+**Suite flake observed and measured, NOT diagnosed:** one full run failed 2 tests in
+`cron-notify.test.ts` (delivery counted 0, then a `pushSubscription.create` conflict); the same
+tree re-run passed 6,227, the file passes alone, and the stashed clean tree at `ddd7682` passed
+6,224. Same code, different verdicts ⇒ non-determinism in that file, outside this diff.
 
 ## 2026-08-06 — H.8 critic cycle 1: the merchant-batch writers were the door the slice left open
 

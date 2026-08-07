@@ -409,6 +409,15 @@ export type LinkOutcome =
       readonly existingItemId: string;
       readonly institutionName: string | null;
       readonly matchedAccountCount: number;
+      /**
+       * True when this connection reaches every account the old one does, which is exactly the
+       * condition under which combining them — the step that finishes this flow — will be
+       * offered in the direction that KEEPS this connection. False means the old connection
+       * still carries something this login did not share, so the only direction combine will
+       * offer is the one that drops the connection holding the history. The two states get
+       * different closing instructions; nothing else about the link differs.
+       */
+      readonly combinable: boolean;
     };
 
 export class PlaidProvider implements DataProvider {
@@ -642,6 +651,7 @@ export class PlaidProvider implements DataProvider {
           existingItemId: decision.collision.itemId,
           institutionName: decision.collision.institutionName ?? institution,
           matchedAccountCount: decision.collision.matches.length,
+          combinable: decision.coversMatchedConnection,
         };
       }
       // A PARTIAL overlap: some accounts are provably ones they already have, at least one is
@@ -686,6 +696,19 @@ export class PlaidProvider implements DataProvider {
     readonly newRefs: readonly string[];
     /** True only when NOTHING in this link is new — the sole case that licenses a discard. */
     readonly whollyRedundant: boolean;
+    /**
+     * True when this link reaches every account the connection it collided with reaches — the
+     * converse of `whollyRedundant`, and NOT implied by it: a login that shares one of the two
+     * cards an existing connection carries is wholly redundant while covering half of it.
+     *
+     * It exists because the deepen flow's closing instruction ("combine the two, keeping the
+     * new one") is only true when this holds. `combineDuplicateConnections` offers a direction
+     * only when dropping that side strands nothing, so an old connection carrying an account
+     * the new one does not is a state where the ONLY offerable direction is the destructive one
+     * — drop the new connection, i.e. throw away the history the owner just went and fetched.
+     * The copy has to know the difference before it promises anything (H.6 critic).
+     */
+    readonly coversMatchedConnection: boolean;
   } | null> {
     if (!institutionId) return null;
     let accounts: readonly PlaidAccount[];
@@ -733,7 +756,14 @@ export class PlaidProvider implements DataProvider {
       // banks, silently, until an ordinary sync happened to backfill them.
       const items = await this.candidatesAtInstitution(userId, institutionId, newItemId);
       if (items.length === 0) {
-        return { collision: { kind: 'none' }, accounts, incoming, newRefs: [], whollyRedundant: false };
+        return {
+          collision: { kind: 'none' },
+          accounts,
+          incoming,
+          newRefs: [],
+          whollyRedundant: false,
+          coversMatchedConnection: false,
+        };
       }
       // Ask each candidate what it can ACTUALLY reach, right now, rather than trusting the
       // Account rows it left behind. Both fresh-context critics broke the DB-snapshot version
@@ -800,10 +830,26 @@ export class PlaidProvider implements DataProvider {
         incoming,
         newRefs,
         whollyRedundant: collision.kind === 'already-connected' && newRefs.length === 0,
+        // Counted against the connection the collision actually NAMED, and against what that
+        // connection answered `/accounts/get` with a moment ago — not against its stored rows,
+        // which keep describing accounts a login has stopped sharing (the same reason the
+        // candidates above are interrogated over the wire). An account the old connection can
+        // no longer reach must not make the new one look like it covers less than it does.
+        coversMatchedConnection:
+          collision.kind === 'already-connected' &&
+          collision.matches.length ===
+            (existing.find((e) => e.itemId === collision.itemId)?.accounts.length ?? -1),
       };
     } catch {
       // A DB failure here must not cost the user their link either.
-      return { collision: { kind: 'none' }, accounts, incoming: [], newRefs: [], whollyRedundant: false };
+      return {
+        collision: { kind: 'none' },
+        accounts,
+        incoming: [],
+        newRefs: [],
+        whollyRedundant: false,
+        coversMatchedConnection: false,
+      };
     }
   }
 

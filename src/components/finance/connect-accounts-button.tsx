@@ -180,9 +180,23 @@ export function ConnectAccountsButton({ deepenHistory = false }: ConnectAccounts
           Plaid fixes how far back a connection can see at the moment it is created, and it can’t
           be widened afterwards — so reaching two years means connecting the bank again and
           keeping the new connection. Pick the same bank, and share <b>the same accounts</b> you
-          shared before. You’ll briefly have two connections to that bank and its accounts will
-          count twice; the last step is to combine them here on this page, keeping the new one.
-          Your categories, splits and notes stay on the transactions you already have.
+          shared before. You’ll have two connections to that bank and its accounts will count
+          twice until you combine them here on this page, keeping the new one.
+        </p>
+      )}
+      {deepenHistory && (
+        // NOT "your categories and notes stay" — a fresh-context critic executed the combine and
+        // showed otherwise: the cutover clamps to the OLD account's first transaction whenever
+        // the new connection reaches further back, which is the defining property of a
+        // successful deepen. Everything the old side recorded after that one day stops counting
+        // in favour of the new connection's untouched copies. No money moves and nothing is
+        // deleted, but hand-filed work does stop being reflected — so this says so rather than
+        // promising the opposite. Carrying those fields across is the next slice (TASKS H.6b).
+        <p data-testid="deepen-history-caveat" className="text-[11px] text-amber-300/80">
+          One caveat worth reading first: when you combine, each account starts reading from the
+          new connection’s copy of its transactions, so categories, notes and splits you set by
+          hand on the older copies stop being applied. Nothing is deleted and no balance changes
+          — but if you’ve done a lot of hand-categorising at this bank, deepen it last.
         </p>
       )}
       {sandbox && (

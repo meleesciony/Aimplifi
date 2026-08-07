@@ -84,8 +84,17 @@ test.describe('H.6 — reaching Plaid’s full two years', () => {
     await expect(explainer).toContainText(/the same accounts/);
     // 3. That the double-count is real and temporary.
     await expect(explainer).toContainText(/count twice/);
-    // 4. That his own work on the transactions he already has is not at risk.
-    await expect(explainer).toContainText(/categories, splits and notes stay/);
+    // 4. What combining COSTS him. An earlier draft of this page promised the opposite — that
+    //    his categories and notes would simply stay — and a fresh-context critic executed the
+    //    combine and disproved it: the cutover clamps to the old account's first transaction
+    //    whenever the new connection reaches further back, which is exactly what a successful
+    //    deepen guarantees, so hand-filed work on the old copies stops being applied. The
+    //    caveat is a separate element from the explainer so it cannot be lost in an edit to
+    //    the paragraph above it.
+    const caveat = page.getByTestId('deepen-history-caveat');
+    await expect(caveat).toBeVisible();
+    await expect(caveat).toContainText(/stop being applied/);
+    await expect(caveat).toContainText(/Nothing is deleted and no balance changes/);
   });
 
   test('the door is not offered to someone with no bank connected', async ({ page }) => {

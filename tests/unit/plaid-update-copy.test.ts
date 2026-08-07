@@ -217,7 +217,7 @@ describe('linkedWithOverlapFlash — both connections kept, and the overlap said
   // ---- H.6 / DECISIONS #424 — the deliberate second connection ---------------------------
 
   describe('linkedForHistoryFlash', () => {
-    const one = { bank: 'Chase', matchedAccountCount: 1 };
+    const one = { bank: 'Chase', matchedAccountCount: 1, combinable: true };
 
     it('names the duplicate as DELIBERATE — the app has spent a month promising it refuses these', () => {
       // The owner reported duplicate accounts as a bug and this app answered by refusing to
@@ -231,18 +231,46 @@ describe('linkedWithOverlapFlash — both connections kept, and the overlap said
       expect(msg).toMatch(/counted — twice/);
     });
 
-    it('test_regression__says_which_connection_to_keep', () => {
-      // The expensive mistake this sentence prevents: combining the two the other way round
-      // drops the NEW connection and with it every extra month this whole exercise bought.
-      // The remedy is safe to promise here (unlike linkedWithOverlapFlash) because a wholly
-      // redundant old side strands nothing when dropped, which is what combine requires.
+    it('test_regression__names_the_control_because_the_cards_default_points_the_other_way', () => {
+      // The expensive mistake this sentence prevents: combining the other way round drops the
+      // NEW connection and with it every extra month this exercise bought — irreversibly, since
+      // combine revokes the dropped Item. A critic executed `planCombinableConnections` on two
+      // healthy same-day-synced connections and found the RECOMMENDED (prominent) button
+      // proposes exactly that, because keepRank falls through to "linked first wins". Until
+      // H.6c re-ranks it, this copy must be specific enough to override a wrong default — so
+      // "the new one" is not enough; it has to name which button that IS.
       const msg = linkedForHistoryFlash(one);
       expect(msg).toMatch(/combine/i);
-      expect(msg).toMatch(/keeping the NEW connection/);
+      expect(msg).toMatch(/KEEPS the connection you just added/);
+      expect(msg).toMatch(/highest-numbered one/);
+      // And it must say what the wrong choice costs, not merely which is right.
+      expect(msg).toMatch(/would drop it and lose the extra history/);
+    });
+
+    it('test_regression__waits_for_the_history_before_sending_anyone_to_combine', () => {
+      // Plaid delivers the deep window in the BACKGROUND, and combining revokes the connection
+      // fetching it. Both branches must say so, or the instruction is "hang up mid-download".
+      for (const combinable of [true, false]) {
+        const msg = linkedForHistoryFlash({ ...one, combinable });
+        expect(msg).toMatch(/arrive in the background/);
+        expect(msg).toMatch(/wait until you can see them/);
+      }
+    });
+
+    it('test_regression__does_not_promise_combining_when_combining_will_not_be_offered', () => {
+      // The old connection still reaches an account this login did not share, so dropping it
+      // would strand that account and `combineDuplicateConnections` will not offer the
+      // direction. The ONLY direction left drops the connection holding the history — so this
+      // branch must send the reader to share the missing accounts first, never to combine now.
+      const msg = linkedForHistoryFlash({ ...one, combinable: false });
+      expect(msg).toMatch(/combining isn’t offered yet/);
+      expect(msg).toMatch(/Add or fix accounts on the NEW connection/);
+      // And it must still not lose the instruction that matters if they get there later.
+      expect(msg).toMatch(/keeping the NEW one/);
     });
 
     it('pluralises the accounts that now appear on both connections', () => {
-      const msg = linkedForHistoryFlash({ bank: 'Chase', matchedAccountCount: 3 });
+      const msg = linkedForHistoryFlash({ bank: 'Chase', matchedAccountCount: 3, combinable: true });
       expect(msg).toMatch(/Those 3 accounts are now on both/);
     });
   });
