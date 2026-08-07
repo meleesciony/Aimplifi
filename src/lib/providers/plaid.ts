@@ -1170,6 +1170,17 @@ export class PlaidProvider implements DataProvider {
         let cursor = item.cursor ?? undefined;
         let hasMore = true;
         const removedRefs: string[] = []; // buffered across pages — applied after the loop
+        // Per-item sync observability (K.2 Truist test, 2026-08-07): two live syncs returned
+        // zero rows and NOTHING in the database could say whether Plaid was still preparing
+        // the item's history, had delivered nothing, or had sent rows the ingest dropped.
+        // `transactions_update_status` is Plaid's own answer (NOT_READY / INITIAL_UPDATE_
+        // COMPLETE / HISTORICAL_UPDATE_COMPLETE); it and the per-item counts are audited
+        // below so a "still empty" item is diagnosable from the audit trail alone.
+        const itemAddedStart = added;
+        const itemModifiedStart = modified;
+        const itemRemovedStart = removed;
+        let pages = 0;
+        let txUpdateStatus: string | null = null;
         while (hasMore) {
           const page = await plaidPost<{
             accounts?: PlaidAccount[];
@@ -1178,7 +1189,10 @@ export class PlaidProvider implements DataProvider {
             removed: { transaction_id: string }[];
             next_cursor: string;
             has_more: boolean;
+            transactions_update_status?: string;
           }>('/transactions/sync', { access_token: token, cursor });
+          pages += 1;
+          txUpdateStatus = page.transactions_update_status ?? txUpdateStatus;
 
           // /transactions/sync echoes the item's current accounts. Upsert them so a
           // transaction for an account added to the item AFTER link is never silently
@@ -1588,6 +1602,28 @@ export class PlaidProvider implements DataProvider {
           data: { cursor, lastSyncedAt: today, lastSyncAttemptAt: today, lastSyncError: null },
         });
         lastCursor = cursor ?? null;
+
+        // What Plaid actually answered, per item per sync (counts + Plaid's own readiness
+        // status; no descriptors, no amounts, no secrets). Written on the SUCCESS path only —
+        // the failure path already records lastSyncError. Best-effort: observability must
+        // never fail a sync. Deltas are taken BEFORE the deep-history backfill below, so this
+        // row describes the sync proper.
+        await prisma.auditLog
+          .create({
+            data: {
+              userId,
+              action: 'plaid.sync.result',
+              meta: JSON.stringify({
+                itemId: item.itemId,
+                pages,
+                added: added - itemAddedStart,
+                modified: modified - itemModifiedStart,
+                removed: removed - itemRemovedStart,
+                txUpdateStatus,
+              }),
+            },
+          })
+          .catch(() => {});
 
         // One-time deep-history backfill (owner request 2026-08-04): an item
         // linked before days_requested=730 shipped carries only Plaid's 90-day
