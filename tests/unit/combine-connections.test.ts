@@ -21,6 +21,7 @@ function item(p: Partial<CombineConnectionItem> & { itemId: string }): CombineCo
     institutionName: 'Chase',
     lastSyncedAt: '2026-07-24',
     lastSyncError: null,
+    earliestTxnDate: null,
     linkedAtKey: '2026-01-01T00:00:00.000Z',
     ...p,
   };
@@ -97,6 +98,64 @@ describe('planCombinableConnections — which connection survives', () => {
   it('treats a connection that never synced as the stalest', () => {
     const [p] = planCombinableConnections([item({ ...OLD, lastSyncedAt: null }), NEW], accounts);
     expect(p.recommended.keepItemId).toBe('item-new');
+  });
+});
+
+describe('planCombinableConnections — depth outranks linked-first (TASKS H.6c)', () => {
+  const accounts = [acct({ id: 'a-old', plaidItemId: 'item-old' }), acct({ id: 'a-new', plaidItemId: 'item-new' })];
+  // The deepen shape (H.6): the owner re-linked Chase to get Plaid's 730-day window, the
+  // background historical pull has landed, and now the NEWER connection is the one holding two
+  // years while the old one holds ninety days. Both are healthy and synced the same calendar
+  // day, so rules 1–2 tie — before H.6c, "linked first wins" then proposed keeping the shallow
+  // side and irreversibly revoking the deep one (critic-executed: RECOMMENDED keep=old drop=new).
+  const OLD_SHALLOW = item({ ...OLD, earliestTxnDate: '2026-05-09' });
+  const NEW_DEEP = item({ ...NEW, earliestTxnDate: '2024-08-08' });
+
+  it('recommends keeping the connection whose history reaches further back, even though it was linked second', () => {
+    const [p] = planCombinableConnections([OLD_SHALLOW, NEW_DEEP], accounts);
+    expect(p.recommended.keepItemId).toBe('item-new');
+    expect(p.recommended.dropItemId).toBe('item-old');
+    // The other direction stays available — the user can still choose the old side on purpose.
+    expect(p.alternative?.keepItemId).toBe('item-old');
+  });
+
+  it('is deterministic in the deepen shape — input order never flips which side survives', () => {
+    const forward = planCombinableConnections([OLD_SHALLOW, NEW_DEEP], accounts);
+    const backward = planCombinableConnections([NEW_DEEP, OLD_SHALLOW], [...accounts].reverse());
+    expect(backward).toEqual(forward);
+  });
+
+  it('a connection with no stored rows yet is never preferred on depth — mid-pull, the dated side wins', () => {
+    // Immediately after a deepen link, the new connection may hold NOTHING while Plaid's
+    // background pull runs. No rows is no evidence of depth: the old side keeps the
+    // recommendation until the deeper history actually lands, which is exactly the "wait until
+    // you can see them" step the deepen flash instructs.
+    const [p] = planCombinableConnections([OLD_SHALLOW, item({ ...NEW, earliestTxnDate: null })], accounts);
+    expect(p.recommended.keepItemId).toBe('item-old');
+  });
+
+  it('equal depth proves nothing and falls through to linked-first', () => {
+    const [p] = planCombinableConnections(
+      [item({ ...OLD, earliestTxnDate: '2026-05-09' }), item({ ...NEW, earliestTxnDate: '2026-05-09' })],
+      accounts,
+    );
+    expect(p.recommended.keepItemId).toBe('item-old');
+  });
+
+  it('a sync error still outranks depth — a broken connection is not kept for its history', () => {
+    // The deep side erroring means it can no longer sync; keeping it would freeze the account.
+    // Its history is not lost by dropping it: the no-loss guard refuses any combine whose date
+    // split would drop a charge the surviving side does not also hold.
+    const [p] = planCombinableConnections(
+      [OLD_SHALLOW, item({ ...NEW_DEEP, lastSyncError: 'ITEM_LOGIN_REQUIRED' })],
+      accounts,
+    );
+    expect(p.recommended.keepItemId).toBe('item-old');
+  });
+
+  it('recency still outranks depth — rule order is 1 error, 2 staleness, 3 depth, 4 linked-first', () => {
+    const [p] = planCombinableConnections([OLD_SHALLOW, item({ ...NEW_DEEP, lastSyncedAt: '2026-07-01' })], accounts);
+    expect(p.recommended.keepItemId).toBe('item-old');
   });
 });
 

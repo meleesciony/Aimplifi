@@ -233,6 +233,25 @@ describe('combineDuplicateConnectionsFor — the owner’s Chase pair', () => {
     expect(p.alternative?.keepItemId).toBe('item-second');
   });
 
+  it('H.6c: /accounts recommends keeping the connection whose STORED history reaches further back', async () => {
+    // The deepen shape, through the REAL fetch site: the second connection was created to carry
+    // Plaid's 730-day window and its background pull has landed a 2024 row the first connection
+    // never had. Both healthy, both synced the same day — before H.6c the tie fell to "linked
+    // first wins" and the prominent button proposed revoking the deep side. This test is what
+    // an empty depth map at the getAccountsView call site would turn red: the ranking must be
+    // fed the rows actually stored, not a shape that satisfies the compiler.
+    await prisma.transaction.create({
+      data: { accountId: `${uid}-a2`, date: '2024-08-08', rawDescriptor: 'OLDER HISTORY', amountCents: -5_000, status: 'POSTED' },
+    });
+    const view = await getAccountsView(uid);
+    expect(view.combinableConnections).toHaveLength(1);
+    const [p] = view.combinableConnections;
+    expect(p.recommended.keepItemId).toBe('item-second');
+    expect(p.recommended.dropItemId).toBe('item-first');
+    // The old side stays choosable — depth reorders the default, it does not remove the choice.
+    expect(p.alternative?.keepItemId).toBe('item-first');
+  });
+
   it('disconnects the losing connection and links the pair', async () => {
     const res = await combineDuplicateConnectionsFor(
       uid,
@@ -480,6 +499,67 @@ describe('the money-and-boundary critic findings, locked', () => {
     expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(2);
     expect(await prisma.accountReconciliation.count({ where: { userId: uid } })).toBe(0);
     expect((await getTransactions(uid)).rows.map((r) => r.rawDescriptor)).toContain('WHOLE FOODS');
+  });
+
+  it('test_regression__a_hand_split_transaction_no_longer_blocks_the_combine (TASKS H.6b(b))', async () => {
+    // Critic-executed (H.6 cycle 1): the no-loss guard read rows filtered `isSplitParent: false`,
+    // so a predecessor that had been hand-SPLIT presented its children (−$60.00, −$40.00) where
+    // the successor presents the bank's parent (−$100.00) — and the whole combine refused with
+    // the FALSE diagnosis "charges appear on only one of them". A split is the reader's own
+    // re-labelling of one bank charge (children share the parent's date and sum to its amount by
+    // splitTransaction's validation), so the guard now compares the rows as the BANK delivered
+    // them and a split no longer walls off the H.6 deepen remedy.
+    const parent = await prisma.transaction.create({
+      data: { accountId: `${uid}-a2`, date: '2026-07-18', rawDescriptor: 'DINNER', amountCents: -10_000, status: 'POSTED', isSplitParent: true },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: `${uid}-a2`, date: '2026-07-18', rawDescriptor: 'DINNER', amountCents: -6_000, status: 'POSTED', splitParentId: parent.id },
+        { accountId: `${uid}-a2`, date: '2026-07-18', rawDescriptor: 'DINNER', amountCents: -4_000, status: 'POSTED', splitParentId: parent.id },
+        // The successor pulled the same charge unsplit, the way every fresh feed delivers it.
+        { accountId: `${uid}-a1`, date: '2026-07-18', rawDescriptor: 'DINNER', amountCents: -10_000, status: 'POSTED' },
+      ],
+    });
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res).toEqual({ ok: true, combined: 1, failures: [], revokeFailed: null });
+    expect(await prisma.accountReconciliation.count({ where: { userId: uid } })).toBe(1);
+  });
+
+  it('test_regression__a_split_does_not_mask_a_charge_the_other_side_genuinely_lacks', async () => {
+    // The other direction of the same fix, so the bank-shape read cannot drift into leniency: a
+    // split PARENT inside the successor's own era, with NO copy on the successor, is still real
+    // money the date split would drop — the guard must refuse exactly as it would for an
+    // unsplit row, and name the bank's amount ($100.00), not the pieces.
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: `${uid}-a2`, date: '2026-06-15', rawDescriptor: 'OLD CHARGE', amountCents: -700, status: 'POSTED' },
+        { accountId: `${uid}-a1`, date: '2026-07-01', rawDescriptor: 'FIRST SEEN', amountCents: -500, status: 'POSTED' },
+      ],
+    });
+    const parent = await prisma.transaction.create({
+      data: { accountId: `${uid}-a2`, date: '2026-07-18', rawDescriptor: 'DINNER', amountCents: -10_000, status: 'POSTED', isSplitParent: true },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: `${uid}-a2`, date: '2026-07-18', rawDescriptor: 'DINNER', amountCents: -6_000, status: 'POSTED', splitParentId: parent.id },
+        { accountId: `${uid}-a2`, date: '2026-07-18', rawDescriptor: 'DINNER', amountCents: -4_000, status: 'POSTED', splitParentId: parent.id },
+      ],
+    });
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toContain('$100.00');
+    expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(2);
+    expect(await prisma.accountReconciliation.count({ where: { userId: uid } })).toBe(0);
   });
 
   it('test_regression__autopay_follows_the_account_when_its_connection_is_dropped', async () => {

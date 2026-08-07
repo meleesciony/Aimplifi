@@ -1244,8 +1244,14 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   // binds the warning and the candidate card, and an already-reconciled pair is resolved rather
   // than offered again. Only the currency-supported rows take part, so the offer can never name
   // an account the page is withholding.
+  // Each account's oldest stored row, from the span groupBy this view already runs — the depth
+  // evidence `keepRank` ranks on (TASKS H.6c), so the prominent Combine button proposes keeping
+  // the connection whose history reaches further back (the deepen flow's whole point).
+  const earliestTxnByAccount = new Map(
+    newestByAccount.flatMap((g) => (g._min.date != null ? [[g.accountId, g._min.date] as const] : [])),
+  );
   const combinableConnections: CombineConnectionsProposal[] = suppressCombineProposals(
-    combinableConnectionsFor(userId, plaidItems, accounts),
+    combinableConnectionsFor(userId, plaidItems, accounts, earliestTxnByAccount),
     {
       supportedAccountIds: new Set(supported.map((a) => a.id)),
       dismissedPairKeys: dismissedDupKeys,
@@ -1253,7 +1259,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       linkedPredecessorIds: effectivePredIds,
     },
   );
-  const uncombinableConnections = uncombinableConnectionsFor(userId, plaidItems, accounts, {
+  const uncombinableConnections = uncombinableConnectionsFor(userId, plaidItems, accounts, earliestTxnByAccount, {
     offeredItemPairKeys: new Set(
       combinableConnections.map((p) => combinePairKey(p.recommended.keepItemId, p.recommended.dropItemId)),
     ),

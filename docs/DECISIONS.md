@@ -5245,3 +5245,50 @@ survive untouched — the boundary re-points nothing.
 keeps both and says so → combine them, keeping the NEW connection → the old one is revoked and
 its rows become the pre-cutover history of one continuous account. Two years, one account, no
 data lost.
+
+## #425 — H.6c + H.6b(b): the combine's default keeps the deeper connection, and a hand-split row stops blocking it (2026-08-07)
+
+**Two follow-ups the H.6 critic proved by execution, both in the combine machinery the deepen
+flow ends in. H.6's value is only realised if the last step goes the right way; before this,
+it defaulted the wrong way and one split made it refuse outright.**
+
+**H.6c — the ranking.** `keepRank` broke the both-directions-safe tie with "linked first wins".
+Rules 1–2 (sync error; `lastSyncedAt` recency) TIE in the deepen flow's normal end state,
+because both connections are healthy and `lastSyncedAt` is a calendar day — so the /accounts
+card's PRIMARY button (`variant="default"`, rendered first) proposed keeping the 90-day
+connection and irreversibly revoking the 730-day one the owner had just fetched
+(critic-executed: `RECOMMENDED keep=old drop=new`). **Decision: depth is now rule 3, ahead of
+linked-first — the connection whose OLDEST STORED transaction is older is preferred.** Ranked
+on stored rows only, never on a promise about what a feed might deliver: a connection with no
+rows yet is no evidence of depth and never beats a dated side, so mid-pull (before Plaid's
+background historical fetch lands) the tie still falls to the old side — which is exactly the
+window the deepen flash's "wait until you can see them" instruction already covers, and that
+sentence is retained as the reader's protection in that window. Sync error and staleness still
+outrank depth: a broken connection is not kept for its history, because the no-loss guard —
+not the ranking — is what protects rows from being dropped. The depth evidence is threaded as
+a per-account earliest-txn map into `buildCombineInputs`, which folds it to a per-connection
+minimum in the one shared place, so the card and the action cannot compute it two different
+ways; the /accounts site derives it from the span groupBy the view already runs (zero new
+queries), and the action re-reads it inside its SERIALIZABLE transaction like everything else
+its plan derives from. Sabotage-proven in both directions: deleting the rule reddens exactly
+the two depth locks; starving the view's map reddens the server lock.
+
+**H.6b(b) — the false refusal.** The no-loss guard fetched both sides' rows filtered
+`isSplitParent: false`, so a predecessor the owner had hand-split presented split CHILDREN
+(−$60.00/−$40.00) where the successor presents the bank's PARENT (−$100.00), and the multiset
+match refused the whole combine with a false diagnosis ("2 charges totalling $100.00 appear on
+only one of them … delete the copy you don't want") — a blocked remedy at any bank with one
+split row. **Decision: the guard compares rows AS THE BANK DELIVERED THEM** — split parents
+and unsplit rows (`OR: [{isSplitParent: true}, {splitParentId: null}]`), never children — on
+BOTH sides. Sound because a split is the reader's re-labelling of one bank charge:
+`splitTransaction` validates that children share the parent's date and sum exactly to its
+amount, so the parent is the row the other feed can be expected to hold a copy of, and
+comparing bank shapes is comparing money. What a combine does to the split STRUCTURE remains
+a separate, disclosed fact (H.6b(a), the amber caveat on the deepen door — still OPEN). The
+guard's strictness is locked in both directions: the split repro now combines, and a split
+parent the successor genuinely lacks still refuses, naming the bank's $100.00.
+
+**Scope deliberately untouched:** H.6b(a) (carrying hand-filed categories/notes/splits onto
+successor rows) is not built here; the deepen door's caveat continues to disclose it. The
+deepen flash's ordinal-naming sentence stays, comment updated from "until H.6c lands" to the
+mid-pull window it still covers.

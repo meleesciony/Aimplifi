@@ -112,15 +112,33 @@ export interface CombineAccountRow {
  * /accounts view (which already has both row sets in hand and must not re-query) and this
  * module's action (which re-reads fresh state inside its transaction). One mapper, so the card
  * the user taps and the guard that admits the tap can never be built from different shapes.
+ *
+ * `earliestTxnDateByAccountId` is each account's oldest stored transaction date (YYYY-MM-DD),
+ * absent when the account holds no rows. The mapper folds it to a per-CONNECTION minimum here —
+ * in the one shared place — rather than at each fetch site, so the depth evidence `keepRank`
+ * rule 3 ranks on (TASKS H.6c) cannot be computed two different ways by the card and the action.
  */
-export function buildCombineInputs(items: readonly CombineItemRow[], accounts: readonly CombineAccountRow[]) {
+export function buildCombineInputs(
+  items: readonly CombineItemRow[],
+  accounts: readonly CombineAccountRow[],
+  earliestTxnDateByAccountId: ReadonlyMap<string, string>,
+) {
   const institutionByItem = new Map(items.map((i) => [i.itemId, i]));
+  const earliestByItem = new Map<string, string>();
+  for (const a of accounts) {
+    if (a.provider !== 'plaid' || !a.plaidItemId) continue;
+    const d = earliestTxnDateByAccountId.get(a.id);
+    if (!d) continue;
+    const current = earliestByItem.get(a.plaidItemId);
+    if (current === undefined || d < current) earliestByItem.set(a.plaidItemId, d);
+  }
   const engineItems: CombineConnectionItem[] = items.map((i) => ({
     itemId: i.itemId,
     institutionId: i.institutionId,
     institutionName: i.institution,
     lastSyncedAt: i.lastSyncedAt,
     lastSyncError: i.lastSyncError,
+    earliestTxnDate: earliestByItem.get(i.itemId) ?? null,
     linkedAtKey: i.createdAt.toISOString(),
   }));
   const engineAccounts: CombineConnectionAccount[] = accounts.map((a) => {
@@ -350,7 +368,7 @@ export async function combineDuplicateConnectionsFor(
   try {
     claim = await prisma.$transaction(
       async (tx): Promise<Claim> => {
-        const [items, accounts, dismissed, links] = await Promise.all([
+        const [items, accounts, dismissed, links, txnFloors] = await Promise.all([
           tx.plaidItem.findMany({
             where: { userId },
             select: {
@@ -388,9 +406,20 @@ export async function combineDuplicateConnectionsFor(
             where: { userId, undoneAt: null },
             select: { predecessorAccountId: true, successorAccountId: true },
           }),
+          // Each plaid account's oldest stored row — the same depth evidence the /accounts card
+          // ranks on (H.6c), re-read inside this transaction like everything else the plan is
+          // derived from, so the action and the card feed the shared mapper the same shape.
+          tx.transaction.groupBy({
+            by: ['accountId'],
+            where: { account: { userId, provider: 'plaid' } },
+            _min: { date: true },
+          }),
         ]);
 
-        const { engineItems, engineAccounts } = buildCombineInputs(items, accounts);
+        const earliestTxnByAccount = new Map(
+          txnFloors.flatMap((g) => (g._min.date != null ? [[g.accountId, g._min.date] as const] : [])),
+        );
+        const { engineItems, engineAccounts } = buildCombineInputs(items, accounts, earliestTxnByAccount);
         const proposals = suppressCombineProposals(planCombinableConnections(engineItems, engineAccounts), {
           supportedAccountIds: new Set(accounts.filter((a) => isSupportedCurrency(a.currency)).map((a) => a.id)),
           dismissedPairKeys: new Set(dismissed.map((d) => d.dismissKey)),
@@ -405,14 +434,26 @@ export async function combineDuplicateConnectionsFor(
         if (!dropItem) return { ok: false, error: NOT_COMBINABLE };
 
         const cutovers = new Map<string, string>();
+        // The no-loss guard compares the rows AS THE BANK DELIVERED THEM (TASKS H.6b(b)): split
+        // parents and unsplit rows, never split children. A split is the reader's own re-labelling
+        // of one bank charge — the children share the parent's date and sum exactly to its amount
+        // by `splitTransaction`'s own validation — so the parent is the row the other connection
+        // can be expected to hold a copy of. The previous filter (`isSplitParent: false`) presented
+        // the CHILDREN (−60.00, −40.00) where the other side holds the parent (−100.00), and one
+        // hand-split transaction made the whole combine refuse with a false diagnosis ("2 charges
+        // … appear on only one of them") — a blocked remedy on exactly the flow H.6 built. What a
+        // combine does to the split STRUCTURE is a separate, disclosed fact (H.6b(a), the amber
+        // caveat on the deepen door); this guard's question is whether MONEY would vanish, and for
+        // that the bank's own shape is the honest basis on both sides.
+        const bankShape = { OR: [{ isSplitParent: true }, { splitParentId: null }] };
         for (const pair of direction.pairs) {
           const [predRows, succRows] = await Promise.all([
             tx.transaction.findMany({
-              where: { accountId: pair.predecessorAccountId, isSplitParent: false },
+              where: { accountId: pair.predecessorAccountId, ...bankShape },
               select: { date: true, amountCents: true },
             }),
             tx.transaction.findMany({
-              where: { accountId: pair.successorAccountId, isSplitParent: false },
+              where: { accountId: pair.successorAccountId, ...bankShape },
               select: { date: true, amountCents: true },
             }),
           ]);
@@ -537,9 +578,10 @@ export function combinableConnectionsFor(
   userId: string,
   items: readonly CombineItemRow[],
   accounts: readonly CombineAccountRow[],
+  earliestTxnDateByAccountId: ReadonlyMap<string, string>,
 ): CombineConnectionsProposal[] {
   if (isDemoUser(userId)) return [];
-  const { engineItems, engineAccounts } = buildCombineInputs(items, accounts);
+  const { engineItems, engineAccounts } = buildCombineInputs(items, accounts, earliestTxnDateByAccountId);
   return planCombinableConnections(engineItems, engineAccounts);
 }
 
@@ -564,6 +606,7 @@ export function uncombinableConnectionsFor(
   userId: string,
   items: readonly CombineItemRow[],
   accounts: readonly CombineAccountRow[],
+  earliestTxnDateByAccountId: ReadonlyMap<string, string>,
   ctx: {
     offeredItemPairKeys: ReadonlySet<string>;
     dismissedPairKeys: ReadonlySet<string>;
@@ -571,7 +614,7 @@ export function uncombinableConnectionsFor(
   },
 ): CombineBlockedView[] {
   if (isDemoUser(userId)) return [];
-  const { engineItems, engineAccounts } = buildCombineInputs(items, accounts);
+  const { engineItems, engineAccounts } = buildCombineInputs(items, accounts, earliestTxnDateByAccountId);
   const out: CombineBlockedView[] = explainUncombinableConnections(engineItems, engineAccounts).map((e) => ({
     ...e,
     dismissedPair: null,

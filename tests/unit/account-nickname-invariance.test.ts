@@ -65,7 +65,7 @@ function accountRows(alphaName: string) {
 /** Everything this pair of connections produces for the reader: the offer, and — when there is
  *  no offer — the stated reason there isn't one, which names accounts too. */
 function decide(rows: ReturnType<typeof accountRows>) {
-  const { engineItems, engineAccounts } = buildCombineInputs(ITEMS, rows);
+  const { engineItems, engineAccounts } = buildCombineInputs(ITEMS, rows, new Map());
   return {
     offers: planCombinableConnections(engineItems, engineAccounts),
     blocked: explainUncombinableConnections(engineItems, engineAccounts),
@@ -92,7 +92,7 @@ describe('a nickname never decides which accounts are combined', () => {
 
   it('the mapper does not carry a nickname into the engine at all', () => {
     const renamed = accountRows('Alpha Card').map((a) => ({ ...a, displayName: 'Whatever' }));
-    const { engineAccounts } = buildCombineInputs(ITEMS, renamed);
+    const { engineAccounts } = buildCombineInputs(ITEMS, renamed, new Map());
     expect(engineAccounts.map((a) => a.name)).toEqual(['Alpha Card', 'Beta Card', 'Alpha Card', 'Beta Card']);
   });
 });

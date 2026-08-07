@@ -39,6 +39,10 @@ export interface CombineConnectionItem {
   readonly lastSyncedAt: string | null;
   /** Sanitized failure reason from the last attempt; null = healthy. */
   readonly lastSyncError: string | null;
+  /** YYYY-MM-DD of the OLDEST stored transaction across this connection's accounts, or null when
+   *  none of them holds a row yet. This is `keepRank`'s depth evidence (TASKS H.6c): the stored
+   *  rows themselves, never a promise about what a feed might deliver later. */
+  readonly earliestTxnDate: string | null;
   /** Stable ascending key for "which connection came first" (an ISO timestamp). */
   readonly linkedAtKey: string;
 }
@@ -178,14 +182,24 @@ function sameInstitution(a: CombineConnectionItem, b: CombineConnectionItem): bo
  *   1. A connection with no sync error beats one carrying an error — the broken one is what the
  *      user was trying to fix when they created the second copy.
  *   2. The more recently synced connection beats a staler one (never synced = worst).
- *   3. The connection that was linked FIRST beats a newer one. This is a tie-break, not a claim
- *      about which feed is deeper: nothing here measures the two transaction histories (a critic
- *      correctly called out an earlier comment for asserting it did). What protects the history
- *      is the caller's no-loss check, which refuses ANY direction whose date split would drop a
- *      charge the other side does not also hold — so a wrong guess here costs a refusal, never a
- *      row. Note that rules 1–2 tie for two healthy daily-syncing connections, because
- *      `lastSyncedAt` is a calendar DAY, so in the common case this rule is the one that decides.
- *   4. `itemId` order, so the result is deterministic rather than input-ordered.
+ *   3. The connection whose stored history reaches further back beats a shallower one (TASKS
+ *      H.6c). This is what makes the deepen flow (H.6) end the right way up: a fresh 730-day
+ *      link necessarily returns the SAME accounts as the 90-day connection it replaces, rules
+ *      1–2 tie for two healthy daily-syncing connections (`lastSyncedAt` is a calendar DAY), and
+ *      the old "linked first wins" tie-break then proposed — as the prominent default, on an
+ *      IRREVERSIBLE action — keeping the shallow connection and revoking the one the owner just
+ *      fetched two years of history through (critic-executed: `RECOMMENDED keep=old drop=new`).
+ *      Measured on the STORED rows only: null (no rows yet) is no evidence of depth and never
+ *      beats a dated side — which also means a deepened connection is preferred only once its
+ *      background historical pull has actually landed rows older than the old connection's,
+ *      exactly the "wait until you can see them" step the deepen copy already instructs. Two
+ *      equal earliest dates prove nothing about depth and fall through.
+ *   4. The connection that was linked FIRST beats a newer one. This is a tie-break, not a claim
+ *      about which feed is deeper — rule 3 holds the depth evidence, and where IT ties, nothing
+ *      here knows more. What protects the history is the caller's no-loss check, which refuses
+ *      ANY direction whose date split would drop a charge the other side does not also hold — so
+ *      a wrong guess here costs a refusal, never a row.
+ *   5. `itemId` order, so the result is deterministic rather than input-ordered.
  *
  * Returns a negative number when `a` should be kept.
  */
@@ -196,6 +210,12 @@ function keepRank(a: CombineConnectionItem, b: CombineConnectionItem): number {
   const syncA = a.lastSyncedAt ?? '';
   const syncB = b.lastSyncedAt ?? '';
   if (syncA !== syncB) return syncA < syncB ? 1 : -1;
+  if (a.earliestTxnDate !== b.earliestTxnDate) {
+    // A dated side always beats an undated one; between two dated sides the OLDER date wins.
+    if (a.earliestTxnDate === null) return 1;
+    if (b.earliestTxnDate === null) return -1;
+    return a.earliestTxnDate < b.earliestTxnDate ? -1 : 1;
+  }
   if (a.linkedAtKey !== b.linkedAtKey) return a.linkedAtKey < b.linkedAtKey ? -1 : 1;
   return a.itemId.localeCompare(b.itemId);
 }

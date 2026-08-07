@@ -190,14 +190,15 @@ export function linkedForHistoryFlash(opts: {
     // hang up mid-download, which is the one way to finish this flow with less history than they
     // started the day with.
     `Give it a little while first: the older transactions arrive in the background, so wait until you can see them before finishing.`,
-    // NAMES THE CONTROL, because the card's own default points the other way. A critic executed
-    // the planner: with both connections healthy and synced the same day, `keepRank` falls
-    // through to "linked first wins", so the RECOMMENDED button — the prominent one — proposes
-    // keeping the OLD connection and dropping the one that just fetched two years, irreversibly.
-    // Correcting that ranking is TASKS H.6c; until it lands, this sentence has to be specific
-    // enough to override a wrong default, so it names the ordinal rather than saying "the new
-    // one" and trusting the reader to map that onto two near-identical buttons. /accounts orders
-    // connections oldest-first, so the one just added is always the highest number.
+    // NAMES THE CONTROL. H.6c gave `keepRank` a depth rule, so once the deeper history has
+    // LANDED, the card's prominent button proposes keeping this connection. But depth is
+    // measured on STORED rows — deliberately, never on a promise about what a feed might
+    // deliver — so a reader who opens the card before the background pull finishes still sees
+    // the tie fall to "linked first wins" and the default point at the old side. This sentence
+    // therefore stays specific enough to override that default, naming the ordinal rather than
+    // saying "the new one" and trusting the reader to map that onto two near-identical buttons.
+    // /accounts orders connections oldest-first, so the one just added is always the highest
+    // number.
     opts.combinable
       ? `Then open Accounts and combine the two — choosing the option that KEEPS the connection you just added, which is the highest-numbered one at ${opts.bank}. The other option would drop it and lose the extra history.`
       : // Combine offers a direction only when dropping that side strands nothing, and the old

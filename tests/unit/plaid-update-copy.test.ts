@@ -234,11 +234,11 @@ describe('linkedWithOverlapFlash — both connections kept, and the overlap said
     it('test_regression__names_the_control_because_the_cards_default_points_the_other_way', () => {
       // The expensive mistake this sentence prevents: combining the other way round drops the
       // NEW connection and with it every extra month this exercise bought — irreversibly, since
-      // combine revokes the dropped Item. A critic executed `planCombinableConnections` on two
-      // healthy same-day-synced connections and found the RECOMMENDED (prominent) button
-      // proposes exactly that, because keepRank falls through to "linked first wins". Until
-      // H.6c re-ranks it, this copy must be specific enough to override a wrong default — so
-      // "the new one" is not enough; it has to name which button that IS.
+      // combine revokes the dropped Item. H.6c re-ranked `keepRank` on stored depth, so once
+      // the background pull lands the prominent button points the right way — but before it
+      // lands, depth ties and the default still falls to "linked first wins". This copy is the
+      // reader's protection in that window, so it stays specific enough to override a wrong
+      // default: "the new one" is not enough; it has to name which button that IS.
       const msg = linkedForHistoryFlash(one);
       expect(msg).toMatch(/combine/i);
       expect(msg).toMatch(/KEEPS the connection you just added/);
