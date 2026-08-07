@@ -2424,3 +2424,67 @@ selects no merchant relation, `recurring.ts:174`) while the register displays
 `merchant?.canonical ?? normalizeMerchant(rawDescriptor).canonical` — so any row whose Merchant
 record diverges from its normalized descriptor produces a link that cannot match. `no-dead-ends.spec.ts`
 asserts every merchant href is well-formed but never navigates, so this class is uncovered.
+
+### Correction, same session: I cancelled a HEALTHY CI run on a duration I never measured
+
+Verify run 31200587384 (push `7f70328`). I reported to the owner that its verify step "sat in
+progress for ~55 minutes against a ~10-minute norm", cancelled it, and started attempt 2 to
+"distinguish a stuck runner from a real hang". The API, one call away the whole time:
+
+```
+attempt 1 job: started 2026-08-07T17:04:41Z → completed (cancelled) 2026-08-07T17:09:47Z
+```
+
+**5m06s.** Inside the norm, roughly half done, not hung. The "55 minutes" came from counting my
+own polling turns — and several of those waits were concurrent background tasks, so they
+overlapped and inflated the felt interval without a second passing. Half the comparison was
+measured (the ~10–11m norm, from eight recent runs via the API) and half was invented; the
+invented half is the one that justified destroying the run whose logs would have settled it.
+
+Two things came out of it, both shipped rather than noted:
+
+* `docs/lessons/a-duration-you-did-not-measure-is-not-evidence.md` — the tell is that the
+  sentence carried no timestamps. Every honest duration claim in these ledgers carries both ends
+  so a reader can check the subtraction.
+* `scripts/ci-status.sh` cancelled-path copy fixed. It printed "cancelled = superseded by a newer
+  push" unconditionally — and told this session that a run it had cancelled ITSELF had been
+  superseded. It now states the fact, names BOTH causes, prints the newest verify run so the
+  reader can check which, and points at rerun-and-read-attempt-2. Header comment for exit 3
+  corrected to match. Executed live against the real cancelled run 31200262312 (exit 3, correct
+  wording, newest run resolved) — the `--branch "$branch"` in the first draft would have aborted
+  the script under `set -u` (unbound), caught by running it rather than reading it.
+
+### The CI gate for this slice: three runs of ONE commit, three different failure sets
+
+Run 31200587384 on `7f70328`, read per rule 5 rather than assumed:
+
+| attempt | duration | result |
+|---|---|---|
+| 1 | 17:04:41 → 17:09:47 | **cancelled by me at 5m06s** on a fabricated "~55 minutes" (correction above) |
+| 2 | 17:10:01 → 17:20:54 | failure — `budget-targets:20`, `transactions.spec:785`, `phase4-features:33` |
+| 3 | 17:23:32 → 17:34:48 | failure — `budget-targets:20`, `mobile-overflow:408` (webkit). **297 passed.** |
+
+Attempt 2's two non-flake failures did NOT recur in attempt 3, which produced a different one
+instead. Identical code, different verdicts: that is a measurement of non-determinism, not an
+excuse for one.
+
+**All three are the same defect, and it is not this slice's semantics:** a bare first click after
+a page load, dropped when it lands before hydration attaches the handler. `transactions:785`
+clicked the unclassified toggle and watched an unchanged URL for 5s; `phase4-features:33` clicked
+`Delete Japan trip` and spent the full 60s test timeout waiting for a confirm that could never
+appear; `mobile-overflow:408` clicked `txn-detail-link` and waited 20s for a navigation nobody
+had asked for. The register diff renders ZERO extra DOM when no merchant filter is set, and the
+whole spec passes 25/25 serialized locally — including the test that failed on CI, at 2.1s.
+
+**Fixed as a class, not as three surfaces** (`a-fix-on-the-reported-surface-is-not-a-fix-on-the-pattern`):
+all three now use the file's own #167 click-and-verify retry, with one correction to that idiom
+that matters — **the retry is GUARDED on current state**. A blind retry on the unclassified
+TOGGLE would switch the filter back off and the loop would flip parity every attempt, i.e. a test
+whose verdict depends on whether the retry count came out even; `DeleteGoalButton` SWAPS its
+trigger for the confirm when armed, so a blind retry hunts a button that no longer exists. Each
+guard clicks only while the post-click condition is still false, making every extra attempt a
+no-op. All three pass locally (register 2.4s, goals 2.6s, overflow on BOTH projects 2.5s/3.2s).
+
+`budget-targets:20` is left alone and stays recorded: it failed on attempt 2 AND attempt 3 AND on
+the docs-only push `e772d8f` before this slice existed — pre-existing by the same diff-scope proof
+`docs/lessons/ci-e2e-timing-flake.md` already owns.

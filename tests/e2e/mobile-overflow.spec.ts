@@ -411,8 +411,22 @@ test('/transactions/[id] fits every phone width, raw bank descriptor included', 
   await expect(page.getByTestId('txn-list')).toBeVisible({ timeout: 20_000 });
 
   // Reached the way the reader reaches it, so the link itself is exercised too.
-  await page.getByTestId('txn-detail-link').first().click();
-  await page.waitForURL('**/transactions/*', { timeout: 20_000 });
+  //
+  // Click-and-verify retry (#167 hydration barrier), guarded on having already
+  // left the register so a landed-but-slow first click is never double-fired.
+  // Measured, not defensive: CI run 31200587384 attempt 3 dropped this click on
+  // mobile-webkit and then spent the full 20s waiting for a navigation that was
+  // never going to happen. Attempts 2 and 3 of that same commit failed on
+  // DIFFERENT un-barriered first-clicks (register toggle, goal delete, this),
+  // which is what identifies the class: the slower the runner, the wider the
+  // window between paint and hydration, and every bare first click is a coin
+  // toss inside it.
+  await expect(async () => {
+    if (!/\/transactions\/[^/]+$/.test(new URL(page.url()).pathname)) {
+      await page.getByTestId('txn-detail-link').first().click({ timeout: 2000 });
+    }
+    await page.waitForURL('**/transactions/*', { timeout: 2000 });
+  }).toPass({ timeout: 20_000 });
   await expect(page.getByTestId('detail-raw-descriptor')).toBeVisible({ timeout: 20_000 });
 
   await assertFitsEveryWidth(page, '/transactions/[id] (demo)');

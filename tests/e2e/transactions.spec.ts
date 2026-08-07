@@ -843,8 +843,28 @@ test('the register can isolate items that still need a category, and says how ma
 
   // Turning it on narrows the register to exactly that population, and the state is
   // both in the URL (shareable, survives reload) and on the control.
-  await toggle.click();
-  await expect(page).toHaveURL(/unclassified=1/);
+  //
+  // Click-and-verify retry, not a bare click (#167 hydration barrier, the idiom
+  // `addManualAsset` above already uses). This is the FIRST interaction after
+  // `goto('/transactions')`, and a click that lands before hydration attaches the
+  // handler is dropped silently — the toggle is a `<button onClick>`, so nothing
+  // navigates and the URL assertion below spends its 5s watching an unchanged
+  // address bar. It passed locally 25/25 and failed on CI run 31200587384
+  // (`13 × unexpected value ".../transactions"`) — a slower runner is exactly the
+  // condition this idiom exists for, and the same run dropped an un-barriered
+  // click in phase4-features too. Guarding it makes the assertion measure the
+  // FILTER rather than the machine's hydration speed.
+  // The retry GUARDS the click on the current state, which the plain #167 idiom
+  // does not — and that difference is load-bearing here. This control is a
+  // TOGGLE: a bare click-and-retry that fires a second click after a first one
+  // that actually landed would switch the filter back OFF, and the loop would
+  // then flip parity every attempt — a test that passes or fails on whether the
+  // retry count came out even. Clicking only while the URL still lacks the
+  // param makes every extra attempt a no-op instead.
+  await expect(async () => {
+    if (!/unclassified=1/.test(page.url())) await toggle.click({ timeout: 2000 });
+    await expect(page).toHaveURL(/unclassified=1/, { timeout: 2000 });
+  }).toPass({ timeout: 20000 });
   await expect(page.getByTestId('txn-filter-unclassified')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('txn-row')).toHaveCount(count);
 

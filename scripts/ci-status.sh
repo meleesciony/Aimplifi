@@ -12,8 +12,10 @@
 # Exit:  0 = success
 #        1 = failure / timed out waiting
 #        2 = no run found for the sha
-#        3 = cancelled (superseded by a newer push to the same ref — check the NEWEST
-#            run for the ref instead; this is not a test failure)
+#        3 = cancelled — NOT a test failure, and NOT proof of why: a concurrency
+#            cancel by a newer push and a by-hand cancel are the same conclusion
+#            (2026-08-07: this exit told a session a run it had cancelled itself
+#            had been superseded). The branch prints both causes and the newest run.
 #        4 = gh itself failed (auth/network) — the verdict is UNKNOWN, not "no run"
 set -u
 
@@ -64,8 +66,22 @@ echo "ci-status: ${conclusion:-unknown} — ${url}"
 case "$conclusion" in
   success)   exit 0 ;;
   cancelled) # Critic F3: ~half of all runs are concurrency-cancels of superseded
-             # pushes. That is not a red gate — it means a NEWER push owns the ref.
-             echo "ci-status: cancelled = superseded by a newer push; re-run against the newest sha" >&2
+             # pushes. That is not a red gate. But "cancelled" does NOT prove that
+             # cause — a human cancel (a hung runner, a bad push pulled back) lands
+             # here identically, and on 2026-08-07 this line told a session a run it
+             # had cancelled ITSELF had been superseded. A tool that names a cause it
+             # cannot see is the same defect as a register blaming filters it never
+             # showed. So: state the fact, then the two causes, and let the reader
+             # check which. `run_attempt` is the discriminator worth printing — a
+             # rerun of the same run comes back as attempt ≥ 2.
+             # No --branch filter: `branch` is not in scope here, and an unbound
+             # expansion under `set -u` would abort the script inside the very
+             # branch whose job is to explain itself.
+             newest="$(gh run list --workflow verify.yml --limit 1 \
+                       --json headSha,databaseId --jq '.[0] | "\(.headSha[0:7]) run \(.databaseId)"' 2>/dev/null)" || newest=""
+             echo "ci-status: cancelled — NOT a test failure. Either a newer push superseded it" >&2
+             echo "           (newest verify run anywhere: ${newest:-unknown}) or it was cancelled by hand." >&2
+             echo "           Re-run against the newest sha, or rerun this run and read attempt 2." >&2
              exit 3 ;;
   *)         exit 1 ;;
 esac

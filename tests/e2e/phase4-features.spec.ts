@@ -46,8 +46,25 @@ test('goals: creating a goal shows its effect on the FI date', async ({ page }) 
   await expect(card.getByTestId('goal-fi-impact')).toContainText(/FI date|No measurable effect/);
 
   // cleanup so reruns stay deterministic (two-step delete confirm)
-  await card.getByRole('button', { name: 'Delete Japan trip' }).click();
-  await card.getByTestId('goal-delete-confirm').click();
+  // Same hydration barrier as the register's unclassified toggle, and for the
+  // same measured reason: CI run 31200587384 dropped THIS first click too and
+  // then spent the full 60s test timeout waiting for a confirm that could never
+  // appear (`locator.click: Test timeout of 60000ms exceeded` at the line
+  // below). Two un-barriered post-load clicks in two different specs failed on
+  // one slow runner — the pattern, not the surface.
+  //
+  // Guarded on the armed state rather than clicking blind: `DeleteGoalButton`
+  // SWAPS the trigger for the confirm when armed (`confirm.isArmed('delete')`),
+  // so a retry that clicked again would be hunting a button that no longer
+  // exists.
+  const confirmBtn = card.getByTestId('goal-delete-confirm');
+  await expect(async () => {
+    if ((await confirmBtn.count()) === 0) {
+      await card.getByRole('button', { name: 'Delete Japan trip' }).click({ timeout: 2000 });
+    }
+    await expect(confirmBtn).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await confirmBtn.click();
   await expect(card).toHaveCount(0);
 });
 
