@@ -8,6 +8,17 @@ Living document; updated at each phase boundary and critic cycle.
 
 ## ✅ BUILT 2026-08-07 — K.2(b): a deleted connection stops impersonating a stale one (DECISIONS #423, critic-cycled)
 
+**SHIPPED-GREEN + PROVEN LIVE 2026-08-07: CI run 31148722758 `success` on `82a8d7d`
+(the full VERIFY_E2E=1 gate; conclusion read via ci-status.sh, exit 0) and
+`scripts/k2b-live-deploy-check.mjs` 9/9 PASS against https://www.aimplifi.app —
+attempt 1 mid-deploy correctly failed the three new-marker checks on the old build,
+proving the markers change-unique.** The live check claims exactly what an anonymous
++demo run CAN prove: the negative direction live (demo still gets the unchanged
+first-time door, no notice, no freshness lines) and build identity (the served
+bundle carries the new strings and NOT the critic-killed remedy tail); the orphaned
+state's behavior is proven by the e2e (CI-green), and materializes on the owner's
+account on his next /accounts visit.
+
 **Closes K.2 sub-items (a) and (b); the DATA remains gated on the owner reconnect.**
 
 **(a) The probe RAN** (was permission-blocked): the 25 frozen SimpleFIN accounts are
