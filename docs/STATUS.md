@@ -2321,6 +2321,53 @@ INSIDE the `setGroups` updater, `triage-inbox.tsx:337`) turns the singles test R
 the assertion its title names — `triage-singles` count 1, the mode leaking onto the next card.
 Reverted and rebuilt before the gate run.
 
+**The one deliberate coverage change, stated rather than buried.** The singles test's original
+opening was a loop that filed 1-row groups until a multi-row group surfaced, with a
+`fixture drift` guard — composition-independence against a demo seed the test did not control.
+The new fixture controls the composition (groups sort by count DESC, so the 3-row group is
+provably on top), so the loop is replaced by a direct `toContainText('One by one')`. What the
+loop uniquely guarded — that filing decrements `data-remaining` — is still asserted in the
+write-in test and in `review cost`, so no claim lost a home. What DID change: the reset is now
+exercised on the FIRST card rather than one reached after several filings. That is sound
+because the defect is a `setGroups` updater-deferral, not a card-position bug, and the sabotage
+above confirms the test still catches it from the first card. Recorded because a fixture that
+removes a loop is exactly where coverage goes missing quietly.
+
+**How the critic pass was actually run — stated because the preferred method failed.** A
+fresh-context critic subagent was launched over five named attack vectors (lost coverage,
+vacuity, fixture fragility, the reorder's residue, parallel-worker collisions). It ran ~45
+minutes producing zero output and was stopped mid-sentence; **it returned no findings, and none
+are claimed on its behalf.** The five vectors were then worked in the main thread, each closed
+with executed or inspected evidence rather than assertion — the two differences recorded below
+are that pass's own output. This is a weaker check than a fresh context would have been (a
+self-critique cannot find what it rationalized away), so it is logged as a known gap in this
+slice's review, not as an equivalent substitute.
+
+**A second deliberate difference, found by self-critique and recorded rather than left latent:
+the fixture's merchants are RULE-ELIGIBLE and the demo's top group was not.** The demo queue's
+top card was the 6-row Zelle aggregate, and `ruleEligible` is false for aggregate
+pseudo-merchants (Zelle/checks/ATM) so they "never offer Always rules" (#23,
+`src/server/triage.ts:45`). The seeded merchants here are ordinary merchants, so
+`ruleEligible` is true and filing a group now renders the `rule-prompt` panel
+(`triage-inbox.tsx:317`) and a different group-card footer, neither of which the old fixture
+ever produced. Nothing in either test asserts against the prompt and both pass — in isolation
+and under 4-worker full-suite load — and `undo` clears it (`:444`). Net: strictly MORE of the
+product is exercised, at the cost of a mild new fragility, because a future change to the rule
+prompt could now break `:184` for reasons unrelated to its own claim. Named here so the next
+reader does not have to rediscover it from a red test.
+
+**The reorder creates no residue, checked two ways.** `skipGroup` (`triage-inbox.tsx:200`) is
+`setGroups((gs) => rotateSkippedGroup(gs))` — and `rotateSkippedGroup`
+(`group.ts:226`) is a pure array rotation with no server action and no persistence, so a skip
+cannot alter what `review cost` then measures; the next test's fresh `signInToTriage` re-fetches
+from the server, where the rotation never existed. Empirically the same: in the full-suite run
+`Skip for now` (index 183) and `review cost` (index 191) both passed in that order.
+
+**Descriptor ambiguity is verified, not assumed.** Grepped the categorizer's keyword rules for
+every token in the four fixture descriptors — no rule matches any of them — and the fixture
+additionally self-checks `triage-no-suggestion` on arrival, so a ruleset that later learns one
+of these merchants fails loudly at the top of the test rather than subtly inside it.
+
 ### Gate
 
 `VERIFY_E2E=1 bash scripts/verify.sh`, exit code taken from verify.sh itself: tsc 0 / eslint 0 /
@@ -2343,6 +2390,15 @@ PR the entire time. Grouped over the last 100 runs the API returns (2026-08-02 �
 **50 `failure`, 49 `cancelled` (the concurrency-cancel of superseded pushes), and 0 `success`.**
 Not one green CI run in the entire window. `Skip for now` (#374) landed 2026-08-01, so it has
 literally never been observed passing in a full-file run.
+
+**The 49 cancelled are their own contributing cause, and this session demonstrated the
+mechanism by accident.** The workflow sets `concurrency: cancel-in-progress: true` on
+`${{ github.workflow }}-${{ github.ref }}`, and a session that pushes a code commit and then a
+docs commit five minutes later kills the first run before it can reach a verdict — which is
+exactly what happened to run 31132538431 here. So roughly half of all pushes produce NO signal
+at all, which is a large part of why a permanently-red gate went unread: the habit of
+push-then-push-docs means the run you would have looked at usually does not exist. Any fix for
+K.8 should account for this — batch the docs commit into the code commit, or wait for the run.
 
 The latest run fails **four unit tests that pass locally** — `fi-real-basis` ×2,
 `loan-payment-flow-assembler` ×1, `merchant-lens-server` ×1 — so the "6,167 passed / 374 files"
