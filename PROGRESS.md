@@ -2686,6 +2686,14 @@ files** / build clean; connection e2e **18/18**; full e2e **304 passed / 1 faile
 (`budget-targets.spec.ts:20` — the documented pre-existing flake, green on re-run with this code
 present). No schema change.
 
+**Shipped:** `3fe37f6` (slice) + `8f32ca4` (the G.1 flake record) pushed. **CI:** run 31243413430
+for `3fe37f6` = failure on `budget-targets.spec.ts:20` ALONE (unit identical to local; the commit
+touches no budget file; same spec reddened H.7b's gate and a local full run, green on re-run both
+times). The `rerun --failed` was cancelled by this session's own docs push — filed as a lesson,
+and the gate re-read against the newest sha (run 31243942530 for `8f32ca4`). The flake is filed as
+TASKS **G.1**, not waved through: the prescribed remedy is already applied to that spec and failed
+anyway.
+
 **Deploy proof is honestly scoped.** `scripts/h1-live-deploy-check.mjs` — production's only
 reachable account is the shared demo, which has NO connections (measured), so the new line
 cannot render there and the usual testid-in-the-HTML marker does not exist. The marker used

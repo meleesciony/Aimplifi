@@ -52,6 +52,28 @@ files** / build clean; connection e2e **18/18**; full e2e **304 passed / 1 faile
 split-parent filter; the never-transactional state; the reverted sentence) each turned exactly
 its own locks RED, all restored. No schema change.
 
+**CI ship gate (K.8):** run **31243413430** for `3fe37f6` came back **failure** on a single spec —
+`budget-targets.spec.ts:20`, signature `toHaveCount … 20 × locator resolved to 1 element`. Unit
+results were IDENTICAL to local (6,381 passed / 1 skipped / 388 files); e2e 304 passed / 1 failed.
+Proven not this slice's: `git log --stat` confirms the commit touches no budget file, and the same
+spec reddened H.7b's gate (green on `rerun --failed`) and a full local run here (green on re-run).
+`gh run rerun --failed` was issued and then **cancelled** — by this session's own docs-only push,
+which is now its own lesson (a cancelled run is an absence, not a pass). Re-read against the newest
+sha; the conclusion for run **31243942530** (`8f32ca4`, which contains the whole slice) is recorded
+below when read. **The flake itself is NOT waved through:** the remedy `ci-e2e-timing-flake.md`
+prescribes is already applied to that spec's clear step and it failed anyway, so re-running is not
+a diagnosis — filed as **TASKS G.1** with identification (which `toHaveCount`) as the first
+deliverable, ahead of any fix, and with an explicit "do not weaken the assertion" (it guards the
+upsert-yields-ONE-row invariant on a money surface).
+
+**Live deploy proof: 6/6** (`scripts/h1-live-deploy-check.mjs` against www.aimplifi.app) — new
+build serving (this slice's copy found in a live `/_next/static` chunk), /accounts rendering
+through the rewritten loader on PostgreSQL, the register's global line untouched, no depth line
+invented for the demo's zero connections, no client errors. **Honestly scoped and said so in the
+script header:** production's only reachable account is the shared demo, which has no connections
+and no links, so this proves the zero-links fast path only — the PostgreSQL LINKED path is covered
+by the unit and e2e gates on SQLite and by the read-only prod replay, not by this script.
+
 **STILL OPEN after H.1(b), recorded not fixed:** (1) **prominence** — the depth line is the
 third identically-styled muted line on each card (+11% card height at 380px, no overflow); the
 copy critic marked this optional and it is recorded rather than churned; (2) **`counted-elsewhere`
