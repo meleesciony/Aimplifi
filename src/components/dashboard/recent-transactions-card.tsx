@@ -3,6 +3,7 @@ import { ListOrdered } from 'lucide-react';
 import { cents, formatCents } from '@/lib/money';
 import type { DashboardRecentResult } from '@/server/dashboard-recent';
 import { SURFACE_CARD_CLASS } from '@/components/finance/surface-card-styles';
+import { namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/links';
 
 /**
  * Home strip: latest spending rows, with needs-file rows highlighted.
@@ -45,7 +46,13 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
           {rows.map((r) => (
             <li key={r.id}>
               <Link
-                href={`/transactions/${r.id}`}
+                /* C.15 (audit F3): this was a bare /transactions/<id> — the
+                   reader landed on a detail page whose way back said "Activity".
+                   The return now names the dashboard he came from. */
+                href={withForwardedReturn(
+                  `/transactions/${encodeURIComponent(r.id)}`,
+                  namedPageBack('dashboard', null),
+                )}
                 className={`flex items-center justify-between gap-3 py-2.5 text-sm transition hover:bg-muted/40 ${
                   r.needsFile ? 'bg-amber-50/80 dark:bg-amber-950/30' : ''
                 }`}

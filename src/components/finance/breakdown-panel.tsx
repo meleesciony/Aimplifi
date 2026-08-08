@@ -31,9 +31,16 @@
  */
 import Link from 'next/link';
 import { useId, useState } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import type { BreakdownRow } from '@/lib/engine/glass-box/category-breakdown';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { type Cents, formatCents } from '@/lib/money';
+import {
+  PAGE_RETURNS,
+  type PageReturnToken,
+  namedPageBack,
+  withForwardedReturn,
+} from '@/lib/engine/transactions/links';
 
 export interface BreakdownPanelSubject {
   /** Distinguishes this panel's test ids and React keys among its siblings. */
@@ -105,6 +112,23 @@ export function BreakdownPanel({
   const count = rows.length;
 
   /**
+   * C.15 (audit F3) — the reader's place is the PAGE this panel sits on, not the
+   * register: a figure drilled on /reports belongs to /reports. The token is
+   * the INVERSE of `PAGE_RETURNS` — the same table the decoder validates
+   * against, derived here so the two sides cannot drift. A host with no token
+   * (nothing renders this panel there today) gets no return context and the far
+   * side shows its honest Activity fallback — refusing beats inventing a label.
+   * The page's own query (the month on /reports, /budgets, /trends) rides along
+   * so a past-month figure returns to that month, not the default one.
+   */
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const returnToken = (Object.keys(PAGE_RETURNS) as PageReturnToken[]).find(
+    (t) => PAGE_RETURNS[t].path === pathname,
+  );
+  const pageQuery = searchParams?.toString() ?? '';
+
+  /**
    * The visible text on the control, spelled out rather than abbreviated.
    *
    * A bare "14 items" was the first draft and it repeats a mistake this repo has
@@ -171,7 +195,18 @@ export function BreakdownPanel({
                   <span className="text-xs text-muted-foreground">{formatISODate(isoDate(r.date))}</span>{' '}
                   {r.transactionId ? (
                     <Link
-                      href={`/transactions/${encodeURIComponent(r.transactionId)}`}
+                      /* C.15 (audit F3): a bare /transactions/<id> here dumped the
+                         reader onto "Back to transactions" and out of the report
+                         they were reading. The row now carries the hosting page's
+                         return context (with its own query, e.g. the month). */
+                      href={
+                        returnToken
+                          ? withForwardedReturn(
+                              `/transactions/${encodeURIComponent(r.transactionId)}`,
+                              namedPageBack(returnToken, pageQuery),
+                            )
+                          : `/transactions/${encodeURIComponent(r.transactionId)}`
+                      }
                       className="rounded-sm underline decoration-dotted decoration-muted-foreground/70 underline-offset-2 hover:decoration-solid focus-visible:outline-2 focus-visible:outline-offset-2"
                     >
                       {r.label}

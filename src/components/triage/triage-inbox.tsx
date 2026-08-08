@@ -44,6 +44,7 @@ import {
   summarizeConfident,
 } from '@/lib/engine/categorize/group';
 import { SPLIT_BLOCKED_REIMBURSED } from '@/lib/engine/transactions/actions';
+import { namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/links';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { cents, centsFromDollarString, formatCents } from '@/lib/money';
 import type { TriageGroupView } from '@/server/triage';
@@ -1094,7 +1095,13 @@ export function TriageInbox({
           )}
           <p className="pt-1">
             <Link
-              href={`/transactions/${top.anchorTransactionId}`}
+              /* C.15 (audit F3): this was a bare /transactions/<id> — "Back to
+                 transactions" threw away the queue the reader was working. The
+                 return now names the inbox. */
+              href={withForwardedReturn(
+                `/transactions/${encodeURIComponent(top.anchorTransactionId)}`,
+                namedPageBack('triage', null),
+              )}
               className="text-xs text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400"
               data-testid="triage-open-detail"
               onClick={() => logInteraction('tap', 'open-detail')}
@@ -1193,7 +1200,11 @@ export function TriageInbox({
                   Split
                 </Button>
                 <Link
-                  href={`/transactions/${r.id}`}
+                  /* C.15 (audit F3) — same return as the grouped card's detail link. */
+                  href={withForwardedReturn(
+                    `/transactions/${encodeURIComponent(r.id)}`,
+                    namedPageBack('triage', null),
+                  )}
                   className="inline-flex h-8 items-center px-2 text-xs text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400"
                   data-testid="single-open-detail"
                 >

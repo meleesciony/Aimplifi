@@ -430,7 +430,8 @@ const REGISTER_VIEW_PARAMS = [
 
 /** Where the reader came from, and what that view may honestly be called. */
 export interface RegisterReturn {
-  /** Always rooted at `REGISTER_PATH` — never a caller-supplied path. */
+  /** Always rooted at a LITERAL path — the register, a transaction page, or a
+   *  named page — never a caller-supplied path. */
   href: string;
   /** Names the view, for "Back to <label>". Never guesses. */
   label: string;
@@ -557,7 +558,7 @@ function labelFor(params: URLSearchParams): string {
  * There is no redirect target to sanitise here, which is the point: the path is
  * the `REGISTER_PATH` literal and only the query is taken from the caller, so an
  * `?back=https://evil.example` or `?back=//evil.example` cannot express itself
- * as a destination — it is parsed as a query string, matches none of the ten
+ * as a destination — it is parsed as a query string, matches none of the
  * register keys, and decodes to `null`. The open-redirect class is closed by
  * construction rather than by a validator someone must remember to call, which
  * is the fence-by-construction rule this repo already applies to demo-fenced
@@ -583,4 +584,181 @@ export function decodeRegisterReturn(raw: string | null | undefined): RegisterRe
  */
 export function activityReturnFromBack(back: string | null | undefined): RegisterReturn {
   return decodeRegisterReturn(back) ?? { href: REGISTER_PATH, label: 'Activity' };
+}
+
+/* -------------------------------------------------------------------------- */
+/* C.15 — transaction and named-page returns: the O.16 construction, one hop   */
+/* deeper (audit F1/F2/F3)                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The token a transaction-return carries in `back`: a transaction id.
+ *
+ * Deliberately NOT pinned to Prisma's `cuid()` generator, because the demo seed
+ * mints readable `txn-00001` ids (SEED_SPEC) and BOTH shapes sit in the same
+ * database — a pattern that rejected one would silently dead-link the other.
+ * (Verified against `dev.db`: a real row is `cmqvrv3hd0025j0cu9gvo2zor` — `c` +
+ * 24 lowercase alphanumerics — and a demo row is `txn-00001`.)
+ *
+ * What the pattern guarantees instead is what the decode actually needs: the
+ * token cannot ESCAPE the literal path it is appended to. No `/` (no extra
+ * segment), no `?` (no query), no `#` (no fragment), no `.` (no dot-segments),
+ * no `\` or `%` (no re-encoding tricks), no uppercase (nothing in this repo
+ * generates one).
+ *
+ * A bare word like `settings` MATCHES the pattern and decodes to
+ * `/transactions/settings` — a same-origin literal-path href whose detail page
+ * answers its own not-found for an unknown id, exactly as the register's
+ * unvalidated free-text params land on an empty list. The boundary that matters
+ * is the path: the caller can name an id, never a path.
+ */
+export const TRANSACTION_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+/**
+ * Rebuild the return trip to a TRANSACTION from an untrusted parameter — the
+ * sibling of {@link decodeRegisterReturn}.
+ *
+ * Where that decoder is rooted at the `REGISTER_PATH` literal, this one is
+ * rooted at the `/transactions/<id>` literal: the path is the `REGISTER_PATH`
+ * literal plus a `/`, and the id is the caller's only input, admitted ONLY
+ * through {@link TRANSACTION_ID_PATTERN}. `?back=https://evil.example`,
+ * `?back=//evil.example`, `?back=../../settings` and `?back=javascript:…` all
+ * fail the charset and decode to `null` — the same open-redirect class closed
+ * by construction, one hop deeper (audit F1: *"a detail destination is
+ * structurally inexpressible"*).
+ *
+ * `null` means the caller's place is not a transaction. The value is disjoint
+ * from every register encoding by construction: register queries carry `=`
+ * pairs and the sentinel starts with `_`, neither of which the pattern admits.
+ */
+export function decodeTransactionReturn(raw: string | null | undefined): RegisterReturn | null {
+  if (!raw || !TRANSACTION_ID_PATTERN.test(raw)) return null;
+  return { href: `${REGISTER_PATH}/${raw}`, label: 'the transaction' };
+}
+
+/**
+ * The named pages a return can land on (C.15 audit F3), and what each may
+ * honestly be called.
+ *
+ * The KEY is the wire token (`_triage`); the value carries the literal path and
+ * the label. This table is the ONE author of token → path/label, and it is the
+ * decoder's entire fence: an unknown token decodes to `null` (the honest
+ * Activity fallback), so a hostile `?back=_settings` cannot express itself as
+ * a destination any more than `?back=https://evil.example` can — the path is
+ * always this table's literal, never the caller's.
+ *
+ * `_activity` is deliberately NOT here: it is the register's sentinel and
+ * decodes in {@link decodeRegisterReturn}; the table and the sentinel are
+ * disjoint by construction.
+ */
+export const PAGE_RETURNS = {
+  triage: { path: '/triage', label: 'the triage inbox' },
+  dashboard: { path: '/dashboard', label: 'your dashboard' },
+  budgets: { path: '/budgets', label: 'your budget' },
+  reports: { path: '/reports', label: 'your reports' },
+  trends: { path: '/trends', label: 'your trends' },
+} as const;
+
+/** The wire-token vocabulary of {@link PAGE_RETURNS} — a closed union, so a
+ *  call site that names a token not in the table fails to compile rather than
+ *  silently shipping a return that decodes to `null`. */
+export type PageReturnToken = keyof typeof PAGE_RETURNS;
+
+/**
+ * Encode a named-page destination for the `back` param.
+ *
+ * `_<token>` alone when the page carries nothing worth keeping, else
+ * `_<token>?<query>` with the page's OWN query. The query is caller data and is
+ * deliberately not validated here — the decode side appends it to the table's
+ * literal path, where an unknown key is the target page's own default, the same
+ * treatment the register gives an unlisted key. The path never comes from the
+ * caller; the token cannot: it is typed as the closed {@link PageReturnToken}.
+ */
+export function namedPageBack(token: PageReturnToken, query: string | null | undefined): string {
+  return query ? `_${token}?${query}` : `_${token}`;
+}
+
+/**
+ * Rebuild the return trip to a NAMED PAGE from an untrusted parameter.
+ *
+ * Same construction as its siblings: the path is `PAGE_RETURNS`'s literal and
+ * only the query is taken from the caller — a hostile `?back=_settings` or
+ * `?back=_reports?next=//evil` yields `null` or an href rooted at the table's
+ * literal, never a caller-supplied path.
+ */
+export function decodeNamedPageReturn(raw: string | null | undefined): RegisterReturn | null {
+  if (!raw || !raw.startsWith('_')) return null;
+  const qAt = raw.indexOf('?');
+  const tokenPart = qAt === -1 ? raw : raw.slice(0, qAt);
+  const entry = PAGE_RETURNS[tokenPart.slice(1) as PageReturnToken];
+  if (!entry) return null;
+  const query = qAt === -1 ? '' : raw.slice(qAt + 1);
+  return { href: query ? `${entry.path}?${query}` : entry.path, label: entry.label };
+}
+
+/**
+ * The detail page's ONE source of "Return to …": a transaction id, a register
+ * view, a named page — or honest Activity.
+ *
+ * Order is safe to any re-arrangement (the three encodings are mutually
+ * disjoint — see {@link TRANSACTION_ID_PATTERN} and `PAGE_RETURNS`), and every
+ * path in every branch is a literal of this module's, so no decode order can
+ * launder a caller-supplied path.
+ */
+export function returnFromBack(back: string | null | undefined): RegisterReturn {
+  return (
+    decodeTransactionReturn(back) ??
+    decodeNamedPageReturn(back) ??
+    activityReturnFromBack(back)
+  );
+}
+
+/**
+ * May this raw `?back=` value be forwarded to another link?
+ *
+ * O.16's waypoint discipline, made a predicate: a second-hop link may carry the
+ * reader's place ONLY when the value decodes to one of this module's
+ * destinations. Anything else — including the hostile set the decoders refuse —
+ * collapses to the Activity sentinel, so a page that forwards what it was given
+ * can never launder a failed decode into the next link. This replaces the
+ * returnTo.href round-trip at the detail page: a register encoding survives
+ * decode → href → query, but a named-page token and a transaction id are
+ * consumed into the href's PATH and cannot be recovered from it, so the raw
+ * value has to be the source — gated here.
+ */
+export function forwardableBack(raw: string | null | undefined): string {
+  if (
+    raw &&
+    (decodeTransactionReturn(raw) ?? decodeRegisterReturn(raw) ?? decodeNamedPageReturn(raw))
+  ) {
+    return raw;
+  }
+  return ACTIVITY_RETURN_SENTINEL;
+}
+
+/**
+ * Attach the reader's place to a link that LEAVES a transaction page (C.15) —
+ * the sibling of {@link withRegisterReturn}.
+ *
+ * Where the register encoder re-encodes the caller's register query, this one
+ * forwards an ALREADY-VALIDATED return encoding verbatim — a register query, a
+ * named-page token, or a transaction id — because a second-hop link may need
+ * to carry any of the three. `backValue` is gated by {@link forwardableBack}
+ * INSIDE this function rather than at the call sites: the value originates in
+ * the raw `?back=` of the page the reader stands on, and "nothing that failed
+ * the decode can be laundered back into a link" has to hold wherever it came
+ * from.
+ *
+ * Mechanics mirror `withRegisterReturn` exactly (fragment-safe, `?` vs `&`
+ * separator), so the two produce byte-identical output for the register
+ * encodings they share.
+ */
+export function withForwardedReturn(href: string, backValue: string | null | undefined): string {
+  const carried = forwardableBack(backValue);
+
+  const hashAt = href.indexOf('#');
+  const base = hashAt === -1 ? href : href.slice(0, hashAt);
+  const fragment = hashAt === -1 ? '' : href.slice(hashAt);
+  const separator = base.includes('?') ? '&' : '?';
+  return `${base}${separator}${RETURN_PARAM}=${encodeURIComponent(carried)}${fragment}`;
 }

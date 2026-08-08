@@ -10,7 +10,7 @@ import { getRuleSourceTransaction } from '@/server/keyword-rules';
 import { getTransactionDetail } from '@/server/transactions';
 import { getRecurringVerdictForTransaction } from '@/server/recurring-overrides';
 import { listAttachmentsForTransaction } from '@/server/attachments';
-import { RETURN_PARAM, activityReturnFromBack } from '@/lib/engine/transactions/links';
+import { RETURN_PARAM, returnFromBack } from '@/lib/engine/transactions/links';
 import { isDemoUser } from '@/lib/demo-user';
 
 export const metadata = { title: 'Transaction' };
@@ -38,6 +38,11 @@ export default async function TransactionDetailPage({
   if (!session?.user?.id) redirect('/sign-in');
 
   const [{ id }, query] = await Promise.all([params, searchParams]);
+  // The raw `?back=` this page was entered with — the source for both the
+  // named return (below) and the waypoint links the view forwards.
+  const rawBack = Array.isArray(query[RETURN_PARAM])
+    ? query[RETURN_PARAM][0]
+    : (query[RETURN_PARAM] ?? null);
   const detail = await getTransactionDetail(session.user.id, id);
   // An id that is not this reader's is indistinguishable from one that does not
   // exist — the same refusal `getRuleSourceTransaction` makes, so a guessed id
@@ -72,12 +77,19 @@ export default async function TransactionDetailPage({
       // The verdict saved, but the rebuild that carries it to the cash surfaces
       // did not run — so this page may not promise that they moved.
       projectionsStale={query[PROJECTIONS_STALE_PARAM] === '1'}
-      // O.16 — place from Activity rides `?back=` (sentinel when unfiltered).
-      // Always a named Activity return — never null — so the detail page always
-      // offers the list for that row's context (owner 2026-08-03).
-      returnTo={activityReturnFromBack(
-        Array.isArray(query[RETURN_PARAM]) ? query[RETURN_PARAM][0] : query[RETURN_PARAM],
-      )}
+      // O.16 / C.15 — the reader's place rides `?back=`: a register view
+      // (sentinel when unfiltered), a NAMED page (triage, dashboard, an
+      // expander's host), or a transaction id. Always a named return — never
+      // null — so the detail page always offers the way back for that row's
+      // context (owner 2026-08-03).
+      //
+      // The RAW value is passed down as well: the detail page's waypoint links
+      // (rules, rename, split parent) forward it VERBATIM, and it must be a
+      // server-side prop — a `window.location` read renders the Activity
+      // sentinel on first paint and a fast click carries it (measured: the
+      // O.16 e2e caught exactly that race on C.15's first gate run).
+      returnTo={returnFromBack(rawBack)}
+      rawBack={rawBack}
       attachments={attachments}
       canEditSpendClass={!isDemoUser(session.user.id)}
     />

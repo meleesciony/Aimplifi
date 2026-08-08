@@ -25,7 +25,7 @@ import Link from 'next/link';
 import {
   RETURN_PARAM,
   merchantRegisterHref,
-  withRegisterReturn,
+  withForwardedReturn,
   type RegisterReturn,
 } from '@/lib/engine/transactions/links';
 import { Badge } from '@/components/ui/badge';
@@ -210,6 +210,7 @@ export function TransactionDetailView({
   recurringVerdict,
   projectionsStale,
   returnTo,
+  rawBack,
   attachments,
   canEditSpendClass = true,
 }: {
@@ -233,6 +234,10 @@ export function TransactionDetailView({
   projectionsStale: boolean;
   /** O.16 — Activity list place for this row (filters/page or bare Activity). */
   returnTo: RegisterReturn;
+  /** C.15 — the RAW `?back=` this page was entered with (see the waypoint
+   *  comment above): forwarded VERBATIM by the rules/rename/split-parent
+   *  links. Passed by the server page, never read from the window. */
+  rawBack: string | null;
   /** O.13h — this row's receipts, METADATA ONLY. The bytes live in their own
    *  table and are fetched one at a time by `/api/attachments/<id>`, so rendering
    *  this page never loads a file. */
@@ -287,13 +292,26 @@ export function TransactionDetailView({
     row.spendClass,
   );
   /**
-   * O.16 — this page is a WAYPOINT, not only a destination: from here the reader
-   * can go on to `/rules`, and losing his place at the second hop is the same
-   * defect as losing it at the first. Re-encoded from the already-validated
-   * `returnTo.href` rather than from raw `window.location`, so nothing that
-   * failed the decode can be laundered back into a link.
+   * O.16 / C.15 — this page is a WAYPOINT, not only a destination: from here
+   * the reader can go on to `/rules` or the split parent, and losing his place
+   * at the second hop is the same defect as losing it at the first.
+   *
+   * The RAW `?back=` is the source, not `returnTo.href`: a register encoding
+   * survives the decode → href → query round trip, but a named-page token or a
+   * transaction id is consumed into the href's PATH and cannot be recovered
+   * from it. The O.16 discipline ("nothing that failed the decode can be
+   * laundered back into a link") is kept by {@link forwardableBack}, which
+   * gates the value inside {@link withForwardedReturn}: a `back` that decodes
+   * to nothing collapses to the Activity sentinel instead of being forwarded.
+   *
+   * `rawBack` is a SERVER-SIDE PROP, not a `window.location` read, and the
+   * distinction is load-bearing: the first draft read the URL on the client,
+   * so the server-rendered waypoint links carried the Activity sentinel and
+   * only fixed after hydration — and the O.16 e2e clicked one of them inside
+   * that window and shipped `back=_activity` down the second hop (measured on
+   * C.15's first gate run). The page component already parses `?back=`, so
+   * first-paint hrefs are the final hrefs.
    */
-  const carriedQuery = returnTo.href.split('?')[1] ?? '';
   // The effect copy answers "what does pending DO to my figures" — shown while the
   // row IS pending (the state the reader is in) and while the live action WOULD
   // make it pending (what he is about to do), so it is never only after the fact.
@@ -574,13 +592,13 @@ export function TransactionDetailView({
                     onStatus: (status) =>
                       runFlag(() => setTransactionStatus({ transactionId: row.id, status })),
                     onRecurring: () => focusEditor('[data-testid="detail-recurring"]'),
-                    ruleHref: withRegisterReturn(
+                    ruleHref: withForwardedReturn(
                       `/rules?from=${encodeURIComponent(row.id)}&via=row`,
-                      carriedQuery,
+                      rawBack,
                     ),
-                    renameHref: withRegisterReturn(
+                    renameHref: withForwardedReturn(
                       `/rules?from=${encodeURIComponent(row.id)}&via=row#kw-rename`,
-                      carriedQuery,
+                      rawBack,
                     ),
                   }}
                 />
@@ -1048,10 +1066,18 @@ export function TransactionDetailView({
                 other durable caller — so once the reader navigated away from the
                 parent's URL, the split was permanent and the undo lived at an
                 address nothing linked to. The id was already being returned; only
-                the link was missing. */}
+                the link was missing.
+                C.15 (audit F2): it was BARE — the parent rendered "Back to
+                Activity" and the reader's place (the register view, the inbox,
+                the dashboard) was gone at the second hop. The parent now carries
+                this page's own forwardable context, so the undo screen offers
+                the same way back this one did. */}
             <p className="text-xs text-muted-foreground">{detail.splitBlockedReason}</p>
             <Link
-              href={`/transactions/${encodeURIComponent(detail.splitParentId)}`}
+              href={withForwardedReturn(
+                `/transactions/${encodeURIComponent(detail.splitParentId)}`,
+                rawBack,
+              )}
               data-testid="detail-split-parent-link"
               className="tap-target inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
             >
@@ -1257,9 +1283,9 @@ export function TransactionDetailView({
               the ones you already have is your choice at that point.
             </p>
             <Link
-              href={withRegisterReturn(
+              href={withForwardedReturn(
                 `/rules?from=${encodeURIComponent(row.id)}&via=row`,
-                carriedQuery,
+                rawBack,
               )}
               data-testid="detail-rule-link"
               className="tap-target inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"

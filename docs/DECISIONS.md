@@ -5877,3 +5877,65 @@ identity for non-negative inputs) — every existing lock on the sane case
 passed unchanged; only the C > S lock moved, with its hand-work restated.
 No schema change. No demo data change (the demo's goals are within the
 surplus). Verify gate and CI conclusion recorded in STATUS.md.
+
+## #433 — C.15: the return affordance one hop deeper — a transaction or a named page as the destination (2026-08-08)
+
+**The audit finding (CALC_AUDIT_2026-08-02 F1/F2/F3, owner: "user experience
+also seems quite clunky").** O.16 built the return affordance ("Back to Needs a
+category") on the register filter, and nothing else was expressible: a figure
+drilled on /triage, /dashboard, /budgets, /reports or /trends opened a
+transaction detail whose way back said "Activity" — the reader's place was
+structurally inexpressible (F1: a detail destination could not be expressed at
+all; F2: the split-parent link on a split child's page was bare; F3: all four
+entry points handed the detail page no context).
+
+**The decision: extend the O.16 construction verbatim, one hop deeper.** The
+same shape that made `?back=` safe — *the path is a LITERAL, only the query
+comes from the caller* — now admits two more literal-path families:
+
+- **A transaction destination.** `decodeTransactionReturn` is rooted at the
+  `/transactions/<id>` literal; the caller's ONLY input is the id, admitted
+  only through `TRANSACTION_ID_PATTERN` (`^[a-z0-9][a-z0-9-]{0,63}$`). The
+  pattern is deliberately NOT pinned to Prisma's `cuid()` — the demo seed
+  mints readable `txn-00001` ids and BOTH shapes sit in the same database
+  (verified against `dev.db`: a real row is `cmqvrv3hd0025j0cu9gvo2zor`, a
+  demo row `txn-00001`); a pattern that rejected one would silently dead-link
+  the other. What the pattern guarantees instead is path-escape-freedom: no
+  `/`, `?`, `#`, `.`, `\`, `%`, no uppercase. The open-redirect class is
+  closed by construction, one hop deeper: `?back=https://evil.example`,
+  `?back=../../settings`, `?back=javascript:…` all fail the charset.
+- **A named page.** `PAGE_RETURNS` is a closed table (triage, dashboard,
+  budgets, reports, trends → literal path + honest label); `decodeNamedPageReturn`
+  admits ONLY a table token, with the page's own query appended to the literal.
+  `_activity` is deliberately NOT a row — it is the register's sentinel, so
+  the two vocabularies stay disjoint.
+- **The three encodings are mutually disjoint by construction** (register
+  queries carry `=` pairs / the sentinel starts with `_`; named tokens start
+  with `_`; transaction ids admit only `[a-z0-9-]`), so decode order can never
+  launder a caller-supplied path.
+
+**F2 — the split-parent link carries the CHILD's place, not the child's id.**
+The alternative (forwarding the parent's id) loses the register view at the
+second hop: P→C would return to "the transaction" even though the reader came
+from "Needs a category". The parent now receives this page's own forwardable
+context, so the undo screen offers the same way back this one did. The bare-id
+decoder still ships as F1's "structurally expressible" requirement, locked by
+unit tests, with no writer in this slice.
+
+**`forwardableBack` is the O.16 waypoint discipline, made a predicate.** A
+second-hop link may carry the reader's place ONLY when the value decodes to
+one of this module's destinations; everything else — including the hostile
+set — collapses to the Activity sentinel. This REPLACES the returnTo.href
+round-trip at the detail page: a register encoding survives decode → href →
+query, but a named-page token and a transaction id are consumed into the
+href's PATH and cannot be recovered from it, so the raw `?back=` has to be the
+source, gated here. `withForwardedReturn` is the sibling encoder (verbatim
+attach, fragment-safe, byte-identical to `withRegisterReturn` for the register
+encodings they share).
+
+**One mechanical lesson, recorded:** `{/* */}` brace comments between JSX
+attributes are invalid TypeScript (TS1005) — the braces make the comment look
+like a child; bare `/* */` or `//` parse there. Four such comments were
+written, rejected by tsc with a bisected minimal repro, and rewritten bare.
+No schema change, no demo data change. Verify gate and CI conclusion recorded
+in STATUS.md.

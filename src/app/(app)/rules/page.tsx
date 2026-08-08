@@ -14,7 +14,7 @@ import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import {
   activityReturnFromBack,
   REGISTER_PATH,
-  withRegisterReturn,
+  withForwardedReturn,
 } from '@/lib/engine/transactions/links';
 import { getVisibleGroups } from '@/server/categories';
 import { getCategoryMeta } from '@/server/category-meta';
@@ -59,10 +59,15 @@ export default async function RulesPage({
   // `?from=` only prefills. List place rides `?back=`. `via=row` means he left
   // a single-row detail page — primary Return goes there; Activity is always offered.
   const activityReturn = activityReturnFromBack(back);
+  // C.15 (audit F1): the row return is a TRANSACTION destination — the id is
+  // percent-encoded so a hostile `?from=` cannot inject path segments, and the
+  // place the reader came from rides forward VERBATIM through
+  // `withForwardedReturn` (gated: only a value that decodes gets forwarded), so
+  // a triage or dashboard place survives the /rules hop into the transaction.
   const rowReturn =
     from && via === 'row'
       ? {
-          href: withRegisterReturn(`/transactions/${from}`, back),
+          href: withForwardedReturn(`/transactions/${encodeURIComponent(from)}`, back),
           label: 'this transaction',
         }
       : null;
