@@ -75,10 +75,22 @@ try {
     "bundle has the 'share the same accounts' instruction — combine refuses without it",
     corpus.includes('the same accounts'),
   );
-  // The three critic-forced corrections.
+  // The caveat copy, narrowed by the H.6b(a) carry: hand-filed work now travels across the
+  // combine onto the exact (date, amount) match, the honest remainder (an unmatched copy) still
+  // stops being applied, and a stale split (critic P1-3, executed) is disclosed as going back
+  // to review. The three carry markers are NEW to this slice — no earlier build can satisfy
+  // them — so the bundle check doubles as the deploy proof.
   check(
-    'bundle has the F2 caveat: hand-filed work stops being applied',
-    corpus.includes('stop being applied'),
+    'bundle has the H.6b(a) caveat: hand-filed work carries across the exact match',
+    corpus.includes('same date and same amount'),
+  );
+  check(
+    'bundle still discloses the honest remainder: an unmatched copy stops being applied',
+    corpus.includes('stops being applied'),
+  );
+  check(
+    'bundle names the critic-forced stale-split exception: a broken split goes back to review',
+    corpus.includes('no longer match the charge'),
   );
   check(
     'bundle KEEPS the F2 reassurance that no money moves',

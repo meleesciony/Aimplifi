@@ -852,6 +852,165 @@ describe('when the app will NOT offer a combine, it says why', () => {
   });
 });
 
+describe('H.6b(a) — the reader’s hand-filed work follows the account across the combine', () => {
+  beforeEach(() => seed());
+
+  /** The deepen shape through the REAL action: the kept connection (item-first) is the new deep
+   *  side (history from 06-01); the dropped connection (item-second) is the old shallow side
+   *  (history from 07-10), so the handover clamps to 07-10 and everything the old side recorded
+   *  after its first day is disowned. The base seed's COSTCO 07-20 copy on the dropped side is
+   *  disowned too — carried as a no-op. */
+  async function seedDeepen() {
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: `${uid}-a1`, date: '2026-06-01', rawDescriptor: 'EARLY', amountCents: -5_000, status: 'POSTED' },
+        { accountId: `${uid}-a2`, date: '2026-07-10', rawDescriptor: 'RENT', amountCents: -200_000, status: 'POSTED' },
+        { accountId: `${uid}-a2`, date: '2026-07-11', rawDescriptor: 'WHOLE FOODS', amountCents: -31_000, status: 'POSTED' },
+        { accountId: `${uid}-a1`, date: '2026-07-11', rawDescriptor: 'WHOLE FOODS', amountCents: -31_000, status: 'POSTED' },
+      ],
+    });
+  }
+
+  it('carries the reader’s filing on the dropped copies onto the survivor', async () => {
+    await seedDeepen();
+    const wf = await prisma.transaction.findFirstOrThrow({ where: { accountId: `${uid}-a2`, date: '2026-07-11' } });
+    await prisma.transaction.update({
+      where: { id: wf.id },
+      data: { categoryId: 'groceries', note: 'weekly shop', taxClass: 'FOOD', confidenceBps: 10_000, needsReview: false },
+    });
+    await prisma.correction.create({ data: { userId: uid, transactionId: wf.id, toCategoryId: 'groceries' } });
+
+    const res = await combineDuplicateConnectionsFor(
+      uid, { keepItemId: 'item-first', dropItemId: 'item-second' }, TODAY, fakeDisconnect,
+    );
+    expect(res).toEqual({ ok: true, combined: 1, failures: [], revokeFailed: null });
+
+    const survivor = await prisma.transaction.findFirstOrThrow({ where: { accountId: `${uid}-a1`, date: '2026-07-11' } });
+    expect(survivor.categoryId).toBe('groceries');
+    expect(survivor.note).toBe('weekly shop');
+    expect(survivor.taxClass).toBe('FOOD');
+    expect(survivor.needsReview).toBe(false);
+    // The Correction MOVED with the decision — never copied (a copy would double the learner's
+    // evidence, H.8 residual-2), never stacked onto the survivor's own chain.
+    expect(await prisma.correction.count({ where: { transactionId: wf.id } })).toBe(0);
+    expect(await prisma.correction.count({ where: { transactionId: survivor.id } })).toBe(1);
+    // The kept predecessor day (the deepen's own first day) is untouched — its filing already
+    // applies, no carry needed.
+    const rent = await prisma.transaction.findFirstOrThrow({ where: { accountId: `${uid}-a2`, date: '2026-07-10' } });
+    expect(rent.categoryId).toBeNull();
+    expect(await prisma.correction.count({ where: { transactionId: rent.id } })).toBe(0);
+    // The register reads the charge once, on the survivor, and nothing else moved.
+    const { rows } = await getTransactions(uid);
+    expect(rows.filter((r) => r.rawDescriptor === 'WHOLE FOODS')).toHaveLength(1);
+    expect(rows.map((r) => r.rawDescriptor).sort()).toEqual(['COSTCO', 'EARLY', 'RENT', 'WHOLE FOODS']);
+  });
+
+  it('the survivor’s own reader values win — and never get a correction chain stacked onto them', async () => {
+    await seedDeepen();
+    const pred = await prisma.transaction.findFirstOrThrow({ where: { accountId: `${uid}-a2`, date: '2026-07-11' } });
+    const succ = await prisma.transaction.findFirstOrThrow({ where: { accountId: `${uid}-a1`, date: '2026-07-11' } });
+    await prisma.transaction.update({ where: { id: pred.id }, data: { categoryId: 'groceries', note: 'old note', needsReview: false } });
+    await prisma.correction.create({ data: { userId: uid, transactionId: pred.id, toCategoryId: 'groceries' } });
+    // The reader filed the survivor copy too — their own later decision wins.
+    await prisma.transaction.update({ where: { id: succ.id }, data: { categoryId: 'dining', note: 'new note', needsReview: false } });
+    await prisma.correction.create({ data: { userId: uid, transactionId: succ.id, toCategoryId: 'dining' } });
+
+    const res = await combineDuplicateConnectionsFor(
+      uid, { keepItemId: 'item-first', dropItemId: 'item-second' }, TODAY, fakeDisconnect,
+    );
+    expect(res.ok).toBe(true);
+
+    const survivor = await prisma.transaction.findFirstOrThrow({ where: { id: succ.id } });
+    expect(survivor.categoryId).toBe('dining');
+    expect(survivor.note).toBe('new note');
+    expect(await prisma.correction.count({ where: { transactionId: succ.id } })).toBe(1);
+    expect(await prisma.correction.count({ where: { transactionId: pred.id } })).toBe(1);
+  });
+
+  it('the reader’s verdict outranks the survivor’s engine guess', async () => {
+    await seedDeepen();
+    const pred = await prisma.transaction.findFirstOrThrow({ where: { accountId: `${uid}-a2`, date: '2026-07-11' } });
+    const succ = await prisma.transaction.findFirstOrThrow({ where: { accountId: `${uid}-a1`, date: '2026-07-11' } });
+    await prisma.transaction.update({ where: { id: pred.id }, data: { categoryId: 'groceries', needsReview: false } });
+    await prisma.correction.create({ data: { userId: uid, transactionId: pred.id, toCategoryId: 'groceries' } });
+    // The survivor's fresh copy was auto-filed by the pipeline — engine guess, no Correction.
+    await prisma.transaction.update({
+      where: { id: succ.id },
+      data: { categoryId: 'utilities', confidenceBps: 5_000, needsReview: false },
+    });
+
+    const res = await combineDuplicateConnectionsFor(
+      uid, { keepItemId: 'item-first', dropItemId: 'item-second' }, TODAY, fakeDisconnect,
+    );
+    expect(res.ok).toBe(true);
+
+    const survivor = await prisma.transaction.findFirstOrThrow({ where: { id: succ.id } });
+    expect(survivor.categoryId).toBe('groceries');
+    expect(survivor.needsReview).toBe(false);
+    expect(await prisma.correction.count({ where: { transactionId: succ.id } })).toBe(1);
+  });
+
+  it('a hand-split family on the dropped side is re-created under the survivor', async () => {
+    await seedDeepen();
+    const parent = await prisma.transaction.create({
+      data: { accountId: `${uid}-a2`, date: '2026-07-15', rawDescriptor: 'DINNER', amountCents: -10_000, status: 'POSTED', isSplitParent: true },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: `${uid}-a2`, date: '2026-07-15', rawDescriptor: 'DINNER', amountCents: -6_000, status: 'POSTED', splitParentId: parent.id, categoryId: 'groceries', needsReview: false },
+        { accountId: `${uid}-a2`, date: '2026-07-15', rawDescriptor: 'DINNER', amountCents: -4_000, status: 'POSTED', splitParentId: parent.id, categoryId: 'dining', needsReview: false },
+        { accountId: `${uid}-a1`, date: '2026-07-15', rawDescriptor: 'DINNER', amountCents: -10_000, status: 'POSTED' },
+      ],
+    });
+
+    const res = await combineDuplicateConnectionsFor(
+      uid, { keepItemId: 'item-first', dropItemId: 'item-second' }, TODAY, fakeDisconnect,
+    );
+    expect(res).toEqual({ ok: true, combined: 1, failures: [], revokeFailed: null });
+
+    const container = await prisma.transaction.findFirstOrThrow({
+      where: { accountId: `${uid}-a1`, rawDescriptor: 'DINNER', isSplitParent: true },
+    });
+    expect(container.amountCents).toBe(-10_000);
+    const pieces = await prisma.transaction.findMany({ where: { splitParentId: container.id } });
+    const byAmount = new Map(pieces.map((p) => [p.amountCents, p.categoryId]));
+    expect(byAmount.size).toBe(2);
+    expect(byAmount.get(-6_000)).toBe('groceries');
+    expect(byAmount.get(-4_000)).toBe('dining');
+    expect(pieces.reduce((s, p) => s + p.amountCents, 0)).toBe(-10_000);
+    // The register counts the charge exactly once, as the reader's two pieces.
+    const { rows } = await getTransactions(uid);
+    const dinner = rows.filter((r) => r.rawDescriptor === 'DINNER');
+    expect(dinner.map((r) => r.amountCents).sort()).toEqual([-6_000, -4_000].sort());
+  });
+
+  it('two identical same-day charges on both sides are carried for neither — never guess', async () => {
+    await seedDeepen();
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: `${uid}-a2`, date: '2026-07-16', rawDescriptor: 'STARBUCKS', amountCents: -1_200, status: 'POSTED' },
+        { accountId: `${uid}-a2`, date: '2026-07-16', rawDescriptor: 'STARBUCKS', amountCents: -1_200, status: 'POSTED' },
+        { accountId: `${uid}-a1`, date: '2026-07-16', rawDescriptor: 'STARBUCKS', amountCents: -1_200, status: 'POSTED' },
+        { accountId: `${uid}-a1`, date: '2026-07-16', rawDescriptor: 'STARBUCKS', amountCents: -1_200, status: 'POSTED' },
+      ],
+    });
+    const filed = await prisma.transaction.findFirstOrThrow({ where: { accountId: `${uid}-a2`, date: '2026-07-16' } });
+    await prisma.transaction.update({ where: { id: filed.id }, data: { categoryId: 'groceries', needsReview: false } });
+    await prisma.correction.create({ data: { userId: uid, transactionId: filed.id, toCategoryId: 'groceries' } });
+
+    const res = await combineDuplicateConnectionsFor(
+      uid, { keepItemId: 'item-first', dropItemId: 'item-second' }, TODAY, fakeDisconnect,
+    );
+    expect(res).toEqual({ ok: true, combined: 1, failures: [], revokeFailed: null });
+
+    // The carry refused to guess which survivor is which: neither receives the filing, and no
+    // correction moved — the combine itself is never blocked by the ambiguity.
+    const survivors = await prisma.transaction.findMany({ where: { accountId: `${uid}-a1`, date: '2026-07-16' } });
+    for (const s of survivors) expect(s.categoryId).toBeNull();
+    expect(await prisma.correction.count({ where: { transactionId: { in: survivors.map((s) => s.id) } } })).toBe(0);
+  });
+});
+
 describe('buildCombineInputs — the per-connection depth fold (H.6c critic P1: it was unlocked)', () => {
   // A bank connection normally carries SEVERAL accounts (checking + card is the ordinary case),
   // and the critic inverted the fold (min → max) with every suite green because all shipped

@@ -313,7 +313,7 @@ function lastDate(rows: readonly DatedAmount[]): ISODate | null {
  * executed the version that dropped dangling children from this multiset: a counted $60.00
  * vanished from the register behind an `ok: true`.
  */
-function bankShapeRows(rows: readonly GuardRow[]): GuardRow[] {
+function bankShapeRows<T extends GuardRow>(rows: readonly T[]): T[] {
   const parentIds = new Set(rows.filter((r) => r.isSplitParent).map((r) => r.id));
   return rows.filter((r) => r.splitParentId === null || !parentIds.has(r.splitParentId));
 }
@@ -439,6 +439,368 @@ function cannotSplitCleanly(
   return `${head} Sync both connections and try again; if it keeps happening, the two genuinely differ in places — keep them both, and use “Not the same account” below to stop this offer.`;
 }
 
+/**
+ * TASKS H.6b(a) — the reader's hand-filed work follows the account across a combine.
+ *
+ * The boundary hands the overlap to the survivor, and in the deepen shape (the cutover clamped
+ * to the predecessor's FIRST transaction) that is nearly everything the old side recorded — so
+ * without this, categories, notes, tax classes, exclusions and split families set by hand on
+ * the old connection's copies silently stopped being applied in favour of the new connection's
+ * untouched copies. No money was lost (that is the guard's job); the reader's decisions were.
+ *
+ * The planner matches every row the boundary will DISOWN on the predecessor side to its
+ * counterpart on the survivor by the exact (date, amount) pair — the same conservative unit the
+ * no-loss guard uses (TASKS H.6b(b); C.6's lesson: a loose pair rule once credited 11 refunds
+ * as payments, so no tolerance, no fuzzy matching). A key is carried only when exactly ONE
+ * disowned predecessor row and exactly ONE survivor row hold it; two identical charges on
+ * either side cannot be told apart, so the key is skipped rather than guessed.
+ *
+ * What is reader-owned:
+ *   * the flat per-row state (`note`, `taxClass`, `excludeFromTotals`, `reimbursement`) — the
+ *     same set plaid.ts's pending→posted transplant carries (`carriedReaderState`);
+ *   * the category verdict — a row with a Correction and not flagged for review (the same
+ *     `settled` predicate the transplant uses). The reader's verdict outranks the survivor's
+ *     ENGINE guess exactly as it outranks the bank's fresh row in the id-churn transplant, and
+ *     is blocked by the survivor's OWN correction, by a pin (a dissolve-forced review has no
+ *     verdict to accept), and by a survivor that is itself a split CHILD — a child's category
+ *     is the reader's own allocation, so a verdict there would replace one reader value with
+ *     another (P1-1). The corrections MOVE, never copy — a copy would feed the learner the same
+ *     decision twice (H.8 residual-2);
+ *   * a split family — the reader's re-labelling of one bank charge (children sum to the parent
+ *     by `splitTransaction`'s validation). Children's categories are reader-owned BY
+ *     CONSTRUCTION: only the split UI writes children. Two doctrine edges, both critic-executed:
+ *     a SETTLED filing on the survivor blocks the family entirely (the row would become a
+ *     container that no sum reads — the survivor's completed decision wins, P1-2), and a family
+ *     whose parts no longer sum to the charge is a STALE split (the transplant's dissolve
+ *     shape): no pre-split verdict travels and the survivor is FORCED into review — a destroyed
+ *     reader decision always re-decides (DECISIONS #147/#148, P1-3).
+ *
+ * Deliberately not carried: `spendClassOverride` (the keyword-rule backfill stamps it),
+ * `reviewPinned` (a pin is a per-copy review demand, and the survivor's queue presence is the
+ * survivor's own state), and the successor's engine filing where the reader made none.
+ *
+ * A carry can never refuse or roll back a combine: data conditions (an ambiguous key, a split
+ * whose parts no longer sum, a survivor already carrying its own reader state) skip that row or
+ * family — they never throw.
+ */
+
+/** One row of the two connections, as read for the carry. */
+export interface CarryRow {
+  id: string;
+  date: string;
+  amountCents: number;
+  isSplitParent: boolean;
+  splitParentId: string | null;
+  categoryId: string | null;
+  confidenceBps: number | null;
+  needsReview: boolean;
+  isTransfer: boolean;
+  reviewPinned: boolean;
+  note: string | null;
+  taxClass: string | null;
+  excludeFromTotals: boolean;
+  reimbursement: string | null;
+  status: string;
+  rawDescriptor: string; // schema-required — the bank's own descriptor text
+  merchantId: string | null;
+  /** A Correction exists on this row — the reader (or their rule) filed it. */
+  hasCorrection: boolean;
+}
+
+/** One planned write onto a surviving row: the changed fields, the family to create under it,
+ *  and the corrections to MOVE onto it from the disowned rows. */
+export interface CarryRowWrite {
+  targetId: string;
+  /** Only the fields that actually change — the never-clobber rules are decided here. */
+  data: {
+    categoryId?: string | null;
+    confidenceBps?: number | null;
+    needsReview?: boolean;
+    isTransfer?: boolean;
+    note?: string;
+    taxClass?: string;
+    excludeFromTotals?: boolean;
+    reimbursement?: string;
+    isSplitParent?: boolean;
+    reviewPinned?: boolean;
+  };
+  /** Created under `targetId` when a split family is carried whole. */
+  children?: CarryChildWrite[];
+  /** Corrections on the disowned row(s), moved onto `targetId` (never copied). */
+  moveCorrectionsFrom?: string[];
+}
+
+/** A re-created split child: the disowned child's columns verbatim, with its id re-pointed. */
+export interface CarryChildWrite {
+  date: string;
+  amountCents: number;
+  rawDescriptor: string; // schema-required — the bank's own descriptor text
+  merchantId: string | null;
+  categoryId: string | null;
+  confidenceBps: number | null;
+  needsReview: boolean;
+  isTransfer: boolean;
+  note: string | null;
+  taxClass: string | null;
+  excludeFromTotals: boolean;
+  reimbursement: string | null;
+  status: string;
+  moveCorrectionsFrom: string[];
+}
+
+function carryKey(r: { date: string; amountCents: number }): string {
+  return `${r.date}|${r.amountCents}`;
+}
+
+/** The never-clobber carry of one disowned row's reader state onto its matched survivor row. */
+function buildCarryRowWrite(p: CarryRow, s: CarryRow): CarryRowWrite {
+  const data: CarryRowWrite['data'] = {};
+  // Flat reader fields — carried only onto a survivor that has none of its own.
+  if (p.note !== null && s.note === null) data.note = p.note;
+  if (p.taxClass !== null && p.taxClass !== '' && (s.taxClass === null || s.taxClass === '')) {
+    data.taxClass = p.taxClass;
+  }
+  if (p.excludeFromTotals && !s.excludeFromTotals) data.excludeFromTotals = true;
+  if (p.reimbursement !== null && s.reimbursement === null) data.reimbursement = p.reimbursement;
+  // The category verdict: a Correction marks an explicit reader filing, which outranks the
+  // survivor's engine guess — but never the survivor's OWN filing, a pinned row (a
+  // dissolve-forced review) has no verdict to accept, and a survivor that is itself a split
+  // CHILD (splitParentId set) never receives one: its category is the reader's own allocation
+  // — only the split UI writes children — so a carried verdict would replace one reader value
+  // with another. The corrections MOVE with a verdict, never copy.
+  const settled = p.hasCorrection && !p.needsReview;
+  const verdictWins =
+    settled &&
+    !s.hasCorrection &&
+    !s.reviewPinned &&
+    s.splitParentId === null &&
+    // Finding A (critic cycle 4, P1, extended from F4): a verdict and its Correction NEVER
+    // land on a survivor that is a split container, from ANY source — F4 proved it for a
+    // PIECE source (the child's category is reader-owned by construction), and the cycle-4
+    // critic extended it: the container's children are the reader's own allocation, so a
+    // whole-charge verdict from a plain predecessor row would replace one reader value with
+    // another (O.13b keeps the reader's pre-split category on the container) and the moved
+    // Correction would feed the learner evidence that contradicts the reader's own pieces.
+    // (A verdict onto a PLAIN survivor is fine — the plain row is that same amount's own copy.)
+    !s.isSplitParent;
+  if (verdictWins) {
+    data.categoryId = p.categoryId;
+    data.confidenceBps = p.confidenceBps;
+    data.needsReview = false;
+    data.isTransfer = p.isTransfer;
+  }
+  const write: CarryRowWrite = { targetId: s.id, data };
+  if (verdictWins) write.moveCorrectionsFrom = [p.id];
+  return write;
+}
+
+export function planReaderFieldCarry(
+  predRows: readonly CarryRow[],
+  succRows: readonly CarryRow[],
+  cutover: ISODate,
+): CarryRowWrite[] {
+  const predShape = bankShapeRows(predRows);
+  const succShape = bankShapeRows(succRows);
+  // Rows the boundary will disown — the survivor owns everything after the cutover, so the
+  // predecessor's own post-cutover rows stop being read. The guard's own `predDropped`.
+  const disowned = predShape.filter((r) => compareDates(isoDate(r.date), cutover) > 0);
+  if (disowned.length === 0) return [];
+
+  // C.6's conservative matching: a (date, amount) key is carried only when exactly one
+  // disowned predecessor row and exactly one survivor row hold it.
+  const predCounts = new Map<string, number>();
+  const succCounts = new Map<string, number>();
+  for (const r of disowned) predCounts.set(carryKey(r), (predCounts.get(carryKey(r)) ?? 0) + 1);
+  for (const r of succShape) succCounts.set(carryKey(r), (succCounts.get(carryKey(r)) ?? 0) + 1);
+  const succByKey = new Map<string, CarryRow>();
+  for (const s of succShape) if (!succByKey.has(carryKey(s))) succByKey.set(carryKey(s), s);
+  // A write that would change nothing (every never-clobber rule blocked) is not a write.
+  const hasContent = (w: CarryRowWrite): boolean =>
+    Object.keys(w.data).length > 0 ||
+    w.children !== undefined ||
+    (w.moveCorrectionsFrom !== undefined && w.moveCorrectionsFrom.length > 0);
+
+  const writes: CarryRowWrite[] = [];
+  for (const p of disowned) {
+    const key = carryKey(p);
+    if (predCounts.get(key) !== 1 || succCounts.get(key) !== 1) continue;
+    const s = succByKey.get(key) as CarryRow;
+    const write = buildCarryRowWrite(p, s);
+    const childWrites: CarryRowWrite[] = [];
+    if (p.isSplitParent) {
+      const children = predRows.filter((r) => r.splitParentId === p.id);
+      const childSum = children.reduce((sum, c) => sum + c.amountCents, 0);
+      if (
+        children.length > 0 &&
+        childSum === p.amountCents &&
+        !s.isSplitParent &&
+        s.splitParentId === null &&
+        !s.reviewPinned &&
+        // P1-2 (critic-executed): a SETTLED filing on the survivor is a completed reader
+        // decision — converting the row into a container would neutralize it silently and
+        // forever (containers don't drive any sum), the mirror of this slice's own bug. The
+        // survivor's filing wins; the family is not carried. (An UNFINISHED review demand
+        // still admits the family — the reader re-decides it with the pieces visible.)
+        !(s.hasCorrection && !s.needsReview)
+      ) {
+        // The family is carried whole, exactly like the pending→posted transplant: the
+        // survivor's plain row becomes the container and the children are re-created under it
+        // verbatim — their categories and amounts are the reader's own allocation. The
+        // survivor's OWN review state is never clobbered: a settled verdict (the only one
+        // buildCarryRowWrite can emit) already clears needsReview, and reviewPinned is
+        // impossible here — this branch requires a survivor that carries none.
+        write.data.isSplitParent = true;
+        write.children = children.map((c) => ({
+          date: c.date,
+          amountCents: c.amountCents,
+          rawDescriptor: c.rawDescriptor,
+          merchantId: c.merchantId,
+          categoryId: c.categoryId,
+          confidenceBps: c.confidenceBps,
+          needsReview: c.needsReview,
+          isTransfer: c.isTransfer,
+          // NEW-1 (critic-executed): the survivor's OWN flat flags are charge-level reader
+          // work, and once this row becomes a container none of them is read anywhere —
+          // the register lists only children, the tax report leaves containers out entirely
+          // (TAX_BLOCKED_SPLIT_PARENT's doctrine: a tag "belongs on the pieces"), and the
+          // reimbursement line skips containers. The children inherit the survivor's flags
+          // (survivor wins; the old pieces' own values fill gaps) — O.15 P1-1's exclusion
+          // rule, "the pieces inherit the reader's 'not my spending'", extended to all four
+          // flats, so the carry cannot make an excluded charge count again, vanish a
+          // money-owed claim, or hide a tag the reader set on the new copy.
+          note: s.note ?? c.note,
+          taxClass: s.taxClass !== null && s.taxClass !== '' ? s.taxClass : c.taxClass,
+          excludeFromTotals: s.excludeFromTotals || c.excludeFromTotals,
+          reimbursement: s.reimbursement ?? c.reimbursement,
+          status: c.status,
+          moveCorrectionsFrom: c.hasCorrection ? [c.id] : [],
+        }));
+      } else if (s.isSplitParent) {
+        // BOTH sides were split by the reader: the survivor's family already is their work.
+        // Carry each piece's flat state onto its uniquely-matched piece; the survivor's own
+        // categories are the reader's (only the split UI writes children — P1-1, critic
+        // executed: a settled refile on the old piece must not replace the survivor piece's
+        // own category), so `buildCarryRowWrite`'s child-verdict rule blocks any verdict and
+        // correction move here.
+        const succChildren = succRows.filter((r) => r.splitParentId === s.id);
+        const succChildCounts = new Map<string, number>();
+        for (const sc of succChildren) {
+          succChildCounts.set(carryKey(sc), (succChildCounts.get(carryKey(sc)) ?? 0) + 1);
+        }
+        // F2 (critic-executed): C.6's multiplicity gate runs on BOTH sides — two identical
+        // pieces on the old copy (the reader split a $10 charge into two $5s) both match the
+        // same survivor piece; carrying both would let the second overwrite the first.
+        const predChildCounts = new Map<string, number>();
+        for (const c of children) {
+          predChildCounts.set(carryKey(c), (predChildCounts.get(carryKey(c)) ?? 0) + 1);
+        }
+        for (const c of children) {
+          const childKey = carryKey(c);
+          if (predChildCounts.get(childKey) !== 1 || succChildCounts.get(childKey) !== 1) continue;
+          const sc = succChildren.find((r) => carryKey(r) === childKey) as CarryRow;
+          const childWrite = buildCarryRowWrite(c, sc);
+          if (hasContent(childWrite)) childWrites.push(childWrite);
+        }
+        // Finding A (critic cycle 4, P1): the OLD container's own charge-level flats (its note,
+        // tag, exclusion, reimbursement) are read nowhere once it is a container, so they route
+        // onto the survivor's pieces — each piece's effective value wins (the piece→piece
+        // carries above first, then the old container's flats fill the gaps). The verdict is
+        // blocked on a container from ANY source (the container rule in buildCarryRowWrite), so
+        // `write.data` here is flats only.
+        if (Object.keys(write.data).length > 0) {
+          for (const sc of succChildren) {
+            const existing = childWrites.find((w) => w.targetId === sc.id);
+            const eff = existing ? { ...sc, ...existing.data } : sc;
+            const gap: CarryRowWrite['data'] = {};
+            if (write.data.note !== undefined && eff.note === null) gap.note = write.data.note;
+            if (write.data.taxClass !== undefined && (eff.taxClass === null || eff.taxClass === '')) {
+              gap.taxClass = write.data.taxClass;
+            }
+            if (write.data.excludeFromTotals === true && !eff.excludeFromTotals) {
+              gap.excludeFromTotals = true;
+            }
+            if (write.data.reimbursement !== undefined && eff.reimbursement === null) {
+              gap.reimbursement = write.data.reimbursement;
+            }
+            if (Object.keys(gap).length > 0) {
+              if (existing) Object.assign(existing.data, gap);
+              else childWrites.push({ targetId: sc.id, data: gap });
+            }
+          }
+        }
+        // The container itself takes nothing — a row no surface reads.
+        write.data = {};
+        delete write.moveCorrectionsFrom;
+      } else if (
+        children.length > 0 &&
+        childSum !== p.amountCents &&
+        // F3 (critic-executed): never fire on a dangling-child survivor — its category IS the
+        // reader's own allocation, so pinning it into durable review would force the reader to
+        // re-decide an intact decision. (The P1-2 settled-survivor exception above, and this
+        // same child guard, are the two shapes where the stale family just stops being applied.)
+        s.splitParentId === null &&
+        !(s.hasCorrection && !s.needsReview)
+      ) {
+        // P1-3 (critic-executed): the parts no longer sum to the charge — the exact stale-split
+        // shape the transplant's dissolve branch exists for (the bank amended the amount, and a
+        // split whose pieces stopped matching was destroyed). The reader's allocation is gone,
+        // so a destroyed reader decision must re-decide (DECISIONS #147/#148): no pre-split
+        // verdict is carried, no correction moves, and the survivor is FORCED into review —
+        // durably, so a re-sync cannot clear it. A SETTLED filing on the survivor still wins
+        // (P1-2's rule — nothing was destroyed on the survivor's own copy); the stale family
+        // simply stops being applied.
+        delete write.data.categoryId;
+        delete write.data.confidenceBps;
+        delete write.data.needsReview;
+        delete write.data.isTransfer;
+        delete write.moveCorrectionsFrom;
+        write.data.needsReview = true;
+        write.data.reviewPinned = true;
+      }
+      // Any other shape (a childless container treated as a plain row, or a survivor that is a
+      // dangling child, a pinned row, or its own settled filing) keeps the flat carry and
+      // skips the family — a carry never blocks an admitted combine.
+    } else if (s.isSplitParent) {
+      // Finding A (critic cycle 4, P1): a PLAIN (or dangling-child) predecessor row matched
+      // the survivor's CONTAINER — a row no surface reads (the register lists only children,
+      // the tax report leaves containers out entirely, the reimbursement line skips them).
+      // The pred row's flats are LIVE, money-bearing state — the plain row counts, and a
+      // dangling child counts by the bank-shape doctrine — so on the container they would
+      // stop applying: an exclusion reinstates the charge into every total, an 'awaiting'
+      // claim vanishes, a tag leaves the export. They route onto the container's CHILDREN,
+      // the same survivor-first gap-fill as the NEW-1 inheritance; the verdict never lands
+      // here either (the container rule — the pieces are the reader's own allocation).
+      const succChildren = succRows.filter((r) => r.splitParentId === s.id);
+      for (const sc of succChildren) {
+        const childWrite: CarryRowWrite = { targetId: sc.id, data: {} };
+        if (p.note !== null && sc.note === null) childWrite.data.note = p.note;
+        if (p.taxClass !== null && p.taxClass !== '' && (sc.taxClass === null || sc.taxClass === '')) {
+          childWrite.data.taxClass = p.taxClass;
+        }
+        if (p.excludeFromTotals && !sc.excludeFromTotals) childWrite.data.excludeFromTotals = true;
+        if (p.reimbursement !== null && sc.reimbursement === null) childWrite.data.reimbursement = p.reimbursement;
+        if (hasContent(childWrite)) childWrites.push(childWrite);
+      }
+      // No write targets the container itself — the `write` computed above is discarded.
+      write.data = {};
+      delete write.moveCorrectionsFrom;
+    }
+    if (hasContent(write)) {
+      writes.push(write);
+      // Piece writes target different rows, but the container's write comes first so a reader
+      // of the plan sees the family's verdict before its pieces' flats.
+      writes.push(...childWrites);
+    } else if (childWrites.length > 0) {
+      // F1 (critic-executed): a contentless PARENT write must not gate its pieces' flats.
+      // Splitting never mints a Correction, so in the common family→family combine the old
+      // container's own write is empty while its pieces carry notes, tax classes, exclusions
+      // and reimbursements — those travel even though the parent changes nothing.
+      writes.push(...childWrites);
+    }
+  }
+  return writes;
+}
+
 type Claim =
   | { ok: true; pairs: readonly CombineAccountPair[]; cutovers: Map<string, string>; accessToken: string }
   | { ok: false; error: string };
@@ -532,7 +894,7 @@ export async function combineDuplicateConnectionsFor(
         const dropItem = items.find((i) => i.itemId === direction.dropItemId);
         if (!dropItem) return { ok: false, error: NOT_COMBINABLE };
 
-        const cutovers = new Map<string, string>();
+        const cutovers = new Map<string, ISODate>();
         // THE GUARD THIS FEATURE RESTS ON (critic P0 #304, executed in both directions; reworked
         // by the H.6b(b) critic's P0). The boundary splits two rows by a DATE, so whichever side
         // does not own a day loses its copy of it — exactly right when the copies are duplicates,
@@ -628,6 +990,80 @@ export async function combineDuplicateConnectionsFor(
               where: { id: pair.successorAccountId },
               data: { displayName: droppedName.displayName },
             });
+          }
+        }
+        // TASKS H.6b(a) — the reader's hand-filed work follows the account across a combine,
+        // like the AutopayConfig and displayName carries above. The boundary hands the overlap
+        // to the survivor, and in the deepen shape (the cutover clamped to the predecessor's
+        // FIRST transaction) that is nearly everything the old side recorded — so categories,
+        // notes, tax classes, exclusions and split families set by hand on the old connection's
+        // copies silently stopped being applied. `planReaderFieldCarry` matches each row the
+        // boundary will disown to its survivor counterpart (exact date + amount — C.6's
+        // conservative rule) and plans the writes; nothing here can refuse the combine, and a
+        // data condition skips its row or family rather than throwing.
+        const carrySelect = {
+          id: true,
+          date: true,
+          amountCents: true,
+          isSplitParent: true,
+          splitParentId: true,
+          categoryId: true,
+          confidenceBps: true,
+          needsReview: true,
+          isTransfer: true,
+          reviewPinned: true,
+          note: true,
+          taxClass: true,
+          excludeFromTotals: true,
+          reimbursement: true,
+          status: true,
+          rawDescriptor: true,
+          merchantId: true,
+        };
+        for (const pair of direction.pairs) {
+          const [predAll, succAll] = await Promise.all([
+            tx.transaction.findMany({ where: { accountId: pair.predecessorAccountId }, select: carrySelect }),
+            tx.transaction.findMany({ where: { accountId: pair.successorAccountId }, select: carrySelect }),
+          ]);
+          const correctedRows = await tx.correction.findMany({
+            where: { transactionId: { in: [...predAll, ...succAll].map((r) => r.id) } },
+            select: { transactionId: true },
+          });
+          const correctedIds = new Set(correctedRows.map((c) => c.transactionId));
+          const toCarry = (rows: (typeof predAll)[number][]): CarryRow[] =>
+            rows.map((r) => ({ ...r, hasCorrection: correctedIds.has(r.id) }));
+          // The cutover the guard validated for THIS pair — never recomputed, so the carry
+          // disowns exactly the rows the boundary will (a-guard-must-read-what-it-guards).
+          // The guard loop set every pair's cutover before returning ok, so a missing entry is
+          // an invariant violation, not a data condition — a `?? today` fallback here could
+          // silently disown a different row set than the boundary (P2-1, critic).
+          const cutover = cutovers.get(pair.predecessorAccountId);
+          if (cutover === undefined) {
+            throw new Error('H.6b(a) carry: pair reached without a planned cutover');
+          }
+          const writes = planReaderFieldCarry(toCarry(predAll), toCarry(succAll), cutover);
+          for (const write of writes) {
+            if (Object.keys(write.data).length > 0) {
+              await tx.transaction.update({ where: { id: write.targetId }, data: write.data });
+            }
+            for (const child of write.children ?? []) {
+              const { moveCorrectionsFrom, ...childData } = child;
+              const created = await tx.transaction.create({
+                data: { accountId: pair.successorAccountId, ...childData, splitParentId: write.targetId },
+              });
+              if (moveCorrectionsFrom.length > 0) {
+                await tx.correction.updateMany({
+                  where: { transactionId: { in: moveCorrectionsFrom } },
+                  data: { transactionId: created.id },
+                });
+              }
+            }
+            if (write.moveCorrectionsFrom && write.moveCorrectionsFrom.length > 0) {
+              await tx.correction.updateMany({
+                where: { transactionId: { in: write.moveCorrectionsFrom } },
+                data: { transactionId: write.targetId },
+              });
+            }
           }
         }
 

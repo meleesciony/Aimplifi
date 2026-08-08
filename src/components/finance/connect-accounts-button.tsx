@@ -187,18 +187,23 @@ export function ConnectAccountsButton({ deepenHistory = false }: ConnectAccounts
         </p>
       )}
       {deepenHistory && (
-        // NOT "your categories and notes stay" — a fresh-context critic executed the combine and
-        // showed otherwise: the cutover clamps to the OLD account's first transaction whenever
-        // the new connection reaches further back, which is the defining property of a
-        // successful deepen. Everything the old side recorded after that one day stops counting
-        // in favour of the new connection's untouched copies. No money moves and nothing is
-        // deleted, but hand-filed work does stop being reflected — so this says so rather than
-        // promising the opposite. Carrying those fields across is the next slice (TASKS H.6b).
+        // H.6b(a): hand-filed work is now CARRIED across the combine — categories (with their
+        // Corrections), notes, tax classes, exclusions and split families move onto the
+        // successor's matching copy (exact date + amount), and the reader's own edits on the
+        // new copies always win. The honest remainder: a copy with no exact match (drifted
+        // dates), OR two identical same-day copies that can't be told apart (the carry never
+        // guesses which is which), still stops being applied — so this says what is carried,
+        // not that everything is. Never the unqualified "your categories and notes stay": a
+        // fresh-context critic once executed the combine and disproved that promise.
         <p data-testid="deepen-history-caveat" className="text-[11px] text-amber-300/80">
           One caveat worth reading first: when you combine, each account starts reading from the
-          new connection’s copy of its transactions, so categories, notes and splits you set by
-          hand on the older copies stop being applied. Nothing is deleted and no balance changes
-          — but if you’ve done a lot of hand-categorising at this bank, deepen it last.
+          new connection’s copy of its transactions. Categories, notes, tax classes and splits
+          you set by hand on the older copies are carried across automatically to the matching
+          copy — same date and same amount — and edits you made on the new copies are never
+          overwritten. Only a hand-filed copy with no exact match — or two identical same-day
+          copies that can’t be told apart — stops being applied, and a split whose parts no
+          longer match the charge is sent back for you to review — unless the new copy already
+          carries your filing, which always wins. Nothing is deleted and no balance changes.
         </p>
       )}
       {sandbox && (
