@@ -50,9 +50,15 @@ const NO_COMPETING_VERDICT_WHERE = {
   ],
 };
 
-export async function refreshTransferFlags(
-  userId: string,
-): Promise<{ flagged: number; overturned: number; filed: number }> {
+/**
+ * The sweep's own read, exported (H.7b): every non-split-parent row the user
+ * owns, in the exact shape `planTransferUpdates` decides over — identity,
+ * currency predicate and all. The transfer-flag REPAIR (server/
+ * transfer-flag-repair.ts) replays the shipped rule over this same read, so
+ * what the repair judges and what the sweep writes can never be two different
+ * worlds (the a-guard-must-read-what-it-guards lesson).
+ */
+export async function loadTransferSweepRows(userId: string) {
   const [rows, identity] = await Promise.all([
     prisma.transaction.findMany({
       where: { account: { userId }, isSplitParent: false },
@@ -78,13 +84,19 @@ export async function refreshTransferFlags(
     // ordinary feed-driven type drift is enough to trigger it (cycle-2 P1-1).
     activeAccountIdentityMap(userId),
   ]);
-  const txns = rows.map((r) => ({
+  return rows.map((r) => ({
     ...r,
     // Same supported-currency predicate every queue/write guard uses (DECISIONS #135).
     currencySupported: r.account.currency === null || r.account.currency === 'USD',
     accountType: r.account.type,
     accountIdentityId: identity.get(r.accountId) ?? r.accountId,
   }));
+}
+
+export async function refreshTransferFlags(
+  userId: string,
+): Promise<{ flagged: number; overturned: number; filed: number }> {
+  const txns = await loadTransferSweepRows(userId);
   const { flagIds, overturnIds, fileIds } = planTransferUpdates(txns);
 
   let flagged = 0;

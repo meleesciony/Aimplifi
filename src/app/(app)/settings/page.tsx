@@ -23,6 +23,8 @@ import { PushOptIn } from '@/components/settings/push-optin';
 import { HouseholdCard } from '@/components/settings/household-card';
 import { getHouseholdView } from '@/server/household';
 import { AccuracyMetrics, SelfAuditMetrics } from '@/components/triage/accuracy-card';
+import { TransferRepairCard } from '@/components/settings/transfer-repair-card';
+import { getTransferFlagRepairPreview } from '@/server/transfer-flag-repair';
 import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getThresholdTuning } from '@/server/tuning';
 import { getLatestSelfAuditSnapshot } from '@/server/self-audit';
@@ -88,6 +90,10 @@ export default async function SettingsPage() {
       prisma.transactionAttachment.count({ where: { transaction: { account: { userId } } } }),
     ]);
   const householdView = await getHouseholdView();
+  // H.7b — computed per load (the sweep's own read + a pure replay; ~200ms on a
+  // 3k-row corpus). Sequential after the block above deliberately: it shares the
+  // Prisma pool with fifteen parallel queries there.
+  const transferRepairPreview = await getTransferFlagRepairPreview(userId);
   if (!user) redirect('/sign-in');
 
   const customGroups = CUSTOM_CATEGORY_GROUPS;
@@ -335,6 +341,19 @@ export default async function SettingsPage() {
               — where AI runs, its hard limits, and a ledger of model calls on your data.
             </span>
           </p>
+        </CardContent>
+      </Card>
+
+      {/* H.7b — the transfer-flag repair. Sits beside AI trust because it is the
+          same contract from the other side: the AI's mistakes are the user's to
+          correct, with the change stated before it happens and undoable after. */}
+      <Card data-testid="transfer-repair-settings-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Transactions held out of your totals by an outdated transfer mark</CardDescription>
+          <CardTitle className="text-base">Transfer mark repair</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TransferRepairCard preview={transferRepairPreview} canApply={!isDemoUser(userId)} />
         </CardContent>
       </Card>
 

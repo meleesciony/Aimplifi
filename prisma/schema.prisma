@@ -86,6 +86,7 @@ model User {
   selfAuditSnapshots  SelfAuditSnapshot[]
   passwordResetTokens PasswordResetToken[]
   accountReconciliations AccountReconciliation[]
+  transferFlagRepairRuns TransferFlagRepairRun[]
   householdMembership HouseholdMember? // v1: at most one household per user (HOUSEHOLD_ARCHITECTURE §4.1)
 }
 
@@ -723,6 +724,29 @@ model Budget {
   // One target per (user, category) — makes setBudget a single atomic upsert and
   // structurally precludes duplicate rows / the find-then-write race.
   @@unique([userId, categoryId])
+}
+
+// H.7b — one owner-triggered transfer-flag repair run (STATUS §STILL OPEN after
+// H.7, residual 1). The repair clears `isTransfer` on settled rows whose flag
+// today's evidence rule declines; after that write a repaired row is
+// indistinguishable from one that was never flagged, so THIS row is the only
+// record of what changed and Undo restores from it. `clearedRows` stores each
+// cleared row's id + the categoryId it carried at clear time, so Undo can skip
+// any row the reader has re-decided since (the survivor's-own-values rule).
+// Additive: no engine or figure reads this table.
+model TransferFlagRepairRun {
+  id           String    @id @default(cuid())
+  userId       String
+  createdAt    DateTime  @default(now())
+  undoneAt     DateTime? // null = standing; set once when the owner restores the flags
+  clearedRows  String // JSON-encoded Array<{ id, categoryId }> (SQLite has no Json type)
+  clearedCount Int
+  inflowCents  Int // cleared money-in returned to the totals (abs cents)
+  outflowCents Int // cleared money-out returned to the totals (abs cents)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model AuditLog {
