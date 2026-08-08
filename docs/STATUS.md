@@ -47,11 +47,17 @@ passed files (382)** / build clean (the documented fi-real-basis hook flake did 
 deepen-history e2e **2/2**, re-run after the caveat copy's final edit. **No schema change** —
 `git diff --stat -- prisma/` empty. **CI gate: success** on run 31234685975 for `ea27091`
 (the full `VERIFY_E2E=1` gate, read via `scripts/ci-status.sh` — same mechanism that caught
-O.19's five). The follow-up docs-only push `ccdaf1a` (ledgers; diff = 6 docs files, zero
-source/tests) ran 31235121073 → **failure on the documented pre-existing CI flake only:
-`budget-targets.spec.ts:20`** (the same spec, same `toHaveCount` single-post-mutation race the
-2026-08-07 ledger row records — it failed on `58cb989`'s and `e772d8f`'s gates before this
-slice). Recorded per K.8; the ship gate for the slice's code stands on 31234685975.
+O.19's five). The two follow-up docs-only pushes (ledgers `ccdaf1a`, gate note `e165404`;
+diffs are docs files only, zero source/tests) ran 31235121073 and 31235580774. 31235121073 →
+**failure on the documented pre-existing CI flake only: `budget-targets.spec.ts:20`** (same
+spec, same `toHaveCount` single-post-mutation race the 2026-08-07 ledger row records — red on
+`58cb989`'s and `e772d8f`'s gates before this slice). 31235580774 → **failure on
+`transaction-detail.spec.ts:188` + `mobile-overflow.spec.ts:386`** — no prior-run record, so
+not waved off: diff-scope proof (byte-identical test+app code passed the full gate at
+`ea27091` ~30 min earlier), both specs pass locally, and `gh run rerun --failed` →
+**success** (the ci-e2e-timing-flake class: CI load wins a race the test invites, it does not
+create it). Ship gate for the slice's code stands on 31234685975 (success); head of main is
+green.
 
 **STILL OPEN after H.6b(a), recorded not fixed:** (1) a succ-side DISOWNED row (in the deepen
 shape, the pred's own claim day) still loses its filing — there is no reverse carry, and the
