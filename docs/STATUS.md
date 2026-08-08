@@ -41,7 +41,15 @@ Isolation proof: **both 2/2 PASS on this exact commit (16.7s)**.
 **`gh run rerun --failed` → run 31271648219 SUCCESS. 8d8af1c gate: GREEN.**
 Live: Vercel deployment READY for 8d8af1c; `scripts/c14-live-deploy-check.mjs`
 4/4 against production. Schema: none. No demo data change (the demo's goals
-are within the surplus).**
+are within the surplus). The docs-record push (acee935, STATUS.md + the
+check script — zero src/test code) **ran the stall lottery hard: CI run
+31272707342 failed attempt 1 (`category-rename.spec.ts:110`), attempt 2
+(`category-rename.spec.ts:110` + `merchant-lens.spec.ts:22`), attempt 3
+(`merchant-lens.spec.ts:22`) — every one the documented severed-flight
+contention class on `[mobile-380]` (each 1/1 PASS in isolation on this exact
+tree: category-rename 1.9s, merchant-lens 2.4s; merchant-lens was red in
+the C.23 run-2 gate, isolation-green then too). Third rerun → **31272707342
+SUCCESS. acee935 gate: GREEN.****
 
 ## ✅ BUILT 2026-08-08 — C.23 guided half: the Fixed-costs setup section PROPOSES series, converts long-cadence bills to monthly reserves, and names one holding account (DECISIONS #431, critic-cycled)
 
