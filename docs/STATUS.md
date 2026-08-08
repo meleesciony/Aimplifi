@@ -31,9 +31,17 @@ server-action-stall class its own header documents) and
 severed flight mid-request), both on the `[mobile-380]` worker, **both 7/7
 PASS in isolation on this exact tree**, neither spec's code in this slice's
 diff (goals engine/page + copy only). The documented severed-flight
-contention class (G.1/H.2); **CI is the arbiter** — its conclusion for the
-C.14 sha is recorded here on landing. Schema: none. No demo data change (the
-demo's goals are within the surplus).
+contention class (G.1/H.2); **CI (run 31271648219 on 8d8af1c): FAILED once —
+`transactions.spec.ts:637` (the CSV double-paste round-trip: toContainText
+failed after 32.6s — the register page wedged on the unclassified filter,
+13× unexpected URL) and `transactions.spec.ts:910` (the isolate register: the
+same wedged page state, :910 being the run-1/run-2 flake of the C.23 gate),
+both on the `[mobile-380]` worker, neither spec's code in this slice's diff.
+Isolation proof: **both 2/2 PASS on this exact commit (16.7s)**.
+**`gh run rerun --failed` → run 31271648219 SUCCESS. 8d8af1c gate: GREEN.**
+Live: Vercel deployment READY for 8d8af1c; `scripts/c14-live-deploy-check.mjs`
+4/4 against production. Schema: none. No demo data change (the demo's goals
+are within the surplus).**
 
 ## ✅ BUILT 2026-08-08 — C.23 guided half: the Fixed-costs setup section PROPOSES series, converts long-cadence bills to monthly reserves, and names one holding account (DECISIONS #431, critic-cycled)
 
