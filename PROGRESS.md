@@ -2588,3 +2588,33 @@ no-op. All three pass locally (register 2.4s, goals 2.6s, overflow on BOTH proje
 `budget-targets:20` is left alone and stays recorded: it failed on attempt 2 AND attempt 3 AND on
 the docs-only push `e772d8f` before this slice existed — pre-existing by the same diff-scope proof
 `docs/lessons/ci-e2e-timing-flake.md` already owns.
+
+## 2026-08-07 ? #427 ? H.6b(a) shipped: the combine carries the reader's hand-filed work, never onto a row nothing reads
+
+TASKS H.6b(a) — the last OPEN item of H.6's critic's three findings, executed through the full
+build loop to shipped: a deepen's combine disowned everything the old side recorded after its
+first day, and the reader's filing on those rows stopped counting in favour of the new
+connection's untouched copies. Built as a pure planner first (`planReaderFieldCarry`,
+`src/server/combine-connections.ts`), unit-tested (`tests/unit/combine-carry-planner.test.ts`,
+new, 29 tests), then threaded into the combine's apply loop.
+
+**The doctrine:** exact (date, amount) matching with C.6's multiplicity gate on BOTH sides;
+survivor's own reader values always win; Corrections MOVE never copy; settled verdicts carry
+only where no reader value claims the row; split families carry whole (stale → durable review);
+engine guesses never travel; and — cycle 4's Finding A, the hard cap — a container receives
+nothing: verdict, correction move and flats are all blocked, with flat state routed onto the
+container's children as a survivor-first gap-fill.
+
+**Four critic cycles (the cap, used to the last):** P1-1, F1-F4, NEW-1/2 and A1 — every finding
+executed, every lock proven to discriminate by the critics' revert-replays. Cycle 4's fix
+followed the critic's own prescription; the cap is recorded honestly in DECISIONS #427. The
+caveat's P2 rider ("unless the new copy already carries your filing, which always wins") applied
+and e2e-re-locked. One test-expectation update during the re-gate was the Finding-A fix itself:
+F2's "the container's own note travels" now lands on the pieces, where it is read.
+
+**Gate:** verify GREEN — tsc 0 / eslint 0 / **6,303 unit + 1 skipped / 381 files** / build clean
+(fi-real-basis hook flake did not reproduce); deepen-history e2e 2/2. No schema change.
+
+**Shipped:** `ea27091` pushed; CI run read at the close (STATUS records the conclusion); live
+deploy proof `scripts/h6-live-deploy-check.mjs`. Ledgers: TASKS H.6b [x], STATUS §H.6b(a) +
+H.6c STILL OPEN item (1) struck, DECISIONS #427 + index, REGRESSION_LEDGER 3 rows.

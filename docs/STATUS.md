@@ -6,6 +6,58 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-07 — H.6b(a): the combine carries the reader's hand-filed work onto the successor's copies (DECISIONS #427, critic-cycled to the hard cap)
+
+**Closes TASKS H.6b(a)** — the last OPEN item of H.6's critic's three findings, and the
+highest-ranked OPEN P1 in STATUS. In a successful deepen the boundary keeps the old side's
+first day and disowns everything after it, so the reader's filing on those rows stopped
+counting in favour of the new connection's untouched copies. `planReaderFieldCarry`
+(`src/server/combine-connections.ts`, pure planner unit-tested first) now moves that work onto
+the successor's matching copy — exact date + amount, C.6's multiplicity gate on BOTH sides
+(never a guess), and a carry can never refuse a combine.
+
+**The doctrine, in one line: the survivor's own reader values always win, and a row no surface
+reads receives nothing.** Corrections MOVE (`updateMany transactionId`), never copy. A settled
+verdict carries only where no reader value claims the row — blocked by the survivor's own
+correction, its review pin, a split-child shape, a stale pred family (destroyed decisions
+re-decide: forced into DURABLE review, the transplant's dissolve precedent), and a survivor
+that is itself a split container, from ANY source. Engine guesses never travel (no Correction =
+no reader decision). Split families carry whole onto a plain survivor; both-split combines
+carry piece flats by unique match; the survivor's own flat flags (note, taxClass, exclusion,
+reimbursement) inherit onto re-created pieces — O.15 P1-1's "the pieces inherit the reader's
+'not my spending'" extended to all four (NEW-1).
+
+**Four critic cycles — the hard cap, used to the last.** Every finding executed and locked with
+discriminating tests: P1-1 (refiled old piece never replaces a survivor piece's own category),
+F1 (an un-filed parent — splitting never mints a Correction — no longer gates its pieces'
+flats), F2 (pred-side multiplicity), F3 (a stale family never pins an intact dangling-child
+allocation into durable review), NEW-1, NEW-2 (caveat copy now promises the carry, not
+everything), and cycle 4's Finding A (the cap): the per-row write targeted the survivor's
+CONTAINER — a row the register, the tax export and the reimbursement line all skip — so a
+verdict + Correction would have fed the learner evidence contradicting the reader's own pieces
+and the pred row's live flats (exclusion, claim, tag, note) would have stopped applying. Fixed
+per the critic's own prescription and locked with the demanded A1 test: containers never
+receive a verdict, a correction move or flats; flat state routes onto the container's children
+as a survivor-first gap-fill. No fifth fresh-context critic ran; this entry records the cap
+honestly, as O.19/H.6c/H.7 did. The P2 caveat rider from cycle 4 ("unless the new copy already
+carries your filing, which always wins") is applied and e2e-re-locked.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,303 unit + 1 skipped / 381
+passed files (382)** / build clean (the documented fi-real-basis hook flake did not reproduce);
+deepen-history e2e **2/2**, re-run after the caveat copy's final edit. **No schema change** —
+`git diff --stat -- prisma/` empty. **CI gate: success** on run 31234685975 for `ea27091`
+(the full `VERIFY_E2E=1` gate, read via `scripts/ci-status.sh` — same mechanism that caught
+O.19's five).
+
+**STILL OPEN after H.6b(a), recorded not fixed:** (1) a succ-side DISOWNED row (in the deepen
+shape, the pred's own claim day) still loses its filing — there is no reverse carry, and the
+boundary is R1's rule, not this slice's; (2) the null-check can't distinguish a reader's
+deliberate blank from an untouched copy — the survivor's blank still wins, same direction,
+never a clobber; (3) sequential combines are order-dependent; (4) after a branch-A carry
+`findOffsettingInflow` can't match a whole-charge refund to the re-created pieces (display-time
+only). The H.6c STILL OPEN item (2) — `excludeFromTotals`/`isTransfer` parity between the two
+copies unmeasured — stands.
+
 ## ✅ BUILT 2026-08-07 — O.19: /accounts hides the combine machinery and keeps its claim (DECISIONS #426, critic-cycled)
 
 **Closes TASKS O.19** (filed as "O.18"; renumbered because Wave O.18 — expandable rows — already
@@ -99,14 +151,14 @@ rename-flow rule ("the re-rendered page is the confirmation that can't lie"). Le
 2026-08-07. budget-targets (the documented CI flake) failed attempt 1 only. The closing push's
 CI conclusion is recorded below when read.
 
-**STILL OPEN after H.6c/H.6b(b):** (1) **H.6b(a)** — hand-filed categories/notes/splits still
-stop being applied after a combine (the deepen door's amber caveat discloses it; carrying the
-fields across is the fix); (2) the guard compares only (date, amount) — `excludeFromTotals` /
-`isTransfer` parity between the two copies is not checked, so a combine can revert an exclusion
-decision on the dropped side (pre-existing, critic-noted, unmeasured); (3) H.6's P2s stand
-(two link-token minters on /accounts; no rate limit on `createPlaidLinkToken`; no server-side
-deepen audit mark); (4) the owner's per-institution deepen walk-through (STATUS §H.6) is
-unchanged and still the only thing that moves data.
+**STILL OPEN after H.6c/H.6b(b):** ~~(1) H.6b(a) — hand-filed work stop being applied after a
+combine~~ — **CLOSED 2026-08-07 by DECISIONS #427** (STATUS §H.6b(a) above); (2) the guard
+compares only (date, amount) — `excludeFromTotals` / `isTransfer` parity between the two copies
+is not checked, so a combine can revert an exclusion decision on the dropped side
+(pre-existing, critic-noted, unmeasured); (3) H.6's P2s stand (two link-token minters on
+/accounts; no rate limit on `createPlaidLinkToken`; no server-side deepen audit mark); (4) the
+owner's per-institution deepen walk-through (STATUS §H.6) is unchanged and still the only thing
+that moves data.
 
 ## ✅ BUILT 2026-08-07 — H.6: the 730-day Plaid window stops being discarded (DECISIONS #424, critic-cycled)
 

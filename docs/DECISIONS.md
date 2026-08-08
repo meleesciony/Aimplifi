@@ -5447,3 +5447,72 @@ re-gated. **Left open, recorded not fixed:** the section paints closed on first 
 mutation reload (`useState(false)` + post-hydration read), so there is a brief layout shift; a
 session cookie read server-side would remove it and also close a theoretical pre-hydration toggle
 race. Both are P2 and neither can print a wrong figure.
+## #427 — H.6b(a): the combine carries the reader's hand-filed work onto the successor's copies, never onto a row nothing reads (2026-08-07)
+
+**Closes TASKS H.6b(a)** — the last OPEN item of H.6's critic's three findings, and the
+highest-ranked OPEN P1 in STATUS. When the successor connection reaches further back — the
+defining property of a successful deepen — the boundary keeps the old side's first day and
+disowns everything after it, so the reader's filing on those rows (categoryId with its
+Correction, note, taxClass, excludeFromTotals, split families) stopped counting in favour of
+the new connection's untouched copies. `combineDuplicateConnectionsFor` carried only
+`AutopayConfig` + `displayName`. The fix is a pure planner, `planReaderFieldCarry`
+(`src/server/combine-connections.ts`), unit-tested first (`tests/unit/combine-carry-planner.test.ts`,
+29 tests) and then threaded into the combine's apply loop; the deepen door's caveat now
+promises the carry, not everything.
+
+**Matching (C.6's lesson, applied deliberately):** a reader-owned field moves only onto a
+successor row with the EXACT same date and amount, and only when exactly one disowned row and
+exactly one successor row hold the key — a loose pair rule once credited 11 refunds as
+payments, and the multiplicity gate now runs on BOTH sides (two identical old pieces must not
+both write the same survivor). Drifted copies and ambiguous duplicates stop being applied,
+which is what the caveat says. Every data condition skips its row or family, never throws — a
+carry can never refuse a combine.
+
+**Never-clobber doctrine:** the survivor's own reader values always win. Corrections MOVE
+(`updateMany transactionId`), never copy. A settled verdict (`hasCorrection && !needsReview`)
+carries only where no reader value claims the row: blocked by the survivor's own correction,
+its review pin, a split-child shape (the pieces are the reader's own allocation — P1-1's child
+rule, extended to sources by F4), a stale pred family (destroyed decisions re-decide, per the
+transplant's dissolve precedent — forced into DURABLE review), and — the cycle-4 Finding — a
+survivor that is itself a split CONTAINER, from any source. The engine's own guesses
+(confidenceBps, engine-filed categories without a Correction) never travel: no Correction = no
+reader decision.
+
+**Finding A (critic cycle 4, the hard cap):** the planner's per-row write targeted the
+survivor's container — a row NO surface reads (the register lists only children, the tax
+report leaves containers out entirely via TAX_BLOCKED_SPLIT_PARENT, the reimbursement line
+skips them). A verdict + Correction landing there would feed the learner evidence
+contradicting the reader's own pieces; the pred row's LIVE flats (exclusion, claim,
+tag, note) would stop applying — an excluded charge reinstated into every total, a
+money-owed claim vanished, a tag gone from the export. Fix, per the critic's own prescription:
+containers never receive a verdict, a correction move, or flats; the flats route onto the
+container's CHILDREN as a survivor-first gap-fill (each piece's own value wins), the same
+inheritance the NEW-1 finding already applied to the survivor's own flags in branch A.
+F2's "the container's own note travels" now lands on the pieces, where it is read.
+
+**Four critic cycles — the hard cap, used to the last.** Cycles 1–3: P1-1 (refiled old piece
+never replaces a survivor piece's own category), NEW-1 (survivor's own flats follow the money
+onto re-created pieces — inherited, because `outstandingReimbursements` reads children so O.15
+P1-2's refusal rationale is defused), NEW-2 (caveat copy promised more than the carry does —
+reworded to promise the carry, not everything), F1 (an un-filed parent — splitting never mints
+a Correction — no longer gates its pieces' flats), F2 (pred-side multiplicity), F3 (a stale
+family never pins an intact dangling-child allocation into durable review). Cycle 4 (the cap):
+Finding A above. No fifth fresh-context critic ran — per the cap clause in
+docs/CRITIC_RUBRIC.md, the fix followed the critic's OWN prescription and was locked with the
+critic's demanded A1 test (plus the updated F2/F4/P1-1 expectations); the ledger and this
+decision record the cap honestly, as O.19/H.6c/H.7 did.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,303 unit + 1 skipped / 381
+passed files (382)** / build clean; deepen-history e2e **2/2** (re-run after the caveat's
+P2 rider). No schema change — `git diff --stat -- prisma/` empty. Full CI gate read at the
+close; conclusion recorded in STATUS.
+
+**Left open, recorded not fixed (P3):** (1) a succ-side DISOWNED row (in the deepen shape,
+the pred's own claim day) still loses its filing — there is no reverse carry onto the pred
+side, and the boundary is the existing R1 rule, not this slice's to change; (2) the carry's
+null-check cannot distinguish a reader's deliberate blank (clearing a tag) from an untouched
+copy, so a deliberate blank on the survivor still wins over the pred's value — same direction,
+never a clobber; (3) sequential combines are order-dependent (a second combine sees the first
+one's carried state); (4) after a branch-A carry, `findOffsettingInflow` cannot match a
+whole-charge refund to the re-created pieces — display-time only, sums unaffected. H.6c's
+STILL OPEN item (2) (excludeFromTotals/isTransfer parity between copies is unmeasured) stands.

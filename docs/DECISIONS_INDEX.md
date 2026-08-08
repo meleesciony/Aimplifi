@@ -420,3 +420,4 @@ refuses to write if it would drop any number this file already carries.
 - **#424** (Phase ?): H.6: a deliberate re-link for DEPTH is not the duplicate L.10 refuses (2026-08-07)
 - **#425** (Phase ?): H.6c + H.6b(b): the combine's default keeps the deeper connection, and a hand-split row stops blocking it (2026-08-07)
 - **#426** (Phase ?): O.19: the /accounts combine machinery goes behind a tap, and its claim about the money does not (2026-08-07)
+- **#427** (Phase ?): H.6b(a): the combine carries the reader's hand-filed work onto the successor's copies, never onto a row nothing reads (2026-08-07)
