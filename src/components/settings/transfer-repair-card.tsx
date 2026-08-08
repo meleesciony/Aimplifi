@@ -1,16 +1,20 @@
 'use client';
 
 /**
- * H.7b — the transfer-flag repair control (/settings). Renders the
- * server-computed preview (what would change, stated BEFORE it changes), an
- * explicit apply, and Undo on the recorded run.
+ * H.7b — the transfer-flag repair control (/settings), critic-cycled. Renders
+ * the server-computed preview (what would change, stated BEFORE it changes),
+ * the one caution the check cannot see for itself (a genuine card-sourced
+ * cash advance), an explicit apply, and Undo on the recorded run.
  *
  * Mutation recipe = budget-target-form's, for its reasons verbatim: explicit
  * onSubmit → direct server-action call, own busy flag, deadline-bounded await,
  * full reload on success (router.refresh() was a coin-flip in probes, and this
  * card's own numbers are server-rendered — a reload is the one confirmation
  * that can't lie). On a deadline the write usually COMMITTED and only the
- * confirmation was lost — re-sync rather than report a false failure.
+ * confirmation was lost — re-sync rather than report a false failure. One
+ * deliberate exception (critic P2-6): an apply that cleared NOTHING changed
+ * nothing server-side, so it renders its outcome inline instead of reloading
+ * into silence.
  */
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -23,13 +27,20 @@ import {
 } from '@/server/transfer-flag-repair-actions';
 import type { TransferFlagRepairPreview } from '@/server/transfer-flag-repair';
 import {
+  REPAIR_BUSY_APPLY,
+  REPAIR_BUSY_UNDO,
+  REPAIR_DEMO_NOTE,
+  REPAIR_GENERIC_ERROR,
   REPAIR_UNDO_LABEL,
+  repairAllSkippedNote,
   repairApplyLabel,
+  repairCashAdvanceCaution,
   repairClaim,
   repairExplainer,
   repairLastRunLine,
   repairNothingLine,
   repairOutOfScopeNote,
+  repairShowRowsLabel,
   repairUndoneLine,
 } from './transfer-repair-copy';
 
@@ -44,18 +55,24 @@ export function TransferRepairCard({
   canApply: boolean;
 }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
 
-  async function run(invoke: () => Promise<{ ok: boolean; error?: string }>) {
+  async function run(invoke: () => Promise<{ ok: boolean; error?: string; cleared?: number }>) {
     setBusy(true);
-    setError(null);
+    setNotice(null);
     try {
       const res = await withDeadline(invoke(), FORM_ACTION_DEADLINE_MS);
       if (res.ok) {
+        if (res.cleared === 0) {
+          // Nothing changed server-side; a reload would land on a page that
+          // never says what the click did (critic P2-6).
+          setNotice({ kind: 'info', text: repairAllSkippedNote() });
+          return;
+        }
         window.location.reload();
         return;
       }
-      setError(res.error ?? 'Something went wrong.');
+      setNotice({ kind: 'error', text: res.error ?? REPAIR_GENERIC_ERROR });
     } catch {
       // Deadline: the write usually committed — re-sync, don't report a false failure.
       window.location.reload();
@@ -76,9 +93,12 @@ export function TransferRepairCard({
           <p className="text-sm text-foreground" data-testid="transfer-repair-claim">
             {repairClaim(preview)}
           </p>
+          <p className="text-xs text-muted-foreground" data-testid="transfer-repair-caution">
+            {repairCashAdvanceCaution()}
+          </p>
           <details className="text-sm">
             <summary className="cursor-pointer text-muted-foreground">
-              Show the {preview.clearCount === 1 ? 'transaction' : `${preview.clearCount} transactions`}
+              {repairShowRowsLabel(preview.clearCount)}
             </summary>
             <ul className="mt-2 space-y-1" data-testid="transfer-repair-rows">
               {preview.rows.map((r) => (
@@ -89,7 +109,9 @@ export function TransferRepairCard({
                   {r.categoryName !== null && (
                     <span className="text-muted-foreground">· {r.categoryName}</span>
                   )}
-                  <span className="tabular-nums">{formatCents(cents(r.amountCents), { signDisplay: 'always' })}</span>
+                  <span className="tabular-nums">
+                    {formatCents(cents(r.amountCents), { signDisplay: 'always' })}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -102,13 +124,12 @@ export function TransferRepairCard({
               }}
             >
               <Button type="submit" size="sm" disabled={busy} data-testid="transfer-repair-apply">
-                {busy ? 'Restoring…' : repairApplyLabel(preview.clearCount)}
+                {busy ? REPAIR_BUSY_APPLY : repairApplyLabel(preview.clearCount)}
               </Button>
             </form>
           ) : (
             <p className="text-xs text-muted-foreground" data-testid="transfer-repair-demo-note">
-              The demo is a shared account, so this stays read-only here — in your own account this
-              is a one-tap, undoable repair.
+              {REPAIR_DEMO_NOTE}
             </p>
           )}
         </div>
@@ -127,47 +148,48 @@ export function TransferRepairCard({
       {preview.lastRun !== null &&
         (preview.lastRun.undone ? (
           <p className="text-xs text-muted-foreground" data-testid="transfer-repair-undone-line">
-            {repairUndoneLine({
-              dateLabel: preview.lastRun.createdAtLabel,
-              clearedCount: preview.lastRun.clearedCount,
-            })}
+            {repairUndoneLine({ clearedCount: preview.lastRun.clearedCount })}
           </p>
         ) : (
           <div className="flex flex-wrap items-center gap-2" data-testid="transfer-repair-last-run">
             <p className="text-xs text-muted-foreground">
               {repairLastRunLine({
-                dateLabel: preview.lastRun.createdAtLabel,
                 clearedCount: preview.lastRun.clearedCount,
+                skippedCount: preview.lastRun.skippedCount,
                 inflowCents: preview.lastRun.inflowCents,
                 outflowCents: preview.lastRun.outflowCents,
               })}
             </p>
             {canApply && (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const fd = new FormData(e.currentTarget); // captured before the handler returns
-                void run(() => undoTransferFlagRepairAction(fd));
-              }}
-            >
-              <input type="hidden" name="runId" value={preview.lastRun.id} />
-              <Button
-                type="submit"
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                data-testid="transfer-repair-undo"
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const fd = new FormData(e.currentTarget); // captured before the handler returns
+                  void run(() => undoTransferFlagRepairAction(fd));
+                }}
               >
-                {busy ? 'Undoing…' : REPAIR_UNDO_LABEL}
-              </Button>
-            </form>
+                <input type="hidden" name="runId" value={preview.lastRun.id} />
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  data-testid="transfer-repair-undo"
+                >
+                  {busy ? REPAIR_BUSY_UNDO : REPAIR_UNDO_LABEL}
+                </Button>
+              </form>
             )}
           </div>
         ))}
 
-      {error !== null && (
-        <p className="text-xs text-red-500" role="alert" data-testid="transfer-repair-error">
-          {error}
+      {notice !== null && (
+        <p
+          className={notice.kind === 'error' ? 'text-xs text-red-500' : 'text-xs text-muted-foreground'}
+          role={notice.kind === 'error' ? 'alert' : 'status'}
+          data-testid={notice.kind === 'error' ? 'transfer-repair-error' : 'transfer-repair-info'}
+        >
+          {notice.text}
         </p>
       )}
     </div>

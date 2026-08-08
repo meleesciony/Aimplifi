@@ -741,6 +741,10 @@ model TransferFlagRepairRun {
   undoneAt     DateTime? // null = standing; set once when the owner restores the flags
   clearedRows  String // JSON-encoded Array<{ id, categoryId }> (SQLite has no Json type)
   clearedCount Int
+  // Rows the plan named that the premise-re-asserting write skipped (re-decided
+  // inside the read→write window). Stored so the confirmation line can disclose
+  // "restored 2 of the 3 it named" instead of silently narrowing (critic cycle 1).
+  skippedCount Int      @default(0)
   inflowCents  Int // cleared money-in returned to the totals (abs cents)
   outflowCents Int // cleared money-out returned to the totals (abs cents)
 

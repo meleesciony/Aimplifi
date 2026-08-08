@@ -73,6 +73,10 @@ export async function loadTransferSweepRows(userId: string) {
         reviewPinned: true,
         status: true,
         categoryId: true,
+        // Read for the repair's scope (H.7b critic cycle 1): a reader-excluded
+        // row is withheld from every total by its own gate, so the repair must
+        // not claim its dollars. The sweep itself never reads this field.
+        excludeFromTotals: true,
         account: { select: { currency: true, type: true } },
       },
     }),

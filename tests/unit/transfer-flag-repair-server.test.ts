@@ -20,8 +20,16 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 vi.mock('@/auth', () => ({ auth: vi.fn(), signOut: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+// Partial mock of the sweep module: pass-through by default, overridable ONCE
+// per test so the stale-read interleave (critic P1-3's demanded lock) can hand
+// `applyTransferFlagRepair` a read that predates a user's re-decision.
+vi.mock('@/lib/providers/transfer-refresh', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/providers/transfer-refresh')>();
+  return { ...actual, loadTransferSweepRows: vi.fn(actual.loadTransferSweepRows) };
+});
 
 import { auth } from '@/auth';
+import { loadTransferSweepRows } from '@/lib/providers/transfer-refresh';
 import { prisma } from '@/lib/db';
 import { DEMO_ENTRY_BLOCKED, DEMO_USER_ID } from '@/lib/demo-user';
 import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
@@ -215,6 +223,84 @@ describe('H.7b: the transfer-flag repair against a real database', () => {
     // Nothing moved.
     const income = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-income` } });
     expect(income.isTransfer).toBe(false);
+  });
+
+  it('PREMISE LOCK (critic P1-3): a row the reader re-decides inside the read→write window is skipped, and the run records what actually happened', async () => {
+    await seedFlaggedCorpus();
+    // Capture the read as of now, then let the reader un-resolve the income row
+    // (the undo-corrections shape) BEFORE the apply's write reaches it.
+    const staleRows = await loadTransferSweepRows(USER);
+    await prisma.transaction.update({
+      where: { id: `${USER}-income` },
+      data: { needsReview: true, categoryId: 'uncategorized' },
+    });
+    vi.mocked(loadTransferSweepRows).mockResolvedValueOnce(staleRows);
+
+    const res = await applyTransferFlagRepair(USER);
+    expect(res).toMatchObject({ ok: true, cleared: 1, skipped: 1, inflowCents: 0, outflowCents: 50_000 });
+
+    const income = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-income` } });
+    expect(income.isTransfer).toBe(true); // the re-decided row was skipped, not clobbered
+    const run = await prisma.transferFlagRepairRun.findUniqueOrThrow({ where: { id: res.runId! } });
+    expect(run.clearedCount).toBe(1);
+    expect(run.skippedCount).toBe(1);
+    expect((JSON.parse(run.clearedRows) as Array<{ id: string }>).map((r) => r.id)).toEqual([
+      `${USER}-card`,
+    ]);
+  });
+
+  it('UNDO PREMISE (critic P3-7): a row already flagged again is skipped and never counted as restored', async () => {
+    await seedFlaggedCorpus();
+    const res = await applyTransferFlagRepair(USER);
+    // The reader re-marks the card row as a transfer by hand before the undo.
+    await prisma.transaction.update({
+      where: { id: `${USER}-card` },
+      data: { isTransfer: true },
+    });
+    const undo = await undoTransferFlagRepair(USER, res.runId!);
+    expect(undo).toEqual({ ok: true, restored: 1, skipped: 1 });
+  });
+
+  it('UNDO IS ATOMIC (critic P1-2): a mid-undo failure rolls the claim back too — no half-restored state behind a refused retry', async () => {
+    await seedFlaggedCorpus();
+    // A run whose payload throws mid-undo (after the claim, before completion).
+    const run = await prisma.transferFlagRepairRun.create({
+      data: {
+        userId: USER,
+        clearedRows: 'not-json{',
+        clearedCount: 2,
+        inflowCents: 0,
+        outflowCents: 0,
+      },
+    });
+    await expect(undoTransferFlagRepair(USER, run.id)).rejects.toThrow();
+    // The claim did NOT survive the failure: the run still reads un-undone, so
+    // a later (fixed) undo is not refused as "already undone".
+    const after = await prisma.transferFlagRepairRun.findUniqueOrThrow({ where: { id: run.id } });
+    expect(after.undoneAt).toBeNull();
+  });
+
+  it('UNDO TAKES THE NEWEST RUN ONLY (critic P3-6): an older run\'s id is refused while a newer run stands', async () => {
+    await seedFlaggedCorpus();
+    const run1 = await applyTransferFlagRepair(USER);
+    // Re-mark both rows so a second apply has the same set to clear again.
+    await prisma.transaction.updateMany({
+      where: { id: { in: [`${USER}-income`, `${USER}-card`] } },
+      data: { isTransfer: true },
+    });
+    const run2 = await applyTransferFlagRepair(USER);
+    expect(run2.runId).not.toBeNull();
+
+    const older = await undoTransferFlagRepair(USER, run1.runId!);
+    expect(older.ok).toBe(false);
+    expect(older.error).toBe('That repair run wasn’t found.');
+    // Nothing moved: run2's clears stand.
+    expect(
+      (await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-income` } })).isTransfer,
+    ).toBe(false);
+    // The newest run undoes normally.
+    const newest = await undoTransferFlagRepair(USER, run2.runId!);
+    expect(newest.ok).toBe(true);
   });
 
   it('the demo user cannot apply — the shared row is fenced', async () => {

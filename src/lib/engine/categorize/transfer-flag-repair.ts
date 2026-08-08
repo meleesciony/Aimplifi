@@ -24,12 +24,19 @@
  *    (`hasCompetingVerdict` — the same predicate the overturn gate uses, so the
  *    repair's scope and the defect it repairs cannot drift apart), AND
  *  - it is not review-pinned: a pinned row is the user's to decide, never the
- *    system's (the backfill precedent; the sweep's own file branch obeys it).
+ *    system's (the backfill precedent; the sweep's own file branch obeys it), AND
+ *  - it is POSTED, in a supported currency, and not reader-excluded (critic
+ *    cycle 1, both critics independently): the claim this repair makes is
+ *    "restoring returns this money to your totals", and a PENDING row can
+ *    settle differently (the file branch's own refusal), while a non-USD or
+ *    `excludeFromTotals` row is withheld from every total by ANOTHER gate — so
+ *    clearing its mark returns $0.00 and the stated dollars would be false.
  * Everything else flagged-but-declined — still awaiting review, filed AS
- * 'transfer' by the old rule, or pinned — is COUNTED in
- * `declinedOutOfScopeCount` and never touched: clearing those means minting
- * review work or unfiling a recorded filing, which is a different action with
- * its own consequences, recorded rather than smuggled in here.
+ * 'transfer' by the old rule, pinned, pending, non-USD, or reader-excluded —
+ * is COUNTED in `declinedOutOfScopeCount` and never touched: clearing those
+ * means minting review work, unfiling a recorded filing, or claiming money no
+ * figure would regain — different actions with their own consequences,
+ * recorded rather than smuggled in here.
  *
  * Clearing writes `isTransfer: false` and NOTHING else: the category is the
  * settled verdict the flag was wrongly withholding, so the repair restores the
@@ -38,10 +45,17 @@
 import { hasCompetingVerdict, planTransferUpdates, type TransferStateTxn } from './transfers';
 import { isIncomeCategoryId } from './categories';
 
+/** The planner's input row: the sweep's own shape, plus the reader-exclusion
+ * flag — absent means "not excluded", so every existing sweep caller's rows
+ * remain valid inputs unchanged. */
+export interface TransferFlagRepairRow extends TransferStateTxn {
+  excludeFromTotals?: boolean;
+}
+
 export interface TransferFlagRepairPlan {
   /** The rows to clear, in input order — full rows, so a surface can state
    * what it will change before it changes it. */
-  clear: TransferStateTxn[];
+  clear: TransferFlagRepairRow[];
   /** Convenience projection of `clear` (same order). */
   clearIds: string[];
   /** Cleared money-in that returns to the totals (abs cents). */
@@ -51,12 +65,16 @@ export interface TransferFlagRepairPlan {
   /** How many cleared rows carry an Income-group verdict — the sharpest class
    * (income the owner lost), named separately for the disclosure. */
   incomeCategorisedCount: number;
-  /** Settled substantive flags today's rule re-justifies — kept, counted so
-   * the surface can say the repair is a re-check, not a purge. */
+  /** Flags today's rule re-justifies — kept, whatever their scope; counted so
+   * the surface can say the repair is a re-check, not a purge. Together with
+   * `clear` and `declinedOutOfScopeCount` this PARTITIONS `flaggedCount`
+   * (critic cycle 1 P2: a pinned-but-endorsed row must not vanish from every
+   * count). */
   endorsedCount: number;
   /** Flagged rows today's rule declines that this repair deliberately does NOT
-   * touch: still awaiting review, filed as 'transfer', or review-pinned.
-   * Disclosed, never silently dropped ("no silent caps"). */
+   * touch: still awaiting review, filed as 'transfer', review-pinned, pending,
+   * non-USD, or reader-excluded. Disclosed, never silently dropped ("no
+   * silent caps"). */
   declinedOutOfScopeCount: number;
   /** Every `isTransfer: true` row seen, whatever its scope — so a surface can
    * tell "no marks exist" from "all marks check out" (a zero is a claim and
@@ -65,7 +83,7 @@ export interface TransferFlagRepairPlan {
 }
 
 export function planTransferFlagRepair(
-  transactions: readonly TransferStateTxn[],
+  transactions: readonly TransferFlagRepairRow[],
 ): TransferFlagRepairPlan {
   // The shipped rule, asked from scratch: with every flag cleared, which rows
   // would it flag or overturn TODAY? (Replaying with flags in place answers a
@@ -74,7 +92,7 @@ export function planTransferFlagRepair(
   const fromScratch = planTransferUpdates(transactions.map((t) => ({ ...t, isTransfer: false })));
   const wouldFlagNow = new Set([...fromScratch.flagIds, ...fromScratch.overturnIds]);
 
-  const clear: TransferStateTxn[] = [];
+  const clear: TransferFlagRepairRow[] = [];
   let inflowCents = 0;
   let outflowCents = 0;
   let incomeCategorisedCount = 0;
@@ -85,13 +103,20 @@ export function planTransferFlagRepair(
   for (const t of transactions) {
     if (!t.isTransfer) continue; // unflagged rows are the sweep's business, never the repair's
     flaggedCount += 1;
-    const endorsed = wouldFlagNow.has(t.id);
-    if (!hasCompetingVerdict(t) || t.reviewPinned) {
-      if (!endorsed) declinedOutOfScopeCount += 1;
+    // Endorsed is judged BEFORE scope, so the three buckets partition
+    // flaggedCount: endorsed + declined-out-of-scope + clear.
+    if (wouldFlagNow.has(t.id)) {
+      endorsedCount += 1;
       continue;
     }
-    if (endorsed) {
-      endorsedCount += 1;
+    const inScope =
+      hasCompetingVerdict(t) &&
+      !t.reviewPinned &&
+      t.status === 'POSTED' &&
+      t.currencySupported &&
+      t.excludeFromTotals !== true;
+    if (!inScope) {
+      declinedOutOfScopeCount += 1;
       continue;
     }
     clear.push(t);

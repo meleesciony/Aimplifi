@@ -6,6 +6,54 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-08 — H.7b: the wrongly-written transfer flags get an owner-triggered, undoable repair (DECISIONS #428, critic-cycled)
+
+**Closes STATUS §STILL OPEN after H.7 residual 1** — the highest-money open item in this
+file: the settled rows the pre-H.7 coincidence rule flagged, which the shipped rule
+declines, measured live at **53 rows / $29,848.84** (4 income-categorised) withheld from the
+owner's totals. **Partially closes residual 4**: the repair is the app's first and only
+`isTransfer: false` write path — scoped to declined flags via an explicit owner action,
+never a general un-flagger, never a sync's.
+
+**The shape is the one this file prescribed**: preview states the change before it happens
+(rows, dollars by direction, the income count), the apply is an owner tap on /settings
+("Transfer mark repair", beside AI trust), the run is recorded (`TransferFlagRepairRun`,
+additive — after a clear, a repaired row is indistinguishable from a never-flagged one, so
+the run is the only record undo can restore from), and undo is atomic, newest-run-only, and
+skips any row the reader re-decided since (their value wins). One rule, not two: the planner
+replays the SHIPPED `planTransferUpdates` from scratch over the sweep's own read, so a
+cleared row cannot bounce back on the next sweep — locked through the real
+`refreshTransferFlags`. The counts are recomputed live at preview and again at apply;
+nothing hardcodes the measured 53.
+
+**Critic cycle 1: two fresh-context critics (money semantics; copy/wiring), both FAIL —
+6 P1 + 5 P2 + 9 P3, every finding executed, all but one fixed same cycle** (detail in
+DECISIONS #428; 6 regression-ledger rows; three sabotages re-executed RED). The finding that
+sets this slice's residual: **a GENUINE cash advance or balance transfer out of a card would
+be actively un-flagged** — the one class `CAN_SEND_ACCOUNT_TYPES` cannot see, H.7 residual
+2's refusal converted into an act, and unfixable by the sweep since repair and sweep share
+one rule. Mitigations shipped: the caution names the class and the remedy before the button;
+the row list is shown first; the act is undoable; zero such rows exist on the live corpus
+(`h7-sender-types.mts`).
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,345 unit + 1 skipped /
+385 passed files (386)** / build clean; e2e **4/4** (the new `transfer-flag-repair.spec.ts`
+apply→undo round trip + all three settings specs). Schema: additive `TransferFlagRepairRun`
+only (prisma diff = one new model; deploy runs `prisma db push`, no existing rows touched).
+
+**STILL OPEN after H.7b, recorded not fixed:** (1) **per-row selection** — the apply is
+all-or-nothing; an owner holding 52 wrong flags and 1 genuine cash advance cannot repair the
+52 without un-marking the 1 (today: zero such rows live; the caution names the manual
+remedy); (2) **declined flags OUTSIDE the scope stay withheld** — filed-as-'transfer' by the
+old rule, pending, non-USD, reader-excluded, pinned: counted and disclosed on the card,
+repaired by nothing (unfiling a recorded filing and minting review work are different acts
+with their own consequences); (3) a pair straddling the scope boundary repairs one leg while
+the transfer-filed leg stays excluded — same money, two verdicts, disclosed via (2)'s count;
+(4) `TransferFlagRepairRun.inflowCents/outflowCents` share the repo-wide `Int` (int4)
+ceiling; (5) H.7 residuals 2, 3, 5, 6 stand unchanged. The /settings load now pays the
+full-corpus replay (~200ms at 3k rows) on every render — measured acceptable, noted here so
+a future settings slowdown has its suspect named.
+
 ## ✅ BUILT 2026-08-07 — H.6b(a): the combine carries the reader's hand-filed work onto the successor's copies (DECISIONS #427, critic-cycled to the hard cap)
 
 **Closes TASKS H.6b(a)** — the last OPEN item of H.6's critic's three findings, and the
@@ -844,8 +892,13 @@ across 369 files** / build clean. Six new sabotages, all RED, restored in a
 
 ### STILL OPEN after H.7 (recorded, not fixed — ranked by money consequence)
 
-1. **The 53 flags already written are NOT repaired — the one that still affects
-   what the owner sees today.** Flags are add-only by construction. Re-measured
+> **2026-08-08: residual 1 is CLOSED and residual 4 partially closed by H.7b**
+> (DECISIONS #428, the entry near the top of this file) — the owner-triggered,
+> undoable repair this residual prescribed now exists on /settings. Residuals
+> 2, 3, 5 and 6 stand; H.7b adds its own residual list (§STILL OPEN after H.7b).
+
+1. ~~**The 53 flags already written are NOT repaired — the one that still affects
+   what the owner sees today.**~~ **CLOSED by H.7b (2026-08-08).** Flags are add-only by construction. Re-measured
    with the shipped rule: of the rows flagged on his corpus, it declines **53**
    (**$29,848.84**, 4 of them income-categorised) and endorses the rest. Those 53
    are still withheld from his income and spending totals right now.

@@ -5516,3 +5516,54 @@ never a clobber; (3) sequential combines are order-dependent (a second combine s
 one's carried state); (4) after a branch-A carry, `findOffsettingInflow` cannot match a
 whole-charge refund to the re-created pieces — display-time only, sums unaffected. H.6c's
 STILL OPEN item (2) (excludeFromTotals/isTransfer parity between copies is unmeasured) stands.
+
+## #428 — H.7b: the wrongly-written transfer flags get an owner-triggered, undoable repair; clearing a flag is a disclosed act, never a sweep's (2026-08-08)
+
+**Decision.** The 53-row / $29,848.84 class H.7 recorded (STATUS §STILL OPEN after H.7,
+residual 1 — settled rows the pre-H.7 coincidence rule flagged, which the shipped rule
+declines, still withheld from every total) is repaired by an explicit owner action on
+/settings, not by any sync path. `planTransferFlagRepair` (pure, beside the sweep's own
+engine) replays the SHIPPED `planTransferUpdates` from scratch over the sweep's own read
+(`loadTransferSweepRows`, extracted unchanged) — one rule, so a cleared row cannot bounce
+back on the next sweep unless genuinely new evidence arrives, and the h7-shipped-plan.mts
+probe's method is now the tested engine rather than a script. Scope: flagged + settled
+substantive verdict (`hasCompetingVerdict`, the overturn gate's own predicate) + un-pinned +
+POSTED + USD-counted + not reader-excluded. The clear writes `isTransfer: false` and NOTHING
+else — the category is the settled verdict the flag was wrongly withholding. Preview states
+the change first (rows, dollars by direction, the income count); the apply re-asserts its
+whole premise per row and records a `TransferFlagRepairRun` (additive table: the only record
+that can distinguish a repaired row from a never-flagged one); undo is atomic, newest-run-only,
+and skips any row the reader re-decided (their value wins — the H.6b(a) doctrine). This is
+deliberately the app's ONLY `isTransfer: false` write path (residual 4's gap), scoped to
+declined flags, never a general un-flagger. Demo fenced both sides.
+
+**Critic cycle 1 — two fresh-context critics in isolated worktrees, both FAIL: 6 P1
+(3 money + 3 copy/wiring), 5 P2, 9 P3; every finding executed, all but one fixed same
+cycle.** The money critic's sharpest: (P1-1) a GENUINE cash advance — the one class
+CAN_SEND_ACCOUNT_TYPES cannot see — would be actively un-flagged and, because repair and
+sweep share one rule, the sweep can never re-fix it; H.7's residual 2 recorded a REFUSAL,
+this converts it to an act. Smallest fix applied per the critic: the preview names the class
+and the remedy before the button ("leave it marked and file it as Transfer instead"); the
+fuller fix (per-row selection) is recorded OPEN in STATUS, and zero such rows exist on the
+live corpus (h7-sender-types.mts). (P1-2) undo was not atomic — a mid-loop failure stranded
+a half-restored state behind a refused retry; claim+restores now one transaction, locked by
+a corrupt-payload rollback test. (P1-3) the apply premise — the slice's central safety
+claim — was deletable with the suite green; now locked by a stale-read interleave test, and
+the sabotage was re-executed RED. The copy critic's: the money claim was false for rows
+non-USD/excludeFromTotals gates still withhold (now out of scope, dollars never claimed,
+class named in the disclosure); "Nothing needs repair" was false whenever declined
+out-of-scope marks existed (three zeros now three sentences); the confirmation could be
+dated TOMORROW (UTC label at a US evening — no rendered line makes a day claim now). Also
+fixed: partition drift (a pinned-but-endorsed flag vanished from every count), pluralization
+in the disclosure tail (the test had locked the broken string), "1 of it is categorised as
+income", a silent all-skipped apply (now an inline outcome, no reload into silence),
+partial-apply narrowing (skippedCount stored and disclosed), undo's misleading cross-user
+message, and card-local strings moved under test (jsdom render spec). Recorded, not fixed:
+`inflowCents/outflowCents Int` shares the repo-wide int4 ceiling convention.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,345 unit + 1 skipped /
+385 passed files (386)** / build clean; e2e **4/4** (`transfer-flag-repair.spec.ts` full
+apply→undo round trip through the rendered page + DB, and all three `settings-dials`
+specs); three sabotages executed RED and restored with a residue check (86/86 across the
+repair + adjacent H.7 suites). Schema: additive `TransferFlagRepairRun` only — no existing
+column or row changes; deploy runs `prisma db push` (CLAUDE.md rule 5 checked).

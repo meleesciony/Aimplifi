@@ -48,21 +48,18 @@ export interface TransferFlagRepairPreviewRow {
 
 export interface TransferFlagRepairRunSummary {
   id: string;
-  /** ISO timestamp of the apply. */
+  /** ISO timestamp of the apply. NO calendar-day display label is derived from
+   * this (critic cycle 1 P1-3, executed): a UTC day is "tomorrow" for a US
+   * evening, and a confirmation dated tomorrow is a false claim about when the
+   * app acted — the rendered line makes no day claim at all. */
   createdAt: string;
-  /** Server-rendered display label ("Aug 8, 2026", UTC) — computed here so the
-   * client never formats a timestamp and hydration cannot drift. */
-  createdAtLabel: string;
   clearedCount: number;
+  /** Rows the run's plan named but the premise write skipped — disclosed in
+   * the confirmation line, never silently narrowed. */
+  skippedCount: number;
   inflowCents: number;
   outflowCents: number;
   undone: boolean;
-}
-
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function utcDateLabel(d: Date): string {
-  return `${MONTH_LABELS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
 }
 
 export interface TransferFlagRepairPreview {
@@ -130,8 +127,8 @@ export async function getTransferFlagRepairPreview(
       ? {
           id: lastRunRow.id,
           createdAt: lastRunRow.createdAt.toISOString(),
-          createdAtLabel: utcDateLabel(lastRunRow.createdAt),
           clearedCount: lastRunRow.clearedCount,
+          skippedCount: lastRunRow.skippedCount,
           inflowCents: lastRunRow.inflowCents,
           outflowCents: lastRunRow.outflowCents,
           undone: lastRunRow.undoneAt !== null,
@@ -171,16 +168,20 @@ export async function applyTransferFlagRepair(
 
   await prisma.$transaction(async (tx) => {
     for (const row of plan.clear) {
-      // The write re-asserts its whole premise (H.7): still flagged, still
-      // settled, still un-pinned, still the SAME substantive verdict the plan
-      // judged — a row re-decided inside the window is skipped.
+      // The write re-asserts its WHOLE premise (H.7): still flagged, still
+      // settled, still un-pinned, still POSTED, still counted (supported
+      // currency, not reader-excluded), still the SAME substantive verdict the
+      // plan judged — a row re-decided inside the window is skipped, never
+      // clobbered. Locked by the stale-read regression test.
       const res = await tx.transaction.updateMany({
         where: {
           id: row.id,
-          account: { userId },
+          account: { userId, OR: [{ currency: null }, { currency: 'USD' }] },
           isTransfer: true,
           needsReview: false,
           reviewPinned: false,
+          status: 'POSTED',
+          excludeFromTotals: false,
           categoryId:
             row.categoryId === null
               ? { notIn: [...NON_COMPETING_CATEGORY_IDS] } // unreachable: scope requires a verdict; keeps the premise total
@@ -200,6 +201,7 @@ export async function applyTransferFlagRepair(
           userId,
           clearedRows: JSON.stringify(clearedRows),
           clearedCount: clearedRows.length,
+          skippedCount: plan.clear.length - clearedRows.length,
           inflowCents,
           outflowCents,
         },
@@ -239,46 +241,76 @@ export interface TransferFlagRepairUndoResult {
  * Restore the flags a run cleared. A row the reader has touched since — new
  * category, un-resolved, pinned, or re-flagged already — is skipped: the
  * survivor's own reader values always win (the H.6b(a) doctrine).
+ *
+ * ATOMIC (critic cycle 1 P1-2, executed): the claim and the restore loop
+ * commit together, so a mid-loop failure rolls the claim back too — the
+ * half-restored-forever state (undoneAt set, one flag back, retry refused)
+ * cannot exist.
+ *
+ * NEWEST RUN ONLY (critic cycle 1 P3-6, executed): undoing an OLDER run's id
+ * would restore rows a newer standing run also cleared, reversing that run
+ * while it still reads as standing. The UI only ever offers the newest id; the
+ * server enforces it so crafted form data cannot do more than the UI offers.
+ * (A run created between the check and the claim loses to the claim's own
+ * `undoneAt: null` + id guard — the refusal direction, never a wrong restore.)
  */
 export async function undoTransferFlagRepair(
   userId: string,
   runId: string,
 ): Promise<TransferFlagRepairUndoResult> {
-  // Claim the run atomically: exactly one undo can win.
-  const claim = await prisma.transferFlagRepairRun.updateMany({
-    where: { id: runId, userId, undoneAt: null },
-    data: { undoneAt: new Date() },
+  const newest = await prisma.transferFlagRepairRun.findFirst({
+    where: { userId, undoneAt: null },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
   });
-  if (claim.count !== 1) {
-    return { ok: false, restored: 0, skipped: 0, error: 'This repair was already undone.' };
+  if (newest === null || newest.id !== runId) {
+    // Also the cross-user/unknown-id answer: no claim about a state the
+    // caller cannot know (critic P3-9 — the old message asserted "already
+    // undone" for a run that may simply not be theirs).
+    return { ok: false, restored: 0, skipped: 0, error: 'That repair run wasn’t found.' };
   }
-  const run = await prisma.transferFlagRepairRun.findUniqueOrThrow({ where: { id: runId } });
-  const cleared = JSON.parse(run.clearedRows) as Array<{ id: string; categoryId: string | null }>;
 
   let restored = 0;
-  for (const row of cleared) {
-    const res = await prisma.transaction.updateMany({
-      where: {
-        id: row.id,
-        account: { userId },
-        isTransfer: false,
-        needsReview: false,
-        reviewPinned: false,
-        // Only a row still carrying the verdict it had at clear time restores:
-        // a recategorised row is the reader's newer decision, not ours to hide.
-        categoryId:
-          row.categoryId === null ? { notIn: [...NON_COMPETING_CATEGORY_IDS] } : row.categoryId,
-      },
-      data: { isTransfer: true },
+  let total = 0;
+  const claimed = await prisma.$transaction(async (tx) => {
+    // Claim atomically WITH the restores: exactly one undo can win, and a
+    // failed restore un-claims.
+    const claim = await tx.transferFlagRepairRun.updateMany({
+      where: { id: runId, userId, undoneAt: null },
+      data: { undoneAt: new Date() },
     });
-    restored += res.count;
+    if (claim.count !== 1) return false;
+    const run = await tx.transferFlagRepairRun.findUniqueOrThrow({ where: { id: runId } });
+    const cleared = JSON.parse(run.clearedRows) as Array<{ id: string; categoryId: string | null }>;
+    total = cleared.length;
+    for (const row of cleared) {
+      const res = await tx.transaction.updateMany({
+        where: {
+          id: row.id,
+          account: { userId },
+          isTransfer: false,
+          needsReview: false,
+          reviewPinned: false,
+          // Only a row still carrying the verdict it had at clear time restores:
+          // a recategorised row is the reader's newer decision, not ours to hide.
+          categoryId:
+            row.categoryId === null ? { notIn: [...NON_COMPETING_CATEGORY_IDS] } : row.categoryId,
+        },
+        data: { isTransfer: true },
+      });
+      restored += res.count;
+    }
+    return true;
+  });
+  if (!claimed) {
+    return { ok: false, restored: 0, skipped: 0, error: 'That repair run wasn’t found.' };
   }
 
   await auditLog(userId, 'transfers.flag-repair-undo', {
     runId,
     restored,
-    skipped: cleared.length - restored,
+    skipped: total - restored,
   });
 
-  return { ok: true, restored, skipped: cleared.length - restored };
+  return { ok: true, restored, skipped: total - restored };
 }

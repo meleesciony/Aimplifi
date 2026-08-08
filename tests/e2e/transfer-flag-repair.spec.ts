@@ -101,7 +101,9 @@ test('the repair card states the change, applies it, and undoes it', async ({ pa
   await expect(page.getByTestId('transfer-repair-nothing')).toContainText('Nothing needs repair', {
     timeout: 20_000,
   });
-  await expect(page.getByTestId('transfer-repair-last-run')).toContainText('Restored 2 transactions');
+  await expect(page.getByTestId('transfer-repair-last-run')).toContainText(
+    'Most recent repair: restored 2 transactions',
+  );
 
   // The database agrees: declined flags cleared, endorsed flag untouched.
   expect(flagOf(incomeId)).toBe(0);

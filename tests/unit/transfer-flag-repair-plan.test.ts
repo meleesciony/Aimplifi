@@ -25,6 +25,7 @@ import { describe, expect, it } from 'vitest';
 import {
   planTransferFlagRepair,
   type TransferFlagRepairPlan,
+  type TransferFlagRepairRow,
 } from '@/lib/engine/categorize/transfer-flag-repair';
 import { planTransferUpdates, type TransferStateTxn } from '@/lib/engine/categorize/transfers';
 
@@ -138,6 +139,38 @@ describe('H.7b planner: what clears, what stays, what is only counted', () => {
     const plan = planTransferFlagRepair(rows);
     expect(plan.clearIds).toEqual(['card-leg']);
     expect(plan.declinedOutOfScopeCount).toBe(1);
+  });
+
+  it('never clears — or claims dollars for — a row another gate already withholds (critic cycle 1)', () => {
+    // PENDING: can settle differently under a new id (the file branch's own refusal).
+    // Non-USD: withheld from every total, so "returns $X to your figures" would be false
+    // and the cents would print as USD. Reader-excluded: same, by the reader's own hand.
+    const shapes: Array<Partial<TransferFlagRepairRow>> = [
+      { status: 'PENDING' },
+      { currencySupported: false },
+      { excludeFromTotals: true },
+    ];
+    for (const shape of shapes) {
+      const rows = kalshiPair().map((t) => (t.id === 'income-leg' ? { ...t, ...shape } : t));
+      const plan = planTransferFlagRepair(rows);
+      expect(plan.clearIds).toEqual(['card-leg']);
+      expect(plan.inflowCents).toBe(0); // the withheld leg's dollars are never claimed
+      expect(plan.declinedOutOfScopeCount).toBe(1);
+    }
+  });
+
+  it('PARTITION: endorsed + declined-out-of-scope + cleared always equals flaggedCount — a pinned-but-endorsed row vanishes from no count', () => {
+    const pinnedEndorsed = coherentPair().map((t) =>
+      t.id === 'fund-in' ? { ...t, reviewPinned: true } : t,
+    );
+    const rows = [...kalshiPair(), ...pinnedEndorsed];
+    const plan = planTransferFlagRepair(rows);
+    expect(plan.endorsedCount).toBe(2); // both coherent legs, the pinned one included
+    expect(plan.clearIds.length).toBe(2);
+    expect(plan.declinedOutOfScopeCount).toBe(0);
+    expect(plan.endorsedCount + plan.declinedOutOfScopeCount + plan.clearIds.length).toBe(
+      plan.flaggedCount,
+    );
   });
 
   it('counts, and never touches, a declined flag still awaiting review (the wedge shape)', () => {
