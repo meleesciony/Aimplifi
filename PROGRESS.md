@@ -2701,3 +2701,46 @@ instead is the slice's own copy string inside a served `/_next/static` chunk (un
 codebase; `plaid-connections.tsx` is `'use client'`, so it ships whether or not it renders).
 Pre-deploy baseline **5/6 with exactly the marker check failing** — a fail-old proof. The
 PostgreSQL LINKED path is NOT covered by it and is recorded as such in the script's header.
+
+## 2026-08-08 · G.1 · the standing CI red was test contention, not a product defect
+
+**Why this became a slice:** H.1(b)'s ship gate came back red, and so did the two pushes after it —
+runs 31243413430 / 31243942530 / 31244506540, three consecutive shas, always the same single spec
+(`budget-targets.spec.ts`), unit results identical to local every time, and not one of those
+commits touching budget code. That is precisely the K.8 condition: a gate red on every push trains
+the loop to stop reading it.
+
+**Identification, by reading the failure block instead of re-running it a fourth time:** locator
+`budget-clear-dining`, expected 0 / received 1, at `:70-71` — the clear step's `toPass`, with its
+full 20s exhausted and every inner poll seeing 1 element. A stale read cannot survive twenty
+full-document reloads, so the delete never committed. That ruled out the "single post-mutation
+read" class `ci-e2e-timing-flake.md` describes — whose remedy was already applied at that exact
+spot and had failed anyway.
+
+**A first root cause was WRONG, and is recorded as wrong rather than quietly dropped.** It read the
+never-committing delete as `ClearBudgetButton`'s `finally`-reload cancelling its own in-flight
+action, which would have made this a money-surface PRODUCT defect across every form on the
+deadline+reload recipe. It was written down as a hypothesis with its confirming step, and nothing
+was changed on it. Kept looking, and the repo had already diagnosed the real family:
+`playwright.config.ts`'s worker note and `mobile-overflow.spec.ts:333-339` both record that
+concurrent demo sessions on the single-writer SQLite e2e DB sever exactly the reload-bearing
+mutation specs — *"pwa-offline's budget-clear round-trip flaked exactly this way"*.
+
+**The contention was real and this spec's own header denied it.** It claimed "no other spec asserts
+a budget target"; `pwa-offline.spec.ts:44-49` drives the same set/clear round-trip on the demo user
+concurrently under `fullyParallel` × 4 workers. Different categories, so the ROWS never collided —
+the collision was for the WRITER.
+
+**Fix:** the spec runs on a throwaway user plus one seeded account (/budgets renders first-run
+onboarding until an account exists). No assertion weakened — the upsert-yields-ONE-row invariant
+(#37/#186), the WCAG AA scan and the clear round-trip are all user-agnostic, and budget targets are
+display-only, so no golden value moves either way.
+
+**Gate:** verify GREEN — tsc 0 / eslint 0 / **6,381 unit + 1 skipped / 388 files** / build clean;
+full e2e **305 passed / 0 failed** (was 304 / 1 — the first fully green full suite this session).
+Pushed as `fa2da16`; CI is the only environment that ever reproduced this, so its conclusion is the
+real verdict and is recorded in STATUS when read.
+
+**Watch item, deliberately unchanged:** `pwa-offline.spec.ts` still runs its budget round-trip as
+the shared demo user. It is an offline/service-worker spec whose point is caching the demo's real
+seeded pages, so moving it to a bare throwaway user could hollow out what it tests.
