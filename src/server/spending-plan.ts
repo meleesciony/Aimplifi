@@ -54,7 +54,12 @@ import {
   RESERVE_KIND,
   resolveReserves,
   type RefusedReserve,
+  type ReserveDeclaration,
 } from '@/lib/engine/spending-plan/reserves';
+import {
+  proposeFixedSetup,
+  type FixedSetupProposal,
+} from '@/lib/engine/spending-plan/setup-proposals';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import {
   classifySeriesProjection,
@@ -100,6 +105,15 @@ export interface SpendingPlanWithNotes extends SpendingPlan {
    */
   loanPaymentRollupExclusions: string[];
   /**
+   * C.23 (critic P1-1): merchant canonicals the Fixed rollup excluded because
+   * their series was CONVERTED to a reserve (the reserve's goal row links the
+   * canonical — see `Goal.merchantCanonical`). Same contract as
+   * `loanPaymentRollupExclusions`: surfaces that re-derive the rollup's basis
+   * (/budgets) must apply the same set, or the typical re-counts the converted
+   * charge beside the reserve that replaced it.
+   */
+  convertedReserveRollupExclusions: string[];
+  /**
    * C.19/H.3 — the Fixed figure's composition, already assembled and already
    * certified. The two halves that produce it (the category rollup and the
    * union's series rows) are both computed in this loader, so assembling here
@@ -118,6 +132,16 @@ export interface SpendingPlanWithNotes extends SpendingPlan {
    * declarations all resolved.
    */
   refusedReserves: RefusedReserve[];
+  /**
+   * C.23 / DECISIONS #431 — the Fixed-costs SETUP proposal, computed HERE with
+   * the same `scheduledFixed` array, the same category sets and the same
+   * reserve declarations the plan consumed (one authority — a settings line
+   * cannot disagree with the figure it stands under). The convert action
+   * re-verifies a proposal's `convertibleToReserve` against this same loader
+   * output at write time, so the lever's exactness is server-derived, never
+   * client-asserted.
+   */
+  fixedSetup: FixedSetupProposal;
 }
 
 export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithNotes> {
@@ -235,36 +259,16 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
       .filter((s) => s.loanPayment === true && typeof s.merchantCanonical === 'string')
       .map((s) => s.merchantCanonical!),
   );
-  const trailingFixedMonths = monthlyNonDiscretionaryCents(
-    snap.transactions,
-    categoryMeta,
-    fixedMerchants,
-    unionedLoanMerchants,
-  )
-    .filter((f) => f.month < ym)
-    .slice(-3);
-  const trailingMonthlyFixedCents = trailingFixedMonths.map((f) => f.expenseCents);
-  // #384: when the category rollup is empty, the median path still needs a
-  // covered-id set so Fixed grocery spend in those months is not double-counted
-  // when we union uncovered recurring (auto-loan ACH).
-  const trailingFixedMonthKeys = new Set(trailingFixedMonths.map((f) => f.month));
-  const endOfMonth = `${ym}-${String(daysInMonth(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)))).padStart(2, '0')}`;
-
-  // Card obligations DUE THIS CALENDAR MONTH (critic F1: subtracting the
-  // whole open cycle reserved a statement against two months' income when it
-  // was due early in a month — a monthly plan reserves a bill only against
-  // its due month). Summed from the engine's own perDueDate rows, so the term
-  // is a subset of exactly what the cash-needed headline sums. Guarded: an
-  // account-less user (fresh signup asking the assistant) has no funding
-  // account to resolve and no cards to owe on.
-  const computed = snap.accounts.length ? cashNeededFromSnapshot(snap, today) : null;
-  const duePointsThisMonth = (computed?.result.perDueDate ?? []).filter((p) => p.date <= endOfMonth);
-  const cardObligationsCents = duePointsThisMonth.reduce((sum, p) => sum + p.dayTotalCents, 0);
-  const cardObligationsEstimated = duePointsThisMonth.some((p) => p.cards.some((c) => c.isEstimated));
-
   // Planned savings inputs: active goals' monthly contributions, and the
   // pay-yourself-first % target from Settings (#295). The engine takes the max.
   // Budgets feed the #377 per-category Fixed rollup (budget target else typical).
+  // C.23 critic P1-1 (round 2) HOISTS the fetch ABOVE the median basis: the
+  // median is the rollup's fallback, and a converted bill can be the reader's
+  // only fixed-classified window spend — the converted-reserve exclusions must
+  // be derivable before the median runs, or its VALUES re-count the converted
+  // charge whole beside the reserve (measured by the critic: $130,000 fixed
+  // vs the correct $10,000 for a $1,200 annual converted bill — 120_000
+  // cents, critic round-2 P2-4/P2-6 kept the two scales straight).
   const [goals, user, linkedCreditCardCount, budgetRows, fixedSeriesByStatus] = await Promise.all([
     // `kind` and the reserve fields come back too (C.23/H.4): a reserve is stored
     // as a Goal row and must be summed as a FIXED cost, never as a savings
@@ -278,6 +282,9 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
         targetCents: true,
         cadence: true,
         monthlyContributionCents: true,
+        // C.23 critic P1-1: the convert link — set only on reserves created by
+        // the convert lever. See the schema comment; derived below.
+        merchantCanonical: true,
       },
     }),
     prisma.user.findUnique({
@@ -311,6 +318,52 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
       _count: { _all: true },
     }),
   ]);
+  // C.23 critic P1-1: merchants the CONVERT lever set aside as reserves. Their
+  // money is now the reserve's alone, so their rows leave the category rollup
+  // AND the median basis ENTIRELY (the same mechanism as the loan exclusion,
+  // one level down): once a converted series' charge lands inside the rollup
+  // window or a trailing median month, the average must not count it AND the
+  // reserve count it at once — measured by the critic (round 2): an ANNUAL
+  // $1,200 dues (120_000 cents) converted while its charge sits in the
+  // current month flips the plan to the median basis when the rollup zeroes
+  // out, and the median then counted the charge whole beside the reserve
+  // (fixed $130,000 vs the correct $10,000 — a 13x overstatement for every
+  // window that contains a charge, recurring annually). Derived from the
+  // GOALS (excluded ⇔ a reserve
+  // exists — the exactness invariant), never from the overrides: a user-set
+  // "not a bill" is not a conversion and keeps its place in the averages.
+  const convertedReserveMerchants = new Set(
+    goals
+      .filter((g) => g.kind === RESERVE_KIND && g.merchantCanonical !== null)
+      .map((g) => g.merchantCanonical as string),
+  );
+  const trailingFixedMonths = monthlyNonDiscretionaryCents(
+    snap.transactions,
+    categoryMeta,
+    fixedMerchants,
+    new Set([...unionedLoanMerchants, ...convertedReserveMerchants]),
+  )
+    .filter((f) => f.month < ym)
+    .slice(-3);
+  const trailingMonthlyFixedCents = trailingFixedMonths.map((f) => f.expenseCents);
+  // #384: when the category rollup is empty, the median path still needs a
+  // covered-id set so Fixed grocery spend in those months is not double-counted
+  // when we union uncovered recurring (auto-loan ACH).
+  const trailingFixedMonthKeys = new Set(trailingFixedMonths.map((f) => f.month));
+  const endOfMonth = `${ym}-${String(daysInMonth(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)))).padStart(2, '0')}`;
+
+  // Card obligations DUE THIS CALENDAR MONTH (critic F1: subtracting the
+  // whole open cycle reserved a statement against two months' income when it
+  // was due early in a month — a monthly plan reserves a bill only against
+  // its due month). Summed from the engine's own perDueDate rows, so the term
+  // is a subset of exactly what the cash-needed headline sums. Guarded: an
+  // account-less user (fresh signup asking the assistant) has no funding
+  // account to resolve and no cards to owe on.
+  const computed = snap.accounts.length ? cashNeededFromSnapshot(snap, today) : null;
+  const duePointsThisMonth = (computed?.result.perDueDate ?? []).filter((p) => p.date <= endOfMonth);
+  const cardObligationsCents = duePointsThisMonth.reduce((sum, p) => sum + p.dayTotalCents, 0);
+  const cardObligationsEstimated = duePointsThisMonth.some((p) => p.cards.some((c) => c.isEstimated));
+
   // THE DOUBLE-COUNT GATE (C.23/H.4). `plannedSavingsCents` is
   // `max(goalContributions, savingsTarget)` — "a floor, never a sum" — so a
   // reserve left inside this reduce would be committed once as savings and again
@@ -321,16 +374,18 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const goalContributionsCents = goals
     .filter((g) => g.kind !== RESERVE_KIND)
     .reduce((sum, g) => sum + (g.monthlyContributionCents ?? 0), 0);
-  const reserves = resolveReserves(
-    goals
-      .filter((g) => g.kind === RESERVE_KIND)
-      .map((g) => ({
-        id: g.id,
-        name: g.name,
-        trueCostCents: g.targetCents,
-        cadence: g.cadence,
-      })),
-  );
+  // The RAW declarations, captured for the fixed-setup proposal (C.23): the
+  // settings surface resolves them with the SAME `resolveReserves` the plan
+  // uses, so the headline figure and the plan's Fixed term cannot disagree.
+  const reserveDeclarations: ReserveDeclaration[] = goals
+    .filter((g) => g.kind === RESERVE_KIND)
+    .map((g) => ({
+      id: g.id,
+      name: g.name,
+      trueCostCents: g.targetCents,
+      cadence: g.cadence,
+    }));
+  const reserves = resolveReserves(reserveDeclarations);
   const fixedSeriesCount = (status: SeriesProjectionStatus): number =>
     fixedSeriesByStatus.find((g) => g.projectionStatus === status)?._count._all ?? 0;
   const fixedSeries: FixedSeriesCensus = {
@@ -408,7 +463,13 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     fixedMerchants,
     budgetByCategory: new Map(budgetRows.map((b) => [b.categoryId, b.monthCents])),
     nameOf: (id) => categoryName(id, categoryMeta),
-    excludeMerchantCanonicals: unionedLoanMerchants,
+    // C.23 critic P1-1: the CONVERTED merchants join the loan exclusion — a
+    // converted series' charges are the reserve's money now, and the category
+    // average counting them again is the double count the lever exists to avoid.
+    excludeMerchantCanonicals: new Set([
+      ...unionedLoanMerchants,
+      ...convertedReserveMerchants,
+    ]),
   });
   // #397: the union's category test reads the taxonomy suggestion alone — a
   // series whose rows the reader flipped to discretionary is neither covered
@@ -427,8 +488,17 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
           trailingFixedMonthKeys,
           categoryMeta,
           fixedMerchants,
-          unionedLoanMerchants,
+          // C.23 critic P1-1: the SAME exclusion set as the rollup above — the
+          // median path must not re-count a converted series' months either.
+          new Set([...unionedLoanMerchants, ...convertedReserveMerchants]),
         );
+
+  // C.24 critic F2: a loan-payment series whose category the reader priced
+  // themselves is NOT added on top of the reader's own number. Extracted from
+  // the plan call below so the fixed-setup proposal reads the SAME set.
+  const budgetCategoryIds = new Set(
+    budgetRows.filter((b) => b.monthCents > 0).map((b) => b.categoryId),
+  );
 
   const plan = computeSpendingPlan({
     today,
@@ -442,11 +512,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     // not certify "computed from your own data" while one is in the term.
     categoryFixedHasReaderInput: categoryFixed.hasReaderInput,
     categoryFixedCoveredIds,
-    // C.24 critic F2: a loan-payment series whose category the reader priced
-    // themselves is NOT added on top of the reader's own number.
-    budgetCategoryIds: new Set(
-      budgetRows.filter((b) => b.monthCents > 0).map((b) => b.categoryId),
-    ),
+    budgetCategoryIds,
     categoryIsFixed,
     incomeOverrideCents: user?.planIncomeOverrideCents ?? null,
     fixedOverrideCents: user?.planFixedOverrideCents ?? null,
@@ -460,10 +526,31 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     obligationsBeyondMonthEstimated,
   });
 
+  // C.23 / DECISIONS #431 — the guided Fixed-costs setup proposal: every
+  // counted expense series marked with the union's own basis verdict, the
+  // reserves resolved as the plan resolves them, and the "move this much to
+  // reserves this month" figure — all derived from the SAME arrays and sets
+  // the plan just consumed (one authority, by construction).
+  const fixedSetup = proposeFixedSetup({
+    items: scheduledFixed,
+    categoryIsFixed,
+    rollupCategoryIds: categoryFixedCoveredIds,
+    budgetCategoryIds,
+    // C.23 critic P1-2: the proposal's inBasis oracle must be the one the plan
+    // SUMMED — on the last-resort basis the plan counts every non-settlement
+    // series, so the union's discretionary skip would render a counted series
+    // as "not in your fixed costs" with a lever whose delta is zero. (`fixedBasis`,
+    // the public field: 'user-set' keeps the union oracle — the override owns
+    // the figure, and the union is what the fixed list still renders.)
+    planFixedBasis: plan.fixedBasis,
+    reserves: reserveDeclarations,
+  });
+
   return {
     ...plan,
     incomeOverrideCents: user?.planIncomeOverrideCents ?? null,
     fixedOverrideCents: user?.planFixedOverrideCents ?? null,
+    fixedSetup,
     // C.24: the merchants the rollup excluded because their series unioned
     // (the exactness invariant). /budgets re-derives the same per-category
     // basis and must apply the SAME exclusion or the two surfaces print
@@ -485,6 +572,12 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
           .filter((c): c is string => c !== null),
       ),
     ],
+    // C.23 critic P1-1: the CONVERTED merchants the rollup excluded (their money
+    // is each linked reserve's alone). /budgets re-derives the same per-category
+    // basis and must apply the SAME exclusion or the two surfaces print
+    // different "typical" figures for the same category — the same rule as the
+    // loan exclusions one field above.
+    convertedReserveRollupExclusions: [...convertedReserveMerchants],
     // C.19/H.3: the Fixed figure's own composition, assembled HERE from the two
     // halves that produced it — the category rollup computed just above and the
     // union rows the plan summed. The page renders it and computes nothing: a

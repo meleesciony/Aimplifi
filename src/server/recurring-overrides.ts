@@ -16,6 +16,7 @@
  */
 import { prisma } from '@/lib/db';
 import { DEMO_USER_ID } from '@/lib/demo-user';
+import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { isAggregateCanonical, normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import {
   type RecurringOverrideInput,
@@ -166,6 +167,32 @@ export const OVERRIDE_BAD_CADENCE =
   'Pick how often this charges — a bill without a rhythm has no date to project.';
 export const OVERRIDE_DEMO_BLOCKED =
   'The demo account is shared with everyone, so it does not save changes like this one.';
+// C.23 critic P1-2: a NOT_BILL written by the convert lever is half a pair with
+// the reserve that carries its canonical. The undo for a conversion is removing
+// the reserve (which withdraws the override in the same transaction) — undoing
+// the override alone would count the payee twice. Names the remedy the reader
+// can actually click.
+export const OVERRIDE_LINKED_RESERVE =
+  'This payee is set aside as a reserve — remove the reserve on your plan page first, and the bill returns to your fixed costs.';
+
+/**
+ * A reserve linked to this payee (case-folded) — the other half of a
+ * convert-lever pair (DECISIONS #431). Both sides of the override write must
+ * refuse while it stands: honoring BILL re-declaration OR the override undo
+ * alone returns the series to detection while the reserve still counts the
+ * money — the same payee twice in the Fixed figure, with `ok: true` (C.23
+ * critic P1-1). The one whole undo is removing the reserve, which withdraws
+ * the NOT_BILL with it.
+ */
+async function hasLinkedReserve(userId: string, merchantCanonical: string): Promise<boolean> {
+  const linkedReserves = await prisma.goal.findMany({
+    where: { userId, kind: RESERVE_KIND, merchantCanonical: { not: null } },
+    select: { merchantCanonical: true },
+  });
+  return linkedReserves.some(
+    (g) => overrideKey(g.merchantCanonical as string) === overrideKey(merchantCanonical),
+  );
+}
 
 /**
  * Record "this IS a bill, at this rhythm" or "this is NOT a bill" for one merchant.
@@ -198,6 +225,14 @@ export async function setRecurringOverride(
   if (input.decision === 'BILL' && !isDeclarableCadence(input.cadence)) {
     return { ok: false, error: OVERRIDE_BAD_CADENCE };
   }
+  // C.23 critic P1-1: re-declaring a BILL on a payee the convert lever turned
+  // into a reserve would resurrect the series while the reserve still counts
+  // it — the same payee twice in the Fixed figure. Refuse, mirroring the
+  // clear-side refusal below: the reserve's removal (which withdraws the
+  // NOT_BILL with it) is the one undo that keeps the pair whole.
+  if (input.decision === 'BILL' && (await hasLinkedReserve(userId, merchantCanonical))) {
+    return { ok: false, error: OVERRIDE_LINKED_RESERVE };
+  }
   const cadence = input.decision === 'BILL' ? (input.cadence as string) : null;
   const declaredSign =
     input.decision === 'BILL' && (input.declaredSign === 'OUT' || input.declaredSign === 'IN')
@@ -228,7 +263,18 @@ export async function clearRecurringOverride(
   if (typeof merchantCanonical !== 'string' || merchantCanonical.trim() === '') {
     return { ok: false, error: OVERRIDE_BAD_MERCHANT };
   }
-  await prisma.recurringOverride.deleteMany({ where: { userId, merchantCanonical: merchantCanonical.trim() } });
+  const canonical = merchantCanonical.trim();
+  // C.23 critic P1-2, inverse half: an override paired with a CONVERTED reserve
+  // cannot be withdrawn alone. Withdrawing it returns the series to detection
+  // while the reserve still counts the money — the same payee in the figure
+  // twice, and the conversion's undo was already built as "remove the reserve"
+  // (which withdraws the override with it). Say so; never create the double
+  // count by honouring half an undo. The folded key, like every read: a
+  // case-differing legacy row is the same payee and the same reserve link.
+  if (await hasLinkedReserve(userId, canonical)) {
+    return { ok: false, error: OVERRIDE_LINKED_RESERVE };
+  }
+  await prisma.recurringOverride.deleteMany({ where: { userId, merchantCanonical: canonical } });
   // A no-op delete is still `ok`: the reader asked for "no instruction here", and
   // that is the state either way.
   return { ok: true };

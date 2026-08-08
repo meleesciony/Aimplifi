@@ -260,6 +260,9 @@ export default async function BudgetsPage() {
   // C.24: with the SAME exclusion the plan applied (excluded ⇔ unioned — the
   // exactness invariant the plan owns), or this page would print the partial
   // "rent" fragment the plan no longer counts.
+  // C.23 critic P1-1: the CONVERTED merchants are excluded here too — their
+  // money is each linked reserve's alone, and this page's "typical" must match
+  // the plan's or the two surfaces print different figures for one category.
   // `snap` is the one fetched in the opening Promise.all — one snapshot for
   // both the Fixed basis below and the C.25 exclusion above (#403).
   const categoryFixedFull = resolveFixedCategoryAmounts({
@@ -269,7 +272,10 @@ export default async function BudgetsPage() {
     fixedMerchants,
     budgetByCategory,
     nameOf: (id) => categoryName(id, meta),
-    excludeMerchantCanonicals: new Set(plan.loanPaymentRollupExclusions),
+    excludeMerchantCanonicals: new Set([
+      ...plan.loanPaymentRollupExclusions,
+      ...(plan.convertedReserveRollupExclusions ?? []),
+    ]),
   });
   const planAmountByCat = new Map(
     categoryFixedFull.rows.map((r) => [r.categoryId, r] as const),

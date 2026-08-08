@@ -424,3 +424,4 @@ refuses to write if it would drop any number this file already carries.
 - **#428** (Phase ?): H.7b: the wrongly-written transfer flags get an owner-triggered, undoable repair (2026-08-08)
 - **#429** (Phase ?): H.1(b): every bank connection states its own history depth, through the app's own ownership rule (2026-08-08)
 - **#430** (Phase ?): H.2: the CSV backfill dedupe is a multiset difference, its check-then-act is serializable, and file-internal repeats are surfaced, never silent (2026-08-08)
+- **#431** (Phase ?): C.23 guided half: the Fixed-costs settings section proposes the detected series for confirm-or-convert, and one figure names the reserve's holding account (2026-08-08)

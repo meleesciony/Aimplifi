@@ -5723,3 +5723,118 @@ the mirror of the overlap dedupe; a real fix must make the sync ingest's uniquen
 provider-agnostic, bigger than this slice. (P2-6) the depth-floor query fetches all account
 rows to find the minimum; correct at household scale, could be `orderBy take: 1` later. Both
 recorded in STATUS.
+
+## #431 — C.23 guided half: the Fixed-costs setup section PROPOSES series the reader confirms into bills or reserves, and one figure names the holding account (designed 2026-08-08, SHIPPED — see the DONE addendum at the end)
+
+**What remained in C.23 after #412 shipped the reserve MODEL.** The settings section
+that IS the app's Fixed basis — not a second one — where the reader confirms and
+edits the detected recurring lines instead of typing a list, adds the reserves no
+transaction implies, and sees ONE "move this much to reserves this month" figure
+with a reader-named holding account.
+
+**The proposal source is the same array the union counted — one authority, not a
+second detection.** `countedExpenseSeriesForPlan` (`spending-plan.ts:544-631`)
+already produces exactly the `PlanScheduledItem[]` (negative amounts, resolved
+categoryId, loanPayment mark, canonical) that `recurringOutsideFixedCategoryRows`
+consumes. The setup planner runs THE SAME union builder over that array and marks
+each series by its row key: `inBasis` (a union row exists) or `refusedReason`
+(`discretionary` | `covered` | `settlement` — the union's own three skips).
+"Proposed" and "counted" cannot disagree by construction, and `getSpendingPlan`
+gains one additive return field — `fixedSetup: FixedSetupProposal` (the
+`proposeFixedSetup` planner's output, computed with the loader's own arrays and
+sets: the same `scheduledFixed`, the same `categoryIsFixed` closure, the same
+rollup/budget/reserve inputs) — so the settings card reads the loader, never a
+re-derived copy.
+
+**The convert lever is reserve + NOT_BILL, and the money is conserved by
+construction, not by luck.** "Turn this into a monthly reserve" writes two things:
+a reserve row (true cost = the series' typical per-cadence amount, cadence = the
+series' cadence — the app divides, exactly the owner's ÷12) and a
+`RecurringOverride NOT_BILL`, which `detectRecurring` honors with `continue`
+(`detect.ts:399-403`: "Not a bill wins over everything, including evidence…
+every consumer of this function loses the series at once"). The union therefore
+loses the series' monthly rate while the reserve enters it at the SAME
+`monthlyRateCents` figure — the Fixed total does not move a cent. That is the
+owner's yearly-dues case: the app detected it as a bill (smoothed), the reader
+wants it as set-aside money; the kind flips, the money stands. Reversible both
+ways (deleteReserve; the /recurring override undo restores detection).
+
+**What the lever is NOT offered on.** A MONTHLY series is a bill — converting it
+is a rename with no new meaning, so `convertibleToReserve` requires
+QUARTERLY/SEMIANNUAL/ANNUAL. Settlement-category series (`PLAN_FIXED_NEVER` —
+credit-card-payment/cash/investment, the owner's 2026-08-01 rule) are never
+proposed at all: a settlement series converted to a reserve would ADD money to
+Fixed for a flow the owner ruled out of Fixed in words. Covered series
+(money already in the rollup) render no proposal row — the money is in the
+figure, proposing it again is noise.
+
+**The holding account is a User column and a NAME, never a transfer.**
+`User.reserveHoldingAccountId String?` mirrors `paymentAccountId` (schema:30) —
+the same additive-nullable shape, the same `PAYMENT_ACCOUNT_TYPES` eligibility
+(CHECKING/SAVINGS, not superseded), the same demo fence. The "move this much to
+reserves this month" figure is `reserveMonthlyCents` — the SAME reduce the plan
+already runs (`plan.ts:933`) — and the account names where the money sits. The
+app never moves money for the reader (no transfer writes; the CSV/register flows
+are the money movers); the account is the reader's own statement of where the
+set-aside lives. A reserve whose monthly share rounds to zero is refused exactly
+as #412 refuses it.
+
+**The double-count hazard needs no new closure.** The convert lever creates the
+reserve through the same write #412 shipped (`monthlyContributionCents: null` +
+the loader's `kind !== 'reserve'` filter), so a converted reserve is inside the
+`plannedSavingsCents` max only by the same impossible route the H.4 locks already
+deny. The H.4 identity (income − fixed − savings = leftToSpend, to the cent) is
+re-run across the convert.
+
+**Schema: one additive nullable User column.** `prisma db push` will run against
+the live Neon database on deploy (per the push rule); additive-nullable is safe —
+existing rows are NULL, the demo is untouched, and golden figures cannot move.
+
+**CRITIC ROUND 1 (fresh-context Opus, 2026-08-08): FAIL — 2 P1 + 1 P2 + 3 P3,
+both P1s executed against the real engine/DB, all fixed and locked. The major
+guarantees survived: conservation holds on every basis (probe-verified on the
+last-resort one too), one-authority is real, the lever's scoping held, the H.4
+identity held across the convert, the holding account is write-free.**
+
+- **P1-1 — the pair-integrity guard covered only half the undo.** The convert's
+  demotion (`NOT_BILL`) could be silently overwritten by `setRecurringOverride`
+  with `decision: 'BILL'` — reachable from the transaction-detail declaration
+  the moment the next charge posts — while the linked reserve still counted the
+  money: the same payee twice in Fixed, with `ok: true`. Executed repro showed
+  `fixedExpensesCents` up by exactly the reserve's rate. Fixed by mirroring the
+  clear-side refusal (`hasLinkedReserve`, one shared helper for both halves —
+  `recurring-overrides.ts`): a BILL re-declaration on a converted payee is
+  refused with the same named remedy, and the lock asserts the refusal AND
+  that the NOT_BILL still stands.
+- **P1-2 — the proposal's inBasis oracle disagreed with the plan on the
+  last-resort basis.** `detected-series` counts every non-settlement series,
+  discretionary class included (`plan.ts:901-918`), while the proposal's verdict
+  used the union, which skips taxonomy-discretionary series — so a series the
+  plan counted rendered "not in your fixed costs" with a convert lever whose
+  advertised +rate delta was zero (money conserved, disclosure false, on the
+  same card that listed the payee as counted). Fixed structurally: the proposal
+  takes the plan's own `fixedBasis` and switches its oracle to
+  `recurringPlanExpenseRows` — the very function the plan summed — on the
+  `detected-series` basis; the union stays the oracle for the bases that add it
+  and for `user-set`. Locked both directions (basis switch + union control).
+- **P2-1 — `deleteGoal` had no kind filter.** A reserve id handed to it (no UI
+  reaches that today — the goals page excludes reserves) would delete the row
+  and orphan the NOT_BILL: the bill leaves every figure. Now refused with the
+  `OR: [{kind: null}, {kind: {not: RESERVE_KIND}}]` form — the #412 P0 lesson
+  (`kind <> 'reserve'` is NULL for a NULL kind) — and the lock asserts the pair
+  stays intact.
+- **P3s recorded, not fixed:** (a) the convert prefill is re-derived from a
+  FRESH plan at click time, so a series whose typical changed between render
+  and click is written at the new figure — conservation still holds (both sides
+  from the same fresh plan); (b) /settings now loads the full plan per render
+  with no failure boundary; (c) a superseded holding account keeps printing its
+  label (the picker can no longer save it). All three are graceful directions,
+  none moves a figure wrongly.
+
+**DONE 2026-08-08 (shipped, verify green, critic-cycled).** Gate evidence in
+STATUS.md + TASKS.md C.23 row; the two P1s and the P2 have locking tests
+(`fixed-setup-proposals.test.ts` P1-2 block; `reserve-convert-server.test.ts`
+P1-1/P2-1). Schema on deploy: additive nullable `User.reserveHoldingAccountId`
+and `Goal.merchantCanonical` (the convert pair link — `prisma db push` on push,
+existing rows NULL). Live proof: `scripts/c23-live-deploy-check.mjs` against
+production.

@@ -9,7 +9,11 @@ import { DeleteMyDataForm } from '@/components/settings/delete-my-data-form';
 import { SignOutEverywhere } from '@/components/settings/sign-out-everywhere';
 import { CategoryManager } from '@/components/settings/category-manager';
 import { CustomCategoryManager } from '@/components/settings/custom-category-manager';
+import { FixedCostsCard } from '@/components/settings/fixed-costs-card';
 import { getCategoryCatalog } from '@/server/categories';
+import { getSpendingPlan } from '@/server/spending-plan';
+import { getCategoryMeta } from '@/server/category-meta';
+import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCustomCategories } from '@/server/category-meta';
 import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/dials';
@@ -55,6 +59,7 @@ export default async function SettingsPage() {
           expectedReturnBps: true,
           moneyDials: true,
           paymentAccountId: true,
+          reserveHoldingAccountId: true,
           currentAge: true,
           retirementAge: true,
           endAge: true,
@@ -105,6 +110,19 @@ export default async function SettingsPage() {
   const eligibleAccounts = accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type) && !supersededFunding.has(a.id))
     .map((a) => ({ id: a.id, name: accountLabel(a) }));
+
+  // C.23 / DECISIONS #431 — the Fixed-costs card. The plan is the heavy loader
+  // (live detection over the snapshot), so it runs sequentially like the H.7b
+  // sweep rather than inside the parallel block. `fixedSetup` rides the plan,
+  // computed with the same arrays and sets the plan consumed — the card renders
+  // the loader's verdict, never a re-derivation.
+  const plan = await getSpendingPlan(userId);
+  const categoryMeta = await getCategoryMeta(userId);
+  const holdingAccount = user.reserveHoldingAccountId
+    ? accounts.find((a) => a.id === user.reserveHoldingAccountId)
+    : undefined;
+  const holdingAccountId = holdingAccount?.id ?? null;
+  const holdingAccountLabel = holdingAccount ? accountLabel(holdingAccount) : null;
 
   const vapidPublicKey = getVapidPublicKey();
 
@@ -160,6 +178,19 @@ export default async function SettingsPage() {
       <p className="px-1 text-xs text-muted-foreground" data-testid="assumptions-change">
         {COACH_COPY.assumptionsChange()}
       </p>
+
+      {/* C.23 / DECISIONS #431 — the guided Fixed-costs section: the app's
+          own basis, the detected proposals, and the reserve figure with its
+          named home. Sits under the dials because it is the same category of
+          thing — what the reader wants the plan to count. */}
+      <FixedCostsCard
+        plan={plan}
+        nameOfCategory={(id) => categoryName(id, categoryMeta)}
+        eligibleAccounts={eligibleAccounts}
+        holdingAccountId={holdingAccountId}
+        holdingAccountLabel={holdingAccountLabel}
+        canWrite={!isDemoUser(userId)}
+      />
 
       <Card data-testid="export-card">
         <CardHeader className="pb-2">

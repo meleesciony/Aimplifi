@@ -23,7 +23,17 @@
  * data (`tests/e2e/fixed-composition.spec.ts`, the H.4 test, which drives the
  * real form), not by a demo that is structurally forbidden from having one.
  *
- * Read-only throughout: one-click demo sign-in, reads one page, writes nothing.
+ * EXTENDED 2026-08-08 for the C.23 guided half (DECISIONS #431): the same
+ * slice family adds the Fixed-costs SETTINGS card (`fixed-costs-card` on
+ * /settings) with the convert lever ("turn this into a monthly reserve"). The
+ * four extra checks below prove the new build AND the new schema together —
+ * the /settings page select reads `user.reserveHoldingAccountId` and the
+ * card's loader reads `Goal.merchantCanonical` on every load, so a render
+ * that would 500 if `prisma db push` had not run IS the schema proof — and
+ * that the fenced demo is offered no write door (the convert button and the
+ * reserve form both gate on `canWrite`).
+ *
+ * Read-only throughout: one-click demo sign-in, reads two pages, writes nothing.
  *
  *   node scripts/c23-live-deploy-check.mjs
  */
@@ -44,6 +54,8 @@ const centsOf = (text) => {
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 380, height: 800 } });
+const pageErrors = [];
+page.on('pageerror', (e) => pageErrors.push(String(e)));
 
 try {
   await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
@@ -101,6 +113,43 @@ try {
     reconciled + partial === 1 && noteText.trim() !== '',
     noteText.slice(0, 70),
   );
+  // ── THE C.23 GUIDED HALF (#431) — the /settings Fixed-costs card ──────────
+
+  // 5 — THE MARKER + THE SCHEMA together: `fixed-costs-card` exists only in
+  // this half, and rendering it required reading `reserveHoldingAccountId`
+  // and `Goal.merchantCanonical` — if `prisma db push` had not run, this
+  // render would 500 before the card could paint.
+  const settingsRes = await page.goto(`${BASE}/settings`, { waitUntil: 'domcontentloaded' });
+  const fixedCard = page.getByTestId('fixed-costs-card');
+  await fixedCard.waitFor({ timeout: 30_000 });
+  check(
+    'the Fixed costs settings card renders (new build + reserve schema live)',
+    (settingsRes?.status() ?? 0) < 400,
+    `status=${settingsRes?.status()}`,
+  );
+
+  // 6 — the reserves figure names its zero on the demo; nothing is invented.
+  const figure = await page.getByTestId('reserves-monthly-figure').textContent();
+  check(
+    'the reserves figure names the demo’s zero',
+    (figure ?? '').includes('Nothing is set aside to reserves yet'),
+    (figure ?? 'none').slice(0, 60),
+  );
+
+  // 7 — the fence is stated, and no write door renders (both gate on
+  // `canWrite` — the demo is shared, so the convert lever and the form must
+  // not exist for it).
+  const fenceCount = await page.getByTestId('reserves-demo-note').count();
+  const convertCount = await page.getByTestId('convert-to-reserve').count();
+  const settingsFormCount = await page.getByTestId('reserve-form').count();
+  check(
+    'the demo gets the fence note and no write doors',
+    fenceCount === 1 && convertCount === 0 && settingsFormCount === 0,
+    `fence=${fenceCount} convert=${convertCount} forms=${settingsFormCount}`,
+  );
+
+  // 8 — no client-side explosion on either route.
+  check('no uncaught client errors', pageErrors.length === 0, pageErrors[0] ?? 'none');
 } finally {
   await browser.close();
 }

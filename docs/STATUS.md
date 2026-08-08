@@ -6,6 +6,32 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-08 — C.23 guided half: the Fixed-costs setup section PROPOSES series, converts long-cadence bills to monthly reserves, and names one holding account (DECISIONS #431, critic-cycled)
+
+**Closes the STILL OPEN half of TASKS C.23** (the reserve MODEL shipped in #412). A settings section that IS the app's Fixed basis, not a second one: every counted recurring series renders with its verdict — `in your fixed costs` / `covered under <Category>` / `not counted — adding it grows the figure` / `priced by your budget` — and long-cadence series (QUARTERLY/SEMIANNUAL/ANNUAL, never MONTHLY) offer the ONE new lever, **"turn this into a monthly reserve"**: the app stores true cost + cadence and divides (the owner's ÷12), the `NOT_BILL` demotion is paired with the reserve row in one transaction, and the swap is EXACT — in-basis −rate + reserve at the same rate = the Fixed figure does not move a cent; out-of-basis +rate exactly. The lever is never offered where the swap is not exact (covered series would double-count; settlement categories are never proposed; loan payments are debts). "Move this much to reserves this month" is the plan's own reduce, and the reader names the holding account (`User.reserveHoldingAccountId` — a NAME, never a transfer; PAYMENT_ACCOUNT_TYPES; demo-fenced).
+
+**The one-authority construction held under an executed hostile critic (fresh-context Opus, 2 P1 + 1 P2 + 3 P3, all fixed and locked):**
+- **P1-1** — the pair-integrity guard covered only half the undo: a BILL re-declaration on a converted payee (reachable from the transaction-detail declaration once the next charge posts) resurrected the series while the reserve still counted it — same payee twice in Fixed, `ok: true`, executed at +1,000 cents. Now refused by the same shared check as the clear-side (`hasLinkedReserve`).
+- **P1-2** — on the plan's last-resort basis (`detected-series`) the proposal's verdict used the union oracle, which skips taxonomy-discretionary series the plan COUNTS — a counted series rendered "not in your fixed costs" with a lever whose delta was zero. The proposal now takes the plan's own `fixedBasis` and re-runs `recurringPlanExpenseRows` — the very function the plan summed — as its oracle there.
+- **P2-1** — `deleteGoal` (no kind filter) could delete a reserve and orphan its NOT_BILL; now refused with the #412 `OR: [kind null, kind not]` form.
+- **P3s recorded not fixed**: convert prefill re-derived fresh at click (stale-read artifact, conservation holds); /settings pays a full plan load per render with no failure boundary; a superseded holding account keeps its label.
+
+**Gate:** verify GREEN (full `VERIFY_E2E=1`) — tsc 0 / eslint 0 / **6,437 unit + 1 skipped / 392 files** / build clean; new e2e `fixed-setup.spec.ts` **5/5** (proposals render, conservation to the cent, full-pair undo restores figure AND lever, holding-account sentence, demo fence). **Schema: two additive nullable columns** (`User.reserveHoldingAccountId`, `Goal.merchantCanonical`) — `prisma db push` on deploy, existing rows/demo NULL. Three regression-ledger rows. Full-suite e2e runs: [run 1] 311/1 on `transactions.spec.ts:910`, [run 2] 311/1 on `merchant-lens.spec.ts:77` — both green in isolation (16–19s), both reload-bearing specs on the `[mobile-380]` worker, zero register/lens code in this slice's diff: the documented severed-flight contention class (G.1/H.2), CI is the arbiter. [run 3: **312/312 e2e PASSED (3.9m), full gate GREEN** — the clean local record that shipped.]
+
+## ✅ CLOSED 2026-08-08 — V.4: the triage singles-mode regression was fixed by K.6 and this row was never updated
+
+The row (opened 2026-08-01: write-in on a singles group's LAST row left
+`data-remaining` stuck, "LIVE on production") does not reproduce on the current
+tree. K.6 (`4a612c7`, 2026-08-06) already rebuilt the cycle-2 P1 shape —
+`groupEmptied` is no longer mutated inside the `setGroups` updater
+(`triage-inbox.tsx:337`) — sabotage-proven in its commit message, and re-homed
+both write-in tests to `tests/e2e/triage-write-in.spec.ts` on a throwaway user
+(the O.17 demo fence, not the product, had broken the old fixture). The moved
+test asserts the exact V.4 scenario. **Re-verified this session on the fresh
+`68c3f7f` build: `npx playwright test tests/e2e/triage-write-in.spec.ts` → 2
+passed (51.2s wall; singles 3.4s, write-in 6.0s).** TASKS row closed with the
+evidence.
+
 ## ✅ SHIPPED 2026-08-08 — H.2: guided CSV backfill (TASKS H.2, DECISIONS #430, critic-cycled)
 
 Closes the last open wave-H task. The importer was rebuilt into a first-class

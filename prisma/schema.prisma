@@ -28,6 +28,12 @@ model User {
   expectedReturnBps Int     @default(700) // opportunity-cost compounding
   moneyDials        String? // JSON-encoded string[] (SQLite has no Json type)
   paymentAccountId  String? // designated checking account for card payments
+  // C.23 / DECISIONS #431 — the reader's named home for reserve set-asides
+  // ("move this much to reserves this month"). A NAME the reader states, never
+  // a transfer the app executes: no write anywhere moves money to it. Nullable
+  // and additive like `paymentAccountId`: null = unnamed, all existing and demo
+  // users compute identically until they opt in.
+  reserveHoldingAccountId String?
   // Multi-device session invalidation (Gap 6 §3). Stamped into the JWT at sign-in
   // and re-checked on every Node-side session resolution; bumping it (see
   // revokeOtherSessions) makes every previously issued token stale. A deleted user
@@ -708,6 +714,16 @@ model Goal {
   // RESERVE_CADENCES rather than trusted — an unrecognized value must never fall
   // through to "monthly", which would enter the plan at 12x its truth.
   cadence                  String?
+  // C.23 critic P1-1/P1-2 — the convert lever's conservation contract, closed.
+  // When a reserve was created by the convert lever (DECISIONS #431), this holds
+  // the source series' NORMALIZED canonical. It is the link that makes the pair
+  // reversible BOTH ways: the category rollup excludes the merchant (its money is
+  // the reserve's alone — never also counted by the category average once a charge
+  // lands inside the rollup window), and deleting the reserve removes the paired
+  // NOT_BILL override, so the bill returns to detection and every figure with it.
+  // Null on typed reserves (no series behind them). Additive + nullable: existing
+  // rows and the demo seed compute identically.
+  merchantCanonical        String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

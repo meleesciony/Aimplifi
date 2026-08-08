@@ -119,6 +119,14 @@ export async function deleteDisconnectedSyncedAccountFor(
       where: { id: userId, paymentAccountId: accountId },
       data: { paymentAccountId: null },
     });
+    // C.23 / DECISIONS #431 — a deleted account must not stay named as the
+    // reserves' holding home: the settings clause would print the name of an
+    // account that no longer exists. Cleared in the same transaction, like
+    // `paymentAccountId` above.
+    await tx.user.updateMany({
+      where: { id: userId, reserveHoldingAccountId: accountId },
+      data: { reserveHoldingAccountId: null },
+    });
     return null;
   });
   if (blockReason) return { ok: false, errors: [blockReason] };

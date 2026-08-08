@@ -11,6 +11,7 @@ import { getProvider } from '@/lib/providers/demo';
 import { formatMonth, isoDate, type ISODate } from '@/lib/dates';
 import { loadDebtAccounts } from '@/server/debt';
 import { getSpendingPlan } from '@/server/spending-plan';
+import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
 import { solveSavingsGoalByDate } from '@/lib/engine/solve/savings-goal-by-date';
 import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
@@ -208,7 +209,18 @@ export async function saveRetirementAge(targetAgeRaw: number): Promise<void> {
 
 export async function deleteGoal(goalId: string): Promise<void> {
   const userId = await requireUserId();
-  await prisma.goal.deleteMany({ where: { id: goalId, userId } });
+  // C.23 critic P2-1: a reserve is a PAIR (the row + its NOT_BILL override);
+  // deleting it outside the reserve path would orphan the override and the
+  // bill would leave every figure. The goals page never offers a reserve (it
+  // excludes them), so refuse rather than route — the reserve path owns the
+  // pair. The OR keeps `kind: null` savings goals matching (`kind <> 'reserve'`
+  // is NULL for a NULL kind — the #412 P0 lesson).
+  const { count } = await prisma.goal.deleteMany({
+    where: { id: goalId, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }] },
+  });
+  if (count === 0) {
+    throw new Error('That goal does not exist, or it is a reserve — a reserve is removed from your plan page.');
+  }
   await auditLog(userId, 'goal.delete', { goalId });
   revalidatePath('/goals');
 }

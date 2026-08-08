@@ -360,6 +360,12 @@ const categoryIsFixed = (id: string) => suggestedCategoryIsFixed(id, meta);
 const budgetCategoryIds = new Set(
   budgetRows.filter((b) => b.monthCents > 0).map((b) => b.categoryId),
 );
+// C.23 critic round-3 P2-7 (informational): the loader's median leg also
+// excludes CONVERTED reserve merchants (C.23/DECISIONS #431) — this replay
+// predates that mechanism and replays a corpus with no converted reserves,
+// so an empty converted set is semantically correct HERE, but a future
+// re-run against converted data would silently diverge from the loader's
+// basis. Mirror the loader's merged set if that day comes.
 const coveredIds =
   categoryFixed.totalCents > 0
     ? new Set(categoryFixed.rows.filter((r) => r.amountCents > 0).map((r) => r.categoryId))

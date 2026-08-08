@@ -9,6 +9,7 @@ import {
   fixedAmountBasisClause,
   resolveFixedCategoryAmounts,
 } from '@/lib/engine/spending-plan/fixed-category-amounts';
+import { monthlyNonDiscretionaryCents } from '@/lib/engine/spending-plan/fixed-pattern';
 import { computeSpendingPlan } from '@/lib/engine/spending-plan/plan';
 import { suggestedCategoryIsFixed } from '@/lib/engine/spending-plan/spend-class';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
@@ -505,6 +506,101 @@ describe('resolveFixedCategoryAmounts', () => {
     expect(p.fixedBasis).toBe('category-designations');
     expect(p.fixedExpensesCents).toBe(16_000); // not 16k + 175 payment
     expect(p.leftToSpendCents).toBe(484_000);
+  });
+
+  it('test_regression__converted_merchant_leaves_the_rollup_entirely (C.23 critic P1-1)', () => {
+    // The convert lever's reserve becomes the converted series' ONLY count —
+    // the category rollup must exclude the merchant by canonical (the server
+    // derives the set from the reserve goals, the same shape as the C.24 loan
+    // exclusion), or the reserve ADDS to a typical that still holds the
+    // converted charge: $60/mo of insurance typical plus a $10/mo reserve for
+    // the same $120 annual dues is the double count the critic found.
+    const rows = [
+      txn({
+        date: '2026-06-01',
+        amountCents: -120_000,
+        categoryId: 'insurance',
+        rawDescriptor: 'AUTO CLUB DUES',
+      }),
+    ];
+    // Un-excluded, the June charge is window mass: insurance typical $60/mo
+    // (120000 ÷ the 2 observable months June+July).
+    const withCharge = resolveFixedCategoryAmounts({
+      transactions: rows,
+      today,
+      meta: CATEGORY_BY_ID,
+      fixedMerchants: new Set<string>(),
+      budgetByCategory: new Map(),
+      nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
+    });
+    expect(withCharge.rows.map((x) => x.categoryId)).toEqual(['insurance']);
+    expect(withCharge.rows[0]!.amountCents).toBe(60_000);
+
+    const r = resolveFixedCategoryAmounts({
+      transactions: rows,
+      today,
+      meta: CATEGORY_BY_ID,
+      fixedMerchants: new Set<string>(),
+      budgetByCategory: new Map(),
+      nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
+      excludeMerchantCanonicals: new Set(['Auto Club Dues']),
+    });
+    expect(r.rows).toHaveLength(0);
+    expect(r.totalCents).toBe(0);
+  });
+
+  it('test_regression__converted_merchant_exclusion_leaves_the_categorys_other_spend (C.23 critic P1-1)', () => {
+    // The exclusion drops only the converted merchant's rows — the category's
+    // other bills stay, so Fixed does not lose a category the conversion never
+    // touched. Insurance: monthly $100 STATE FARM bills plus the annual $120
+    // AUTO CLUB DUES; with the dues excluded the typical is the $100/mo bill
+    // alone (30000 ÷ 3 window months).
+    const rows = [
+      txn({ date: '2026-05-02', amountCents: -10_000, categoryId: 'insurance', rawDescriptor: 'STATE FARM' }),
+      txn({ date: '2026-06-02', amountCents: -10_000, categoryId: 'insurance', rawDescriptor: 'STATE FARM' }),
+      txn({ date: '2026-07-02', amountCents: -10_000, categoryId: 'insurance', rawDescriptor: 'STATE FARM' }),
+      txn({ date: '2026-06-01', amountCents: -120_000, categoryId: 'insurance', rawDescriptor: 'AUTO CLUB DUES' }),
+    ];
+    const r = resolveFixedCategoryAmounts({
+      transactions: rows,
+      today,
+      meta: CATEGORY_BY_ID,
+      fixedMerchants: new Set<string>(),
+      budgetByCategory: new Map(),
+      nameOf: (id) => CATEGORY_BY_ID.get(id)!.name,
+      excludeMerchantCanonicals: new Set(['Auto Club Dues']),
+    });
+    expect(r.rows.map((x) => x.categoryId)).toEqual(['insurance']);
+    expect(r.rows[0]!.amountCents).toBe(10_000);
+    expect(r.totalCents).toBe(10_000);
+  });
+
+  it('test_regression__converted_merchant_leaves_the_median_values_basis (C.23 critic round-2 P1-1)', () => {
+    // The median VALUES path is the rollup's fallback: when a converted bill is
+    // the reader's only fixed-classified window spend, the rollup exclusion
+    // zeroes the category total, the plan flips to the trailing-median basis,
+    // and the median must NOT count the converted charge whole beside the
+    // reserve that replaced it — the critic's probe: $130,000 fixed vs the
+    // correct $10,000, a 13x overstatement for every month that holds a
+    // charge, recurring annually. The loader passes the SAME merged exclusion
+    // set here as to the rollup (spending-plan.ts); this locks the function.
+    const rows = [
+      txn({ date: '2026-06-01', amountCents: -120_000, categoryId: 'insurance', rawDescriptor: 'AUTO CLUB DUES' }),
+      txn({ date: '2026-06-10', amountCents: -10_000, categoryId: 'groceries', rawDescriptor: 'KROGER' }),
+    ];
+    const excluded = monthlyNonDiscretionaryCents(
+      rows,
+      CATEGORY_BY_ID,
+      new Set<string>(),
+      new Set(['Auto Club Dues']),
+    );
+    // The converted charge is gone from the month's value; the category's
+    // other spend stays.
+    expect(excluded.find((f) => f.month === '2026-06')!.expenseCents).toBe(10_000);
+    // Without the exclusion the same month counts the charge whole — the exact
+    // double count the loader's merged set closes.
+    const unexcluded = monthlyNonDiscretionaryCents(rows, CATEGORY_BY_ID, new Set<string>());
+    expect(unexcluded.find((f) => f.month === '2026-06')!.expenseCents).toBe(130_000);
   });
 });
 
