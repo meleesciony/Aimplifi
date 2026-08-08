@@ -261,11 +261,12 @@ function suggestionForRow(t: SuggestibleRow, inputs: SuggestionLadderInputs): Tx
  * account dropdown match /accounts and net worth, which withhold them (no FX).
  * Split PARENT containers excluded — their children carry the real amounts.
  *
- * Shared by `getTransactions` and the calendar's posted read below so the two
- * surfaces query the same rows by construction; a second copy of this clause is
- * how a reader starts disagreeing with the register (H.8).
+ * Shared by `getTransactions`, the calendar's posted read below, and the CSV
+ * import depth confirmation (H.2) so every surface queries the same rows by
+ * construction; a second copy of this clause is how a reader starts
+ * disagreeing with the register (H.8).
  */
-const registerRowWhere = (userId: string) => ({
+export const registerRowWhere = (userId: string) => ({
   account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' as const }] },
   isSplitParent: false,
 });

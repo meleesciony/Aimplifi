@@ -423,3 +423,4 @@ refuses to write if it would drop any number this file already carries.
 - **#427** (Phase ?): H.6b(a): the combine carries the reader's hand-filed work onto the successor's copies, never onto a row nothing reads (2026-08-07)
 - **#428** (Phase ?): H.7b: the wrongly-written transfer flags get an owner-triggered, undoable repair (2026-08-08)
 - **#429** (Phase ?): H.1(b): every bank connection states its own history depth, through the app's own ownership rule (2026-08-08)
+- **#430** (Phase ?): H.2: the CSV backfill dedupe is a multiset difference, its check-then-act is serializable, and file-internal repeats are surfaced, never silent (2026-08-08)

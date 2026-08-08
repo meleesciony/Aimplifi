@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { isoDate } from '@/lib/dates';
 import {
+  type ImportDedupeRow,
   normalizeImportDate,
   parseCsvLine,
   parseTransactionCsv,
+  planCsvDedupe,
   prepareImportedTransaction,
 } from '@/lib/engine/transactions/csv-import';
 
@@ -110,6 +113,166 @@ describe('parseTransactionCsv', () => {
     // Without the map, the same custom name is unknown → auto-categorize (null).
     const withoutMap = parseTransactionCsv(csv).rows;
     expect(withoutMap[0].categoryId).toBeNull();
+  });
+});
+
+describe('planCsvDedupe', () => {
+  // Row shorthand: [date, amountCents] — the only fields the planner reads.
+  const r = (date: string, amountCents: number): ImportDedupeRow => ({ date: isoDate(date), amountCents });
+
+  it('drops the whole file when the account already holds every row (re-import)', () => {
+    const file = [r('2026-06-01', -575), r('2026-06-02', -8420), r('2026-06-03', 250000)];
+    const plan = planCsvDedupe(file, file);
+    expect(plan.keep).toEqual([false, false, false]);
+    expect(plan.duplicates).toBe(3);
+  });
+
+  it('keeps deep-history rows the account does not hold', () => {
+    const file = [r('2024-01-15', -120000), r('2024-02-10', -8920)];
+    const plan = planCsvDedupe(file, [r('2026-06-01', -575)]);
+    expect(plan.keep).toEqual([true, true]);
+    expect(plan.duplicates).toBe(0);
+  });
+
+  it('matches provider-synced rows on (date, signed amount) regardless of descriptor', () => {
+    // Bank statement text vs the provider's rawDescriptor never match verbatim
+    // (H.6): the key excludes the descriptor BY CONSTRUCTION. Same day, same
+    // signed amount → the provider's copy is the same charge, dropped.
+    const file = [r('2026-06-01', -8420)]; // "GOOSE POND BAR GRILLE"
+    const store = [r('2026-06-01', -8420)]; // "SQ *GOOSE POND"
+    expect(planCsvDedupe(file, store).keep).toEqual([false]);
+  });
+
+  it('splits a partially overlapping file correctly', () => {
+    const file = [
+      r('2026-06-01', -575), // in store
+      r('2026-06-01', -8420), // in store
+      r('2026-06-01', -3000), // new
+      r('2026-05-30', -1200), // new
+      r('2026-06-02', -8420), // new — same amount, different day
+    ];
+    const store = [r('2026-06-01', -575), r('2026-06-01', -8420)];
+    const plan = planCsvDedupe(file, store);
+    expect(plan.keep).toEqual([false, false, true, true, true]);
+    expect(plan.duplicates).toBe(2);
+  });
+
+  it('implements a multiset difference: file 3 of a key, store 2 → keeps 1', () => {
+    // Two identical $5 charges already synced; the file holds three of them.
+    const file = [r('2026-06-01', -500), r('2026-06-01', -500), r('2026-06-01', -500)];
+    const store = [r('2026-06-01', -500), r('2026-06-01', -500)];
+    const plan = planCsvDedupe(file, store);
+    expect(plan.keep).toEqual([false, false, true]);
+    expect(plan.duplicates).toBe(2);
+  });
+
+  it('never creates a key beyond what the file offers (file 2, store 3 → all dropped)', () => {
+    const file = [r('2026-06-01', -500), r('2026-06-01', -500)];
+    const store = [r('2026-06-01', -500), r('2026-06-01', -500), r('2026-06-01', -500)];
+    expect(planCsvDedupe(file, store).keep).toEqual([false, false]);
+  });
+
+  it('treats sign as part of the identity: a $5 refund is not a $5 charge', () => {
+    const file = [r('2026-06-01', 500)];
+    const store = [r('2026-06-01', -500)];
+    expect(planCsvDedupe(file, store).keep).toEqual([true]);
+  });
+
+  it('uses an exact (date, amount) match — no ±N-day window (C.6)', () => {
+    // The C.6 lesson: a loose pair rule once credited 11 refunds as payments.
+    // A charge a day apart with the same amount is NOT the same charge.
+    const file = [r('2026-06-02', -8420)];
+    const store = [r('2026-06-01', -8420)];
+    expect(planCsvDedupe(file, store).keep).toEqual([true]);
+  });
+
+  it('preserves file order in the kept rows', () => {
+    const file = [
+      r('2026-06-01', -575),
+      r('2026-06-02', -8420),
+      r('2026-06-03', -3000),
+      r('2026-06-04', -1200),
+    ];
+    const store = [r('2026-06-02', -8420)];
+    const plan = planCsvDedupe(file, store);
+    expect(plan.keep).toEqual([true, false, true, true]);
+    expect(plan.duplicates).toBe(1);
+  });
+
+  it('drops a whole-charge row whose split parent already represents it', () => {
+    // The file's "TRADER JOE" -100.00 row vs the store's split parent carrying
+    // (date, -10000): the charge is already in the account as its pieces.
+    const file = [r('2026-06-01', -10000)];
+    const store = [r('2026-06-01', -10000)]; // split parent of the same charge
+    expect(planCsvDedupe(file, store).keep).toEqual([false]);
+  });
+
+  it('handles an empty file and an empty store', () => {
+    expect(planCsvDedupe([], [r('2026-06-01', -575)])).toEqual({ keep: [], duplicates: 0, repeatedRows: 0 });
+    expect(planCsvDedupe([r('2026-06-01', -575)], []).keep).toEqual([true]);
+    expect(planCsvDedupe([], [])).toEqual({ keep: [], duplicates: 0, repeatedRows: 0 });
+  });
+});
+
+describe('planCsvDedupe repeatedRows (critic P1-1)', () => {
+  const r = (date: string, amountCents: number): ImportDedupeRow => ({ date: isoDate(date), amountCents });
+
+  it('flags a key repeated in the file when nothing is stored (pasted-overlap export)', () => {
+    // Two overlapping exports pasted together: the shared chunk appears twice,
+    // the account holds none of it. Both rows import (multiset semantics
+    // untouched) but the count says the file looks double-pasted.
+    const file = [r('2024-01-15', -8920), r('2024-01-15', -8920)];
+    const plan = planCsvDedupe(file, []);
+    expect(plan.keep).toEqual([true, true]);
+    expect(plan.duplicates).toBe(0);
+    expect(plan.repeatedRows).toBe(2);
+  });
+
+  it('is quiet on a plain re-import — nothing kept, nothing to warn', () => {
+    const file = [r('2024-01-15', -8920), r('2024-01-15', -8920)];
+    const store = [r('2024-01-15', -8920), r('2024-01-15', -8920)];
+    const plan = planCsvDedupe(file, store);
+    expect(plan.keep).toEqual([false, false]);
+    expect(plan.duplicates).toBe(2);
+    expect(plan.repeatedRows).toBe(0);
+  });
+
+  it('counts only the KEPT rows of a repeated key (file 3, store 1 → 2)', () => {
+    const file = [r('2026-06-01', -500), r('2026-06-01', -500), r('2026-06-01', -500)];
+    const store = [r('2026-06-01', -500)];
+    const plan = planCsvDedupe(file, store);
+    expect(plan.keep).toEqual([false, true, true]);
+    expect(plan.duplicates).toBe(1);
+    expect(plan.repeatedRows).toBe(2);
+  });
+
+  it('counts only the repeated key in a mixed file; single-occurrence keys never warn', () => {
+    const file = [
+      r('2026-06-01', -575), // once
+      r('2026-06-01', -8420), // twice → the warning's source
+      r('2026-06-01', -8420),
+      r('2026-05-30', -1200), // once
+    ];
+    const plan = planCsvDedupe(file, []);
+    expect(plan.keep).toEqual([true, true, true, true]);
+    expect(plan.duplicates).toBe(0);
+    expect(plan.repeatedRows).toBe(2);
+  });
+
+  it('treats sign as part of the key here too: +500 and -500 same day are not repeats', () => {
+    const file = [r('2026-06-01', -500), r('2026-06-01', 500)];
+    const plan = planCsvDedupe(file, []);
+    expect(plan.keep).toEqual([true, true]);
+    expect(plan.repeatedRows).toBe(0);
+  });
+
+  it('warns, never blocks: two genuine same-day same-amount charges stay imports', () => {
+    // The honest-hint contract: the count is surfaced, the rows are created.
+    const file = [r('2026-06-01', -450), r('2026-06-01', -450)];
+    const plan = planCsvDedupe(file, []);
+    expect(plan.keep).toEqual([true, true]);
+    expect(plan.duplicates).toBe(0);
+    expect(plan.repeatedRows).toBe(2);
   });
 });
 

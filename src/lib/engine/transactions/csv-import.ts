@@ -153,6 +153,97 @@ export function parseTransactionCsv(
   return { rows, errors };
 }
 
+/** The only fields the dedupe reads off a row: its calendar date and its signed amount. */
+export interface ImportDedupeRow {
+  date: ISODate;
+  amountCents: number; // signed — the sign is part of the identity (a $5 refund ≠ a $5 charge)
+}
+
+export interface CsvDedupePlan {
+  /** Parallel to `fileRows`: true = create this row, false = the account already holds it. */
+  keep: boolean[];
+  /** Rows not created because the account already holds one like them. */
+  duplicates: number;
+  /**
+   * Rows about to be created whose (date, amount) key appears MORE THAN ONCE in
+   * the file itself, and more often than the account already holds (critic
+   * P1-1). The classic shape is two overlapping exports pasted together (the
+   * guides' own chunked-download flow); a well-formed export never contains it.
+   * Warn, never block: two genuine same-day same-amount charges are legitimate,
+   * and the app cannot tell them apart by key — the count is the honest hint.
+   */
+  repeatedRows: number;
+}
+
+/**
+ * TASKS H.2 — decide which parsed CSV rows are genuinely new.
+ *
+ * Key: (date, signed amount) on the SAME account (the caller fetches one
+ * account's rows). Descriptor is deliberately NOT part of the key: the whole
+ * point of the overlap dedupe is matching bank-export text against
+ * provider-synced rows, whose rawDescriptor ("SQ *GOOSE POND") never equals the
+ * statement text ("GOOSE POND BAR GRILLE") — requiring it would make the
+ * provider-overlap case import double (H.6's prescription: "the dedupe must key
+ * on account identity + date + amount").
+ *
+ * Semantics: multiset difference. For each key the file offers M rows and the
+ * account already holds N; create max(0, M − N) of them. This is exactly right
+ * for the two shipping cases — re-importing the same file (M == N → all
+ * dropped) and the provider-overlap window (the provider's copy is in N) — and
+ * never drops a key the account does not hold. When M > N (e.g. two identical
+ * $5 charges, one already synced) it keeps exactly the new information, in file
+ * order, without having to say which of the M is the new one — the rows are
+ * indistinguishable by construction, so the count is the only honest answer.
+ *
+ * Split containers are plain rows here: a split charge's parent carries
+ * (date, full amount), so the file's whole-charge row matches it and is
+ * dropped — the charge is already represented (as its pieces). A row the
+ * register hides (reconciliation-disowned) must NOT appear in `existingRows`:
+ * an import is the reader asking for this history back, and a hidden row is not
+ * a visible copy to collide with (H.8: a writer sees what its readers see).
+ *
+ * A file that contains the same line twice with NO stored row for it imports
+ * both — the multiset rule cannot know which line is the corrupt one. That is
+ * now SURFACED, not fixed: `repeatedRows` counts exactly those kept rows whose
+ * key repeats in the file (warn, never block — a user pasting two overlapping
+ * exports sees the count and can stop; a user with two genuine identical
+ * charges sees a note and continues).
+ */
+export function planCsvDedupe(
+  fileRows: readonly ImportDedupeRow[],
+  existingRows: readonly ImportDedupeRow[],
+): CsvDedupePlan {
+  const counts = new Map<string, number>();
+  for (const r of existingRows) {
+    const k = `${r.date}|${r.amountCents}`;
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  // File-side counts first: a kept row whose key occurs ≥2 times in the FILE is
+  // an overlap hint, independent of what the account holds (the existing-rows
+  // pass below decrements `counts` as it plans).
+  const fileCounts = new Map<string, number>();
+  for (const r of fileRows) {
+    const k = `${r.date}|${r.amountCents}`;
+    fileCounts.set(k, (fileCounts.get(k) ?? 0) + 1);
+  }
+  const keep = new Array<boolean>(fileRows.length);
+  let duplicates = 0;
+  let repeatedRows = 0;
+  for (let i = 0; i < fileRows.length; i++) {
+    const k = `${fileRows[i].date}|${fileRows[i].amountCents}`;
+    const n = counts.get(k) ?? 0;
+    if (n > 0) {
+      counts.set(k, n - 1);
+      keep[i] = false;
+      duplicates++;
+    } else {
+      keep[i] = true;
+      if ((fileCounts.get(k) ?? 0) >= 2) repeatedRows++;
+    }
+  }
+  return { keep, duplicates, repeatedRows };
+}
+
 export interface PreparedImportRow {
   accountId: string;
   date: ISODate;

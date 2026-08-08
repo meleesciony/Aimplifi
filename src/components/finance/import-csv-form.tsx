@@ -10,6 +10,7 @@ import { useActionState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { formatISODate, isoDate } from '@/lib/dates';
 import { type ImportResult, importTransactionsCsv } from '@/server/transaction-actions';
 
 const fieldClass =
@@ -65,11 +66,30 @@ export function ImportCsvForm({ accounts }: { accounts: { id: string; name: stri
 
         {result && (
           <div className="mt-4 space-y-2 border-t pt-4 text-sm" data-testid="import-result">
-            <p className={result.imported > 0 ? 'text-emerald-500' : 'text-red-400'}>
-              {result.imported > 0 && <CheckCircle2 className="mr-1 inline size-4" aria-hidden />}
+            <p className={result.ok ? 'text-emerald-500' : 'text-red-400'}>
+              {result.ok && <CheckCircle2 className="mr-1 inline size-4" aria-hidden />}
               Imported {result.imported} transaction{result.imported === 1 ? '' : 's'}
+              {result.duplicates > 0
+                ? `, ${result.duplicates} already in your history`
+                : ''}
               {result.skipped > 0 ? `, skipped ${result.skipped}` : ''}.
             </p>
+            {result.repeatedRows > 0 && (
+              <p className="text-amber-700 dark:text-amber-300" data-testid="import-repeat-warning">
+                The file contains {result.repeatedRows} identical row
+                {result.repeatedRows === 1 ? '' : 's'} — this usually means two
+                overlapping exports were pasted together. The imported one
+                {result.repeatedRows === 1 ? ' was' : 's were'} added as-is;
+                check that {result.repeatedRows === 1 ? 'it is' : 'they are'}{' '}
+                {result.repeatedRows === 1 ? 'a genuinely distinct charge' : 'genuinely distinct charges'}.
+              </p>
+            )}
+            {result.imported > 0 && result.historyReachesDate && (
+              <p className="text-muted-foreground" data-testid="import-depth">
+                This account&apos;s history now reaches{' '}
+                {formatISODate(isoDate(result.historyReachesDate), 'long')}.
+              </p>
+            )}
             {result.errors.length > 0 && (
               <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground" data-testid="import-errors">
                 {result.errors.map((e, i) => (

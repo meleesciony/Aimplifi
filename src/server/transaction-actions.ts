@@ -8,10 +8,11 @@
  */
 import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
-import { prisma } from '@/lib/db';
+import { prisma, serializableTx } from '@/lib/db';
 import { type PreparedTxn, prepareManualTransaction } from '@/lib/engine/transactions/manual';
 import {
   parseTransactionCsv,
+  planCsvDedupe,
   prepareImportedTransaction,
 } from '@/lib/engine/transactions/csv-import';
 import { pickAssistedCategory } from '@/lib/engine/categorize/llm';
@@ -23,10 +24,12 @@ import { loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { logCategoryPredictions } from '@/server/predictions';
 import { assertOwnedCategory, getCategoryRenames, getCustomCategories } from '@/server/category-meta';
-import { refuseManualWriteToSuperseded } from '@/server/reconciliation';
+import { refuseManualWriteToSuperseded, getReconciliationTxnKeep } from '@/server/reconciliation';
+import { registerRowWhere } from '@/server/transactions';
 import { refreshRecurringForUser } from '@/server/recurring';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { getProvider } from '@/lib/providers/demo';
-import { isoDate } from '@/lib/dates';
+import { type ISODate, isoDate } from '@/lib/dates';
 
 /**
  * Best-effort recurring re-detection after a manual write (#251) — the same
@@ -211,7 +214,19 @@ export async function createManualTransaction(
 export interface ImportResult {
   ok: boolean;
   imported: number;
+  /** File rows the account already holds and the import did not create (H.2). */
+  duplicates: number;
+  /**
+   * Kept rows whose (date, amount) key occurs ≥2 times in the FILE itself
+   * (critic P1-1). The classic shape is two overlapping exports pasted
+   * together; a well-formed export never contains it. Shown as an amber
+   * warning — never a block: two genuine same-day same-amount charges are
+   * legitimate, and the key cannot tell them apart (the count is the hint).
+   */
+  repeatedRows: number;
   skipped: number;
+  /** Earliest date the account's register history now reaches, register basis — null when no rows were added. */
+  historyReachesDate: string | null;
   errors: string[];
 }
 
@@ -228,20 +243,45 @@ export async function importTransactionsCsv(
   const userId = await requireUserId();
   // Demo manual-entry fence (#243 follow-up): a pasted CSV is bulk REAL
   // statement rows — the highest-volume leak of the four typed/uploaded paths.
-  if (isDemoUser(userId)) return { ok: false, imported: 0, skipped: 0, errors: [DEMO_ENTRY_BLOCKED] };
+  if (isDemoUser(userId)) {
+    return { ok: false, imported: 0, duplicates: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: [DEMO_ENTRY_BLOCKED] };
+  }
 
   const accountId = String(formData.get('accountId') ?? '');
   const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
-  if (!account) return { ok: false, imported: 0, skipped: 0, errors: ['Account not found'] };
+  if (!account) {
+    return { ok: false, imported: 0, duplicates: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: ['Account not found'] };
+  }
+  // Critic P2-2 residual: the picker only offers register accounts, but crafted
+  // FormData could name any account — fence the WRITE to the same basis
+  // (SPENDING_ACCOUNT_TYPES + USD-or-null, the register's own where) so imported
+  // POSTED rows always land where a reader can see them (K.3: write basis =
+  // reader basis).
+  if (
+    !SPENDING_ACCOUNT_TYPES.includes(account.type) ||
+    (account.currency !== null && account.currency !== 'USD')
+  ) {
+    return {
+      ok: false,
+      imported: 0,
+      duplicates: 0,
+      repeatedRows: 0,
+      skipped: 0,
+      historyReachesDate: null,
+      errors: ['Imported rows appear in the register — choose a checking, savings, or credit account.'],
+    };
+  }
 
   // Superseded-predecessor fence (slice-6 critics B-F2/C-4) — same rule as manual entry:
   // imported rows landing on a reconciled predecessor would be silently dropped figures.
   const supersededRefusal = await refuseManualWriteToSuperseded(userId, accountId);
-  if (supersededRefusal) return { ok: false, imported: 0, skipped: 0, errors: [supersededRefusal] };
+  if (supersededRefusal) {
+    return { ok: false, imported: 0, duplicates: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: [supersededRefusal] };
+  }
 
   const text = String(formData.get('csv') ?? '');
   if (!text.trim()) {
-    return { ok: false, imported: 0, skipped: 0, errors: ['Paste CSV content first.'] };
+    return { ok: false, imported: 0, duplicates: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: ['Paste CSV content first.'] };
   }
 
   // A CSV "category" column may name one of the user's custom categories ("Golf"),
@@ -262,8 +302,64 @@ export async function importTransactionsCsv(
   const customByName = new Map(custom.map((c) => [c.name.toLowerCase(), c.id]));
   for (const [categoryId, name] of renames) customByName.set(name.toLowerCase(), categoryId);
   const { rows, errors } = parseTransactionCsv(text, customByName);
-  const [rules, tuning] = await Promise.all([loadUserRules(userId), getThresholdTuning(userId)]);
-  const prepared = rows.map((row) => {
+  const [rules, tuning, keeps] = await Promise.all([
+    loadUserRules(userId),
+    getThresholdTuning(userId),
+    getReconciliationTxnKeep(userId),
+  ]);
+
+  // H.2 overlap dedupe — BEFORE any preparation work: fetch this account's own
+  // rows across the file's date span (index-backed, @@index([accountId, date]))
+  // and let the engine planner say which lines are genuinely new. The key is
+  // (date, signed amount) — descriptor excluded BY DESIGN so bank-export text
+  // matches provider-synced rows whose rawDescriptor differs (the engine doc
+  // spells the cases out). The R1 keep is applied to the MATCH SET, so a
+  // reconciliation-disowned row never suppresses a visible re-add — an import
+  // is a reader asking for this history back, and a writer must see what its
+  // readers see (H.8).
+  //
+  // Two reads by design (critic P2-4): this first read is a PLANNING snapshot
+  // that decides which rows pay for prepare + LLM assist below; the
+  // authoritative check-then-act re-runs the plan inside a serializableTx
+  // right before the write, where a concurrent import's commit surfaces as a
+  // P2034 retry against fresh state — closing the concurrent-double-import
+  // race (double-click, two tabs) that Postgres at READ COMMITTED would let
+  // mint duplicate rows. While the store only GROWS (the import-vs-import race
+  // this closes), the in-tx re-plan can only SUBTRACT from this plan's keep
+  // set — no import is ever missed. A concurrent DELETE could make plan2 keep
+  // a row plan1 dropped; the loop below skips it (plan1Keep guard), so the
+  // result is a countable under-import that a re-import repairs — never a
+  // double-import, the dangerous direction (critic round-2 edge).
+  let rowsToImport = rows;
+  let duplicates = 0;
+  let repeatedRows = 0;
+  let spanMin: ISODate | null = null;
+  let spanMax: ISODate | null = null;
+  let plan1Keep: boolean[] | null = null;
+  if (rows.length > 0) {
+    spanMin = rows[0].date;
+    spanMax = rows[0].date;
+    for (const r of rows) {
+      if (r.date < spanMin) spanMin = r.date;
+      if (r.date > spanMax) spanMax = r.date;
+    }
+    const existing = await prisma.transaction.findMany({
+      where: { accountId, date: { gte: spanMin, lte: spanMax } },
+      select: { date: true, amountCents: true },
+    });
+    const plan1 = planCsvDedupe(
+      rows.map((r) => ({ date: r.date, amountCents: r.amountCents })),
+      existing
+        .filter((r) => keeps(accountId, r.date))
+        .map((r) => ({ date: r.date as ISODate, amountCents: r.amountCents })),
+    );
+    plan1Keep = plan1.keep;
+    rowsToImport = rows.filter((_, i) => plan1.keep[i]);
+    duplicates = plan1.duplicates;
+    repeatedRows = plan1.repeatedRows;
+  }
+
+  const prepared = rowsToImport.map((row) => {
     const p = prepareImportedTransaction(row, accountId, rules, tuning.flaggedBps);
     return {
       // Pre-assigned id so the prediction log correlates provenance by KEY, not by
@@ -298,34 +394,70 @@ export async function importTransactionsCsv(
   // categorizeSuggestFor: demo fence (rows stand unchanged, no egress) + §3.2 audit sink.
   const data = await assistUnsureRows(prepared, categorizeSuggestFor(userId));
 
+  // Phase 2 — the authoritative check-then-act inside SERIALIZABLE isolation
+  // (critic P2-4). `data` is aligned with `rowsToImport` in file order; the
+  // fresh snapshot re-plans and only the rows it still keeps are created. The
+  // whole fn is DB-only (prepare/assist ran above, outside the tx), so a P2034
+  // retry re-runs cleanly against post-race state.
+  let createdRows: typeof data = [];
   if (data.length > 0) {
-    // Project to Transaction columns only (`source` is NOT one) before the DB
-    // write; each row carries its pre-assigned id, so the prediction log below
-    // reads straight off `data` — no reliance on returned-row order (critic P1-2).
-    await prisma.transaction.createMany({
-      data: data.map((r) => ({
-        id: r.id,
-        accountId: r.accountId,
-        date: r.date,
-        amountCents: r.amountCents,
-        rawDescriptor: r.rawDescriptor,
-        categoryId: r.categoryId,
-        confidenceBps: r.confidenceBps,
-        status: r.status,
-        needsReview: r.needsReview,
-        isTransfer: r.isTransfer,
-        // O.15 slice 6 — see the manual-entry write above; same reasoning, same
-        // brand-new row with no tag to protect.
-        ...(r.taxClassStamp ? { taxClass: r.taxClassStamp } : {}),
-        ...(r.spendClassStamp ? { spendClassOverride: r.spendClassStamp } : {}),
-      })),
+    const out = await serializableTx(async (tx) => {
+      const fresh = await tx.transaction.findMany({
+        where: { accountId, date: { gte: spanMin!, lte: spanMax! } },
+        select: { date: true, amountCents: true },
+      });
+      const plan2 = planCsvDedupe(
+        rows.map((r) => ({ date: r.date, amountCents: r.amountCents })),
+        fresh
+          .filter((r) => keeps(accountId, r.date))
+          .map((r) => ({ date: r.date as ISODate, amountCents: r.amountCents })),
+      );
+      const toCreate: typeof data = [];
+      let kept = 0;
+      for (let i = 0; i < rows.length; i++) {
+        if (!plan1Keep![i]) continue; // plan1 dropped it — never prepared
+        const row = data[kept]!;
+        kept++;
+        // plan2's keep is a subset of plan1's (the store only grows), so every
+        // row reached here was prepared and assist-evaluated exactly once.
+        if (plan2.keep[i]) toCreate.push(row);
+      }
+      if (toCreate.length > 0) {
+        // Project to Transaction columns only (`source` is NOT one) before the
+        // write; each row carries its pre-assigned id, so the prediction log
+        // reads straight off `data` — no reliance on returned-row order (critic P1-2).
+        await tx.transaction.createMany({
+          data: toCreate.map((r) => ({
+            id: r.id,
+            accountId: r.accountId,
+            date: r.date,
+            amountCents: r.amountCents,
+            rawDescriptor: r.rawDescriptor,
+            categoryId: r.categoryId,
+            confidenceBps: r.confidenceBps,
+            status: r.status,
+            needsReview: r.needsReview,
+            isTransfer: r.isTransfer,
+            // O.15 slice 6 — see the manual-entry write above; same reasoning, same
+            // brand-new row with no tag to protect.
+            ...(r.taxClassStamp ? { taxClass: r.taxClassStamp } : {}),
+            ...(r.spendClassStamp ? { spendClassOverride: r.spendClassStamp } : {}),
+          })),
+        });
+      }
+      return { created: toCreate, duplicates: plan2.duplicates, repeatedRows: plan2.repeatedRows };
     });
+    createdRows = out.created;
+    duplicates = out.duplicates;
+    repeatedRows = out.repeatedRows;
     // Log each pipeline/LLM verdict + its provenance for the accuracy metric +
     // threshold tuning (DECISIONS #190) and Why-This-Category (§3.1). Rows whose
     // category the CSV dictated carry confidence 10000 and are skipped in the helper.
+    // After the tx (created rows only): the log must never fail an already-committed
+    // import, and rows a concurrent import beat us to were never created.
     await logCategoryPredictions(
       userId,
-      data.map((r) => ({
+      createdRows.map((r) => ({
         transactionId: r.id,
         categoryId: r.categoryId,
         confidenceBps: r.confidenceBps,
@@ -334,19 +466,46 @@ export async function importTransactionsCsv(
     );
   }
 
+  // H.2 depth confirmation: after a successful import, the account's earliest
+  // KEPT register row is the "history now reaches" fact — computed on the SAME
+  // basis as the /accounts depth line (registerRowWhere + the R1 keep) so the
+  // two surfaces agree by construction (K.3/H.8: one fact, one basis).
+  let historyReachesDate: string | null = null;
+  if (createdRows.length > 0) {
+    const floorRows = await prisma.transaction.findMany({
+      where: { accountId, ...registerRowWhere(userId) },
+      select: { date: true },
+    });
+    for (const r of floorRows) {
+      if (keeps(accountId, r.date) && (historyReachesDate === null || r.date < historyReachesDate)) {
+        historyReachesDate = r.date;
+      }
+    }
+  }
+
   await auditLog(userId, 'transaction.import.csv', {
     accountId,
-    imported: data.length,
+    imported: createdRows.length,
+    duplicates,
+    repeatedRows,
     skipped: errors.length,
+    historyReachesDate,
   });
-  if (data.length > 0) await refreshRecurringBestEffort(userId);
+  if (createdRows.length > 0) await refreshRecurringBestEffort(userId);
   revalidatePath('/transactions');
   revalidatePath('/triage');
+  // The /accounts depth line ("History available from …") must re-read the new
+  // floor — the card that told the user their history was shallow is the card
+  // that must show it deepened (H.2).
+  revalidatePath('/accounts');
 
   return {
-    ok: data.length > 0,
-    imported: data.length,
+    ok: createdRows.length > 0 || duplicates > 0,
+    imported: createdRows.length,
+    duplicates,
+    repeatedRows,
     skipped: errors.length,
+    historyReachesDate,
     errors: errors.map((e) => `Line ${e.line}: ${e.message}`),
   };
 }

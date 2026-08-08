@@ -563,6 +563,131 @@ test('CSV import: valid rows imported, bad rows skipped with line errors', async
   await expect(row).toContainText('-$18.75');
 });
 
+test('CSV import (H.2): re-importing the same file adds nothing — duplicates reported, depth shown', async ({ page }) => {
+  await signUpThrowaway(page);
+  await addManualAsset(page, 'E2E Import Wallet', 'CHECKING', '1000');
+  await page.goto('/transactions/import');
+  // Hydration barrier (#167 idiom): fill/click only after the form is laid out —
+  // a submit racing page load can complete server-side and have its confirmation
+  // flight applied to a dying document.
+  await expect(page.getByTestId('import-csv-form')).toBeVisible({ timeout: 20000 });
+
+  const csv = ['date,description,amount', '2026-06-02,E2E Backfill Book,-18.75', '2024-03-15,E2E Backfill Rent,-1500.00'].join(
+    '\n',
+  );
+
+  // First import: 2 fresh rows land, the register floor deepens to 2024. The
+  // bounded re-submit retry rides the product's idempotency: under 4-worker
+  // shared-SQLite load a confirmation flight is sometimes severed (documented
+  // harness class — see the playwright.config workers comment; server-side is
+  // always correct, audit-log proven). A severed first result is recovered by
+  // the next submit, which then returns the DEDUPE result instead — the register
+  // assertion at the end is the authoritative proof either way.
+  const result = page.getByTestId('import-result');
+  await expect(async () => {
+    if (await page.getByTestId('import-submit').isEnabled()) {
+      await page.getByTestId('import-csv-text').fill(csv);
+      await page.getByTestId('import-submit').click();
+    }
+    await expect(result).toContainText('transactions', { timeout: 5000 }); // any result rendered
+  }).toPass({ timeout: 30000 });
+
+  const first = await result.innerText();
+  if (first.includes('Imported 2')) {
+    // Fresh-import branch: depth confirmation shows the file's 2024 floor.
+    await expect(page.getByTestId('import-depth')).toContainText('history now reaches');
+    await expect(page.getByTestId('import-depth')).toContainText('2024');
+    await expect(result).not.toContainText('already in your history');
+  } else {
+    // Retry branch: the first attempt's rows landed unseen, and this submit
+    // proved the dedupe through the UI — an all-duplicate run shows no depth
+    // claim (nothing was added).
+    await expect(result).toContainText('already in your history');
+    await expect(page.getByTestId('import-depth')).toHaveCount(0);
+  }
+
+  // Second import of the same file: every row already held, nothing new written.
+  // Re-submit only after the button leaves `pending` + a settle beat (a real user
+  // reads the result first). The inline confirmation is then asserted with a
+  // bounded re-submit retry: under 4-worker shared-SQLite load the server
+  // action's confirmation flight is sometimes severed (the documented harness
+  // class — see the playwright.config workers comment; server-side is always
+  // correct, audit-log proven). Re-clicking is exactly what a user would do, and
+  // by product design the import is idempotent — re-importing a fully-duplicate
+  // file writes nothing, so each retry re-runs the same harmless dedupe.
+  await expect(page.getByTestId('import-submit')).toBeEnabled();
+  await page.waitForTimeout(750);
+  await expect(async () => {
+    if (await page.getByTestId('import-submit').isEnabled()) {
+      await page.getByTestId('import-csv-text').fill(csv);
+      await page.getByTestId('import-submit').click();
+    }
+    await expect(result).toContainText('Imported 0', { timeout: 5000 });
+  }).toPass({ timeout: 30000 });
+  await expect(result).toContainText('2 already in your history');
+  await expect(page.getByTestId('import-depth')).toHaveCount(0); // nothing added → no depth claim
+
+  // The register still holds exactly ONE copy of each row.
+  await page.goto('/transactions');
+  await page.getByTestId('txn-search').fill('E2E Backfill');
+  await page.getByTestId('txn-search').press('Enter');
+  await expect(page.getByTestId('txn-row').filter({ hasText: 'E2E Backfill' })).toHaveCount(2);
+});
+
+test('CSV import (H.2): a double-pasted export warns with the repeated-row count, then the warning clears on re-import', async ({ page }) => {
+  // Critic P1-1: a file that contains the same line twice imports both (the
+  // multiset can't tell them apart) but must SAY SO. Same hydration barrier +
+  // bounded re-submit retry idiom as the test above (same severed-flight class).
+  await signUpThrowaway(page);
+  await addManualAsset(page, 'E2E Import Wallet', 'CHECKING', '1000');
+  await page.goto('/transactions/import');
+  await expect(page.getByTestId('import-csv-form')).toBeVisible({ timeout: 20000 });
+
+  const csv = [
+    'date,description,amount',
+    '2026-06-02,E2E Doubled Coffee,-5.75',
+    '2026-06-02,E2E Doubled Coffee,-5.75',
+    '2026-06-03,E2E Single Book,-18.75',
+    '2026-06-04,E2E Single Paycheck,2500.00',
+  ].join('\n');
+  const result = page.getByTestId('import-result');
+  const warning = page.getByTestId('import-repeat-warning');
+  await expect(async () => {
+    if (await page.getByTestId('import-submit').isEnabled()) {
+      await page.getByTestId('import-csv-text').fill(csv);
+      await page.getByTestId('import-submit').click();
+    }
+    await expect(result).toContainText('transaction', { timeout: 5000 }); // any result rendered
+  }).toPass({ timeout: 30000 });
+
+  const first = await result.innerText();
+  if (first.includes('Imported 4')) {
+    // Fresh-import branch: both copies of the doubled row landed, and the
+    // file-internal repeat is called out by count.
+    await expect(result).toContainText('Imported 4');
+    await expect(warning).toContainText('2 identical rows');
+  } else {
+    // Severed-first-flight branch (documented harness class): this submit proved
+    // the dedupe — nothing was kept, so nothing to warn about on this result.
+    await expect(result).toContainText('already in your history');
+    await expect(warning).toHaveCount(0);
+  }
+
+  // Re-import the same file: all four rows already held, nothing kept — the
+  // warning must be gone (repeatedRows is 0 when nothing is imported).
+  await expect(page.getByTestId('import-submit')).toBeEnabled();
+  await page.waitForTimeout(750);
+  await expect(async () => {
+    if (await page.getByTestId('import-submit').isEnabled()) {
+      await page.getByTestId('import-csv-text').fill(csv);
+      await page.getByTestId('import-submit').click();
+    }
+    await expect(result).toContainText('Imported 0', { timeout: 5000 });
+  }).toPass({ timeout: 30000 });
+  await expect(result).toContainText('4 already in your history');
+  await expect(warning).toHaveCount(0);
+});
+
 test('demo manual-entry fence (#244): the shared demo account gets an honest inline refusal, and no row lands', async ({ page }) => {
   // The demo is read-only for visitor-BROUGHT data: a typed transaction and a
   // manual account both refuse with the no-shame shared-account message, inline

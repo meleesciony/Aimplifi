@@ -6,6 +6,58 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ SHIPPED 2026-08-08 — H.2: guided CSV backfill (TASKS H.2, DECISIONS #430, critic-cycled)
+
+Closes the last open wave-H task. The importer was rebuilt into a first-class
+backfill path: per-institution export guides on `/transactions/import`
+(web-verified, unit-tested), an overlap dedupe keyed on (date, signed amount)
+as a multiset difference, a post-import "history now reaches \<date\>" depth
+confirmation on the register's own basis, and imported rows flowing through
+the same categorization + recurring-detection pipeline as synced rows.
+
+**Hostile critic round (Opus 5, money surface — this slice's dedupe): FAIL —
+1 P1 + 6 P2; re-review pending.** Executed before shipping:
+- **P1-1** (file-internal duplicate lines imported silently): `repeatedRows`
+  added to the engine plan, `ImportResult`, and the audit meta; the form shows
+  an amber warning ("the file contains N identical rows — this usually means
+  two overlapping exports were pasted together") and the page copy no longer
+  claims "always safe". Warn, never block — the multiset semantics are
+  untouched (two genuine same-day same-amount charges still import).
+- **P2-2** (picker offered non-register accounts): the page's account query is
+  filtered to `SPENDING_ACCOUNT_TYPES` — the same basis the register,
+  `/api/export` and the engines use — and the action itself refuses a
+  crafted non-register or non-USD target with an inline error (round-2
+  residual, closed same cycle).
+- **P2-3** (amber contrast): both amber notes moved to the codebase's
+  `text-amber-700 dark:text-amber-300` idiom.
+- **P2-4** (dedupe not atomic): the check-then-act is now two reads by design —
+  a planning snapshot that decides which rows pay for prepare + LLM assist,
+  then the authoritative re-plan + `createMany` inside `serializableTx`
+  (DB-only fn, P2034-retried). A concurrent double-import (double-click, two
+  tabs) can no longer mint duplicate rows under Postgres READ COMMITTED; while
+  the store only grows, the in-tx re-plan only subtracts, so no import is ever
+  missed (a concurrent DELETE instead yields a countable under-import that a
+  re-import repairs — never the dangerous double-import direction).
+- **P2-5** (docblock overclaims): export-guide docblock + test comment corrected
+  to what actually reaches the lookup (live `PlaidItem.institution` names).
+
+**Tracked, not fixed (recorded for a future slice):**
+- **P2-1** — sync re-delivery mirror hole: nothing dedupes a provider sync
+  against rows the user IMPORTED via CSV (the mirror of the overlap dedupe). A
+  bank that later re-delivers an imported row would re-create it. Imported rows
+  are `provider: 'manual'`, so a real fix must make the sync ingest's own
+  uniqueness check provider-agnostic — bigger than this slice.
+- **P2-6** — depth-floor query fetches all account rows to find the minimum
+  (no aggregate/`orderBy take: 1`). Correct, cheap at household scale, tracked.
+
+**Full-suite e2e re-run `bsno88rjr` (4 workers, post-H.2): 297 passed / 2 failed** —
+`category-rename.spec.ts:110` and `transactions.spec.ts:538` (both on the
+`[mobile-380]` worker, both reload-bearing mutation specs). Both pass in
+isolation; both are the documented severed-flight contention class (G.1
+doctrine: server-side correct, audit-proven, solo-green). Recorded with run id;
+CI is the arbiter. The H.2 specs (:566, :637) passed in that same run and in a
+standalone file run (27/27 at 4 workers after the critic fixes).
+
 ## ✅ FIXED 2026-08-08 — G.1: the standing CI red was test contention, not a product defect (TASKS G.1)
 
 **The gate had been failing on three consecutive shas** — runs **31243413430** (`3fe37f6`),

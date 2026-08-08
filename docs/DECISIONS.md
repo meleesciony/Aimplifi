@@ -5678,3 +5678,48 @@ row-level read. `distinct` is NOT a database bound here: Prisma dedupes client-s
 DISTINCT on either datasource (the critic captured the SQL on SQLite and on Neon), so that read
 is row-sized and grows with history depth; it is skipped entirely for any user who has never
 combined two accounts. Net against the first cut: three queries fewer.
+
+## #430 — H.2: the CSV backfill dedupe is a multiset difference, its check-then-act is serializable, and file-internal repeats are surfaced, never silent (2026-08-08)
+
+Closes TASKS H.2 (last open wave-H task). Design decisions, in the order a hostile critic forced them:
+
+**The dedupe key is (date, signed amount) on the same account, as a MULTISET difference** — for
+each key the file offers M rows and the account holds N, create max(0, M − N) in file order.
+Descriptor is excluded BY DESIGN: bank-export text ("GOOSE POND BAR GRILLE") never equals the
+provider's rawDescriptor ("SQ *GOOSE POND"), so requiring it would double-import the whole
+provider-overlap window (H.6's prescription). The multiset shape is exactly right for the two
+shipping cases — re-import (M == N → all dropped) and provider overlap (the provider's copy is
+inside N) — and never drops a key the account does not hold. Split parents sit in the match set
+(a whole-charge row whose charge is already represented as pieces is dropped), and the R1 keep is
+applied to the MATCH SET, so a reconciliation-disowned row never suppresses a visible re-add
+(H.8: a writer sees what its readers see).
+
+**Two reads by design — the check-then-act is atomic, the egress is not.** A planning snapshot
+(span fetch, index-backed) decides which rows pay for prepare + LLM assist, so a re-import never
+calls the LLM. The authoritative re-plan runs inside `serializableTx` (the app's P2034-retried
+wrapper, db.ts) right before `createMany`; the tx fn is DB-only, prepare/assist ran outside, and
+the predictions log happens after commit. A concurrent double-import (double-click, two tabs)
+that Postgres READ COMMITTED would let mint duplicate rows now surfaces as a serialization
+conflict and retries against fresh state. The store only ever grows, so the in-tx re-plan can
+only SUBTRACT from the planning plan — no import is ever missed, and the reused engine function
+keeps the multiset contract under the existing test suite.
+
+**File-internal repeats are surfaced, never silent (critic P1-1).** `planCsvDedupe` counts kept
+rows whose key occurs ≥2 times in the FILE itself and returns them as `repeatedRows`; the form
+shows an amber warning ("the file contains N identical rows — this usually means two overlapping
+exports were pasted together"), the audit meta carries the count, and the page copy no longer
+claims "always safe". Warn, never block: two genuine same-day same-amount charges are
+legitimate, and the key cannot tell them apart — the count is the honest hint. The multiset
+semantics are untouched; the classic shape (two overlapping exports pasted together) was
+previously a silent double-import corrupting every total.
+
+**The import picker is the register's own basis (critic P2-2).** Only `SPENDING_ACCOUNT_TYPES`
+(CHECKING/SAVINGS/CREDIT) accounts are offered — an imported row is a POSTED register row, so an
+investment/loan target would hide the imported history from every register surface. Same
+constant the register, `/api/export` and the engines use.
+
+**Accepted, tracked:** (P2-1) nothing dedupes a provider sync against rows the user IMPORTED —
+the mirror of the overlap dedupe; a real fix must make the sync ingest's uniqueness check
+provider-agnostic, bigger than this slice. (P2-6) the depth-floor query fetches all account
+rows to find the minimum; correct at household scale, could be `orderBy take: 1` later. Both
+recorded in STATUS.
