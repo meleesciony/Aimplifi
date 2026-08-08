@@ -40,6 +40,16 @@ the row list is shown first; the act is undoable; zero such rows exist on the li
 385 passed files (386)** / build clean; e2e **4/4** (the new `transfer-flag-repair.spec.ts`
 apply→undo round trip + all three settings specs). Schema: additive `TransferFlagRepairRun`
 only (prisma diff = one new model; deploy runs `prisma db push`, no existing rows touched).
+**CI ship gate (K.8): success** on run 31239696772 for `0c72db9` (the full `VERIFY_E2E=1`
+gate; the slice commits are `3ee4720` + `500c37e`, whose own run 31239506594 was cancelled
+as superseded by the proof-script push minutes later — same source tree). Attempt 1 failed
+on **`budget-targets.spec.ts:20` only** — the documented pre-existing `toHaveCount`
+single-post-mutation race (red on `58cb989`'s and `e772d8f`'s gates before any H.7b code
+existed; nothing in this slice touches budgets); `gh run rerun --failed` → **success**.
+**Live deploy proof: 5/5** (`scripts/h7b-live-deploy-check.mjs` against www.aimplifi.app):
+new build serving (the card's testid is the unique marker), `TransferFlagRepairRun` live on
+Neon (the /settings render requires its `findFirst`), the shared demo lands in a truthful
+named zero with no write doors, no client errors.
 
 **STILL OPEN after H.7b, recorded not fixed:** (1) **per-row selection** — the apply is
 all-or-nothing; an owner holding 52 wrong flags and 1 genuine cash advance cannot repair the
