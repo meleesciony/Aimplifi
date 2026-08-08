@@ -2738,8 +2738,8 @@ display-only, so no golden value moves either way.
 
 **Gate:** verify GREEN — tsc 0 / eslint 0 / **6,381 unit + 1 skipped / 388 files** / build clean;
 full e2e **305 passed / 0 failed** (was 304 / 1 — the first fully green full suite this session).
-Pushed as `fa2da16`; CI is the only environment that ever reproduced this, so its conclusion is the
-real verdict and is recorded in STATUS when read.
+Pushed as `fa2da16`; **CI gate SUCCESS on run 31245525851** — the verdict that counts, since CI is
+the only environment that ever reproduced the failure. Four consecutive shas red, green on the fix.
 
 **Watch item, deliberately unchanged:** `pwa-offline.spec.ts` still runs its budget round-trip as
 the shared demo user. It is an offline/service-worker spec whose point is caching the demo's real

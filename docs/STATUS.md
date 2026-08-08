@@ -40,8 +40,10 @@ end-of-test cleanup moot. **No assertion weakened** — the upsert-yields-ONE-ro
 are display-only, so no golden value moves.
 
 **Gate:** verify GREEN — tsc 0 / eslint 0 / 6,381 unit + 1 skipped / 388 files / build clean; full
-e2e **305 passed / 0 failed** (was 304 / 1). CI conclusion recorded when read — CI is the only
-environment that ever reproduced this, so it is the real verdict.
+e2e **305 passed / 0 failed** (was 304 / 1). **CI ship gate (K.8): SUCCESS on run 31245525851 for
+`fa2da16`** — the full `VERIFY_E2E=1` gate, green for the first time since 2026-08-07, and the
+verdict that counts because CI is the only environment that ever reproduced the failure. Four
+consecutive shas red, then green on the fix.
 
 **Watch item, deliberately unchanged:** `pwa-offline.spec.ts` still runs its budget round-trip as
 the shared demo user and stays in the contention pool. It is an OFFLINE/service-worker spec whose
