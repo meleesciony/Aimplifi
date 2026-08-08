@@ -57,7 +57,13 @@ import {
   type ReconciliationLinkLike,
   applyReconciliationBoundary,
   effectiveReconciliationLinks,
+  reconciliationTxnKeepFilter,
 } from '@/lib/engine/account/reconcile-boundary';
+import {
+  type AccountDepthFact,
+  type ConnectionDepth,
+  connectionHistoryDepth,
+} from '@/lib/engine/account/connection-depth';
 import {
   activeSupersededPredecessorIds,
   getActiveReconciliations,
@@ -873,6 +879,12 @@ export interface AccountsView extends AccountsSummary {
     lastSyncedAt: string | null;
     health: FreshnessResult;
     orphaned: { count: number; lastDataAt: string | null } | null;
+    /** How far back the SimpleFIN feed's own history reaches (TASKS H.1(b)), on the identical
+     *  rule the Plaid connection cards use. Without it /accounts answers "how far back does this
+     *  go" for some connections and stays silent for others, with no rule a reader could infer —
+     *  and on the owner's live corpus the silent half is the DEEPER one (25 accounts reaching
+     *  2026-03-25, older than seven of the eight Plaid connections that print a date). */
+    historyDepth: ConnectionDepth;
   };
   /** Plaid bank connections (#256) — one row per linked item, for the per-bank
    *  Disconnect control. Empty for users with no Plaid links. */
@@ -885,6 +897,9 @@ export interface AccountsView extends AccountsSummary {
        *  e.g. a member's own Chase plus their spouse's Chase — are distinguishable on /accounts
        *  (owner-reported 2026-07-23: two identical "Plaid: Chase" rows couldn't be told apart). */
       accounts: { name: string; mask: string | null }[];
+      /** How far back this connection's history actually reaches (TASKS H.1(b)) — computed
+       *  through the app's OWN R1 keep rule, so the date can never contradict the register. */
+      historyDepth: ConnectionDepth;
     }[];
   };
   /** What the currency guard withheld — drives the disclosure banner (#135 residual). */
@@ -931,7 +946,7 @@ export type ReconciliationCandidateView = ReconciliationCandidate & {
 
 /** Every account, grouped into assets vs liabilities with net worth + trend. */
 export async function getAccountsView(userId: string): Promise<AccountsView> {
-  const [user, accounts, snapshots, statements, autopays, sfConn, plaidItems, newestByAccount, plaidFeedFloors, activeReconciliations, dismissedDupKeys] =
+  const [user, accounts, snapshots, statements, autopays, sfConn, plaidItems, newestByAccount, plaidFeedFloors, activeReconciliations, dismissedDupKeys, registerFloors] =
     await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
@@ -982,6 +997,13 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     getActiveReconciliations(userId),
     // Pairs the user has marked "not a duplicate" — filtered out of the advisory warning below.
     getDismissedDuplicateKeys(userId),
+    // Each account's oldest row THE REGISTER WOULD LIST, for the per-connection history-depth
+    // line (TASKS H.1(b)). Deliberately its own aggregate rather than a reuse of the all-rows
+    // span above: that one feeds per-row freshness and the claim-span disclosure, which need
+    // every row, while a depth line that counts rows /transactions refuses to show is a
+    // /accounts date the register contradicts on the same screenload (critic F-1, executed).
+    // `registerRowWhere` IS the register's own predicate — shared, not restated.
+    prisma.transaction.groupBy({ by: ['accountId'], where: registerRowWhere(userId), _min: { date: true } }),
   ]);
 
   // Currency guard (DECISIONS #135): withhold non-USD accounts from the /accounts page so its
@@ -1150,6 +1172,63 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       g._min.date != null && g._max.date != null ? [[g.accountId, { first: g._min.date, last: g._max.date }] as const] : [],
     ),
   );
+
+  // ── Per-connection history depth (TASKS H.1(b)) ─────────────────────────────────────────
+  // The R1 keep rule is WINDOWED, so an account's raw `_min.date` can be a row no register
+  // shows and `spanByAccount` alone cannot answer this. Built from rows ALREADY IN HAND — the
+  // shared engine closure over `views` + `activeLinks` + the spans `newestByAccount` already
+  // carries — rather than `getReconciliationTxnKeep`, which would re-issue three queries this
+  // function has already awaited AND re-read the links, so a confirm/undo landing between the
+  // two reads could desync the closure from the account set it is meant to bound (critic F-4,
+  // proven identical across 22 probes).
+  const keepsReconciled = reconciliationTxnKeepFilter(
+    views,
+    activeLinks,
+    [...spanByAccount].map(([accountId, s]) => ({ accountId, first: s.first, last: s.last })),
+  );
+  // Only accounts that appear in a link can lose anything (R8: with no effective link the
+  // closure keeps everything), so the row scan is scoped to those — every other account's raw
+  // floor IS its owned floor, already in hand at zero extra cost.
+  const linkTouched = new Set(activeLinks.flatMap((l) => [l.predecessorAccountId, l.successorAccountId]));
+  // The keep rule reads nothing but (accountId, date), so that is all this selects. `distinct`
+  // is NOT a bound on what the database fetches — Prisma dedupes client-side and emits no
+  // DISTINCT on either datasource (critic F-5 captured the SQL on SQLite and on Neon), so this
+  // is row-sized and grows with history depth. It is skipped entirely when nothing is linked,
+  // which is every user who has never combined two accounts.
+  const linkedDates = linkTouched.size
+    ? await prisma.transaction.findMany({
+        where: { ...registerRowWhere(userId), accountId: { in: [...linkTouched] } },
+        select: { accountId: true, date: true },
+      })
+    : [];
+  const earliestOwnedLinked = new Map<string, string>();
+  for (const r of linkedDates) {
+    if (!keepsReconciled(r.accountId, r.date)) continue;
+    // A MIN over the kept dates, deliberately not "the first row wins on an ORDER BY": the
+    // dev/test datasource is SQLite and production is PostgreSQL (DECISIONS #35), and row
+    // order is not a guarantee this surface should be resting a rendered date on.
+    const best = earliestOwnedLinked.get(r.accountId);
+    if (best === undefined || r.date < best) earliestOwnedLinked.set(r.accountId, r.date);
+  }
+  // Every floor below is register-visible by construction — both reads carry `registerRowWhere`.
+  const registerFloorByAccount = new Map(
+    registerFloors.flatMap((g) => (g._min.date != null ? [[g.accountId, g._min.date] as const] : [])),
+  );
+  const accountDepthFact = (a: { id: string; type: string; currency: string | null }): AccountDepthFact => ({
+    // The account-level half of the register's basis. An account outside it holds rows the
+    // register never lists, so it may neither supply a date nor make its connection look empty.
+    inRegisterBasis: SPENDING_ACCOUNT_TYPES.includes(a.type) && isSupportedCurrency(a.currency),
+    // Investment, loan and mortgage accounts never send transactions — there is no
+    // `/investments/transactions` ingest in this app, and both providers say so in their own
+    // words. Separates "nothing yet" from "nothing ever", which on the live corpus is the
+    // difference between a true sentence and a promise that never resolves on FOUR of the
+    // owner's thirteen connections (copy critic F1, measured).
+    neverTransactional: !SPENDING_ACCOUNT_TYPES.includes(a.type),
+    earliestOwned: linkTouched.has(a.id)
+      ? earliestOwnedLinked.get(a.id) ?? null
+      : registerFloorByAccount.get(a.id) ?? null,
+    holdsRows: registerFloorByAccount.has(a.id),
+  });
   // An account's institution lives on its CONNECTION row, so the identity ladder (L.10) reads it
   // through the item map. Supplied for every row; the ladder itself refuses cross-provider and
   // abstains where the institution is unknown, so a non-Plaid row simply never proves anything.
@@ -1407,6 +1486,9 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       connected: sfConn !== null,
       lastSyncedAt: sfConn?.lastSyncedAt ?? null,
       health: classifyFreshness(sfConn?.lastSyncedAt ? isoDate(sfConn.lastSyncedAt) : null, today),
+      // Every simplefin account: the connection is one-per-user (`SimpleFinConnection.userId` is
+      // unique), so provider IS the linkage here — there is no per-item id to group by.
+      historyDepth: connectionHistoryDepth(accounts.filter((a) => a.provider === 'simplefin').map(accountDepthFact)),
       // K.2b: rows that came through a connection that no longer exists, counted over ALL
       // simplefin accounts (a currency-withheld row's connection is just as gone; the notice
       // copy claims "stopped updating", never on-page visibility — sabotage-e-locked in
@@ -1443,6 +1525,14 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
         accounts: accounts
           .filter((a) => a.plaidItemId === item.itemId)
           .map((a) => ({ name: accountLabel(a), mask: a.mask })),
+        // Over the SAME accounts this card names one line above — the engine, not the caller,
+        // decides which of them may set a date (a withheld or non-spending account is passed in
+        // and excluded there). Feeding it a pre-filtered list instead would make a connection
+        // whose accounts are all outside the register indistinguishable from one with no
+        // accounts at all, and those are different sentences.
+        historyDepth: connectionHistoryDepth(
+          accounts.filter((a) => a.plaidItemId === item.itemId).map(accountDepthFact),
+        ),
       })),
     },
     // The unfiltered rows are already in hand, so the disclosure costs no extra query.

@@ -2618,3 +2618,78 @@ F2's "the container's own note travels" now lands on the pieces, where it is rea
 **Shipped:** `ea27091` pushed; CI run read at the close (STATUS records the conclusion); live
 deploy proof `scripts/h6-live-deploy-check.mjs`. Ledgers: TASKS H.6b [x], STATUS §H.6b(a) +
 H.6c STILL OPEN item (1) struck, DECISIONS #427 + index, REGRESSION_LEDGER 3 rows.
+
+## 2026-08-08 · #429 · H.1(b) shipped: every bank connection states its own history depth
+
+TASKS H.1(b) — the last open piece of H.1 — built engine-first and gated. (c) needed nothing:
+#421 already records Plaid's 730-day ceiling in DECISIONS with `plaid.ts:189` beside it.
+
+**Measured before building, not quoted.** Re-ran `scripts/audit-probes/h1-connection-depth.mts`
+(read-only, committed) against live Neon. The corpus moved materially since 2026-08-06:
+**58 accounts / 4,493 rows / 3,278 owned / 27 active links**, and the register's global floor is
+now **2024-08-11** (was 2026-03-25) — a Chase item with **1,395 rows** back to August 2024,
+`backfill=2026-08-07`. The deepen route worked. That is also what makes the global line wrong as
+an answer: twelve of thirteen connections still start in **July 2026**, so one date set by the
+deepest account reads as a claim about all history.
+
+**The load-bearing decision:** depth is read through `getReconciliationTxnKeep`, never a raw
+`groupBy _min`. Seven connections carry a raw-vs-owned delta of **84–91 days**; printing the raw
+floor would have put /accounts three months adrift of the register on one screenload. Three
+states, because two would have to lie — the probe's Q3 hit is live (an Amex item **holds 7 rows
+and owns 0**), so `counted-elsewhere` is its own sentence rather than a date or a false zero.
+
+**Removed before it could ship:** the first cut took "first row of an `orderBy`-ed `distinct`
+read" as the owned floor. Dev/test is SQLite, production PostgreSQL (#35), and cross-provider
+ordering under `distinct` is not a guarantee a rendered date should rest on — replaced with an
+explicit MIN over kept dates.
+
+**Built:** `connection-depth.ts` (pure engine) + `connection-depth-copy.ts` (pure sentences), the
+depth block + `historyDepth` in `getAccountsView`, the `plaid-item-history` line, and the same
+line for SimpleFIN.
+
+**CRITIC CYCLE 1 — two fresh-context critics (data integrity; copy/UX), BOTH FAIL: 6 P1 + 5 P2 +
+5 P3, every finding executed, all six P1s fixed and locked.** The mechanism changed twice and the
+copy changed entirely.
+- **F-1 killed the slice's own headline claim.** "The date can never contradict the register" was
+  false: `registerRowWhere` lists only spending types, USD-or-null, non-split-parent rows, and the
+  depth read all rows of all types. Executed against the real loader AND the real register — a
+  card read *"History goes back to Mon, May 18, 2026"* while /transactions returned zero rows and
+  did not offer that account in its dropdown. Live: the Truist connection's ONLY account is a
+  mortgage.
+- **Copy F1 made it actively unhelpful.** All four connections rendering "No transactions yet."
+  were 100% never-transactional accounts (9 of 9), each synced cleanly that morning — 31% of the
+  owner's connections told to wait for something that is never coming.
+- **The `counted-elsewhere` sentence took both critics.** "counted on the account it was combined
+  with" is false when the row is counted nowhere (R1 is a calendar-WINDOW rule — executed),
+  singular where three executed shapes have two claimants, and uses a word the visible page never
+  defines (O.19 collapsed the disclosure that teaches it).
+- **F8: the unit gate was blind to the copy** — importing the component under vitest dies on
+  `next/server`, so only `VERIFY_E2E=1` could catch a wrong sentence. Copy is now a pure module
+  with 9 locks in the plain gate.
+- **F-4: −3 duplicate queries** and a real double-read of the links (a confirm/undo between the
+  two reads desynced the closure from the account set it bounds).
+- **F5: SimpleFIN gained the line** — 43% of the owner's accounts, reaching DEEPER than seven of
+  the eight Plaid connections that print a date.
+
+**Live re-measure with the shipped rule** (`h1b-depth-states.mts`, read-only, committed):
+**9 reaches / 4 balances-only / 1 counted-elsewhere — ZERO false "No transactions yet."**, and
+SimpleFIN now answers *History available from Wed, Mar 25, 2026*.
+
+**Locks:** 12 engine + 9 copy + 11 DB-backed through the REAL `getAccountsView` + 1 e2e over four
+connections in four states. **Seven sabotages executed across both cycles, each turning exactly
+its own locks RED** — pre-critic: (A) bypass the keep rule, (B) count withheld rows, (C) collapse
+`counted-elsewhere`; post-critic: (D) bypass the register basis, (E) unfiltered depth aggregate,
+(F) collapse the never-transactional state, (G) revert sentence C. All restored, suite green.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,381 unit + 1 skipped / 388
+files** / build clean; connection e2e **18/18**; full e2e **304 passed / 1 failed**
+(`budget-targets.spec.ts:20` — the documented pre-existing flake, green on re-run with this code
+present). No schema change.
+
+**Deploy proof is honestly scoped.** `scripts/h1-live-deploy-check.mjs` — production's only
+reachable account is the shared demo, which has NO connections (measured), so the new line
+cannot render there and the usual testid-in-the-HTML marker does not exist. The marker used
+instead is the slice's own copy string inside a served `/_next/static` chunk (unique in the
+codebase; `plaid-connections.tsx` is `'use client'`, so it ships whether or not it renders).
+Pre-deploy baseline **5/6 with exactly the marker check failing** — a fail-old proof. The
+PostgreSQL LINKED path is NOT covered by it and is recorded as such in the script's header.

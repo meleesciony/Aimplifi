@@ -422,3 +422,4 @@ refuses to write if it would drop any number this file already carries.
 - **#426** (Phase ?): O.19: the /accounts combine machinery goes behind a tap, and its claim about the money does not (2026-08-07)
 - **#427** (Phase ?): H.6b(a): the combine carries the reader's hand-filed work onto the successor's copies, never onto a row nothing reads (2026-08-07)
 - **#428** (Phase ?): H.7b: the wrongly-written transfer flags get an owner-triggered, undoable repair (2026-08-08)
+- **#429** (Phase ?): H.1(b): every bank connection states its own history depth, through the app's own ownership rule (2026-08-08)

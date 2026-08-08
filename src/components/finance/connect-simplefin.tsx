@@ -18,6 +18,8 @@
  * severed-stream case to recover from.
  */
 import { useState } from 'react';
+import type { ConnectionDepth } from '@/lib/engine/account/connection-depth';
+import { connectionDepthSentence } from '@/lib/engine/account/connection-depth-copy';
 import { setFlash } from '@/components/finance/flash';
 import { connectSimplefin, disconnectSimplefin, syncSimplefinNow } from '@/server/simplefin-actions';
 import { type FreshnessResult, freshnessMessage } from '@/lib/engine/sync/health';
@@ -34,8 +36,11 @@ export function ConnectSimplefin({
   connected,
   health,
   orphaned,
+  historyDepth,
 }: {
   connected: boolean;
+  /** How far back the SimpleFIN feed's own history reaches (TASKS H.1(b)). */
+  historyDepth: ConnectionDepth;
   /** Freshness of the last sync (Gap 1 §3) — drives the "synced N days ago / reconnect" hint. */
   health: FreshnessResult;
   /** K.2b: non-null when SimpleFIN accounts exist but their connection row does NOT — the
@@ -105,6 +110,13 @@ export function ConnectSimplefin({
             Disconnect
           </button>
         </div>
+        {/* Same claim, same rule and the same sentence set as every Plaid connection card
+            (TASKS H.1(b)). Silence here would make the depth answer appear and disappear
+            across providers with no rule the reader could infer — and on the live corpus this
+            feed is the DEEPER half. */}
+        <div className="text-xs text-muted-foreground" data-testid="simplefin-history">
+          {connectionDepthSentence(historyDepth)}
+        </div>
         {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
         <p className="text-[11px] text-amber-300/80" data-testid="simplefin-type-notice">
           Account types are guessed from the bank’s name — double-check that any cards or loans
@@ -128,6 +140,15 @@ export function ConnectSimplefin({
           {orphaned.lastDataAt ? ` — no new transactions since ${formatISODate(isoDate(orphaned.lastDataAt), 'long')}` : ''}.
           Reconnect below to resume updates; your saved transactions are kept.
         </p>
+      )}
+      {orphaned && (
+        // The notice above says when the data STOPPED; this says where it STARTS. Together they
+        // are the span, which is the whole point of H.1(b) — and this is the state the owner is
+        // actually in (his SimpleFinConnection row is deleted, DECISIONS #421), so a depth line
+        // that rendered only in the connected branch would answer for everyone except him.
+        <div className="text-xs text-muted-foreground" data-testid="simplefin-history">
+          {connectionDepthSentence(historyDepth)}
+        </div>
       )}
       <button
         type="button"

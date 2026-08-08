@@ -28,7 +28,9 @@ export function ConnectOnboardingPanel({ footnote = DEFAULT_FOOTNOTE }: { footno
             connected — a user whose SimpleFIN accounts outlived their connection has data
             and therefore never sees the onboarding empty state; /accounts carries the
             reconnect framing for them (K.2b). */}
-        <ConnectSimplefin connected={false} health={NEVER_SYNCED} orphaned={null} />
+        {/* historyDepth: a first-run user has no accounts at all, which is the one input for
+            which the engine's answer is 'no-rows' — the same sentence this panel would want. */}
+        <ConnectSimplefin connected={false} health={NEVER_SYNCED} orphaned={null} historyDepth={{ state: 'no-rows' }} />
         <ConnectAccountsButton />
       </div>
       <div className="space-y-2 border-t pt-3">

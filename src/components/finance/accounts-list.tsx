@@ -571,7 +571,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
       <SyncAllButton connected={data.simplefin.connected || data.plaid.items.length > 0} />
 
       {/* Link real accounts: SimpleFIN (cheaper, no Plaid gatekeeping) or Plaid */}
-      <ConnectSimplefin connected={data.simplefin.connected} health={data.simplefin.health} orphaned={data.simplefin.orphaned} />
+      <ConnectSimplefin connected={data.simplefin.connected} health={data.simplefin.health} orphaned={data.simplefin.orphaned} historyDepth={data.simplefin.historyDepth} />
       <PlaidConnections items={data.plaid.items} />
       <ConnectAccountsButton />
 

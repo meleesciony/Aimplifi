@@ -6,6 +6,64 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-08 — H.1(b): every bank connection states its own history depth, on the register's own basis (DECISIONS #429, critic-cycled)
+
+**Closes TASKS H.1** — (b) built here; (c) needed nothing, since #421 already records Plaid's
+730-day ceiling beside `plaid.ts:189`. Wave H now has only **H.2** (guided CSV backfill) open.
+
+**Re-measured live before building.** The corpus MOVED since 2026-08-06: **58 accounts / 4,493
+rows / 3,278 owned / 27 active links**, and the register's global floor is now **2024-08-11**
+(was 2026-03-25) — a Chase item with **1,395 rows**, `backfill=2026-08-07`. The deepen route
+worked. That is also exactly why one global line is the wrong answer: twelve of thirteen
+connections still start in **July 2026**, so a date set by the single deepest account reads as a
+claim about ALL history.
+
+**Two rules stand between "rows exist" and "the owner can see them", and the first cut only
+applied one.** (1) The R1 keep rule is windowed — **seven** connections carry a raw-vs-owned
+delta of **84–91 days**. (2) The REGISTER'S OWN basis (`registerRowWhere`) lists only spending
+types, USD-or-null, non-split-parent rows. Missing (2) was the cycle's sharpest finding.
+
+**Five states, each because a smaller set forced a lie:** `reaches` · `counted-elsewhere` (live:
+an Amex item holds 7 rows and owns 0) · `balances-only` (investment/loan/mortgage — they never
+send transactions) · `not-counted` (currency-withheld; must not be called empty when the card
+NAMES the account one line above) · `no-rows`, which finally means what it says.
+
+**CRITIC CYCLE 1 — two fresh-context critics (data integrity; copy/UX), BOTH FAIL: 6 P1 + 5 P2
++ 5 P3, every finding executed, all six P1s fixed and locked.** The two that mattered most:
+(a) a connection rendered *"History goes back to Mon, May 18, 2026"* while /transactions showed
+zero rows and did not offer the account in its dropdown — the H.8 defect reproduced inside the
+slice built to avoid it; (b) **all four** connections showing "No transactions yet." were 100%
+never-transactional accounts (U.S. Bank ×2 LOAN, Vanguard ×4 INVESTMENT, Schwab ×2 IRA, Truist
+×1 MORTGAGE — 9 of 9), each synced cleanly that morning, so 31% of the owner's connections were
+being told to wait for something that is never coming.
+
+**Live re-measure with the shipped rule** (`h1b-depth-states.mts`, read-only): **9 reaches / 4
+balances-only / 1 counted-elsewhere, and ZERO false "No transactions yet."** SimpleFIN now
+answers too (**History available from Wed, Mar 25, 2026**) — 43% of the owner's accounts, and
+deeper than seven of the eight Plaid connections that print a date. It renders in the ORPHANED
+branch as well as the connected one, because the owner's `SimpleFinConnection` row is deleted
+(#421) and a line wired only into the connected branch would have answered for every user
+except the one who most needs it (regression-locked).
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,381 unit + 1 skipped / 388
+files** / build clean; connection e2e **18/18**; full e2e **304 passed / 1 failed** —
+`budget-targets.spec.ts:20`, the pre-existing flake this file already names by line for H.7b
+(green on re-run with this code present). Four post-critic sabotages (register basis;
+split-parent filter; the never-transactional state; the reverted sentence) each turned exactly
+its own locks RED, all restored. No schema change.
+
+**STILL OPEN after H.1(b), recorded not fixed:** (1) **prominence** — the depth line is the
+third identically-styled muted line on each card (+11% card height at 380px, no overflow); the
+copy critic marked this optional and it is recorded rather than churned; (2) **`counted-elsewhere`
+names no account** — the data to name the claimant exists on `AccountsView.reconciliations`, but
+three executed shapes have two or more claimants, so the sentence is deliberately unnamed and
+points at "Account cleanup" instead; (3) **connection cards carry no `role="group"` or accessible
+name** — pre-existing, so a screen-reader user hears the card's lines as unattributed fragments;
+this slice added a third one without fixing the grouping; (4) the depth read for linked accounts
+is **row-sized, not date-sized** — `distinct` is client-side in Prisma (critic captured the SQL
+on both datasources), so it grows with history depth, though it is skipped entirely for any user
+with no combined accounts.
+
 ## ✅ BUILT 2026-08-08 — H.7b: the wrongly-written transfer flags get an owner-triggered, undoable repair (DECISIONS #428, critic-cycled)
 
 **Closes STATUS §STILL OPEN after H.7 residual 1** — the highest-money open item in this

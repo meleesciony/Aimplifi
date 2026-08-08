@@ -5567,3 +5567,114 @@ apply→undo round trip through the rendered page + DB, and all three `settings-
 specs); three sabotages executed RED and restored with a residue check (86/86 across the
 repair + adjacent H.7 suites). Schema: additive `TransferFlagRepairRun` only — no existing
 column or row changes; deploy runs `prisma db push` (CLAUDE.md rule 5 checked).
+
+## #429 — H.1(b): every bank connection states its own history depth, through the app's own ownership rule (2026-08-08)
+
+**Closes TASKS H.1(b)** — the last open piece of H.1. (a) was measured on 2026-08-05 and
+(c) was recorded inside #421, which already puts Plaid's 730-day ceiling in this file with
+`plaid.ts:189` beside it; nothing was left to re-litigate there.
+
+**The premise, re-measured before building rather than quoted.** Re-ran the probe this row's
+own design questions were written for (`scripts/audit-probes/h1-connection-depth.mts`,
+read-only, committed) against live Neon. It has moved materially since 2026-08-06: the corpus
+is now **58 accounts / 4,493 rows / 3,278 owned / 27 active links**, and the register's global
+floor is **2024-08-11** (was 2026-03-25) — a Chase Plaid item holding **1,395 rows** back to
+August 2024, `backfill=2026-08-07`. The deepen route worked; two years of history is live.
+
+**Which is exactly why a global line is no longer the right answer.** /transactions prints one
+"History available from <date>", and that date is set by whichever single account reaches
+furthest. So it now reads as a claim about ALL history while twelve of the owner's thirteen
+connections start in **July 2026**. The per-connection line is the honest version of the same
+fact, and it is what H.1(b) asked for.
+
+**The decision that carries the risk: depth is read through `getReconciliationTxnKeep`, never
+off a `groupBy _min`.** The R1 keep rule is WINDOWED — an account loses exactly the rows inside
+each transitive upstream predecessor's claim, a PREFIX of its history — so a raw minimum is
+frequently a row no register shows. Measured, not feared: **seven** connections carry a
+raw-vs-owned delta of **84–91 days**. Printing the raw floor would have put a /accounts date
+three months adrift of the register on the same screenload — the H.8 defect one surface on, in
+a slice whose entire purpose is telling the owner the truth about depth.
+
+**Three states, because two would have to lie.** The probe's Q3 hit is live: an American
+Express item **holds 7 rows and owns 0** (all inside its predecessor's claim). A date there is
+a fabrication; "no transactions yet" is false in the other direction. So `counted-elsewhere` is
+its own state, rendered as a sentence that says where the rows went. The third state,
+`no-rows`, is the genuinely empty connection — Vanguard, Truist, U.S. Bank and one Schwab item
+hold no transactions at all.
+
+**Deliberately NOT done.** No remedy tail after the date ("re-link for more") — K.2b's critic
+executed that exact false-tail defect one surface over: the true remedy differs per connection
+(a fresh Link caps at 730 days; a superseded predecessor has no remedy at all), so a generic
+one would be wrong more often than right. No new date format either: the line uses
+`formatISODate(_, 'long')`, the same helper and the same shape as the register's own history
+line, weekday included — two lines making the same kind of claim must not print dates
+differently. No SimpleFIN depth line: the owner's `SimpleFinConnection` row does not exist
+(#421), so there is no connection card to hang one on, and K.2b already names that state.
+
+**Ordering assumption removed before it could ship.** The first cut took "the first row of an
+`orderBy`-ed `distinct` read" as each account's earliest owned date. Dev/test is SQLite and
+production is PostgreSQL (#35), and how a provider orders rows underneath a `distinct` is not
+a guarantee a rendered date should rest on. Replaced with an explicit MIN over the kept dates —
+one line, true on both engines, no cross-provider assumption left in the path.
+
+**CRITIC CYCLE 1 — two fresh-context critics, BOTH FAIL: 6 P1 + 5 P2 + 5 P3, every finding
+executed, all six P1s fixed and locked this cycle.** The mechanism changed twice and the copy
+changed entirely.
+
+**The P1 that broke the slice's own headline claim (data-integrity critic F-1).** "The rendered
+date can never contradict the register" was FALSE as built. `registerRowWhere` lists only
+SPENDING_ACCOUNT_TYPES, USD-or-null, non-split-parent rows — so a MORTGAGE's, LOAN's,
+INVESTMENT's and a withheld non-USD account's transactions are real rows /transactions will
+never show, and the depth read all of them. Executed against the real loader AND the real
+register: a connection rendered *"History goes back to Mon, May 18, 2026"* while /transactions
+returned zero rows and did not even offer that account in its filter dropdown. Live: a mortgage
+account already holds three rows, and the Truist connection's ONLY account is a mortgage — one
+sync from printing a date the register denies. **The basis is now the register's own predicate,
+shared and not restated.**
+
+**The P1 that made the slice actively unhelpful (copy critic F1).** On the live corpus, ALL FOUR
+connections rendering "No transactions yet." were 100% never-transactional accounts — U.S. Bank
+×2 LOAN, Vanguard ×4 INVESTMENT, Schwab ×2 IRA, Truist ×1 MORTGAGE, 9 of 9 accounts — every one
+of them synced cleanly that same morning. There is no `/investments/transactions` ingest
+anywhere in this app, and both providers say so in their own words. So a slice built to answer
+"why haven't we populated 2023–2026 yet" was answering "keep waiting" for something that is
+never coming, on 31% of the owner's connections. **"Yet" is a promise, and it now appears only
+where something can actually arrive.**
+
+**Five states, because each smaller set forces one of them to lie.** `reaches`,
+`counted-elsewhere`, `balances-only` (never-transactional types), `not-counted` (currency
+withheld — it must not be called empty when the card NAMES the account one line above), and a
+`no-rows` that finally means what it says. **Live re-measure with the shipped rule**
+(`h1b-depth-states.mts`, read-only): 9 reaches / 4 balances-only / 1 counted-elsewhere, and
+**zero** false "No transactions yet."
+
+**The sentence that took both critics to get right.** "…its transactions are counted on the
+account it was combined with" was wrong three ways: R1 is a calendar-WINDOW rule, so a dropped
+row need not have a counterpart and the data-integrity critic executed the case where the
+register showed it on NEITHER account (claiming it is "counted" there is simply false); the
+copy critic executed three shapes with two or more claimants (a mid-chain account whose rows go
+in opposite directions, two sibling predecessors, a multi-account connection) where a singular
+referent is wrong; and "combined" is a word the VISIBLE page never defines, because O.19 put
+the disclosure that teaches it inside a collapsed `<details>`. Now: *"No history of its own —
+every date it covers belongs to another account. See "Account cleanup" on this page."*
+
+**Also fixed:** the copy moved to a pure module (`connection-depth-copy.ts`) because importing
+the component under vitest fails on `next/server`, so while the sentences lived in the `.tsx`
+the entire ~6,000-test unit gate was blind to a wrong one and only `VERIFY_E2E=1` could catch it
+— nine copy locks now run in the plain gate; `getReconciliationTxnKeep` replaced by the pure
+closure over rows already in hand (−3 duplicate queries, and it removes a real double-read of
+the links where a confirm/undo between the two reads desynced the closure from the account set
+it bounds — proven identical across 22 probes); and SimpleFIN gained the same line, since it is
+43% of the owner's accounts and reaches DEEPER (2026-03-25) than seven of the eight Plaid
+connections that print a date — /accounts was answering for the shallow half and going silent
+for the deep one.
+
+**Accepted, not fixed:** the depth line is the third identically-styled muted line on each card
+(+11% card height at 380px, no overflow) — prominence is a P2 the critic itself marked optional,
+and recorded in STATUS rather than churned.
+
+**Cost.** One register-basis aggregate, plus — only for accounts that appear in a link — one
+row-level read. `distinct` is NOT a database bound here: Prisma dedupes client-side and emits no
+DISTINCT on either datasource (the critic captured the SQL on SQLite and on Neon), so that read
+is row-sized and grows with history depth; it is skipped entirely for any user who has never
+combined two accounts. Net against the first cut: three queries fewer.

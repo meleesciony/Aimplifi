@@ -13,6 +13,8 @@
  * FULL reload, and the confirmation text rides flash('accounts') across it.
  */
 import { useState } from 'react';
+import type { ConnectionDepth } from '@/lib/engine/account/connection-depth';
+import { connectionDepthSentence } from '@/lib/engine/account/connection-depth-copy';
 import { connectionOrdinals } from '@/components/finance/duplicate-card-view';
 import { setFlash } from '@/components/finance/flash';
 import { ConfirmPrompt, useConfirmArm } from '@/components/ui/confirm-action';
@@ -28,6 +30,13 @@ export interface PlaidItemView {
    *  SAME bank — e.g. a member's own Chase and their spouse's Chase — are distinguishable, and
    *  so it's clear which one a Disconnect removes (owner-reported 2026-07-23). */
   accounts: { name: string; mask: string | null }[];
+  /** How far back THIS connection's history reaches (TASKS H.1(b)) — the owner's standing
+   *  question ("why haven't we populated 2023-2026 yet") answered per bank instead of once
+   *  globally. The register's single "History available from" line is set by whichever account
+   *  reaches furthest, so it reads as a claim about ALL history when it is a claim about one
+   *  connection; on the live corpus that is a 2024 date over twelve connections that start in
+   *  July. Computed server-side through the reconciliation keep rule, never here. */
+  historyDepth: ConnectionDepth;
 }
 
 export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
@@ -196,6 +205,13 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
                     {item.accounts.map((a) => (a.mask ? `${a.name} ····${a.mask}` : a.name)).join(' · ')}
                   </div>
                 )}
+                {/* How far back this bank's data goes. States what CAME BACK and stops there —
+                    no remedy tail, because the true remedy differs per connection (a re-link
+                    caps at 730 days, a superseded predecessor has none) and K.2b's critic
+                    executed that exact false-tail defect one surface over. */}
+                <div className="mt-1 text-xs text-muted-foreground" data-testid="plaid-item-history">
+                  {connectionDepthSentence(item.historyDepth)}
+                </div>
                 {confirm.isArmed(item.itemId) && (
                   // Armed state gets its own full-width row — a sentence plus two buttons never
                   // fits beside the status text at 380px. The prompt names WHICH connection and
@@ -262,3 +278,4 @@ export function PlaidConnections({ items }: { items: PlaidItemView[] }) {
     </div>
   );
 }
+
