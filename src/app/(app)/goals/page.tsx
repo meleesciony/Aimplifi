@@ -86,10 +86,17 @@ export default async function GoalsPage() {
               });
               return (
                 <p>
-                  At $500/mo this would be funded in ~{impact.monthsToGoal} months and would move
-                  your FI date back ~{impact.fiDelayMonths ?? 0} months (assuming your current
-                  savings rate and expected return). Add your own below — every goal shows its
-                  real FI effect.
+                  At $500/mo this would be funded in ~{impact.monthsToGoal} months, and it{' '}
+                  {/* C.14 (audit #22): the mirror of the card bug — `?? 0` turned
+                      the null state into a fabricated "~0 months". Same three
+                      states as the real cards, so the example cannot drift. */}
+                  {impact.fiDelayMonths === null
+                    ? COACH_COPY.goalFiBeyondHorizon()
+                    : impact.fiDelayMonths === 0
+                      ? "wouldn't move your FI date"
+                      : `would move your FI date back ~${impact.fiDelayMonths} months`}{' '}
+                  (assuming your current savings rate and expected return). Add your own below —
+                  every goal shows its real FI effect.
                 </p>
               );
             })()}
@@ -161,9 +168,17 @@ export default async function GoalsPage() {
                 ) : (
                   <p data-testid="goal-fi-impact">
                     Funded in ~{impact.monthsToGoal} months.{' '}
-                    {impact.fiDelayMonths === 0
-                      ? 'No measurable effect on your FI date.'
-                      : `Moves your FI date back ~${impact.fiDelayMonths} months — assuming your current savings rate and expected return.`}
+                    {/* C.14 (audit #22): THREE states, not two. `fiDelayMonths`
+                        is null when the FI date (with or without the goal) sits
+                        past the engine's 1200-month cap — the old `=== 0` branch
+                        let that state fall into the template and printed the
+                        literal string "~null months". The refusal names it, the
+                        same shape as the FI card's beyondProjectionHorizon. */}
+                    {impact.fiDelayMonths === null
+                      ? COACH_COPY.goalFiBeyondHorizon()
+                      : impact.fiDelayMonths === 0
+                        ? 'No measurable effect on your FI date.'
+                        : `Moves your FI date back ~${impact.fiDelayMonths} months — assuming your current savings rate and expected return.`}
                   </p>
                 )}
               </CardContent>

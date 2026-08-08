@@ -4,7 +4,7 @@
  * is funding, so the FI simulation runs with the reduced savings until the
  * goal completes, then at full savings — deterministic and unit-tested.
  */
-import { type Cents, floorAtZero, roundHalfAwayFromZero, subCents } from '@/lib/money';
+import { type Cents, roundHalfAwayFromZero, subCents } from '@/lib/money';
 import { geometricMonthlyRate } from '@/lib/engine/fi/fi';
 
 export interface GoalFIImpact {
@@ -72,7 +72,15 @@ export function goalFIImpact(params: {
 
   let withGoal: number | null = null;
   if (monthsToGoal !== null) {
-    const reduced = floorAtZero(subCents(monthlySavingsCents, goalMonthlyContributionCents));
+    // C.14 (audit #21): the FULL pledge comes out of savings while the goal is
+    // funded — never floored at the whole surplus. Flooring charged only what
+    // the reader could "afford" and silently forgave the rest: a goal larger
+    // than their savings reported a fraction of its real FI delay (executed in
+    // the audit: 7 months displayed, 29 actual). The over-pledge makes savings
+    // negative while funding — the simulation carries the honest negative and
+    // recovers it — an FI projection that accounts for the goal the reader
+    // committed to instead of assuming the over-portion appears from nowhere.
+    const reduced = subCents(monthlySavingsCents, goalMonthlyContributionCents);
     withGoal = simulate(portfolioCents, fiTargetCents, i, (m) =>
       m <= monthsToGoal ? reduced : monthlySavingsCents,
     );

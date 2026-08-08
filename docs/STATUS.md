@@ -6,6 +6,35 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-08 — C.14: the goals card names its third FI state (no more "~null months"), and a goal pledge beyond the reader's savings is charged in FULL against their FI date (DECISIONS #432)
+
+**Both audit findings (CALC_AUDIT #21/#22) fixed and locked.** (1) `fiDelayMonths`
+is null when the FI date sits past the engine's 1200-month cap — the card's
+`=== 0` branch let that state print the literal "~null months", and the worked
+example mirrored it with `?? 0` ("~0 months"); both now render the coach's
+beyond-horizon refusal (`COACH_COPY.goalFiBeyondHorizon`, copy-locked in the
+442-string sweep) while still stating the goal's own timeline. (2) The FI
+simulation no longer floors the funding diversion at the whole surplus — the
+FULL pledge is charged (negative savings during funding, honestly carried and
+recovered) — so a pledge beyond the reader's savings reports its real delay:
+the audit's executed 7-vs-29 is re-executed with integer cents and locked
+(savings $1,000/mo, pledge $4,100/mo, goal $28,700, 0% → monthsToGoal 7, delay
+29, hand-verified); the C ≤ S path is byte-identical (floorAtZero was the
+identity there) — every existing lock on the sane case passed unchanged, only
+the C > S lock moved 24 → 36 with its hand-work restated in the test comment.
+
+**Gate:** full `VERIFY_E2E=1` run 1: tsc 0 / eslint 0 / **6,441 unit + 1 skipped
+/ 392 files** / build clean / **e2e 310/312** — `budget-targets.spec.ts:61`
+(the clear round-trip held 1 element through 19 retries at 2s — the exact
+server-action-stall class its own header documents) and
+`phase4-features.spec.ts:97` (`apiRequestContext.get: read ECONNRESET` — a
+severed flight mid-request), both on the `[mobile-380]` worker, **both 7/7
+PASS in isolation on this exact tree**, neither spec's code in this slice's
+diff (goals engine/page + copy only). The documented severed-flight
+contention class (G.1/H.2); **CI is the arbiter** — its conclusion for the
+C.14 sha is recorded here on landing. Schema: none. No demo data change (the
+demo's goals are within the surplus).
+
 ## ✅ BUILT 2026-08-08 — C.23 guided half: the Fixed-costs setup section PROPOSES series, converts long-cadence bills to monthly reserves, and names one holding account (DECISIONS #431, critic-cycled)
 
 **Closes the STILL OPEN half of TASKS C.23** (the reserve MODEL shipped in #412). A settings section that IS the app's Fixed basis, not a second one: every counted recurring series renders with its verdict — `in your fixed costs` / `covered under <Category>` / `not counted — adding it grows the figure` / `priced by your budget` — and long-cadence series (QUARTERLY/SEMIANNUAL/ANNUAL, never MONTHLY) offer the ONE new lever, **"turn this into a monthly reserve"**: the app stores true cost + cadence and divides (the owner's ÷12), the `NOT_BILL` demotion is paired with the reserve row in one transaction, and the swap is EXACT — in-basis −rate + reserve at the same rate = the Fixed figure does not move a cent; out-of-basis +rate exactly. The lever is never offered where the swap is not exact (covered series would double-count; settlement categories are never proposed; loan payments are debts). "Move this much to reserves this month" is the plan's own reduce, and the reader names the holding account (`User.reserveHoldingAccountId` — a NAME, never a transfer; PAYMENT_ACCOUNT_TYPES; demo-fenced).
@@ -16,7 +45,7 @@ Living document; updated at each phase boundary and critic cycle.
 - **P2-1** — `deleteGoal` (no kind filter) could delete a reserve and orphan its NOT_BILL; now refused with the #412 `OR: [kind null, kind not]` form.
 - **P3s recorded not fixed**: convert prefill re-derived fresh at click (stale-read artifact, conservation holds); /settings pays a full plan load per render with no failure boundary; a superseded holding account keeps its label.
 
-**Gate:** verify GREEN (full `VERIFY_E2E=1`) — tsc 0 / eslint 0 / **6,437 unit + 1 skipped / 392 files** / build clean; new e2e `fixed-setup.spec.ts` **5/5** (proposals render, conservation to the cent, full-pair undo restores figure AND lever, holding-account sentence, demo fence). **Schema: two additive nullable columns** (`User.reserveHoldingAccountId`, `Goal.merchantCanonical`) — `prisma db push` on deploy, existing rows/demo NULL. Three regression-ledger rows. Full-suite e2e runs: [run 1] 311/1 on `transactions.spec.ts:910`, [run 2] 311/1 on `merchant-lens.spec.ts:77` — both green in isolation (16–19s), both reload-bearing specs on the `[mobile-380]` worker, zero register/lens code in this slice's diff: the documented severed-flight contention class (G.1/H.2), CI is the arbiter. [run 3: **312/312 e2e PASSED (3.9m), full gate GREEN** — the clean local record that shipped.]
+**Gate:** verify GREEN (full `VERIFY_E2E=1`) — tsc 0 / eslint 0 / **6,437 unit + 1 skipped / 392 files** / build clean; new e2e `fixed-setup.spec.ts` **5/5** (proposals render, conservation to the cent, full-pair undo restores figure AND lever, holding-account sentence, demo fence). **Schema: two additive nullable columns** (`User.reserveHoldingAccountId`, `Goal.merchantCanonical`) — `prisma db push` on deploy, existing rows/demo NULL. Three regression-ledger rows. Full-suite e2e runs: [run 1] 311/1 on `transactions.spec.ts:910`, [run 2] 311/1 on `merchant-lens.spec.ts:77` — both green in isolation (16–19s), both reload-bearing specs on the `[mobile-380]` worker, zero register/lens code in this slice's diff: the documented severed-flight contention class (G.1/H.2), CI is the arbiter. [run 3: **312/312 e2e PASSED (3.9m), full gate GREEN** — the clean local record that shipped.] **CI (run 31270118623 on e07f7d6): FAILED once — `pwa-offline.spec.ts:23` (the demo's budget set/clear round-trip wedged: toHaveCount(0) held 1 element) and, second-order, `spend-class.spec.ts:13` (the wedged clear left the demo's $123.00 groceries target live → the panel rendered "(your target)" where the spec requires "(typical)"). Root cause chain verified: pwa-offline IS the demo-mutation spec (sets $123 on the demo, then clears); the same class the budget-targets spec's header documents ("pwa-offline's budget-clear round-trip flaked exactly this way" — the pre-existing standing red, runs 31243413430/31243942530/31244506540, none touching budget code). Neither failing spec's code is in this slice's diff (no SW, no budget actions, no budgets form; this slice's budgets change adds only the converted-reserve exclusion, empty for the demo; its own new spec uses throwaway users). **Isolation proof: both specs 4/4 PASS on this exact commit.** **`gh run rerun --failed` → run 31270118623 SUCCESS.** e07f7d6 gate: GREEN.**
 
 ## ✅ CLOSED 2026-08-08 — V.4: the triage singles-mode regression was fixed by K.6 and this row was never updated
 

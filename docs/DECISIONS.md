@@ -5838,3 +5838,42 @@ P1-1/P2-1). Schema on deploy: additive nullable `User.reserveHoldingAccountId`
 and `Goal.merchantCanonical` (the convert pair link — `prisma db push` on push,
 existing rows NULL). Live proof: `scripts/c23-live-deploy-check.mjs` against
 production.
+
+## #432 — C.14: the goals card names its third FI state instead of printing "~null months", and a goal pledge beyond the reader's savings is charged in FULL against their FI date (2026-08-08)
+
+**The two defects, both from CALC_AUDIT_2026-08-02 (#21, #22), both executed by
+the audit against the real engine.**
+
+**#22 — the literal "null".** `goalFIImpact.fiDelayMonths` has THREE states: 0
+(no measurable effect), a positive delay, and **null** — the FI date, with or
+without the goal, sits past the engine's 1200-month cap. The card branched on
+`=== 0` only, so the null state fell into the template and printed the literal
+string *"Moves your FI date back ~null months"*. The worked example mirrored it
+with `?? 0` — a fabricated "~0 months". Both are now the same three-state
+clause, and the refusal reuses the coach's established beyond-horizon language
+(`COACH_COPY.goalFiBeyondHorizon`, copy-locked in the coach-copy sweep): the
+goal's timeline is still stated ("Funded in ~N months") while its FI effect
+gets no number.
+
+**#21 — the floored pledge.** The FI simulation reduced savings during goal
+funding by `floorAtZero(savings − contribution)` — a pledge larger than the
+reader's surplus was silently forgiven for the over-portion, and the delay
+reported a fraction of its real cost. Executed in the audit: **7 months
+displayed against 29 actual** (re-executed here with integer cents and locked:
+savings $1,000/mo, pledge $4,100/mo, goal $28,700 → monthsToGoal 7, delay 29,
+0% return, hand-verified month by month). The fix is one line: the FULL pledge
+comes out of savings while funding — negative allowed — and the simulation
+carries the honest negative and recovers it. A goal the reader committed to
+cannot cost the app's figures less than it costs them. `monthsToGoal` is
+unchanged (the goal fund fills at the pledge); the delay is what changed, and
+the locked case in `critic5-fi-goals.test.ts` moved 24 → 36 with the hand-work
+in its comment (funding 24 months at −$500/mo → −$12,000, then 132 months to
+recover → delay 36).
+
+**Scope of the change:** `src/lib/engine/goals.ts` (the floor removed),
+`src/app/(app)/goals/page.tsx` (both clauses), `coach-copy.ts` (one new
+string). The C ≤ S path is byte-identical to before (floorAtZero is the
+identity for non-negative inputs) — every existing lock on the sane case
+passed unchanged; only the C > S lock moved, with its hand-work restated.
+No schema change. No demo data change (the demo's goals are within the
+surplus). Verify gate and CI conclusion recorded in STATUS.md.

@@ -188,6 +188,14 @@ export const COACH_COPY = {
   beyondProjectionHorizon: () =>
     `You are saving, but at this pace the finish line sits beyond the 100 years we're willing to project — so we won't put a date on it. The opportunities below move it more than any market assumption will.`,
 
+  // C.14 (audit #22): the goals card's THIRD state. `goalFIImpact.fiDelayMonths`
+  // is null when the FI date (with or without the goal) sits past the engine's
+  // 1200-month cap — a number the page used to fabricate ("~null months"). The
+  // refusal names the state, exactly as the FI card's beyondProjectionHorizon
+  // does, instead of inventing a figure.
+  goalFiBeyondHorizon: () =>
+    `Your FI date sits beyond the 100 years we're willing to project — so this goal's effect on it gets no number.`,
+
   /**
    * WHICH of the four sentences above the FI card's headline slot gets — the selection itself,
    * not just the strings.

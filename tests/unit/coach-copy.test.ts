@@ -88,6 +88,13 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     text: COACH_COPY.beyondProjectionHorizon(),
     isProjection: false,
   },
+  // C.14 (audit #22): the goals card's null state — refuses a figure, never
+  // prints "~null months". Not a projection: it refuses one.
+  {
+    label: 'goalFiBeyondHorizon',
+    text: COACH_COPY.goalFiBeyondHorizon(),
+    isProjection: false,
+  },
   // The SELECTOR over those four, scanned through all four of its states — so the sweeps see
   // what the card actually renders, not only the strings in isolation.
   {
