@@ -86,3 +86,35 @@ and rejected — do not re-propose.** A spec file mixes demo and throwaway users
 file-level grep cannot tell which sign-in a given test used; run against the suite it flagged
 `transactions.spec.ts`, which already uses throwaway users for both write-in tests and carries
 an explicit demo-fence test at `:529`. The guard was never missing. It was unread.
+
+## Addendum, 2026-08-08 (H.1(b)): a gate re-run in flight is CANCELLED by your next push — including a docs-only one
+
+Rule 5 already tells you what `cancelled` means ("a newer push superseded this one; re-run
+against the newest sha"). What it does not say, and what cost a full gate cycle here: **you are
+usually the one who supersedes it.**
+
+The sequence, exactly as it happened. H.1(b)'s gate (run `31243413430`, sha `3fe37f6`) came back
+`failure` on one spec — `budget-targets.spec.ts:20`, the documented flake. `gh run rerun --failed`
+was issued, correctly. While that re-run was in flight, the session committed and pushed a
+*docs-only* change (the G.1 task record, sha `8f32ca4`). The branch's concurrency group cancelled
+the in-flight re-run, so the slice's gate ended `completed/cancelled` and produced **no verdict at
+all** — neither the green it was heading for nor a second red. The evidence had to be rebuilt from
+the newest sha, ~12 minutes later.
+
+The trap is that the superseding push felt free. It touched no source file, could not affect any
+test, and was itself a good act (recording the flake as a task instead of waving it through).
+Concurrency does not care what your diff contains.
+
+**The rule:** once you issue `gh run rerun`, the branch is FROZEN until that run reports. Batch
+whatever else you were going to commit and push it after — or, if you must push, accept that you
+are now waiting on the NEW sha's run and stop watching the old one. Reading `cancelled` as "fine,
+the rerun was probably green" is the same fabrication this file exists to prevent: a cancelled run
+is not a pass, it is an absence.
+
+**Corollary for the flake itself.** `budget-targets.spec.ts:20` has now reddened the gate for
+H.7b, for a full local H.1(b) run, and for H.1(b)'s CI — three slices that touch no budget code.
+The remedy `ci-e2e-timing-flake.md` prescribes (reload inside `toPass`) is ALREADY APPLIED to that
+spec's clear step and it failed anyway, so the lesson's own fix is not sufficient here and
+re-running is not a diagnosis. Filed as TASKS **G.1** with the run id and the exact signature,
+and with identification — WHICH `toHaveCount`, since Playwright reports the declaration line —
+as the first deliverable, ahead of any fix.
