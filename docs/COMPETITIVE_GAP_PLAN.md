@@ -143,8 +143,9 @@ the brand story once 1–3 exist. 5–6 run as small slices between phases.
 ## 3. Model-routing policy (token efficiency)
 
 Pricing (per MTok, in/out): **Fable 5** $10/$50 · **Opus 5** $5/$25 · **Opus 4.8** $5/$25 ·
-**Sonnet** $3/$15 · **Haiku 4.5** $1/$5. Output tokens dominate agentic sessions, so Fable ≈ 2×
-Opus ≈ 10× Haiku in practice.
+**Sonnet** $3/$15 · **Haiku 4.5** $1/$5 · **DeepSeek V4 Flash** ~$0.07–0.14/~$0.18–0.28
+(OpenRouter vs first-party cache-miss, checked 2026-08-08). Output tokens dominate agentic
+sessions, so Fable ≈ 2× Opus ≈ 10× Haiku ≈ **~100–200× Flash** in practice.
 
 **REVISED 2026-07-24 — Claude Opus 5 shipped today and supersedes Opus 4.8 in every row below.**
 Verified from Anthropic's docs this session (`platform.claude.com/.../whats-new-opus-5`): model id
@@ -157,7 +158,7 @@ test-time compute scaling, and **code review / bug-finding at a high true-positi
 is precisely the lane this repo spends Fable on.
 
 **So the routing changes:** use **Opus 5 at `xhigh`** as the default for the money-math and
-hostile-critic work the table below assigns to Fable 5, and **`max`** for the hardest of it (a
+hostile-critic work this plan originally assigned to Fable 5, and **`max`** for the hardest of it (a
 new engine's first critic cycle, an authz or boundary redesign). Keep Fable 5 for a genuine
 second opinion when an Opus 5 critic pass comes back clean on something expensive — a
 differently-trained reviewer still catches what a same-model reviewer rationalises. Two caveats,
@@ -168,13 +169,36 @@ this repo's gates — `verify.sh`, the regression ledger and the money-surface c
 process with a track record (three P0s caught today alone) — but the per-task "add a verification
 step" phrasing in a prompt can go.
 
+**REVISED 2026-08-08 — routing recut on an "absolute need" bar; DeepSeek V4 Flash becomes the
+default maker (owner directive).** The question each row now answers is not "which model is
+best here" but "does this work *absolutely need* a Claude frontier model" — everything that
+doesn't routes to **DeepSeek V4 Flash** (`deepseek-v4-flash`, 0731 GA release). Verified this
+session: 284B MoE (13B active), 1M context, ~393k max output, and **official first-party Claude
+Code support** (`ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic`,
+`ANTHROPIC_AUTH_TOKEN=<DeepSeek key>`, `ANTHROPIC_MODEL=deepseek-v4-flash`,
+`CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash`, `CLAUDE_CODE_EFFORT_LEVEL=max`) — so the whole
+loop discipline (verify gate, ledgers, PASS/FAIL contract, explorer-first) runs unchanged in a
+Flash session. Benchmarks are **vendor-reported on an unreleased harness — treat as
+directional**: Terminal-Bench 2.1 82.7, DeepSWE 54.4 (Opus ~58), but NL2Repo 54.2 vs Opus 69.7
+— strong terminal-agentic, clearly weaker on repo-scale implementation. The bet is the same one
+this doc already made for Qwen at runtime: the gates (`scripts/verify.sh` + CI `VERIFY_E2E`,
+the regression ledger, integer-cents conventions, hostile critic) are what make a cheaper maker
+safe — **provided the checker stays frontier and out-classes the maker**.
+
 | Work | Model | Why |
 |---|---|---|
-| Architecture decisions, new *money-math* engines (radar simulation, solvers), hostile-critic passes on rule-3 domains (money, security, data integrity), multi-hour autonomous phase builds | **Opus 5** `xhigh`/`max` (was Fable 5) | Highest ceiling on long-horizon + adversarial work; this repo's correctness bar justifies 2× exactly where a silent math bug is the most expensive defect. Give it the full phase spec up front, effort high. |
-| Default daily driver: feature slices, UI work, refactors, most implementation + routine critic cycles, e2e authoring | **Opus 5** `medium`/`high` (was Opus 4.8) | Same tokenizer as Fable at half the price; state-of-the-art agentic coding. This should be ~80% of main-thread sessions. |
-| Mechanical, well-specified slices (backlog burn-down items in Gap 3.1, copy edits, test scaffolds) | **Sonnet** (or Opus at `effort: medium`) | Near-Opus on scoped coding at 60% of the price; lowering effort on Opus is often the simpler lever than switching models. |
-| Exploration, doc digestion, lesson-mining, grep-and-summarize — anything read-heavy | **Haiku 4.5** via the `explorer` subagent | Already codified in LOOP_ENGINEERING token rule 1/5. Keep heavy reads out of the Fable/Opus context; this session's three sweeps ran exactly this way. |
+| Second-opinion hostile critic when an Opus 5 critic pass comes back clean on an expensive money/security/data-integrity surface | **Fable 5** — its *only* remaining job; never the maker | A differently-trained reviewer still catches what a same-model reviewer rationalises. This is the one lane with an absolute need for Fable. |
+| New *money-math* engines (design + implementation + first critic cycle), architecture/authz/boundary redesigns, EVERY hostile-critic pass on rule-3 domains (money, security, data integrity) — including and especially slices Flash built — and multi-hour autonomous phase builds | **Opus 5** `xhigh`/`max` | The four absolute-need lanes: a silent math bug is the most expensive defect (and NL2Repo 54.2 vs 69.7 says don't let Flash originate solver code); the checker must out-class the maker, and Flash never self-certifies a rule-3 critic pass; unsupervised multi-hour drift compounds, and loop-running reliability is what the operating rules depend on. |
+| Default daily driver: feature slices, UI work, refactors, e2e authoring, routine *non-money* critic cycles, mechanical/well-specified slices, test scaffolds, copy edits, backlog burn-down | **DeepSeek V4 Flash** (was Opus 5 `medium`/`high` + the Sonnet row, both retired from rotation) | ~1–2% of Opus 5's price with real agentic-coding chops and official Claude Code support; the verify gate + CI + regression ledger catch what a weaker maker ships, and every rule-3 surface still gets an Opus 5 critic. This should now be ~80% of main-thread sessions. |
+| Exploration, doc digestion, lesson-mining, grep-and-summarize — anything read-heavy | **Haiku 4.5** `explorer` subagent in Claude sessions; `deepseek-v4-flash` subagent in Flash sessions (the official mapping) | Already codified in LOOP_ENGINEERING token rule 1/5. Keep heavy reads out of the main context regardless of which model runs it. |
 | **Local Qwen (Ollama)** | See below | Not for in-repo agentic coding; genuinely good for two specific jobs. |
+
+**Escalation (config, not vibes) — a Flash session hands off to Opus 5 on any of:** two failed
+critic cycles on one slice; any P0 finding on a money surface; verify-gate flailing (three
+consecutive red runs on the same root cause); or the slice turning out to touch a rule-3 domain
+mid-build. Record the handoff in the `NEXT MODEL:` line. The reverse also holds: an Opus 5
+session that finds itself doing routine slice work should end its turn recommending Flash for
+the next session.
 
 **Where local Qwen fits:**
 
@@ -192,9 +216,14 @@ step" phrasing in a prompt can go.
 **Where Qwen does *not* fit:** main-thread coding sessions in this repo. The operating rules
 (no fabrication, verify-gate honesty, hostile critic) depend on a model that reliably runs the
 loop rather than narrating it; a local model saving $5 that ships one silent money bug is a
-bad trade. Route cheapness to reads (Haiku) and to the app's runtime (Qwen), never to the
-edits.
+bad trade. (2026-08-08: this argument was against a local 7–14B, and it stands. DeepSeek V4
+Flash making edits is a different trade — a hosted frontier-lab model running the full loop
+discipline, with every rule-3 surface still checked by Opus 5 and gated by verify + CI. Route
+local-model cheapness to the app's runtime, read-cheapness to Haiku/Flash subagents, and
+edit-cheapness to Flash **only because** the checker and the gates stay frontier.)
 
 **Session hygiene (all models):** explorer-first for anything >2 files; state in the ledgers
 not the scrollback; `xhigh`/`high` effort only for engine/critic work, `medium` for routine
-slices.
+slices on Claude models; Flash sessions run `CLAUDE_CODE_EFFORT_LEVEL=max` (the official
+recommendation — at ~1–2% of Opus pricing, effort-throttling Flash saves nothing worth the
+quality loss).

@@ -156,11 +156,17 @@ is the index into `docs/DECISIONS.md`; read the index first on large-file lookup
 
 End every substantive turn (after the PASS/FAIL contract) with a `NEXT MODEL:` line — the
 recommended model for the next session after a `/clear`, chosen per
-`docs/COMPETITIVE_GAP_PLAN.md` §3: **Fable 5** for new money-math engines, architecture,
-and hostile-critic passes on money/security/data-integrity; **Opus 4.8** as the default for
-feature slices, UI, refactors, routine critic cycles; **Sonnet (or Opus at medium effort)**
-for well-specified mechanical slices; heavy reads always via the Haiku `explorer` subagent
-regardless of the main model. One line: model + effort + why.
+`docs/COMPETITIVE_GAP_PLAN.md` §3 (revised 2026-08-08 to an "absolute need" bar):
+**DeepSeek V4 Flash** as the default for feature slices, UI, refactors, e2e authoring,
+mechanical slices, and routine non-money critic cycles (~80% of sessions); **Opus 5**
+(`xhigh`/`max`) only where absolutely needed — new money-math engines, architecture/authz
+redesigns, hostile-critic passes on money/security/data-integrity (including, especially,
+slices Flash built — Flash never self-certifies these), and multi-hour autonomous phase
+builds; **Fable 5** only as the differently-trained second-opinion critic when an Opus 5
+critic pass comes back clean on an expensive money/security surface. Escalation triggers
+(Flash → Opus 5) and the Claude Code env config for Flash sessions are in §3. Heavy reads
+always via the `explorer` subagent regardless of main model (Haiku 4.5 in Claude sessions,
+`deepseek-v4-flash` in Flash sessions). One line: model + effort + why.
 
 ## When blocked
 

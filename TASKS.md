@@ -12,6 +12,15 @@ regression ledger on every fix. Update the Status column in place; record decisi
 
 ## Routing policy (token efficiency is a core principle)
 
+> **SUPERSEDED 2026-08-08 — read `docs/COMPETITIVE_GAP_PLAN.md` §3 for the live policy.** The
+> routing was recut on an "absolute need" bar: **DeepSeek V4 Flash** is now the default maker
+> (~80% of sessions — feature slices, UI, refactors, e2e authoring, mechanical slices, routine
+> non-money critic cycles); **Opus 5** `xhigh`/`max` only for the four absolute-need lanes (new
+> money-math engines, architecture/authz redesigns, EVERY rule-3 hostile-critic pass including
+> slices Flash built, multi-hour autonomous builds); **Fable 5** only as the second-opinion
+> critic. The per-row Owner/Agent cells below still carry the pre-recut model names — treat them
+> as the *tier* the work needs, and resolve the actual model through §3.
+
 Per `docs/COMPETITIVE_GAP_PLAN.md` §3. Pricing (per MTok in/out): Fable 5 $10/$50 · **Opus 5
 $5/$25** · Opus 4.8 $5/$25 · Sonnet $3/$15 · Haiku 4.5 $1/$5. Output tokens dominate agentic
 sessions. **UPDATED 2026-07-24: Claude Opus 5 shipped and replaces Opus 4.8 everywhere below; it
