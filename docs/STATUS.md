@@ -6,6 +6,49 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ FIXED 2026-08-08 — G.1: the standing CI red was test contention, not a product defect (TASKS G.1)
+
+**The gate had been failing on three consecutive shas** — runs **31243413430** (`3fe37f6`),
+**31243942530** (`8f32ca4`), **31244506540** (`1fd9fdc`) — always on the same single spec,
+`budget-targets.spec.ts`, with unit results identical to local every time and no commit touching
+budget code. That is the K.8 condition: a gate red on every push teaches the loop to stop reading
+it.
+
+**Identified by reading the failure block instead of re-running:** locator `budget-clear-dining`,
+expected 0 / received 1, at `budget-targets.spec.ts:70-71` — the clear step's `toPass`, with its
+full 20s exhausted. A stale read cannot survive twenty full-document reloads, so the delete never
+committed, which ruled out the "single post-mutation read" class `ci-e2e-timing-flake.md`
+describes (whose remedy was already applied there).
+
+**A first root cause was WRONG and is recorded as wrong.** It read this as
+`ClearBudgetButton`'s `finally`-reload cancelling its own in-flight action — which would have made
+it a money-surface PRODUCT defect on a recipe shared by the budget form, goal create/delete and
+money-dials save. Nothing was changed on that hypothesis. The repo had already diagnosed the real
+family: `playwright.config.ts`'s worker note and `mobile-overflow.spec.ts:333-339` both record that
+concurrent demo sessions on the single-writer SQLite e2e DB sever exactly the reload-bearing
+mutation specs — *"pwa-offline's budget-clear round-trip flaked exactly this way"*.
+
+**The contention was real and the spec's own header denied it:** it claimed "no other spec asserts
+a budget target" while `pwa-offline.spec.ts:44-49` drives the same set/clear round-trip on the
+demo user concurrently under `fullyParallel` × 4 workers. Different categories, so the ROWS never
+collided — the collision was for the WRITER.
+
+**Fix:** the spec runs on a throwaway user plus one seeded account (/budgets renders first-run
+onboarding until an account exists), which removes it from the contention pool and makes its
+end-of-test cleanup moot. **No assertion weakened** — the upsert-yields-ONE-row invariant
+(#37/#186), the WCAG AA scan and the clear round-trip are all user-agnostic, and budget targets
+are display-only, so no golden value moves.
+
+**Gate:** verify GREEN — tsc 0 / eslint 0 / 6,381 unit + 1 skipped / 388 files / build clean; full
+e2e **305 passed / 0 failed** (was 304 / 1). CI conclusion recorded when read — CI is the only
+environment that ever reproduced this, so it is the real verdict.
+
+**Watch item, deliberately unchanged:** `pwa-offline.spec.ts` still runs its budget round-trip as
+the shared demo user and stays in the contention pool. It is an OFFLINE/service-worker spec whose
+point is caching the demo's real seeded pages, so moving it to a bare throwaway user could hollow
+out what it tests — a bigger decision than this row. Its round-trip timeouts are 15s (vs the 2s
+inner poll that broke here), so it is a watch item, not a known break.
+
 ## ✅ BUILT 2026-08-08 — H.1(b): every bank connection states its own history depth, on the register's own basis (DECISIONS #429, critic-cycled)
 
 **Closes TASKS H.1** — (b) built here; (c) needed nothing, since #421 already records Plaid's
