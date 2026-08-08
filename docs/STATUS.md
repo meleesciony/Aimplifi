@@ -15,8 +15,9 @@ as a multiset difference, a post-import "history now reaches \<date\>" depth
 confirmation on the register's own basis, and imported rows flowing through
 the same categorization + recurring-detection pipeline as synced rows.
 
-**Hostile critic round (Opus 5, money surface — this slice's dedupe): FAIL —
-1 P1 + 6 P2; re-review pending.** Executed before shipping:
+**Hostile critic round (Opus 5, money surface — this slice's dedupe): round 1
+FAIL (1 P1 + 6 P2) → round 2 PASS ("the slice may ship", zero P0/P1).**
+Executed before shipping:
 - **P1-1** (file-internal duplicate lines imported silently): `repeatedRows`
   added to the engine plan, `ImportResult`, and the audit meta; the form shows
   an amber warning ("the file contains N identical rows — this usually means
@@ -49,6 +50,15 @@ the same categorization + recurring-detection pipeline as synced rows.
   uniqueness check provider-agnostic — bigger than this slice.
 - **P2-6** — depth-floor query fetches all account rows to find the minimum
   (no aggregate/`orderBy take: 1`). Correct, cheap at household scale, tracked.
+
+**Round-2 residuals, closed same cycle:** the action gained the crafted-FormData
+fence (non-register/non-USD target → inline refusal, unit-locked), the warning
+copy was fixed for the partial-overlap shape (M=2/N=1 grammar + honesty), and
+the "only subtracts" claim carries its monotonic-growth qualifier. Shipped as
+`d17c132` + `4cf670e` (live-proof script); live deploy proven 6/6 against
+production (`scripts/h2-live-deploy-check.mjs` — guides section, P1-1 copy,
+demo fence). CI ship gate on `4cf670e`: run 31260280863+ watched via
+`scripts/ci-status.sh` — the verdict goes in the PASS/FAIL contract below.
 
 **Full-suite e2e re-run `bsno88rjr` (4 workers, post-H.2): 297 passed / 2 failed** —
 `category-rename.spec.ts:110` and `transactions.spec.ts:538` (both on the
