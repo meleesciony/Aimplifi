@@ -59,12 +59,23 @@ Proven not this slice's: `git log --stat` confirms the commit touches no budget 
 spec reddened H.7b's gate (green on `rerun --failed`) and a full local run here (green on re-run).
 `gh run rerun --failed` was issued and then **cancelled** — by this session's own docs-only push,
 which is now its own lesson (a cancelled run is an absence, not a pass). Re-read against the newest
-sha; the conclusion for run **31243942530** (`8f32ca4`, which contains the whole slice) is recorded
-below when read. **The flake itself is NOT waved through:** the remedy `ci-e2e-timing-flake.md`
+sha: run **31243942530** (`8f32ca4`, which contains the whole slice) is **also failure, on the
+SAME single spec** — unit again identical to local (6,381 / 388), e2e 304 passed / 1 failed. Two
+CI runs, two shas, one spec, and that spec was already red on `58cb989` and `e772d8f` before any
+of this existed, so the slice closes on rule 5's pre-existing clause with both run ids recorded
+here. **The flake itself is NOT waved through:** the remedy `ci-e2e-timing-flake.md`
 prescribes is already applied to that spec's clear step and it failed anyway, so re-running is not
 a diagnosis — filed as **TASKS G.1** with identification (which `toHaveCount`) as the first
 deliverable, ahead of any fix, and with an explicit "do not weaken the assertion" (it guards the
-upsert-yields-ONE-row invariant on a money surface).
+upsert-yields-ONE-row invariant on a money surface). **G.1 is now IDENTIFIED, and it is probably
+not a test defect at all:** the failing locator is `budget-clear-dining` expected 0 / received 1 at
+`budget-targets.spec.ts:70-71`, with the 20s `toPass` fully exhausted — a stale read cannot survive
+twenty full-document reloads, so the delete never committed. The standing hypothesis (labeled, with
+its confirming step written into the TASKS row) is that `ClearBudgetButton`'s `finally`-reload fires
+while the 8s-deadlined action is still in flight and cancels it, which would contradict both
+`form-deadline.ts` ("abandons the AWAIT, not the WRITE") and the button's own "usually COMMITTED"
+comment — and would make this a money-surface product defect shared by every form on that recipe,
+not a flake.
 
 **Live deploy proof: 6/6** (`scripts/h1-live-deploy-check.mjs` against www.aimplifi.app) — new
 build serving (this slice's copy found in a live `/_next/static` chunk), /accounts rendering
