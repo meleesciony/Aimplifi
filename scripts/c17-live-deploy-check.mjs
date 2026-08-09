@@ -56,7 +56,10 @@ try {
   );
 
   // /cards — the minimum-interest sentence names the covered set (audit P2).
+  // The sentence lives under the "Minimum payments" scenario toggle; the
+  // PAY_IN_FULL default renders no such element.
   await page.goto(`${BASE}/cards`, { waitUntil: 'networkidle' });
+  await page.getByTestId('toggle-minimum').click();
   const interest = page.getByTestId('minimum-interest');
   await interest.waitFor({ timeout: 30000 });
   const interestText = await interest.innerText();
