@@ -117,4 +117,44 @@ describe('discretionary cuts (#375)', () => {
     // (4000+2000)/2 = 3000
     expect(rows[0].monthlyCents).toBe(3000);
   });
+
+  it('divides by months WITH DATA, not the full window — a 1-month history must not be divided by 3 (audit P2)', () => {
+    const today = isoDate('2026-06-10');
+    // window 3, but only one month has any rows: the average must be the
+    // month's own spend, not one third of it (cut proposals would look 3×
+    // smaller than the truth for a new user).
+    const rows = averageDiscretionaryCategorySpend(
+      [
+        {
+          date: '2026-05-02',
+          amountCents: -90_000,
+          rawDescriptor: 'CHIPOTLE',
+          accountId: 'a',
+          isTransfer: false,
+          status: 'POSTED',
+          categoryId: 'dining',
+        },
+      ],
+      today,
+      3,
+      CATEGORY_BY_ID,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].monthlyCents).toBe(90_000); // ÷1, not ÷3
+  });
+
+  it('a full window keeps dividing by the window (steady-state unchanged)', () => {
+    const today = isoDate('2026-06-10');
+    const rows = averageDiscretionaryCategorySpend(
+      [
+        { date: '2026-05-02', amountCents: -40_000, rawDescriptor: 'CHIPOTLE', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'dining' },
+        { date: '2026-04-02', amountCents: -80_000, rawDescriptor: 'CHIPOTLE', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'dining' },
+        { date: '2026-03-02', amountCents: -60_000, rawDescriptor: 'CHIPOTLE', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'dining' },
+      ],
+      today,
+      3,
+      CATEGORY_BY_ID,
+    );
+    expect(rows[0].monthlyCents).toBe(60_000); // (40000+80000+60000)/3
+  });
 });

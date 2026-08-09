@@ -57,6 +57,21 @@ describe('computeSavingsStreak', () => {
     expect(r.isPersonalBest).toBe(false);
   });
 
+  it('never flags a least-bad negative month as a personal best (critic F3)', () => {
+    // All-negative history where the latest (-1 bp) beats every prior month:
+    // "best so far" would render "-0.0%" — a zero-looking claim about a number
+    // that isn't zero. The positivity gate must refuse it.
+    const flows = [
+      flow('2026-03', 490000, 520000, -306),
+      flow('2026-04', 490000, 510000, -153),
+      flow('2026-05', 490000, 500000, -1),
+    ];
+    const r = computeSavingsStreak(flows);
+    expect(r.streakMonths).toBe(0);
+    expect(r.latestRateBps).toBe(-1);
+    expect(r.isPersonalBest).toBe(false);
+  });
+
   it('counts a two-month streak with personal best', () => {
     const flows = [
       flow('2026-04', 490000, 343000, 3000),
@@ -85,5 +100,48 @@ describe('computeSavingsStreak', () => {
     expect(r.streakMonths).toBe(0);
     expect(r.bestRateBps).toBeNull();
     expect(r.isPersonalBest).toBe(false);
+  });
+
+  // Audit P2: the default floor means "saved something" — strictly positive. A 0-bps
+  // month (income == expenses) must break, or the streak sentence calls a 0.0% month
+  // positive. A positive minRateBps caller keeps inclusive `>=` (the 1500-bps test).
+  it('breaks the default streak on a 0-bps latest month (saved nothing is not positive)', () => {
+    const flows = [
+      flow('2026-04', 490000, 343000, 3000),
+      flow('2026-05', 490000, 490000, 0),
+    ];
+    const r = computeSavingsStreak(flows);
+    expect(r.streakMonths).toBe(0);
+    expect(r.latestRateBps).toBe(0);
+  });
+
+  it('breaks the default streak when a 0-bps month sits inside the run', () => {
+    const flows = [
+      flow('2026-03', 490000, 400000, 1836),
+      flow('2026-04', 490000, 490000, 0),
+      flow('2026-05', 490000, 360000, 2653),
+    ];
+    const r = computeSavingsStreak(flows);
+    expect(r.streakMonths).toBe(1);
+  });
+
+  it('counts a tiny-but-positive rate (4 bps) as a streak month', () => {
+    const flows = [
+      flow('2026-04', 490000, 400000, 1836),
+      flow('2026-05', 490000, 488000, 4),
+    ];
+    const r = computeSavingsStreak(flows);
+    expect(r.streakMonths).toBe(2);
+    expect(r.latestRateBps).toBe(4);
+    expect(r.isPersonalBest).toBe(false);
+  });
+
+  it('keeps inclusive >= semantics for a positive minRateBps', () => {
+    const flows = [
+      flow('2026-04', 490000, 416500, 1500), // exactly the 15% floor
+      flow('2026-05', 490000, 360000, 2653),
+    ];
+    const r = computeSavingsStreak(flows, { minRateBps: 1500 });
+    expect(r.streakMonths).toBe(2);
   });
 });

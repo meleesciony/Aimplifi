@@ -134,6 +134,16 @@ describe('merchantLensCopy — pinned rendering', () => {
       'No charges in Mar 2026–May 2026 — vs about $25.00/mo in Dec 2025–Feb 2026.',
     );
   });
+
+  it('C8 (audit P2): the scope note states the GROSS-POSTED basis and names the register summary as the different set', () => {
+    // Three figures, one merchant, one screen: the lens total is gross posted
+    // charges (refunds never netted, nothing pending) while the register
+    // summary below nets refunds and includes pending. The note must say both
+    // bases so the figures can be reconciled — byte-locked here.
+    expect(LENS_SCOPE_NOTE).toBe(
+      'Covers every posted charge at this merchant across your history — gross, refunds not netted, nothing pending. The summary below nets refunds and includes pending; the list may show only a slice.',
+    );
+  });
 });
 
 describe('merchantLensCopy — guardrails (C7)', () => {

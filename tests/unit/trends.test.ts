@@ -100,6 +100,110 @@ describe('computeSpendingTrends — movers (completed-month comparison)', () => 
   });
 });
 
+describe('computeSpendingTrends — a net-refunded mover names its clamp (audit P2)', () => {
+  // Every case shares the baseline (dining Apr 4000 / Mar 6000 / Feb 2000 →
+  // 4000) and varies only what MAY did. The point of the flag: `currentCents
+  // === 0` is either a MEASUREMENT (nothing filed into the category) or a
+  // CLAMP (rows filed, refunds netted them away) — the collapsed row prints
+  // "net $0.00 after refunds" only on the clamp, never on the measurement.
+  const DINING = 'dining';
+
+  it('refunds outweighing the month’s charges print a CLAMPED zero, never a negative', () => {
+    const r = trendsNoBills({
+      txns: [
+        T('2026-05-04', -8000, DINING),
+        T('2026-05-06', 8300, DINING), // net −300 → spendingByCategory drops the category
+        T('2026-04-04', -4000, DINING),
+        T('2026-03-04', -6000, DINING),
+        T('2026-02-04', -2000, DINING),
+      ],
+      today: TODAY,
+    });
+    const dining = r.movers.find((m) => m.categoryId === DINING);
+    expect(dining).toBeDefined(); // |delta| 4000 ≥ $20 and 100% ≥ 20% — it must surface
+    expect(dining).toMatchObject({
+      direction: 'down',
+      currentCents: 0, // clamped to zero, never −300
+      currentNetted: true,
+      baselineCents: 4000,
+      deltaCents: -4000,
+      pctChange: -1,
+    });
+  });
+
+  it('a charge and refund that cancel EXACTLY still had rows — still a clamp', () => {
+    const r = trendsNoBills({
+      txns: [
+        T('2026-05-04', -8000, DINING),
+        T('2026-05-06', 8000, DINING), // net 0 — dropped by `<= 0`
+        T('2026-04-04', -4000, DINING),
+        T('2026-03-04', -6000, DINING),
+        T('2026-02-04', -2000, DINING),
+      ],
+      today: TODAY,
+    });
+    const dining = r.movers.find((m) => m.categoryId === DINING)!;
+    expect(dining).toMatchObject({ currentCents: 0, currentNetted: true });
+  });
+
+  it('a category with NO rows this month is a measured zero, not a clamp', () => {
+    const r = trendsNoBills({
+      txns: [
+        T('2026-04-04', -4000, DINING),
+        T('2026-03-04', -6000, DINING),
+        T('2026-02-04', -2000, DINING),
+      ],
+      today: TODAY,
+    });
+    const dining = r.movers.find((m) => m.categoryId === DINING)!;
+    expect(dining).toMatchObject({
+      direction: 'down',
+      currentCents: 0,
+      currentNetted: false, // nothing filed — "$0.00" is a true fact
+      deltaCents: -4000,
+    });
+  });
+
+  it('refunds that only PARTIALLY offset leave the real net, unflagged', () => {
+    const r = trendsNoBills({
+      txns: [
+        T('2026-05-04', -8000, DINING),
+        T('2026-05-06', 2000, DINING), // net 6000 — category stays in the map
+        T('2026-04-04', -4000, DINING),
+        T('2026-03-04', -6000, DINING),
+        T('2026-02-04', -2000, DINING),
+      ],
+      today: TODAY,
+    });
+    const dining = r.movers.find((m) => m.categoryId === DINING)!;
+    expect(dining).toMatchObject({
+      direction: 'up',
+      currentCents: 6000,
+      currentNetted: false,
+      deltaCents: 2000,
+    });
+  });
+
+  it('an UNFILED row (merchant bucket only) never flags — it is Uncategorized in the mover maps', () => {
+    // `categorySpendMap` buckets an unfiled row as Uncategorized
+    // (`spendRowCategoryId`), and Uncategorized is not a mover; the raw pass
+    // must bucket with the SAME id rule or it would invent a dining clamp the
+    // maps never held (O.6: an unfiled row is Uncategorized everywhere).
+    const r = trendsNoBills({
+      txns: [
+        T('2026-05-04', -8000, null, { merchantCategoryId: DINING }),
+        T('2026-05-06', 8300, null, { merchantCategoryId: DINING }),
+        T('2026-04-04', -4000, DINING),
+        T('2026-03-04', -6000, DINING),
+        T('2026-02-04', -2000, DINING),
+      ],
+      today: TODAY,
+    });
+    const dining = r.movers.find((m) => m.categoryId === DINING)!;
+    expect(dining).toMatchObject({ currentCents: 0, currentNetted: false });
+  });
+});
+
 describe('computeSpendingTrends — pace (in-progress month projection)', () => {
   // June spend so far (≤ 06-10): dining 3000 + groceries 2000 = 5000.
   // The lone shopping refund (+500) nets its own category to ≤0 → dropped.
@@ -123,6 +227,50 @@ describe('computeSpendingTrends — pace (in-progress month projection)', () => 
       projectedCents: 15000,
       priorMonthCents: 20000,
       deltaVsPriorCents: -5000,
+    });
+  });
+
+  it('the divisor is the FRACTIONAL elapsed day, not the whole day (audit P2)', () => {
+    // The 10th at noon (elapsedDayFraction 0.5): elapsed = 9 + 0.5 = 9.5 days,
+    // not 10. The in-progress day is not whole, so the rate is genuinely
+    // higher — the projection must not sit flat all day and step at midnight.
+    // Remainder = round(5000 × (30 − 9.5) / 9.5) = round(10789.47…) = 10789.
+    const r = trendsNoBills({ txns, today: TODAY, elapsedDayFraction: 0.5 });
+    expect(r.pace).toMatchObject({
+      daysElapsed: 10, // the DISPLAY stays the calendar-day count ("first 10 days")
+      spentSoFarCents: 5000,
+      projectedCents: 15789, // 5000 + 10789 — vs 15000 under the whole-day divisor
+      deltaVsPriorCents: -4211,
+    });
+  });
+
+  it('day 1 is floored at one full day — the fraction never inflates the first day', () => {
+    // At 10:00 on the 1st (fraction 10/24) the elapsed is floored at 1: the
+    // day-1 lock above defines that figure, and a rate over a fraction of a
+    // day is the audit's own "worthless" regime. Identical result to the
+    // whole-day run — the floor is doing the work.
+    const at10am = trendsNoBills({
+      txns: [T('2026-06-01', -57879, 'dining')],
+      today: '2026-06-01',
+      elapsedDayFraction: 10 / 24,
+    });
+    expect(at10am.pace).toMatchObject({
+      daysElapsed: 1,
+      projectedCents: 1736370, // 57,879 × 30 — byte-identical to the fraction-1 run
+    });
+  });
+
+  it('at the exact start of day 2, exactly one full day has elapsed', () => {
+    // fraction 0 → elapsed = (2 − 1) + 0 = 1. The 1st counts once, not twice —
+    // same rate as the day-1 floor, which is the correct boundary behaviour.
+    const r = trendsNoBills({
+      txns: [T('2026-06-02', -57879, 'dining')],
+      today: '2026-06-02',
+      elapsedDayFraction: 0,
+    });
+    expect(r.pace).toMatchObject({
+      daysElapsed: 2,
+      projectedCents: 1736370,
     });
   });
 });

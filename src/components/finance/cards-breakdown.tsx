@@ -37,7 +37,38 @@ import {
   frozenQuotedBalanceNote,
 } from '@/lib/engine/account/feed-dropped-view';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
-import { formatCents } from '@/lib/money';
+import { formatCents, type Cents } from '@/lib/money';
+
+/**
+ * The minimum-path interest sentence (audit P2). Names the set the estimate covers —
+ * `cardsCount` is the engine's own count of cards with a carried balance AND a datable
+ * cycle, never re-derived here — and the exclusions when any exist: undatable cards and
+ * next-cycle cards are NOT in the figure, so the sentence says so instead of letting the
+ * total read as a complete statement of what a minimum path costs.
+ */
+export function minimumInterestNote(
+  interestCents: number,
+  cardsCount: number,
+  undatedCards: number,
+  nextCycleCards: number,
+): string {
+  const cardWord = cardsCount === 1 ? 'card' : 'cards';
+  const parts: string[] = [];
+  if (undatedCards > 0) parts.push(`${undatedCards} card${undatedCards === 1 ? '' : 's'} with no statement date`);
+  if (nextCycleCards > 0) parts.push(`${nextCycleCards} next-cycle card${nextCycleCards === 1 ? '' : 's'}`);
+  const exclusion =
+    parts.length > 0
+      ? `; new purchases aren't included, and ${parts.join(' and ')} ${undatedCards + nextCycleCards === 1 ? "isn't" : "aren't"} counted`
+      : "; new purchases aren't included";
+  // Critic F5: with zero carried cards the "on the 0 cards that carry a balance"
+  // clause reads as a fact about nothing — a paid-in-full cycle owes ≈ $0.00,
+  // and the sentence should say so plainly, without a count clause.
+  const balanceClause =
+    cardsCount > 0
+      ? ` on the ${cardsCount} ${cardWord} that ${cardsCount === 1 ? 'carries' : 'carry'} a balance`
+      : ', because every card is paid in full';
+  return `Minimum path costs ≈ ${formatCents(interestCents as Cents)} in interest next cycle${balanceClause} (estimated by the average-daily-balance method at each card's APR${exclusion}).`;
+}
 
 export function CardsBreakdown({
   payInFull,
@@ -95,7 +126,7 @@ export function CardsBreakdown({
           </Button>
         </div>
         <div className="text-sm text-muted-foreground" aria-live="polite" data-testid="scenario-summary">
-          {result.headline.byDate ? (
+          {result.headline.firstDueDate ? (
             <>
               Needs{' '}
               <span className="font-semibold text-foreground" data-testid="scenario-required">
@@ -104,7 +135,9 @@ export function CardsBreakdown({
               {householdName
                 ? HOUSEHOLD_COPY.headlineAcrossHousehold(householdName)
                 : `in ${paymentAccountName}`}{' '}
-              by {formatISODate(isoDate(result.headline.byDate))}
+              {/* audit P2: the whole-cycle total is dated with the FIRST due — the
+                  earliest payment draws first; the last due under-demands late. */}
+              by {formatISODate(isoDate(result.headline.firstDueDate))}
             </>
           ) : result.unknownDueDateCards.length > 0 ? (
             // Not "nothing due" — we simply cannot date these cards. See
@@ -121,9 +154,16 @@ export function CardsBreakdown({
 
       {scenario === 'MINIMUM' && result.minimumPathInterestCents !== null && (
         <p className="text-sm text-amber-500" data-testid="minimum-interest">
-          Minimum path costs ≈ {formatCents(result.minimumPathInterestCents)} in interest
-          next cycle (estimated by the average-daily-balance method at each card&apos;s APR;
-          new purchases aren&apos;t included).
+          {minimumInterestNote(
+            result.minimumPathInterestCents,
+            result.minimumPathInterestCardsCount,
+            result.unknownDueDateCards.length,
+            // Critic F5: a $0-balance estimated card has nothing for next cycle
+            // to count — naming it in the exclusion clause claims something was
+            // excluded. Same positive-required filter the engine uses for the
+            // due-set (engine.ts).
+            result.upcoming.filter((o) => o.cashRequiredCents > 0).length,
+          )}
         </p>
       )}
 
@@ -198,7 +238,7 @@ export function CardsBreakdown({
         // passed the RAW name and two cards both called "CREDIT CARD" were named twice,
         // identically, inches from the headings that tell them apart.
         const allClearFrozen =
-          !result.headline.byDate && result.unknownDueDateCards.length === 0
+          !result.headline.firstDueDate && result.unknownDueDateCards.length === 0
             ? frozenNothingDueNote(
                 [...result.cards, ...result.unknownDueDateCards]
                   .filter((c) => c.frozenSince != null)

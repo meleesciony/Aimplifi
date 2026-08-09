@@ -96,6 +96,7 @@ export default async function CoachPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <SavingsRateCard
           flows={data.flows}
+          streak={data.streak}
           currentRateBps={data.currentRateBps}
           monthFlows={data.monthFlows}
         />
@@ -342,7 +343,13 @@ export default async function CoachPage() {
           <CardHeader className="pb-2">
             <CardDescription>Room for error</CardDescription>
             <CardTitle className="text-2xl tabular-nums" data-testid="runway-months">
-              {Number.isFinite(data.runwayMonths) ? `${data.runwayMonths} months` : 'no expenses yet'}
+              {/* Audit P2: a negative runway has no month count to state as a
+                  fact — the body sentence below names what negative means. */}
+              {Number.isFinite(data.runwayMonths)
+                ? data.runwayMonths < 0
+                  ? 'no cash buffer'
+                  : `${data.runwayMonths} months`
+                : 'no expenses yet'}
             </CardTitle>
           </CardHeader>
           <CardContent>

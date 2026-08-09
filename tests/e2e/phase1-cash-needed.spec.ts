@@ -25,7 +25,11 @@ test('demo sign-in lands on the dashboard with guilt-free, cash-needed, and rece
   const amount = page.getByTestId('cash-needed-amount');
   await expect(amount).toHaveText('$5,412.33');
   const headline = page.getByTestId('cash-needed-headline');
-  await expect(headline).toContainText('needed in Everyday Checking by Fri, Jun 26');
+  // Audit P2: the aggregate total is dated with the FIRST effective due — the
+  // earliest payment draws first (Sapphire + Platinum 06-15), so pairing the
+  // whole-cycle total with the last due (06-26) under-demands late. The
+  // projection horizon below stays the last due.
+  await expect(headline).toContainText('needed in Everyday Checking by Mon, Jun 15');
   await expect(headline).toContainText('to pay all 3 cards in full this cycle');
 
   // Intra-period dip surfaced with the transfer recommendation

@@ -57,6 +57,8 @@ describe('A — autopay card: included in cash, excluded from action', () => {
 
   it('requires $4,812.33 by 2026-06-15', () => {
     expect(result.headline.requiredCents).toBe(481233);
+    // Single obligation point → first due = last due = 06-15.
+    expect(result.headline.firstDueDate).toBe('2026-06-15');
     expect(result.headline.byDate).toBe('2026-06-15');
   });
   it('shortfall is $1,412.33; recommendation $1,450.00 by 2026-06-12 (Friday)', () => {
@@ -247,8 +249,13 @@ describe('H — intra-period dip (the killer test)', () => {
   it('transfer recommendation: $300.00 by 2026-06-03', () => {
     expect(r.headline.recommendation).toEqual({ amountCents: 30000, byDate: '2026-06-03' });
   });
-  it('total required across the cycle is $2,500 by 2026-06-10', () => {
+  it('total required across the cycle is $2,500 by the FIRST due 2026-06-04 (audit P2)', () => {
     expect(r.headline.requiredCents).toBe(250000);
+    // The whole-cycle total is needed by the FIRST effective due date — the
+    // earliest payment draws first; pairing it with the LAST due (06-10)
+    // under-demands late. `byDate` remains the last due: it is the projection
+    // horizon the dip walk below runs through.
+    expect(r.headline.firstDueDate).toBe('2026-06-04');
     expect(r.headline.byDate).toBe('2026-06-10');
   });
 });
@@ -339,6 +346,7 @@ describe('I — minimum-payment path interest (average-daily-balance method)', (
     });
     const r = computeCashNeeded(input({ cards: [c], scenario: 'MINIMUM' }));
     expect(r.minimumPathInterestCents).toBe(6108);
+    expect(r.minimumPathInterestCardsCount).toBe(1); // audit P2: the covered set is named
     expect(r.headline.requiredCents).toBe(3500); // minimum scenario needs only the min
   });
   it('labels the interest as the average-daily-balance method in assumptions', () => {
@@ -356,8 +364,31 @@ describe('I — minimum-payment path interest (average-daily-balance method)', (
     });
     const r = computeCashNeeded(input({ cards: [auto], scenario: 'MINIMUM' }));
     expect(r.minimumPathInterestCents).toBe(0);
+    expect(r.minimumPathInterestCardsCount).toBe(0); // paid in full → not in the estimate
     // autopay pulls the full statement even in the MINIMUM scenario — cash must be present
     expect(r.headline.requiredCents).toBe(300000);
+  });
+  it('counts only the datable card carrying a balance — an undatable card is excluded', () => {
+    const datable = card({ id: 'c1', name: 'C1', statement: statement(300000, '2026-06-15') });
+    const undatable = card({ id: 'c2', name: 'C2' }); // no statement, no cycle dates
+    const r = computeCashNeeded(input({ cards: [datable, undatable], scenario: 'MINIMUM' }));
+    expect(r.minimumPathInterestCents).toBe(6108); // the undatable card adds NOTHING
+    expect(r.minimumPathInterestCardsCount).toBe(1);
+    expect(r.unknownDueDateCards.map((u) => u.cardName)).toContain('C2');
+  });
+  it('counts only this cycle — a next-cycle estimate card is not in the figure', () => {
+    const real = card({ id: 'c1', name: 'C1', statement: statement(300000, '2026-06-15') });
+    const est = card({
+      id: 'c2',
+      name: 'C2',
+      currentBalanceCents: cents(200000),
+      nextCycleCloseDate: d('2026-07-18'),
+      nextDueDate: d('2026-08-15'),
+    });
+    const r = computeCashNeeded(input({ cards: [real, est], scenario: 'MINIMUM' }));
+    expect(r.minimumPathInterestCents).toBe(6108);
+    expect(r.minimumPathInterestCardsCount).toBe(1);
+    expect(r.upcoming.some((u) => u.cardId === 'c2')).toBe(true);
   });
 });
 

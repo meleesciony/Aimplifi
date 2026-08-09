@@ -81,10 +81,17 @@ test('the current month separates posted fact from scheduled projection', async 
   });
   // Both header lines, never one sentence: fact through today, projection ahead. The demo seed
   // holds three PENDING rows at its pinned today, so the header must NAME them (critic F-1) —
-  // "Posted + pending through …" — never claim "posted" alone over money that hasn't.
-  await expect(page.getByTestId('cal-posted-line')).toContainText('Posted + pending through');
+  // "Posted + pending through …" — never claim "posted" alone over money that hasn't. Audit P2:
+  // the totals span EVERY account, so the lines state their scope (and the old adjacency that
+  // let them read as one account's is refused).
+  await expect(page.getByTestId('cal-posted-line')).toContainText(
+    'Posted + pending across all your accounts',
+  );
+  await expect(page.getByTestId('cal-posted-line')).not.toContainText('Posted + pending through');
   await expect(page.getByTestId('cal-posted-line')).toContainText('pending');
-  await expect(page.getByTestId('cal-scheduled-line')).toContainText('Expected');
+  await expect(page.getByTestId('cal-scheduled-line')).toContainText(
+    'Expected across all accounts',
+  );
   // The forward half must not read like data: a scheduled flow event is badged.
   await expect(
     page.getByTestId('calendar-list').getByText('scheduled', { exact: true }).first(),

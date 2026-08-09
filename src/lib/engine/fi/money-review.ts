@@ -20,6 +20,7 @@
 import { formatMonth } from '@/lib/dates';
 import { COACH_COPY, type PendingTransfer } from './coach-copy';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
+import type { SavingsStreakResult } from './savings-streak';
 
 export type ReviewRole = 'improvement' | 'watch' | 'action';
 
@@ -65,37 +66,18 @@ export interface ReviewCandidate {
 export interface ReviewCandidateInput {
   /** Ascending months. */
   flows: readonly MonthlyFlow[];
+  /**
+   * Full-history streak + personal-best (audit P2, critic P1): computed over ALL
+   * available history by the SAME helper the savings-rate card uses — never
+   * re-derived from the chart slice, or a "personal best so far" over the last
+   * 12 months is false when an older month beats the recent best, and the recap
+   * and the card contradict each other on the same claim.
+   */
+  streak: SavingsStreakResult;
   creep: CreepResult;
   opportunities: readonly Opportunity[];
   runwayMonths: number;
   pendingTransfer?: PendingTransfer | null;
-}
-
-/** Trailing count of months (up to and including the last) with a strictly positive savings rate. */
-function positiveSavingsStreak(flows: readonly MonthlyFlow[]): number {
-  let streak = 0;
-  for (let i = flows.length - 1; i >= 0; i -= 1) {
-    const r = flows[i].savingsRateBps;
-    if (r !== null && r > 0) streak += 1;
-    else break;
-  }
-  return streak;
-}
-
-/** True iff the last month's rate is the strict maximum over all non-null rates and is positive. */
-function isPersonalBest(flows: readonly MonthlyFlow[]): boolean {
-  const last = flows[flows.length - 1];
-  if (!last || last.savingsRateBps === null || last.savingsRateBps <= 0) return false;
-  // A "best so far" needs at least one PRIOR month with a real (non-null) rate to beat —
-  // otherwise a single measurable month reads as a fabricated achievement (critic P2-5).
-  let priorComparable = 0;
-  for (let i = 0; i < flows.length - 1; i += 1) {
-    const r = flows[i].savingsRateBps;
-    if (r === null) continue;
-    priorComparable += 1;
-    if (r >= last.savingsRateBps) return false;
-  }
-  return priorComparable >= 1;
 }
 
 /**
@@ -103,7 +85,7 @@ function isPersonalBest(flows: readonly MonthlyFlow[]): boolean {
  * COACH_COPY string; no number here originates outside the passed-in engine values.
  */
 export function buildReviewCandidates(input: ReviewCandidateInput): ReviewCandidate[] {
-  const { flows, creep, opportunities, runwayMonths, pendingTransfer } = input;
+  const { flows, streak, creep, opportunities, runwayMonths, pendingTransfer } = input;
   const last = flows[flows.length - 1];
   const prev = flows[flows.length - 2];
   const out: ReviewCandidate[] = [];
@@ -128,23 +110,22 @@ export function buildReviewCandidates(input: ReviewCandidateInput): ReviewCandid
       ),
     });
   }
-  if (isPersonalBest(flows)) {
+  if (streak.isPersonalBest && last && last.savingsRateBps !== null) {
     out.push({
       id: 'improvement-personal-best',
       role: 'improvement',
       priority: 70,
       material: false,
-      line: COACH_COPY.savingsPersonalBest(last.savingsRateBps as number, formatMonth(last.month)),
+      line: COACH_COPY.savingsPersonalBest(last.savingsRateBps, formatMonth(last.month)),
     });
   }
-  const streak = positiveSavingsStreak(flows);
-  if (streak >= 2 && last && last.savingsRateBps !== null) {
+  if (streak.streakMonths >= 2 && last && last.savingsRateBps !== null) {
     out.push({
       id: 'improvement-streak',
       role: 'improvement',
       priority: 60,
       material: false,
-      line: COACH_COPY.savingsStreak(streak, last.savingsRateBps),
+      line: COACH_COPY.savingsStreak(streak.streakMonths, last.savingsRateBps),
     });
   }
   // Always-available improvement fallback (matches generateMoneyReview's runway fallback).

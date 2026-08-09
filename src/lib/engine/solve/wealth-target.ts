@@ -27,11 +27,15 @@
  * they can spend, not a nominal number that 2.5% inflation has quietly halved over
  * thirty years, and answering a multi-decade target at a nominal rate against a
  * present-value goal is the one error that would make every number here optimistic.
- * (NOTE, recorded rather than silently diverged from: /coach's FI card grows the
- * portfolio at the NOMINAL dial toward a target built from TODAY'S expenses. The two
- * cards therefore rest on different bases. They answer different questions and each
- * states its own, which the repo permits — but the inconsistency is real and is filed
- * in TASKS.md rather than fixed inside this slice.)
+ * (The two /coach cards SHARE this basis: W.2 — DECISIONS #361 — moved the FI card off
+ * the nominal dial onto the same `realReturnBps`, so it too grows a portfolio toward a
+ * present-value target in today's dollars. What differs between the cards is the
+ * DESTINATION, not the rate — the FI card aims at a number built from what the reader
+ * already spends, this one at the number they typed. `COACH_COPY.wealthTargetVsFiCard`
+ * renders exactly that claim, and the audit's P2 note is now retired: the earlier
+ * version of this NOTE documented a divergence that no longer exists, and a future
+ * change that moves either card off the shared basis must rewrite that sentence and
+ * this note together.)
  *
  * Pure & deterministic: integer cents in, integer cents out, no I/O, no `new Date()`.
  */

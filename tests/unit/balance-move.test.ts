@@ -24,7 +24,7 @@ import {
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
 const mover = (o: Partial<CategoryMover> & Pick<CategoryMover, 'categoryId' | 'name'>): CategoryMover => ({
-  group: 'Food', currentCents: 0, baselineCents: 0, deltaCents: 0, pctChange: null, direction: 'up', ...o,
+  group: 'Food', currentCents: 0, currentNetted: false, baselineCents: 0, deltaCents: 0, pctChange: null, direction: 'up', ...o,
 });
 const trendsWith = (movers: CategoryMover[], baselineMonths = ['2026-04', '2026-05', '2026-06']): SpendingTrends => ({
   asOfYm: '2026-07', comparedYm: '2026-06', baselineMonths, pace: null, movers, largest: [], newMerchants: [],

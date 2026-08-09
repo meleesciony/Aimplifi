@@ -43,6 +43,7 @@ import {
 } from '@/lib/engine/transactions/reimbursement';
 import { incomePausesForFeed, type IncomePauseState } from '@/lib/engine/income/pause';
 import { computeMoneySignature, type MoneySignature } from '@/lib/engine/fi/signature';
+import { computeSavingsStreak, type SavingsStreakResult } from '@/lib/engine/fi/savings-streak';
 import { computeCardClearedStreak, type CardClearedStreakResult } from '@/lib/engine/cards/cleared-streak';
 import { computeNoCreepStreak, type NoCreepStreakResult } from '@/lib/engine/recurring/creep-streak';
 import { getConfirmedIncomePauses } from '@/server/income-pause';
@@ -66,6 +67,12 @@ import { accountLabel } from '@/lib/engine/account/display-name';
 export interface CoachData {
   today: string;
   flows: MonthlyFlow[]; // last 12 full months, ascending
+  /**
+   * The savings-rate streak and personal-best claim over ALL complete months. The
+   * 12-month `flows` array is the CHART slice; a "personal best so far" computed
+   * over it would be false when an older month beats the recent best (audit P2).
+   */
+  streak: SavingsStreakResult;
   currentRateBps: number | null;
   /**
    * C.25 (#403, critic P1-5): the loan payments the figures on this page do
@@ -281,6 +288,10 @@ export async function getCoachData(
   const currentMonth = today.slice(0, 7);
   const fullFlows = allFlows.filter((f) => f.month < currentMonth);
   const flows = fullFlows.slice(-12);
+  // Audit P2: streak + personal-best are FULL-HISTORY claims, computed over
+  // `fullFlows`, never the chart slice — a "personal best so far" over the last
+  // 12 months is false when an older month beats the recent best.
+  const savingsStreak = computeSavingsStreak(fullFlows);
   // `flows` is the array the chart draws, so these headlines are the figures the
   // reader will actually see — `reconciles` is checked against the painted
   // numbers, not against a second derivation of them.
@@ -515,7 +526,12 @@ export async function getCoachData(
   // gated to the /coach path (`opts.orderReview`) — every OTHER `getCoachData` caller (dashboard,
   // goals, investments, assistant, the per-user digest cron) gets the deterministic floor with
   // NO model call and no data egress (critic P1-1). No key / any failure → the floor (== `review`).
-  const reviewCandidates = buildReviewCandidates({ flows, creep, opportunities, runwayMonths: runway, pendingTransfer });
+  // The recap's streak + personal-best candidates are FULL-HISTORY claims
+  // (audit P2, critic P1): `savingsStreak` is computed over `fullFlows` above —
+  // the SAME helper and the SAME basis the savings-rate card uses. Never pass
+  // the 12-month chart slice, or the recap's "personal best so far" is false
+  // when an older month beats the recent best and the two surfaces contradict.
+  const reviewCandidates = buildReviewCandidates({ flows, streak: savingsStreak, creep, opportunities, runwayMonths: runway, pendingTransfer });
   // Demo fence (#242 critic P1-1, balance-move.ts precedent): the shared demo account
   // never consults a model — its recap is the deterministic floor by CONSTRUCTION,
   // never by env (this also removes the #241 P2 where the badge-absent e2e assumed a
@@ -535,6 +551,7 @@ export async function getCoachData(
   return {
     today,
     flows,
+    streak: savingsStreak,
     currentRateBps: flows[flows.length - 1]?.savingsRateBps ?? null,
     monthFlows,
     loanPaymentExclusions,

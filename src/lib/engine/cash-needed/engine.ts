@@ -248,6 +248,13 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
     .sort((a, b) => compareDates(a.effectiveDueDate, b.effectiveDueDate) || a.cardName.localeCompare(b.cardName));
 
   const requiredCents = sumCents(due.map((o) => o.cashRequiredCents));
+  // Headline pairing (audit P2): the aggregate total is needed by the FIRST
+  // effective due date — the earliest payment draws first, so pairing the
+  // whole-cycle total with the LAST due date under-demands late (a reader who
+  // funds by then has already missed the first card's autopay). The projection
+  // horizon BELOW stays the last due date: the walk must model every
+  // obligation, and the day-by-day dip can happen anywhere in the window.
+  const firstDueDate = due.length > 0 ? due[0].effectiveDueDate : null;
   const byDate = due.length > 0 ? due[due.length - 1].effectiveDueDate : null;
 
   // ── Day-by-day projection from today through the last due date ──
@@ -478,6 +485,7 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
   // autopay) carries nothing → no interest (grace period preserved). New purchases
   // are not projected.
   let minimumPathInterestCents: Cents | null = null;
+  let minimumPathInterestCardsCount = 0;
   if (scenario === 'MINIMUM') {
     const perCard = cycleObligations.map((o) => {
       const card = input.cards.find((c) => c.id === o.cardId);
@@ -491,6 +499,10 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
       const close = card.statement?.cycleEnd ?? card.nextCycleCloseDate;
       const due = card.statement?.dueDate ?? card.nextDueDate;
       if (!close || !due) return ZERO; // can't date the cycle → no estimate
+      // Audit P2: the estimate covers ONLY this set (carried balance + datable
+      // cycle). Undatable cards and next-cycle cards are excluded — the count is
+      // carried so a surface can name the set instead of silently over-claiming.
+      minimumPathInterestCardsCount += 1;
       const cycleDays = daysBetween(close, addMonthsClamped(close, 1));
       const daysAtStartBalance = daysBetween(close, due);
 
@@ -512,6 +524,7 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
     scenario,
     headline: {
       requiredCents,
+      firstDueDate,
       byDate,
       cardsDueCount: due.length,
       shortfallCents: worstDip,
@@ -527,6 +540,7 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
     upcoming,
     intraPeriodMinimum: minPoint,
     minimumPathInterestCents,
+    minimumPathInterestCardsCount,
     fundingFrozen:
       input.paymentAccount.frozenSince != null
         ? {

@@ -188,6 +188,10 @@ export function proposalCopy(p: Proposal): { title: string; detail: string } {
         };
       }
       const basis = p.typicalCount !== null ? ` (based on ${p.typicalCount} deposits)` : '';
+      // Audit P2: a negative runway is cash below zero — the nudge engine clamps
+      // non-positive runway to null (select.ts), so this surface abstains rather
+      // than printing "-2.3 months" as a fact; the coach surfaces name what
+      // negative is (COACH_COPY.runway / runwayBanded / reviewImprovementRunway).
       const runway =
         p.runwayMonths !== null
           ? ` If it stays paused, your cash on hand covers about ${p.runwayMonths} months of typical spending (cash ÷ your ${p.runwayWindowMonths}-month average expenses).`

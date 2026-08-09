@@ -43,6 +43,7 @@
  * skips it (the engine already excludes the non-actionable group) instead of
  * ranking a guess.
  */
+import { businessDayFraction } from '@/lib/business-today';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import {
@@ -177,8 +178,21 @@ export async function getSpendingTrends(userId: string): Promise<SpendingTrendsD
   const excludedLoanCanonicals = snap.loanPaymentFlowExclusions
     ? new Set(snap.loanPaymentFlowExclusions.excluded.map((e) => e.canonical))
     : undefined;
+  // Audit P2: the pace divisor reads the fraction of today already elapsed from
+  // the SAME sanctioned wall clock that produced `today` (business-today.ts — one
+  // `new Date()` each, milliseconds apart; a request straddling midnight can
+  // shift the fraction without changing the date, and the engine floors the
+  // divisor at 1). Pinned modes are deterministic (0.5), so the deployed demo's
+  // pace is stable like its date.
   const trends = computeSpendingTrends(
-    { txns, today, scheduled: snap.scheduled, excludedFlowIds, excludedLoanCanonicals },
+    {
+      txns,
+      today,
+      scheduled: snap.scheduled,
+      excludedFlowIds,
+      excludedLoanCanonicals,
+      elapsedDayFraction: businessDayFraction(userId),
+    },
     meta,
   );
 

@@ -139,8 +139,8 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
 
         <p className={`text-xs ${overSustainable ? AMBER : GAIN_UP}`}>
           {overSustainable
-            ? `Your planned spending (${money(base.annualRetirementSpendingCents)}/yr) is above a sustainable ${pctFromBps(base.swrBps)} withdrawal (about ${money(p.sustainableAnnualWithdrawalCents)}/yr) — that is why the balance draws down.`
-            : `Your planned spending (${money(base.annualRetirementSpendingCents)}/yr) is within a sustainable ${pctFromBps(base.swrBps)} withdrawal (about ${money(p.sustainableAnnualWithdrawalCents)}/yr).`}
+            ? `Your current spending (${money(base.annualRetirementSpendingCents)}/yr) is above a sustainable ${pctFromBps(base.swrBps)} withdrawal (about ${money(p.sustainableAnnualWithdrawalCents)}/yr) — that is why the balance draws down.`
+            : `Your current spending (${money(base.annualRetirementSpendingCents)}/yr) is within a sustainable ${pctFromBps(base.swrBps)} withdrawal (about ${money(p.sustainableAnnualWithdrawalCents)}/yr).`}
         </p>
 
         {/* Interactive what-if — explore different ages / inflation; recomputes instantly. */}

@@ -428,3 +428,4 @@ refuses to write if it would drop any number this file already carries.
 - **#432** (Phase ?): C.14: the goals card names its third FI state instead of printing "~null months", and a goal pledge beyond the reader's savings is charged in FULL against their FI date (2026-08-08)
 - **#433** (Phase ?): C.15: the return affordance one hop deeper — a transaction or a named page as the destination (2026-08-08)
 - **#434** (Phase ?): C.16: Fixed/Discretionary moves into the action menu — the register dial is gone, and a row can say whether its class is ours or the reader's (2026-08-08)
+- **#435** (Phase ?): C.17: the audit P2 sweep — the pace rate divides by fractional elapsed time, and every "$0.00 is a claim" figure names its zero (2026-08-09)

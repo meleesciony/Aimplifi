@@ -763,10 +763,18 @@ export const COACH_COPY = {
   creepClear: (c: CreepResult) =>
     `Spending growth is tracking income growth over the last ${c.windowMonths} months — no lifestyle drift detected.`,
 
-  runway: (months: number) =>
-    Number.isFinite(months)
-      ? `Room for error: ${months} months of expenses in cash. The richest feeling money buys is not needing the next paycheck.`
-      : `Room for error: you have cash and no recorded expenses yet — your runway fills in as spending is tracked.`,
+  runway: (months: number) => {
+    if (!Number.isFinite(months)) {
+      return `Room for error: you have cash and no recorded expenses yet — your runway fills in as spending is tracked.`;
+    }
+    // Audit P2: a negative month count printed flatly ("-2.3 months of expenses
+    // in cash", then an aphorism about not needing the next paycheck) reads as a
+    // fact when it means the cash side is BELOW zero. Name what negative is.
+    if (months < 0) {
+      return `Room for error: none right now — your cash balance is negative, about ${-months} months of expenses short of zero.`;
+    }
+    return `Room for error: ${months} months of expenses in cash. The richest feeling money buys is not needing the next paycheck.`;
+  },
 
   lifeEnergy: (amount: Cents, hours: number) =>
     `${formatCents(amount)} ≈ ${hours} hours of your working life, assuming your after-tax hourly wage. A lens, not a judgment.`,
@@ -777,10 +785,17 @@ export const COACH_COPY = {
   reviewImprovement: (monthLabel: string, fromBps: number, toBps: number) =>
     `What improved in ${monthLabel}: savings rate moved from ${pct1(fromBps)} to ${pct1(toBps)}.`,
 
-  reviewImprovementRunway: (months: number) =>
-    Number.isFinite(months)
-      ? `What held steady: your cash runway covers ${months} months of expenses — room for error is wealth working quietly.`
-      : `What held steady: once a few weeks of spending land, your cash runway will show here — room for error is wealth working quietly.`,
+  reviewImprovementRunway: (months: number) => {
+    if (!Number.isFinite(months)) {
+      return `What held steady: once a few weeks of spending land, your cash runway will show here — room for error is wealth working quietly.`;
+    }
+    // Audit P2: a negative runway cannot "cover" months — say what it is and
+    // what the reader can expect (educational, not advisory).
+    if (months < 0) {
+      return `What held steady: your cash runway is negative right now — about ${-months} months short of zero. It shows as a cover again once the balance turns positive.`;
+    }
+    return `What held steady: your cash runway covers ${months} months of expenses — room for error is wealth working quietly.`;
+  },
 
   reviewCreep: (merchant: string, delta: Cents) =>
     `What crept: ${merchant} now costs ${formatCents(delta)}/mo more than it used to.`,
@@ -832,7 +847,11 @@ export const COACH_COPY = {
 
   // C2 · Housel, Babylon — room for error, banded against the classic 3–6 month range
   runwayBanded: (months: number, band: 'below' | 'in' | 'above') =>
-    `Room for error: ${months} months of expenses in cash — you're ${band === 'below' ? 'approaching' : band === 'in' ? 'inside' : 'past'} the classic 3–6 month range. The richest feeling money buys is not needing the next paycheck.`,
+    // Audit P2: same negative-runway honesty as `runway` — a negative month
+    // count is not a distance "approaching" the 3–6 month range.
+    months < 0
+      ? `Room for error: none right now — your cash balance is negative, about ${-months} months of expenses short of zero.`
+      : `Room for error: ${months} months of expenses in cash — you're ${band === 'below' ? 'approaching' : band === 'in' ? 'inside' : 'past'} the classic 3–6 month range. The richest feeling money buys is not needing the next paycheck.`,
 
   // C13 · Housel, Sethi, Perkins — years-to-FI reframed as time bought back (sibling to yearsToFI)
   // W.12 — no rate and no screen position. The rate lived here as "the 4.50% after inflation
@@ -873,11 +892,19 @@ export const COACH_COPY = {
     `The dashed line marks 15% — a common savings-rate reference point for retirement, not a rule you're failing if you're under it.`,
 
   // Wave 1.4 · habit mechanics — streak / personal best (educational, not a grade)
+  // Audit P2: `pct1` rounds 1–4 bps to "0.0%", so a positive-streak sentence would
+  // call a 0.0% month positive and a personal-best sentence would celebrate a rounded
+  // zero. A rate that rounds to zero but ISN'T zero must name that ("under 0.1%");
+  // an exact zero stays "0.0%" — a zero is a claim and must name which zero.
   savingsStreak: (months: number, latestRateBps: number) =>
-    `${months} months in a row with a positive savings rate (latest ${pct1(latestRateBps)}). Consistency compounds — one month is weather; a streak is climate.`,
+    `${months} months in a row with a positive savings rate (latest ${
+      latestRateBps > 0 && pct1(latestRateBps) === '0.0%' ? 'under 0.1%' : pct1(latestRateBps)
+    }). Consistency compounds — one month is weather; a streak is climate.`,
 
   savingsPersonalBest: (rateBps: number, monthLabel: string) =>
-    `${monthLabel} is a personal best so far at ${pct1(rateBps)} — worth noticing, not a grade.`,
+    `${monthLabel} is a personal best so far at ${
+      rateBps > 0 && pct1(rateBps) === '0.0%' ? 'under 0.1%' : pct1(rateBps)
+    } — worth noticing, not a grade.`,
 
   // ── #254: Habit streaks (AI plan §Later #17 streaks half) ───────────────────
   // Basis inline everywhere: "cleared" means paid in full BY the due date (read
@@ -1026,8 +1053,12 @@ export const COACH_COPY = {
     monthLabel: string | null,
     windowMonths: number,
   ) => {
+    // Audit P2: a negative runway is not "spending on hand" — it is cash below
+    // zero, and the weather sentence must not state it as a positive cushion.
     const cushion = Number.isFinite(runwayMonths)
-      ? `about ${runwayMonths} month${runwayMonths === 1 ? '' : 's'} of typical spending on hand (cash ÷ your ${windowMonths}-month average expenses)`
+      ? runwayMonths < 0
+        ? `your cash is below zero, about ${-runwayMonths} months of expenses short (cash ÷ your ${windowMonths}-month average expenses)`
+        : `about ${runwayMonths} month${runwayMonths === 1 ? '' : 's'} of typical spending on hand (cash ÷ your ${windowMonths}-month average expenses)`
       : `cash on hand and no recorded average expenses yet`;
     switch (state) {
       case 'strained':

@@ -127,6 +127,10 @@ export function thinHistoryNote(chargeCount: number): string | null {
 
 /** Always shown on the card (#250 critic F5): the profile is full-history by
  *  design, while the list below may be date-filtered, type-filtered, or just
- *  page 1 of N — the card must say which set its figures describe. */
+ *  page 1 of N — the card must say which set its figures describe. Audit P2:
+ *  the note also states the FIGURE'S basis, because the register summary beside
+ *  it nets refunds and includes pending — three figures, one merchant, one
+ *  screen. The lens total is GROSS posted charges: refunds (positive rows) are
+ *  never subtracted, and nothing pending is in it. */
 export const LENS_SCOPE_NOTE =
-  'Covers every posted charge at this merchant across your history — not only the rows listed below.';
+  'Covers every posted charge at this merchant across your history — gross, refunds not netted, nothing pending. The summary below nets refunds and includes pending; the list may show only a slice.';

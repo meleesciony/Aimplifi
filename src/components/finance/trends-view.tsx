@@ -70,6 +70,12 @@ function MoverRow({
   breakdown: CategoryBreakdown;
 }) {
   const current = money(m.currentCents);
+  // Audit P2: for a netted mover the $0.00 is a CLAMP (rows filed, refunds
+  // netted them away), not a measured nothing — naming it here keeps the
+  // accessible name in lockstep with the visible "net … after refunds" line
+  // below, which is the collapsed-row version of the expander's
+  // `clampedByNetRefund` sentence.
+  const currentLabel = m.currentNetted ? `net ${current} after refunds` : current;
   const currentFigure =
     href === null ? (
       current
@@ -82,7 +88,7 @@ function MoverRow({
         // screen-reader user who is not told "May" lands somewhere unannounced
         // (O.6 critic P1-5 — the previous label omitted it while the docblock
         // above claimed it was there).
-        aria-label={`${m.name}: ${current} in ${monthLabel} — view these transactions`}
+        aria-label={`${m.name}: ${currentLabel} in ${monthLabel} — view these transactions`}
         className={CATEGORY_LINK_CLASS}
       >
         {current}
@@ -116,7 +122,7 @@ function MoverRow({
             <Link
               href={href}
               data-testid={`mover-category-name-link-${m.categoryId}`}
-              aria-label={`${m.name}: ${current} in ${monthLabel} — view these transactions`}
+              aria-label={`${m.name}: ${currentLabel} in ${monthLabel} — view these transactions`}
               className={`min-w-0 truncate text-sm font-medium ${CATEGORY_NAME_LINK_CLASS}`}
             >
               {m.name}
@@ -131,6 +137,15 @@ function MoverRow({
         <div className="text-xs text-muted-foreground">
           {m.direction === 'new' ? (
             <>new this period · {currentFigure}</>
+          ) : m.currentNetted ? (
+            // Audit P2: the $0.00 is a net-refund clamp, not a measured
+            // nothing — the same clamp the expander explains via
+            // `clampedByNetRefund`. Naming it here stops the collapsed row
+            // claiming the reader spent nothing when the register holds
+            // charges and refunds in that category.
+            <>
+              net {currentFigure} after refunds vs {money(m.baselineCents)} usual
+            </>
           ) : (
             <>
               {currentFigure} vs {money(m.baselineCents)} usual

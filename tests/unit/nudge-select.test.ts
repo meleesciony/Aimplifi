@@ -112,6 +112,8 @@ function cashNeededOf(o: {
   shortfallCents: number;
   shortfallDate?: string | null;
   byDate?: string | null;
+  /** First effective due date (audit P2) — defaults to the same date as byDate. */
+  firstDueDate?: string | null;
   requiredCents?: number;
   /** Amount needed by the FIRST short date when it differs from the worst dip (C.12). */
   firstShortCents?: number;
@@ -142,6 +144,8 @@ function cashNeededOf(o: {
     scenario: 'PAY_IN_FULL',
     headline: {
       requiredCents: cents(o.requiredCents ?? 481233),
+      firstDueDate:
+        o.firstDueDate === undefined ? isoDate('2026-06-15') : o.firstDueDate ? isoDate(o.firstDueDate) : null,
       byDate: o.byDate === undefined ? isoDate('2026-06-15') : o.byDate ? isoDate(o.byDate) : null,
       cardsDueCount: 2,
       shortfallCents: cents(o.shortfallCents),
@@ -171,6 +175,7 @@ function cashNeededOf(o: {
     upcoming: [],
     intraPeriodMinimum: null,
     minimumPathInterestCents: null,
+    minimumPathInterestCardsCount: 0,
     assumptions: [],
   };
 }

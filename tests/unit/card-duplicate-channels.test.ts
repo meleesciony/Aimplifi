@@ -357,6 +357,8 @@ function resultWithPair(): CashNeededResult {
     headline: {
       requiredCents: cents(1_335_936),
       cardsDueCount: 2,
+      // Both cards due the same day → first and last effective due coincide.
+      firstDueDate: isoDate('2026-06-13'),
       byDate: isoDate('2026-06-13'),
       shortfallCents: cents(0),
       recommendation: null,
@@ -529,7 +531,7 @@ describe('critic F4 — the Ask zero-due branch states a COUNT, so it discloses 
 
   it('reaches the real answer builder', () => {
     const undatedResult = {
-      headline: { requiredCents: 0, cardsDueCount: 0, byDate: null, shortfallCents: 0, recommendation: null },
+      headline: { requiredCents: 0, cardsDueCount: 0, firstDueDate: null, byDate: null, shortfallCents: 0, recommendation: null },
       perDueDate: [],
       cards: [],
       upcoming: [],

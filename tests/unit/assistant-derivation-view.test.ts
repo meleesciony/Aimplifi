@@ -135,6 +135,16 @@ describe('derivationView — the local recheck stands on its own (reconciled fla
     ).toBeNull();
   });
 
+  it('cash_needed: byDate must back the EARLIEST row — the LAST row no longer counts (audit P2)', () => {
+    // The trace restates the headline's first-due "by DATE"; the old
+    // latest-row semantics would pass a last-due date through silently.
+    const trace = cashNeeded();
+    const last = trace.rows.reduce((m, r) => (r.date! > m ? r.date! : m), trace.rows[0]!.date!);
+    expect(
+      derivationView(mutated(trace, (m) => m.intentKind === 'cash_needed' && void (m.byDate = last))),
+    ).toBeNull();
+  });
+
   it('cash_needed: a dateless row → null', () => {
     expect(derivationView(mutated(cashNeeded(), (m) => void delete m.rows[0].date))).toBeNull();
   });

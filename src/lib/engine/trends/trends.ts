@@ -40,7 +40,9 @@ import {
   // questions, and the alias is what stops a future edit from confusing them.
   isSpendRow as isRegisterSpendRow,
   spendContributionCents,
+  spendRowCategoryId,
   type ReportTxn,
+  type SpendWindow,
 } from '@/lib/engine/reports/reports';
 
 // ── Tunable thresholds (deterministic, in code) ─────────────────────────────
@@ -190,7 +192,8 @@ export interface SpendingPace {
   billsStillDue: PaceBillDue[];
   /** Spent so far MINUS the bill money already counted; the rate's numerator. */
   discretionarySoFarCents: number;
-  /** discretionarySoFar / daysElapsed × the days left, rounded. */
+  /** discretionarySoFar / elapsed days × the days left, rounded (audit P2:
+   *  the divisor is the FRACTIONAL elapsed time, not the integer `daysElapsed`). */
   projectedRemainderCents: number;
   /** spentSoFar + billsStillDue + projectedRemainder. Never < spentSoFar. */
   projectedCents: number;
@@ -203,6 +206,16 @@ export interface CategoryMover {
   name: string;
   group: string;
   currentCents: number; // last completed month
+  /**
+   * `currentCents` is a NET-REFUND CLAMP, not a measured zero: rows WERE filed
+   * into this category in the compared month, but refunds netted them to zero
+   * (or below), so `spendingByCategory` dropped the category and the figure is
+   * held at $0.00. The collapsed row must name the clamp ("net $0.00 after
+   * refunds") or the reader reads a measured nothing that the register
+   * contradicts — the same $0.00 the expander already explains via
+   * `clampedByNetRefund` (audit P2).
+   */
+  currentNetted: boolean;
   baselineCents: number; // averaged prior months (0 ⇒ new)
   deltaCents: number; // current − baseline (positive = up)
   pctChange: number | null; // deltaCents / baselineCents (null when baseline 0)
@@ -304,6 +317,15 @@ export interface TrendsInput {
    * twice / not at all.
    */
   excludedLoanCanonicals?: ReadonlySet<string>;
+  /**
+   * Audit P2: the fraction of business "today" already elapsed, in [0, 1) —
+   * read from the sanctioned wall clock (`businessDayFraction`). The pace
+   * rate divides by `(day − 1) + fraction` instead of counting the
+   * in-progress day as whole, so the headline tracks real elapsed time
+   * rather than sitting flat all day and stepping at midnight. Default 1 =
+   * the pre-fix behaviour exactly (every existing known-answer test).
+   */
+  elapsedDayFraction?: number;
 }
 
 const groupOf = (id: string | null | undefined, meta: ReadonlyMap<string, CategoryMeta>) =>
@@ -355,6 +377,34 @@ function categorySpendMap(
 ): Map<string, number> {
   const { byCategory } = spendingByCategory(txns, { fromYm: ym, toYm: ym }, meta, excludedFlowIds);
   return new Map(byCategory.map((c) => [c.categoryId, c.amountCents]));
+}
+
+/**
+ * Raw per-category net for one month — INCLUDING the categories
+ * `spendingByCategory` drops (`<= 0`). The mover figure for those is a clamped
+ * $0.00, and this is the only pass that still knows whether that zero is a
+ * MEASUREMENT (nothing was filed) or a CLAMP (rows were filed and refunds
+ * netted them away) — the difference between "spent nothing" and "spent and
+ * got it back" (audit P2: the collapsed row printed the clamped $0.00 as a
+ * fact). It selects rows with the reports engine's OWN exported predicate and
+ * buckets them with its OWN id rule — never a copy, the glass-box rule — so a
+ * key here is exactly a category `categorySpendMap` would have held had its
+ * net been positive.
+ */
+function rawCategoryNetMap(
+  txns: readonly TrendTxn[],
+  ym: string,
+  meta: ReadonlyMap<string, CategoryMeta>,
+  excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
+): Map<string, number> {
+  const range: SpendWindow = { fromYm: ym, toYm: ym };
+  const totals = new Map<string, number>();
+  for (const t of txns) {
+    if (!isRegisterSpendRow(t, range, meta, excludedFlowIds)) continue;
+    const id = spendRowCategoryId(t);
+    totals.set(id, (totals.get(id) ?? 0) + spendContributionCents(t));
+  }
+  return totals;
 }
 
 /**
@@ -565,6 +615,7 @@ function computePace(
   meta: ReadonlyMap<string, CategoryMeta>,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
   excludedLoanCanonicals?: ReadonlySet<string>, // C.25 (#403, critic P1-1)
+  elapsedDayFraction = 1, // audit P2: [0, 1) — 1 = the pre-fix whole-day divisor
 ): SpendingPace | null {
   const ym = monthKey(today);
   // Only money already spent counts toward "so far": ignore any future-dated rows.
@@ -589,6 +640,16 @@ function computePace(
   const [y, m] = [Number(ym.slice(0, 4)), Number(ym.slice(5, 7))];
   const dim = daysInMonth(y, m);
   const daysElapsed = Math.min(Number(today.slice(8, 10)), dim); // ≥1 for a real date
+  // Audit P2: the in-progress day is NOT whole. The rate divides by how much
+  // of the month has really elapsed — `day − 1` full days plus today's
+  // fraction from the sanctioned clock — so the headline moves with real
+  // time instead of sitting flat all day and jumping at midnight. The integer
+  // `daysElapsed` above stays the DISPLAY figure ("first N days": N calendar
+  // days whose rows are counted); THIS is the math figure. Floored at 1: a
+  // rate over a fraction of day 1 is the audit's own "worthless" regime and
+  // the day-1 lock already defines that figure; the floor also keeps the
+  // divisor from vanishing at 00:00:00.
+  const elapsed = Math.min(dim, Math.max(1, daysElapsed - 1 + elapsedDayFraction));
   const { stillDue, stillDueCents, creditedCents } = billsThisMonth(
     scheduled,
     txns,
@@ -621,9 +682,11 @@ function computePace(
     ? spentSoFarCents
     : spentSoFarCents - creditedCents;
   // Multiply before dividing (audit P2): `(a / b) * c` rounds twice and violated
-  // the repo's stated half-away-from-zero rule 140 times on the demo seed.
+  // the repo's stated half-away-from-zero rule 140 times on the demo seed. The
+  // divisor is `elapsed` — the fractional elapsed days (audit P2, above) — not
+  // the integer `daysElapsed` the display phrases.
   const projectedRemainderCents = roundHalfAwayFromZero(
-    (discretionarySoFarCents * (dim - daysElapsed)) / daysElapsed,
+    (discretionarySoFarCents * (dim - elapsed)) / elapsed,
   );
   const projectedCents = spentSoFarCents + stillDueCents + projectedRemainderCents;
   return {
@@ -649,6 +712,13 @@ function computeMovers(
 ): { comparedYm: string | null; baselineMonths: string[]; movers: CategoryMover[]; moverTotal: number } {
   const current = addMonthsToMonthKey(monthKey(today), -(1)); // last completed month
   const currentMap = categorySpendMap(txns, current, meta, excludedFlowIds);
+  // Audit P2: `currentMap` drops net-refunded categories, so a mover whose
+  // `currentCents` is 0 cannot tell a measured nothing from a clamp. This raw
+  // pass (same predicate, same bucket ids — `rawCategoryNetMap`) records which
+  // categories had ANY rows at all, so `currentNetted` is true exactly when
+  // the dropped zero is a clamp. One extra linear pass over the rows the maps
+  // already scan; it exists only to keep the printed zero honest.
+  const rawCurrent = rawCategoryNetMap(txns, current, meta, excludedFlowIds);
 
   // Baseline = the up-to-3 completed months before `current` that actually have
   // spend (never average in pre-history zero months — it would understate the norm).
@@ -670,6 +740,9 @@ function computeMovers(
   for (const id of ids) {
     if (groupOf(id, meta) === NON_ACTIONABLE_GROUP) continue; // cash/transfer/cc-pay/uncategorized aren't insights
     const currentCents = currentMap.get(id) ?? 0;
+    // A zero that is a CLAMP (rows filed, refunds netted them away) vs a zero
+    // that is a MEASUREMENT (nothing filed) — see `currentNetted` on the type.
+    const currentNetted = currentCents === 0 && rawCurrent.has(id);
     const baselineCents =
       baselineMaps.length === 0
         ? 0
@@ -697,6 +770,7 @@ function computeMovers(
       name: cat?.name ?? 'Uncategorized',
       group: cat?.group ?? 'Other',
       currentCents,
+      currentNetted,
       baselineCents,
       deltaCents,
       pctChange: baselineCents === 0 ? null : deltaCents / baselineCents,
@@ -845,7 +919,7 @@ function computeNewMerchants(
 
 /** Compute all spending-trend insights from a posted-spend transaction list. */
 export function computeSpendingTrends(
-  { txns, today, scheduled, excludedFlowIds, excludedLoanCanonicals }: TrendsInput,
+  { txns, today, scheduled, excludedFlowIds, excludedLoanCanonicals, elapsedDayFraction }: TrendsInput,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): SpendingTrends {
   const { comparedYm, baselineMonths, movers, moverTotal } = computeMovers(txns, today, meta, excludedFlowIds);
@@ -859,7 +933,7 @@ export function computeSpendingTrends(
     asOfYm: monthKey(today),
     comparedYm,
     baselineMonths,
-    pace: computePace(txns, today, scheduled, meta, excludedFlowIds, excludedLoanCanonicals),
+    pace: computePace(txns, today, scheduled, meta, excludedFlowIds, excludedLoanCanonicals, elapsedDayFraction),
     movers,
     moverTotal,
     largest: computeLargest(settled, today, meta, excludedFlowIds),

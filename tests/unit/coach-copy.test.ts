@@ -476,6 +476,10 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'creepFlagged', text: COACH_COPY.creepFlagged(creepFlagged), isProjection: false },
   { label: 'creepClear', text: COACH_COPY.creepClear(creepClear), isProjection: false },
   { label: 'runway', text: COACH_COPY.runway(3.2), isProjection: false },
+  // Audit P2: the negative branches are SECOND strings these functions produce
+  // and this file claims to scan every one of them — a negative runway must
+  // not ship past the shame/assumption guardrails as a flat fact.
+  { label: 'runway:negative', text: COACH_COPY.runway(-2.3), isProjection: false },
   { label: 'lifeEnergy', text: COACH_COPY.lifeEnergy(cents(19000), 5), isProjection: true },
   { label: 'lifeEnergyFootnote', text: COACH_COPY.lifeEnergyFootnote(cents(3800)), isProjection: true },
   { label: 'reviewImprovement', text: COACH_COPY.reviewImprovement('May 2026', 1836, 3197), isProjection: false },
@@ -502,6 +506,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   // Wave 1 principle captions
   { label: 'invisibleWealth', text: COACH_COPY.invisibleWealth(cents(235000), 'May 2026'), isProjection: false },
   { label: 'runwayBanded:below', text: COACH_COPY.runwayBanded(1.8, 'below'), isProjection: false },
+  { label: 'runwayBanded:negative', text: COACH_COPY.runwayBanded(-2.3, 'below'), isProjection: false },
   { label: 'runwayBanded:in', text: COACH_COPY.runwayBanded(4.2, 'in'), isProjection: false },
   { label: 'runwayBanded:above', text: COACH_COPY.runwayBanded(9.5, 'above'), isProjection: false },
   // W.12 — payoff reframes the headline years; it is not a second projection with its own rate.
@@ -512,6 +517,11 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'volatilityPrice', text: COACH_COPY.volatilityPrice(700, 450), isProjection: true },
   { label: 'fifteenPercentReference', text: COACH_COPY.fifteenPercentReference(), isProjection: false },
   { label: 'savingsStreak:3', text: COACH_COPY.savingsStreak(3, 2653), isProjection: false },
+  // Audit P2: 1–4 bps renders "0.0%" via pct1 — a positive streak must name the
+  // magnitude instead of printing a zero that isn't one. An exact zero stays "0.0%".
+  { label: 'savingsStreak:tiny', text: COACH_COPY.savingsStreak(3, 4), isProjection: false },
+  { label: 'savingsPersonalBest:tiny', text: COACH_COPY.savingsPersonalBest(4, 'May 2026'), isProjection: false },
+  { label: 'savingsPersonalBest:zero', text: COACH_COPY.savingsPersonalBest(0, 'May 2026'), isProjection: false },
   { label: 'savingsPersonalBest', text: COACH_COPY.savingsPersonalBest(3197, 'May 2026'), isProjection: false },
   { label: 'cushionIsAGoal', text: COACH_COPY.cushionIsAGoal(), isProjection: false },
   { label: 'assumptionsChange', text: COACH_COPY.assumptionsChange(), isProjection: false },
@@ -546,10 +556,12 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'digestNothingDue', text: COACH_COPY.digestNothingDue(), isProjection: false },
   { label: 'digestOutro', text: COACH_COPY.digestOutro(), isProjection: false },
   { label: 'runway:noExpenses', text: COACH_COPY.runway(Infinity), isProjection: false },
+  { label: 'reviewImprovementRunway:negative', text: COACH_COPY.reviewImprovementRunway(-2.3), isProjection: false },
   // #252 Money Signature — every state variant scans through the guardrails.
   { label: 'signatureTitle', text: COACH_COPY.signatureTitle(), isProjection: false },
   { label: 'signatureBasis', text: COACH_COPY.signatureBasis(), isProjection: false },
   { label: 'signatureWeather:strained', text: COACH_COPY.signatureWeather('strained', 0.8, 1200, 'May 2026', 6), isProjection: false },
+  { label: 'signatureWeather:strainedNegative', text: COACH_COPY.signatureWeather('strained', -2.3, 1200, 'May 2026', 6), isProjection: false },
   { label: 'signatureWeather:tight', text: COACH_COPY.signatureWeather('tight', 2.4, 300, 'May 2026', 6), isProjection: false },
   { label: 'signatureWeather:tightNegative', text: COACH_COPY.signatureWeather('tight', 5.1, -800, 'May 2026', 6), isProjection: false },
   { label: 'signatureWeather:calm', text: COACH_COPY.signatureWeather('calm', 4.2, 900, 'May 2026', 6), isProjection: false },
@@ -657,6 +669,38 @@ describe('coach copy guardrails — zero shame, assumptions everywhere, no ticke
     const review = generateMoneyReview({ flows: [], creep: creepClear, opportunities: [], runwayMonths: Infinity });
     expect(review.improvement).not.toMatch(/infinity/i);
     expect(review.improvement.length).toBeGreaterThan(0);
+  });
+});
+
+// Audit P2 — exact rendered locks for the negative-runway branches. The old
+// strings printed "-2.3 months of expenses in cash" as a flat fact and kept
+// an aphorism that only makes sense with a positive buffer; each negative
+// branch must render the honest statement verbatim.
+describe('runway copy — negative-runway branches (audit P2)', () => {
+  it('runway states cash below zero instead of a negative month count as fact', () => {
+    expect(COACH_COPY.runway(-2.3)).toBe(
+      'Room for error: none right now — your cash balance is negative, about 2.3 months of expenses short of zero.',
+    );
+  });
+
+  it('runwayBanded drops the 3–6 month band clause when there is no buffer', () => {
+    expect(COACH_COPY.runwayBanded(-2.3, 'below')).toBe(
+      'Room for error: none right now — your cash balance is negative, about 2.3 months of expenses short of zero.',
+    );
+  });
+
+  it('reviewImprovementRunway names the negative and what to expect next', () => {
+    expect(COACH_COPY.reviewImprovementRunway(-2.3)).toBe(
+      'What held steady: your cash runway is negative right now — about 2.3 months short of zero. It shows as a cover again once the balance turns positive.',
+    );
+  });
+
+  it('signatureWeather says cash is below zero, never "on hand"', () => {
+    const text = COACH_COPY.signatureWeather('strained', -2.3, 1200, 'May 2026', 6);
+    expect(text).toContain(
+      'your cash is below zero, about 2.3 months of expenses short (cash ÷ your 6-month average expenses)',
+    );
+    expect(text).not.toContain('on hand');
   });
 });
 
@@ -1066,6 +1110,29 @@ describe('the guardrail scan covers every string COACH_COPY can emit', () => {
     );
     // And the pin itself cannot rot: a key that gets registered must leave this list.
     expect(KNOWN_UNSCANNED.filter((k) => !missing.includes(k))).toEqual([]);
+  });
+});
+
+// Audit P2 — `pct1` rounds 1–4 bps to "0.0%", so the positive-streak sentence must name the
+// magnitude instead of calling a 0.0% month positive, and the personal-best sentence must
+// not celebrate a rounded zero. An exact zero stays "0.0%" — a zero is a claim and must
+// name which zero. The refusal lock (`not.toContain('0.0%')`) pins the fixed shape.
+describe('Audit P2 — the streak never calls a 0.0% month positive', () => {
+  it('names a 1–4 bps rate "under 0.1%" instead of "0.0%"', () => {
+    expect(COACH_COPY.savingsStreak(3, 4)).toContain('positive savings rate (latest under 0.1%)');
+    expect(COACH_COPY.savingsStreak(3, 4)).not.toContain('0.0%');
+    expect(COACH_COPY.savingsPersonalBest(4, 'May 2026')).toContain(
+      'May 2026 is a personal best so far at under 0.1%',
+    );
+    expect(COACH_COPY.savingsPersonalBest(4, 'May 2026')).not.toContain('0.0%');
+  });
+
+  it('keeps "0.0%" for an exact zero and prints the plain figure above 4 bps', () => {
+    expect(COACH_COPY.savingsPersonalBest(0, 'May 2026')).toContain(
+      'personal best so far at 0.0%',
+    );
+    expect(COACH_COPY.savingsPersonalBest(0, 'May 2026')).not.toContain('under 0.1%');
+    expect(COACH_COPY.savingsStreak(3, 2653)).toContain('(latest 26.5%)');
   });
 });
 

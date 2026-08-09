@@ -432,7 +432,7 @@ describe('answerCashNeeded', () => {
   it('amount + date', () => {
     const r = {
       ...base,
-      headline: { requiredCents: 120000, byDate: '2026-06-24', cardsDueCount: 2, shortfallCents: 0, shortfallDate: null, recommendation: null },
+      headline: { requiredCents: 120000, firstDueDate: '2026-06-24', byDate: '2026-06-24', cardsDueCount: 2, shortfallCents: 0, shortfallDate: null, recommendation: null },
     } as unknown as CashNeededResult;
     const a = answerCashNeeded(r, 'Everyday Checking');
     expect(a.headline).toBe('You need $1,200.00 by Jun 24, 2026 to pay your cards in full.');
@@ -441,7 +441,7 @@ describe('answerCashNeeded', () => {
   it('shortfall adds the transfer advice', () => {
     const r = {
       ...base,
-      headline: { requiredCents: 120000, byDate: '2026-06-24', cardsDueCount: 1, shortfallCents: 20000, shortfallDate: '2026-06-24', recommendation: { amountCents: 20000, byDate: '2026-06-23' } },
+      headline: { requiredCents: 120000, firstDueDate: '2026-06-24', byDate: '2026-06-24', cardsDueCount: 1, shortfallCents: 20000, shortfallDate: '2026-06-24', recommendation: { amountCents: 20000, byDate: '2026-06-23' } },
     } as unknown as CashNeededResult;
     const a = answerCashNeeded(r, 'Everyday Checking');
     expect(a.detail).toContain('move $200.00 in by Jun 23, 2026');

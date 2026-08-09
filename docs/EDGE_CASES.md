@@ -151,7 +151,11 @@ due date or recommendation lands on it.
 
 **Expected headline (golden test values):**
 - requiredCents = 2,712.33 + 2,100.00 + 600.00 = **$5,412.33** across **3 cards**
-- byDate = **2026-06-26** (last effective due date this cycle)
+- firstDueDate = **2026-06-15** (FIRST effective due date — the aggregate total
+  is dated with the earliest payment: the whole-cycle total needed "by the last
+  due" under-demands late, audit P2)
+- byDate = **2026-06-26** (last effective due date — the PROJECTION HORIZON: the
+  day-by-day walk must see every obligation, and the dip can land anywhere)
 - intraPeriodMinimum = (**2026-06-24, −$1,012.33**) — endpoint due dates are both
   positive (787.67 and 837.67): this is a pure intra-period dip, mirror of edge case H
 - shortfallCents = **$1,012.33**, shortfallDate = **2026-06-24**

@@ -84,7 +84,7 @@ export type DerivationTrace =
       intentKind: 'cash_needed';
       /** The engine's own figure (`headline.requiredCents`) — the tapped number. */
       requiredCents: number;
-      /** Last effective due date (`headline.byDate`) — shown next to the total. */
+      /** First effective due date (`headline.firstDueDate`) — shown next to the total. */
       byDate: string | null;
     })
   | (DerivationBase & {
@@ -198,7 +198,12 @@ export function traceCashNeededDerivation(
     ...(r.isEstimated ? { isEstimated: true } : {}),
     ...((r.autopayCents ?? 0) > 0 ? { autopayCents: r.autopayCents } : {}),
   }));
-  const byDate = result.headline.byDate;
+  // The trace restates the headline's "by DATE" claim (audit P2), so it shows the
+  // FIRST due date — what the aggregate total is actually needed by. The
+  // reconciliation check below still spans the WHOLE cycle: the rows must end at
+  // the last effective due date for the trace to cover everything the headline
+  // claims.
+  const byDate = result.headline.firstDueDate;
   const lastRowDate = rows.length > 0 ? rows[rows.length - 1].date ?? null : null;
   return {
     kind: 'derivation',
@@ -208,7 +213,7 @@ export function traceCashNeededDerivation(
     requiredCents: result.headline.requiredCents,
     byDate,
     reconciled:
-      inner.reconciles && inner.sumCents === expectedCents && lastRowDate === byDate,
+      inner.reconciles && inner.sumCents === expectedCents && lastRowDate === result.headline.byDate,
     basis: [CASH_NEEDED_BASIS, ...inner.basis],
   };
 }

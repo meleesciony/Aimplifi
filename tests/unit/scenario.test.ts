@@ -15,7 +15,6 @@ import {
   SCENARIO_LIMITS,
   applyScenario,
   toDebtPlanInput,
-  toFIInputs,
   toRetirementBase,
   toScenarioSavingsRateBps,
   type ScenarioBase,
@@ -24,7 +23,7 @@ import {
 import { expandScheduled, type ScheduledCadence } from '@/lib/engine/forecast/forecast';
 import { assembleCashNeededInput } from '@/lib/engine/cash-needed/assemble';
 import { planDebtPayoff } from '@/lib/engine/debt/payoff';
-import { monthsToFI } from '@/lib/engine/fi/fi';
+import { fiNumberCents, monthsToFI } from '@/lib/engine/fi/fi';
 import {
   RETIREMENT_ASSUMPTIONS,
   buildRetirementInputs,
@@ -76,13 +75,10 @@ describe('applyScenario — S1 identity', () => {
 
   it('identity extends through every adapter', () => {
     const s = applyScenario(baseSC(), {});
-    expect(toFIInputs(s)).toEqual({
-      portfolioCents: 2500000,
-      monthlySavingsCents: 120000,
-      annualReturnBps: 700,
-      // fiNumber = 4560000 × 10000/400 = 114,000,000 ($1.14M)
-      fiTargetCents: 114000000,
-    });
+    // toFIInputs was REMOVED (audit P2): it paired the nominal return with a
+    // present-value target — a mixed-base trap with no caller. The sanctioned
+    // path to the FI engines is the retirement adapter's real-return builder,
+    // asserted next, which the /coach server uses.
     expect(toRetirementBase(s)).toEqual({
       currentPortfolioCents: 2500000,
       monthlyContributionCents: 120000,
@@ -257,7 +253,6 @@ describe('applyScenario — extra debt knob (the cross-engine coherence case)', 
       },
     ]);
     // FI sees the reduced contribution; retirement floors via the shared builder
-    expect(toFIInputs(s).monthlySavingsCents).toBe(90000);
     expect(
       buildRetirementInputs(toRetirementBase(s), RETIREMENT_ASSUMPTIONS).monthlyContributionCents,
     ).toBe(90000);
@@ -355,10 +350,22 @@ describe('coherence across the real downstream engines', () => {
     const idle = applyScenario(base, {});
 
     // FI: fewer months to FI with more savings — the cut must WORSEN months-to-FI.
-    const fiIdle = toFIInputs(idle);
-    const fiCut = toFIInputs(cut);
-    const mIdle = monthsToFI(fiIdle.portfolioCents, fiIdle.monthlySavingsCents, fiIdle.annualReturnBps, fiIdle.fiTargetCents);
-    const mCut = monthsToFI(fiCut.portfolioCents, fiCut.monthlySavingsCents, fiCut.annualReturnBps, fiCut.fiTargetCents);
+    // Sanctioned path (audit P2): the retirement adapter's REAL-return builder —
+    // the same one /coach compounds monthsToFI at — never the nominal dial.
+    const fiIdle = buildRetirementInputs(toRetirementBase(idle), RETIREMENT_ASSUMPTIONS);
+    const fiCut = buildRetirementInputs(toRetirementBase(cut), RETIREMENT_ASSUMPTIONS);
+    const mIdle = monthsToFI(
+      fiIdle.currentPortfolioCents,
+      fiIdle.monthlyContributionCents,
+      fiIdle.annualReturnBps,
+      fiNumberCents(fiIdle.annualRetirementSpendingCents, fiIdle.swrBps),
+    );
+    const mCut = monthsToFI(
+      fiCut.currentPortfolioCents,
+      fiCut.monthlyContributionCents,
+      fiCut.annualReturnBps,
+      fiNumberCents(fiCut.annualRetirementSpendingCents, fiCut.swrBps),
+    );
     expect(mIdle).not.toBeNull();
     expect(mCut).not.toBeNull();
     expect(mCut!).toBeGreaterThan(mIdle!);
@@ -398,7 +405,6 @@ describe('coherence across the real downstream engines', () => {
           });
           const ri = buildRetirementInputs(toRetirementBase(s), RETIREMENT_ASSUMPTIONS);
           expect(() => projectRetirement(ri)).not.toThrow();
-          expect(() => toFIInputs(s)).not.toThrow();
           expect(Number.isSafeInteger(s.monthlyNetCents)).toBe(true);
           expect(Number.isSafeInteger(s.annualExpensesCents)).toBe(true);
         }
@@ -426,9 +432,11 @@ describe('coherence across the real downstream engines', () => {
 
   it('cents() branding round-trips (adapter outputs are engine-legal Cents)', () => {
     const s = applyScenario(baseSC(), { income: { percentBps: -1500 } });
-    const fi = toFIInputs(s);
-    expect(fi.portfolioCents).toBe(cents(2500000));
-    expect(fi.fiTargetCents).toBe(cents(114000000));
+    // Sanctioned adapter (audit P2 — toFIInputs removed): the retirement
+    // builder floors and re-brands every figure.
+    const ri = buildRetirementInputs(toRetirementBase(s), RETIREMENT_ASSUMPTIONS);
+    expect(ri.currentPortfolioCents).toBe(cents(2500000));
+    expect(ri.annualRetirementSpendingCents).toBe(cents(4560000));
   });
 });
 
@@ -448,7 +456,7 @@ describe('critic fixes (#255 cycle 1)', () => {
       expect(s.scheduledRows.some((r) => r.isSynthetic)).toBe(false);
       expect(s.scheduledRows.every((r) => Number.isSafeInteger(r.amountCents))).toBe(true);
       expect(s.notes.some((n) => n.includes('not a usable number'))).toBe(true);
-      expect(() => toFIInputs(s)).not.toThrow();
+      expect(() => projectRetirement(buildRetirementInputs(toRetirementBase(s), RETIREMENT_ASSUMPTIONS))).not.toThrow();
     }
   });
 

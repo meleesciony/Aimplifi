@@ -131,3 +131,74 @@ describe('/coach savings-rate bars expand into the rows their month was summed f
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+// Audit P2 — "personal best so far" is a FULL-HISTORY claim. `getCoachData` must compute
+// the streak over all complete months, never the 12-month `flows` chart slice: a best
+// over the slice is false when an older month beats it. This fixture is built so the two
+// answers DIFFER (the seed's best months are older than the window), which is the only
+// shape that can witness the wiring.
+const H = `streak-full-history-${Date.now()}-${process.pid}`;
+
+beforeAll(async () => {
+  await prisma.user.deleteMany({ where: { id: H } });
+  await prisma.user.create({ data: { id: H, email: `${H}@test.local` } });
+  const account = await prisma.account.create({
+    data: {
+      userId: H,
+      provider: 'manual',
+      providerRef: `${H}-chk`,
+      name: 'Everyday Checking',
+      type: 'CHECKING',
+      currency: 'USD',
+      currentBalanceCents: 100_000,
+    },
+  });
+  const mk = (date: string, amountCents: number, rawDescriptor: string, categoryId: string) =>
+    prisma.transaction.create({
+      data: {
+        accountId: account.id,
+        date,
+        amountCents,
+        rawDescriptor,
+        categoryId,
+        status: 'POSTED',
+      },
+    });
+  // 15 complete months, 2025-03..2026-05 (currentMonth is pinned to 2026-06).
+  // Older three months save 50% (5000 bps); the last twelve save 30% (3000 bps) —
+  // so the 12-month window's best (3000) is NOT the full-history best (5000).
+  for (const month of ['2025-03', '2025-04', '2025-05']) {
+    await mk(`${month}-01`, 500_000, 'ACME PAYROLL', 'paycheck');
+    await mk(`${month}-02`, -250_000, 'SAFEWAY #1234', 'groceries');
+  }
+  for (let y = 2025; y <= 2026; y++) {
+    for (const m of y === 2025 ? ['06', '07', '08', '09', '10', '11', '12'] : ['01', '02', '03', '04', '05']) {
+      const month = `${y}-${m}`;
+      await mk(`${month}-01`, 500_000, 'ACME PAYROLL', 'paycheck');
+      await mk(`${month}-02`, -350_000, 'SAFEWAY #1234', 'groceries');
+    }
+  }
+});
+
+afterAll(async () => {
+  await prisma.user.deleteMany({ where: { id: H } });
+});
+
+describe('the savings streak and personal best are full-history claims (audit P2)', () => {
+  it('computes the streak over all complete months, not the 12-month chart slice', async () => {
+    const data = await getCoachData(H);
+    // The chart slice really is the last 12 months, and its best is 30% — this is
+    // what a regression to `flows` would report for the personal best.
+    expect(data.flows).toHaveLength(12);
+    const sliceBest = Math.max(...data.flows.map((f) => f.savingsRateBps ?? -1));
+    expect(sliceBest).toBe(3000);
+
+    // The full-history claim: the older 50% months beat the window, the streak spans
+    // all 15 months, and the latest month is NOT a personal best.
+    expect(data.streak.streakMonths).toBe(15);
+    expect(data.streak.bestRateBps).toBe(5000);
+    expect(data.streak.priorBestRateBps).toBe(5000);
+    expect(data.streak.latestRateBps).toBe(3000);
+    expect(data.streak.isPersonalBest).toBe(false);
+  });
+});

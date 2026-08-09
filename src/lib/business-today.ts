@@ -36,3 +36,24 @@ export function businessToday(userId?: string): ISODate {
   if (userId === DEMO_USER_ID) return isoDate(DEFAULT_AS_OF);
   return realClockToday();
 }
+
+/**
+ * The fraction of business "today" already elapsed, in [0, 1) — the sanctioned
+ * TIME-OF-DAY read, same module and same precedence as `businessToday`
+ * (CALC_AUDIT 2026-08-02 P2: the pace projection counted the in-progress day
+ * as whole, so the headline sat flat all day and the divisor stepped at
+ * midnight — the rate must divide by real elapsed time, not the calendar day).
+ *
+ * Deterministic in every pinned mode, exactly like the date: DEMO_TODAY or the
+ * seeded demo user → 0.5 (noon — one fixed, neutral point for a static asOf).
+ * Real users → the fraction of the real local day.
+ */
+export function businessDayFraction(userId?: string): number {
+  if (process.env.DEMO_TODAY) return 0.5;
+  if (userId === DEMO_USER_ID) return 0.5;
+  const d = new Date();
+  return (
+    (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds() + d.getMilliseconds() / 1000) /
+    86400
+  );
+}

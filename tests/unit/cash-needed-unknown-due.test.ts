@@ -113,6 +113,7 @@ describe('cash-needed: a card with nothing knowable is reported, not silently dr
 
     // The datable card still answers exactly as before.
     expect(result.headline.byDate).toBe(isoDate('2026-08-05'));
+    expect(result.headline.firstDueDate).toBe(isoDate('2026-08-05'));
     expect(result.headline.requiredCents).toBe(cents(50000));
     expect(result.cards.map((c) => c.cardId)).toEqual(['card-amex']);
 

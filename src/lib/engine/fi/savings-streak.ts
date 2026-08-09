@@ -3,8 +3,10 @@
  *
  * Pure: walks an ascending MonthlyFlow[] backward from the latest full month
  * and counts consecutive months whose savingsRateBps meets minRateBps
- * (default 0 = "saved something"). Null rates (no income) and rates below
- * the floor break the streak. Also flags a personal-best latest month.
+ * (default 0 = strictly positive — "saved something"; a 0-bps month saved
+ * nothing and breaks, so the streak sentence never calls a 0.0% month
+ * positive — audit P2). Null rates (no income) and rates below the floor
+ * break the streak. Also flags a personal-best latest month.
  *
  * Never recomputes rates — only reads savingsRateBps already on each flow.
  * Integer bps only; no floats.
@@ -44,9 +46,12 @@ export function computeSavingsStreak(
   const latestRateBps = latest.savingsRateBps;
 
   let streakMonths = 0;
+  // The default floor is EXCLUSIVE of zero: a caller passing a positive minRateBps
+  // keeps inclusive `>=` semantics (the 15%-floor test), so only the default changes.
+  const qualifies = (rate: number | null): boolean =>
+    rate === null ? false : minRateBps === 0 ? rate > 0 : rate >= minRateBps;
   for (let i = flows.length - 1; i >= 0; i--) {
-    const rate = flows[i]!.savingsRateBps;
-    if (rate === null || rate < minRateBps) break;
+    if (!qualifies(flows[i]!.savingsRateBps)) break;
     streakMonths += 1;
   }
 
@@ -57,8 +62,13 @@ export function computeSavingsStreak(
   const priorBestRateBps = priorRates.length ? Math.max(...priorRates) : null;
   const allRates = flows.map((f) => f.savingsRateBps).filter((r): r is number => r !== null);
   const bestRateBps = allRates.length ? Math.max(...allRates) : null;
+  // The positivity gate is load-bearing: a negative latest rate that merely beats
+  // every other negative month is "least bad", not a personal best — and pct1
+  // would render it "-0.0%", a zero-looking claim about a number that isn't zero
+  // (audit P2: a zero is a claim and must name which zero).
   const isPersonalBest =
     latestRateBps !== null &&
+    latestRateBps > 0 &&
     (priorBestRateBps === null || latestRateBps > priorBestRateBps);
 
   return {

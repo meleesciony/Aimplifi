@@ -55,6 +55,19 @@ describe('baselineLabel / moverWindowLabel', () => {
     );
   });
 
+  it('a gapped baseline must not print as a contiguous range (audit P2)', () => {
+    // May had no spend, so the mover baseline skipped it: three months, not four.
+    expect(baselineLabel(['2026-06', '2026-04', '2026-03'])).toBe("3 months through Jun '26");
+    // Same count the balance-move sentence prints beside the mover list.
+    expect(moverWindowLabel('2026-07', ['2026-06', '2026-04', '2026-03'])).toBe(
+      "Jul '26 vs 3 months through Jun '26 average",
+    );
+  });
+
+  it('a contiguous baseline still reads oldest→newest', () => {
+    expect(baselineLabel(['2026-06', '2026-05', '2026-04'])).toBe("Apr '26–Jun '26");
+  });
+
   it('refuses a window when there is no compared month', () => {
     expect(moverWindowLabel(null, ['2026-06'])).toBeNull();
   });

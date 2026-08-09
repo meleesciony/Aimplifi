@@ -78,7 +78,8 @@ function input(over: Partial<CashNeededInput>): CashNeededInput {
 
 /** Mixed cycle: two real statements due (2,100.00 + 2,712.33), one $0-due real
  *  statement, one estimated (no statement, balance 900.00 — NEXT cycle, excluded).
- *  headline = 4,812.33; byDate = the later effective due date.
+ *  headline = 4,812.33; firstDueDate = 06-15 (the trace's "by DATE"), byDate =
+ *  the later effective due date (the projection horizon).
  */
 const MIXED = computeCashNeeded(
   input({
@@ -165,7 +166,8 @@ describe('2 — traceCashNeededDerivation: per-card due rows reconcile to headli
     expect(t.reconciled).toBe(true);
     expect(t.requiredCents).toBe(481233);
     expect(rowSum(t)).toBe(481233);
-    expect(t.byDate).toBe(MIXED.headline.byDate);
+    // The trace restates the headline's "by DATE" claim — the FIRST due (audit P2).
+    expect(t.byDate).toBe(MIXED.headline.firstDueDate);
   });
 
   it('cites exactly the due set: the $0-due card and the next-cycle estimated card are NOT rows', () => {

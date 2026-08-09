@@ -3,7 +3,7 @@
  * the /trends page must describe the same windows with the same words; a local
  * copy of either label is how they drift (CALC_AUDIT 2026-08-02 P1-2 / P1-5).
  */
-import { formatMonth } from '@/lib/dates';
+import { addMonthsToMonthKey, formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingPace } from '@/lib/engine/trends/trends';
 
@@ -19,15 +19,30 @@ export function shortMonth(ym: string): string {
  * engine's order); the label reads oldest→newest so a 3-month average becomes
  * "Apr–Jun", not "Jun–Apr".
  *
- * Note (C.17 / audit P2): a gapped set still prints as a contiguous range.
- * That is a separate finding; this helper matches the shipped /trends wording.
+ * A GAPPED set (audit P2 — the mover baseline skips months with no spend, so
+ * the set is not always contiguous) must not print as a range: "Mar–Jun"
+ * claims four months when only three were averaged, and the balance-move
+ * sentence beside it says "your 3-month average" — two labels for one window,
+ * disagreeing about its size 40px apart. The gapped form states the COUNT and
+ * the newest month, which is exactly the form the balance-move sentence uses.
  */
 export function baselineLabel(months: string[]): string {
   if (months.length === 0) return 'earlier months';
   if (months.length === 1) return shortMonth(months[0]!);
+  if (!isContiguousDescending(months)) {
+    return `${months.length} months through ${shortMonth(months[0]!)}`;
+  }
   const oldest = shortMonth(months[months.length - 1]!);
   const newest = shortMonth(months[0]!);
   return `${oldest}–${newest}`;
+}
+
+/** True when each month is exactly one month after the next (most-recent-first). */
+function isContiguousDescending(months: string[]): boolean {
+  for (let i = 0; i < months.length - 1; i += 1) {
+    if (addMonthsToMonthKey(months[i + 1]!, 1) !== months[i]) return false;
+  }
+  return true;
 }
 
 /** "in the first 2 days" — the divisor the pace projection hides when omitted. */

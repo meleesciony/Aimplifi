@@ -275,7 +275,10 @@ export default async function CalendarPage({
   const postedLine =
     posted.postedThrough === null || posted.rowCount === 0
       ? null
-      : `${posted.pendingCount > 0 ? 'Posted + pending' : 'Posted'}${partialPast ? ` through ${formatISODate(posted.postedThrough)}` : ''}: in ${formatCents(posted.totalInCents)} · out ${formatCents(posted.totalOutCents)}${posted.pendingCount > 0 ? ` · ${posted.pendingCount} pending` : ''}${posted.excludedCount > 0 ? ` · ${posted.excludedCount} excluded row${posted.excludedCount === 1 ? '' : 's'} left out` : ''}`;
+      // Audit P2: these totals span EVERY account (the reader's own at both scopes —
+      // the household note below states the viewer-basis) — the line must say so, or
+      // the figures read as one account's.
+      : `${posted.pendingCount > 0 ? 'Posted + pending' : 'Posted'} across all your accounts${partialPast ? ` through ${formatISODate(posted.postedThrough)}` : ''}: in ${formatCents(posted.totalInCents)} · out ${formatCents(posted.totalOutCents)}${posted.pendingCount > 0 ? ` · ${posted.pendingCount} pending` : ''}${posted.excludedCount > 0 ? ` · ${posted.excludedCount} excluded row${posted.excludedCount === 1 ? '' : 's'} left out` : ''}`;
   const dueCount = calendar.days.reduce(
     (n, d) => n + d.events.filter((e) => e.kind === 'card-due' || e.kind === 'loan-due').length,
     0,
@@ -291,7 +294,10 @@ export default async function CalendarPage({
   );
   const scheduledLine =
     partialPast || posted.postedThrough === null || dueCount > 0
-      ? `Expected: in ${formatCents(calendar.totalInCents)} · out ${formatCents(calendar.totalOutCents)} · ${dueCount} payment${dueCount === 1 ? '' : 's'} due across ${calendar.reminderDates.length} date${calendar.reminderDates.length === 1 ? '' : 's'}${alreadyDueCount > 0 ? ` · ${alreadyDueCount} already due` : ''}`
+      // Audit P2: the expected totals span every account in scope (viewer's at 'mine',
+      // viewer + partners at household) — the line must say so, or the figures read
+      // as one account's.
+      ? `Expected across all accounts: in ${formatCents(calendar.totalInCents)} · out ${formatCents(calendar.totalOutCents)} · ${dueCount} payment${dueCount === 1 ? '' : 's'} due across ${calendar.reminderDates.length} date${calendar.reminderDates.length === 1 ? '' : 's'}${alreadyDueCount > 0 ? ` · ${alreadyDueCount} already due` : ''}`
       : null;
   // Month nav must carry the active scope too (TASKS 4.2 slice 5) — otherwise
   // paging months while in household scope silently drops back to 'mine'.
@@ -608,7 +614,12 @@ export default async function CalendarPage({
                           to a later date and is named with that date, not implied to be today. */}
                       Projected balance:{' '}
                       {formatCents(result.headline.shortfallDateBalanceCents ?? cents(0))} —
-                      transfer {formatCents(result.headline.recommendation.amountCents)} by{' '}
+                      {/* audit P2: this dated instruction concerns ONE account — the funding
+                          account the projection walks from. The totals above span every
+                          account, so the transfer must name its own. Same expression the
+                          frozen disclosure uses for the same row (L.19). */}
+                      transfer {formatCents(result.headline.recommendation.amountCents)} into{' '}
+                      {input.paymentAccount.name} by{' '}
                       {formatISODate(isoDate(result.headline.recommendation.byDate))} to stay
                       covered.
                       {result.headline.worstDipDate &&

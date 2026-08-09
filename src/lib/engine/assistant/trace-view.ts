@@ -138,8 +138,10 @@ export function derivationView(trace: AnswerTrace | undefined): DerivationTrace 
     case 'cash_needed': {
       if (sum !== trace.requiredCents || trace.rows.length === 0) return null;
       if (!trace.rows.every((r) => typeof r.date === 'string')) return null;
-      const latest = trace.rows.reduce((m, r) => (r.date! > m ? r.date! : m), trace.rows[0].date!);
-      return latest === trace.byDate ? trace : null;
+      // The trace's by-date restates the headline's "by DATE" — the FIRST due
+      // (audit P2) — so it must be backed by the EARLIEST row, not the latest.
+      const earliest = trace.rows.reduce((m, r) => (r.date! < m ? r.date! : m), trace.rows[0].date!);
+      return earliest === trace.byDate ? trace : null;
     }
     case 'savings_rate': {
       if (!Number.isSafeInteger(trace.incomeCents) || !Number.isSafeInteger(trace.expensesCents)) return null;

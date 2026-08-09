@@ -6018,3 +6018,108 @@ shows the verb disabled with 'shared account'.
 
 No schema change (the prisma diff against origin/main is empty). Verify gate
 and CI conclusion recorded in STATUS.md.
+
+## #435 — C.17: the audit P2 sweep — the pace rate divides by fractional elapsed time, and every "$0.00 is a claim" figure names its zero (2026-08-09)
+
+**The audit's P2 list (CALC_AUDIT_2026-08-02) closed in two classes of
+decision: one about the pace projection's DIVISOR, one about every figure
+that reads as a measurement but is actually a claim.**
+
+**The pace headline divides by REAL elapsed time, not the calendar day.**
+`businessToday` gained its sanctioned time-of-day sibling
+`businessDayFraction` in the SAME module and with the SAME precedence
+(DEMO_TODAY or the seeded demo user → 0.5, noon — one fixed neutral point
+for a static asOf; real users → the real fraction of their local day). The
+pace projection divides by `daysElapsed − 1 + fraction` instead of counting
+the in-progress day as whole — the old divisor sat the headline flat all day
+and stepped at midnight. The integer `daysElapsed` stays the DISPLAY figure
+("in the first N days" names the N calendar days whose rows are counted); the
+fraction is the MATH figure. The divisor is floored at 1: the day-1
+known-answer lock already defines that figure, and the floor keeps the
+divisor from vanishing at 00:00:00. The engine parameter defaults to 1 —
+the pre-fix behavior exactly — so every existing known-answer test passed
+unchanged.
+
+**The "zero" disclosures — four surfaces, one rule: a zero that isn't a
+measurement must say which claim it is.** (1) The mover row's $0.00 is a
+NET-REFUND CLAMP (rows were filed; refunds netted them away), and it printed
+as a fact and sorted on it — the engine now carries `currentNetted` (a raw-net
+pass reusing the reports engine's OWN exported predicates and id rule — the
+glass-box rule; the collapsed row renders "net $0.00 after refunds vs $X
+usual", the same clamp the expander already explained, and the `aria-label`
+stays in lockstep). (2) The runway sentence printed "covers about −2.3
+months" — negative runway is cash BELOW zero, and it now reads "your cash on
+hand is below zero — about N months of typical spending short". (3) The
+savings streak counted a 1–4 bps month (positive!) as a streak month while
+rendering its rate as "0.0%" — the display lied, not the engine: the engine's
+default floor is now EXCLUSIVE of zero (a 0-bps month saved nothing and
+breaks the streak; positive mins keep inclusive `>=`), and 1–4 bps renders
+"under 0.1%" with exact zero staying "0.0%". (4) The personal-best "so far"
+was computed over the 12-month CHART slice — the server now computes it over
+FULL history (`fullFlows`) and passes it down; a revert to the slice would
+fail the 15-month fixture where the older months beat the recent window.
+
+**The scope statements — three surfaces that said "this" without saying
+"which set".** /calendar's posted line states "Posted + pending across all
+your accounts", the expected line "Expected across all accounts", and the
+transfer instruction names the DESTINATION via `input.paymentAccount.name` —
+the same expression the frozen disclosure uses — where the old copy could
+read as one account's instruction. /cards' minimum-interest sentence names
+the covered set and its exclusions (cards with no statement date, next-cycle
+cards) via an engine-carried `minimumPathInterestCardsCount` — the component
+never re-derives a count the engine already knows. The merchant lens's
+always-shown note states the GROSS-POSTED basis ("refunds not netted, nothing
+pending") and names the register summary below as the different set (it nets
+refunds and includes pending) — the three-figures-one-screen reconciliation
+the audit demanded.
+
+**The engine fixes.** `baselineLabel` prints a GAPPED set as "N months
+through Newest" — the balance-move sentence's own form — instead of a
+contiguous range that claims months with no spend were averaged.
+`averageDiscretionaryCategorySpend` divides by the months that ACTUALLY have
+data, not the full requested window — a new user's one month of history is
+not divided by 3 into cut proposals a third of the truth. The cash-needed
+headline's "by DATE" is now the FIRST due date (the earliest payment draws
+first); the derivation trace restates that same figure while its
+reconciliation check still spans the WHOLE cycle (last row = last due).
+/forecast's frozen note takes `accountLabel(payment)` — a reader's rename
+wins — where `payment.name` could name the account differently from the
+figure 40px above it.
+
+**toFIInputs is deleted, not fixed.** The scenario adapter paired the
+NOMINAL return dial with a PRESENT-VALUE FI target — the mixed-base trap its
+sibling adapter warns against — and had no production caller. The sanctioned
+path to `monthsToFI` is the real return derived by `buildRetirementInputs`
+(W.2 / #361), exactly as the /coach server does. The wealth-target module's
+NOTE was rewritten to claim the SHARED basis the two /coach cards now
+actually rest on — same real-return rate, different DESTINATION, rendered by
+`COACH_COPY.wealthTargetVsFiCard` — retiring the audit's P2 note that
+documented a divergence W.2 already closed.
+
+No schema change (the prisma diff against origin/main is empty). Verify gate
+and CI conclusion recorded in STATUS.md.
+
+**Hostile-critic follow-up (Opus 5, one P1 + four P2s — all closed).** The
+critic's P1 was the sharpest catch of the slice: the savings-rate CARD
+computes streak + personal-best over FULL history, but the /coach recap's
+`buildReviewCandidates` re-derived them over the 12-month chart slice — so a
+key-gated recap could print "personal best so far" that an older month
+already beat, and the two surfaces contradicted each other on the same claim
+(the exact divergence class this sweep exists to kill). The recap now takes
+the SAME `SavingsStreakResult` the card computes over `fullFlows` — one
+helper, one basis, divergence impossible by construction. That unification
+also superseded the recap's stricter private gate on a single measurable
+month: "X is a personal best so far" is literally true with one data point
+(the card already shipped that), so the recap now agrees instead of
+abstaining. F3: `computeSavingsStreak.isPersonalBest` gained a positivity
+gate — an all-negative history's least-bad month would otherwise render
+"-0.0%", the exact "a zero is a claim" rule the slice applies to the positive
+band. F4: the /trends comment now states the truth — the date and the day
+fraction are two reads of the same sanctioned clock, milliseconds apart, a
+midnight straddle bounded by the engine's floor. F5: the minimum-interest
+note drops its count clause for a paid-in-full cycle ("every card is paid in
+full") and counts only positive-required estimated cards in the next-cycle
+exclusion. F2: the today-feed's negative-runway branch was dead code — the
+nudge engine clamps non-positive runway to null, so the surface abstains
+(which the audit allows); the dead branch was removed and the record here
+corrected to say the negative-runway naming lives on the coach surfaces.

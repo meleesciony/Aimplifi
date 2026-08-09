@@ -176,7 +176,17 @@ export interface CashNeededResult {
   headline: {
     /** Total cash needed across all cards due this cycle. */
     requiredCents: Cents;
-    /** Last effective due date this cycle (null when nothing is due). */
+    /**
+     * First effective due date this cycle — the date the aggregate total is
+     * actually needed by: the earliest payment draws first, so "have $X by the
+     * LAST due date" would under-demand (audit P2). Null when nothing is due.
+     */
+    firstDueDate: ISODate | null;
+    /**
+     * Last effective due date this cycle — the projection horizon (the walk
+     * must see every obligation, and the day-by-day dip happens anywhere in
+     * the window). Null when nothing is due.
+     */
     byDate: ISODate | null;
     cardsDueCount: number;
     /** Worst projected dip below $0 across the whole window (0 if always covered). */
@@ -219,6 +229,13 @@ export interface CashNeededResult {
   /** Estimated next-cycle interest cost of the minimum path via the
    *  average-daily-balance method (MINIMUM scenario only; new purchases not projected). */
   minimumPathInterestCents: Cents | null;
+  /**
+   * How many cards the estimate actually counts — carried balance AND a datable
+   * cycle. Cards paid in full, cards with no statement date, and next-cycle cards
+   * are NOT in it (audit P2: a surface that prints the estimate must name the set,
+   * or the figure reads as covering cards it does not).
+   */
+  minimumPathInterestCardsCount: number;
   /**
    * YYYY-MM-DD the bank stopped sharing the FUNDING account this projection walks from, else null
    * (TASKS L.18, from L.14 critic F-1). Carried on the result because the shortfall, the by-date,

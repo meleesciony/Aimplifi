@@ -4,6 +4,12 @@
  *
  * Uses STORED categoryId (triage truth), same as lifestyle-creep. Only complete
  * months before `today`. Pure: caller supplies today + meta.
+ *
+ * History-aware denominator (audit P2): the window divides by the number of
+ * months that ACTUALLY have data, not the full requested window — a new user
+ * with one month of history must not have every figure divided by 3 (cut
+ * proposals three times smaller than the truth). Steady-state users with a full
+ * window are unchanged.
  */
 import { addMonthsClamped, isoDate, monthKey, type ISODate } from '@/lib/dates';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
@@ -26,18 +32,23 @@ export function averageDiscretionaryCategorySpend(
   }
 
   const totals = new Map<string, number>();
+  // Distinct months in the window with any eligible transaction — the true
+  // history span (audit P2). A user tracked for 2 months must not be divided
+  // by a 3-month window; a user with 4 months is unchanged.
+  const monthsWithData = new Set<string>();
   for (const t of transactions) {
     if (!countsInFlows(t, excludedFlowIds)) continue;
     if (t.amountCents >= 0) continue;
     const m = monthKey(t.date);
     if (!monthSet.has(m)) continue;
+    monthsWithData.add(m);
     const categoryId = t.categoryId;
     if (!categoryId || categoryId === 'uncategorized') continue;
     if (!meta.get(categoryId)?.discretionary) continue;
     totals.set(categoryId, (totals.get(categoryId) ?? 0) - t.amountCents);
   }
 
-  const denom = monthSet.size;
+  const denom = Math.max(1, monthsWithData.size);
   return [...totals.entries()]
     .map(([categoryId, sum]) => ({
       categoryId,

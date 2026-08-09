@@ -1413,7 +1413,8 @@ export function answerCashNeeded(
   return {
     kind: 'cash_needed',
     // "your cards" = all of them. Only true when every card could be dated.
-    headline: `You need ${fmt(s.requiredCents)}${s.byDate ? ` by ${humanDate(s.byDate)}` : ''} to pay ${undated.length > 0 ? 'the cards I can date' : 'your cards'} in full.`,
+    // audit P2: dated with the FIRST due — the earliest payment draws first.
+    headline: `You need ${fmt(s.requiredCents)}${s.firstDueDate ? ` by ${humanDate(s.firstDueDate)}` : ''} to pay ${undated.length > 0 ? 'the cards I can date' : 'your cards'} in full.`,
     // Slice 3: the builder's own figure for the derivation trace's drift gate.
     // Set only on this path — the zero-due answer above has no figure to trace.
     headlineCents: s.requiredCents,

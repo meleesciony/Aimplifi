@@ -45,11 +45,11 @@
  * Rounding = roundHalfAwayFromZero, once per materialized value. Pinned to the
  * hand-verified table in docs/EDGE_CASES.md §Scenario Coherence.
  */
-import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
+import { cents, roundHalfAwayFromZero } from '@/lib/money';
 import { type ISODate, addMonthsClamped, startOfMonth } from '@/lib/dates';
 import type { DebtInput, DebtPlanInput, DebtStrategy } from '@/lib/engine/debt/payoff';
 import type { RetirementBaseInputs } from '@/lib/engine/investments/retirement';
-import { fiNumberCents, savingsRateBps } from '@/lib/engine/fi/fi';
+import { savingsRateBps } from '@/lib/engine/fi/fi';
 
 /**
  * A scheduled recurring row in the canonical shape BOTH flow consumers accept:
@@ -410,29 +410,16 @@ export function applyScenario(base: ScenarioBase, knobs: ScenarioKnobs): Scenari
 
 // ── Adapters: one state, every engine's own input shape & conventions ──
 
-/** The input bundle the FI engine's functions take (coach call-shape, verbatim). */
-export interface FIScenarioInputs {
-  portfolioCents: Cents;
-  /** The investible figure, UN-floored — monthsToFI accepts negative savings. */
-  monthlySavingsCents: Cents;
-  /** NOMINAL expected return (the FI engine's convention). */
-  annualReturnBps: number;
-  fiTargetCents: Cents;
-}
-
-export function toFIInputs(s: ScenarioState): FIScenarioInputs {
-  return {
-    portfolioCents: cents(s.portfolioCents),
-    monthlySavingsCents: cents(s.monthlyInvestibleCents),
-    annualReturnBps: s.dials.expectedReturnBps,
-    fiTargetCents: fiNumberCents(cents(s.annualExpensesCents), s.dials.swrBps),
-  };
-}
-
 /**
  * Retirement base figures, UN-floored: `buildRetirementInputs` (the one shared
  * builder) applies the ≥0 floors and derives the real (after-inflation) return.
  * This adapter must never re-implement either convention.
+ *
+ * NOTE (C.17 / audit P2): there is deliberately NO `toFIInputs` adapter. The old
+ * one paired the NOMINAL return dial with a present-value FI target — the
+ * mixed-base trap its sibling used to warn against — and had no production
+ * caller. The sanctioned path to `monthsToFI` is the real return derived by
+ * `buildRetirementInputs` (W.2), exactly as the /coach server does.
  */
 export function toRetirementBase(s: ScenarioState): RetirementBaseInputs {
   return {

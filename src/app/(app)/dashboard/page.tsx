@@ -206,6 +206,7 @@ export default async function DashboardPage({
       <div className="grid gap-5 sm:grid-cols-2">
         <SavingsRateCard
           flows={coach.flows}
+          streak={coach.streak}
           currentRateBps={coach.currentRateBps}
           monthFlows={coach.monthFlows}
         />

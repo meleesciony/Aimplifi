@@ -98,9 +98,13 @@ test('an unpaid bill is inside the projection and named on both surfaces', async
 
   // $20.00 counted over the first 10 days used to project $60.00 for the whole
   // month, under a green "less than last month" beside a $6,200.00 mortgage that
-  // was about to land. The figure now contains it.
+  // was about to land. The figure now contains it — and (audit P2) the rate
+  // divides by REAL elapsed time: the e2e server pins DEMO_TODAY, so the
+  // elapsed-day fraction is 0.5 (noon) and the in-progress day is half over.
+  // 2000 + 620000 + roundHalfAwayFromZero(2000 × 20.5 / 9.5) = 2000 + 620000 +
+  // 4316 = $6,263.16 (the old whole-day divisor gave 2000 × 20 / 10 = $6,260.00).
   const pace = page.getByTestId('trends-pace');
-  await expect(pace).toContainText('$6,260.00'); // 2000 + 620000 + 2000 × 20 / 10
+  await expect(pace).toContainText('$6,263.16');
   // The coverage clause states the admission rule POSITIVELY (C.2 critic P0/P1):
   // an enumeration of exclusions beside a money figure claims to be complete,
   // and it was not — /calendar renders refused rows as bills still due one click
@@ -113,7 +117,7 @@ test('an unpaid bill is inside the projection and named on both surfaces', async
   await page.goto('/dashboard');
   const card = page.getByTestId('dashboard-spending-insights');
   await expect(card.getByTestId('dashboard-trends-pace-bills')).toContainText(MORTGAGE_MERCHANT);
-  await expect(card).toContainText('$6,260.00 projected');
+  await expect(card).toContainText('$6,263.16 projected');
   // The assumption sentence must describe the model the reader is looking at:
   // naming the bills it added, not just a daily rate that explains none of it.
   await expect(card.getByTestId('dashboard-trends-pace-assumption')).toContainText(

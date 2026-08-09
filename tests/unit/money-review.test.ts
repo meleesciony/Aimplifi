@@ -15,6 +15,7 @@ import { describe, it, expect } from 'vitest';
 import { cents } from '@/lib/money';
 import type { MonthlyFlow, CreepResult, Opportunity, OpportunityKind } from '@/lib/engine/fi/insights';
 import { generateMoneyReview } from '@/lib/engine/fi/coach-copy';
+import { computeSavingsStreak } from '@/lib/engine/fi/savings-streak';
 import {
   buildReviewCandidates,
   selectReview,
@@ -24,6 +25,12 @@ import {
 } from '@/lib/engine/fi/money-review';
 
 // ── fixtures ─────────────────────────────────────────────────────────────────
+// Audit P2 / critic F1: the recap's streak + personal-best come from the SAME
+// full-history helper the savings-rate card uses, passed in — never re-derived
+// from the chart slice. Fixtures derive it from their own flows (the full
+// history in these tests); the slice-vs-history divergence is pinned separately
+// (the full-history test below).
+const streakOf = (flows: MonthlyFlow[]) => computeSavingsStreak(flows);
 const flow = (month: string, incomeCents: number, expensesCents: number, savingsRateBps: number | null): MonthlyFlow => ({
   month,
   incomeCents: cents(incomeCents),
@@ -51,24 +58,31 @@ const oppOf = (kind: OpportunityKind, merchant: string, monthlyCents: number): O
 
 const NO_CREEP = creepOf(false);
 
+const rateUpFlows = [flow('2026-04', 800000, 600000, 2500), flow('2026-05', 800000, 500000, 3750)];
+const rateDownFlows = [flow('2026-04', 800000, 500000, 3750), flow('2026-05', 800000, 700000, 1250)];
+const quietFlows = [flow('2026-04', 800000, 600000, 2500), flow('2026-05', 800000, 600000, 2500)];
+
 // Representative inputs spanning the branch matrix of generateMoneyReview.
 const INPUTS: Record<string, ReviewCandidateInput> = {
   rateUpTransfer: {
     flows: [flow('2026-04', 800000, 600000, 2500), flow('2026-05', 800000, 500000, 3750)],
+    streak: streakOf(rateUpFlows),
     creep: NO_CREEP,
     opportunities: [oppOf('price-increase', 'Netflix', 300)],
     runwayMonths: 5,
     pendingTransfer: { amountCents: cents(42000), byDate: '2026-06-14', frozenFunding: null },
   },
   rateDownCreepUnused: {
-    flows: [flow('2026-04', 800000, 500000, 3750), flow('2026-05', 800000, 700000, 1250)],
+    flows: rateDownFlows,
+    streak: streakOf(rateDownFlows),
     creep: creepOf(true, 1800, 200),
     opportunities: [oppOf('unused-subscription', 'Peloton', 4400)],
     runwayMonths: 3,
     pendingTransfer: null,
   },
   quietClearAutomate: {
-    flows: [flow('2026-04', 800000, 600000, 2500), flow('2026-05', 800000, 600000, 2500)],
+    flows: quietFlows,
+    streak: streakOf(quietFlows),
     creep: NO_CREEP,
     opportunities: [],
     runwayMonths: 8,
@@ -210,8 +224,10 @@ describe('LLM order is closed-set-validated (A4)', () => {
 describe('richer pool exposes streak & personal-best for the LLM only (not the floor)', () => {
   it('builds streak and personal-best candidates when the data supports them', () => {
     // Three ascending months, each a new positive-rate high → streak 3 and a personal best.
+    const full = [flow('2026-03', 800000, 700000, 1250), flow('2026-04', 800000, 650000, 1875), flow('2026-05', 800000, 500000, 3750)];
     const input: ReviewCandidateInput = {
-      flows: [flow('2026-03', 800000, 700000, 1250), flow('2026-04', 800000, 650000, 1875), flow('2026-05', 800000, 500000, 3750)],
+      flows: full,
+      streak: streakOf(full),
       creep: NO_CREEP,
       opportunities: [],
       runwayMonths: 6,
@@ -232,8 +248,10 @@ describe('richer pool exposes streak & personal-best for the LLM only (not the f
   });
 
   it('does not fabricate a streak when the latest month is non-positive', () => {
+    const full = [flow('2026-04', 800000, 500000, 3750), flow('2026-05', 800000, 900000, -1250)];
     const input: ReviewCandidateInput = {
-      flows: [flow('2026-04', 800000, 500000, 3750), flow('2026-05', 800000, 900000, -1250)],
+      flows: full,
+      streak: streakOf(full),
       creep: NO_CREEP,
       opportunities: [],
       runwayMonths: 2,
@@ -244,17 +262,49 @@ describe('richer pool exposes streak & personal-best for the LLM only (not the f
     expect(ids).not.toContain('improvement-personal-best');
   });
 
-  it('does not award a personal-best when there is no PRIOR month with a real rate (P2-5)', () => {
-    // Only one measurable month (the prior is null) → "best so far" would be a fabricated
-    // achievement, so it must not appear.
+  it('a single measurable month is a personal best "so far" — the unified full-history helper', () => {
+    // The recap no longer keeps a stricter private gate: the streak comes from the
+    // SAME helper the savings-rate card uses (critic F1 — one basis, never a
+    // re-derived slice claim). The card ships "X is a personal best so far" for a
+    // first measurable month (prior best null); "so far" is the literal truth, so
+    // the recap now agrees instead of abstaining (old P2-5 gate, superseded by
+    // the F1 unification in DECISIONS #435).
+    const full = [flow('2026-04', 0, 500000, null), flow('2026-05', 800000, 500000, 3750)];
     const input: ReviewCandidateInput = {
-      flows: [flow('2026-04', 0, 500000, null), flow('2026-05', 800000, 500000, 3750)],
+      flows: full,
+      streak: streakOf(full),
       creep: NO_CREEP,
       opportunities: [],
       runwayMonths: 4,
       pendingTransfer: null,
     };
-    expect(buildReviewCandidates(input).map((c) => c.id)).not.toContain('improvement-personal-best');
+    expect(buildReviewCandidates(input).map((c) => c.id)).toContain('improvement-personal-best');
+  });
+
+  it('a full-history best older than the slice suppresses the personal-best candidate (critic F1)', () => {
+    // The 12-month chart slice shows a rate-up (3750 > 2500) — but the FULL
+    // history holds a better month (5000 in 2026-02), so "personal best so far"
+    // over the slice would be false. The passed-in full-history streak must
+    // suppress the candidate. The streak itself (2 trailing positives) is still
+    // honest and stays.
+    const slice = [
+      flow('2026-03', 800000, 550000, 2500),
+      flow('2026-04', 800000, 550000, 2500),
+      flow('2026-05', 800000, 500000, 3750),
+    ];
+    const fullHistory = [flow('2026-02', 800000, 400000, 5000), ...slice];
+    const input: ReviewCandidateInput = {
+      flows: slice,
+      streak: streakOf(fullHistory),
+      creep: NO_CREEP,
+      opportunities: [],
+      runwayMonths: 6,
+      pendingTransfer: null,
+    };
+    const ids = buildReviewCandidates(input).map((c) => c.id);
+    expect(ids).toContain('improvement-savings-rate'); // the slice's rate-up is real
+    expect(ids).not.toContain('improvement-personal-best'); // but the old month beats it
+    expect(ids).toContain('improvement-streak'); // trailing positives are a full-history fact
   });
 });
 
@@ -262,6 +312,7 @@ describe('degenerate inputs yield an honest minimal recap (A5)', () => {
   it('empty flows fall back to runway / clear / automate with no fabricated positive', () => {
     const input: ReviewCandidateInput = {
       flows: [],
+      streak: streakOf([]),
       creep: NO_CREEP,
       opportunities: [],
       runwayMonths: 0,

@@ -10,7 +10,7 @@ import { pooledSavingsRateBps } from '@/lib/engine/fi/fi';
 import type { MonthlyFlow } from '@/lib/engine/fi/insights';
 import type { MonthFlowBreakdown } from '@/lib/engine/glass-box/month-flow-breakdown';
 import { SavingsRateChart } from '@/components/coach/savings-rate-chart';
-import { computeSavingsStreak } from '@/lib/engine/fi/savings-streak';
+import type { SavingsStreakResult } from '@/lib/engine/fi/savings-streak';
 import {
   formatSavingsRateBps,
   showsAverageComparison,
@@ -24,10 +24,17 @@ import { cents } from '@/lib/money';
  */
 export function SavingsRateCard({
   flows,
+  streak,
   currentRateBps,
   monthFlows,
 }: {
   flows: MonthlyFlow[];
+  /**
+   * The streak/personal-best claim over ALL complete months, computed by the
+   * server — never re-derived here from the 12-month chart slice (audit P2:
+   * "personal best so far" over 12 months is false when an older month beats it).
+   */
+  streak: SavingsStreakResult;
   currentRateBps: number | null;
   /** Rows behind each bar, keyed `YYYY-MM:income` / `YYYY-MM:expense` — see `CoachData`. */
   monthFlows: Record<string, MonthFlowBreakdown>;
@@ -48,7 +55,6 @@ export function SavingsRateCard({
   // the unspent gap of that same month — Housel's "invisible wealth"
   const lastFlow = recent.length ? recent[recent.length - 1] : null;
   const savedGapCents = lastFlow ? lastFlow.incomeCents - lastFlow.expensesCents : 0;
-  const streak = computeSavingsStreak(recent);
 
   return (
     <Card data-testid="savings-rate-card">

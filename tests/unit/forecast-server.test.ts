@@ -6,8 +6,46 @@
  * against the seeded demo user so a regression that corrupts the loan amount/count/account —
  * which the e2e's text-presence check would miss — fails here (checker P2-C).
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getCashFlowForecast } from '@/server/forecast';
+
+/**
+ * Audit P2 — the frozen disclosure must name the account the way the headline
+ * does (`accountLabel`: the reader's rename wins over the stored name). The old
+ * wiring passed `payment.name`, so a renamed account showed two different names
+ * on one card. Armed only for the parity test below; the demo test above stays
+ * byte-identical.
+ */
+const frozenArmed = vi.hoisted(() => ({ armed: false }));
+vi.mock('@/lib/providers/demo', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@/lib/providers/demo')>();
+  return {
+    ...mod,
+    getProvider: () => {
+      const p = mod.getProvider();
+      return new Proxy(p, {
+        get(target, prop, recv) {
+          if (prop === 'getFinanceSnapshot') {
+            return async (userId: string) => {
+              const snap = await target.getFinanceSnapshot(userId);
+              if (!frozenArmed.armed) return snap;
+              const paymentId = snap.paymentAccountId;
+              return {
+                ...snap,
+                accounts: snap.accounts.map((a) =>
+                  a.id === paymentId
+                    ? { ...a, displayName: 'My Renamed Checking', feedDroppedAt: '2026-06-01' }
+                    : a,
+                ),
+              };
+            };
+          }
+          return Reflect.get(target, prop, recv);
+        },
+      });
+    },
+  };
+});
 
 describe('getCashFlowForecast — auto-loan folded into the demo projection (#134)', () => {
   it('surfaces the Auto Loan payment exactly 3× at −$385 over the 90-day horizon, on the checking projection', async () => {
@@ -32,5 +70,20 @@ describe('getCashFlowForecast — auto-loan folded into the demo projection (#13
     expect(
       forecast.upcoming.some((e) => e.label === 'Auto Loan' && e.amountCents === -38500),
     ).toBe(true);
+  });
+});
+
+describe('getCashFlowForecast — frozen note names the account the headline names (audit P2)', () => {
+  it('uses accountLabel (the reader’s rename), never the stored name', async () => {
+    frozenArmed.armed = true;
+    try {
+      const { accountName, frozenNote } = await getCashFlowForecast('user-demo');
+      expect(accountName).toBe('My Renamed Checking');
+      expect(frozenNote).not.toBeNull();
+      expect(frozenNote).toContain('My Renamed Checking');
+      expect(frozenNote).not.toContain('Everyday Checking');
+    } finally {
+      frozenArmed.armed = false;
+    }
   });
 });

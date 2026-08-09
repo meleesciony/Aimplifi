@@ -80,7 +80,7 @@ export function CashNeededCard({
     return owner ? `${c.cardName} (${owner}'s)` : c.cardName;
   };
 
-  if (headline.byDate === null) {
+  if (headline.firstDueDate === null) {
     // "Nothing is due" and "we cannot date anything" are different facts, and only
     // one of them is a claim about the user's money. A card whose issuer never sent
     // a statement (and that has no cycle days to estimate from) carries a real
@@ -239,7 +239,9 @@ export function CashNeededCard({
               : `in ${paymentAccountName}`}{' '}
             by{' '}
             <span className="font-medium text-foreground">
-              {formatISODate(isoDate(headline.byDate))}
+              {/* audit P2: the whole-cycle total is dated with the FIRST due —
+                  the earliest payment draws first; the last due under-demands late. */}
+              {formatISODate(isoDate(headline.firstDueDate!))}
             </span>{' '}
             {/* "all" is a claim about EVERY card. It is false the moment one card
                 has no due date we can place, so it only survives when there are

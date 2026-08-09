@@ -93,7 +93,11 @@ export async function getCashFlowForecast(
     frozenNote:
       payment?.feedDroppedAt != null
         ? frozenProjectionNote(
-            { label: payment.name, frozenSince: payment.feedDroppedAt },
+            // Audit P2: the SAME label the headline uses (`accountLabel` — a
+            // reader's rename/displayName wins over the stored name). The old
+            // `payment.name` could name the account differently from the
+            // figure 40px above it.
+            { label: accountLabel(payment), frozenSince: payment.feedDroppedAt },
             {
               shows: forecast.firstNegativeDate ? 'a-dip' : 'no-dip',
               nextStep: 'accounts-route',
