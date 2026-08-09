@@ -23,6 +23,7 @@ import {
 } from '@/lib/engine/investments/retirement';
 import { getCoachData } from '@/server/coach';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
+import { frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
 import { auditLog, requireUserId } from '@/server/authz';
 import { accountLabel } from '@/lib/engine/account/display-name';
 
@@ -115,6 +116,11 @@ export async function getInvestments(): Promise<InvestmentsView> {
 export interface RetirementOutlook {
   /** Whether there is anything to project (a portfolio balance or ongoing savings). */
   hasData: boolean;
+  /** Audit P2 — the frozen-qualifier sentence /coach prints for the portfolio
+   *  these projections start from; null when nothing is frozen. Threaded from
+   *  the server because the client card recomputes locally but must not
+   *  re-derive the (same-basis) account set. */
+  frozenPortfolioNote: string | null;
   projection: RetirementProjection;
   /** The exact inputs fed to the engine, so the UI can state every assumption inline. */
   inputs: {
@@ -178,8 +184,19 @@ export async function getRetirementOutlook(): Promise<RetirementOutlook> {
   const engineInputs = buildRetirementInputs(base, planning);
   const projection = projectRetirement(engineInputs);
 
+  // Audit P2 — the same qualifier /coach and /goals carry: these projections
+  // start from coach.fi.portfolioCents, so the frozen-account disclosure rides
+  // the same figureLabel /coach uses. Computed once here (not in the client
+  // card) so the note can never describe an account set the server's projection
+  // did not actually count.
+  const frozenPortfolioNote = frozenTotalNote(coach.frozenBalances.portfolio, {
+    figureLabel: 'the portfolio these projections start from',
+    nextStep: 'accounts-route',
+  });
+
   return {
     hasData: engineInputs.currentPortfolioCents > 0 || engineInputs.monthlyContributionCents > 0,
+    frozenPortfolioNote,
     projection,
     inputs: {
       currentAge: planning.currentAge,

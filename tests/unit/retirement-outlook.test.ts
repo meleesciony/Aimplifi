@@ -36,6 +36,9 @@ const mockCoach = (fi: Record<string, unknown>): void => {
       coastTargetYears: 25,
       ...fi,
     },
+    // Audit P2 — the frozen-account qualifier the outlook now threads through:
+    // empty by default (nothing frozen → no note), overridable per test.
+    frozenBalances: { portfolio: [], liquid: [] },
   } as unknown as CoachShape);
 };
 
@@ -137,6 +140,52 @@ describe('getRetirementOutlook — grounded mapping', () => {
     expect(outlook.inputs.retirementAge).toBe(RETIREMENT_ASSUMPTIONS.retirementAge);
     expect(outlook.inputs.endAge).toBe(RETIREMENT_ASSUMPTIONS.endAge);
     expect(outlook.inputs.inflationBps).toBe(RETIREMENT_ASSUMPTIONS.inflationBps);
+  });
+
+  it('threads the frozen-portfolio qualifier only when a portfolio account is frozen (audit P2)', async () => {
+    mockCoach({
+      portfolioCents: cents(14_200_000),
+      annualExpensesCents: cents(6_000_000),
+      monthlySavingsCents: cents(120_000),
+      expectedReturnBps: 700,
+      swrBps: 400,
+    });
+
+    // Nothing frozen → no note (the empty mockCoach default).
+    const quiet = await getRetirementOutlook();
+    expect(quiet.frozenPortfolioNote).toBeNull();
+
+    // One frozen INVESTMENT row → the note names it and the figure it qualifies.
+    mockCoach({
+      portfolioCents: cents(14_200_000),
+      annualExpensesCents: cents(6_000_000),
+      monthlySavingsCents: cents(120_000),
+      expectedReturnBps: 700,
+      swrBps: 400,
+    });
+    vi.mocked(getCoachData).mockResolvedValueOnce({
+      fi: {
+        fiNumberCents: cents(0),
+        monthlyIncomeCents: cents(0),
+        monthsToFI: null,
+        coastIsCoast: false,
+        coastRequiredMonthlyCents: null,
+        coastTargetYears: 25,
+        portfolioCents: cents(14_200_000),
+        annualExpensesCents: cents(6_000_000),
+        monthlySavingsCents: cents(120_000),
+        expectedReturnBps: 700,
+        swrBps: 400,
+      },
+      frozenBalances: {
+        portfolio: [{ label: 'My Brokerage', frozenSince: '2026-05-01' }],
+        liquid: [],
+      },
+    } as unknown as CoachShape);
+    const frozen = await getRetirementOutlook();
+    expect(frozen.frozenPortfolioNote).not.toBeNull();
+    expect(frozen.frozenPortfolioNote).toContain('My Brokerage');
+    expect(frozen.frozenPortfolioNote).toContain('the portfolio these projections start from');
   });
 });
 

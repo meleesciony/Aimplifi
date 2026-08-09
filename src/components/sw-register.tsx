@@ -2,9 +2,9 @@
 
 /**
  * Registers the service worker (public/sw.js) in production only — a dev SW
- * would fight Next's HMR. Renders nothing. The SW is conservative (network-first
- * navigations, cache-first hashed assets, offline fallback), so registering it
- * never serves stale or cross-user data online.
+ * would fight Next's HMR. Renders nothing. v3 is installability-only: it has NO
+ * fetch handler, so it never intercepts (or serves stale) requests — an offline
+ * visit fails like a normal website (see public/sw.js for the v1/v2 history).
  */
 import { useEffect } from 'react';
 

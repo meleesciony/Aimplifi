@@ -544,7 +544,7 @@ export function TransactionList({
                 : ' — it ends before it starts'}
           </>
         )}
-        . Totals exclude transfers between your own accounts
+        . Totals include pending charges and exclude transfers between your own accounts
         {/* Branches on the SUMMARY (set-scoped, critic P2-1), never the page
             slice: an excluded row on page 3 moves page 1's totals too. */}
         {summary.excludedCount > 0 ? ' and the rows marked “Excluded from totals”.' : '.'}

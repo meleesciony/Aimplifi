@@ -173,6 +173,7 @@ export default async function SettingsPage() {
           savingsTargetBps: user.savingsTargetBps,
         }}
         accounts={eligibleAccounts}
+        canWrite={!isDemoUser(userId)}
       />
       </div>
       <p className="px-1 text-xs text-muted-foreground" data-testid="assumptions-change">

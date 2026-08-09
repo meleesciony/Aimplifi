@@ -23,8 +23,9 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    // /sw.js (must serve as JS) and /offline (public fallback shell) are excluded
-    // so the service worker registers and the offline page renders without a session.
+    // /sw.js (must serve as JS) is excluded so the service worker registers
+    // without a session (v3 has no fetch handler — no offline shell exists;
+    // see public/sw.js).
     // /privacy is the public privacy policy — Plaid production access requires a
     // publicly reachable URL, so an unauthenticated reviewer must reach it without
     // a redirect to /sign-in. `privacy/?$` tolerates a trailing slash (/privacy and
@@ -34,6 +35,6 @@ export const config = {
     // /forgot-password and /reset-password (#257) are necessarily public — a
     // locked-out user has no session. Same `/?$` trailing-slash tolerance +
     // prefix-collision block as /privacy.
-    '/((?!api/auth|api/cron|api/repair|api/plaid/webhook|sign-in|forgot-password/?$|reset-password/?$|privacy/?$|offline$|sw\\.js$|_next/static|_next/image|favicon.ico|manifest|icon).*)',
+    '/((?!api/auth|api/cron|api/repair|api/plaid/webhook|sign-in|forgot-password/?$|reset-password/?$|privacy/?$|sw\\.js$|_next/static|_next/image|favicon.ico|manifest|icon).*)',
   ],
 };

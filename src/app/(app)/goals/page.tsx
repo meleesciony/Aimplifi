@@ -6,6 +6,7 @@ import { prisma } from '@/lib/db';
 import { goalFIImpact } from '@/lib/engine/goals';
 import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import { frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
 import { formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { getCoachData } from '@/server/coach';
@@ -46,6 +47,11 @@ export default async function GoalsPage() {
     loadDebtAccounts(userId),
   ]);
 
+  const frozenPortfolioNote = frozenTotalNote(coach.frozenBalances.portfolio, {
+    figureLabel: 'the portfolio these projections start from',
+    nextStep: 'accounts-route',
+  });
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Goals</h1>
@@ -56,6 +62,16 @@ export default async function GoalsPage() {
         agree. Goals and FI aren&apos;t enemies — they&apos;re both you, paying
         yourself first.
       </p>
+      {/* Audit P2: the FI-effect figures start from coach.fi.portfolioCents —
+          the SAME portfolio the FI card on /coach starts from, so the frozen
+          qualifier that card carries must ride along here, or this page claims
+          a basis /coach itself refuses to claim bare. Same figureLabel as
+          /coach, because it is the same figure. */}
+      {frozenPortfolioNote && (
+        <p className="text-xs text-muted-foreground" data-testid="goals-frozen-note">
+          {frozenPortfolioNote}
+        </p>
+      )}
       <p className="text-xs text-muted-foreground" data-testid="cushion-is-a-goal">
         {COACH_COPY.cushionIsAGoal()}
       </p>

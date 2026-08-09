@@ -5,6 +5,7 @@
  * must not abort the answer.
  */
 import { prisma } from '@/lib/db';
+import { isDemoUser } from '@/lib/demo-user';
 import { scrubQuestionText } from '@/lib/engine/assistant/scrub';
 
 export interface UnknownQuestionInput {
@@ -21,6 +22,13 @@ export interface UnknownQuestionInput {
  * Returns true when a row was inserted.
  */
 export async function recordUnknownQuestion(input: UnknownQuestionInput): Promise<boolean> {
+  // The demo is ONE shared row every anonymous visitor signs into: a question
+  // typed here — names, employers, clinics intact (`scrubQuestionText` masks
+  // digit runs, not names) — would be mined into vocabulary / shown in the
+  // self-audit percentages every LATER visitor sees. The fence lives in the
+  // ledger itself so no caller can miss it (the demo fence by construction,
+  // same shape as `classifyIntentViaLLM`'s own demo skip in assistant.ts).
+  if (isDemoUser(input.userId)) return false;
   try {
     const scrubbedText = scrubQuestionText(input.rawQuestion);
     if (!scrubbedText) return false;

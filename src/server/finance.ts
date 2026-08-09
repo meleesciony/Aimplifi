@@ -334,6 +334,12 @@ export function resolvePaymentAccount(snap: FinanceSnapshot) {
   const paymentAccount =
     snap.accounts.find((a) => a.id === snap.paymentAccountId && !superseded.has(a.id)) ??
     snap.accounts.find((a) => a.type === 'CHECKING' && !superseded.has(a.id)) ??
+    // Audit D1: SAVINGS is an explicitly eligible payment-account type — the
+    // dials picker offers it ("the checking or savings account your card
+    // payments are drawn from") — so the fallback tiers must name it too, or a
+    // savings-only user's cash-needed anchors on a brokerage while /forecast
+    // anchors on the savings account: two answers to one question.
+    snap.accounts.find((a) => a.type === 'SAVINGS' && !superseded.has(a.id)) ??
     snap.accounts.find((a) => !superseded.has(a.id)) ??
     snap.accounts[0];
   if (!paymentAccount) throw new Error('No accounts found — run `npx prisma db seed`.');

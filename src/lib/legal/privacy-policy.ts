@@ -44,8 +44,8 @@ export interface PrivacyPolicy {
 export const PRIVACY_POLICY: PrivacyPolicy = {
   title: 'Privacy Policy',
   intro:
-    'Aimplifi is a personal-finance app that helps you see exactly how much money you ' +
-    'need, and by when, to pay every card in full. This policy explains what the app ' +
+    'Aimplifi is a financial coach with a bank feed — it makes you deliberately wealthier ' +
+    'by showing where your money actually goes and keeping your long game on track. This policy explains what the app ' +
     'stores, what it never stores, who it shares data with, and how you can export or ' +
     'permanently delete everything. It is written to be GDPR/CCPA-minded. In demo mode ' +
     'the app runs entirely on a seeded, fictional dataset — no real financial data is ' +
@@ -132,7 +132,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
             'Permanently delete everything via Settings → “Delete my data”. The destructive action is gated behind a typed confirmation and shows exactly what will be removed.',
           ],
         },
-        'Deletion runs in three steps: (1) you confirm by typing the exact phrase; (2) any linked Plaid item has its access token revoked at Plaid; (3) your user record is deleted, which cascades to every related row — accounts, transactions, statements, payments, scheduled items, balance snapshots, rules, corrections, recurring series, goals, budgets, linked items, attached receipts and documents and the files themselves, and the audit log itself. Nothing about you is retained, and the action is irreversible.',
+        'Deletion runs in three steps: (1) you confirm by typing the exact phrase; (2) any linked Plaid item has its access token revoked at Plaid; (3) your user record is deleted, which cascades to every related row — accounts, transactions, statements, payments, scheduled items, balance snapshots, rules, corrections, recurring series, goals, budgets, linked items, attached receipts and documents and the files themselves, and the audit log itself. One PII-free artifact is kept: a one-way salted hash of your account id, so a later account created with the same email address is provably new (no old history can re-attach to it). No other trace of you is retained, and the action is irreversible.',
       ],
     },
     {

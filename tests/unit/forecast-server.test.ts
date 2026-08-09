@@ -8,6 +8,9 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { getCashFlowForecast } from '@/server/forecast';
+import { resolvePaymentAccount } from '@/server/finance';
+import { getProvider } from '@/lib/providers/demo';
+import { prisma } from '@/lib/db';
 
 /**
  * Audit P2 — the frozen disclosure must name the account the way the headline
@@ -84,6 +87,40 @@ describe('getCashFlowForecast — frozen note names the account the headline nam
       expect(frozenNote).not.toContain('Everyday Checking');
     } finally {
       frozenArmed.armed = false;
+    }
+  });
+});
+
+describe('forecast and cash-needed anchor the SAME account on a savings-only user (audit D1)', () => {
+  // The D1 drift: finance.ts's resolver fell back CHECKING → ANY while
+  // forecast.ts's inline chain fell back CHECKING → SAVINGS → ANY, so a user
+  // with savings + a brokerage (no checking, no designated account) got its
+  // cash-needed anchored on the brokerage and its forecast on the savings
+  // account — two answers to one question. The forecast now uses the shared
+  // resolver; this locks that a savings-only fallback actually lands.
+  it('resolvePaymentAccount picks the SAVINGS tier, and the forecast anchors on the same row', async () => {
+    const stamp = `${Date.now()}-${process.pid}`;
+    const USER = `forecast-d1-${stamp}`;
+    await prisma.user.create({ data: { id: USER, email: `${USER}@test.local` } });
+    const insert = await prisma.account.createMany({
+      data: [
+        { userId: USER, provider: 'demo', name: 'Rainy-Day Savings', type: 'SAVINGS', currentBalanceCents: 600000 },
+        { userId: USER, provider: 'demo', name: 'Vanguard Brokerage', type: 'INVESTMENT', currentBalanceCents: 900000 },
+      ],
+    });
+    expect(insert.count).toBe(2);
+    try {
+      const snap = await getProvider().getFinanceSnapshot(USER);
+      expect(snap.paymentAccountId).toBeNull(); // no designated account — the fallback is under test
+      expect(resolvePaymentAccount(snap).id).toBe(
+        snap.accounts.find((a) => a.type === 'SAVINGS')!.id,
+      );
+
+      const { accountName, forecast } = await getCashFlowForecast(USER);
+      expect(accountName).toBe('Rainy-Day Savings');
+      expect(forecast.startingBalanceCents).toBe(600000);
+    } finally {
+      await prisma.user.deleteMany({ where: { id: USER } }); // cascades the two accounts
     }
   });
 });

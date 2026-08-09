@@ -386,7 +386,12 @@ export function CashNeededCard({
             className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
             data-testid="see-forecast"
           >
-            90-day forecast →
+            {/* Audit P2: /forecast projects RECURRING income/bills only — it
+                excludes the card payments this card plans and one-off spending
+                (its own scope note says so). A bare "90-day forecast →" label
+                read as "the same numbers, longer window", so the link names
+                the basis. */}
+            90-day recurring forecast →
           </Link>
           <Link
             href="/cards"

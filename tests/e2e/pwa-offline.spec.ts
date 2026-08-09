@@ -11,17 +11,45 @@
  * shell — an offline visit now fails like any website). Every prior e2e run
  * dodged the bug because tests outran SW activation; this spec explicitly
  * WAITS for the SW to control the page before driving the action.
+ *
+ * The budget round-trip runs on a THROWAWAY user (the budget-targets.spec.ts
+ * pattern, TASKS G.1): budget writes are fenced off the shared demo row (the
+ * fence locks live in tests/unit/shared-demo-fences.test.ts), so the action
+ * under test is driven against a fresh user's own row — no other spec reads
+ * it, and the "leave the DB clean" clear is still asserted for the round-trip.
+ * The throwaway user needs one account so /budgets renders the target list
+ * instead of first-run onboarding.
  */
 import { expect, test, type Page } from './helpers/test';
+import Database from 'better-sqlite3';
+import { E2E_DB_URL } from '../setup/test-db';
 
-async function signIn(page: Page) {
+async function signUpAndSeed(page: Page) {
+  const email = `e2e-pwa-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
   await page.goto('/sign-in');
-  await page.getByTestId('demo-sign-in').click();
-  await page.waitForURL('**/dashboard');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20_000 });
+
+  const db = new Database(E2E_DB_URL.replace(/^file:/, ''), { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
+    if (!user) throw new Error(`signUpAndSeed: user ${email} not found`);
+    const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, name, type, currentBalanceCents, currency)
+       VALUES (?, ?, 'manual', ?, 'Checking', 'CHECKING', 250000, 'USD')`,
+    ).run(`e2e-pwa-acct-${suffix}`, user.id, `pw-${suffix}`);
+  } finally {
+    db.close();
+  }
+  return email;
 }
 
 test('server actions round-trip under a CONTROLLING service worker (the v1/v2 abort regression)', async ({ page }) => {
-  await signIn(page);
+  await signUpAndSeed(page);
 
   // The SW registers on window-load (production build); v3's clients.claim()
   // takes control without a reload. Wait for actual CONTROL, not just an
@@ -38,8 +66,9 @@ test('server actions round-trip under a CONTROLLING service worker (the v1/v2 ab
   );
 
   // Drive a real useActionState server action under the controlling SW:
-  // set a budget target, see it render, then clear it (leaves the shared demo
-  // DB target-free). Under the v1/v2 SW this sequence wedged at "Setting…".
+  // set a budget target, see it render, then clear it (on the throwaway
+  // user's own row — nothing else reads it). Under the v1/v2 SW this sequence
+  // wedged at "Setting…".
   await page.goto('/budgets');
   await page.getByTestId('budget-category').selectOption('groceries');
   await page.getByTestId('budget-amount').fill('123');

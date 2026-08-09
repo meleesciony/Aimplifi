@@ -9,6 +9,7 @@
  */
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
+import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { auditLog, requireUserId } from '@/server/authz';
 import {
   PAYMENT_ACCOUNT_TYPES,
@@ -20,6 +21,8 @@ import {
 
 export interface DialsResult {
   ok: boolean;
+  /** Top-level refusal (the demo fence) — never a field error. */
+  error?: string;
   /** Per-field messages when validation failed. */
   errors?: FieldErrors;
 }
@@ -31,6 +34,14 @@ export async function updateMoneyDials(
   formData: FormData,
 ): Promise<DialsResult> {
   const userId = await requireUserId();
+
+  // The demo is ONE shared row every anonymous visitor signs into: a visitor's
+  // wage/SWR/retirement plan/payment account would re-derive the coaching
+  // figures (cash-needed, FI, life energy, guilt-free spend) for every later
+  // visitor — the typed-figures leg of the shared-account rule, the same one
+  // `updatePlanFigures` applies on this very page. The settings UI gates the
+  // form off for demo; this is the server-side defense in depth.
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
 
   // Eligible payment sources: the user's own checking/savings accounts. Built
   // from a row-ownership-scoped query so validateDials' membership check is also

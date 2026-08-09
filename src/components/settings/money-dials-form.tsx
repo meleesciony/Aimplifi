@@ -39,6 +39,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 export function MoneyDialsForm({
   current,
   accounts,
+  canWrite = true,
 }: {
   current: {
     hourlyWageCents: number | null;
@@ -53,6 +54,10 @@ export function MoneyDialsForm({
     savingsTargetBps: number | null;
   };
   accounts: { id: string; name: string }[];
+  /** False on the shared demo: a visitor's dials must never re-derive the
+   *  coaching figures the NEXT visitor sees (same shape as FixedCostsCard's
+   *  canWrite). The values stay readable via the coach cards that print them. */
+  canWrite?: boolean;
 }) {
   // #166: direct invocation + own busy flag + deadline — NOT useActionState
   // (whose result/pending application was a coin-flip in probes: the
@@ -89,6 +94,13 @@ export function MoneyDialsForm({
         <CardTitle className="text-base">Money dials</CardTitle>
       </CardHeader>
       <CardContent>
+        {!canWrite && (
+          <p className="text-sm text-muted-foreground" data-testid="dials-demo-note">
+            The demo is a shared account, so your planning dials can&rsquo;t be changed here —
+            create your own free account and they&rsquo;ll be waiting for you.
+          </p>
+        )}
+        {canWrite ? (
         <form onSubmit={onSubmit} className="space-y-4" data-testid="money-dials-form">
           {/* payment account — the input the whole cash-needed answer is built on */}
           {accounts.length === 0 ? (
@@ -355,6 +367,7 @@ export function MoneyDialsForm({
             </span>
           </div>
         </form>
+        ) : null}
       </CardContent>
     </Card>
   );

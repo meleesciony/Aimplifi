@@ -291,22 +291,24 @@ export default async function CoachPage() {
           <CardHeader className="pb-2">
             <CardDescription>Lifestyle creep</CardDescription>
             <CardTitle className="text-base">
-              {/* The verdict is a claim about a set of transactions, so the title IS
-                  the way into that set: flagged → the spending it indicts; clear →
-                  the income it tracks. Same register links every other surface uses. */}
-              <Link
-                href={data.creep.flagged ? '/transactions?type=expense' : '/transactions?type=income'}
-                data-testid="coach-creep-link"
-                className="underline-offset-2 hover:underline"
-              >
-                {data.creep.flagged ? 'Spending is outpacing income' : 'Tracking income'}
-              </Link>
+              {/* Audit P2: the verdict is a CLAIM about a set of transactions, so it
+                  must not be the thing you click — a link on a claim reads as the
+                  claim being clickable proof. The title states the verdict; the link
+                  below claims only the register filter that opens the set. */}
+              {data.creep.flagged ? 'Spending is outpacing income' : 'Tracking income'}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <p className="text-sm" data-testid="creep-verdict">
               {data.creep.flagged ? COACH_COPY.creepFlagged(data.creep) : COACH_COPY.creepClear(data.creep)}
             </p>
+            <Link
+              href={data.creep.flagged ? '/transactions?type=expense' : '/transactions?type=income'}
+              data-testid="coach-creep-link"
+              className="text-xs underline underline-offset-2 hover:text-foreground"
+            >
+              See the {data.creep.flagged ? 'expenses' : 'income'} in your activity
+            </Link>
             <div className="flex h-14 items-end gap-1" role="img" aria-label="Monthly discretionary spend">
               {data.creep.monthlyDiscretionaryCents.map((m) => {
                 const max = Math.max(...data.creep.monthlyDiscretionaryCents.map((x) => x.amountCents), 1);

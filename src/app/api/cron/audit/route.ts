@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { checkCronBearer } from '@/lib/cron-auth';
+import { DEMO_USER_ID } from '@/lib/demo-user';
 import { getProvider } from '@/lib/providers/demo';
 import { recordSelfAuditSnapshot, weekStartMonday } from '@/server/self-audit';
 
@@ -22,6 +23,14 @@ export async function GET(request: NextRequest) {
   const provider = getProvider();
 
   for (const user of users) {
+    // The demo is ONE shared row every anonymous visitor signs into: its
+    // unknown-question counts mix every visitor's questions, so a snapshot of
+    // them would be a cross-visitor aggregate shown to each later visitor (the
+    // same shared-account rule that fences the ledger itself). Skip it here.
+    if (user.id === DEMO_USER_ID) {
+      results.push({ userId: user.id, written: false, reason: 'shared-demo-skipped' });
+      continue;
+    }
     try {
       const accountCount = await prisma.account.count({
         where: { userId: user.id, OR: [{ currency: null }, { currency: 'USD' }] },

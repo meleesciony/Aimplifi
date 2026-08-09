@@ -471,7 +471,7 @@ export default async function SpendingPlanPage() {
         className="rounded-2xl border bg-card p-5 shadow-sm"
         data-testid="spending-plan-how-to-use"
       >
-        <h2 className="mb-2 text-sm font-semibold">Using Aim·plifi</h2>
+        <h2 className="mb-2 text-sm font-semibold">Using Aimplifi</h2>
         <ol className="list-decimal space-y-1.5 pl-4 text-xs text-muted-foreground">
           <li>
             <Link href="/triage" className="underline underline-offset-2 hover:text-foreground">

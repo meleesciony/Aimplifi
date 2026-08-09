@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: "Aimplifi", template: "%s · Aimplifi" },
   description:
-    "Know exactly how much money you need, and by when, to pay every card in full.",
+    "Aimplifi makes you deliberately wealthier — a financial coach with a bank feed: it shows where your money actually goes, protects the spending you love, and keeps your long game on track.",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg", apple: "/icon-192.png" },
 };

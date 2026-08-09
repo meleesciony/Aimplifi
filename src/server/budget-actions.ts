@@ -8,6 +8,7 @@
  */
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
+import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { isBudgetable, parseBudgetTargetCents } from '@/lib/engine/budgets/status';
 import { auditLog, requireUserId } from '@/server/authz';
 import { assertOwnedCategory } from '@/server/category-meta';
@@ -31,6 +32,12 @@ export async function setBudget(
   formData: FormData,
 ): Promise<BudgetFormResult> {
   const userId = await requireUserId();
+  // The demo is ONE shared row every anonymous visitor signs into: a target set
+  // here would move the /budgets view for every later visitor — the typed-
+  // figures leg of the shared-account rule. The /budgets UI hides the form for
+  // demo (`canEdit`); this is the server-side defense in depth, mirroring every
+  // other visitor-personalization write (plan overrides, reserves, dials).
+  if (isDemoUser(userId)) return { ok: false, amountError: DEMO_ENTRY_BLOCKED };
   const categoryId = String(formData.get('categoryId') ?? '').trim();
   // Validate against the SAME set the UI offers (real + budgetable), so the
   // accepted set equals the offered set — a hand-crafted POST can't target
@@ -62,6 +69,10 @@ export async function setBudget(
 
 export async function clearBudget(categoryId: string): Promise<void> {
   const userId = await requireUserId();
+  // Same shared-account fence as setBudget: a crafted clear must not reach the
+  // demo row (a throw — the UI gate makes this unreachable, so the refusal is
+  // for a tampered POST, the file's own style for impossible inputs).
+  if (isDemoUser(userId)) throw new Error(DEMO_ENTRY_BLOCKED);
   await prisma.budget.deleteMany({ where: { userId, categoryId } });
   await auditLog(userId, 'budget.clear', { categoryId });
   revalidatePath('/budgets');

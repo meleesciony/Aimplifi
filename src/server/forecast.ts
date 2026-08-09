@@ -18,6 +18,7 @@ import { frozenProjectionNote } from '@/lib/engine/account/feed-dropped-view';
 import { holidayTable } from '@/lib/dates';
 import { getProvider } from '@/lib/providers/demo';
 import { accountLabel } from '@/lib/engine/account/display-name';
+import { resolvePaymentAccount } from '@/server/finance';
 
 export interface CashFlowForecastData {
   /** Set when the account this projection starts from is one the bank stopped sharing (L.18).
@@ -36,16 +37,14 @@ export async function getCashFlowForecast(
   const today = provider.today(userId);
   const snap = await provider.getFinanceSnapshot(userId);
 
-  // Anchor on the designated payment account; fall back to a checking/savings.
-  // Reconciliation (Wave 4.6 slice 3, critic F1): never anchor on a superseded
-  // predecessor — its balance reads 0 and would fabricate a negative projection.
+  // Anchor on the designated payment account via the SAME one definition the
+  // cash-needed path uses (cycle-1 H1 / audit D1: the drift copy here once
+  // disagreed about the SAVINGS fallback tier — a savings-only user's forecast
+  // and cash-needed could anchor on different accounts). The helper skips
+  // superseded predecessors too (their balance reads 0, which would fabricate
+  // a negative projection).
   const superseded = new Set(snap.supersededAccountIds ?? []);
-  const payment =
-    snap.accounts.find((a) => a.id === snap.paymentAccountId && !superseded.has(a.id)) ??
-    snap.accounts.find((a) => a.type === 'CHECKING' && !superseded.has(a.id)) ??
-    snap.accounts.find((a) => a.type === 'SAVINGS' && !superseded.has(a.id)) ??
-    snap.accounts.find((a) => !superseded.has(a.id)) ??
-    snap.accounts[0];
+  const payment = resolvePaymentAccount(snap);
 
   const flows: ScheduledFlow[] = snap.scheduled
     .filter((s) => s.accountId === payment?.id)

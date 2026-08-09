@@ -107,6 +107,11 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {outlook.frozenPortfolioNote && (
+          <p className="text-xs text-muted-foreground" data-testid="retirement-frozen-note">
+            {outlook.frozenPortfolioNote}
+          </p>
+        )}
         <p className="text-sm" data-testid="retirement-outcome">
           Projected balance at age {plan.retirementAge}:{' '}
           <span className="font-medium tabular-nums" data-testid="retirement-balance-at-retirement">
