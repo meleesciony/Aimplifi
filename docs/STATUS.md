@@ -16,7 +16,7 @@ Living document; updated at each phase boundary and critic cycle.
 
 **CI (run 31322110690 on ed65c95):** attempt 1 FAILED — `merchant-lens.spec.ts:22` (the `waitForURL('**/transactions?merchant=*')` 60s navigation stall on [mobile-380], the C.14/C.15/C.16-documented family; this push's own e2e specs — calendar-posted, phase1-cash-needed, trends-pace-bills — passed). Isolation proof on this exact commit: **1/1 PASS (2.1s)**. **`gh run rerun --failed` → attempt 2 SUCCESS. ed65c95 gate: GREEN.**
 
-<CI-DOCS-PUSH-PENDING>
+The docs-record push (b68b1ee, STATUS.md + TASKS.md + the check-script toggle fix — zero src/test code) ran the stall lottery the same way: CI run 31323189132 failed attempt 1 (`category-rename.spec.ts:110`, 1/1 PASS in isolation on this tree, 1.9s), attempt 2 (`transactions.spec.ts:637`, the C.14/C.16 CSV double-paste wedge; its local isolation run failed TWICE on the accumulated temp e2e DB — the C.15 file-degradation class; the DB was deleted per the C.15 remedy and the spec passed 2.8s on the fresh DB), attempt 3 (`category-rename.spec.ts:110` again), attempt 4 SUCCESS — **b68b1ee gate: GREEN**. Live: `scripts/c17-live-deploy-check.mjs` **6/6 against production** on the ed65c95 deploy — the calendar posted line states its scope, the minimum-interest sentence names the covered cards (the check clicks the Minimum-payments toggle the sentence lives under), the merchant lens states the gross-posted basis and names the register summary as the different set, zero page errors.
 
 ## ✅ BUILT 2026-08-08 — C.16: Fixed/Discretionary moves into the action menu — the register dial is gone, and a row can say whether its class is ours or the reader's (DECISIONS #434)
 
