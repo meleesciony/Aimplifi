@@ -3326,3 +3326,46 @@ local WebKit, caught mid-4-worker-run) is owned by
 `docs/lessons/ci-e2e-timing-flake.md` + the C.15/C.16 records. This tree is byte-identical
 to `2138a04` plus this markdown file. The docs commit carrying this line re-triggers the
 gate.
+
+**Fourth gate read (rule 5).** CI run **31334105296 on `3b75a05` (docs-only: this record) =
+SUCCESS — gate GREEN**, read via `scripts/ci-status.sh` (exit 0). The C.18 docs chain closes:
+head of main is green behind the C.18 code and every record commit it carried.
+
+## C.19 record — 2026-08-09: residual (2) MEASURED — budget-target replacement is latent on the live corpus
+
+**The residual (TASKS C.19, re-scoped #411):** `resolveFixedCategoryAmounts` lets a
+whole-category BUDGET TARGET replace the fixed-classified typical
+(`fixed-category-amounts.ts:367` `const amountCents = budgetCents ?? typicalCents;`), so a
+mixed category the reader priced enters Fixed at its ENTIRE allowance including its
+discretionary share. The row prescribed C.0-style measurement before assuming direction.
+
+**The measurement (this session):** wrote `scripts/audit-probes/c19-fixed-budget-replacement.mts`
+— read-only, in the established probe pattern (`.env.prod.tmp` → pg → SELECTs only), replaying
+the shipped `getSpendingPlan` inputs exactly: spend-account transactions (currency null|USD,
+reconciliation boundary keep), `mergeCategoryMeta` from custom Category + CategoryRename rows,
+`fixedMerchants` from RecurringSeries outflow canonicals + RecurringOverride BILL/NOT_BILL
+verdicts (later wins, overrideKey'd), and `excludeMerchantCanonicals` as the broad structural
+loan set ∪ converted-reserve canonicals (the broad-vs-unioned approximation is moot unless a
+budget-bearing category holds excluded rows — the probe checks that). Both the SHIPPED rollup
+(budgets applied) and the COUNTERFACTUAL (budget map empty) were computed per real user.
+
+**Result (real output, run 2026-08-09):**
+
+```
+===== user cmqisanqh000004l7wylnhrpd =====
+budget targets: 0 — the C.19(2) replacement cannot fire on this corpus; nothing to measure.
+done — users with budget targets: 0, total delta across corpus: $0.00, mixed budget-targeted
+categories: 0. read-only, nothing written.
+```
+
+plus a direct confirmation query: **total Budget rows across ALL users: 0** (real user 0,
+demo user 0, no seed Budget rows in prisma).
+
+**Verdict:** the P1 cannot fire anywhere — `budgetByCategory` is always empty, so `budgetCents`
+is always null and the replacement is dead code on this corpus; measured delta **$0.00**. No
+direction to assume, **no fix warranted** — per the row's own prescription, the measurement
+precedes any change, and zero reach means no change is evidenced. The mechanism stays
+documented as latent (the only writer, `setBudget`, is demo-fenced; it arms only if the owner
+sets a budget target on a mixed category). The probe is the re-measurement instrument for that
+future state. Residual (1) of the row (the reserve third source) was already closed by C.23's
+reserve half (#412). **TASKS C.19 row: DONE 2026-08-09.**
