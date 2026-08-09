@@ -3296,3 +3296,16 @@ commit carrying this record re-triggers the gate on the new sha; a fresh lottery
 Live deploy proven (rule 5): `/sign-in` renders "deliberately wealthier"; `/privacy`
 renders "one-way salted hash"; `/offline` answers 307 (middleware) instead of serving the
 deleted shell; `/sign-in` 200.
+
+**Second gate read (rule 5).** CI run **31332778256 on `be965ad` (docs-only: this
+record) = failure — THREE tests: `budget-targets:61`, `register-return:119`,
+`transactions:910`**, all in the documented 4-worker timing-flake class
+(`docs/lessons/ci-e2e-timing-flake.md` — budget-targets is its named repeat offender;
+the 2026-08-07 record closes docs-only flakes of it with a rerun-green proof). This
+tree's code is byte-identical to `2138a04` plus this markdown file, and the local full
+gate on that code ran **319/319 green**. Isolation/rerun proofs on this tree:
+`budget-targets:61` failed once under a 3-file/4-worker local run, passed solo (2.6s),
+passed again in the trio rerun 32/32; `register-return:119` + `transactions:910`
+passed every local run including the trio. No test in either CI failure set is touched
+by the C.18 diff; no new record needed for further hits of these members — the lesson
+file owns the class.
