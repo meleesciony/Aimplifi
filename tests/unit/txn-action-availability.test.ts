@@ -1,6 +1,6 @@
 /**
  * O.15 slice 2 — the one action menu's availability basis. The contract under
- * guard: ALL NINE actions are always returned (disabled-with-reason, never
+ * guard: ALL ELEVEN actions are always returned (disabled-with-reason, never
  * hidden), the reasons are the same sentences the server actions refuse with,
  * and the reimbursement slot's label follows the row's state.
  */
@@ -13,6 +13,7 @@ import {
   EXCLUDE_BLOCKED_TRANSFER,
   REIMBURSE_BLOCKED_INFLOW,
   REIMBURSE_BLOCKED_TRANSFER,
+  SPEND_CLASS_BLOCKED_OUT_OF_SCOPE,
   SPLIT_BLOCKED_CHILD,
   SPLIT_BLOCKED_REIMBURSED,
   SPLIT_PARENT_HAS_UNDO,
@@ -20,9 +21,11 @@ import {
   type ActionRowFacts,
   txnActionAvailability,
 } from '@/lib/engine/transactions/actions';
+import { DEMO_ENTRY_BLOCKED } from '@/lib/demo-user';
 
 const ALL_KINDS = [
   'category',
+  'spendClass',
   'rule',
   'renamePayee',
   'note',
@@ -48,6 +51,8 @@ const facts = (over: Partial<ActionRowFacts> = {}): ActionRowFacts => ({
   reimbursement: null,
   status: 'POSTED',
   descriptorOrigin: 'entered',
+  spendClass: 'guilt-free',
+  canEditSpendClass: true,
   ...over,
 });
 
@@ -55,13 +60,15 @@ const byKind = (t: ActionRowFacts) =>
   new Map(txnActionAvailability(t).map((a) => [a.kind, a]));
 
 describe('txnActionAvailability — every action, always', () => {
-  it('returns all ten actions in menu order, for every row shape', () => {
+  it('returns all eleven actions in menu order, for every row shape', () => {
     for (const t of [
       facts(),
       facts({ isTransfer: true }),
       facts({ isSplitParent: true }),
       facts({ splitParentId: 'p1' }),
       facts({ amountCents: 50000 }),
+      facts({ spendClass: 'out-of-scope' }),
+      facts({ canEditSpendClass: false }),
     ]) {
       expect(txnActionAvailability(t).map((a) => a.kind)).toEqual([...ALL_KINDS]);
     }
@@ -208,5 +215,60 @@ describe('markRecurring (O.13f) — refused exactly where an instruction would m
     for (const t of [facts(), facts({ excludeFromTotals: true }), facts({ reimbursement: 'awaiting' })]) {
       expect(recurring(t).label).toBe('Recurring…');
     }
+  });
+});
+
+describe('the spend-class verb (C.16) — the write lives in the menu now', () => {
+  const sc = (t: ActionRowFacts) => txnActionAvailability(t).find((a) => a.kind === 'spendClass')!;
+
+  it('is offered on an ordinary in-scope row', () => {
+    expect(sc(facts())).toMatchObject({ enabled: true, reason: null });
+  });
+
+  it('carries no state in its label — the badge and the pick step show what is in force', () => {
+    for (const t of [facts(), facts({ spendClass: 'fixed' }), facts({ spendClass: 'guilt-free' })]) {
+      expect(sc(t).label).toBe('Change spending class…');
+    }
+  });
+
+  it('is refused on an out-of-scope row with the SAME sentence the server actions refuse with', () => {
+    // `SPEND_CLASS_BLOCKED_OUT_OF_SCOPE` is imported verbatim by
+    // setTransactionSpendClass (transaction-flags-actions.ts) — this equality
+    // is the invariant's testable form: a disabled menu row and a refused
+    // write can never say different things.
+    expect(sc(facts({ spendClass: 'out-of-scope' }))).toMatchObject({
+      enabled: false,
+      reason: SPEND_CLASS_BLOCKED_OUT_OF_SCOPE,
+    });
+  });
+
+  it('is refused on the shared demo with the demo sentence — first, matching the wire', () => {
+    // The server fences the demo BEFORE it looks at the row, so even an
+    // out-of-scope demo row refuses with the demo sentence, never the row's.
+    expect(sc(facts({ canEditSpendClass: false }))).toMatchObject({
+      enabled: false,
+      reason: DEMO_ENTRY_BLOCKED,
+    });
+    expect(sc(facts({ canEditSpendClass: false, spendClass: 'out-of-scope' }))).toMatchObject({
+      enabled: false,
+      reason: DEMO_ENTRY_BLOCKED,
+    });
+  });
+
+  it('is refused on a split container the moment the caller reports its derived class', () => {
+    // The engine classifies a split parent out-of-scope (spend-class.ts), so
+    // the availability rule needs only the derived class — the caller's
+    // coupling is locked here and end-to-end by the detail-page e2e.
+    expect(sc(facts({ isSplitParent: true, spendClass: 'out-of-scope' }))).toMatchObject({
+      enabled: false,
+      reason: SPEND_CLASS_BLOCKED_OUT_OF_SCOPE,
+    });
+  });
+
+  it('the undo direction is never locked: a reader-set row still offers the verb, enabled', () => {
+    // The F8 marker is display-only — availability does not read it, so a row
+    // the reader already decided can always be changed (the
+    // never-lock-the-undo rule, critic P1-3).
+    expect(sc(facts({ spendClass: 'fixed' }))).toMatchObject({ enabled: true, reason: null });
   });
 });

@@ -14,6 +14,7 @@
  */
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import type { RowOrigin } from '@/lib/engine/transactions/origin';
+import { DEMO_ENTRY_BLOCKED } from '@/lib/demo-user';
 
 /** The stored facts availability is decided on. All required — a forgotten
  *  field would silently ENABLE an action (the failure direction that moves
@@ -30,10 +31,25 @@ export interface ActionRowFacts {
   status: string;
   /** Who owns the row (`rowOrigin`). Decides whether `status` is the reader's to write. */
   descriptorOrigin: RowOrigin;
+  /**
+   * C.16 — this row's derived Fixed / Discretionary class ('out-of-scope' when
+   * the row has no side — transfer, money in, uncategorized, a split container).
+   * The availability rule for the spend-class verb reads ONLY this; the reader's
+   * own override (vs the app's guess) is a display fact, not an availability one.
+   */
+  spendClass: 'fixed' | 'guilt-free' | 'out-of-scope';
+  /**
+   * Whether the reader may WRITE the class on this row (false on the shared
+   * demo — one visitor's verdict would be visible to the next). A session
+   * capability fact, same shape as `descriptorOrigin`: the wire refuses with
+   * `DEMO_ENTRY_BLOCKED`, so the menu shows that exact sentence disabled.
+   */
+  canEditSpendClass: boolean;
 }
 
 export type TxnActionKind =
   | 'category'
+  | 'spendClass'
   | 'rule'
   | 'renamePayee'
   | 'note'
@@ -205,12 +221,18 @@ export const STATUS_PENDING_TAX_CAUTION =
 
 export const CATEGORY_BLOCKED_SPLIT_PARENT =
   'The pieces of this split carry the categories — file those instead.';
+// C.16 — the spend-class verb's one refusal, shown disabled in the menu and
+// returned verbatim by `setTransactionSpendClass`/`setMerchantSpendClass`
+// (source: the old select's refusal in transaction-flags-actions.ts, unified so
+// a disabled menu row and a refused write can never say different things).
+export const SPEND_CLASS_BLOCKED_OUT_OF_SCOPE =
+  'This transaction is not part of Fixed vs Discretionary spending — nothing was saved.';
 // Existing copy, reused verbatim (source: transaction-detail-view.tsx tax-on-parent).
 export const TAX_BLOCKED_SPLIT_PARENT =
   'A tax tag belongs on the pieces, not on this container — the tax report leaves a split container out entirely, so a tag here would never reach it.';
 
 /**
- * All ten actions, always, in menu order. The caller renders exactly this
+ * All eleven actions, always, in menu order. The caller renders exactly this
  * list — adding an action means adding it here, where its availability rule
  * and its tests live.
  */
@@ -220,6 +242,25 @@ export function txnActionAvailability(t: ActionRowFacts): TxnActionAvailability[
   const category: TxnActionAvailability = t.isSplitParent
     ? { kind: 'category', label: 'Change category', enabled: false, reason: CATEGORY_BLOCKED_SPLIT_PARENT }
     : { kind: 'category', label: 'Change category', enabled: true, reason: null };
+
+  // C.16 — Fixed / Discretionary, as a VERB (the owner's F4: the always-on dial
+  // on every register row was the clunk; the verb belongs in the menu, and the
+  // row still SHOWS its class as a badge). Label carries no state, like
+  // markRecurring: the picker the verb opens shows what is in force.
+  //
+  // Two refusals, demo first — matching the wire, which fences the demo BEFORE
+  // it checks the row (transaction-flags-actions.ts): on the shared demo the
+  // refusal is ALWAYS the demo sentence, even for an out-of-scope row.
+  const spendClass: TxnActionAvailability = !t.canEditSpendClass
+    ? { kind: 'spendClass', label: 'Change spending class…', enabled: false, reason: DEMO_ENTRY_BLOCKED }
+    : t.spendClass === 'out-of-scope'
+      ? {
+          kind: 'spendClass',
+          label: 'Change spending class…',
+          enabled: false,
+          reason: SPEND_CLASS_BLOCKED_OUT_OF_SCOPE,
+        }
+      : { kind: 'spendClass', label: 'Change spending class…', enabled: true, reason: null };
 
   // A rule is never blocked as a DESTINATION — /rules explains its own refusals
   // with the row in hand (`getRuleSourceTransaction.excludedReason` is "not a
@@ -388,6 +429,7 @@ export function txnActionAvailability(t: ActionRowFacts): TxnActionAvailability[
 
   return [
     category,
+    spendClass,
     rule,
     renamePayee,
     note,

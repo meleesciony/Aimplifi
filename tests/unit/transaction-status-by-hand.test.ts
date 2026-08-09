@@ -48,6 +48,8 @@ const facts = (over: Partial<ActionRowFacts> = {}): ActionRowFacts => ({
   reimbursement: null,
   status: 'POSTED',
   descriptorOrigin: 'entered',
+  spendClass: 'guilt-free',
+  canEditSpendClass: true,
   ...over,
 });
 

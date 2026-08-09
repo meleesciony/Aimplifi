@@ -15,8 +15,21 @@
  * (src/lib/engine/transactions/actions.ts), where every disabled state carries
  * its one-line reason — an action that doesn't apply is shown disabled and
  * explained, never hidden.
+ *
+ * C.16 — the spend-class verb is the one action with a CONFIRM STEP inside the
+ * menu. Tapping "Change spending class…" replaces the list with the
+ * Fixed / Discretionary pick (the same two choices the old always-on register
+ * dial offered, same testids), and a payee with more rows adds the same
+ * scope question ("Make X for: Just this one / All N") the dial asked. The
+ * write itself is the surface's (register: deadline + reload; detail: runFlag
+ * + afterWriteHref) — passed in as `onSpendClass`, so the confirmation step
+ * can live here once and obey each surface's write discipline. The step state
+ * lives here because only ONE menu renders at a time (the register's
+ * single-open controller, the detail page's own menu) — it never multiplies
+ * per-row hooks.
  */
 import Link from 'next/link';
+import { useState } from 'react';
 import type { TxnActionAvailability } from '@/lib/engine/transactions/actions';
 
 export interface TxnActionHandlers {
@@ -41,6 +54,11 @@ export interface TxnActionHandlers {
    *  and `markRecurring`. */
   onStatus?: (next: 'PENDING' | 'POSTED') => void;
   statusHref?: string;
+  /** C.16 — write the spend class after the in-menu confirm step. `all` true =
+   *  every transaction from this payee (the "All N" scope choice); false = this
+   *  row only. The surface's own write discipline (deadline/reload or
+   *  runFlag/afterWriteHref) wraps the server action. */
+  onSpendClass: (next: 'fixed' | 'guilt-free', all: boolean) => void;
   /** Destinations for the two rule-backed actions (pre-filled from this row). */
   ruleHref: string;
   renameHref: string;
@@ -57,12 +75,17 @@ const ITEM_CLASS =
 const DISABLED_ITEM_CLASS =
   'flex w-full cursor-not-allowed items-center rounded px-2 py-1.5 text-left text-sm text-muted-foreground opacity-60';
 const REASON_CLASS = 'px-2 pb-1.5 text-[11px] leading-snug text-muted-foreground';
+const CHIP_ITEM_CLASS =
+  'tap-target flex w-full items-center justify-start rounded border px-2 py-1.5 text-left text-sm hover:bg-accent';
 
 export function TxnActionMenuItems({
   actions,
   excluded,
   busy,
   handlers,
+  spendClassCurrent,
+  spendClassBulkCount,
+  spendClassMerchantName,
 }: {
   /** From `txnActionAvailability(facts)` — computed by the caller so server
    *  components can also precompute it if they ever need to. */
@@ -71,7 +94,125 @@ export function TxnActionMenuItems({
   excluded: boolean;
   busy: boolean;
   handlers: TxnActionHandlers;
+  /** C.16 — the row's derived class, for the pick step's selection marking and
+   *  the no-op rule (tapping the class that is already in force does nothing,
+   *  the same rule the old dial had). */
+  spendClassCurrent: 'fixed' | 'guilt-free' | 'out-of-scope';
+  /** C.16 — how many transactions share this payee (the register's merchantCount
+   *  basis, the detail's spendClassSiblingCount). Undefined / ≤ 1 → no scope
+   *  question, the write is single-row. */
+  spendClassBulkCount?: number;
+  /** C.16 — the payee's display name for the "All N <payee>" scope choice. */
+  spendClassMerchantName: string;
 }) {
+  // C.16 — the in-menu confirm flow. One instance renders at a time (the
+  // register's single-open controller, the detail page's own menu), and the
+  // component REMOUNTS on every open (callers render it conditionally), so this
+  // state can never leak across rows.
+  const [spendClassStep, setSpendClassStep] = useState<'pick' | 'scope' | null>(null);
+  const [spendClassChoice, setSpendClassChoice] = useState<'fixed' | 'guilt-free' | null>(null);
+
+  function pickSpendClass(next: 'fixed' | 'guilt-free') {
+    // Same no-op rule as the old dial: a tap that does not change anything
+    // closes the flow instead of writing the same value back.
+    if (next === spendClassCurrent) {
+      setSpendClassStep(null);
+      return;
+    }
+    if (typeof spendClassBulkCount === 'number' && spendClassBulkCount > 1) {
+      setSpendClassChoice(next);
+      setSpendClassStep('scope');
+      return;
+    }
+    setSpendClassStep(null);
+    handlers.onSpendClass(next, false);
+  }
+
+  // The confirm steps replace the whole list — the reader is now answering a
+  // question about one action, not choosing an action.
+  if (spendClassStep !== null) {
+    if (spendClassStep === 'scope' && spendClassChoice !== null) {
+      const label = spendClassChoice === 'fixed' ? 'Fixed' : 'Discretionary';
+      return (
+        <div
+          role="menu"
+          aria-label="Transaction actions"
+          data-testid="txn-spend-class-scope"
+          className="p-1"
+        >
+          <p className="px-2 pb-1 text-[10px] text-muted-foreground">Make {label} for:</p>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="txn-spend-class-scope-one"
+            disabled={busy}
+            className={ITEM_CLASS}
+            onClick={() => handlers.onSpendClass(spendClassChoice, false)}
+          >
+            Just this one
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="txn-spend-class-scope-all"
+            disabled={busy}
+            className={ITEM_CLASS}
+            onClick={() => handlers.onSpendClass(spendClassChoice, true)}
+          >
+            All {spendClassBulkCount} {spendClassMerchantName}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="txn-spend-class-scope-cancel"
+            disabled={busy}
+            className={`${ITEM_CLASS} text-xs text-muted-foreground`}
+            onClick={() => setSpendClassStep('pick')}
+          >
+            Cancel
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div role="menu" aria-label="Transaction actions" data-testid="txn-action-menu" className="p-1">
+        <button
+          type="button"
+          role="menuitemradio"
+          data-testid="txn-spend-class-fixed"
+          aria-checked={spendClassCurrent === 'fixed'}
+          className={`${CHIP_ITEM_CLASS} border-transparent ${
+            spendClassCurrent === 'fixed' ? 'bg-accent text-foreground' : ''
+          }`}
+          onClick={() => pickSpendClass('fixed')}
+        >
+          Fixed
+        </button>
+        <button
+          type="button"
+          role="menuitemradio"
+          data-testid="txn-spend-class-guilt-free"
+          aria-checked={spendClassCurrent === 'guilt-free'}
+          className={`${CHIP_ITEM_CLASS} border-transparent ${
+            spendClassCurrent === 'guilt-free' ? 'bg-accent text-foreground' : ''
+          }`}
+          onClick={() => pickSpendClass('guilt-free')}
+        >
+          Discretionary
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          data-testid="txn-spend-class-pick-cancel"
+          className={`${ITEM_CLASS} text-xs text-muted-foreground`}
+          onClick={() => setSpendClassStep(null)}
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div role="menu" aria-label="Transaction actions" data-testid="txn-action-menu" className="p-1">
       {actions.map((a) => {
@@ -125,6 +266,21 @@ export function TxnActionMenuItems({
           case 'category':
             return (
               <button key={a.kind} type="button" role="menuitem" data-testid={testid} disabled={busy} className={ITEM_CLASS} onClick={handlers.onCategory}>
+                {a.label}
+              </button>
+            );
+          // C.16 — the verb opens the in-menu confirm flow (the pick step above).
+          case 'spendClass':
+            return (
+              <button
+                key={a.kind}
+                type="button"
+                role="menuitem"
+                data-testid={testid}
+                disabled={busy}
+                className={ITEM_CLASS}
+                onClick={() => setSpendClassStep('pick')}
+              >
                 {a.label}
               </button>
             );

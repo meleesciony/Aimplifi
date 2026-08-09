@@ -123,6 +123,19 @@ export interface TxnView {
    * `out-of-scope` = transfers / income / uncategorized — not a Fixed dial.
    */
   spendClass: 'fixed' | 'guilt-free' | 'out-of-scope';
+  /**
+   * C.16 (audit F8) — true when the READER set this row's class themselves
+   * (the dial, or their own explicit rule's `setSpendClass`), false when it is
+   * the app's guess. Derived from `spendClassOverride !== null`: every writer
+   * of the override is reader-authored — the dial
+   * (server/transaction-flags-actions.ts) and rule stamps (keyword-rules.ts,
+   * plus the pipeline's pass-through on ingest, which is non-null ONLY for an
+   * explicit non-learned rule — pipeline.ts). No machine guess ever lands
+   * there, so the marker needs no provenance column. REQUIRED rather than
+   * optional: an absent value would read as "our guess" on exactly the row the
+   * reader decided — the F8 failure this field exists to end.
+   */
+  spendClassReaderSet: boolean;
 }
 
 export type FlowType = 'all' | 'income' | 'expense' | 'transfer';

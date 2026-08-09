@@ -5939,3 +5939,82 @@ like a child; bare `/* */` or `//` parse there. Four such comments were
 written, rejected by tsc with a bisected minimal repro, and rewritten bare.
 No schema change, no demo data change. Verify gate and CI conclusion recorded
 in STATUS.md.
+
+## #434 — C.16: Fixed/Discretionary moves into the action menu — the register dial is gone, and a row can say whether its class is ours or the reader's (2026-08-08)
+
+**The audit finding (CALC_AUDIT_2026-08-02 F4–F8), lead with the owner's own
+words: "the always-on dial on every register row is a clunk."** Every row of
+the register carried its own live Fixed/Discretionary `<select>` — eleven
+times more controls than write opportunities. F4 named that clunk; F5
+demanded a confirm step before the write; F6 named a tooltip that blamed
+three causes for a predicate with seven; F7 found a split container with a
+LIVE class control an inch below copy saying the row is in no total; F8 asked
+whether the register can say if a class is our guess or the reader's own
+setting, when /budgets already renders exactly that.
+
+**The decision: the class becomes a BADGE everywhere, and the write becomes
+a VERB in the one action menu.** The engine's availability list (the same
+`txnActionAvailability` every surface renders) grows an eleventh verb —
+"Change spending class…", carrying no state in its label (the `markRecurring`
+precedent — the picker the verb opens shows what is in force). The old
+`SpendClassSelect` is deleted; `SpendClassBadge` is now the ONLY rendering of
+the class, on the register row and the detail's For-your-Plan block alike,
+keeping the shared testid/data attributes so a surface can assert the class
+without caring which control rendered it.
+
+**The confirm step lives INSIDE the menu** (the pick replaces the list — one
+menu renders at a time, so the step state is a content-only component's local
+state and can never multiply per-row hooks). Tapping the verb opens the same
+two choices the dial offered, `menuitemradio` buttons with `aria-checked` on
+the current class; a payee with more than one row adds the same scope
+question the dial asked — "Make X for: Just this one / All N \<payee\>". The
+no-op rule is the dial's own, kept: picking the class already in force closes
+the flow instead of writing the same value back. The write itself stays on
+each surface's existing discipline (register: deadline + reload preserving
+scroll; detail: `runFlag` + `afterWriteHref` so the page keeps its place).
+
+**F5 is satisfied in spirit, not by decree.** TASKS.md's grok note allowed the
+slice to skip a MANDATORY confirm step; the scope ask stays conditional on a
+bulk write (the `#397`/`#398` behavior — a single-row flip was the owner's own
+flow, and the old dial's single-row path never asked either). The menu adds
+the two deliberate gestures the dial lacked — open the verb, pick the class —
+which is the confirm-step's actual job: nobody changes a class by brushing
+past a row.
+
+**F6 was already closed** by `#397`/`#398` (the 10-cause out-of-scope badge
+replaced the tooltip); nothing in this slice.
+
+**F7's root cause was a missing field, now found and locked.** The detail
+view's map fed `classifySpendClass` a `TxnLike` WITHOUT `isSplitParent`, so a
+split container fell through to its reader override or guess there — while
+the block's reason chip, built from `outOfScopeReason`, said 'split-parent'.
+That is the F7 screenshot: a live class control an inch below copy saying the
+row is in no total. The map now passes the flag; a container classifies
+out-of-scope on the detail page exactly as everywhere else, the menu verb is
+disabled with `SPEND_CLASS_BLOCKED_OUT_OF_SCOPE` — a constant IMPORTED by
+both the availability engine and the server action, so a disabled menu row
+and a refused write can never say different things (the module invariant,
+kept in its testable form by the unit suite) — and the For-your-Plan block is
+display-only: badge and explanation, no control.
+
+**F8 needed no schema change — it needed a provenance proof.** The only
+writers of `spendClassOverride` are the reader: the dial's write, and the
+reader's own explicit (non-learned) rule stamps (`keyword-rules.ts` and the
+pipeline pass `spendClassStamp` through untouched, and it is non-null ONLY
+for explicit non-learned rules that file). No machine guess ever lands there,
+so `spendClassOverride !== null` ⇔ the READER set this row's class — derived
+as `spendClassReaderSet` on every view, and the register badge appends
+"· you set this" (with a `data-spend-class-reader-set` attribute), while the
+detail block says "You set this to X — change it anytime from the actions
+menu" against the guess's "We guess recurring bills as Fixed and everything
+else from its category." The marker is display-only: availability never reads
+it, so the undo direction can never be locked.
+
+**The demo fence moved with the write.** `canEditSpendClass` is checked
+FIRST in the availability rule — matching the wire, which fences the demo
+before it checks the row — so even an out-of-scope demo row refuses with the
+demo sentence, never the row's. The e2e locks it: the demo's Groceries menu
+shows the verb disabled with 'shared account'.
+
+No schema change (the prisma diff against origin/main is empty). Verify gate
+and CI conclusion recorded in STATUS.md.

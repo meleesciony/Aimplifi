@@ -132,6 +132,7 @@ const asTxnViews = (rows: Row[]): TxnView[] =>
       splitParentId: null,
       suggestion: null,
       spendClass: classifySpendClass(asPanelRows([r])[0]!, CATEGORY_BY_ID, new Set()),
+      spendClassReaderSet: false,
     }));
 
 /** What the register shows after following the heading's href. */

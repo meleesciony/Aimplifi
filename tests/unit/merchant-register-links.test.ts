@@ -100,6 +100,7 @@ function view(id: string, merchantName: string): TxnView {
     splitParentId: null,
     suggestion: null,
     spendClass: 'fixed',
+    spendClassReaderSet: false,
   };
 }
 

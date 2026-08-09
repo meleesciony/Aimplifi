@@ -444,6 +444,10 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
       meta,
       fixedMerchants,
     ),
+    // C.16 (F8): the register can say whether the class is the reader's own
+    // setting — the ONLY writers of the override are the reader (the dial) and
+    // the reader's explicit rules (see TxnView.spendClassReaderSet).
+    spendClassReaderSet: t.spendClassOverride !== null,
   }));
 
   // Merchant Pattern Lens (DECISIONS #250): computed from the viewer's FULL row
@@ -755,10 +759,20 @@ export async function getTransactionDetail(
         rawDescriptor: t.rawDescriptor,
         excludeFromTotals: t.excludeFromTotals,
         spendClassOverride: t.spendClassOverride,
+        // C.16 (F7): the classifier MUST see the container flag. Before this
+        // line, a split parent fell through to its override/guess here while
+        // the block's reason chip said 'split-parent' — a live class control
+        // an inch below copy saying the row is in no total, which is the F7
+        // audit finding this slice closes. The register map needs no
+        // equivalent: the register never loads containers, only pieces.
+        isSplitParent: t.isSplitParent,
       },
       meta,
       fixedMerchants,
     ),
+    // C.16 (F8): same basis as the register map above — override means the
+    // reader (or their explicit rule) set this class, never a machine guess.
+    spendClassReaderSet: t.spendClassOverride !== null,
   };
 
   // The refusals `splitTransaction` enforces, said in advance and in the reader's

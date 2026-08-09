@@ -34,7 +34,12 @@ import { TAX_CLASSES, TAX_CLASS_LABELS, taxClassLabel } from '@/lib/engine/tax/c
 import { TXN_NOTE_MAX_CHARS } from '@/lib/engine/tax/note';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import { setTransactionTax } from '@/server/tax-actions';
-import { setExcludeFromTotals, setReimbursement } from '@/server/transaction-flags-actions';
+import {
+  setExcludeFromTotals,
+  setMerchantSpendClass,
+  setReimbursement,
+  setTransactionSpendClass,
+} from '@/server/transaction-flags-actions';
 import { recategorize } from '@/server/triage-actions';
 import { txnActionAvailability } from '@/lib/engine/transactions/actions';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
@@ -49,7 +54,7 @@ import {
 } from '@/components/finance/provenance-badge';
 import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
 import { isWindowExplainedZero, type RegisterEmptyReason } from '@/lib/engine/transactions/empty-reason';
-import { SpendClassSelect } from '@/components/finance/spend-class-select';
+import { SpendClassBadge } from '@/components/finance/spend-class-badge';
 import { outOfScopeReason } from '@/lib/engine/spending-plan/spend-class';
 
 /**
@@ -736,9 +741,12 @@ export function TransactionList({
                         {/* Why-This-Category (§3.1): who decided this category. The
                             label is the resolver's verdict, rendered verbatim — an
                             AI guess is the ONLY kind that asks for the user's OK. */}
-                        {/* #397: Fixed vs discretionary — per transaction. */}
-                        <SpendClassSelect
-                          transactionId={t.id}
+                        {/* C.16 (F4): Fixed / Discretionary is a LABEL on the row —
+                            the write lives in the action menu, one door for every
+                            verb. The badge still explains an out-of-scope row by
+                            tap, and the F8 marker says when the class is the
+                            reader's own setting rather than our guess. */}
+                        <SpendClassBadge
                           spendClass={t.spendClass}
                           reason={outOfScopeReason(
                             {
@@ -757,9 +765,7 @@ export function TransactionList({
                             },
                             t.spendClass,
                           )}
-                          canEdit={canEditSpendClass}
-                          merchantName={t.merchantName}
-                          bulkCount={t.ruleEligible ? t.merchantCount : undefined}
+                          readerSet={t.spendClassReaderSet}
                         />
                         <Badge
                           variant="outline"
@@ -1259,9 +1265,14 @@ export function TransactionList({
                                 reimbursement: t.reimbursement,
                                 status: t.status,
                                 descriptorOrigin: t.descriptorOrigin,
+                                spendClass: t.spendClass,
+                                canEditSpendClass,
                               })}
                               excluded={t.excludeFromTotals}
                               busy={actionBusy}
+                              spendClassCurrent={t.spendClass}
+                              spendClassBulkCount={t.ruleEligible ? t.merchantCount : undefined}
+                              spendClassMerchantName={t.merchantName}
                               handlers={{
                                 onCategory: () => openCategoryPicker(t, actionTop),
                                 onNoteTax: () => openTaxPanel(t, actionTop),
@@ -1286,6 +1297,14 @@ export function TransactionList({
                                 onExclude: (exclude) =>
                                   void writeFlag(t, () =>
                                     setExcludeFromTotals({ transactionId: t.id, exclude }),
+                                  ),
+                                // C.16 — the in-menu confirm flow hands off here;
+                                // `all` is the scope-ask's "All N" choice.
+                                onSpendClass: (next, all) =>
+                                  void writeFlag(t, () =>
+                                    all
+                                      ? setMerchantSpendClass({ transactionId: t.id, spendClass: next })
+                                      : setTransactionSpendClass({ transactionId: t.id, spendClass: next }),
                                   ),
                                 // Navigate, don't write: the pending disclosure and
                                 // the tax caution live on the detail view, and this

@@ -47,6 +47,13 @@ test('every register row shows a Fixed or Discretionary class, or says why it ha
   // 16px and blew past Details/Rules).
   await expect(groceries.locator('button[data-testid="txn-spend-class"]')).toHaveCount(0);
   await expect(groceries.locator('select[data-testid="txn-spend-class"]')).toHaveCount(0);
+  // C.16 — the write moved into the action menu, so the demo fence lives there
+  // too: the verb is disabled with the shared-account sentence (the same one
+  // the server action refuses with), never hidden.
+  await groceries.getByTestId('txn-action-trigger').click();
+  await expect(page.getByTestId('txn-action-spendClass')).toBeDisabled();
+  await expect(page.getByTestId('txn-action-spendClass-reason')).toContainText('shared account');
+  await page.keyboard.press('Escape');
 });
 
 test('a row with no Fixed/Discretionary side says why, by tap', async ({ page }) => {

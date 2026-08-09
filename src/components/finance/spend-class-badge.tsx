@@ -2,10 +2,10 @@
 
 /**
  * Fixed / Discretionary label on a register row (DECISIONS #378).
- * The display-only rendering of the row's class — used wherever the dial may
- * not write (out-of-scope rows, uncategorized rows, the shared demo). Editable
- * rows get SpendClassSelect instead (DECISIONS #397); the badge and the select
- * share the same testid / data attributes so a surface can assert the class
+ * C.16 — now the ONLY rendering of the row's class on every surface: the write
+ * lives in the action menu (the old always-on SpendClassSelect was the clunk
+ * the owner named, audit F4, and is deleted). The badge keeps the shared
+ * testid / data attributes the old dial had, so a surface can assert the class
  * without caring which control rendered it.
  *
  * WHY THIS IS A CLIENT COMPONENT NOW. The out-of-scope case carried its
@@ -65,6 +65,7 @@ export function panelOffset(
 export function SpendClassBadge({
   spendClass,
   reason,
+  readerSet,
 }: {
   spendClass: SpendClass;
   /**
@@ -76,6 +77,15 @@ export function SpendClassBadge({
    * genuinely cannot derive.
    */
   reason: OutOfScopeReason | null;
+  /**
+   * C.16 (F8) — true when the READER set this row's class (dial or their own
+   * rule), false when it is the app's guess. Rendered as a "· you set this"
+   * suffix so the register can say which of the two a badge is. Optional
+   * because the badge predates the marker and a missing prop means "we do not
+   * know" (no suffix) — the opposite direction from `reason`'s requiredness,
+   * since omitting the marker understates rather than fabricates.
+   */
+  readerSet?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   /** Measured on open, the way the row's action menu picks up vs down. */
@@ -98,15 +108,18 @@ export function SpendClassBadge({
     };
   }, [open]);
 
-  // A row with a class: inert label, exactly as before.
+  // A row with a class: inert label, exactly as before — plus the F8 marker
+  // when the class is the reader's own setting, not our guess.
   if (spendClass !== 'out-of-scope' || reason === null) {
     return (
       <span
         data-testid="txn-spend-class"
         data-spend-class={spendClass}
+        data-spend-class-reader-set={readerSet ? 'true' : undefined}
         className="shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground"
       >
         {spendClassLabel(spendClass)}
+        {readerSet ? <span data-testid="txn-spend-class-reader-set"> · you set this</span> : null}
       </span>
     );
   }

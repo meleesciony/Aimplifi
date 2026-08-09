@@ -37,7 +37,9 @@ import { TXN_NOTE_MAX_CHARS } from '@/lib/engine/tax/note';
 import { setTransactionTax } from '@/server/tax-actions';
 import {
   setExcludeFromTotals,
+  setMerchantSpendClass,
   setReimbursement,
+  setTransactionSpendClass,
   setTransactionStatus,
 } from '@/server/transaction-flags-actions';
 import {
@@ -69,10 +71,11 @@ import { FileText, MoreHorizontal } from 'lucide-react';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { provenanceBadgeView } from '@/components/finance/provenance-badge';
-import { SpendClassSelect } from '@/components/finance/spend-class-select';
+import { SpendClassBadge } from '@/components/finance/spend-class-badge';
 import {
   outOfScopeExplanation,
   outOfScopeReason,
+  spendClassLabel,
 } from '@/lib/engine/spending-plan/spend-class';
 import {
   PROJECTIONS_STALE_PARAM,
@@ -271,6 +274,8 @@ export function TransactionDetailView({
     reimbursement: row.reimbursement,
     status: row.status,
     descriptorOrigin: row.descriptorOrigin,
+    spendClass: row.spendClass,
+    canEditSpendClass,
   });
   const statusAction = actions.find((a) => a.kind === 'status')!;
   // Why this row has no Fixed/Discretionary dial — named once here, because both
@@ -573,6 +578,9 @@ export function TransactionDetailView({
                   actions={actions}
                   excluded={row.excludeFromTotals}
                   busy={busy}
+                  spendClassCurrent={row.spendClass}
+                  spendClassBulkCount={detail.spendClassSiblingCount ?? undefined}
+                  spendClassMerchantName={row.merchantName}
                   handlers={{
                     onCategory: () => focusEditor('[data-testid="detail-category-select"]'),
                     onNoteTax: () => focusEditor('[data-testid="detail-note"]'),
@@ -591,6 +599,15 @@ export function TransactionDetailView({
                       runFlag(() => setExcludeFromTotals({ transactionId: row.id, exclude })),
                     onStatus: (status) =>
                       runFlag(() => setTransactionStatus({ transactionId: row.id, status })),
+                    // C.16 — the in-menu confirm flow hands off here; runFlag
+                    // closes the menu, and `run`'s afterWriteHref keeps the
+                    // reader's place (F9).
+                    onSpendClass: (next, all) =>
+                      runFlag(() =>
+                        all
+                          ? setMerchantSpendClass({ transactionId: row.id, spendClass: next })
+                          : setTransactionSpendClass({ transactionId: row.id, spendClass: next }),
+                      ),
                     onRecurring: () => focusEditor('[data-testid="detail-recurring"]'),
                     ruleHref: withForwardedReturn(
                       `/rules?from=${encodeURIComponent(row.id)}&via=row`,
@@ -794,31 +811,40 @@ export function TransactionDetailView({
         </form>
       )}
 
-      {/* #397 — Fixed / Discretionary for Plan, per transaction. */}
+      {/* C.16 — Fixed / Discretionary for Plan, per transaction. The WRITE moved
+          into the action menu (one door for every verb, F4); this block is the
+          display: the class, the F8 provenance sentence (our guess vs the
+          reader's own setting), and the out-of-scope explanation. A split
+          container renders a badge and an explanation here — never a live
+          control (F7). */}
       <div
         className="flex flex-wrap items-center gap-2 rounded-md border p-3"
         data-testid="detail-spend-class"
       >
         <span className="text-sm font-medium">For your Plan</span>
-        <SpendClassSelect
-          transactionId={row.id}
+        <SpendClassBadge
           spendClass={row.spendClass}
           reason={spendClassReason}
-          canEdit={canEditSpendClass}
-          merchantName={row.merchantName}
-          bulkCount={detail.spendClassSiblingCount ?? undefined}
+          readerSet={row.spendClassReaderSet}
         />
-        {/* The guess-and-change copy describes a control this row may not have.
-            An out-of-scope row gets its own reason instead — telling a reader to
-            "change the selector" beside no selector is the same dead end as the
-            chip that would not say why. */}
+        {/* The guess-and-change copy describes a state this row may actually be
+            in. An out-of-scope row gets its own reason instead — telling a
+            reader to "change it" beside no changeable state is the same dead
+            end as the chip that would not say why. */}
         <p className="basis-full text-xs text-muted-foreground">
           {spendClassReason === null ? (
-            <>
-              We guess recurring bills as Fixed and everything else from its category. Change the
-              selector if the guess is wrong — you can apply it to this transaction only or to every
-              transaction from this payee.
-            </>
+            row.spendClassReaderSet ? (
+              <>
+                You set this to {spendClassLabel(row.spendClass)} — change it anytime from the
+                actions menu, for this transaction only or for every transaction from this payee.
+              </>
+            ) : (
+              <>
+                We guess recurring bills as Fixed and everything else from its category. Change it
+                from the actions menu — you can apply it to this transaction only or to every
+                transaction from this payee.
+              </>
+            )
           ) : (
             outOfScopeExplanation(spendClassReason)
           )}

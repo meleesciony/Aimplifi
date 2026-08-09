@@ -13,7 +13,8 @@
  *   dining     −$25.00
  *   transfer   −$10.00   (isTransfer)
  *   paycheck   +$40.00   (dated after the groceries row — the exact-amount match)
- * Register "Money out" is $65.00 with nothing excluded, $25.00 once the
+ *   cvs ×2     −$10.00   (same merchantId — the C.16 bulk scope fixture)
+ * Register "Money out" is $85.00 with nothing excluded, $45.00 once the
  * groceries row is excluded — each digit is only reachable through the basis.
  */
 import Database from 'better-sqlite3';
@@ -57,7 +58,24 @@ function seedFixture(email: string) {
     txn.run(`e2e-am-dine-${stamp}`, checkingId, '2026-06-06', -2500, 'CHIPOTLE AM 0042', 'dining', 0);
     txn.run(`e2e-am-xfer-${stamp}`, checkingId, '2026-06-07', -1000, 'ONLINE TRANSFER TO SAVINGS', 'transfer', 1);
     txn.run(`e2e-am-pay-${stamp}`, checkingId, '2026-06-08', 4000, 'EXPENSE REIMB PAYROLL', 'paycheck', 0);
-    return { grocId: `e2e-am-groc-${stamp}` };
+    // C.16 bulk-scope fixture: two rows of ONE payee, joined to a Merchant row
+    // so the register's merchantCount (and the menu's "All N") is 2. The
+    // canonical is stamped — the demo seed already owns 'CVS Pharmacy', and
+    // canonical is UNIQUE.
+    const merchantId = `e2e-am-mer-${stamp}`;
+    const cvsName = `CVS Pharmacy ${stamp}`;
+    db.prepare('INSERT INTO Merchant (id, canonical) VALUES (?, ?)').run(
+      merchantId,
+      cvsName,
+    );
+    txn.run(`e2e-am-cvs-a-${stamp}`, checkingId, '2026-06-09', -1000, 'CVS PHARMACY 0042', 'shopping', 0);
+    txn.run(`e2e-am-cvs-b-${stamp}`, checkingId, '2026-06-09', -1000, 'CVS PHARMACY 0043', 'shopping', 0);
+    db.prepare('UPDATE "Transaction" SET merchantId = ? WHERE id IN (?, ?)').run(
+      merchantId,
+      `e2e-am-cvs-a-${stamp}`,
+      `e2e-am-cvs-b-${stamp}`,
+    );
+    return { grocId: `e2e-am-groc-${stamp}`, cvsName };
   } finally {
     db.close();
   }
@@ -72,25 +90,28 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
   test.describe.configure({ mode: 'serial' });
   let email = '';
   let grocId = '';
+  let cvsName = '';
 
   test('every action is listed on a register row; inapplicable ones are disabled with a reason', async ({
     page,
   }) => {
     email = await signUpThrowaway(page);
-    ({ grocId } = seedFixture(email));
+    ({ grocId, cvsName } = seedFixture(email));
 
     await page.goto('/transactions');
     await rowFor(page, 'Whole Foods').getByTestId('txn-action-trigger').click();
     const menu = page.getByTestId('txn-action-menu');
     await expect(menu).toBeVisible();
-    // All TEN actions, always — the menu is the row's complete verb list. This
-    // list had drifted to eight while the engine returned ten (`markRecurring`
-    // from O.13f and `status` from O.15 slice 7 were both missing), so the
-    // completeness lock had stopped locking completeness. The count is asserted
-    // too: a future action added to `txnActionAvailability` and forgotten here
-    // now fails rather than passing quietly.
+    // All ELEVEN actions, always — the menu is the row's complete verb list.
+    // This list had drifted to eight while the engine returned ten
+    // (`markRecurring` from O.13f and `status` from O.15 slice 7 were both
+    // missing), so the completeness lock had stopped locking completeness. The
+    // count is asserted too: a future action added to `txnActionAvailability`
+    // and forgotten here now fails rather than passing quietly. The eleventh is
+    // C.16's spend-class verb, mid-list after category.
     const ALL_MENU_KINDS = [
       'category',
+      'spendClass',
       'rule',
       'renamePayee',
       'note',
@@ -109,6 +130,8 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     );
 
     // A transfer: exclude/split/reimburse are disabled AND say why — never hidden.
+    // C.16: the spend-class verb is disabled too — a transfer has no Fixed vs
+    // Discretionary side, with the SAME sentence the server action refuses with.
     await page.keyboard.press('Escape');
     await rowFor(page, 'Transfer').getByTestId('txn-action-trigger').click();
     await expect(page.getByTestId('txn-action-excludeFromTotals')).toBeDisabled();
@@ -117,6 +140,10 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     );
     await expect(page.getByTestId('txn-action-split')).toBeDisabled();
     await expect(page.getByTestId('txn-action-reimbursement')).toBeDisabled();
+    await expect(page.getByTestId('txn-action-spendClass')).toBeDisabled();
+    await expect(page.getByTestId('txn-action-spendClass-reason')).toContainText(
+      'not part of Fixed vs Discretionary',
+    );
 
     // An inflow: reimbursement is disabled as money-in. (The seeded deposit's
     // canonical is "Expense Reimbursement" — probed, not guessed.)
@@ -124,6 +151,118 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     await rowFor(page, 'Expense Reimbursement').getByTestId('txn-action-trigger').click();
     await expect(page.getByTestId('txn-action-reimbursement')).toBeDisabled();
     await expect(page.getByTestId('txn-action-reimbursement-reason')).toContainText('money in');
+  });
+
+  test('C.16 — the spend-class verb: single-row write, no-op pick, and the F8 marker', async ({
+    page,
+  }) => {
+    await page.goto('/sign-in');
+    await page.getByTestId('auth-email').fill(email);
+    await page.getByTestId('auth-password').fill(PASSWORD);
+    await page.getByTestId('auth-submit').click();
+    await page.waitForURL('**/dashboard', { timeout: 20_000 });
+
+    await page.goto('/transactions');
+
+    // SINGLE-ROW: the dining row has no merchant-wide count, so the pick
+    // writes straight through — the register reload is the confirmation.
+    const diningRow = rowFor(page, 'Chipotle');
+    const before = await diningRow.getByTestId('txn-spend-class').getAttribute('data-spend-class');
+    expect(['fixed', 'guilt-free']).toContain(before);
+    const target = before === 'fixed' ? 'guilt-free' : 'fixed';
+    await diningRow.getByTestId('txn-action-trigger').click();
+    await page.getByTestId('txn-action-spendClass').click();
+    // The pick step is the old dial's two choices, inside the menu.
+    await expect(page.getByTestId('txn-spend-class-fixed')).toBeVisible();
+    await expect(page.getByTestId('txn-spend-class-guilt-free')).toBeVisible();
+    await page
+      .getByTestId(target === 'fixed' ? 'txn-spend-class-fixed' : 'txn-spend-class-guilt-free')
+      .click();
+    await page.waitForURL('**/transactions**');
+    const badge = rowFor(page, 'Chipotle').getByTestId('txn-spend-class');
+    await expect(badge).toHaveAttribute('data-spend-class', target);
+    // F8 — the register now says the class is the reader's own setting.
+    await expect(badge.getByTestId('txn-spend-class-reader-set')).toHaveText('· you set this');
+    await expect(badge).toHaveAttribute('data-spend-class-reader-set', 'true');
+
+    // NO-OP: tapping the class already in force closes the flow without a
+    // write — the menu is back to its list, and nothing reloaded.
+    await rowFor(page, 'Chipotle').getByTestId('txn-action-trigger').click();
+    await page.getByTestId('txn-action-spendClass').click();
+    await page
+      .getByTestId(target === 'fixed' ? 'txn-spend-class-fixed' : 'txn-spend-class-guilt-free')
+      .click();
+    await expect(page.getByTestId('txn-action-spendClass')).toBeVisible();
+    await page.keyboard.press('Escape');
+  });
+
+  test('C.16 — the bulk scope: "All 2 <payee>" writes every row of the payee', async ({ page }) => {
+    await page.goto('/sign-in');
+    await page.getByTestId('auth-email').fill(email);
+    await page.getByTestId('auth-password').fill(PASSWORD);
+    await page.getByTestId('auth-submit').click();
+    await page.waitForURL('**/dashboard', { timeout: 20_000 });
+
+    await page.goto('/transactions');
+    const cvsRow = rowFor(page, cvsName);
+    const before = await cvsRow.getByTestId('txn-spend-class').getAttribute('data-spend-class');
+    expect(['fixed', 'guilt-free']).toContain(before);
+    const target = before === 'fixed' ? 'guilt-free' : 'fixed';
+    const label = target === 'fixed' ? 'Fixed' : 'Discretionary';
+
+    // The payee has two rows, so the pick asks the scope question first.
+    await cvsRow.getByTestId('txn-action-trigger').click();
+    await page.getByTestId('txn-action-spendClass').click();
+    await page
+      .getByTestId(target === 'fixed' ? 'txn-spend-class-fixed' : 'txn-spend-class-guilt-free')
+      .click();
+    const scope = page.getByTestId('txn-spend-class-scope');
+    await expect(scope).toBeVisible();
+    await expect(scope).toContainText(`Make ${label} for:`);
+    await expect(scope.getByTestId('txn-spend-class-scope-all')).toHaveText(
+      `All 2 ${cvsName}`,
+    );
+    await scope.getByTestId('txn-spend-class-scope-all').click();
+    await page.waitForURL('**/transactions**');
+
+    const cvsBadges = page.getByTestId('txn-row').filter({ hasText: cvsName });
+    await expect(cvsBadges).toHaveCount(2);
+    for (let i = 0; i < 2; i++) {
+      await expect(cvsBadges.nth(i).getByTestId('txn-spend-class')).toHaveAttribute(
+        'data-spend-class',
+        target,
+      );
+      await expect(cvsBadges.nth(i).getByTestId('txn-spend-class-reader-set')).toBeVisible();
+    }
+  });
+
+  test('C.16 — the detail view writes through the menu, keeps its place, and says "you set this"', async ({
+    page,
+  }) => {
+    await page.goto('/sign-in');
+    await page.getByTestId('auth-email').fill(email);
+    await page.getByTestId('auth-password').fill(PASSWORD);
+    await page.getByTestId('auth-submit').click();
+    await page.waitForURL('**/dashboard', { timeout: 20_000 });
+
+    await page.goto(`/transactions/${grocId}`);
+    const block = page.getByTestId('detail-spend-class');
+    const before = await block.getByTestId('txn-spend-class').getAttribute('data-spend-class');
+    expect(['fixed', 'guilt-free']).toContain(before);
+    const target = before === 'fixed' ? 'guilt-free' : 'fixed';
+
+    await page.getByTestId('txn-action-trigger').click();
+    await page.getByTestId('txn-action-spendClass').click();
+    await page
+      .getByTestId(target === 'fixed' ? 'txn-spend-class-fixed' : 'txn-spend-class-guilt-free')
+      .click();
+    // runFlag's afterWriteHref keeps the page (no scope on a merchantless row).
+    await page.waitForURL(`**/transactions/${grocId}**`);
+    await expect(block.getByTestId('txn-spend-class')).toHaveAttribute('data-spend-class', target);
+    await expect(block.getByTestId('txn-spend-class-reader-set')).toBeVisible();
+    await expect(block).toContainText(
+      `You set this to ${target === 'fixed' ? 'Fixed' : 'Discretionary'}`,
+    );
   });
 
   test('excluding a row removes it from the money figures but keeps it listed, undoably', async ({
@@ -136,13 +275,13 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     await page.waitForURL('**/dashboard', { timeout: 20_000 });
 
     await page.goto('/transactions');
-    // Hand-computed: −$40.00 −$25.00 spend, transfer excluded → out $65.00.
-    await expect(page.getByTestId('summary-out')).toHaveText('$65.00');
+    // Hand-computed: −$40.00 −$25.00 −$10.00 −$10.00 spend, transfer excluded → out $85.00.
+    await expect(page.getByTestId('summary-out')).toHaveText('$85.00');
 
     await rowFor(page, 'Whole Foods').getByTestId('txn-action-trigger').click();
     await page.getByTestId('txn-action-excludeFromTotals').click();
     await page.waitForURL('**/transactions**');
-    await expect(page.getByTestId('summary-out')).toHaveText('$25.00');
+    await expect(page.getByTestId('summary-out')).toHaveText('$45.00');
     // Still listed — the badge, not absence, is the disclosure.
     const excludedRow = rowFor(page, 'Whole Foods');
     await expect(excludedRow).toBeVisible();
@@ -161,7 +300,7 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     await expect(toggle).toHaveText('Include in totals again');
     await toggle.click();
     await page.waitForURL('**/transactions**');
-    await expect(page.getByTestId('summary-out')).toHaveText('$65.00');
+    await expect(page.getByTestId('summary-out')).toHaveText('$85.00');
     await expect(page.getByTestId('txn-excluded-badge')).toHaveCount(0);
   });
 
@@ -198,7 +337,7 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     await expect(page.getByTestId('txn-clear')).toBeVisible();
     await page.getByTestId('txn-filter-reimb').click();
     await page.waitForURL('**/transactions');
-    await expect(page.getByTestId('txn-row')).toHaveCount(4);
+    await expect(page.getByTestId('txn-row')).toHaveCount(6);
 
     // Received, on the detail view — the matcher proposes the exact-amount
     // deposit seeded three days later, as a suggestion, not a link.
@@ -209,9 +348,10 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     await expect(page.getByTestId('detail-reimb-badge')).toHaveText('Reimbursed');
     await expect(page.getByTestId('detail-reimb-match')).toContainText('$40.00');
 
-    // The tracker never changed a total: the register still reads $65.00 out.
+    // The tracker never changed a total: the register still reads $85.00 out
+    // (the two C.16 CVS rows sit outside every flag this test flipped).
     await page.goto('/transactions');
-    await expect(page.getByTestId('summary-out')).toHaveText('$65.00');
+    await expect(page.getByTestId('summary-out')).toHaveText('$85.00');
 
     // The coach line is gone — nothing outstanding.
     await page.goto('/coach');
@@ -245,8 +385,28 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     await expect(page.getByTestId('txn-action-category')).toBeDisabled();
     await expect(page.getByTestId('txn-action-taxTag')).toBeDisabled();
     await expect(page.getByTestId('txn-action-split')).toBeDisabled();
-    // The rule links stay live everywhere.
+    // C.16 (F7): a split container has no Fixed vs Discretionary side — the
+    // verb is disabled with the server's sentence, and the detail block below
+    // is the reason badge, never a live control an inch below copy saying the
+    // row is in no total (the old dial's F7 failure).
+    await expect(page.getByTestId('txn-action-spendClass')).toBeDisabled();
+    await expect(page.getByTestId('txn-action-spendClass-reason')).toContainText(
+      'not part of Fixed vs Discretionary',
+    );
+    // The rule links stay live everywhere — asserted inside the SAME open menu.
+    // (The detail menu's Escape handler only fires when focus is inside the
+    // menu; these assertions leave focus on the trigger, so an Escape-then-
+    // reopen choreography would test the focus listener, not the menu.)
     await expect(page.getByTestId('txn-action-rule')).toBeVisible();
     await expect(page.getByTestId('txn-action-renamePayee')).toBeVisible();
+    await page.keyboard.press('Escape');
+    const spendBlock = page.getByTestId('detail-spend-class');
+    await expect(spendBlock).toBeVisible();
+    await expect(spendBlock.getByTestId('txn-spend-class')).toHaveAttribute(
+      'data-spend-class',
+      'out-of-scope',
+    );
+    await expect(spendBlock.locator('select')).toHaveCount(0);
+    await expect(spendBlock).not.toContainText('We guess recurring bills');
   });
 });

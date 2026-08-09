@@ -164,6 +164,7 @@ const asTxnViews = (rows: Row[]): TxnView[] =>
       splitParentId: null,
       suggestion: null,
       spendClass: 'guilt-free',
+      spendClassReaderSet: false,
     }));
 
 /** What the register shows after following the href, as the page would build it. */

@@ -20,6 +20,7 @@ import {
   setTransactionSpendClass,
 } from '@/server/transaction-flags-actions';
 import { DEMO_ENTRY_BLOCKED, DEMO_USER_ID } from '@/lib/demo-user';
+import { SPEND_CLASS_BLOCKED_OUT_OF_SCOPE } from '@/lib/engine/transactions/actions';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { prisma } from '@/lib/db';
 
@@ -126,7 +127,7 @@ describe('setTransactionSpendClass (real action, throwaway data — DECISIONS #3
       },
     });
     const res = await setTransactionSpendClass({ transactionId: transfer.id, spendClass: 'fixed' });
-    expect(res.ok).toBe(false);
+    expect(res).toEqual({ ok: false, error: SPEND_CLASS_BLOCKED_OUT_OF_SCOPE });
     const bad = await setTransactionSpendClass({ transactionId: diningA, spendClass: 'essential' });
     expect(bad.ok).toBe(false);
   });

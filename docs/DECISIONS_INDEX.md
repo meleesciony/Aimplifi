@@ -426,4 +426,5 @@ refuses to write if it would drop any number this file already carries.
 - **#430** (Phase ?): H.2: the CSV backfill dedupe is a multiset difference, its check-then-act is serializable, and file-internal repeats are surfaced, never silent (2026-08-08)
 - **#431** (Phase ?): C.23 guided half: the Fixed-costs setup section PROPOSES series the reader confirms into bills or reserves, and one figure names the holding account (designed 2026-08-08, SHIPPED — see the DONE addendum at the end)
 - **#432** (Phase ?): C.14: the goals card names its third FI state instead of printing "~null months", and a goal pledge beyond the reader's savings is charged in FULL against their FI date (2026-08-08)
-- **#433** (Phase ?): C.15: the return affordance one hop deeper — a transaction or a named page as the destination, and forwardableBack gates every second-hop carry (2026-08-08)
+- **#433** (Phase ?): C.15: the return affordance one hop deeper — a transaction or a named page as the destination (2026-08-08)
+- **#434** (Phase ?): C.16: Fixed/Discretionary moves into the action menu — the register dial is gone, and a row can say whether its class is ours or the reader's (2026-08-08)

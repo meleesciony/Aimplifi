@@ -28,6 +28,7 @@ import {
   REIMBURSE_BLOCKED_INFLOW,
   REIMBURSE_BLOCKED_SPLIT_PARENT,
   REIMBURSE_BLOCKED_TRANSFER,
+  SPEND_CLASS_BLOCKED_OUT_OF_SCOPE,
   STATUS_BLOCKED_BANK_OWNED,
   STATUS_BLOCKED_INFLOW,
   STATUS_BLOCKED_SPLIT_CHILD,
@@ -262,7 +263,9 @@ export async function setTransactionSpendClass(input: {
   ]);
   const guess = guessSpendClass(row, meta, fixedMerchants);
   if (guess === 'out-of-scope') {
-    return { ok: false, error: 'That row is not part of Fixed vs Discretionary spending — nothing was saved.' };
+    // One sentence with the menu's disabled reason (engine/transactions/actions.ts) —
+    // a refused write and a disabled menu row can never say different things.
+    return { ok: false, error: SPEND_CLASS_BLOCKED_OUT_OF_SCOPE };
   }
 
   const stored = input.spendClass === guess ? null : input.spendClass;
