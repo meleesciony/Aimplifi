@@ -3309,3 +3309,20 @@ passed again in the trio rerun 32/32; `register-return:119` + `transactions:910`
 passed every local run including the trio. No test in either CI failure set is touched
 by the C.18 diff; no new record needed for further hits of these members — the lesson
 file owns the class.
+
+**Third gate read (rule 5).** CI run **31333436087 on `c427e46` (docs-only: this record) =
+failure — exactly ONE failing test: `mobile-overflow.spec.ts:386`** (the [mobile-webkit]
+route sweep), a member named verbatim in the C.16 record ("the [mobile-webkit] route
+sweep — 7/7 PASS in isolation on this exact tree, 22.6s") and in C.15's. The CI failure
+itself named a route — `/forecast (demo) @360px overflows: scrollWidth 393 > clientWidth
+360` — so it was checked as a potential real regression, not waved through: the C.18 diff
+provably cannot change demo /forecast content (the D1 forecast change is identity for a
+user with a designated payment account — the unit lock asserts the 'Everyday Checking'
+anchor on the seeded demo; no other C.18 edit reaches the forecast page), and the sweep
+passes this exact route+width on this exact tree both in the local full gate (319/319)
+and solo (7/7, 22.0s, today — measured 393→fits at every width including 360). Not
+reproduced in either local run; the class (CI-Linux-WebKit scrollWidth/font metrics vs
+local WebKit, caught mid-4-worker-run) is owned by
+`docs/lessons/ci-e2e-timing-flake.md` + the C.15/C.16 records. This tree is byte-identical
+to `2138a04` plus this markdown file. The docs commit carrying this line re-triggers the
+gate.
