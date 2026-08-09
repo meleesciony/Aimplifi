@@ -100,6 +100,7 @@ import {
   filterTransactions,
   groupAccounts,
   paginate,
+  scopedDateBounds,
   sortByDateDesc,
   summarizeTransactions,
 } from '@/lib/engine/transactions/query';
@@ -537,15 +538,24 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   // would just restate the page's own length once the control is on.
   const unclassifiedCount = countUnclassified(rows, filter);
 
-  // Over the FULL pre-filter set, never `filtered`: the span describes all the
-  // data, not the current slice. Explicit scan rather than trusting the sort:
-  // an ordering change upstream must not silently move the disclosed bound.
-  let oldestDate: string | null = null;
-  let newestDate: string | null = null;
-  for (const r of rows) {
-    if (oldestDate === null || r.date < oldestDate) oldestDate = r.date;
-    if (newestDate === null || r.date > newestDate) newestDate = r.date;
-  }
+  // Over the pre-filter set, narrowed by the SET-DEFINING axes only (account,
+  // category, unclassified — K.4, DECISIONS #436): the span describes the set
+  // the reader is browsing, never `filtered`. The F10 defect was a bound that
+  // did not: a reader narrowed to a card whose history starts INSIDE the chosen
+  // window printed the register's GLOBAL oldest above "No transactions match
+  // these filters" — both sentences true, neither about the view. Scoped, the
+  // bound is a lower bound on every further-narrowed subset, so the window
+  // branches of `registerEmptyReason` stay sound. The match axes (type, class,
+  // search, merchant, reimbursement, the window) never move the line — they
+  // select WITHIN the set; a depth line that jumped on every toggle would
+  // mislead in the other direction. Explicit scan rather than trusting the
+  // sort: an ordering change upstream must not silently move the disclosed
+  // bound.
+  const { oldest: oldestDate, newest: newestDate } = scopedDateBounds(rows, {
+    accountId: filter.accountId,
+    categoryId: filter.categoryId,
+    unclassified: filter.unclassified,
+  });
 
   return { rows: items, summary, accountOptions, pageInfo: info, lens, unclassifiedCount, oldestDate, newestDate };
 }

@@ -214,6 +214,43 @@ export function countUnclassified(rows: readonly TxnView[], filter: TxnFilter = 
   return filterTransactions(rows, { ...filter, unclassified: false }).filter(isUnclassifiedTxn).length;
 }
 
+/**
+ * The register's date bounds, narrowed by the SET-DEFINING axes only (TASKS
+ * K.4, decided in DECISIONS #436). The register answers "History available
+ * from …" off the same two values the empty state reasons against (the
+ * pair-equality property K.3's e2e locks), and K.3's critic found that pair
+ * breaking one filter later: a reader narrowed to a card whose history starts
+ * INSIDE the chosen window got the register's GLOBAL bound printed above "No
+ * transactions match these filters" — the bound described the register, the
+ * view described the card, and nothing joined them.
+ *
+ * Scope = account + category + unclassified: the axes that change WHICH ROWS
+ * EXIST (where the money is, and what it is filed as). The MATCH axes — type,
+ * class, search, merchant, reimbursement, the window itself — never move the
+ * bound: toggling them changes which rows MATCH within the set, not where the
+ * set begins, and a depth line that jumped on every toggle would mislead in
+ * the opposite direction. The predicates are the same per-axis ones
+ * `filterTransactions` applies, so a scoped bound and a filtered view can
+ * never disagree about what belongs to the set. A scoped oldest is a lower
+ * bound on every further-narrowed subset, which keeps `registerEmptyReason`'s
+ * window branches sound under every remaining filter.
+ */
+export function scopedDateBounds(
+  rows: readonly TxnView[],
+  scope: { accountId?: string | null; categoryId?: string | null; unclassified?: boolean },
+): { oldest: string | null; newest: string | null } {
+  let oldest: string | null = null;
+  let newest: string | null = null;
+  for (const t of rows) {
+    if (scope.accountId && t.accountId !== scope.accountId) continue;
+    if (scope.categoryId && t.categoryId !== scope.categoryId) continue;
+    if (scope.unclassified && !isUnclassifiedTxn(t)) continue;
+    if (oldest === null || t.date < oldest) oldest = t.date;
+    if (newest === null || t.date > newest) newest = t.date;
+  }
+  return { oldest, newest };
+}
+
 export interface TxnSummary {
   count: number;
   /** Sum of positive, non-transfer amounts. */

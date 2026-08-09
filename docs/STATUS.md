@@ -3369,3 +3369,59 @@ documented as latent (the only writer, `setBudget`, is demo-fenced; it arms only
 sets a budget target on a mixed category). The probe is the re-measurement instrument for that
 future state. Residual (1) of the row (the reserve third source) was already closed by C.23's
 reserve half (#412). **TASKS C.19 row: DONE 2026-08-09.**
+
+**Gate read (rule 5).** CI run **31339041797 on `59ee75b`** (the C.19 probe + records) =
+**SUCCESS — gate GREEN**, read via `scripts/ci-status.sh` (exit 0). The C.19 slice is
+SHIPPED-green by both gates; the K.4 slice now lands on top of a green head.
+
+## K.4 record — 2026-08-09: the register's history bounds are scoped by the SET-DEFINING axes, both surfaces move together by construction (DECISIONS #436)
+
+**The defect (K.3 critic, F10):** `registerEmptyReason` was computed from the GLOBAL
+account-depth bounds while the filter bar printed the same global numbers, so the K.3
+pair was consistent only while no filter narrowed the set. The F10 shape: the reader
+narrows to a card whose history starts 2026-07-01 and picks "Last year"
+[2025-01-01..2025-12-31]; the global oldest (a 2024 row in another account) sits before
+`to`, so the before-history branch could not fire and the empty state said "No
+transactions match these filters" — correct but useless (nothing can match; the reader's
+card does not exist yet). Decided by execution (#436), not inspection, per the row's own
+prescription ("Decide the scope question first, then build").
+
+**The decision (#436):** the bound names the SET the reader is browsing, so it is
+narrowed by the set-defining axes — **account, category, unclassified** — and nothing
+else. Match axes (type, class, search, merchant, reimbursement, and the window itself)
+never move the line. Both bound surfaces — the filter-bar sentence and the empty-state
+reason — receive the same scoped value (`oldestDate` prop and `oldest` input from one
+`scopedDateBounds` result in `getTransactions`), so K.3's pair-equality holds by
+construction. Rejected: narrowing only one surface (re-breaks the pair), scoping by all
+axes (the line flip-flops on every toggle), and patching the before-history branch alone
+(both sentences stay true-but-not-about-the-view). Soundness argument: the scoped set is
+a superset of every further-narrowed subset, so the scoped oldest is a lower bound on
+any of them — the window branches stay honest on every deeper filter; an empty scoped
+set (nulls) falls through to the `filters` branch correctly.
+
+**Implementation:** `scopedDateBounds` (pure, `src/lib/engine/transactions/query.ts`,
+set-defining axes only, explicit scan over the bounded rows); `getTransactions`'
+previous global scan replaced by the scoped call; docblocks in `empty-reason.ts` and
+`transaction-filters.tsx` rewritten to K.4 semantics.
+
+**Locks:** 8 unit tests (scopedDateBounds ×7 — no scope → global, account narrows,
+category narrows, unclassified narrows, combined intersect, empty-scoped → nulls,
+single-row; plus the F10-shape `registerEmptyReason` test: scoped oldest inside the
+window → `before-history` fires where the global bound could not). E2E F10 test with a
+throwaway user: two accounts of different depth (2024-08-11 vs 2026-07-01); unfiltered
+prints the global bound, account-narrowed + "Last year" prints the card's OWN bound in
+BOTH surfaces (`txn-empty-before-history`, exact string "Wed, Jul 1, 2026", never "No
+transactions match") — a state the unscoped code cannot reach, and the demo seed cannot
+produce (uniform account depth), hence the custom seed in the e2e.
+
+**Gate:** local verify GREEN — **320/320 e2e, 6,554 unit + 1 skipped**. The 4-worker
+lottery drew documented members on runs 1-4 (category-rename:110 ×2, transactions:638
+×2, :709, regression #216) — every member isolation-proven 1/1 on this exact tree, the
+CSV failures forensicked to the C.14/C.15 severed-flight/stuck-button wedge (temp DB
+held exactly the first import's 2 rows, zero duplicate writes; the slice touches no
+import code); run 5 GREEN on a fresh temp e2e DB per the C.15 playbook.
+
+**Deployment note (honest marker claim):** K.4 has no demo-visible marker — the demo
+seed's accounts share uniform depth, so the F10 shape (depth variance) is unrepresentable
+on demo data. The deployment proof is READY + the live route serving + CI gate GREEN on
+the shipped sha; the behavioral proof is the e2e on the throwaway depth accounts.

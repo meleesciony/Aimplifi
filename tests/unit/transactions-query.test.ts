@@ -8,6 +8,7 @@ import {
   isLiabilityType,
   isUnclassifiedTxn,
   paginate,
+  scopedDateBounds,
   sortByDateDesc,
   summarizeTransactions,
 } from '@/lib/engine/transactions/query';
@@ -334,5 +335,78 @@ describe('groupAccounts — assets, liabilities, net worth', () => {
     expect(g.netWorthCents).toBe(0);
     expect(g.assets.subtotalCents).toBe(0);
     expect(g.liabilities.subtotalCents).toBe(0);
+  });
+});
+
+describe('scopedDateBounds (K.4 — the bound names the SET the reader is browsing, DECISIONS #436)', () => {
+  // The F10 depth shape: account A holds the register's global oldest while
+  // account B's history starts inside a plausible "last year" window. The
+  // whole point of K.4 is that scoping to B moves the bound.
+  const depthRows: TxnView[] = [
+    txn({ id: 'd1', date: '2024-08-11', accountId: 'acct-A', amountCents: -1234 }),
+    txn({ id: 'd2', date: '2026-07-01', accountId: 'acct-B', amountCents: -1234 }),
+    txn({ id: 'd3', date: '2026-07-03', accountId: 'acct-B', amountCents: -1234 }),
+  ];
+
+  it('no scope → the global bounds of the whole pre-filter set', () => {
+    expect(scopedDateBounds(depthRows, {})).toEqual({ oldest: '2024-08-11', newest: '2026-07-03' });
+    expect(scopedDateBounds(ROWS, {})).toEqual({ oldest: '2026-06-01', newest: '2026-06-06' });
+  });
+
+  it('an account scope narrows the bound to that card’s own depth — the F10 fix', () => {
+    expect(scopedDateBounds(depthRows, { accountId: 'acct-B' })).toEqual({
+      oldest: '2026-07-01',
+      newest: '2026-07-03',
+    });
+  });
+
+  it('a category scope narrows to the rows in that category', () => {
+    expect(scopedDateBounds(ROWS, { categoryId: 'dining' })).toEqual({
+      oldest: '2026-06-02',
+      newest: '2026-06-04',
+    });
+  });
+
+  it('an unclassified scope narrows to undecided rows only (needsReview OR uncategorized)', () => {
+    const rows: TxnView[] = [
+      txn({ id: 'u1', date: '2026-01-05', needsReview: true, amountCents: -100 }),
+      txn({ id: 'u2', date: '2026-03-05', categoryId: 'uncategorized', categoryName: 'Uncategorized', amountCents: -100 }),
+      txn({ id: 'u3', date: '2026-02-05', amountCents: -100 }),
+    ];
+    expect(scopedDateBounds(rows, { unclassified: true })).toEqual({
+      oldest: '2026-01-05',
+      newest: '2026-03-05',
+    });
+    // Without the flag the whole set is the scope — the match axes never move
+    // the line.
+    expect(scopedDateBounds(rows, {})).toEqual({ oldest: '2026-01-05', newest: '2026-03-05' });
+  });
+
+  it('combined set-defining axes intersect', () => {
+    const rows: TxnView[] = [
+      txn({ id: 'c1', date: '2026-04-01', accountId: 'acct-A', categoryId: 'dining', needsReview: true, amountCents: -100 }),
+      txn({ id: 'c2', date: '2026-04-02', accountId: 'acct-A', categoryId: 'dining', amountCents: -100 }),
+      txn({ id: 'c3', date: '2026-04-03', accountId: 'acct-B', categoryId: 'dining', amountCents: -100 }),
+      txn({ id: 'c4', date: '2026-04-04', accountId: 'acct-A', categoryId: 'shopping', amountCents: -100 }),
+    ];
+    expect(
+      scopedDateBounds(rows, { accountId: 'acct-A', categoryId: 'dining', unclassified: true }),
+    ).toEqual({ oldest: '2026-04-01', newest: '2026-04-01' });
+    expect(scopedDateBounds(rows, { accountId: 'acct-A', categoryId: 'dining' })).toEqual({
+      oldest: '2026-04-01',
+      newest: '2026-04-02',
+    });
+  });
+
+  it('an empty scoped set yields null bounds (the register’s own no-rows shape)', () => {
+    expect(scopedDateBounds(ROWS, { accountId: 'acct-Z' })).toEqual({ oldest: null, newest: null });
+    expect(scopedDateBounds([], {})).toEqual({ oldest: null, newest: null });
+  });
+
+  it('single-row scope: oldest equals newest', () => {
+    expect(scopedDateBounds(ROWS, { accountId: 'acct-B' })).toEqual({
+      oldest: '2026-06-04',
+      newest: '2026-06-04',
+    });
   });
 });

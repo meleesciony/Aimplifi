@@ -18,12 +18,22 @@
  * branch unchanged.
  *
  * SCOPE, and why the copy built from this says "history here" rather than "your
- * history" (critic cycle 1, F6/F9): `oldest`/`newest` come from the register's
- * own pre-filter set, which is narrowed to spending account types (#62) and USD
- * (#135), and is NOT re-narrowed by the reader's account/category filter. A
- * first-person claim off that set would tell a reader filtered to one card when
- * "your" history starts using a date from an account they filtered away, and
- * would tell a reader with a CAD card about a set that excludes it.
+ * history" (critic cycle 1, F6/F9 — REVISED by K.4, DECISIONS #436): `oldest`/
+ * `newest` come from the register's own pre-filter set, narrowed to spending
+ * account types (#62), USD (#135), and — since K.4 — by the reader's
+ * SET-DEFINING axes: account, category, unclassified. Those are the axes that
+ * change WHICH ROWS EXIST; the bound that names the set they define is a lower
+ * bound on every further-narrowed subset, so the window branches below stay
+ * sound and the printed line is about the view being read. The MATCH axes
+ * (type, class, search, merchant, reimbursement, the window itself) never move
+ * the line — they select WITHIN the set, and a depth line that jumped on every
+ * toggle would mislead in the other direction. K.4's defect shape (F10): a
+ * reader narrowed to a card whose history starts INSIDE the chosen window got
+ * the register's GLOBAL oldest printed above the empty box — both sentences
+ * true, neither about the view, and the before-history branch could not fire
+ * because the window's `to` sat after the global bound. First-person copy off
+ * the scoped set is now sound: filtered to one card, "history here" is that
+ * card's own depth.
  *
  * SECOND owner report, 2026-08-07, same sentence and a different zero behind
  * it: "still not showing up" — a register reading 0 transactions / $0.00 with
@@ -96,9 +106,11 @@ export interface RegisterEmptyInput {
   from: string | null;
   to: string | null;
   /**
-   * Bounds of the register's own FULL pre-filter set — the same two values the
-   * "History available from …" line is rendered from, so the empty state and
-   * that line can never disagree. Null when the set is empty.
+   * Bounds of the register's own pre-filter set, narrowed by the SET-DEFINING
+   * axes (account, category, unclassified — K.4, DECISIONS #436) — the same
+   * two values the "History available from …" line is rendered from, so the
+   * empty state and that line can never disagree (K.3's pair, kept together
+   * by construction). Null when the set is empty.
    */
   oldest: string | null;
   newest: string | null;
@@ -141,9 +153,11 @@ export function registerEmptyReason(input: RegisterEmptyInput): RegisterEmptyRea
     return { kind: 'inverted-window', from, to };
   }
 
-  // A window that ENDS before the first row we hold. Sound under every other
-  // filter: the global oldest is a lower bound on every subset's oldest, so
-  // `to < oldest` means `to` precedes every row any narrowing could have shown.
+  // A window that ENDS before the first row the view holds. Sound under every
+  // MATCH-axis narrowing: the scoped oldest is a lower bound on every
+  // further-narrowed subset's oldest (the SET-DEFINING axes already moved the
+  // bound themselves), so `to < oldest` means `to` precedes every row any
+  // remaining narrowing could have shown.
   if (oldest !== null && to !== null && compareDates(to, oldest) < 0) {
     return { kind: 'before-history', oldest, to };
   }

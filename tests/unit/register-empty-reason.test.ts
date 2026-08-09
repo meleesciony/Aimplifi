@@ -31,6 +31,24 @@ describe('registerEmptyReason', () => {
     expect(r).toEqual({ kind: 'before-history', oldest: '2026-03-25', to: '2025-08-06' });
   });
 
+  it('K.4/F10 shape: with the SCOPED bound, before-history fires where the global bound could not (DECISIONS #436)', () => {
+    // Reader narrowed to the card whose history starts 2026-07-01, "Last year"
+    // window [2025-01-01..2025-12-31]. Unscoped, the register would pass the
+    // GLOBAL oldest (2024-08-11, another card): to > oldest, the window looks
+    // in-range, the answer blamed the filters, and the printed line above the
+    // box was not about the view — the K.3 pair broken one filter away. With
+    // the K.4 scoped bound the window IS disjoint from the browsed set, and
+    // this branch — which exists to name exactly this zero — fires.
+    const r = registerEmptyReason({
+      ...base,
+      hasFilters: true,
+      from: '2025-01-01',
+      to: '2025-12-31',
+      oldest: '2026-07-01',
+    });
+    expect(r).toEqual({ kind: 'before-history', oldest: '2026-07-01', to: '2025-12-31' });
+  });
+
   it('carries BOTH dates it compared, so the copy can state the comparison rather than assert a bare bound', () => {
     const r = registerEmptyReason({ ...base, hasFilters: true, from: '2024-01-01', to: '2024-12-31' });
     if (r.kind !== 'before-history') throw new Error(`expected before-history, got ${r.kind}`);

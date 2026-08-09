@@ -67,10 +67,15 @@ export function TransactionFilters({
    *  from/to inputs agree with the same "today" the totals use, never with
    *  the browser clock. */
   today: string;
-  /** Date of the oldest transaction the reader can see, or null when there
-   *  are none. A period picker promising "last year" must say how far back
-   *  the data actually goes — a just-linked bank has ~90 days, and a preset
-   *  that silently returns less than its name is the defect this discloses. */
+  /** Date of the oldest transaction the reader can see in the CURRENT set, or
+   *  null when there are none. Since K.4 (DECISIONS #436) the bound is scoped
+   *  by the set-defining axes — the account/category/unclassified filters —
+   *  so a reader narrowed to one card sees that card's own depth, and the
+   *  printed line always agrees with the empty-state's explanation of a zero
+   *  (the K.3 pair, kept together by construction). A period picker promising
+   *  "last year" must say how far back the data actually goes — a just-linked
+   *  bank has ~90 days, and a preset that silently returns less than its name
+   *  is the defect this discloses. */
   oldestDate?: string | null;
 }) {
   const router = useRouter();

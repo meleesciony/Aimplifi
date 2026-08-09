@@ -6123,3 +6123,45 @@ exclusion. F2: the today-feed's negative-runway branch was dead code — the
 nudge engine clamps non-positive runway to null, so the surface abstains
 (which the audit allows); the dead branch was removed and the record here
 corrected to say the negative-runway naming lives on the coach surfaces.
+
+## #436 — K.4: the register's history bounds are scoped by the SET-DEFINING axes — account, category, unclassified — and both bound surfaces move together by construction (2026-08-09)
+
+The F10 defect shape from the K.3 critic, made concrete before deciding: a
+reader picks the "Last year" preset — window [2025-01-01..2025-12-31] — and
+narrows to the card whose history starts INSIDE that window (2026-07-01). The
+register's global oldest (a 2024 row on a different card) prints as "History
+available from Sun, Aug 11, 2024" above an empty box, and the before-history
+branch of `registerEmptyReason` CANNOT fire: `to` (2025-12-31) sits after the
+global bound, so the window looks in-range even though the browsed card has
+no row inside it. Both sentences were true and neither was about the view —
+the K.3 pair broken one filter away, by the exact K.3 branch that was meant
+to name this zero.
+
+**Decision: scope the bound by the SET-DEFINING axes only — account,
+category, unclassified — the axes that change WHICH ROWS EXIST.** One new
+pure helper, `scopedDateBounds` (`query.ts`), narrows the register's own
+pre-filter set by those axes and is wired into `getTransactions`, replacing
+the global scan; the printed filter-bar line and the empty-state reason
+inputs receive THE SAME scoped bound, so K.3's pair-equality holds by
+construction instead of by coincidence. The scope is sound: the scoped set is
+a superset of every further-narrowed subset, so its oldest is a lower bound
+on any of them — when before-history fires on the scoped bound it is true of
+the view, and when the window does contain scoped-set rows the empty box
+correctly falls through to the filters branch (the match axis is what killed
+them, and that is what the branch says). The MATCH axes — type, class,
+search, merchant, reimbursement, the window itself — never move the line:
+they select WITHIN the set, and a depth line that jumped on every toggle
+would mislead in the other direction.
+
+**Rejected alternatives.** (a) Scope only the printed line, leave the
+empty-state inputs global: the pair re-breaks — the bar would say the card's
+depth while the box explained against a different bound. (b) Scope by ALL
+axes: the line flip-flops on every type/class/search toggle and the
+before-history trigger becomes right only by luck. (c) Keep the global bound
+and patch only the branch: both sentences stay true-but-not-about-the-view,
+which is the original owner-report defect. The demo seed cannot exhibit F10
+(all demo accounts share one depth), so the e2e uses the throwaway-user
+pattern: two accounts with different oldest rows, the unfiltered line, and
+the account-narrowed + last-year window asserting BOTH surfaces name the
+card's own bound and the box shows `txn-empty-before-history` — a state the
+unscoped code cannot reach.

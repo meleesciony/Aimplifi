@@ -15,7 +15,9 @@
  * undisturbed (the #166/#39 lesson). The fence itself has its own spec below.
  */
 import AxeBuilder from '@axe-core/playwright';
+import Database from 'better-sqlite3';
 import { type Page, expect, test } from './helpers/test';
+import { E2E_DB_URL } from '../setup/test-db';
 
 async function signIn(page: Page) {
   await page.goto('/');
@@ -24,7 +26,7 @@ async function signIn(page: Page) {
 }
 
 /** Throwaway signup user — full isolation from the demo goldens (+ the #244 fence). */
-async function signUpThrowaway(page: Page) {
+async function signUpThrowaway(page: Page): Promise<string> {
   const email = `e2e-txn-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
   await page.goto('/sign-in');
   await page.getByTestId('auth-toggle').click();
@@ -32,6 +34,7 @@ async function signUpThrowaway(page: Page) {
   await page.getByTestId('auth-password').fill('e2e-password-123');
   await page.getByTestId('auth-submit').click();
   await page.waitForURL('**/dashboard', { timeout: 20000 });
+  return email;
 }
 
 /** Add a manual asset on /accounts and wait for its row (reload-confirmed write). */
@@ -207,6 +210,75 @@ test('a window entirely before the register history names the history bound, not
   // The CSV remedy is refused for the shared demo user, and this spec IS that
   // user — so the sentence must not offer it here (critic cycle 1, F1).
   await expect(empty).not.toContainText(/Import a CSV from your bank/);
+});
+
+/**
+ * K.4 (DECISIONS #436) — F10 from the K.3 critic: a reader narrowed to a card
+ * whose history starts INSIDE the chosen window. Before K.4 the span printed
+ * the register's GLOBAL oldest (this test's OTHER account holds it — a 2024
+ * row) while the empty box blamed the filters: both sentences true, neither
+ * about the view, and the before-history branch could not fire because the
+ * window's `to` sat after the global bound. With scoped bounds the card's own
+ * depth (2026-07-01) is a lower bound on everything further narrowed, the
+ * window [2025-01-01..2025-12-31] is disjoint from the view, and the zero
+ * names itself in BOTH surfaces.
+ *
+ * The seed runs directly against the e2e SQLite DB (budget-targets.spec
+ * pattern): the demo seed's uniform account depth cannot produce this shape.
+ */
+function seedDepthAccounts(email: string): { deep: string; shallow: string } {
+  const db = new Database(E2E_DB_URL.replace(/^file:/, ''), { timeout: 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
+    if (!user) throw new Error(`seedDepthAccounts: user ${email} not found`);
+    const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    const deep = `e2e-k4-deep-${suffix}`;
+    const shallow = `e2e-k4-shallow-${suffix}`;
+    const insertAccount = db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, name, type, currentBalanceCents, currency)
+       VALUES (?, ?, 'manual', ?, ?, 'CHECKING', 250000, 'USD')`,
+    );
+    insertAccount.run(deep, user.id, `k4-d-${suffix}`, 'Deep Card');
+    insertAccount.run(shallow, user.id, `k4-s-${suffix}`, 'Shallow Card');
+    const insertTxn = db.prepare(
+      `INSERT INTO "Transaction" (id, accountId, date, amountCents, rawDescriptor, categoryId, confidenceBps, needsReview, status, isTransfer, isSplitParent)
+       VALUES (?, ?, ?, -1234, ?, 'shopping', 9000, 0, 'POSTED', 0, 0)`,
+    );
+    insertTxn.run(`e2e-k4-txn-deep-${suffix}`, deep, '2024-08-11', 'ANCIENT CHARGE');
+    insertTxn.run(`e2e-k4-txn-shallow-${suffix}`, shallow, '2026-07-01', 'NEW CARD CHARGE');
+    return { deep, shallow };
+  } finally {
+    db.close();
+  }
+}
+
+test('K.4/F10: an account whose history starts inside the window names ITS OWN bound, in both surfaces', async ({ page }) => {
+  const { shallow } = seedDepthAccounts(await signUpThrowaway(page));
+
+  // Unfiltered: the register's global oldest — the seed landed and the
+  // unfiltered line still speaks for the whole register.
+  await page.goto('/transactions');
+  await expect(page.getByTestId('txn-history-span')).toContainText('Sun, Aug 11, 2024', { timeout: 20000 });
+
+  // Narrowed to the shallow card with the "Last year" preset: the view's own
+  // bound must print — and the empty box must name the same zero. Unscoped,
+  // this exact URL printed the 2024 bound and blamed the filters.
+  await page.goto(`/transactions?account=${shallow}&from=2025-01-01&to=2025-12-31`);
+
+  const empty = page.getByTestId('txn-empty');
+  await expect(empty).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('txn-empty-before-history')).toBeVisible();
+  await expect(empty).not.toContainText(/No transactions match these filters/);
+
+  // The two sentences must name the SAME date — and that date must be the
+  // shallow card's own depth, not the deep card's 2024 row.
+  const span = await page.getByTestId('txn-history-span').textContent();
+  const printed = /History available from (.+)\./.exec(span ?? '')?.[1];
+  expect(printed, 'the filter bar must print the SCOPED history bound').toBe('Wed, Jul 1, 2026');
+  await expect(empty).toContainText(printed!);
+
+  // The zero is named where the ZERO is, not only in the box below it.
+  await expect(page.getByText(/0 transactions in this window/)).toBeVisible();
 });
 
 /**
