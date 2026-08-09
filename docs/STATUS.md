@@ -3253,3 +3253,46 @@ mobile-overflow:408 webkit; budget-targets:20 in both), which is what identified
 bare first click after a load, dropped before hydration — now barriered with a state-GUARDED
 retry in all three. Production deploy Ready; `d5898ad` touches no `src/`, so the behaviour proven
 live on `7f70328` (7/7) is the behaviour running now.
+
+## C.18 record — 2026-08-09: production-polish cohesion sweep (2138a04)
+
+Local gate on the final tree: **✅ VERIFY GREEN** — tsc 0, eslint 0, unit **6,546 passed +
+1 skipped / 396 files**, `next build` clean, e2e **319 passed** (4.0m).
+
+What shipped: the demo-fence wave closed the last visitor-personalization write family on
+the shared demo row (money dials, budget targets, the unknown-question ledger, the audit
+cron skip — server refusals + a fence note on the dials form, unit-locked in
+`shared-demo-fences.test.ts`); both e2e specs that drove those writes as demo migrated to
+throwaway users (the budget-targets pattern); the false "precached by the service worker"
+/offline shell was deleted (middleware + sw-register docblocks corrected); every app
+description leads with the mission instead of the cash-needed feature (sign-in tagline,
+metadata, privacy-policy intro); the privacy policy now names the one PII-free salted hash
+that outlives deletion instead of claiming "nothing is retained"; the coach creep-card
+title stopped being the clickable claim (the link claims only the register filter); the
+register caption names its pending-included basis; the cash-needed forecast link says
+"90-day recurring forecast" (forecast is recurring-only); /goals and /investments carry
+the same frozen-portfolio qualifier /coach prints; forecast.ts now anchors via the shared
+`resolvePaymentAccount` (D1: the drift copy disagreed on the SAVINGS fallback tier); the
+"Aim·plifi" brand drift was fixed.
+
+Gate history on the way to green (all local runs of the same tree): a first run was a
+script-misuse skip (flag passed as argv, not env); a second hit my own new e2e throwaway
+test (fresh user's payment-account select resets after reload and its `required` blocks
+every later submit — fixed by seeding the stored payment account, exactly the demo's
+shape); a third hit the two documented lottery members `category-rename:110` +
+`transactions:637` (both isolation-proven solo, 30/30); a fourth found 5 failures in
+`retirement-outlook.test.ts` — MY new `frozenPortfolioNote` field broke that file's mocked
+`getCoachData` (mock lacked `frozenBalances`) — fixed + a lock added; the fifth was green.
+
+**SHIP GATE READ (rule 5).** CI run **31332192499 on `2138a04` = failure — exactly ONE
+failing test: `category-rename.spec.ts:110`**, the documented stall-lottery member of the
+C.16/C.17 records (red there on unrelated trees, isolation-proven solo today 30/30; this
+push touches neither the test nor the category-remove path). Everything else in the run —
+unit, build, the other 318 e2e — green. Recorded per rule 5 (failure never silent; the
+failing test is proven pre-existing by the C.16/C.17 records + solo isolation). The docs
+commit carrying this record re-triggers the gate on the new sha; a fresh lottery hit on
+`category-rename:110` needs no new record — the class is owned.
+
+Live deploy proven (rule 5): `/sign-in` renders "deliberately wealthier"; `/privacy`
+renders "one-way salted hash"; `/offline` answers 307 (middleware) instead of serving the
+deleted shell; `/sign-in` 200.
