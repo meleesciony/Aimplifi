@@ -14,7 +14,11 @@ import { prisma } from '@/lib/db';
 import { BudgetTargetForm } from '@/components/finance/budget-target-form';
 import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
 import { getCategoryOverlay } from '@/server/category-meta';
-import { loanPaymentBasisFacts, loanPaymentRefusedCategories } from '@/server/loan-payment-basis';
+import {
+  loanPaymentBasisFacts,
+  loanPaymentBasisSentence,
+  loanPaymentRefusedCategories,
+} from '@/server/loan-payment-basis';
 import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
 import { getHiddenCategoryIds, getLinkableCategoryIds } from '@/server/categories';
 import {
@@ -350,13 +354,14 @@ export default async function BudgetsPage() {
               discover by adding the rows up by hand. */}
           <CardDescription>{month} · transfers excluded · pending included</CardDescription>
           {/* C.25 (#403): the loan payments this list does not count, named —
-              same set the figures above applied. Speaks only when something
-              moved; silence means nothing did. */}
+              same set the figures above applied. The claim is scoped to this
+              list (O.18e-FU): the SpendClassPanel above counts the same rows
+              and says so in its own note — no surface-wide claim survives
+              that coexistence. Speaks only when something moved; silence
+              means nothing did. */}
           {loanPaymentBasisFacts(snap).map((e, i) => (
             <CardDescription key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`} data-testid="budgets-loan-payment-basis">
-              Payments to {e.payee} at {formatCents(cents(e.paymentCents))}/mo are counted on{' '}
-              {e.loanName}, not here — loan payments are not spending. A payment at another
-              amount counts normally.
+              {loanPaymentBasisSentence(e, 'this-list')}
             </CardDescription>
           ))}
           <CardTitle className="text-base">By category</CardTitle>

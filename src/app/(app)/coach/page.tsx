@@ -30,6 +30,7 @@ import { cents, formatCents } from '@/lib/money';
 import { prisma } from '@/lib/db';
 import { receiptLines, receiptsFromOpportunities } from '@/lib/engine/receipts/receipts';
 import { getCoachData } from '@/server/coach';
+import { loanPaymentBasisSentence } from '@/server/loan-payment-basis';
 import { getValueReceiptsSummary, recordReceipts } from '@/server/receipts';
 import { getWithheldAccountSummary } from '@/server/transactions';
 
@@ -84,12 +85,13 @@ export default async function CoachPage() {
 
       {/* C.25 (#403, critic P1-5): the savings rate, creep baseline and FI
           number all read flows the exclusion moved — name what left, or say
-          nothing when nothing did. */}
+          nothing when nothing did. The sentence claims these figures only
+          (O.18e-FU): a universal "loan payments are not spending" could not
+          survive a surface that lists the rows, so every surface scopes its
+          claim. */}
       {data.loanPaymentExclusions.map((e, i) => (
         <p key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`} className="text-xs text-muted-foreground" data-testid="coach-loan-payment-basis">
-          Payments to {e.payee} at {formatCents(cents(e.paymentCents))}/mo are counted on{' '}
-          {e.loanName}, not in these figures — loan payments are not spending. A payment at
-          another amount counts normally.
+          {loanPaymentBasisSentence(e, 'figures')}
         </p>
       ))}
 

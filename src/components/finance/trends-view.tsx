@@ -34,6 +34,7 @@ import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-
 import { breakdownNetRefundCopy } from '@/lib/engine/glass-box/category-breakdown';
 import type { CategoryBreakdown } from '@/lib/engine/glass-box/category-breakdown';
 import type { BalanceMoveView } from '@/server/balance-move';
+import { loanPaymentBasisSentence } from '@/server/loan-payment-basis';
 import type { SpendingTrendsData } from '@/server/trends';
 
 const money = (n: number, signed = false) =>
@@ -302,19 +303,22 @@ export function TrendsView({
                 otherwise has no way to know which rows each one summed. */}{' '}
             <span data-testid="trends-pace-basis">Includes pending charges.</span>
           </p>
-          {/* C.25 (#403): what the pace and the movers do NOT count — a loan
-              payment carried elsewhere is counted on the committed side, so
-              it leaves the projection in every month. Speaks only when
-              something moved; silence means nothing did. */}
+          {/* C.25 (#403): what THIS figure does not count — a loan payment
+              carried elsewhere is counted on the committed side, so it leaves
+              the pace projection in every month. The claim is scoped to the
+              pace figure on purpose (O.18e-FU): the movers and biggest
+              purchases drop the same rows, but the page's own "New this
+              month" panel lists them — it follows the register, which shows
+              the charge — so a sentence that claimed the payment vanished
+              from the whole page would contradict the card below it. Speaks
+              only when something moved; silence means nothing did. */}
           {trends.loanPaymentExclusions.map((e, i) => (
             <p
               key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`}
               className="mt-1 text-xs text-muted-foreground"
               data-testid="trends-loan-payment-basis"
             >
-              Not counted here: payments to {e.payee} at {money(e.paymentCents)}/mo — counted
-              on {e.loanName} instead, and loan payments are not spending. A payment at another
-              amount counts normally.
+              {loanPaymentBasisSentence(e, 'pace-figure')}
             </p>
           ))}
         </section>

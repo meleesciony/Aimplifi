@@ -18,6 +18,7 @@ import { CATEGORY_LINK_CLASS } from '@/lib/engine/transactions/links';
 import { formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { withheldInlineNote, type WithheldAccountSummary } from '@/lib/providers/currency';
+import { loanPaymentBasisSentence } from '@/server/loan-payment-basis';
 import { REPORT_CHART_MONTHS, type ReportChartMonths } from '@/lib/engine/reports/chart-range';
 import type { ReportsData } from '@/server/reports';
 
@@ -406,16 +407,15 @@ export function ReportsView({
                 named — a loan payment carried elsewhere is counted on the
                 committed side, so the figures here drop it in every month,
                 not just the months the bank's settlement timing paired it.
-                Speaks only when something moved; silence means nothing did. */}
+                The claim is scoped to these figures (O.18e-FU). Speaks only
+                when something moved; silence means nothing did. */}
             {data.loanPaymentExclusions.map((e, i) => (
               <p
                 key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`}
                 className="mt-1 text-xs text-muted-foreground"
                 data-testid="reports-loan-payment-basis"
               >
-                Payments to {e.payee} at {formatCents(cents(e.paymentCents))}/mo are counted on{' '}
-                {e.loanName}, not here — loan payments are not spending. A payment at another
-                amount (an escrow change, say) counts normally.
+                {loanPaymentBasisSentence(e, 'page-figures')}
               </p>
             ))}
             <div className="mt-1.5 flex flex-wrap gap-1.5">
