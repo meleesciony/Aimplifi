@@ -37,7 +37,7 @@ async function signUpThrowaway(page: Page): Promise<string> {
 /** Two LIVE Chase connections, each with the same card ····0977 at $1,000.00. */
 function seedDuplicateConnections(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedDuplicateConnections: user ${email} not found`);
@@ -125,7 +125,7 @@ test('when it will NOT offer a combine, the page says why and offers the one-tap
   // refuses to place both connections at one institution and no offer is made.
   const email = await signUpThrowaway(page);
   seedDuplicateConnections(email);
-  const db = new Database(E2E_DB_URL.replace(/^file:/, ''), { timeout: 15_000 });
+  const db = new Database(E2E_DB_URL.replace(/^file:/, ''), { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string };
     db.prepare("UPDATE PlaidItem SET institutionId = NULL WHERE userId = ? AND itemId LIKE '%-second-%'").run(user.id);

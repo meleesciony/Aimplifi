@@ -28,7 +28,7 @@ async function signUpThrowaway(page: Page): Promise<string> {
 }
 
 function openDb() {
-  return new Database(E2E_DB_URL.replace(/^file:/, ''), { timeout: 15_000 });
+  return new Database(E2E_DB_URL.replace(/^file:/, ''), { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
 }
 
 function seed(email: string): { incomeId: string; cardId: string; fundOutId: string } {

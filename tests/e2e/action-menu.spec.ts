@@ -36,7 +36,7 @@ async function signUpThrowaway(page: Page): Promise<string> {
 
 function seedFixture(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as
       | { id: string }
@@ -374,7 +374,7 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     await page.getByTestId('detail-split-amount').fill('10.00');
     await page.getByTestId('detail-split-confirm').click();
     // The split lands on the PARENT's page after reload.
-    await expect(page.getByTestId('detail-split-parts')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('detail-split-parts')).toBeVisible({ timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
 
     // On the container, the menu disables the money actions with reasons.
     await page.getByTestId('txn-action-trigger').click();

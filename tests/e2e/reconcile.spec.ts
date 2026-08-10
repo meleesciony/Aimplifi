@@ -31,7 +31,7 @@ async function signUpThrowaway(page: Page): Promise<string> {
  *  predecessor's two purchases, plus one of its own after the span. */
 function seedOverlapTransactions(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedOverlapTransactions: user ${email} not found`);
@@ -60,7 +60,7 @@ function seedOverlapTransactions(email: string) {
 /** A stale SimpleFIN predecessor ($2,400.00) + a live Plaid successor ($2,500.00), same mask. */
 function seedReconcilePair(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedReconcilePair: user ${email} not found`);
@@ -109,7 +109,7 @@ test.beforeEach(({ page }) => {
 /** L.9: one stale SimpleFIN Roth IRA + TWO live Plaid IRAs (Roth ····5351, Traditional ····1548). */
 function seedRetirementTrio(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedRetirementTrio: user ${email} not found`);
@@ -152,7 +152,7 @@ function seedRetirementTrio(email: string) {
 /** L.9: one stale SimpleFIN checking row + two live Plaid checking twins (the ambiguity shape). */
 function seedAmbiguousTrio(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedAmbiguousTrio: user ${email} not found`);

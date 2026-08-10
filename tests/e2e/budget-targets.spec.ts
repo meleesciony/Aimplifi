@@ -33,7 +33,7 @@ import { E2E_DB_URL } from '../setup/test-db';
  *  user needs exactly one. No transactions: the target-bearing DOM this spec asserts
  *  (target, remaining status, Clear control) does not depend on any spend. */
 function seedAccount(email: string) {
-  const db = new Database(E2E_DB_URL.replace(/^file:/, ''), { timeout: 15_000 });
+  const db = new Database(E2E_DB_URL.replace(/^file:/, ''), { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedAccount: user ${email} not found`);

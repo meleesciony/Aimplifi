@@ -37,7 +37,18 @@ export function makeAdapter(url: string | undefined | null) {
   // immediately with SQLITE_BUSY. Set above the test timeout so a lock wait
   // resolves within the test budget (production uses Postgres, so this is the
   // local/test path only).
+  //
+  // SQLITE_BUSY_TIMEOUT_MS (K.8 harness fix, 2026-08-10): the 4-worker e2e suite
+  // has ~45 writer connections on one file, so a server transaction whose snapshot
+  // went stale mid-read burns the FULL timeout on a doomed upgrade (BUSY_SNAPSHOT
+  // never clears for that snapshot). At 15s per statement, concurrent burns stack
+  // on the single engine connection and sever server-action confirmation streams
+  // (6-19s+ stalls, 30s+ test timeouts — the K.8 ledger classes). The e2e harness
+  // sets this to 500ms so a collision costs ≤500ms + one P2034 re-roll
+  // (serializableTx caps at 3) instead of a 15s queue-blocking burn; the default
+  // stays 15s for dev/unit use where contention is a single process.
+  const busyTimeoutMs = Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000;
   return isPostgresUrl(resolved)
     ? new PrismaPg({ connectionString: resolved })
-    : new PrismaBetterSqlite3({ url: resolved, timeout: 15_000 });
+    : new PrismaBetterSqlite3({ url: resolved, timeout: busyTimeoutMs });
 }

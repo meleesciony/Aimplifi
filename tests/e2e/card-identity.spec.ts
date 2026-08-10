@@ -32,7 +32,7 @@ const inDays = (days: number) => {
 /** Two cards sharing ONE name, differing only by last-4 — the owner's shape. */
 function seedTwoSameNamedCards(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as
       | { id: string }
@@ -99,7 +99,7 @@ test('a card with no last-4 from the bank says so rather than showing a guessed 
 }) => {
   const email = await signUpThrowaway(page);
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   const stamp = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   const ids: string[] = [];
   try {

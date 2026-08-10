@@ -70,7 +70,7 @@ const SEEDED_GROUPS = 1 + AMBIGUOUS_SINGLES.length;
 
 function seedAmbiguousReviewQueue(email: string): void {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as
       | { id: string }

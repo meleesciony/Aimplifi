@@ -35,7 +35,7 @@ async function signUpThrowaway(page: Page): Promise<string> {
  */
 function seedUndatableCard(email: string, cardName: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as
       | { id: string }
@@ -105,7 +105,7 @@ test('a card with no statement is reported as undatable, never as "nothing due"'
  */
 function seedDatedCard(email: string, cardName: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as
       | { id: string }
@@ -180,7 +180,7 @@ test('the mixed case: a dated-cards total names the undatable card beside it', a
  */
 function seedZeroBalanceMix(email: string, datedName: string, paidOffName: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as
       | { id: string }

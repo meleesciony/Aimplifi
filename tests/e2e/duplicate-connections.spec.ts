@@ -48,7 +48,7 @@ async function signUpThrowaway(page: Page): Promise<string> {
  */
 function seedTwoUsBankConnections(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedTwoUsBankConnections: user ${email} not found`);
@@ -251,7 +251,7 @@ test('arming one side keeps the other side’s evidence on screen', async ({ pag
  */
 function seedOrphanedDuplicate(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedOrphanedDuplicate: user ${email} not found`);
@@ -451,7 +451,7 @@ test('the duplicate blocks stay inside the viewport on a phone', async ({ page }
  */
 function seedDuplicateCardOnTwoConnections(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedDuplicateCardOnTwoConnections: user ${email} not found`);
@@ -568,7 +568,7 @@ test('/cards discloses a card counted twice, and names which two entries', async
  */
 function seedSameNameDatedAndUndated(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedSameNameDatedAndUndated: user ${email} not found`);

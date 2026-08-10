@@ -33,7 +33,7 @@ async function signUpThrowaway(page: Page): Promise<string> {
  */
 function seedUnknownMerchantWithPlaidGuess(email: string) {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedUnknownMerchantWithPlaidGuess: user ${email} not found`);
@@ -83,5 +83,5 @@ test('L.12: an unknown merchant with a persisted Plaid guess shows a labelled on
   await accept.click();
 
   // The group is filed and leaves the queue — the provider suggestion is gone.
-  await expect(providerSuggestion).toHaveCount(0, { timeout: 15_000 });
+  await expect(providerSuggestion).toHaveCount(0, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
 });

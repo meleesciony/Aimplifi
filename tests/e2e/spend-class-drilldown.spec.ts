@@ -32,7 +32,7 @@ test('Fixed expenses heading on Spending opens Fixed transactions', async ({ pag
   const rows = page.getByTestId('txn-row');
   // Demo seed has Fixed spend in the pin month — empty would mean the filter
   // or the link window drifted from the seed.
-  await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+  await expect(rows.first()).toBeVisible({ timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   const n = await rows.count();
   expect(n).toBeGreaterThan(0);
   for (let i = 0; i < Math.min(n, 10); i++) {

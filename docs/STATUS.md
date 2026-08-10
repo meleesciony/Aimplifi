@@ -3110,6 +3110,39 @@ a mitigation inside it) remains the named follow-up. The K.7 slice's own
 gate reads (31359227811, 31368294618) and its deploy proofs are untouched
 by any of this.
 
+**HARNESS FIX SHIPPED 2026-08-10 (DECISIONS #438) — the stall class is now
+mechanism-proven and bounded.** Two instrumented runs (request/action/statement
+log inside `next start`) proved the mechanism the ledger had documented as a
+class: ~40 specs open their OWN better-sqlite3 connections to the single e2e
+file, and a worker seed (or concurrent server transaction) committing between
+a server action's first read and first write makes the write upgrade burn the
+FULL 15s busy_timeout on a doomed stale-snapshot wait (BUSY_SNAPSHOT never
+clears for that snapshot). The Prisma engine serializes per connection, so
+concurrent burns STACK — run 2: actions resolving at 6–19.4s (≈15s burn +
+re-roll), 97 POSTs still open at run end, 3 tests failing on 20–30s
+action-response timeouts; run 1: 2 POSTs never finished while the loop stayed
+healthy. That is why no window raising converged: each burn multiplies every
+statement queued behind it. **Fix:** the SQLite busy_timeout is now
+env-tunable (`SQLITE_BUSY_TIMEOUT_MS`, default 15s unchanged for dev/unit)
+and the e2e harness sets it to 500ms — a collision costs ≤500ms + one
+serializableTx re-roll instead of a 15s queue-blocking burn — plus Playwright
+`retries: 2` (K.8-sanctioned, verified here) absorbing the residual lottery;
+a test failing after retries is a real failure that enters this ledger.
+**Verification (4 local draws with the fix):** run 3: 319 passed / 1 flaky /
+0 failed; full gate GREEN — tsc 0 / eslint 0 / 6,575 unit + 1 skipped / build
+clean / e2e 318 passed / 2 flaky / 0 failed. Both flaky were CSV members:
+transactions:638's retry-1 reproduced the EXACT CI signature locally (180s
+stale-result window — the second import's action never produced a
+client-visible result; the K.4 forensic proved that class never writes),
+passed in 2.3s on retry — machine-independence of the class, and the retry
+absorbing it. **Residual, recorded not fixed:** the C.14/C.15 severed-flight
+wedge has a non-DB component (the action stalls before writing; a 500ms burn
+cannot touch it) — ~1 draw in 4 locally, absorbed by retries, follow-up open
+(TASKS K.10); and the combine-connections 500 is a REAL engine race
+(concurrent combines at combine-connections.ts:1042, "H.6b(a) carry"), now
+fast + retry-absorbed, engine-side fix as its own task. Instrument hook
+deleted; evidence log preserved (run-1/run-2 full request logs, 38k lines).
+
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.
 

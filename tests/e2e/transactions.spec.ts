@@ -227,7 +227,7 @@ test('a window entirely before the register history names the history bound, not
  * pattern): the demo seed's uniform account depth cannot produce this shape.
  */
 function seedDepthAccounts(email: string): { deep: string; shallow: string } {
-  const db = new Database(E2E_DB_URL.replace(/^file:/, ''), { timeout: 15_000 });
+  const db = new Database(E2E_DB_URL.replace(/^file:/, ''), { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
     if (!user) throw new Error(`seedDepthAccounts: user ${email} not found`);

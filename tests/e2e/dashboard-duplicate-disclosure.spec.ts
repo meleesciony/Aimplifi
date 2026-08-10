@@ -45,7 +45,7 @@ async function signUpThrowaway(page: Page): Promise<string> {
  */
 function seedDuplicateCard(email: string): void {
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as
       | { id: string }
@@ -208,7 +208,7 @@ test('an UNDATED duplicate pair is named where it is disclosed', async ({ page }
   // is also the likeliest home for a duplicate: a Plaid card whose issuer returns no liabilities.
   const email = await signUpThrowaway(page);
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string };
     const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
@@ -291,7 +291,7 @@ test('both disclosures are WCAG AA clean and fit every phone width', async ({ pa
 test('a user with no duplicate is told nothing — no card is flagged on a hunch', async ({ page }) => {
   const email = await signUpThrowaway(page);
   const file = E2E_DB_URL.replace(/^file:/, '');
-  const db = new Database(file, { timeout: 15_000 });
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
   try {
     const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string };
     const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
