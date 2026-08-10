@@ -2956,6 +2956,15 @@ saw two detected rows for one fact). Fixed in e4721d4 (fixture fence),
 **run 31359227811 SUCCESS**; deploy verified 7/7 via the build-id
 discriminator (PROGRESS.md 2026-08-10).
 
+**Flake ledger, run 31360315737 (sha cdf0ed2, docs-only):** attempts 1 and 2
+failed `tests/e2e/transactions.spec.ts:638 › CSV import (H.2): re-importing
+the same file adds nothing` at two different assertions (line 698 dedup,
+line 664 first-import render), attempt 3 **SUCCESS**. Not a test this push
+touched (`git diff` on the spec = 0 lines across the entire K.7 chain; last
+spec change is K.4-era `79abf43`), and the identical app tree passed the full
+gate on e4721d4 (run 31359227811). Recorded per §K.8 as a pre-existing
+timing flake, not a K.7 defect.
+
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.
 

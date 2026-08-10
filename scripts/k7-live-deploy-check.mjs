@@ -39,8 +39,8 @@ import { chromium } from 'playwright';
 
 const BASE = process.env.LIVE_BASE ?? 'https://www.aimplifi.app';
 // Deployment URLs are immutable on Vercel; sha-anchored in the K.7 PROGRESS entry.
-const NEW_DEPLOY = 'https://aimplifi-jnsomw6rl-reiforge.vercel.app'; // sha e4721d4
-const OLD_DEPLOY = 'https://aimplifi-fpvblgcay-reiforge.vercel.app'; // sha 324c717
+const NEW_DEPLOY = 'https://aimplifi-9xudbupjd-reiforge.vercel.app'; // sha cdf0ed2 (final docs commit; app tree identical to e4721d4)
+const OLD_DEPLOY = 'https://aimplifi-jnsomw6rl-reiforge.vercel.app'; // sha e4721d4
 
 const results = [];
 const check = (name, ok, detail = '') => {
