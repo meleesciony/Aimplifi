@@ -636,6 +636,11 @@ test('CSV import: valid rows imported, bad rows skipped with line errors', async
 });
 
 test('CSV import (H.2): re-importing the same file adds nothing — duplicates reported, depth shown', async ({ page }) => {
+  // Flake ledger run 31362750997: the ≥60s server-action stall class documented at
+  // playwright.config:31 exceeds BOTH the 30s toPass windows this test used AND the
+  // 60s config test timeout. The 90s toPass windows below are only reachable if the
+  // test itself outlives them — the mobile-overflow idiom (test.setTimeout).
+  test.setTimeout(240_000);
   await signUpThrowaway(page);
   await addManualAsset(page, 'E2E Import Wallet', 'CHECKING', '1000');
   await page.goto('/transactions/import');
@@ -656,13 +661,20 @@ test('CSV import (H.2): re-importing the same file adds nothing — duplicates r
   // the next submit, which then returns the DEDUPE result instead — the register
   // assertion at the end is the authoritative proof either way.
   const result = page.getByTestId('import-result');
+  // Window raised 30s → 90s (flake ledger run 31362750997, attempt 1): the harness
+  // class documented at playwright.config:31 is ≥60s server-action stalls under
+  // 4-worker shared-SQLite load. The submit button stays disabled (pending) through
+  // the stall, so the re-submit retry cannot fire and the result never renders
+  // inside a 30s window — three of four identical-tree CI attempts failed at this
+  // exact assertion (line 664). 90s rides out the documented stall; the bounded
+  // re-submit still fires once the button leaves `pending`.
   await expect(async () => {
     if (await page.getByTestId('import-submit').isEnabled()) {
       await page.getByTestId('import-csv-text').fill(csv);
       await page.getByTestId('import-submit').click();
     }
     await expect(result).toContainText('transactions', { timeout: 5000 }); // any result rendered
-  }).toPass({ timeout: 30000 });
+  }).toPass({ timeout: 90000 });
 
   const first = await result.innerText();
   if (first.includes('Imported 2')) {
@@ -689,13 +701,18 @@ test('CSV import (H.2): re-importing the same file adds nothing — duplicates r
   // file writes nothing, so each retry re-runs the same harmless dedupe.
   await expect(page.getByTestId('import-submit')).toBeEnabled();
   await page.waitForTimeout(750);
+  // Same 90s window as the first block (flake ledger run 31362750997): attempt 1
+  // of run 31360315737 failed here with a FRESH `Imported 2` result — the second
+  // submit raced the first's still-uncommitted rows (check-then-act on the dedupe
+  // pre-check; no unique constraint backs import identity), so the retry loop must
+  // outlive the ≥60s stall class the harness documents (playwright.config:31).
   await expect(async () => {
     if (await page.getByTestId('import-submit').isEnabled()) {
       await page.getByTestId('import-csv-text').fill(csv);
       await page.getByTestId('import-submit').click();
     }
     await expect(result).toContainText('Imported 0', { timeout: 5000 });
-  }).toPass({ timeout: 30000 });
+  }).toPass({ timeout: 90000 });
   await expect(result).toContainText('2 already in your history');
   await expect(page.getByTestId('import-depth')).toHaveCount(0); // nothing added → no depth claim
 
@@ -710,6 +727,8 @@ test('CSV import (H.2): a double-pasted export warns with the repeated-row count
   // Critic P1-1: a file that contains the same line twice imports both (the
   // multiset can't tell them apart) but must SAY SO. Same hydration barrier +
   // bounded re-submit retry idiom as the test above (same severed-flight class).
+  // 240s test timeout, same flake-ledger rationale as the sibling test.
+  test.setTimeout(240_000);
   await signUpThrowaway(page);
   await addManualAsset(page, 'E2E Import Wallet', 'CHECKING', '1000');
   await page.goto('/transactions/import');
@@ -724,13 +743,16 @@ test('CSV import (H.2): a double-pasted export warns with the repeated-row count
   ].join('\n');
   const result = page.getByTestId('import-result');
   const warning = page.getByTestId('import-repeat-warning');
+  // 90s window, same harness class as the sibling test (flake ledger run
+  // 31362750997): ≥60s server-action stalls under 4-worker shared-SQLite load
+  // (playwright.config:31) keep the button pending past any 30s retry window.
   await expect(async () => {
     if (await page.getByTestId('import-submit').isEnabled()) {
       await page.getByTestId('import-csv-text').fill(csv);
       await page.getByTestId('import-submit').click();
     }
     await expect(result).toContainText('transaction', { timeout: 5000 }); // any result rendered
-  }).toPass({ timeout: 30000 });
+  }).toPass({ timeout: 90000 });
 
   const first = await result.innerText();
   if (first.includes('Imported 4')) {
@@ -746,7 +768,8 @@ test('CSV import (H.2): a double-pasted export warns with the repeated-row count
   }
 
   // Re-import the same file: all four rows already held, nothing kept — the
-  // warning must be gone (repeatedRows is 0 when nothing is imported).
+  // warning must be gone (repeatedRows is 0 when nothing is imported). 90s window,
+  // same harness class (flake ledger run 31362750997).
   await expect(page.getByTestId('import-submit')).toBeEnabled();
   await page.waitForTimeout(750);
   await expect(async () => {
@@ -755,7 +778,7 @@ test('CSV import (H.2): a double-pasted export warns with the repeated-row count
       await page.getByTestId('import-submit').click();
     }
     await expect(result).toContainText('Imported 0', { timeout: 5000 });
-  }).toPass({ timeout: 30000 });
+  }).toPass({ timeout: 90000 });
   await expect(result).toContainText('4 already in your history');
   await expect(warning).toHaveCount(0);
 });
