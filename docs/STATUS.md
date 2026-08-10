@@ -3099,6 +3099,17 @@ attempt), but the 4-worker contention persists during a retry, so it is a
 mitigation, not the fix; evaluate it inside the harness slice with its own
 verification, not as a gate-semantics change shipped mid-close.
 
+**RESOLUTION, run 31374649135 (sha 873812e, docs-only ledger): SUCCESS.**
+The full gate passed again — the second green read after the close-out
+(also 31371331555 on 41dcfba). The day's reads on the byte-identical app
+tree: green at 06:05, 08:00, 08:47, 09:38; red in between on
+environment-class failures. The ledger above stands complete through run
+31373586981 (twelve failed reads, eight tests, all pre-existing harness
+classes); the harness fix (worker-isolated e2e DBs, `retries` evaluated as
+a mitigation inside it) remains the named follow-up. The K.7 slice's own
+gate reads (31359227811, 31368294618) and its deploy proofs are untouched
+by any of this.
+
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.
 
