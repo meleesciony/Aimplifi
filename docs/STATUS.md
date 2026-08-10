@@ -3421,7 +3421,22 @@ CSV failures forensicked to the C.14/C.15 severed-flight/stuck-button wedge (tem
 held exactly the first import's 2 rows, zero duplicate writes; the slice touches no
 import code); run 5 GREEN on a fresh temp e2e DB per the C.15 playbook.
 
+**Gate read (rule 5).** CI run **31342632605 on `79abf43`** = **FAILED on attempt 1 —
+one test: `category-rename.spec.ts:110`** (the removing-a-built-in-category test, 25.7s
+on the [mobile-380] worker) — the documented 4-worker severed-flight lottery member from
+the C.14/C.15/C.16/C.17 records and `docs/lessons/ci-e2e-timing-flake.md`, isolation-proven
+1/1 (1.9s) on this exact tree during this slice's local gate, in a spec the K.4 diff does
+not touch (the slice's own F10 e2e — `transactions.spec.ts:255` — PASSED in the same
+run, and every other member of the 320 was green). **`gh run rerun --failed` → attempt
+2 = SUCCESS — gate GREEN on `79abf43`**, read via `scripts/ci-status.sh` (exit 0). Per
+rule 5's pre-existing-failure clause this was a recorded, proven-pre-existing member,
+not a stop; the rerun conclusion is the ship verdict for the slice.
+
 **Deployment note (honest marker claim):** K.4 has no demo-visible marker — the demo
 seed's accounts share uniform depth, so the F10 shape (depth variance) is unrepresentable
-on demo data. The deployment proof is READY + the live route serving + CI gate GREEN on
-the shipped sha; the behavioral proof is the e2e on the throwaway depth accounts.
+on demo data. The deployment proof is READY (Vercel commit status "Deployment has
+completed", success, on `79abf43`; deployment `5yQ1T73MDxRKaxNDGBPB4i7YEksZ`) + the live
+route serving (the register-surface K.3 live check passes 7/7 against production,
+including the pair-equality sentence K.4 preserves by construction) + the CI gate
+conclusion on the shipped sha; the behavioral proof is the e2e on the throwaway depth
+accounts.
