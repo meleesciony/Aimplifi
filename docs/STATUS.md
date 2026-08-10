@@ -3054,6 +3054,19 @@ the documented classes at playwright.config:31). Follow-up candidate
 (TASKS): worker-isolated databases or workflow-level retries for the e2e
 step — window raising has hit its limit; the harness needs a real fix.
 
+**Flake ledger, run 31370372607 (sha d35223d, docs-only close-out):**
+`transactions.spec.ts:367 › transaction register paginates: Next advances to
+page 2` — `page.toHaveURL` failed (24.1s) with `[WebServer] Error: aborted`
+immediately after: the navigation request was aborted at the transport level
+under load, a SEVENTH distinct test this day (transactions:638, :367,
+category-rename:110, mobile-overflow:386, recurring-verdict:61,
+combine-connections:67, + the CSV second-block modes). Untouched by the
+docs-only push; passed both green gates (31359227811, 31368294618) on the
+byte-identical app tree. Recorded per §K.8 — ten failed reads today across
+seven tests, every one in the documented harness classes, none caused by
+its push. The §K.8 close-out above stands; the harness fix (worker-isolated
+e2e DBs or workflow-level retries) is the follow-up, not more windows.
+
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.
 
