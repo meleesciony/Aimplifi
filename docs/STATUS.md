@@ -38,6 +38,9 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Gate:** run 1 RED on this slice's own code — tsc (the test's `as keyof typeof EXPECTED` cast yielded `string`, not `LoanPaymentBasisScope`, 3 sites) + eslint (`dashboard/page.tsx` still imported `cents`/`formatCents` — the composer renders the amount now). Both fixed, re-checked targeted (tsc 0 / eslint 0 / 8/8). Run 2 GREEN: tsc 0 / eslint 0 / **6,616 unit + 1 skipped / 403 files** / build clean. Full `VERIFY_E2E=1` run GREEN: tsc 0 / eslint 0 / 6,616 unit + 1 skipped / build clean / **e2e 320 passed (4.7m)** — 2 flaky absorbed by the K.8 retries (action-menu:307 and pwa-offline:51, both the documented family, both passed on retry; zero failures after retries).
 
+**CI (run 31433781510 on 46f6369): SUCCESS — gate GREEN, first attempt** (no rerun; the whole suite passed in the run the push triggered).
+**Live:** `scripts/o18efu-live-deploy-check.mjs` **8/8 against production on 46f6369** — all five surfaces load with their markers (net-worth-card / money-review-card / budget-list / income-expense-chart / trends-new-merchants); the discriminating marker: the demo corpus has NO loan-payment exclusions (the sentence never renders on demo in either build), so the check greps the shipped CLIENT BUNDLE of /reports (a 'use client' component importing the composer) — the page-figures sentence "an escrow change, say" is in the bytes (1,146,464 across 18 chunks) and the old universal "loan payments are not spending" is GONE from them; zero page errors.
+
 
 ## ✅ BUILT 2026-08-09 — C.17: the audit P2 sweep — the pace divides by real elapsed time, every "zero is a claim" figure names which zero, and the Opus critic's one P1 + four P2s are closed (DECISIONS #435, verify green, shipped)
 
