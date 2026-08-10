@@ -919,3 +919,134 @@ describe('O.19c — moverTotal / newMerchantTotal', () => {
     expect(r.newMerchantTotal).toBe(1);
   });
 });
+
+/**
+ * O.18e — the "New this month" figure carries the rows behind it, out of the
+ * SAME pass that summed them (carry-out, DECISIONS #439): the panel can claim
+ * "these are the rows" without re-deriving anything, and the future-dated
+ * money the figure excludes is disclosed, not hidden (C.26).
+ */
+describe('O.18e — new-merchant rows carried out of pass 2', () => {
+  const E_TODAY = '2026-06-20';
+  const nm = (txns: TrendTxn[], today = E_TODAY) =>
+    trendsNoBills({ txns, today }).newMerchants.find((n) => n.merchant === 'Fresh Roasters');
+
+  /** The measured O.8a case, deliberately in MIXED array order to prove the sort. */
+  const rows: TrendTxn[] = [
+    T('2026-06-03', -4000, 'coffee', { merchant: 'Fresh Roasters' }),
+    T('2026-06-10', -2500, 'coffee', { merchant: 'Fresh Roasters' }),
+    T('2026-06-18', -3000, 'coffee', { merchant: 'Fresh Roasters', status: 'PENDING' }),
+    T('2026-06-15', 1500, 'coffee', { merchant: 'Fresh Roasters' }), // a REFUND
+  ];
+
+  it('the rows are EXACTLY the rows the figure summed, oldest first', () => {
+    const n = nm(rows)!;
+    expect(n.amountCents).toBe(8000);
+    expect(n.rows.map((r) => r.date)).toEqual(['2026-06-03', '2026-06-10', '2026-06-15', '2026-06-18']);
+    // Signed contributions: spends positive, the refund negative — the same
+    // signedness the category panels carry.
+    expect(n.rows.map((r) => r.amountCents)).toEqual([4000, 2500, -1500, 3000]);
+    // The carry-out invariant the panel's reconcile line states: the figure IS
+    // the sum of its rows.
+    expect(n.rows.reduce((a, r) => a + r.amountCents, 0)).toBe(n.amountCents);
+  });
+
+  it('pending and refund rows are marked and carried like the category panels', () => {
+    const n = nm(rows)!;
+    const pending = n.rows.filter((r) => r.isPending);
+    expect(pending).toHaveLength(1);
+    expect(pending[0]!.amountCents).toBe(3000);
+    expect(n.rows.find((r) => r.amountCents < 0)!.isPending).toBe(false);
+  });
+
+  it('rows are keyed per merchant — another merchant never leaks in', () => {
+    const withOther = [...rows, T('2026-06-05', -900, 'dining', { merchant: 'Anchor Cafe' })];
+    const n = nm(withOther)!;
+    const keys = n.rows.map((r) => r.key);
+    expect(keys).toHaveLength(4);
+    for (const k of keys) expect(k).toMatch(/^fresh roasters:\d+:2026-06-\d\d$/);
+    expect(new Set(keys).size).toBe(4); // merchant:index:date stays unique
+    const anchor = trendsNoBills({ txns: withOther, today: E_TODAY }).newMerchants.find(
+      (x) => x.merchant === 'Anchor Cafe',
+    )!;
+    expect(anchor.amountCents).toBe(900);
+    expect(anchor.rows.map((r) => r.key)).toEqual(['anchor cafe:0:2026-06-05']);
+  });
+
+  it('carries the transaction id when present, null otherwise', () => {
+    const withId = [
+      T('2026-06-03', -4000, 'coffee', { merchant: 'Fresh Roasters', id: 'txn-123' }),
+      T('2026-06-05', -1000, 'coffee', { merchant: 'Fresh Roasters' }),
+    ];
+    const n = nm(withId)!;
+    expect(n.rows.map((r) => r.transactionId)).toEqual(['txn-123', null]);
+  });
+
+  it('label falls back merchantName → rawDescriptor → "No description"', () => {
+    const n = nm([
+      T('2026-06-03', -4000, 'coffee', {
+        merchant: 'Fresh Roasters',
+        merchantName: 'Fresh Roasters',
+        rawDescriptor: 'FRESH ROASTERS #204',
+      }),
+      T('2026-06-05', -1000, 'coffee', { merchant: 'Fresh Roasters', rawDescriptor: 'FRESH ROASTERS #9' }),
+      T('2026-06-07', -1000, 'coffee', { merchant: 'Fresh Roasters' }),
+    ])!;
+    expect(n.rows.map((r) => r.label)).toEqual(['Fresh Roasters', 'FRESH ROASTERS #9', 'No description']);
+    // The bank text is repeated below the label only when it is NOT the label.
+    expect(n.rows[0]!.rawDescriptor).toBe('FRESH ROASTERS #204');
+    expect(n.rows[1]!.rawDescriptor).toBeNull();
+    expect(n.rows[2]!.rawDescriptor).toBeNull();
+  });
+
+  it('a whitespace-only raw descriptor is null, never the empty string (critic F6)', () => {
+    const n = nm([
+      T('2026-06-03', -4000, 'coffee', {
+        merchant: 'Fresh Roasters',
+        merchantName: 'Fresh Roasters',
+        rawDescriptor: '   ',
+      }),
+    ])!;
+    expect(n.rows[0]!.label).toBe('Fresh Roasters'); // merchantName wins the label
+    expect(n.rows[0]!.rawDescriptor).toBeNull();
+  });
+
+  it('money dated after today is excluded from rows AND figure, disclosed separately', () => {
+    const n = nm([...rows, T('2026-06-25', -4000, 'coffee', { merchant: 'Fresh Roasters' })])!;
+    expect(n.amountCents).toBe(8000); // the future $40 is NOT in the figure
+    expect(n.rows).toHaveLength(4);
+    expect(n.rows.some((r) => r.date === '2026-06-25')).toBe(false);
+    expect(n.futureDatedCents).toBe(4000);
+  });
+
+  it('a merchant with no future-dated money reports 0 — never a disclosure trigger', () => {
+    expect(nm(rows)!.futureDatedCents).toBe(0);
+  });
+
+  it('future money nets within itself: a future refund offsets a future charge', () => {
+    const n = nm([
+      ...rows,
+      T('2026-06-25', -4000, 'coffee', { merchant: 'Fresh Roasters' }),
+      T('2026-06-26', 500, 'coffee', { merchant: 'Fresh Roasters' }),
+    ])!;
+    expect(n.futureDatedCents).toBe(3500);
+  });
+
+  it('future money is floored at 0 — a future refund is not a negative disclosure', () => {
+    const n = nm([...rows, T('2026-06-25', 2500, 'coffee', { merchant: 'Fresh Roasters' })])!;
+    expect(n.futureDatedCents).toBe(0);
+  });
+
+  it('a dropped (net-≤-0) merchant carries nothing onto any panel surface', () => {
+    const fresh = trendsNoBills({
+      txns: [
+        T('2026-06-03', -4000, 'coffee', { merchant: 'Fresh Roasters' }),
+        T('2026-06-09', 4200, 'coffee', { merchant: 'Fresh Roasters' }),
+        T('2026-06-03', -1000, 'coffee', { merchant: 'Anchor Cafe' }),
+      ],
+      today: E_TODAY,
+    });
+    expect(fresh.newMerchants.map((x) => x.merchant)).toEqual(['Anchor Cafe']);
+    expect(fresh.newMerchants[0]!.rows.map((row) => row.key)).toEqual(['anchor cafe:0:2026-06-03']);
+  });
+});

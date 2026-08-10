@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
   baselineLabel,
   moverWindowLabel,
+  newMerchantPanelBasis,
   paceAssumption,
   PACE_NO_SPEND_YET,
   paceBillsPhrase,
@@ -18,6 +19,7 @@ import {
   paceDeltaRelation,
   shortMonth,
 } from '@/lib/engine/trends/labels';
+import { BREAKDOWN_BASIS } from '@/lib/engine/glass-box/category-breakdown';
 
 describe('paceDaysPhrase', () => {
   it('names the singular day', () => {
@@ -263,5 +265,72 @@ describe('PACE_NO_SPEND_YET (C.1)', () => {
         'on pace with last month',
       );
     }
+  });
+});
+
+/**
+ * O.18e — the new-merchant panel's basis, composed HERE with the RENDERED
+ * figure and date embedded (the O.18c contract): a sentence built from strings
+ * the surface already prints cannot disagree with the row it describes, and an
+ * e2e asserting the full sentence fails the moment the row's money moves.
+ */
+describe('newMerchantPanelBasis (O.18e)', () => {
+  it('names the figure, the month, and the through-date the figure stops at', () => {
+    expect(
+      newMerchantPanelBasis({
+        figure: '$80.00',
+        monthLabel: "Jun '26",
+        throughLabel: 'Wed, Jun 10, 2026',
+        futureDatedCents: 0,
+      }),
+    ).toEqual([
+      "The $80.00 above is this merchant's spending in Jun '26 through Wed, Jun 10, 2026.",
+      BREAKDOWN_BASIS,
+    ]);
+  });
+
+  it('adds the C.26 not-counted-yet sentence ONLY when future-dated money exists', () => {
+    const withFuture = newMerchantPanelBasis({
+      figure: '$80.00',
+      monthLabel: "Jun '26",
+      throughLabel: 'Wed, Jun 10, 2026',
+      futureDatedCents: 4000,
+    });
+    expect(withFuture).toHaveLength(3);
+    expect(withFuture[1]).toBe(
+      "$40.00 here is dated after today and isn't counted yet — this figure covers spending through today.",
+    );
+    const without = newMerchantPanelBasis({
+      figure: '$80.00',
+      monthLabel: "Jun '26",
+      throughLabel: 'Wed, Jun 10, 2026',
+      futureDatedCents: 0,
+    });
+    expect(without).toHaveLength(2);
+  });
+
+  it('a zero or negative future figure is never disclosed (the engine floors upstream)', () => {
+    for (const futureDatedCents of [0, -400]) {
+      expect(
+        newMerchantPanelBasis({
+          figure: '$80.00',
+          monthLabel: "Jun '26",
+          throughLabel: 'Wed, Jun 10, 2026',
+          futureDatedCents,
+        }),
+      ).toHaveLength(2);
+    }
+  });
+
+  /**
+   * A rule in a .tsx cannot be locked — the basis must be COMPOSED here and
+   * rendered on the page, and a local sentence pasted into the view is exactly
+   * how two surfaces drift (the CALC_AUDIT lesson this module exists to hold).
+   */
+  it('trends-view renders the composer, never a local basis sentence', () => {
+    const src = readFileSync(join(process.cwd(), 'src/components/finance/trends-view.tsx'), 'utf8');
+    expect(src).toContain('newMerchantPanelBasis');
+    expect(src).not.toContain("is this merchant's spending in");
+    expect(src).not.toContain("isn't counted yet");
   });
 });

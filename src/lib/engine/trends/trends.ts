@@ -28,7 +28,8 @@ import {
   monthKey,
   monthWindow,
 } from '@/lib/dates';
-import { roundHalfAwayFromZero } from '@/lib/money';
+import { cents, roundHalfAwayFromZero } from '@/lib/money';
+import type { BreakdownRow } from '@/lib/engine/glass-box/category-breakdown';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
@@ -268,6 +269,23 @@ export interface NewMerchant {
    */
   amountCents: number;
   firstDate: string; // earliest this-month date
+  /**
+   * The register-basis rows behind `amountCents` (O.18e), carried out of the
+   * SAME pass that summed the figure — so rows and figure cannot disagree by
+   * construction, the O.18c carry-out contract (DECISIONS #439). This is the
+   * merchant-keyed sibling of the category breakdown builder: a merchant's
+   * month, built by this module's own pass over this module's own rows.
+   *
+   * Oldest first, same as the category breakdown. The net-≤-0 drop applies
+   * AFTER the rows are collected — a dropped merchant's rows never surface.
+   */
+  rows: readonly BreakdownRow[];
+  /**
+   * This merchant's spend rows dated after `today` (same basis, floored at 0).
+   * The card's figure stops at today; the basis sentence discloses this money
+   * as "not counted yet" only when it exists (C.26's dataDerived disclosure).
+   */
+  futureDatedCents: number;
 }
 
 export interface SpendingTrends {
@@ -892,13 +910,30 @@ function computeNewMerchants(
   // unfiled or pending counts here and is invisible to pass 1 — which is the
   // point: the reader is told a merchant is new by what settled, and told what
   // they spent there by what the register shows.
+  //
+  // The O.18e panel rows are collected HERE, in the same loop that sums the
+  // figure (carry-out, DECISIONS #439): each counted row is shaped into the
+  // panel's list on the spot, so the card's number and the panel's rows cannot
+  // disagree by construction. The one register row the figure does NOT count —
+  // money dated after today — is totalled separately, so the basis sentence can
+  // disclose it (C.26) instead of it silently missing from a panel that claims
+  // "these are the rows".
   const totals = new Map<string, number>();
+  const futureByKey = new Map<string, number>();
+  const rowsByKey = new Map<string, { row: TrendTxn; index: number }[]>();
   for (const t of txns) {
-    if (t.date > today || !t.merchant || t.aggregateMerchant) continue;
+    if (!t.merchant || t.aggregateMerchant) continue;
     if (!isRegisterSpendRow(t, { fromYm: ym, toYm: ym }, meta)) continue;
     const key = merchantKey(t.merchant);
     if (!named.has(key)) continue;
+    if (t.date > today) {
+      futureByKey.set(key, (futureByKey.get(key) ?? 0) + spendContributionCents(t));
+      continue;
+    }
     totals.set(key, (totals.get(key) ?? 0) + spendContributionCents(t));
+    const carried = rowsByKey.get(key);
+    if (carried) carried.push({ row: t, index: carried.length });
+    else rowsByKey.set(key, [{ row: t, index: 0 }]);
   }
 
   const rows: NewMerchant[] = [];
@@ -909,12 +944,49 @@ function computeNewMerchants(
     // not a "new merchant" worth a line, and printing −$10.00 under "New this
     // month" is the confusing negative #74 declined to risk.
     if (amountCents <= 0) continue;
-    rows.push({ merchant: n.merchant, categoryName: n.categoryName, amountCents, firstDate: n.firstDate });
+    rows.push({
+      merchant: n.merchant,
+      categoryName: n.categoryName,
+      amountCents,
+      firstDate: n.firstDate,
+      // The carried rows, oldest first — the exact rows the figure above sums.
+      rows: (rowsByKey.get(key) ?? [])
+        .map(({ row, index }) => merchantBreakdownRow(row, key, index))
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)),
+      // Floor at 0: a future-dated refund netting out the rest is disclosed as
+      // "no future-dated money", never as a negative here.
+      futureDatedCents: Math.max(0, futureByKey.get(key) ?? 0),
+    });
   }
 
   rows.sort((a, b) => b.amountCents - a.amountCents || (a.merchant < b.merchant ? -1 : 1));
   // Pre-cap count beside the sliced list (O.19c) — same array, same rule as movers.
   return { newMerchants: rows.slice(0, MAX_NEW_MERCHANTS), newMerchantTotal: rows.length };
+}
+
+/**
+ * Shape one pass-2 row into the O.18e panel's breakdown row for a new merchant —
+ * the merchant-keyed sibling of the category builder's row shaping. The panel
+ * lists EXACTLY the rows the figure summed, keyed by merchant, with the same
+ * label fallback chain the category builder applies (merchant name, then raw
+ * descriptor, then 'No description'). `index` is the row's position within its
+ * merchant's collected rows, which keeps the key unique for a merchant+date
+ * without needing the transaction id.
+ */
+function merchantBreakdownRow(t: TrendTxn, key: string, index: number): BreakdownRow {
+  const label = t.merchantName?.trim() || t.rawDescriptor?.trim() || 'No description';
+  const raw = t.rawDescriptor?.trim();
+  return {
+    key: `${key}:${index}:${t.date}`,
+    transactionId: t.id ?? null,
+    date: t.date,
+    label,
+    // The category builder's exact rule (category-breakdown.ts): null for a
+    // missing OR whitespace-only descriptor — never the empty string.
+    rawDescriptor: raw ? (raw === label ? null : raw) : null,
+    amountCents: cents(spendContributionCents(t)),
+    isPending: t.status === 'PENDING',
+  };
 }
 
 /** Compute all spending-trend insights from a posted-spend transaction list. */

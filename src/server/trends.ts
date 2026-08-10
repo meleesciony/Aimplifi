@@ -140,6 +140,14 @@ export function toTrendTxns(
  * than from a second derivation here.
  */
 export interface SpendingTrendsData extends SpendingTrends {
+  /**
+   * O.18e: the business today the engine computed against — the date the
+   * new-merchant figures stop at. The view renders it as the basis sentence's
+   * through-date; it rides here rather than being re-derived in the view,
+   * because the view must say the same "today" the engine clamped with
+   * (one clock, one sentence).
+   */
+  asOfDate: string;
   breakdowns: Record<string, CategoryBreakdown>;
   /** C.25 (#403): what the movers/pace figures do not count, and why. Empty
    *  when nothing moved — the view says nothing (same rule as /reports). */
@@ -213,6 +221,7 @@ export async function getSpendingTrends(userId: string): Promise<SpendingTrendsD
 
   return {
     ...trends,
+    asOfDate: today,
     breakdowns,
     loanPaymentExclusions: loanPaymentBasisFacts(snap),
     loanPaymentRefusedCategories: loanPaymentRefusedCategories(snap),

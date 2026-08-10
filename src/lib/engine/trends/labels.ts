@@ -5,6 +5,7 @@
  */
 import { addMonthsToMonthKey, formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
+import { BREAKDOWN_BASIS, breakdownNotCountedYetCopy } from '@/lib/engine/glass-box/category-breakdown';
 import type { SpendingPace } from '@/lib/engine/trends/trends';
 
 const money = (n: number) => formatCents(cents(n));
@@ -197,4 +198,47 @@ export function moverWindowLabel(
 ): string | null {
   if (comparedYm === null) return null;
   return `${shortMonth(comparedYm)} vs ${baselineLabel(baselineMonths)} average`;
+}
+
+/**
+ * The O.18e panel basis for ONE new-merchant row (merchant scope, /trends).
+ *
+ * S1 names the window the merchant's figure actually sums — this month THROUGH
+ * the as-of date. The card's neighbours on the same page sum COMPLETE months
+ * (the movers below compare finished months), and /budgets sums the whole
+ * month, so a bare "$80.00" under a "New this month" card would read as the
+ * whole month when the figure stopped on the 10th (C.26's lesson — a
+ * stop-at-today figure must never be labeled as the whole month). /reports
+ * shares this stop-at-today basis (it clamps at today too, C.26) — the
+ * through-date sentence is what makes THIS in-progress aggregate checkable
+ * beside its complete-month neighbours.
+ *
+ * The through date is RENDERED, never the word "today", because the demo and
+ * e2e builds pin DEMO_TODAY: "through today" would be false on the pinned demo
+ * and true for visitors — one sentence, two readings. The figure is likewise
+ * the RENDERED string the card prints (O.18c), so the sentence cannot disagree
+ * with the row it describes.
+ *
+ * S2 (only when the merchant has money dated after today) discloses it via the
+ * C.26 sentence — a future-dated row the panel does NOT list, because the
+ * figure does not count it, and a panel that claims "these are the rows"
+ * without naming it would be complete-sounding and false.
+ */
+export function newMerchantPanelBasis(input: {
+  /** The RENDERED figure the card prints for this merchant. */
+  figure: string;
+  /** The month the card describes, as the reader says it ("Jun"). */
+  monthLabel: string;
+  /** The RENDERED as-of date the figure stops at ("Wed, Jun 10, 2026"). */
+  throughLabel: string;
+  /** This merchant's spend rows dated after today this month, floored at 0. */
+  futureDatedCents: number;
+}): [string, ...string[]] {
+  return [
+    `The ${input.figure} above is this merchant's spending in ${input.monthLabel} through ${input.throughLabel}.`,
+    ...(input.futureDatedCents > 0
+      ? [breakdownNotCountedYetCopy(money(input.futureDatedCents))]
+      : []),
+    BREAKDOWN_BASIS,
+  ];
 }

@@ -8,7 +8,7 @@
 import Link from 'next/link';
 import { ArrowDownRight, ArrowUpRight, Gauge, Receipt, Sparkles, Store } from 'lucide-react';
 import { formatISODate, isoDate } from '@/lib/dates';
-import { cents, formatCents } from '@/lib/money';
+import { cents, formatCents, sumCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import {
   CATEGORY_LINK_CLASS,
@@ -20,6 +20,7 @@ import {
 import { wholeMonthWindow } from '@/lib/engine/reports/reports';
 import {
   baselineLabel,
+  newMerchantPanelBasis,
   paceAssumption,
   PACE_DELTA_SAME,
   PACE_NO_SPEND_YET,
@@ -28,7 +29,9 @@ import {
   shortMonth,
 } from '@/lib/engine/trends/labels';
 import type { CategoryMover } from '@/lib/engine/trends/trends';
+import { BreakdownPanel } from '@/components/finance/breakdown-panel';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
+import { breakdownNetRefundCopy } from '@/lib/engine/glass-box/category-breakdown';
 import type { CategoryBreakdown } from '@/lib/engine/glass-box/category-breakdown';
 import type { BalanceMoveView } from '@/server/balance-move';
 import type { SpendingTrendsData } from '@/server/trends';
@@ -197,8 +200,19 @@ export function TrendsView({
   /** O.6: the register's own category option list — see getLinkableCategoryIds. */
   linkableCategoryIds?: string[];
 }) {
-  const { pace, movers, moverTotal, largest, newMerchants, newMerchantTotal, comparedYm, baselineMonths, breakdowns } =
-    trends;
+  const {
+    pace,
+    movers,
+    moverTotal,
+    largest,
+    newMerchants,
+    newMerchantTotal,
+    comparedYm,
+    baselineMonths,
+    breakdowns,
+    asOfYm,
+    asOfDate,
+  } = trends;
   // C.3 gave the dashboard card the shared relation helper and left this surface
   // on a bare `> 0`, which put an exact tie in the "less" branch and tinted it
   // green — the same defect on the second surface fed by the same field. Both
@@ -470,24 +484,71 @@ export function TrendsView({
             drops off this list.
           </p>
           <ul className="divide-y">
-            {newMerchants.map((n) => (
-              <li key={n.merchant} className="flex items-center justify-between gap-3 py-2">
-                <div className="min-w-0">
-                  {/* O.15 slice 1 — the card whose whole subject is a merchant the
-                      reader has never seen before. "What is this?" is the only question
-                      anyone has here, and until now the card could not answer it. */}
-                  <Link
-                    href={merchantRegisterHref(n.merchant)}
-                    data-testid="trends-new-merchant-link"
-                    className={`block truncate text-sm ${MERCHANT_LINK_CLASS}`}
-                  >
-                    {n.merchant}
-                  </Link>
-                  <div className="truncate text-xs text-muted-foreground">{n.categoryName}</div>
-                </div>
-                <span className="shrink-0 text-sm font-medium tabular-nums">{money(n.amountCents)}</span>
-              </li>
-            ))}
+            {newMerchants.map((n) => {
+              // O.18e — the figure above is this merchant's month. The rows come
+              // out of the SAME pass that summed the figure (carry-out, #439), so
+              // the panel's rows and the card's number cannot disagree by
+              // construction; `reconciles` stays the fail-loud contract anyway.
+              const sum = sumCents(n.rows.map((r) => r.amountCents));
+              return (
+                <li key={n.merchant} className="py-2" data-testid="new-merchant-row">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      {/* O.15 slice 1 — the card whose whole subject is a merchant the
+                          reader has never seen before. "What is this?" is the only question
+                          anyone has here, and until now the card could not answer it. */}
+                      <Link
+                        href={merchantRegisterHref(n.merchant)}
+                        data-testid="trends-new-merchant-link"
+                        className={`block truncate text-sm ${MERCHANT_LINK_CLASS}`}
+                      >
+                        {n.merchant}
+                      </Link>
+                      <div className="truncate text-xs text-muted-foreground">{n.categoryName}</div>
+                    </div>
+                    <span className="shrink-0 text-sm font-medium tabular-nums">{money(n.amountCents)}</span>
+                  </div>
+                  {/* O.18e — "what is this, exactly?" gets its answer. The basis
+                      names the window this figure actually sums: the in-progress
+                      month THROUGH the as-of date, while the movers below compare
+                      complete months — a bare "$80.00" beside them would read as
+                      the whole month (C.26's stop-at-today lesson). The card's
+                      own merchant link is the register door, so the panel borrows
+                      it rather than inventing a merchant+window link variant
+                      (scope discipline; the row's link already exists) — and the
+                      label says what that link opens: the merchant's whole
+                      activity, a superset of these rows, never "these". */}
+                  <BreakdownPanel
+                    subject={{
+                      id: n.merchant,
+                      name: n.merchant,
+                      headlineCents: cents(n.amountCents),
+                      rows: n.rows,
+                      sumCents: sum,
+                      reconciles: sum === cents(n.amountCents),
+                      clampedByNetRefund: false,
+                    }}
+                    emptyCopy="No transactions behind this figure."
+                    // Never printed for a listed merchant (net-≤-0 rows are
+                    // dropped before they reach the card) — required, truthful.
+                    netRefundCopy={breakdownNetRefundCopy(formatCents(sum), shortMonth(asOfYm))}
+                    basis={newMerchantPanelBasis({
+                      figure: money(n.amountCents),
+                      monthLabel: shortMonth(asOfYm),
+                      throughLabel: formatISODate(isoDate(asOfDate), 'long'),
+                      futureDatedCents: n.futureDatedCents,
+                    })}
+                    registerHref={merchantRegisterHref(n.merchant)}
+                    // The default label ("Open these...") would promise exactly
+                    // this panel's rows; the merchant register shows the
+                    // merchant's whole history — a superset — so the label names
+                    // what it actually opens (O.18c made the same choice).
+                    registerLabel={`Open ${n.merchant} in your activity list, where you can re-file one →`}
+                    testIdPrefix="new-merchant-breakdown"
+                  />
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
