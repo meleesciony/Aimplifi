@@ -3432,6 +3432,18 @@ run, and every other member of the 320 was green). **`gh run rerun --failed` →
 rule 5's pre-existing-failure clause this was a recorded, proven-pre-existing member,
 not a stop; the rerun conclusion is the ship verdict for the slice.
 
+**Docs-chain gate read (rule 5).** CI run **31343734777 on `987228e`** (docs-only: the
+gate-read record above; the diff vs the 320/320-verified `79abf43` is STATUS.md text
+alone) = **FAILED on attempt 1 — two tests, both proven pre-existing on this exact
+tree: `transactions.spec.ts:982`** (the unclassified-isolate, a NEW member of the wedge
+class — isolation-proven 1/1, 2.7s) **and `mobile-overflow.spec.ts:386`** (the
+[mobile-webkit] route sweep, the C.18-recorded member — isolation-proven 1/1, 6.5s; see
+the member log appended to `docs/lessons/ci-e2e-timing-flake.md`). **`gh run rerun
+--failed` → attempt 2 = SUCCESS — gate GREEN on `987228e`**, read via
+`scripts/ci-status.sh` (exit 0). The K.4 docs chain closes: head of main is green behind
+the K.4 code and both record commits it carried (the C.19 precedent — the gate read of
+the previous sha recorded in the next commit — holds through this record).
+
 **Deployment note (honest marker claim):** K.4 has no demo-visible marker — the demo
 seed's accounts share uniform depth, so the F10 shape (depth variance) is unrepresentable
 on demo data. The deployment proof is READY (Vercel commit status "Deployment has

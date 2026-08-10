@@ -49,3 +49,18 @@ local machine. Both specs now confirm on a re-rendered page (reload inside `toPa
 final assertion. The rule: before filing a CI-only e2e failure under this lesson, check whether
 the asserted state is separated from the mutation by an optimistic echo, a deadline, or a
 single reload — CI load does not create those races, it only wins them.
+
+## Member log 2026-08-09/10 — the shared-SQLite severed-flight class (C.14–C.18 records)
+
+On the 4-worker suite the failures are the shared-DB single-writer wedge (severed
+confirmation flights / stuck pending buttons on the reload-bearing mutation specs),
+which the C.15 remedy handles locally (fresh temp e2e DB) and `gh run rerun --failed`
+handles in CI. Seen across the C.14→C.19/K.4 gates: `category-rename.spec.ts:110`,
+`transactions.spec.ts` :566/:637/:910/:982/:638/:709, `budget-targets.spec.ts:61`,
+`register-return.spec.ts:119`, `phase4-features.spec.ts:97`, `merchant-lens.spec.ts:22`,
+`mobile-overflow.spec.ts:386` (the [mobile-webkit] route sweep), regression #216.
+Every member was isolation-proven 1/1 (or 7/7 for the sweep) on the exact failing tree;
+the K.4 gate also re-proved `:982` (2.7s solo) and `:386` (6.5s solo) on 2026-08-10.
+The current rule: same test fails on rerun of the same commit → real defect, diagnose;
+different test (or green on rerun) → the wedge, record run id + member + isolation
+proof in STATUS.md and trust the clean run.
