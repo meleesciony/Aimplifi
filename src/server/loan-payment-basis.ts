@@ -92,7 +92,13 @@ export function loanPaymentBasisSentence(
   const where = {
     'pace-figure': 'this pace figure',
     figures: 'these figures',
-    cards: 'these cards',
+    // The O.18e-FU critic's P2-2: /dashboard also carries the recent-
+    // transactions card, which lists the payment row itself — "not in these
+    // cards" was the one scope a literal reading falsified. "The figures on
+    // these cards" names the aggregates (savings rate, top spending, pace),
+    // all of which drop the rows; the recent card shows raw amounts, not
+    // figures, so the claim stays true beside it.
+    cards: 'the figures on these cards',
     'this-list': 'this list',
     'page-figures': 'these figures',
   }[scope];

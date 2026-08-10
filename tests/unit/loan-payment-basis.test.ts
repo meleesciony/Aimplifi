@@ -27,7 +27,7 @@ const EXPECTED: Record<LoanPaymentBasisScope, string> = {
   figures:
     'Payments to Mr Cooper at $6,217.07/mo are counted on Mortgage, not in these figures. A payment at another amount counts normally.',
   cards:
-    'Payments to Mr Cooper at $6,217.07/mo are counted on Mortgage, not in these cards. A payment at another amount counts normally.',
+    'Payments to Mr Cooper at $6,217.07/mo are counted on Mortgage, not in the figures on these cards. A payment at another amount counts normally.',
   'this-list':
     'Payments to Mr Cooper at $6,217.07/mo are counted on Mortgage, not in this list. A payment at another amount counts normally.',
   'page-figures':
