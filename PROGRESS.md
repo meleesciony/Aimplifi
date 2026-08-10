@@ -2,6 +2,110 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-10 — K.7 SHIPPED: the obligation owns a loan payment — one engine, three surfaces, two executed critic P1s fixed
+
+**The ownership rule (DECISIONS #437).** `splitLoanCarriedScheduled`
+(`src/lib/engine/loans/duplicate-projection.ts`) — one pure function, consumed by
+/calendar, /forecast and /radar — splits scheduled rows into kept/suppressed: a
+detected row C.25 has PROVEN to be a loan obligation's own payment is not projected
+a second time. Suppression is capped 1:1 and never free-standing: a row drops only
+when a C.25 fact names a loan account that is in THIS call's obligation list at THIS
+row's amount, and at most as many rows as facts cover the (canonical|amount) key
+(each fact proves ONE carried payment per month — a canonical shared by two loans
+can never lose the undatable one's payment, #400's failure direction). The radar's
+`loanOverlap` disclosure was re-derived to ask the honest question — does a
+SURVIVING outflow match an obligation's amount? — so a proven overlap stays silent
+and an unproven one is still counted twice, disclosed.
+
+**Hostile critic (Opus, fresh context): FAIL, 2 executed P1s → fixed, each
+sabotage-proven RED on its own lock.** F1: the rule was INERT on the real pipeline
+chain — C.25 mints its fact canonical from the RAW ACH descriptor via a
+KNOWN_MERCHANTS pattern (`ACH WITHDRAWAL CARMAX AUTO FIN 4421` → `CarMax Auto
+Finance`), the detector persists that canonical as the series description, and
+re-deriving `normalizeMerchant('CarMax Auto Finance')` falls back to title-casing
+(`Carmax Auto Finance`) — exact-string keying could never meet. Both sides now
+normalize before keying. F2: (canonical|amount) suppression had no per-row
+attribution — two loans sharing one canonical (Nelnet) with one undatable lost BOTH
+payments; the covered-count cap fixes it. F3 (P2): the /calendar wiring line was
+unwitnessed — a page-render test (jsdom, mocked auth + getCashNeeded, real prisma)
+now locks it; sabotage-deleting the split reproduced the defect in markup (Jul 2
+`Auto Loan due` −$385.00 AND Jul 5 `CARMAX AUTO FINANCE` −$385.00). F4 (P2)
+recorded residual: the radar disclosure fires on amount-equality alone, hedged,
+over-hedge-safe. F5: DECISIONS count corrected (13 engine / 24 across the four K.7
+files).
+
+**Gate:** tsc 0 / eslint 0 / **6,575 unit + 1 skipped / 398 files** / build clean
+(the first `verify.sh` invocation failed once on a cold start and passed on the
+rerun — the documented environment-flake class, not a code defect); e2e
+payment-reminders + forecast + calendar-posted **9/9** on a fresh build, including
+the `Auto Loan due` July lock (business-day-adjusted 07-02). Regression ledger row
+added; TASKS K.7 → DONE; STATUS §K.5 amended. Production's stale demo dataset
+(no obligation, detected series only) remains owner-only (TASKS 0.3).
+
+## 2026-08-09 — K.7 diagnosis: BOTH candidate causes were wrong, and the real one is a double-charged loan payment
+
+**Decided by execution, not inspection, exactly as the K.7 row demands.** The row offered two
+candidates — (a) `selectLoanObligations` yields nothing for the demo loan and a detected series
+stands in silently, or (b) the obligation exists and /calendar is not receiving it. **Neither is
+the defect.** Four probes, all committed under `scripts/audit-probes/`:
+
+1. **On a FRESHLY SEEDED database the demo is correct** (`k7-loan-due-probe.mts`, fresh temp DB):
+   the snapshot holds `acct-autoloan` with `minimumPaymentCents=38500, dueDayOfMonth=5`,
+   `getCashNeeded` returns one obligation (raw `2026-07-05`, effective `2026-07-02`), and
+   /calendar's engine paints `Auto Loan due` in every month from the anchor forward (Jul 2026 →
+   Mar 2027 swept, 1 `loan-due` each). The current month (Jun, today=2026-06-10) correctly paints
+   none: the June 5 payment already passed and the engine never back-dates an obligation. There
+   is no scheduled auto-loan row at all — `seed/build.ts:550` is honored.
+2. **Production reproduces the owner-visible symptom exactly** (`k7-live-probe.mjs`, read-only,
+   signed into the shared demo): Jul/Aug/Sep/Oct/Nov 2026 each paint `Auto loan — CarMax` with
+   the **scheduled** badge and **zero** `loan-due` rows — the 2026-08-06 observation, re-executed
+   2026-08-09 against the current deploy.
+3. **Production holds NO dateable obligation** (`k7-live-obligation-probe.mjs`): /accounts shows
+   the account (`Auto Loan · Loan ····6619 · −$14,300`), /dashboard names it nowhere, and
+   /forecast names it as `Auto loan — CarMax` — the SCHEDULED row's description, not the
+   obligation's `Auto Loan` label. Same code as (1), opposite result ⇒ **the difference is DATA.**
+   Production's shared demo dataset predates `c3a329b` (#96, which added `minimumPaymentCents`
+   to `acct-autoloan`) and `859ab29` (#134, which deleted the hand-authored `sched-autoloan`
+   row). It has been seeded once and never reseeded.
+4. **THE REAL DEFECT** (`k7-double-count-probe.mts`, throwaway DB, guarded on `DATABASE_URL`
+   containing `probe`): `server/radar.ts` already documents an accepted #134 residual — "a loan
+   whose bank ACH was ALSO recurring-detected as a checking scheduled row counts twice (no
+   structural key links them; heuristic money-matching rejected)". **It had never been
+   executed, because neither state in this repo exhibits it**: the seeded demo has an obligation
+   and no detected series, production has a detected series and no obligation. Writing ONE
+   `ScheduledTransaction` shaped exactly as `server/recurring.ts` persists a detected series
+   (source `recurring`, description = merchant canonical, on the payment account) produces:
+   **/calendar July: 2 rows at $385.00** (`loan-due Auto Loan due` on the 2nd + `outflow CARMAX
+   AUTO FINANCE` on the 5th); **/forecast: 6 events at $385.00 over 90 days instead of 3**,
+   total outflow `-231000` cents instead of `-115500`, **ending balance $12,495.00 → $11,340.00.**
+   A balance projection that prints "dips below $0 on DATE" is subtracting the same contractual
+   payment twice every month.
+
+**Why this is reachable for a real user and not just a fixture:** `classifySeriesProjection`
+(`recurring/detect.ts:665`) has no loan-payment gate, so a monthly loan ACH on the payment
+account is `counted` and persisted as a scheduled row; a Plaid mortgage/student/auto loan
+independently carries `minimumPaymentCents` + `dueDayOfMonth` from `/liabilities/get` (#134),
+which is exactly the obligation. Both fire together on the normal shape. /forecast's own comment
+("a LOAN/MORTGAGE payment ... is NOT in `snap.scheduled`") is a demo-seed fact stated as a
+general one.
+
+**The structural key #134 said did not exist has since been built.** C.25 (DECISIONS #403,
+`engine/categorize/loan-payment-flows.ts`) links a checking merchant canonical to ONE specific
+loan account by ≥2 distinct calendar months of ±3-day same-|amount| pairs, refuses aggregate
+canonicals, requires a dateable obligation, and requires exact amount equality — and the app
+already stakes the user's SPENDING TOTALS on that link being real (those charges are removed
+from flows precisely because they are "carried elsewhere — the committed / forecast / calendar
+line"). A link trusted to delete a charge from spending is trusted to stop projecting it twice.
+
+**NEXT:** build the ownership rule — the obligation owns a loan payment; a detected scheduled
+row that C.25 has already proven to be that same payment is not projected a second time — as one
+pure engine function used by the three surfaces that combine both sources (calendar page,
+forecast, radar), plus the coverage K.7 asks for (a `loan-due` lock on /calendar). The radar's
+`loanOverlap` disclosure must then describe only the REMAINING unlinked overlap, or it will warn
+about a double-count that no longer happens. **BLOCKED (owner-only):** production's stale demo
+dataset — reseeding a shared production dataset is destructive and TASKS 0.3 says "Do not seed",
+so it is the owner's call, not this session's.
+
 ## 2026-08-07 — H.6 diagnosis: the 730-day link is not missing, it is being DISCARDED
 
 Owner, verbatim: *"Unacceptable we don't have at least plaid maximal dates."* He is right about the

@@ -24,6 +24,7 @@ import {
   discretionaryDailyOutflows,
   paymentAccountHistoryDays,
 } from '@/lib/engine/radar/burn';
+import { splitLoanCarriedScheduled } from '@/lib/engine/loans/duplicate-projection';
 import { computeRadar, projectCardDues, type RadarInput, type RadarResult } from '@/lib/engine/radar/radar';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import { cashNeededFromSnapshot, personalCardDuplicates, resolvePaymentAccount } from '@/server/finance';
@@ -104,20 +105,43 @@ export function radarFromSnapshot(
       cadence: (s.cadence as ScheduledCadence) ?? null,
     }));
   const loanFlows = loanObligationsToScheduledFlows(loanObligations);
-  const committedEvents = expandScheduled([...flows, ...loanFlows], today, horizonDays);
+  // K.7: the obligation owns the payment. A scheduled row C.25 has PROVEN to be the
+  // same payment (≥2 distinct months of ±3-day same-amount pairs onto a loan account
+  // whose obligation is in this very list, at that obligation's amount) is not
+  // expanded a second time — /forecast applies the identical split, so the two
+  // surfaces cannot project different committed lines.
+  const { kept: projectedFlows } = splitLoanCarriedScheduled({
+    scheduled: flows,
+    obligations: loanObligations,
+    carried: snap.loanPaymentFlowExclusions?.excluded ?? [],
+  });
+  const committedEvents = expandScheduled([...projectedFlows, ...loanFlows], today, horizonDays);
 
-  // #134 accepted residual, disclosed here because the radar promotes it from a
-  // chart wobble to an alarm input: a loan whose bank ACH was ALSO
-  // recurring-detected as a checking scheduled row counts twice (no structural
-  // key links them; heuristic money-matching rejected — STATUS #134). Detect
-  // the overlap cheaply and say so instead of silently over-warning.
+  // #134's accepted residual, NARROWED by K.7 rather than merely re-disclosed. The
+  // radar promotes a double-counted loan payment from a chart wobble to an alarm
+  // input, so the sentence has to describe what is actually left after the split
+  // above: an overlap C.25 could not prove (a first month, a loan whose payments the
+  // bank never shows on the loan side, a payee behind an aggregate descriptor). Where
+  // C.25 DID prove it, nothing is counted twice any more and the sentence must not
+  // claim otherwise — a stale disclosure is its own defect (the "delegation to a
+  // surface deleted five days earlier" lesson, K.5).
+  //
+  // The old test read `categoryId === 'auto-loan'`, which named ONE loan kind: a
+  // mortgage or a student-loan ACH double-counted in silence. This asks the honest
+  // question instead — is a loan payment still projected from BOTH sources? — by
+  // pairing a SURVIVING outflow's amount against an obligation's own payment.
+  //
+  // Deliberately NOT gated on "nothing was suppressed": a reader with two loans can
+  // have one proven by C.25 and one not, and the unproven one is still counted twice.
+  // The question is asked per surviving row, so closing one overlap never silences
+  // the disclosure for another.
+  // Compared as plain numbers: `paymentCents` is branded `Cents` and a scheduled row's
+  // `amountCents` is not, and this is an equality question about the same integer, not
+  // an arithmetic one (no money is computed here — the branding guards sums).
+  const obligationAmounts = new Set<number>(loanObligations.map((o) => o.paymentCents as number));
   const loanOverlap =
     loanFlows.length > 0 &&
-    snap.scheduled.some(
-      (s) =>
-        s.accountId === payment.id &&
-        normalizeMerchant(s.description).categoryId === 'auto-loan',
-    );
+    projectedFlows.some((f) => f.amountCents < 0 && obligationAmounts.has(-f.amountCents));
 
   // Starting balance mirrors cash-needed: pending applied to today's balance once.
   const assumptions: string[] = [...dueAssumptions];

@@ -6165,3 +6165,99 @@ pattern: two accounts with different oldest rows, the unfiltered line, and
 the account-narrowed + last-year window asserting BOTH surfaces name the
 card's own bound and the box shows `txn-empty-before-history` — a state the
 unscoped code cannot reach.
+
+## #437 — K.7: the OBLIGATION owns a loan payment — the C.25-proven detected row yields, and the radar's overlap disclosure names only what survives (2026-08-10)
+
+**Decided by execution, as the K.7 row demands.** The row's two candidate causes were
+both wrong (PROGRESS 2026-08-09); executing the #134 residual on a fixture holding BOTH
+sources produced the real defect: a loan payment projected twice. The obligation derives
+from the issuer's own terms (`selectLoanObligations`: `minimumPaymentCents` +
+`dueDayOfMonth` from Plaid `/liabilities/get`), and the recurring detector learns the
+ACH that pays it as a scheduled row with no loan gate (`classifySeriesProjection`
+counts it; `server/recurring.ts` persists it). Both fire on the ordinary shape, and the
+three surfaces that combine the sources — /calendar, /forecast, /radar — debited the
+payment twice a month ($1,155.00 of phantom outflow over the demo's 90-day horizon).
+
+**The structural key #134 said did not exist has since been built, so the ownership
+question has a C.25 answer instead of a heuristic.** `loanPaymentFlowExclusions` links a
+checking merchant canonical to ONE specific loan account by ≥2 distinct months of ±3-day
+same-|amount| pairs against a dateable obligation at the row's own amount, and the app
+already stakes the reader's SPENDING TOTALS on that link (those charges leave flows
+because they are "carried elsewhere — the committed / forecast / calendar line"). A link
+trusted to delete a charge from spending is trusted to stop projecting the same charge
+twice.
+
+**Decision: the obligation owns the payment; a detected scheduled row C.25 has proven is
+that payment yields — and nothing else does.** One pure function,
+`splitLoanCarriedScheduled` (`engine/loans/duplicate-projection.ts`), consumed by all
+three surfaces, splits scheduled rows into kept/suppressed. Suppression is 1:1 and never
+free-standing: a row drops only when a C.25 fact names a loan account that is in THIS
+call's obligation list at THIS row's amount. Four reasons the obligation wins: it is the
+issuer's contract (amount AND due day), it carries `accountId` (the frozen disclosure,
+duplicate view and reminders key off it), C.25 already named it THE carried-elsewhere
+surface (suppressing it would delete the line that justifies removing those charges from
+spending), and it repeats on the contract's cadence while a detected series' anchor
+drifts with the bank's posting dates. Refusals, all locked: outflows only (an inflow at
+the obligation amount is never that payment), aggregate canonicals never consumed (the
+C.4 doctrine), an obligation filtered out upstream (a superseded predecessor, R4) never
+takes a scheduled row with it, and an off-amount row stays visible — the #400
+failure-direction rule kept intact: a duplicate the reader can see and weigh beats a
+real payment silently deleted.
+
+**The radar's disclosure follows the split.** The old `loanOverlap` sentence warned
+whenever a scheduled row carried categoryId 'auto-loan' — one loan kind, and now stale
+where C.25 proved the overlap. It asks the honest question instead: does a SURVIVING
+outflow match an obligation's own payment? Deliberately not gated on "anything was
+suppressed" — a reader with two loans can have one proven and one not, and the unproven
+one is still counted twice.
+
+**Coverage (the K.7 row's "no coverage on any surface"):** the engine lock (13 unit
+cases after cycle 1 below, fail-old both directions — deleting the rule reddens the
+suppression case, widening it reddens the keep cases); the WIRING locks (radar 5,
+forecast 1, calendar page 2 — each sabotaged red: radar/forecast 3→6 events with the
+stale disclosure re-firing, the page markup growing the second −$385.00 row); and the
+e2e `Auto Loan due` lock on /calendar July — the loan-due half the K.5 re-point could
+not assert while the demo painted a detected series.
+
+**Cycle 1 (hostile critic, Opus, fresh context) — FAIL, 2 P1s executed → fixed and
+sabotage-proven.** The critic ran the engine on the REAL pipeline chain and on a
+two-loan fixture, not the round-trip fixtures:
+
+- **F1 (P1, executed): the rule was INERT on the ordinary shape.** C.25 mints its fact
+  canonical from the RAW descriptor via a KNOWN_MERCHANTS pattern (`ACH WITHDRAWAL
+  CARMAX AUTO FIN 4421` → `CarMax Auto Finance`); the detector persists that canonical
+  as the series description; and re-deriving `normalizeMerchant('CarMax Auto
+  Finance')` falls back to title-casing (`Carmax Auto Finance`) — the pattern only
+  matches the raw ACH form. Exact-string keying of the two could never meet. **Fix:**
+  both sides pass through the same `normalizeMerchant` before keying — sound because
+  the canonical IS the merchant identity (two names of one merchant agree; two
+  merchants cannot collide). Locked by a REAL-chain test; sabotage-proven (raw fact
+  keying reddens exactly that test).
+- **F2 (P1, executed): suppression had no per-row attribution.** The `(canonical|amount)`
+  key deleted EVERY row under it — two loans sharing one canonical (Nelnet, the
+  generic-servicer rule collapses them) with only one dateable lost BOTH payments, the
+  undatable loan's leaving the projection entirely. **Fix:** the split carries a
+  covered COUNT per key (one fact = one loan account C.25 proved = at most that many
+  payments a month), and suppresses only while the count isn't exhausted. Locked by
+  both directions (one fact → one of two rows stays, visibly; two facts → both may
+  go); sabotage-proven (cap removed reddens exactly those two tests).
+- **F3 (P2, fixed): the /calendar wiring was unwitnessed** — deleting the
+  `splitLoanCarriedScheduled` call kept every test green. **Fix:** a page-render test
+  (jsdom, mocked `auth` + `getCashNeeded`, real prisma + register read) asserts the
+  proven row does NOT paint (`Auto Loan due` yes, `CARMAX AUTO FINANCE` absent) and
+  the unproven duplicate DOES paint (both rows visible — #400's failure direction).
+  Sabotage-proven: with the split deleted, the markup shows Jul 2 `Auto Loan due`
+  −$385.00 AND Jul 5 `CARMAX AUTO FINANCE` −$385.00.
+- **F4 (P2, recorded residual, unchanged): the radar disclosure fires on
+  amount-equality alone** ($385 rent == a $385 mortgage payment). It is hedged ("may
+  be the same loan — counted twice"), the over-hedge direction is safe for a
+  projection, and the class predates K.7 (the old categoryId check had the same
+  breadth); tightening it needs a per-row attribution the split deliberately does not
+  export. Recorded, not changed.
+- **F5 (P3): "10 unit cases" was miscounted** — the engine file holds 13 after F1/F2
+  (10 original + the real-chain test + two cap tests); the four K.7 files carry 24
+  tests (engine 13, radar 5, forecast 4, calendar page 2).
+
+**Still blocked, owner-only:** production's shared demo dataset predates the terms and
+carries the stale detected series; reseeding is destructive and TASKS 0.3 says "Do not
+seed", so the owner's call, not the engine's.

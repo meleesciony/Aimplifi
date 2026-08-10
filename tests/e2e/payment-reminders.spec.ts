@@ -38,37 +38,28 @@ test('upcoming card payments are listed by name — /calendar', async ({ page })
   await expect(list).toContainText('Sapphire Card due');
   await expect(list.getByText('due', { exact: true }).first()).toBeVisible();
 
-  // The loan half of #134 is NOT asserted here, and deliberately not asserted as an absence
-  // either: pinning "no loan due appears" would lock in the very gap K.7 exists to close, and this
-  // test would then go red when someone fixes it. See K.7 below.
+  // TASKS K.7 — the loan half, locked at last. The demo's Auto Loan paints as a badged
+  // `loan-due` obligation ("Auto Loan due"), never as a detected series. June's payment
+  // (due the 5th, before the pinned demo asOf) has already passed, so the lock looks at
+  // July — `k7-loan-due-probe.mts` swept Jul 2026 → Mar 2027 on a fresh seed and found
+  // exactly one loan-due per month at $385.00, business-day-adjusted to 07-02.
+  await page.goto('/calendar?month=2026-07');
+  await expect(page.getByTestId('calendar-list')).toContainText('Auto Loan due');
 });
 
 /**
- * TASKS K.7 — the half of #134 that this file can no longer assert anywhere.
+ * TASKS K.7 — the loan half of #134, now asserted above (see the lock in the test).
  *
- * The test above USED to end `await expect(card).toContainText('Auto Loan')`, on the reminders card,
- * for the #134 claim: "loan payments share the reminders surface with cards, while the cash-needed
- * dollar headline stays card-only." #369 deleted that card, and while re-pointing this I first
- * wrote the assertion against /calendar and it PASSED — for the wrong reason, which is why it is
- * not here now.
- *
- * What /calendar actually paints for the demo's Auto Loan, verified on production 2026-08-06 across
- * Jun/Jul/Sep/Oct/Nov 2026: a row labelled "Auto loan — CarMax" carrying the `scheduled` badge —
- * a DETECTED RECURRING SERIES (an `outflow` event), never a `loan-due`. No month shows the
- * `${accountName} due` label with the `due` badge that `build.ts` emits for a loan obligation.
- *
- * That contradicts the seed's own stated design (`src/lib/seed/build.ts:550`): the auto-loan
- * payment was deliberately REMOVED from the scheduled rows because "the loan account drives a
- * first-class loan-due obligation on the calendar + reminders (#134) … a duplicate scheduled row
- * here would double-display it." The account is there with the right terms (`acct-autoloan`,
- * `minimumPaymentCents: 38500`, `dueDayOfMonth: 5`) and $385.00 on the 5th is exactly what shows —
- * as a series, not as a due.
- *
- * So either `selectLoanObligations` yields nothing for the demo loan and a detected series is
- * standing in, or the calendar is not receiving it. Both are outside K.5 (a test-debt slice) and
- * neither should be papered over by an assertion that matches the string "Auto loan" wherever it
- * happens to appear — an assertion that would stay green if loan dues were deleted outright.
- * Recorded in TASKS as K.7 rather than asserted here.
+ * It could not be asserted while K.7 was open: /calendar painted the demo's Auto Loan as a
+ * DETECTED RECURRING SERIES ("Auto loan — CarMax", `scheduled` badge) and never as a `loan-due`,
+ * because the STALE production demo had been seeded once and never reseeded. The diagnosis
+ * (PROGRESS 2026-08-09) proved by execution that a FRESH seed is correct — the obligation paints
+ * `Auto Loan due` every month from the anchor forward and no detected series exists — and that
+ * the real defect was a double-count: on the ordinary shape a loan obligation AND the
+ * recurring-detected ACH that pays it both projected the same payment. The ownership rule
+ * (`src/lib/engine/loans/duplicate-projection.ts`) now suppresses the C.25-proven row on
+ * /calendar, /forecast and /radar, so the demo's loan-due paints exactly once — and the fresh
+ * seed (which this suite runs against) is the state the assertion locks.
  */
 
 

@@ -14,6 +14,7 @@ import {
   type ScheduledFlow,
 } from '@/lib/engine/forecast/forecast';
 import { selectLoanObligations } from '@/lib/engine/loans/obligations';
+import { splitLoanCarriedScheduled } from '@/lib/engine/loans/duplicate-projection';
 import { frozenProjectionNote } from '@/lib/engine/account/feed-dropped-view';
 import { holidayTable } from '@/lib/dates';
 import { getProvider } from '@/lib/providers/demo';
@@ -55,24 +56,41 @@ export async function getCashFlowForecast(
       cadence: (s.cadence as ScheduledCadence) ?? null,
     }));
 
-  // #134: a LOAN/MORTGAGE payment debits checking every month but is NOT in snap.scheduled
-  // (it surfaces only as a loan-due obligation on the calendar/reminders — obligations.ts).
-  // Fold those obligations into the balance projection so /forecast agrees with the calendar
-  // instead of over-projecting checking (the demo's $385/mo auto-loan was invisible here).
+  // #134: a LOAN/MORTGAGE payment debits checking every month, and it surfaces as a
+  // loan-due obligation on the calendar/reminders (obligations.ts). Fold those obligations
+  // into the balance projection so /forecast agrees with the calendar instead of
+  // over-projecting checking (the demo's $385/mo auto-loan was invisible here).
   // All loan flows attach to the payment-account projection: loan autopays pull from checking,
   // consistent with the forecast's single-payment-account model (a rare pay-from-savings loan
   // is an accepted approximation). Same holiday+obligation derivation as finance.ts.
+  //
+  // K.7: this comment used to add "but is NOT in snap.scheduled" — true of the SEEDED demo
+  // (seed/build.ts:550 deletes the hand-authored row) and false of any reader whose recurring
+  // detector learned the same ACH, which `classifySeriesProjection` persists as a scheduled row
+  // with no loan gate. Both then expanded, and the projection debited the payment TWICE a month
+  // ($1,155.00 of phantom outflow over the 90-day horizon on the demo's auto loan, executed).
   const year = Number(today.slice(0, 4));
   const holidays = holidayTable(year - 1, year + 1);
   // Reconciliation (Wave 4.6 slice 4, R4): a superseded predecessor LOAN keeps its
   // `minimumPaymentCents`/`dueDayOfMonth` (the boundary only zeros the balance), so
   // without this filter it would inject a phantom loan flow into the projection —
   // the same skip `cashNeededFromSnapshot` applies for the reminders/headline surface.
-  const loanFlows = loanObligationsToScheduledFlows(
-    selectLoanObligations({ accounts: snap.accounts.filter((a) => !superseded.has(a.id)), today, holidays }),
-  );
+  const obligations = selectLoanObligations({
+    accounts: snap.accounts.filter((a) => !superseded.has(a.id)),
+    today,
+    holidays,
+  });
+  const loanFlows = loanObligationsToScheduledFlows(obligations);
+  // The obligation owns the payment; a scheduled row C.25 has already PROVEN to be that same
+  // payment yields (loans/duplicate-projection.ts). Suppression is 1:1 against an obligation in
+  // this very list, so no money leaves the projection — it just stops arriving twice.
+  const { kept: projectedFlows } = splitLoanCarriedScheduled({
+    scheduled: flows,
+    obligations,
+    carried: snap.loanPaymentFlowExclusions?.excluded ?? [],
+  });
 
-  const events = expandScheduled([...flows, ...loanFlows], today, horizonDays);
+  const events = expandScheduled([...projectedFlows, ...loanFlows], today, horizonDays);
   const forecast = computeForecast({
     today,
     startingBalanceCents: payment?.currentBalanceCents ?? 0,

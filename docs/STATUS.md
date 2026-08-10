@@ -2941,8 +2941,13 @@ Verified on production across Jun/Jul/Sep/Oct/Nov 2026: no month paints a
 loan due. That contradicts the seed's own design note
 (`src/lib/seed/build.ts:550`), which removed the hand-authored auto-loan
 scheduled row precisely because the loan account "drives a first-class
-loan-due obligation on the calendar + reminders (#134)". Recorded as **K.7**;
-the loan half of #134 has no coverage on any surface today.
+loan-due obligation on the calendar + reminders (#134)". Recorded as **K.7**
+and RESOLVED 2026-08-10 (DECISIONS #437): the obligation owns the payment —
+a detected scheduled row C.25 has proven to be that payment yields on
+/calendar, /forecast and /radar (one pure engine, `splitLoanCarriedScheduled`,
+suppression capped 1:1 per proven fact), and the radar's overlap disclosure
+names only what survives. /calendar now paints `Auto Loan due` with the `due`
+badge — the very assertion this note said could not exist.
 
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.

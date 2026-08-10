@@ -429,4 +429,5 @@ refuses to write if it would drop any number this file already carries.
 - **#433** (Phase ?): C.15: the return affordance one hop deeper — a transaction or a named page as the destination (2026-08-08)
 - **#434** (Phase ?): C.16: Fixed/Discretionary moves into the action menu — the register dial is gone, and a row can say whether its class is ours or the reader's (2026-08-08)
 - **#435** (Phase ?): C.17: the audit P2 sweep — the pace rate divides by fractional elapsed time, and every "$0.00 is a claim" figure names its zero (2026-08-09)
-- **#436** (Phase ?): K.4: the register's history bounds are scoped by the set-defining axes — account, category, unclassified — and both bound surfaces move together by construction (2026-08-09)
+- **#436** (Phase ?): K.4: the register's history bounds are scoped by the SET-DEFINING axes — account, category, unclassified — and both bound surfaces move together by construction (2026-08-09)
+- **#437** (Phase ?): K.7: the OBLIGATION owns a loan payment — the C.25-proven detected row yields, and the radar's overlap disclosure names only what survives (2026-08-10)

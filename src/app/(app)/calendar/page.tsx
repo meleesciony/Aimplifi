@@ -13,6 +13,7 @@ import {
   buildPostedCalendarMonth,
   postedZeroCopy,
 } from '@/lib/engine/calendar/posted';
+import { splitLoanCarriedScheduled } from '@/lib/engine/loans/duplicate-projection';
 import { getPostedCalendarRows } from '@/server/transactions';
 import { isDemoUser } from '@/lib/demo-user';
 import {
@@ -95,6 +96,18 @@ export default async function CalendarPage({
     ...l,
     accountName: withOwner(l.accountId, l.accountName),
   }));
+  // K.7: the obligation owns a loan payment. A scheduled row C.25 has PROVEN to be the same
+  // payment as one of the obligations painted above is not ALSO painted as a scheduled outflow —
+  // the grid would otherwise show one month's single contractual payment as two rows, on two
+  // dates (the business-day-adjusted due date and the observed ACH date), which is the double
+  // display `seed/build.ts:550` removed a hand-authored row to prevent and which no code
+  // prevented for a real reader. Split on the RAW descriptions, BEFORE `withOwner` appends an
+  // owner suffix: the suffix would change the canonical C.25 minted its fact with.
+  const { kept: projectedScheduled } = splitLoanCarriedScheduled({
+    scheduled: snap.scheduled,
+    obligations: loanObligations,
+    carried: snap.loanPaymentFlowExclusions?.excluded ?? [],
+  });
   // The table must span BOTH `today` (synthesized occurrences strictly after it) and the DISPLAYED
   // month, which is a free query param — a reader twelve clicks into next year still gets real
   // holiday roll-backs, not weekend-only ones.
@@ -102,7 +115,7 @@ export default async function CalendarPage({
   const monthYear = +month.slice(0, 4);
   const calendar = buildCashFlowCalendar({
     month,
-    scheduled: snap.scheduled.map((s) => ({ ...s, description: withOwner(s.accountId, s.description) })),
+    scheduled: projectedScheduled.map((s) => ({ ...s, description: withOwner(s.accountId, s.description) })),
     cardObligations: paintedCards,
     loanObligations: paintedLoans,
     today,

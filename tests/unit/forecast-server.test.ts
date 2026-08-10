@@ -20,6 +20,11 @@ import { prisma } from '@/lib/db';
  * byte-identical.
  */
 const frozenArmed = vi.hoisted(() => ({ armed: false }));
+// K.7 (DECISIONS #437): arms the snapshot with BOTH sources of one loan payment — the
+// obligation the seed already derives from acct-autoloan, PLUS the detected scheduled row
+// `server/recurring.ts` would persist for the ACH that pays it, PLUS the C.25 fact proving
+// the row is that payment. The forecast must project the payment ONCE.
+const k7Armed = vi.hoisted(() => ({ armed: false }));
 vi.mock('@/lib/providers/demo', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@/lib/providers/demo')>();
   return {
@@ -31,6 +36,34 @@ vi.mock('@/lib/providers/demo', async (importOriginal) => {
           if (prop === 'getFinanceSnapshot') {
             return async (userId: string) => {
               const snap = await target.getFinanceSnapshot(userId);
+              if (k7Armed.armed) {
+                // The real demo snapshot already carries the obligation (acct-autoloan,
+                // minimumPaymentCents 38500, dueDayOfMonth 5). Overlay the detector's side.
+                return {
+                  ...snap,
+                  scheduled: [
+                    ...snap.scheduled,
+                    {
+                      id: 'sched-loan-detected',
+                      accountId: snap.paymentAccountId,
+                      description: 'CARMAX AUTO FINANCE', // the merchant canonical, as recurring.ts writes it
+                      amountCents: -38500,
+                      nextDate: '2026-07-05',
+                      cadence: 'MONTHLY',
+                    },
+                  ],
+                  loanPaymentFlowExclusions: {
+                    excludeIds: new Set<string>(),
+                    excluded: [
+                      {
+                        canonical: 'Carmax Auto Finance',
+                        accountId: 'acct-autoloan',
+                        paymentCents: 38500,
+                      },
+                    ],
+                  },
+                };
+              }
               if (!frozenArmed.armed) return snap;
               const paymentId = snap.paymentAccountId;
               return {
@@ -73,6 +106,29 @@ describe('getCashFlowForecast — auto-loan folded into the demo projection (#13
     expect(
       forecast.upcoming.some((e) => e.label === 'Auto Loan' && e.amountCents === -38500),
     ).toBe(true);
+  });
+});
+
+describe('getCashFlowForecast — a detected loan series yields to the obligation (K.7)', () => {
+  // The #134 residual, executed for the first time in k7-double-count-probe.mts: with BOTH
+  // sources present the projection debited the payment twice a month ($1,155.00 of phantom
+  // outflow over 90 days). The obligation owns the payment; the C.25-proven row is dropped.
+  // FAIL-OLD: deleting the `splitLoanCarriedScheduled` call in server/forecast.ts turns the
+  // count below into 6 — the wiring line is locked, not just the pure engine.
+  it('projects the proven payment exactly 3× at −$385.00, under the obligation’s label', async () => {
+    k7Armed.armed = true;
+    try {
+      const { forecast } = await getCashFlowForecast('user-demo');
+      const loanAmount = forecast.days
+        .flatMap((d) => d.events)
+        .filter((e) => e.amountCents === -38500);
+      // 3 = the obligation's own cycles; 6 would be the detected row expanding on top.
+      expect(loanAmount).toHaveLength(3);
+      // Every event is the OBLIGATION's — the detected row's description must not survive.
+      expect(loanAmount.map((e) => e.label)).toEqual(['Auto Loan', 'Auto Loan', 'Auto Loan']);
+    } finally {
+      k7Armed.armed = false;
+    }
   });
 });
 
