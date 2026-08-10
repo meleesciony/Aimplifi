@@ -636,11 +636,14 @@ test('CSV import: valid rows imported, bad rows skipped with line errors', async
 });
 
 test('CSV import (H.2): re-importing the same file adds nothing — duplicates reported, depth shown', async ({ page }) => {
-  // Flake ledger run 31362750997: the ≥60s server-action stall class documented at
-  // playwright.config:31 exceeds BOTH the 30s toPass windows this test used AND the
-  // 60s config test timeout. The 90s toPass windows below are only reachable if the
-  // test itself outlives them — the mobile-overflow idiom (test.setTimeout).
-  test.setTimeout(240_000);
+  // Flake ledger runs 31362750997 + 31367228157: the ≥60s server-action stall class
+  // documented at playwright.config:31 exceeds BOTH the 30s toPass windows this
+  // test used AND the 60s config test timeout. The 90s/180s toPass windows below
+  // are only reachable if the test itself outlives them — the mobile-overflow
+  // idiom (test.setTimeout). 480s: the second import's stall ran past 90s on
+  // run 31367228157 (the 90s window rode it out to timeout), so the window below
+  // is 180s and the per-test budget must cover both windows plus overhead.
+  test.setTimeout(480_000);
   await signUpThrowaway(page);
   await addManualAsset(page, 'E2E Import Wallet', 'CHECKING', '1000');
   await page.goto('/transactions/import');
@@ -701,18 +704,24 @@ test('CSV import (H.2): re-importing the same file adds nothing — duplicates r
   // file writes nothing, so each retry re-runs the same harmless dedupe.
   await expect(page.getByTestId('import-submit')).toBeEnabled();
   await page.waitForTimeout(750);
-  // Same 90s window as the first block (flake ledger run 31362750997): attempt 1
-  // of run 31360315737 failed here with a FRESH `Imported 2` result — the second
-  // submit raced the first's still-uncommitted rows (check-then-act on the dedupe
-  // pre-check; no unique constraint backs import identity), so the retry loop must
-  // outlive the ≥60s stall class the harness documents (playwright.config:31).
+  // Window raised 90s → 180s (flake ledger run 31367228157): the second submit's
+  // server action ran past the 90s window — the result panel stayed on the first
+  // import's text across all 14 polls, i.e. the button never left `pending`, so
+  // the re-submit retry could not fire. Same class as run 31360315737 attempt 1
+  // (which failed here with a FRESH `Imported 2` — the second submit racing the
+  // first's still-uncommitted rows; check-then-act on the dedupe pre-check, no
+  // unique constraint backs import identity): the retry loop must outlive the
+  // ≥60s stall class the harness documents (playwright.config:31), and this run
+  // proved the stall can exceed 90s. 180s rides it out; a real defect (result
+  // never renders because nothing was imported) still times out, and the register
+  // assertion at the end is the authoritative proof either way.
   await expect(async () => {
     if (await page.getByTestId('import-submit').isEnabled()) {
       await page.getByTestId('import-csv-text').fill(csv);
       await page.getByTestId('import-submit').click();
     }
     await expect(result).toContainText('Imported 0', { timeout: 5000 });
-  }).toPass({ timeout: 90000 });
+  }).toPass({ timeout: 180000 });
   await expect(result).toContainText('2 already in your history');
   await expect(page.getByTestId('import-depth')).toHaveCount(0); // nothing added → no depth claim
 
