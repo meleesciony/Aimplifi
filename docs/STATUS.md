@@ -2965,6 +2965,28 @@ spec change is K.4-era `79abf43`), and the identical app tree passed the full
 gate on e4721d4 (run 31359227811). Recorded per §K.8 as a pre-existing
 timing flake, not a K.7 defect.
 
+**Flake ledger, run 31362750997 (sha b673bca, docs-only):** attempt 1 failed
+`transactions.spec.ts:638` at line 664 (first-import result never rendered).
+Same harness class; recorded, not a K.7 defect. After three failures of this
+test in four identical-tree attempts, the retry windows were raised 30s→90s
+and the two import tests got `test.setTimeout(240s)` (commit 29b5a0d, the
+playwright.config:31 stall class is ≥60s — the 30s windows were shorter than
+the stall they were meant to ride out, and the 60s config timeout would have
+killed the 90s windows without the per-test override).
+
+**Flake ledger, run 31363585943 (sha 29b5a0d):** attempts 1 and 2 failed two
+DIFFERENT tests — `category-rename.spec.ts:110` (hidden-count after reload,
+attempt 1) and `mobile-overflow.spec.ts:386` `/forecast @360 overflow`
+(attempt 2, the exact test C.18 already named as the timing flake; the same
+run's [mobile-380] project PASSED the same test at 07:13:05 while
+[mobile-webkit] failed it at 07:16:03 — same tree, one project green, one
+red). Both isolated-proven on this exact tree: **17/17 locally (26.9s)**.
+transactions.spec.ts:638 (the test this push actually touched) PASSED both
+attempts — the 29b5a0d hardening worked. All four failures across the three
+runs are different tests on app trees byte-identical to the 06:05 full pass
+(31359227811) — a degraded CI environment exercising the documented
+4-worker shared-SQLite / WebKit-layout harness classes, not a K.7 defect.
+
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.
 
