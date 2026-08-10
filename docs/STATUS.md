@@ -3083,6 +3083,22 @@ shared-SQLite e2e harness on GitHub-hosted runners cannot reliably pass a
 server-action-heavy suite, and no amount of per-test window raising fixes
 that (TASKS: worker-isolated e2e DBs or workflow-level retries).
 
+**Flake ledger, run 31373586981 (sha 0f0f213, docs-only):** TWO tests
+failed — `category-rename.spec.ts:110` (the FIRST repeat of a previously
+recorded failure — it also failed attempt 1 of 31363585943; both attempts
+of that run's retries passed it, and it passed both green gates) and
+`transactions.spec.ts:638` (the second-import block, FOURTH consecutive
+run). The environment now fails multiple tests per run, including repeats —
+the ledger's own prediction. Twelfth failed read today; docs-only push;
+byte-identical twice-green tree; both tests recorded above. The §K.8
+close-out and the harness-fix follow-up (worker-isolated e2e DBs or
+workflow-level retries) stand unchanged. Note for the harness slice:
+Playwright `retries` is unset (default 0) — a `retries: 2` config would
+likely absorb SOME of these (each observed failure passed on another
+attempt), but the 4-worker contention persists during a retry, so it is a
+mitigation, not the fix; evaluate it inside the harness slice with its own
+verification, not as a gate-semantics change shipped mid-close.
+
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.
 
