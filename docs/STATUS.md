@@ -3143,6 +3143,17 @@ cannot touch it) — ~1 draw in 4 locally, absorbed by retries, follow-up open
 fast + retry-absorbed, engine-side fix as its own task. Instrument hook
 deleted; evidence log preserved (run-1/run-2 full request logs, 38k lines).
 
+**Gate read (rule 5).** CI run **31396366182 on `0114b4e` = SUCCESS, attempt
+1, 12m20s** (`scripts/ci-status.sh`, exit 0) — the full `VERIFY_E2E=1` gate
+on GitHub-hosted runners passed first-attempt with the fix, breaking the
+day's chain of 12 failed reads on the byte-identical tree. Vercel deploy on
+the same sha: "Deployment has completed" (success); the slice changes no
+production behavior (Postgres path; the default busy_timeout is unchanged;
+retries + spec plumbing are test-only), so the CI conclusion is the ship
+verdict. Follow-ups recorded (TASKS K.10): the C.14/C.15 severed-flight
+wedge's non-DB component if it persists, and the combine-connections engine
+race.
+
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.
 
