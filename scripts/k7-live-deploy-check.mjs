@@ -39,8 +39,8 @@ import { chromium } from 'playwright';
 
 const BASE = process.env.LIVE_BASE ?? 'https://www.aimplifi.app';
 // Deployment URLs are immutable on Vercel; sha-anchored in the K.7 PROGRESS entry.
-const NEW_DEPLOY = 'https://aimplifi-jd98id3yp-reiforge.vercel.app'; // sha b8dbe8b (e2e-window maintenance; app tree identical to e4721d4)
-const OLD_DEPLOY = 'https://aimplifi-jnsomw6rl-reiforge.vercel.app'; // sha e4721d4 (last app-code commit; the 06:05 gate-green tree)
+const NEW_DEPLOY = 'https://aimplifi-nk3iugdxg-reiforge.vercel.app'; // sha 41dcfba (K.8 ledger close-out; app tree identical to e4721d4)
+const OLD_DEPLOY = 'https://aimplifi-jd98id3yp-reiforge.vercel.app'; // sha b8dbe8b (the 08:00 gate-green tree, build E6idweuWQNx4uX5Iyb6Bc)
 
 const results = [];
 const check = (name, ok, detail = '') => {
@@ -52,9 +52,10 @@ const check = (name, ok, detail = '') => {
 // lives INSIDE a `self.__next_f.push([1,"0:{..."]` JS string, so the quotes are escaped
 // (\”b\”:\”<id>\”). Match both the raw flight form and the escaped HTML form.
 const buildIdOf = (html) => {
-  // Observed ids are 21 chars (cpo-kt9TVyQCT2weegly6); range keeps this robust to
-  // Next.js id-length changes without matching the short `b:` component refs.
-  const m = /\\?"b\\?":\\?"([A-Za-z0-9-]{18,26})/.exec(html);
+  // Observed ids: 21 chars through b8dbe8b (cpo-kt9TVyQCT2weegly6), then the
+  // turbopack-era builds mint 15-char ids (QfSb4Bin36uw6nO on 41dcfba). Range
+  // {14,30} covers both without matching the short `b:` component refs.
+  const m = /\\?"b\\?":\\?"([A-Za-z0-9-]{14,30})/.exec(html);
   return m?.[1] ?? null;
 };
 const fetchBuildId = async (ctx, url) => {
