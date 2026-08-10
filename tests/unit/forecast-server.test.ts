@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { getCashFlowForecast } from '@/server/forecast';
 import { resolvePaymentAccount } from '@/server/finance';
 import { getProvider } from '@/lib/providers/demo';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { prisma } from '@/lib/db';
 
 /**
@@ -39,10 +40,28 @@ vi.mock('@/lib/providers/demo', async (importOriginal) => {
               if (k7Armed.armed) {
                 // The real demo snapshot already carries the obligation (acct-autoloan,
                 // minimumPaymentCents 38500, dueDayOfMonth 5). Overlay the detector's side.
+                //
+                // Suite-pollution fence (CI run 31357353819): under the full suite, an
+                // earlier file (simplefin-history-backfill-server.test.ts:522 syncs user-demo,
+                // and simplefin.ts refreshRecurringForUser persists the detector's learned
+                // rows) has already put ONE detected 'CarMax Auto Finance' row in
+                // snap.scheduled. Appending a second would give the engine two rows for one
+                // C.25 fact — cap 1 suppresses exactly one, the other expands 3×, and the
+                // projection debits the payment twice a month despite the fix (6 events).
+                // The fixture must hold EXACTLY one detected row, so drop any pre-existing
+                // row with the same (normalized canonical | amount) key the engine keys on
+                // before appending the fixture's own.
+                const k7Canonical = 'Carmax Auto Finance';
                 return {
                   ...snap,
                   scheduled: [
-                    ...snap.scheduled,
+                    ...snap.scheduled.filter(
+                      (s) =>
+                        !(
+                          s.amountCents === -38500 &&
+                          normalizeMerchant(s.description).canonical === k7Canonical
+                        ),
+                    ),
                     {
                       id: 'sched-loan-detected',
                       accountId: snap.paymentAccountId,
