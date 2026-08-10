@@ -74,7 +74,13 @@ export type LoanPaymentBasisScope =
   /** /budgets — the By-category list. */
   | 'this-list'
   /** /reports — the page figures, with the escrow-change boundary. */
-  | 'page-figures';
+  | 'page-figures'
+  /** /ask — the answer the sentence is appended to (O.18e-FU3). "This answer"
+   *  holds in both states: with figures (spend_total etc., which drop the rows)
+   *  and in the abstain states ("No spending recorded this month" + appended
+   *  sentence — the sentence is then the only sign money moved, and "not in
+   *  this answer" names the claim it sits beside, never an absent figure). */
+  | 'answer';
 
 /**
  * The basis sentence for one excluded loan payment, scoped to the figure(s)
@@ -101,6 +107,7 @@ export function loanPaymentBasisSentence(
     cards: 'the figures on these cards',
     'this-list': 'this list',
     'page-figures': 'these figures',
+    answer: 'this answer',
   }[scope];
   const boundary =
     scope === 'page-figures'

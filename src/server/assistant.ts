@@ -76,8 +76,7 @@ import {
 import { CORRECTABLE_KINDS } from '@/lib/engine/assistant/trace-view';
 import { applyCategory, undoCorrections } from '@/server/triage-actions';
 import { accountLabel } from '@/lib/engine/account/display-name';
-import { cents, formatCents } from '@/lib/money';
-import { loanPaymentBasisFacts } from '@/server/loan-payment-basis';
+import { loanPaymentBasisFacts, loanPaymentBasisSentence } from '@/server/loan-payment-basis';
 
 const MONTH_TITLE = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const ymLabel = (ym: string) => `${MONTH_TITLE[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
@@ -286,6 +285,9 @@ async function composeAnswer(
   // C.25 (#403, critic P1-C): the flow totals behind these answers exclude
   // loan payments carried elsewhere — the answer says so, in the same words
   // every view uses, or Ask would print a figure no basis sentence owns.
+  // O.18e-FU3: that sentence is the composer's 'answer' scope — a hand-rolled
+  // copy here was the sixth phrasing of the fact and carried the old universal
+  // tail ("not as spending") the five surfaces had already scoped away.
   // merchant_spend discloses in its own engine (it knows the merchant).
   const answer =
     intent.kind === 'spend_total' ||
@@ -296,12 +298,7 @@ async function composeAnswer(
       ? (() => {
           const facts = loanPaymentBasisFacts(snap);
           if (facts.length === 0) return built;
-          const sentence = facts
-            .map(
-              (e) =>
-                `Payments to ${e.payee} at ${formatCents(cents(e.paymentCents))}/mo are counted on ${e.loanName}, not as spending.`,
-            )
-            .join(' ');
+          const sentence = facts.map((e) => loanPaymentBasisSentence(e, 'answer')).join(' ');
           return { ...built, detail: built.detail ? `${built.detail} ${sentence}` : sentence };
         })()
       : built;

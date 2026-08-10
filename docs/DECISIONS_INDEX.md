@@ -435,3 +435,4 @@ refuses to write if it would drop any number this file already carries.
 - **#439** (Phase ?): O.18c: the /recurring rows panel carries the detector's own charges, and its contract is the INVERSE of the glass-box "rows add up to this figure" claim (2026-08-10)
 - **#440** (Phase ?): O.18e: the /trends "New this month" row expands into a merchant-keyed panel whose rows ARE the figure, and the basis names the in-progress window (2026-08-10)
 - **#441** (Phase ?): O.18e-FU: the C.25 loan-payment basis sentence is scoped per surface — one composer, five scopes, the universal "loan payments are not spending" removed (2026-08-10)
+- **#442** (Phase ?): O.18e-FU3: the /ask loan-payment answer copy loses the universal — the three cited sites plus the fourth one the record missed, scoped to the answer's own figures (2026-08-10)

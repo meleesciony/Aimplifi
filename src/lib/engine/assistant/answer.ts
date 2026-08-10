@@ -775,9 +775,10 @@ export interface MerchantSpendResult {
   excludedAggregateCount: number;
   /** Matched rows left out by the C.25 loan-payment exclusion (#403, critic
    *  P1-C): the money matched the merchant and moved, but it is carried on a
-   *  loan, so it is not spending. Non-zero with `count === 0` means "you paid
-   *  this lender, and that is not a purchase" — a different fact from "you
-   *  spent nothing there", and the answer says so rather than denying. */
+   *  loan instead of in this answer's figures. Non-zero with `count === 0`
+   *  means "you paid this lender, and that is not a purchase" — a different
+   *  fact from "you spent nothing there", and the answer says so rather than
+   *  denying. */
   excludedLoanPaymentCount: number;
   excludedLoanPaymentCents: number;
   /** Matched rows, contribution-desc then most-recent-first. SIGNED: a purchase is
@@ -982,11 +983,16 @@ function excludedAggregateClause(res: MerchantSpendResult): string {
   return ` ${n} ${n === 1 ? 'row' : 'rows'} under a shared name like Zelle, Check or ATM ${n === 1 ? 'was' : 'were'} left out — those cover many payees.`;
 }
 
-/** C.25 (#403, critic P1-C): loan payments matched but carried elsewhere. */
+/** C.25 (#403, critic P1-C): loan payments matched but carried elsewhere.
+ *  O.18e-FU3: the tail is scoped to the answer's own figures — "not in these
+ *  figures" — because "not as spending" was the universal the five surfaces
+ *  already scoped away, and this clause sits beside figures that drop the
+ *  rows. (The count-0 branches have no figures and say "counted on the loan
+ *  instead" — see below.) */
 function excludedLoanClause(res: MerchantSpendResult): string {
   if (res.excludedLoanPaymentCount === 0) return '';
   const n = res.excludedLoanPaymentCount;
-  return ` ${fmt(res.excludedLoanPaymentCents)} in ${n === 1 ? 'a payment' : `${n} payments`} to this lender ${n === 1 ? 'is' : 'are'} counted on the loan, not as spending.`;
+  return ` ${fmt(res.excludedLoanPaymentCents)} in ${n === 1 ? 'a payment' : `${n} payments`} to this lender ${n === 1 ? 'is' : 'are'} counted on the loan, not in these figures.`;
 }
 
 export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): AssistantAnswer {
@@ -1028,13 +1034,16 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
 
   if (res.count === 0 && res.excludedLoanPaymentCount > 0) {
     // C.25 (#403, critic P1-C): money DID move to this payee — it is carried
-    // on a loan, so it is not spending. Denying it would be false (the rows
+    // on a loan instead of in this answer. Denying it would be false (the rows
     // sit in the activity the source link opens); totalling it would count a
-    // repayment as spending. Say which it is.
+    // repayment as spending. Say which it is. The detail tail is deliberately
+    // not "not as spending" (O.18e-FU3): the headline above already scopes the
+    // claim to this month, and there is no figure here for a "not in these
+    // figures" clause to name — "instead" points back at the headline.
     return {
       kind: 'merchant_spend',
       headline: `Payments to ${res.merchant} aren't counted as spending ${tf.label}.`,
-      detail: `${fmt(res.excludedLoanPaymentCents)} went there${res.excludedLoanPaymentCount === 1 ? '' : ` across ${res.excludedLoanPaymentCount} payments`} — loan payments are counted on the loan, not as spending.`,
+      detail: `${fmt(res.excludedLoanPaymentCents)} went there${res.excludedLoanPaymentCount === 1 ? '' : ` across ${res.excludedLoanPaymentCount} payments`} — counted on the loan instead.`,
       facts: [],
       source: ACTIVITY_SOURCE,
     };
@@ -1055,7 +1064,7 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
       return {
         kind: 'merchant_spend',
         headline: `Payments to ${res.merchant} aren't counted as spending ${tf.label}.`,
-        detail: `${fmt(res.excludedLoanPaymentCents)} went there${res.excludedLoanPaymentCount === 1 ? '' : ` across ${res.excludedLoanPaymentCount} payments`} — loan payments are counted on the loan, not as spending.`,
+        detail: `${fmt(res.excludedLoanPaymentCents)} went there${res.excludedLoanPaymentCount === 1 ? '' : ` across ${res.excludedLoanPaymentCount} payments`} — counted on the loan instead.`,
         facts: [],
         source: ACTIVITY_SOURCE,
       };

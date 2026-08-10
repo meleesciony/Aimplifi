@@ -329,8 +329,9 @@ export function loanPaymentFlowExclusions(input: LoanPaymentFlowExclusionInput):
         // The disclosure facts are derived from ACTUAL exclusions, never from
         // eligibility (critic cycle 3 P1-1): a merchant that qualified but
         // kept all of its rows (covered-amount gap, split evidence, capacity
-        // spent elsewhere) publishes nothing — the sentence "counted on the
-        // loan, not as spending" is printed only for money that left.
+        // spent elsewhere) publishes nothing — the scoped "counted on the
+        // loan" sentence (per surface, O.18e-FU) is printed only for money
+        // that left.
         const accountId = c.choiceAccounts[0];
         const fk = `${c.canonical}|${accountId}|${c.amount}`;
         if (!factKeys.has(fk)) {

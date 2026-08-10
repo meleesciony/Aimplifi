@@ -18,7 +18,7 @@ import {
   type LoanPaymentFlowExclusionInput,
 } from '@/lib/engine/categorize/loan-payment-flows';
 import { countsInFlows, monthlyFlows, type TxnLike } from '@/lib/engine/fi/insights';
-import { merchantSpend, type AskTxnRow } from '@/lib/engine/assistant/answer';
+import { answerMerchantSpend, merchantSpend, type AskTxnRow } from '@/lib/engine/assistant/answer';
 
 /** Fixture rows are POSTED unless the fixture is ABOUT another status. */
 function row(r: {
@@ -497,10 +497,61 @@ describe("C.25 critic P1-C — Ask names the loan payment instead of denying it"
     const answer = answerMerchantSpend(res, tf);
     expect(answer.headline).toContain("aren't counted as spending");
     expect(answer.headline).not.toContain("No spending");
-    expect(answer.detail).toContain("loan");
+    // O.18e-FU3: the detail tail is scoped to the answer, never the universal
+    // "not as spending" — the headline carries the month-scoped claim, and the
+    // count-0 branches have no figure a "not in these figures" clause could name.
+    expect(answer.detail).toBe("$6,217.07 went there — counted on the loan instead.");
+    expect(answer.detail).not.toContain("not as spending");
+    expect(answer.detail).not.toMatch(/loan payments are not/i);
     // and the control still says no spending when nothing matched at all
     const empty = merchantSpend(rows, tf, "costco", "2026-07-31", undefined, new Set(["mtg-jul"]));
     expect(answerMerchantSpend(empty, tf).headline).toContain("No spending");
+  });
+});
+
+describe("O.18e-FU3 — the appended excluded-loan clause names the answer's figures", () => {
+  const tf = { fromYm: "2026-07", toYm: "2026-07", label: "July 2026" };
+  const row = (r: { id: string; date: string; amountCents: number }): AskTxnRow => ({
+    ...r,
+    status: "POSTED",
+    categoryId: null,
+    merchantCategoryId: null,
+    aggregateMerchant: false,
+    isTransfer: false,
+    isSplitParent: false,
+    excludeFromTotals: false,
+    merchant: "Truist Mortg Olb Mtgpmt",
+  });
+
+  it("refunds-only branch: the clause says 'not in these figures', never 'not as spending'", () => {
+    const rows = [
+      row({ id: "mtg-jul", date: "2026-07-06", amountCents: -621_707 }),
+      row({ id: "ref-jul", date: "2026-07-20", amountCents: 15_000 }),
+    ];
+    const res = merchantSpend(rows, tf, "truist", "2026-07-31", undefined, new Set(["mtg-jul"]));
+    expect(res.count).toBe(1); // the refund stays in the answer
+    expect(res.excludedLoanPaymentCount).toBe(1);
+    const answer = answerMerchantSpend(res, tf);
+    expect(answer.headline).toBe("No purchases at Truist Mortg Olb Mtgpmt July 2026.");
+    expect(answer.detail).toContain(
+      "$6,217.07 in a payment to this lender is counted on the loan, not in these figures.",
+    );
+    expect(answer.detail).not.toContain("not as spending");
+  });
+
+  it("plural form ('N payments are counted … not in these figures') and the purchases branch", () => {
+    const rows = [
+      row({ id: "mtg-jun", date: "2026-07-03", amountCents: -621_707 }),
+      row({ id: "mtg-jul", date: "2026-07-06", amountCents: -621_707 }),
+      row({ id: "pur-jul", date: "2026-07-15", amountCents: -10_000 }),
+    ];
+    const res = merchantSpend(rows, tf, "truist", "2026-07-31", undefined, new Set(["mtg-jun", "mtg-jul"]));
+    const answer = answerMerchantSpend(res, tf);
+    expect(answer.headline).toBe("You spent $100.00 at Truist Mortg Olb Mtgpmt July 2026.");
+    expect(answer.detail).toContain(
+      "$12,434.14 in 2 payments to this lender are counted on the loan, not in these figures.",
+    );
+    expect(answer.detail).not.toContain("not as spending");
   });
 });
 

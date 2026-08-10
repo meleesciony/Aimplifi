@@ -32,6 +32,12 @@ const EXPECTED: Record<LoanPaymentBasisScope, string> = {
     'Payments to Mr Cooper at $6,217.07/mo are counted on Mortgage, not in this list. A payment at another amount counts normally.',
   'page-figures':
     'Payments to Mr Cooper at $6,217.07/mo are counted on Mortgage, not in these figures. A payment at another amount (an escrow change, say) counts normally.',
+  // O.18e-FU3: /ask appends this to spend_total / spend_by_category /
+  // top_categories / income / savings_rate answers. "This answer" holds with
+  // figures AND in the abstain states ("No spending recorded" + appended) —
+  // it names the answer's own claim, never an absent figure.
+  answer:
+    'Payments to Mr Cooper at $6,217.07/mo are counted on Mortgage, not in this answer. A payment at another amount counts normally.',
 };
 
 const SCOPES = Object.keys(EXPECTED) as LoanPaymentBasisScope[];
