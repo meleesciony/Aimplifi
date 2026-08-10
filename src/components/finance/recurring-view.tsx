@@ -17,6 +17,8 @@ import type { WithheldAccountSummary } from '@/lib/providers/currency';
 import type { RecurringData } from '@/server/recurring';
 import { priceChangeBadge, type RecurringItem } from '@/lib/engine/recurring/summary';
 import { renewalsWithin } from '@/lib/engine/recurring/renewals';
+import { recurringPanelSentences } from '@/lib/engine/recurring/panel';
+import { RecurringChargesPanel } from '@/components/finance/recurring-charges-panel';
 import {
   NotABillButton,
   RecurringInstructions,
@@ -48,86 +50,127 @@ function Row({
   // Color by whether the change helps the user: a rising bill is bad (rose), but a
   // rising paycheck is good (emerald). Pure helper so this is unit-locked (REC-2).
   const change = priceChangeBadge(item);
+  // O.18c — the charges panel's copy, composed in the ENGINE from the row's own
+  // RENDERED figure (the `basis` lesson: a disclosure that lives in a .tsx
+  // cannot be locked, and a sentence that reformats the amount could disagree
+  // with the row). The `mag` rendered here is the exact string the row paints
+  // below; the panel's first sentence quotes it back.
+  const chargesBasis = recurringPanelSentences({
+    cadence: item.cadence,
+    isIncome: item.isIncome,
+    declaredByUser: item.declaredByUser,
+    count: item.occurrenceRows.length,
+    typicalRendered: formatCents(cents(mag)),
+    // A price change is only ever a DETECTED claim (declared series carry no
+    // plateau evidence by construction — `declaredSeries` passes nulls).
+    priceChange:
+      item.previousAmountCents !== null && item.priceChangedAt !== null
+        ? {
+            fromRendered: formatCents(cents(Math.abs(item.previousAmountCents))),
+            toRendered: formatCents(cents(mag)),
+            // Long form: a historical change deserves its year ("Wed, Feb 3,
+            // 2026"), unlike the row's near-future "next ~ Wed, Feb 3".
+            changedAtRendered: formatISODate(isoDate(item.priceChangedAt), 'long'),
+          }
+        : null,
+    span: {
+      // Rows are carried oldest-first by the engine — [0] is the earliest.
+      firstSeenRendered: formatISODate(isoDate(item.occurrenceRows[0].date), 'long'),
+      lastSeenRendered: formatISODate(isoDate(item.occurrenceRows[item.occurrenceRows.length - 1].date), 'long'),
+    },
+  });
   return (
     <li
       data-testid="recurring-row"
       data-merchant={item.merchantCanonical}
-      className="flex items-center justify-between gap-3 px-4 py-2.5"
+      className="px-4 py-2.5"
     >
-      <div className="min-w-0">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          {/* O.15 slice 1 — /recurring named the merchant and went nowhere: the
-              page that says "you pay Netflix $15.99/mo" is exactly where a
-              reader asks "since when?", and the register filtered to that
-              merchant is the answer. Same builder and same affordance as the
-              register row's own name.
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {/* O.15 slice 1 — /recurring named the merchant and went nowhere: the
+                page that says "you pay Netflix $15.99/mo" is exactly where a
+                reader asks "since when?", and the register filtered to that
+                merchant is the answer. Same builder and same affordance as the
+                register row's own name.
 
-              The CATEGORY beside it (below) is deliberately NOT a link: a
-              category href must carry the window it was summed over
-              (`CategoryFigure` makes from/to required, and for good reason —
-              a window-less category link lands on all-history, a total larger
-              than any figure that could have been clicked). A recurring series
-              has no month window to hand over; it is a cadence, not a sum. The
-              honest link here is the merchant, which asserts no figure at all. */}
-          <Link
-            href={merchantRegisterHref(item.merchantCanonical)}
-            data-testid="recurring-merchant-link"
-            className={`truncate ${MERCHANT_LINK_CLASS}`}
-          >
-            {item.merchantCanonical}
-          </Link>
-          {change && (
-            <span
-              data-testid="price-change-badge"
-              className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${
-                change.tone === 'favorable'
-                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                  : 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'
-              }`}
+                The CATEGORY beside it (below) is deliberately NOT a link: a
+                category href must carry the window it was summed over
+                (`CategoryFigure` makes from/to required, and for good reason —
+                a window-less category link lands on all-history, a total larger
+                than any figure that could have been clicked). A recurring series
+                has no month window to hand over; it is a cadence, not a sum. The
+                honest link here is the merchant, which asserts no figure at all. */}
+            <Link
+              href={merchantRegisterHref(item.merchantCanonical)}
+              data-testid="recurring-merchant-link"
+              className={`truncate ${MERCHANT_LINK_CLASS}`}
             >
-              {change.increased ? '↑' : '↓'} was {formatCents(cents(change.previousMagnitudeCents))}
-            </span>
-          )}
-          {/* O.13f: a series that exists because the READER said so is never
-              rendered as a pattern the app observed. */}
-          {item.declaredByUser && (
-            <span
-              data-testid="recurring-declared-badge"
-              className="shrink-0 rounded border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-600 dark:text-sky-400"
-            >
-              You marked this
-            </span>
-          )}
-          {item.possiblyUnused && (
-            <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-              Worth a look?
-            </span>
-          )}
+              {item.merchantCanonical}
+            </Link>
+            {change && (
+              <span
+                data-testid="price-change-badge"
+                className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${
+                  change.tone === 'favorable'
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    : 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                }`}
+              >
+                {change.increased ? '↑' : '↓'} was {formatCents(cents(change.previousMagnitudeCents))}
+              </span>
+            )}
+            {/* O.13f: a series that exists because the READER said so is never
+                rendered as a pattern the app observed. */}
+            {item.declaredByUser && (
+              <span
+                data-testid="recurring-declared-badge"
+                className="shrink-0 rounded border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-600 dark:text-sky-400"
+              >
+                You marked this
+              </span>
+            )}
+            {item.possiblyUnused && (
+              <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                Worth a look?
+              </span>
+            )}
+          </div>
+          <div className="truncate text-xs text-muted-foreground">
+            {catName} · {accountNames[item.accountId] ?? '—'}
+          </div>
         </div>
-        <div className="truncate text-xs text-muted-foreground">
-          {catName} · {accountNames[item.accountId] ?? '—'}
+        {/* The next-charge date is the row's key fact — it lives in the fixed right
+            column so the truncating left subtitle can never swallow it (it did at
+            380px: "next ~ Mon, Ju…"). */}
+        <div className="shrink-0 text-right">
+          <div className="tabular-nums">
+            <span className="font-medium">{formatCents(cents(mag))}</span>
+            <span className="text-xs text-muted-foreground">{CADENCE_SUFFIX[item.cadence]}</span>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {item.active ? (
+              <>next ~ {formatISODate(isoDate(item.nextExpectedAt))}</>
+            ) : (
+              <>last seen {formatISODate(isoDate(item.lastSeenAt))}</>
+            )}
+          </div>
+          {/* THE LEVER, on the row where a false detection is actually visible
+              (O.13f). Three haircuts a quarter apart read as a bill here and
+              nowhere else, so this is where the reader gets to say otherwise. */}
+          <NotABillButton merchantCanonical={item.merchantCanonical} />
         </div>
       </div>
-      {/* The next-charge date is the row's key fact — it lives in the fixed right
-          column so the truncating left subtitle can never swallow it (it did at
-          380px: "next ~ Mon, Ju…"). */}
-      <div className="shrink-0 text-right">
-        <div className="tabular-nums">
-          <span className="font-medium">{formatCents(cents(mag))}</span>
-          <span className="text-xs text-muted-foreground">{CADENCE_SUFFIX[item.cadence]}</span>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          {item.active ? (
-            <>next ~ {formatISODate(isoDate(item.nextExpectedAt))}</>
-          ) : (
-            <>last seen {formatISODate(isoDate(item.lastSeenAt))}</>
-          )}
-        </div>
-        {/* THE LEVER, on the row where a false detection is actually visible
-            (O.13f). Three haircuts a quarter apart read as a bill here and
-            nowhere else, so this is where the reader gets to say otherwise. */}
-        <NotABillButton merchantCanonical={item.merchantCanonical} />
-      </div>
+      {/* O.18c — the row's evidence: the exact charges the detector grouped into
+          this series, and what it read off them. Same gesture as every O.18
+          panel — an in-place answer, with the row's merchant link (above)
+          still the way to open the charges in the register. */}
+      <RecurringChargesPanel
+        merchantCanonical={item.merchantCanonical}
+        noun={item.isIncome ? 'deposit' : 'charge'}
+        rows={item.occurrenceRows}
+        basis={chargesBasis}
+      />
     </li>
   );
 }

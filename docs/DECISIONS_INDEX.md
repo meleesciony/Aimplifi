@@ -432,3 +432,4 @@ refuses to write if it would drop any number this file already carries.
 - **#436** (Phase ?): K.4: the register's history bounds are scoped by the SET-DEFINING axes — account, category, unclassified — and both bound surfaces move together by construction (2026-08-09)
 - **#437** (Phase ?): K.7: the OBLIGATION owns a loan payment — the C.25-proven detected row yields, and the radar's overlap disclosure names only what survives (2026-08-10)
 - **#438** (Phase ?): K.8 harness fix: the e2e stall class is cross-process SQLite write contention — the busy burn shrinks 15s→500ms and `retries: 2` absorbs the residual (2026-08-10)
+- **#439** (Phase ?): O.18c: the /recurring rows panel carries the detector's own charges, and its contract is the INVERSE of the glass-box "rows add up to this figure" claim (2026-08-10)

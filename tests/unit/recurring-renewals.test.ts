@@ -33,6 +33,7 @@ function item(
     typicalAmountCents: over.lastAmountCents,
     previousAmountCents: null,
     occurrences: 6,
+    occurrenceRows: [], // evidence rows are out of scope here — the renewal schedule is what is under test
     isSubscription: true,
     isIncome: false,
     possiblyUnused: false,

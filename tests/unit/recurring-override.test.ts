@@ -167,6 +167,11 @@ describe('"this IS a bill" — a declaration adds the rhythm and nothing else', 
     // The one claim that is his and not the evidence's, marked as such — so no
     // surface can render this as a pattern the app observed.
     expect(s.declaredByUser).toBe(true);
+    // O.18c — the charges panel's evidence: the one charge the declaration
+    // read, carried verbatim (date, signed amount, bank text).
+    expect(s.occurrenceRows).toEqual([
+      { date: '2026-05-15', amountCents: -125000, descriptor: RENT_DESC },
+    ]);
   });
 
   it('never a price-change claim, however the charges happen to differ', () => {

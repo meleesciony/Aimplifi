@@ -107,6 +107,7 @@ const seriesShape = {
   lastSeenAt: isoDate(TODAY),
   nextExpectedAt: isoDate(TODAY),
   occurrences: 3,
+  occurrenceRows: [], // evidence rows are out of scope here — the rate is what is under test
   isSubscription: false,
   isIncome: false,
   possiblyUnused: false,

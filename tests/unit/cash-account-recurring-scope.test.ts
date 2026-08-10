@@ -181,6 +181,7 @@ describe('the single-account balance walks re-filter, which is what makes wideni
     lastSeenAt: isoDate('2026-05-10'),
     nextExpectedAt: isoDate('2026-06-10'),
     occurrences: 3,
+    occurrenceRows: [], // evidence rows are out of scope here — the account walk is what is under test
     isSubscription: true,
     isIncome: false,
     possiblyUnused: true,

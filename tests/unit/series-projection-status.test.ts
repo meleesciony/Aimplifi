@@ -44,6 +44,7 @@ const series = (over: Partial<RecurringSeriesResult> = {}): RecurringSeriesResul
   lastSeenAt: isoDate('2026-07-20'),
   nextExpectedAt: isoDate('2026-08-20'),
   occurrences: 6,
+  occurrenceRows: [], // evidence rows are out of scope here — the projection status is what is under test
   isSubscription: false,
   isIncome: false,
   possiblyUnused: false,

@@ -44,6 +44,20 @@ export type Cadence =
   | 'ANNUAL'
   | 'IRREGULAR';
 
+/**
+ * One charge a series was detected from — the evidence behind the row's
+ * typical-amount claim (O.18c). Carried out of the detector so a surface can
+ * list exactly what it saw, rather than re-deriving a different array.
+ */
+export interface RecurringOccurrence {
+  /** YYYY-MM-DD, the day the charge posted. */
+  date: ISODate;
+  /** Signed integer cents — negative for a charge, positive for income. */
+  amountCents: number;
+  /** The bank's own text for this charge, if it had any. */
+  descriptor: string;
+}
+
 export interface RecurringSeriesResult {
   merchantCanonical: string;
   categoryId: string;
@@ -55,6 +69,14 @@ export interface RecurringSeriesResult {
   lastSeenAt: ISODate;
   nextExpectedAt: ISODate;
   occurrences: number;
+  /**
+   * The charges this series was detected from, oldest first — the same rows
+   * that decided cadence, amount and count (O.18c). `occurrences` is its
+   * length by construction. A panel lists these and says the amount above is
+   * the typical one, not their total; the rows are the answer to "what is the
+   * system classifying as a bill".
+   */
+  occurrenceRows: readonly RecurringOccurrence[];
   isSubscription: boolean;
   isIncome: boolean;
   possiblyUnused: boolean;
@@ -255,6 +277,11 @@ function buildSeries(args: {
     lastSeenAt,
     nextExpectedAt,
     occurrences: sorted.length,
+    occurrenceRows: sorted.map((t) => ({
+      date: isoDate(t.date),
+      amountCents: t.amountCents,
+      descriptor: t.rawDescriptor,
+    })),
     isSubscription,
     isIncome,
     // "Possibly unused": a fitness membership with no usage signal for 90+ days.

@@ -63,6 +63,44 @@ describe('recurring detection on seed data', () => {
   });
 });
 
+describe('O.18c — series carry the exact charges they were detected from', () => {
+  it('every series carries one occurrence row per counted occurrence', () => {
+    for (const s of series) {
+      expect(s.occurrenceRows.length).toBe(s.occurrences);
+    }
+  });
+
+  it('Netflix carries its real charges, oldest first, signed', () => {
+    const netflix = series.find((s) => s.merchantCanonical === 'Netflix')!;
+    const rows = netflix.occurrenceRows;
+    expect(rows.length).toBeGreaterThan(3);
+    // Oldest first — the panel reverses for display, but the engine order is
+    // the chronological one.
+    for (let i = 1; i < rows.length; i++) expect(rows[i - 1].date <= rows[i].date).toBe(true);
+    // Charges, not magnitudes: the panel shows what left the account.
+    expect(rows.every((r) => r.amountCents < 0)).toBe(true);
+    // The most recent row is the figure the row renders — the post-increase
+    // amount (the detector's `typicalAmountCents`).
+    expect(rows[rows.length - 1].amountCents).toBe(-1799);
+    // The bank's own text is what the detector grouped on.
+    expect(rows[0].descriptor.length).toBeGreaterThan(0);
+    // Both price plateaus are present — the earlier charge at the old price.
+    expect(rows.some((r) => r.amountCents === -1549)).toBe(true);
+  });
+
+  it('the occurrence rows are the same rows the cadence was read from', () => {
+    // A series of N monthly charges must span ≈ N−1 months of gaps.
+    const netflix = series.find((s) => s.merchantCanonical === 'Netflix')!;
+    const rows = netflix.occurrenceRows;
+    const days =
+      (Date.parse(`${rows[rows.length - 1].date}T00:00:00Z`) - Date.parse(`${rows[0].date}T00:00:00Z`)) / 86400000;
+    // The L.24 long-cadence rule demands every gap in the band; the same rows
+    // that produced the gaps must be the rows the panel lists.
+    expect(days / (rows.length - 1)).toBeGreaterThan(25);
+    expect(days / (rows.length - 1)).toBeLessThan(35);
+  });
+});
+
 describe('wiring back into the Phase 1 engine (acceptance #6)', () => {
   it('DETECTED payroll (replacing the seeded payroll row) reproduces the golden headline exactly', () => {
     const detected = toScheduledTransactions(series, { paymentAccountId: 'acct-checking', cashAccountIds: new Set(['acct-checking']) }, isoDate('2026-06-10'));

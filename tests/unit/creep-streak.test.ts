@@ -28,6 +28,7 @@ function series(overrides: Partial<RecurringSeriesResult> = {}): RecurringSeries
     lastSeenAt: isoDate('2026-06-03'),
     nextExpectedAt: isoDate('2026-07-03'),
     occurrences: 18,
+    occurrenceRows: [], // evidence rows are out of scope here — the creep streak is what is under test
     isSubscription: true,
     isIncome: false,
     possiblyUnused: false,

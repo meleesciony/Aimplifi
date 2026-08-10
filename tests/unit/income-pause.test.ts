@@ -49,6 +49,7 @@ function series(overrides: Partial<RecurringSeriesResult> = {}): RecurringSeries
     // engine must NOT read it — the value here is deliberately arbitrary.
     nextExpectedAt: isoDate('2026-06-10'),
     occurrences: 4,
+    occurrenceRows: [], // evidence rows are out of scope here — the pause state is what is under test
     isSubscription: false,
     isIncome: true,
     possiblyUnused: false,

@@ -80,3 +80,57 @@ test('coming-up schedule shows horizon totals and predicts Netflix at the NEW pr
     .analyze();
   expect(axe.violations).toEqual([]);
 });
+
+test('each row expands into the charges the detector saw, with the typical-not-total disclosure (O.18c)', async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto('/recurring');
+
+  // The toggle sits on every row; scope within the row like the badges do.
+  const netflix = page.getByTestId('recurring-row').filter({ hasText: 'Netflix' });
+  const toggle = netflix.getByTestId('recurring-charges-toggle');
+  await expect(toggle).toContainText('Show');
+  await expect(toggle).toContainText('charges');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+  const panel = netflix.getByTestId('recurring-charges-panel');
+  await expect(panel).toBeVisible();
+  // The evidence: dated charges with signed amounts, newest first.
+  const rows = panel.getByTestId('recurring-charges-rows').locator('li');
+  const count = await rows.count();
+  expect(count).toBeGreaterThan(3);
+  await expect(panel.getByTestId('recurring-charges-row-amount').first()).toContainText('-$');
+  await expect(rows.first()).toContainText(/^[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}/);
+
+  // The disclosure contract — the sentence quotes the ROW's own rendered figure
+  // (the wiring lock: pass a different figure and this fails), and says plainly
+  // it is the typical amount, not the total.
+  const basis = panel.getByTestId('recurring-charges-basis');
+  await expect(basis.first()).toContainText('$17.99');
+  await expect(basis.first()).toContainText('typical amount, not the total of');
+
+  // The detector's reasoning: cadence, the price plateaus.
+  await expect(panel).toContainText('Detected a monthly rhythm in these');
+  await expect(panel).toContainText('The price changed from $15.49 to $17.99 on');
+
+  // Collapse works, and the panel state follows aria.
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(panel).toBeHidden();
+
+  // An income series uses deposit wording throughout (payroll is biweekly).
+  const payroll = page.getByTestId('recurring-row').filter({ hasText: 'Acme Analytics' });
+  await expect(payroll.getByTestId('recurring-charges-toggle')).toContainText('deposits');
+  await payroll.getByTestId('recurring-charges-toggle').click();
+  const payrollPanel = payroll.getByTestId('recurring-charges-panel');
+  await expect(payrollPanel.getByTestId('recurring-charges-basis').first()).toContainText('most recent deposit');
+  await expect(payrollPanel).toContainText('Detected a biweekly rhythm');
+
+  // The expanded panel stays WCAG AA clean.
+  const axe = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(axe.violations).toEqual([]);
+});
