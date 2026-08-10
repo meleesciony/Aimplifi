@@ -374,7 +374,13 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     await page.getByTestId('detail-split-amount').fill('10.00');
     await page.getByTestId('detail-split-confirm').click();
     // The split lands on the PARENT's page after reload.
-    await expect(page.getByTestId('detail-split-parts')).toBeVisible({ timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
+    // FIXED budget, deliberately NOT `|| Number(SQLITE_BUSY_TIMEOUT_MS)`:
+    // playwright.config.ts pins that env to 500 (K.8), and the `|| 15_000`
+    // fallback silently collapsed to 500ms once the env existed — a reload
+    // pipeline (action POST → redirect → GET → render) that lost the race 3/3
+    // on the loaded CI runner (run 31415210741). The busy timeout is a DB-LOCK
+    // budget; an assertion on a reload pipeline wants a render budget.
+    await expect(page.getByTestId('detail-split-parts')).toBeVisible({ timeout: 15_000 });
 
     // On the container, the menu disables the money actions with reasons.
     await page.getByTestId('txn-action-trigger').click();
