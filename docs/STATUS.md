@@ -2987,6 +2987,39 @@ runs are different tests on app trees byte-identical to the 06:05 full pass
 (31359227811) — a degraded CI environment exercising the documented
 4-worker shared-SQLite / WebKit-layout harness classes, not a K.7 defect.
 
+**Flake ledger, run 31366324555 (sha 09d7fad, e2e-window + docs):** failed
+`recurring-verdict.spec.ts:61` at line 84 — the markRecurring server action's
+router.push navigation to /transactions/[id] stalled past a 20s waitForURL.
+The error-context page snapshot shows a HEALTHY /transactions with the action
+menu open and the Recurring… menuitem active — no error state, the navigation
+just never arrived: the ≥60s server-action stall class (playwright.config:31).
+The push-touched test (mobile-overflow, whose poll window this push raised
+4s→8s after run 31363585943) PASSED on BOTH projects. Not a test this push
+touched; passed 06:05 on the byte-identical app tree. Fix in ba60293: the
+navigation window raised 20s→90s + `test.setTimeout(240s)` (the 90s window is
+unreachable past the 60s config timeout without it).
+
+**Flake ledger, run 31367228157 (sha ba60293, e2e-window):** failed
+`transactions.spec.ts:638` at line 715 — a NEW line for this test: the SECOND
+import's server action ran past the 90s window. The result panel stayed on the
+first import's text across all 14 toPass polls — the submit button never left
+`pending`, so the re-submit retry could not fire; the snapshot shows a stale
+result, not a fresh one, so nothing was duplicated (the register assertion at
+line 723 is the authoritative proof). Same class as 31360315737 attempt 1
+(check-then-act race) but this time a pure >90s stall — the documented ≥60s
+class is unbounded above. The push-touched test (recurring-verdict) PASSED;
+not a test this push touched. Fix in b8dbe8b: second block window 90s→180s,
+per-test budget 240s→480s (both windows + overhead must fit inside it).
+
+**RESOLUTION, run 31368294618 (sha b8dbe8b): SUCCESS.** The full
+VERIFY_E2E=1 gate passed — the first green read since the 06:05 pass
+(31359227811). Each of the four hardening commits (29b5a0d, 09d7fad,
+ba60293, b8dbe8b) fixed its targeted test on the next run; the failures
+hopped between four different tests in documented harness classes on an app
+tree byte-identical to the 06:05 pass, so no app code changed all morning.
+Deploy verified 7/7 via the build-id discriminator on b8dbe8b
+(`node scripts/k7-live-deploy-check.mjs`).
+
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.
 

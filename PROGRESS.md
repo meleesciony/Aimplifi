@@ -64,6 +64,26 @@ sign-in, /calendar passthrough paints the detected series, abstention (no `Auto
 Loan due`, nothing suppressed), zero client errors. Final push `d45a969` (deploy
 script only, same app code).
 
+**Post-ship flake chain and resolution (K.8):** five consecutive failed gate
+reads after 31359227811 — runs 31360315737 (transactions.spec.ts:638 ×2
+attempts, then SUCCESS), 31362750997 (transactions.spec.ts:638), 31363585943
+(category-rename.spec.ts:110 + mobile-overflow.spec.ts:386 ×2), 31366324555
+(recurring-verdict.spec.ts:61), 31367228157 (transactions.spec.ts:638 at a NEW
+line, second-import >90s stall). Every failure: a test NOT touched by its push
+(each push's touched test passed in that run), on an app tree byte-identical
+to the 06:05 pass, in the documented harness classes (≥60s server-action
+stalls under 4-worker shared-SQLite, WebKit reflow timing). Four targeted
+e2e-window hardenings shipped: transactions 30s→90s + 240s budget (29b5a0d),
+mobile-overflow fit-sweep poll 4s→8s (09d7fad), recurring-verdict navigation
+20s→90s + 240s budget (ba60293), transactions second block 90s→180s + 480s
+budget (b8dbe8b) — each fixed its test on the next run. **CI run 31368294618
+on b8dbe8b: SUCCESS** — the gate is green again; full ledger in STATUS.md.
+Deploy on b8dbe8b (`aimplifi-jd98id3yp`) READY; `k7-live-deploy-check.mjs`
+**7/7 PASS** — www serves the new build `E6idweuWQNx4uX5Iyb6Bc` (old
+deployment serves `vT9FUQGbmotASmvKpenJ3`), demo passthrough + abstention
+intact, zero client errors. No app code changed all morning; the K.7 engine
+and its three surfaces shipped in 324c717/e4721d4 and never moved.
+
 ## 2026-08-09 — K.7 diagnosis: BOTH candidate causes were wrong, and the real one is a double-charged loan payment
 
 **Decided by execution, not inspection, exactly as the K.7 row demands.** The row offered two
