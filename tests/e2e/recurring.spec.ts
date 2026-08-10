@@ -113,7 +113,7 @@ test('each row expands into the charges the detector saw, with the typical-not-t
 
   // The detector's reasoning: cadence, the price plateaus.
   await expect(panel).toContainText('Detected a monthly rhythm in these');
-  await expect(panel).toContainText('The price changed from $15.49 to $17.99 on');
+  await expect(panel).toContainText('The price changed from $15.49 to $17.99 — the first charge at the new price was');
 
   // Collapse works, and the panel state follows aria.
   await toggle.click();

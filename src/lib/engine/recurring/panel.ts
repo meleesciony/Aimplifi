@@ -47,9 +47,12 @@ function plural(count: number, noun: PanelNoun): string {
  */
 export function typicalNotTotalSentence(typicalRendered: string, count: number, noun: PanelNoun): string {
   const latest = noun === 'deposit' ? "this payee's most recent deposit" : "this payee's most recent charge";
-  // "of 1 charge in the series" — not "of these 1 charge" — because a DECLARED
-  // series may carry a single charge, and broken grammar on a money sentence is
-  // a disclosure defect in miniature.
+  if (count === 1) {
+    // One row IS the total: the "not the total" clause would be a literal
+    // falsehood next to the single row it describes (reachable — a declared
+    // series may carry one charge, the critic's F1). Say what the row proves.
+    return `The ${typicalRendered} above is ${latest} — the only ${noun} in the series.`;
+  }
   return `The ${typicalRendered} above is ${latest} — the typical amount, not the total of ${plural(count, noun)} in the series.`;
 }
 
@@ -72,6 +75,12 @@ export function declaredRhythmSentence(isIncome: boolean): string {
  * The two-plateau evidence, when the detector saw a price change. Income gets
  * "amount" (a raise is not a price change), never "price" — the same
  * favorable/adverse distinction the price-change badge makes.
+ *
+ * The date claim is the DETECTOR's, not a change date: `priceChangedAt` is the
+ * date of the FIRST charge at the new price — the change itself happened some
+ * time between the last old-price charge and that row. So the sentence says
+ * "first charged/deposited at the new … on D", never "changed on D" (the
+ * price-change badge precedent: no time claim the detector doesn't record).
  */
 export function priceChangeSentence(
   fromRendered: string,
@@ -80,7 +89,8 @@ export function priceChangeSentence(
   isIncome: boolean,
 ): string {
   const kind = isIncome ? 'amount' : 'price';
-  return `The ${kind} changed from ${fromRendered} to ${toRendered} on ${changedAtRendered}.`;
+  const noun = isIncome ? 'deposit' : 'charge';
+  return `The ${kind} changed from ${fromRendered} to ${toRendered} — the first ${noun} at the new ${kind} was ${changedAtRendered}.`;
 }
 
 /** How long the evidence spans — answers "since when?". "Seen", not "started":

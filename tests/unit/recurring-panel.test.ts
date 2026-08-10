@@ -27,9 +27,16 @@ describe('typical-not-total sentence (the panel contract)', () => {
     );
   });
 
-  it('stays grammatical at count 1 — a DECLARED series may carry one charge', () => {
+  it('at count 1 the sentence says what the one row proves — "not the total" would be FALSE (critic F1)', () => {
+    // A declared series may carry one charge; the total of the one listed row
+    // IS the figure above, so the "not the total" clause would be a literal
+    // falsehood next to the row it describes. The count-1 shape gets its own
+    // honest sentence instead.
     expect(typicalNotTotalSentence('$49.99', 1, 'charge')).toBe(
-      'The $49.99 above is this payee\'s most recent charge — the typical amount, not the total of 1 charge in the series.',
+      'The $49.99 above is this payee\'s most recent charge — the only charge in the series.',
+    );
+    expect(typicalNotTotalSentence('$1,200.00', 1, 'deposit')).toBe(
+      'The $1,200.00 above is this payee\'s most recent deposit — the only deposit in the series.',
     );
   });
 
@@ -65,15 +72,18 @@ describe('rhythm sentences — detected vs declared (O.13f)', () => {
 });
 
 describe('price-change sentence', () => {
-  it('says "price" for an expense', () => {
+  it('says "price" for an expense, and the date claim is the FIRST CHARGE at the new price (critic F4)', () => {
+    // `priceChangedAt` is the date of the first charge at the new price, never
+    // a recorded change date — "changed … on D" would over-claim (the badge
+    // precedent: no time claim the detector doesn't record).
     expect(priceChangeSentence('$15.49', '$17.99', 'Tue, Feb 3, 2026', false)).toBe(
-      'The price changed from $15.49 to $17.99 on Tue, Feb 3, 2026.',
+      'The price changed from $15.49 to $17.99 — the first charge at the new price was Tue, Feb 3, 2026.',
     );
   });
 
-  it('says "amount" for income — a raise is not a price change', () => {
+  it('says "amount" for income — a raise is not a price change, and the deposit is dated the same way', () => {
     expect(priceChangeSentence('$2,000.00', '$2,200.00', 'Mon, Jan 5, 2026', true)).toBe(
-      'The amount changed from $2,000.00 to $2,200.00 on Mon, Jan 5, 2026.',
+      'The amount changed from $2,000.00 to $2,200.00 — the first deposit at the new amount was Mon, Jan 5, 2026.',
     );
   });
 });
@@ -117,7 +127,7 @@ describe('recurringPanelSentences — the composed panel copy', () => {
 
   it('adds the price-change sentence only when the detector recorded one', () => {
     const withChange = recurringPanelSentences(base);
-    expect(withChange).toContain('The price changed from $15.49 to $17.99 on Tue, Feb 3, 2026.');
+    expect(withChange).toContain('The price changed from $15.49 to $17.99 — the first charge at the new price was Tue, Feb 3, 2026.');
     const without = recurringPanelSentences({ ...base, priceChange: null });
     expect(without.some((s) => s.includes('changed from'))).toBe(false);
   });
