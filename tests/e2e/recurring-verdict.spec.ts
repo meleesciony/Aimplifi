@@ -61,6 +61,14 @@ async function addPurchase(page: Page, descriptor: string, amount: string) {
 test('one charge, declared recurring by hand, reaches the pages that project money — and the undo removes it everywhere', async ({
   page,
 }) => {
+  // Flake ledger run 31366324555: the markRecurring server action's router.push
+  // navigation stalled >20s under 4-worker shared-SQLite load (the ≥60s
+  // server-action stall class documented at playwright.config:31) — the page
+  // snapshot at timeout shows a healthy /transactions with the action menu open,
+  // waiting on the navigation that never arrived. The 90s waitForURL below is
+  // only reachable if the test itself outlives it, so the per-test timeout is
+  // required — the established mobile-overflow / transactions.spec.ts:638 idiom.
+  test.setTimeout(240_000);
   await signUpThrowaway(page);
   await addManualAccount(page, 'RCV Checking');
   await addPurchase(page, RENT.descriptor, RENT.amount);
@@ -81,7 +89,12 @@ test('one charge, declared recurring by hand, reaches the pages that project mon
     await expect(page.getByTestId('txn-action-markRecurring')).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: 20000 });
   await page.getByTestId('txn-action-markRecurring').click();
-  await page.waitForURL('**/transactions/**', { timeout: 20000 });
+  // Window raised 20s → 90s (flake ledger run 31366324555): the server action's
+  // router.push navigation stalled past a 20s window under 4-worker shared-SQLite
+  // load — the ≥60s stall class documented at playwright.config:31, same
+  // signature as the transactions.spec.ts:638 failures. 90s rides out the
+  // documented stall; a real defect (no navigation, error toast) still times out.
+  await page.waitForURL('**/transactions/**', { timeout: 90000 });
 
   // The picker offers only rhythms the engine will actually project.
   const cadence = page.getByTestId('detail-recurring-cadence');
