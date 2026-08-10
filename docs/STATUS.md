@@ -3020,6 +3020,40 @@ tree byte-identical to the 06:05 pass, so no app code changed all morning.
 Deploy verified 7/7 via the build-id discriminator on b8dbe8b
 (`node scripts/k7-live-deploy-check.mjs`).
 
+**Flake ledger, run 31369410049 (sha c884f32, docs-only — K.7 close-out):
+CLOSED PER §K.8.** TWO tests failed in one run — the first multi-failure
+run — on a push that touches no app code (docs/STATUS.md, PROGRESS.md,
+deploy-check constants):
+
+- `combine-connections.spec.ts:67` @ line 108: after the
+  `combine-connections-confirm-yes` click (server action), the net-worth
+  card stayed at `-$2,000.00` across 43 polls / 20s — the client never
+  received the action's re-render (severed-flight class; the page snapshot
+  is healthy, the value is the stable pre-click state). This test has no
+  bounded-retry structure on the confirm click — the weakest remaining
+  window shape in the suite. Passed both 06:05 (31359227811) and 08:00
+  (31368294618) on this byte-identical tree.
+- `transactions.spec.ts:638` @ the second-import toPass: the SAME mode as
+  run 31367228157 — the second import's server action produced no
+  client-visible result even inside the 180s window (the result panel kept
+  the first import's text across all polls). The ≥60s documented stall
+  class is unbounded above; 90s→180s did not converge, so no further
+  window raising is attempted. Register assertion (:723) is the
+  authoritative proof; the snapshot shows a stale result, nothing
+  duplicated.
+
+Close-out rationale (the §K.8 clause, applied): every failure in this
+morning's chain is on a test NOT touched by its push, on an app tree
+byte-identical to TWO full green gates (31359227811 at 06:05, 31368294618
+at 08:00) — i.e., proven pre-existing, not caused by any push this chain
+shipped. The K.7 slice's own gate reads are green and its deploy is proven
+live 7/7. The open issue is NOT the K.7 code — it is the e2e harness
+itself: 4-worker shared-SQLite on GitHub-hosted runners is unreliable
+under heavy load (9 failed reads today across SIX different tests, all in
+the documented classes at playwright.config:31). Follow-up candidate
+(TASKS): worker-isolated databases or workflow-level retries for the e2e
+step — window raising has hit its limit; the harness needs a real fix.
+
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.
 

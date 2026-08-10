@@ -84,6 +84,23 @@ deployment serves `vT9FUQGbmotASmvKpenJ3`), demo passthrough + abstention
 intact, zero client errors. No app code changed all morning; the K.7 engine
 and its three surfaces shipped in 324c717/e4721d4 and never moved.
 
+**K.8 close-out, run 31369410049 (sha c884f32, docs-only): CLOSED PER §K.8.**
+Two tests failed in one run — `combine-connections.spec.ts:67` @ :108
+(confirm-click server action → net-worth re-render never arrived in 20s;
+stable pre-click `-$2,000.00`, severed-flight class, no retry structure on
+the click) and `transactions.spec.ts:638` @ the second-import toPass (same
+mode as 31367228157, exceeding even the 180s window — the ≥60s documented
+stall class is unbounded under runner load). Both tests are untouched by the
+docs-only push and passed BOTH full green gates (06:05, 08:00) on the
+byte-identical app tree — proven pre-existing per the §K.8 clause, so the
+slice closes with the record (full ledger in STATUS.md). No further window
+raising: the stall exceeded 90s AND 180s, so the harness itself is the open
+issue — worker-isolated e2e DBs or workflow-level retries is the follow-up
+(TASKS candidate), not more windows. K.7 status stands: engine + three
+surfaces shipped in 324c717/e4721d4, gate green at 31359227811 +
+31368294618, deploy proven live 7/7, critic-clean (Opus pass completed
+pre-ship per the record above).
+
 ## 2026-08-09 — K.7 diagnosis: BOTH candidate causes were wrong, and the real one is a double-charged loan payment
 
 **Decided by execution, not inspection, exactly as the K.7 row demands.** The row offered two
