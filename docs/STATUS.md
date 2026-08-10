@@ -3067,6 +3067,22 @@ seven tests, every one in the documented harness classes, none caused by
 its push. The §K.8 close-out above stands; the harness fix (worker-isolated
 e2e DBs or workflow-level retries) is the follow-up, not more windows.
 
+**Flake ledger, run 31372410140 (sha 2ff4475, script-only):**
+`transactions.spec.ts:638` again — the second-import block failed for the
+THIRD consecutive run (31367228157 at 90s, 31369410049 at 180s, now
+31372410140 at 180s, 3.1m), same signature: the second import's server
+action never produces a client-visible result while the first import always
+completes within its window. The same test passed 4× earlier today
+(31363585943 ×2, 31366324555, 31368294618), so it is intermittent, not
+deterministic — and no window converges (30s/90s/180s all exceeded), which
+is the documented unbounded stall class. Eleventh failed read today;
+untouched by the script-only push; byte-identical twice-green tree. The
+§K.8 close-out stands. The harness fix is now unambiguously the required
+next slice — the window-raised test itself is fine; the 4-worker
+shared-SQLite e2e harness on GitHub-hosted runners cannot reliably pass a
+server-action-heavy suite, and no amount of per-test window raising fixes
+that (TASKS: worker-isolated e2e DBs or workflow-level retries).
+
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.
 
