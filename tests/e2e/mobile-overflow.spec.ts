@@ -37,6 +37,13 @@ async function assertFitsEveryWidth(page: Page, label: string) {
     // page AT their phone width; probed fresh-360 fits) never sees. Persistence is what
     // separates a real wrong-width figure from an async reflow, so assert on the
     // SETTLED width: retry until it fits, or the timeout proves it never will.
+    //
+    // 4s → 8s (flake ledger run 31363585943, attempts 2-3): /forecast @360 read
+    // scrollWidth 393 twice with `Timeout 4000ms exceeded` under [mobile-webkit]
+    // full-suite load — the reflow lag outlived the window, same class the C.18
+    // record names. Genuine overflow is synchronous and persists across every
+    // retry, so a longer window only absorbs the documented async reflow lag; the
+    // sweep still fails on anything that never settles.
     await expect(async () => {
       const m = await page.evaluate(() => {
         const el = document.scrollingElement ?? document.documentElement;
@@ -47,7 +54,7 @@ async function assertFitsEveryWidth(page: Page, label: string) {
         m.scrollWidth,
         `${label} @${width}px overflows horizontally: scrollWidth ${m.scrollWidth} > clientWidth ${m.clientWidth}. A money value pushed off the right edge is a wrong value.`,
       ).toBeLessThanOrEqual(m.clientWidth + 1);
-    }).toPass({ timeout: 4_000, intervals: [50, 100, 200, 400, 800] });
+    }).toPass({ timeout: 8_000, intervals: [50, 100, 200, 400, 800, 1600] });
   }
 }
 
