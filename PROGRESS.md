@@ -42,6 +42,28 @@ the `Auto Loan due` July lock (business-day-adjusted 07-02). Regression ledger r
 added; TASKS K.7 → DONE; STATUS §K.5 amended. Production's stale demo dataset
 (no obligation, detected series only) remains owner-only (TASKS 0.3).
 
+**CI stop-and-fix (K.8, run 31357353819, sha 324c717):** the first CI read on the
+shipped K.7 slice FAILED the new forecast lock — `expected length 3 but got 6` at
+`tests/unit/forecast-server.test.ts:126`. Root cause (reproduced 1:1 by the full
+local suite): the recurring detector pollutes the shared demo — an earlier file
+(`simplefin-history-backfill-server.test.ts:522` syncs `user-demo`, and
+`simplefin.ts:768` `refreshRecurringForUser` persists the detector's learned rows)
+— so user-demo's snapshot already held ONE detected `CarMax Auto Finance` −38500
+row when the K.7 fixture appended its own. The engine's 1:1 fact cap correctly
+suppressed one of two rows; the survivor expanded 3× over the 90-day horizon (6
+events). The engine is correct; the FIXTURE was not deterministic under suite
+state. Fixed in `e4721d4`: the armed overlay now drops any pre-existing scheduled
+row with the same (normalized canonical | amount) key before appending its own.
+Re-verified: isolated file 4/4, full suite 6,575 passed / 0 failed, FAIL-OLD
+probe re-proven (deleting the `splitLoanCarriedScheduled` call in `forecast.ts`
+still yields 6). **CI run 31359227811 on e4721d4: SUCCESS.** Deploy on e4721d4
+(deployment 5826860369, `aimplifi-jnsomw6rl`) READY; `k7-live-deploy-check.mjs`
+**7/7 PASS** — build-id discriminator (www serves the new build
+`vT9FUQGbmotASmvKpenJ3`, old deployment serves `cpo-kt9TVyQCT2weegly6`), demo
+sign-in, /calendar passthrough paints the detected series, abstention (no `Auto
+Loan due`, nothing suppressed), zero client errors. Final push `d45a969` (deploy
+script only, same app code).
+
 ## 2026-08-09 — K.7 diagnosis: BOTH candidate causes were wrong, and the real one is a double-charged loan payment
 
 **Decided by execution, not inspection, exactly as the K.7 row demands.** The row offered two

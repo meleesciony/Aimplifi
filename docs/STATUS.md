@@ -2949,6 +2949,13 @@ suppression capped 1:1 per proven fact), and the radar's overlap disclosure
 names only what survives. /calendar now paints `Auto Loan due` with the `due`
 badge — the very assertion this note said could not exist.
 
+**CI on the resolution:** the first shipped run (324c717) failed the new
+forecast lock on **run 31357353819** (suite pollution: the recurring detector
+persists a `CarMax Auto Finance` row for the shared demo, so the K.7 fixture
+saw two detected rows for one fact). Fixed in e4721d4 (fixture fence),
+**run 31359227811 SUCCESS**; deploy verified 7/7 via the build-id
+discriminator (PROGRESS.md 2026-08-10).
+
 The assertion is gone rather than inverted: pinning "no loan due appears"
 would lock the gap in and go red the day someone fixes it.
 
