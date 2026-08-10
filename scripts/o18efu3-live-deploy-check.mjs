@@ -1,23 +1,29 @@
 /**
  * Deploy proof for O.18e-FU3 (TASKS), run against PRODUCTION.
  *
- * O.18e-FU3 scoped the /ask loan-payment answer copy: the three
- * "…not as spending" strings in the answer engine became "…not in these
- * figures" (the clause beside figures) / "…counted on the loan instead" (the
- * count-0 branches), and the server-appended sentence (server/assistant.ts)
- * now renders the composer's new 'answer' scope instead of a hand-rolled
- * sixth copy. The demo corpus has NO loan-payment exclusions (C.25: "Empty
- * when no merchant qualifies (demo …)"), so none of the sentences render on
- * demo in either build — page-level greps cannot discriminate.
+ * O.18e-FU3 scoped the /ask loan-payment answer copy: the engine's three
+ * "…not as spending" sites became "…not in these figures" (beside figures) /
+ * "…counted on the loan instead" (the count-0 branches), and the server
+ * append (server/assistant.ts) now renders the composer's new 'answer' scope
+ * ("this answer") instead of a hand-rolled sixth copy. The demo corpus has NO
+ * loan-payment exclusions (C.25: "Empty when no merchant qualifies (demo …)"),
+ * so none of the sentences render on demo in either build — page-level greps
+ * cannot discriminate.
  *
- * The discriminating marker is the CLIENT BUNDLE of /ask: ask-view is a
- * 'use client' component that imports the answer engine, so its shipped
- * chunk previously contained "not as spending" and now contains the two
- * scoped replacements. The composer's new 'answer' scope ("not in this
- * answer") ships via /reports (reports-view imports the composer), which is
- * also checked. The server append itself is 'use server' — never in client
- * bytes; it is covered by the composer lock + the absence of the old
- * hand-rolled string anywhere in the shipped bundles.
+ * DISCRIMINATOR, and the premise correction this check records: the answer
+ * ENGINE is server-side by construction — ask-view.tsx imports it TYPE-ONLY
+ * (its own comment: "doesn't pull the engine into the client bundle") and the
+ * answer text is computed in the 'use server' askAssistant action, so none of
+ * the engine strings ever ship in the /ask client bundle (on EITHER deploy —
+ * the earlier "old universal gone from /ask" marker was vacuous). The one
+ * client-visible artifact the slice changed is the composer's where-map: the
+ * new 'answer' scope inlines as `answer:"this answer"` in the /reports client
+ * bundle (reports-view imports the composer at runtime), and NO pre-FU3
+ * bundle can contain that fragment — the composer had five scopes and no
+ * other /reports module carries the string. /ask's own role here is page load
+ * + zero page errors; the /ask server copy is proven by the same build CI
+ * green proved (the strings ARE in the .next/server SSR chunk of the deployed
+ * commit — verified locally by grep before shipping).
  *
  * Read-only: one-click demo sign-in, two page reads, writes nothing.
  *
@@ -61,29 +67,19 @@ try {
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard', { timeout: 30000 });
 
-  const askBundle = await bundleOf('/ask');
+  // /ask: the engine copy is server-side by construction (type-only import),
+  // so the page-level proof here is load + zero errors only.
+  await page.goto(`${BASE}/ask`, { waitUntil: 'networkidle' });
   await page.getByTestId('ask-input').waitFor({ timeout: 30000 });
   check('/ask loads', true, 'ask-input');
-  check(
-    'the /ask bundle ships the scoped "counted on the loan instead" (count-0 branches)',
-    askBundle.includes('counted on the loan instead'),
-    `${askBundle.length.toLocaleString()} bytes`,
-  );
-  check(
-    'the /ask bundle ships the scoped "not in these figures" (clause beside figures)',
-    askBundle.includes('not in these figures'),
-  );
-  check(
-    'the old universal "not as spending" is GONE from the /ask bundle',
-    !askBundle.includes('not as spending'),
-  );
 
   const reportsBundle = await bundleOf('/reports');
   await page.getByTestId('income-expense-chart').waitFor({ timeout: 30000 });
   check('/reports loads', true, 'income-expense-chart');
   check(
-    'the /reports bundle ships the composer\'s new \'answer\' scope ("not in this answer")',
-    reportsBundle.includes('not in this answer'),
+    'the /reports bundle ships the composer\'s new \'answer\' scope (fragment `answer:"this answer"`) — the FU3 discriminator',
+    reportsBundle.includes('answer:"this answer"'),
+    `${reportsBundle.length.toLocaleString()} bytes`,
   );
   check(
     'the /reports bundle still ships the page-figures scope ("an escrow change, say")',
