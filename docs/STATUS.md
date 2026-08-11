@@ -26,6 +26,10 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Gate:** no product code changed — a probe fix + a record correction. `bash scripts/verify.sh` — **GREEN**: tsc 0 / eslint 0 / **6,710 unit passed + 1 skipped / 407 files** (standalone re-run of the vitest stage for the count: same numbers) / build clean; e2e skipped locally (VERIFY_E2E opt-in), shipped via the CI gate below. The probe compiles clean under the one-off `.mts` `--project` check (exit 0) and re-ran read-only against production. No `prisma/` diff.
 
+**Gate read (rule 5/K.8).** CI run **31544899626 on `8c5659f` = SUCCESS, first attempt** — the full `VERIFY_E2E=1` suite, read via `scripts/ci-status.sh` (exit 0). GitHub commit status `success` with `Vercel: success` ("Deployment has completed") on the same sha. No live-deploy proof is needed or claimed: this slice changed no user-facing behavior (a probe fix and record corrections — there is no new marker for a production check to discriminate on); Vercel auto-deploys the commit regardless, and the CI gate is the complete proof for a diff of this shape (the O.20a precedent).
+
+**Also filed this slice (record integrity):** the `.mts`-invisible-to-`tsc` class was claimed "filed as its own row (Wave G)" by both DECISIONS #446 and TASKS O.20k — checked against Wave G, the row did not exist. Filed as **TASKS G.2** with the two incidents as evidence.
+
 ## ✅ MEASURED 2026-08-11 — O.20a: the /reports basis gap is not what the task row thought it was (DECISIONS #446)
 
 **The queued task:** /reports prints one month's spending on two bases that can disagree — the income/expense CHART (`countsInFlows`) and the "Spending by category" CARD (`isSpendRow`) — measured at $299.93 on the demo, with an existing disclosure that deliberately names only the DIRECTION of the gap, never a mechanism. The row asked whether to unify the bases, give the card the chart's basis, or leave the disclosure. PROGRESS.md's carried note corrected the row's own count: "SEVEN divergences, not the five the row records."
