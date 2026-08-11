@@ -2,6 +2,10 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-10 — O.18g SHIPPED: the conscious-buckets e2e binds its savings else-branch
+
+**The task (carried from O.18f):** the demo dataset can never reach the state where a working savings figure renders WITHOUT the adjacent "Set a savings target" control — the demo's savings is provably always $0 (no seed target/goals; the settings dial is demo-fenced) — so the else branch was unit-locked only and the demo test passed vacuously over it. **Direction:** keep the branch (it is real L.29 behavior for unset-$0 users, plan-row-labels.ts:579-587) and bind it in the e2e. The demo test pins its provable $0 with a binding control assertion (fixture fact, cross-referencing the throwaway test); a new throwaway-user test (the trends-caps / reports-total idiom) seeds the working state by construction — a checking account, two complete POSTED paycheck months ($5,000.00 × 2 under the pinned DEMO_TODAY=2026-06-10), `savingsTargetBps=2000` → pattern $5,000.00 → $1,000.00 planned savings — with an anti-vacuity chain (strip visible, savings > $0, panel penny-match, reconciled clause) that must prove the state binds before the `toHaveCount(0)` control assertion. Spec 2/2 green on first run (25.5s; the new test 2.9s). Full gate RED on ONE documented K.8 flaky member (`transactions:735` — isolation-proven pre-existing, passes on retry in isolation, diff-untouched), 4 flaky absorbed; shipped with the failure named per K.8 (records in STATUS.md §O.18g, DECISIONS #443).
+
 ## 2026-08-10 — K.7 SHIPPED: the obligation owns a loan payment — one engine, three surfaces, two executed critic P1s fixed
 
 **The ownership rule (DECISIONS #437).** `splitLoanCarriedScheduled`

@@ -12,7 +12,9 @@
  * Read-only on the shared demo: expanding writes nothing (no engagement calls
  * in these components), so the shared-row rule is not in play.
  */
+import Database from 'better-sqlite3';
 import { expect, test, type Page } from './helpers/test';
+import { E2E_DB_URL } from '../setup/test-db';
 
 /** "$1,629.44" → 162944. Also handles a signed "−$1,629.44". */
 function parseCents(text: string): number {
@@ -26,6 +28,72 @@ async function signInDemo(page: Page) {
   await page.goto('/');
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
+}
+
+/**
+ * O.18g — the savings bucket's working-figure state. The demo's savings is
+ * provably always $0, so the "no control beside a real number" branch was
+ * unit-locked only and the demo test passed vacuously over it. This seeds a
+ * THROWAWAY user (the trends-caps / reports-total idiom) where the state
+ * binds by construction: two complete months of paycheck income → a pattern,
+ * and a 20% savings target → $1,000.00/mo of planned savings.
+ *
+ * The e2e server pins DEMO_TODAY=2026-06-10 for every user, so April and May
+ * are complete months for the income median.
+ */
+const INCOME_MONTHS: ReadonlyArray<readonly [string, number]> = [
+  ['2026-04-05', 500_000], // $5,000.00 April
+  ['2026-05-05', 500_000], // $5,000.00 May → pattern $5,000.00
+];
+/** 20% of $5,000.00 → $1,000.00 planned savings — a working, non-zero figure. */
+const SAVINGS_TARGET_BPS = 2000;
+
+async function signUpThrowaway(page: Page): Promise<string> {
+  const email = `e2e-conscious-buckets-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20_000 });
+  return email;
+}
+
+/** One checking account + two months of filed paycheck income, plus a savings
+ *  target — the exact DB state the plan's income median and savings target
+ *  read (server/spending-plan.ts:192, :523). */
+function seedWorkingSavings(email: string) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as
+      | { id: string }
+      | undefined;
+    if (!user) throw new Error(`seedWorkingSavings: user ${email} not found`);
+    const stamp = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+
+    const checkingId = `e2e-chk-${stamp}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, name, type, mask, currentBalanceCents, currency)
+       VALUES (?, ?, 'manual', ?, 'Everyday Checking', 'CHECKING', '0977', 500000, 'USD')`,
+    ).run(checkingId, user.id, `ref-chk-${stamp}`);
+
+    // "Transaction" is a SQLite reserved word — quote it or prepare() fails.
+    const txn = db.prepare(
+      `INSERT INTO "Transaction" (id, accountId, date, amountCents, rawDescriptor, categoryId, status, isTransfer, isSplitParent)
+       VALUES (?, ?, ?, ?, ?, ?, 'POSTED', 0, 0)`,
+    );
+    INCOME_MONTHS.forEach(([date, cents], i) => {
+      txn.run(`e2e-inc-${i}-${stamp}`, checkingId, date, cents, 'E2E PAYCHECK', 'paycheck');
+    });
+
+    db.prepare('UPDATE User SET savingsTargetBps = ? WHERE id = ?').run(
+      SAVINGS_TARGET_BPS,
+      user.id,
+    );
+  } finally {
+    db.close();
+  }
 }
 
 const BUCKETS = ['conscious-fixed', 'conscious-savings', 'conscious-guilt-free'] as const;
@@ -86,17 +154,16 @@ test('each bucket amount opens a panel whose rows sum to exactly that amount', a
       legendCents['conscious-guilt-free'],
   ).toBe(incomeCents);
 
-  // The savings bucket is one row by construction. Both of its states carry an
-  // assertion (never a vacuous branch): a $0 from "not set up" must offer the
-  // control that sets it (L.29 — the action now renders in the shared panel
-  // body); a real figure must not show a control beside a working number.
+  // The savings bucket is one row by construction. This demo's savings is
+  // PROVABLY always $0 — no savings target, no goals (the seed creates neither,
+  // and the settings dial is demo-fenced, settings-actions.ts) — so the pin
+  // below is a fixture fact, and the control assertion binds. The working-
+  // figure state (no control beside a real number) is exercised by the
+  // throwaway test at the bottom of this file — never a dead branch here.
+  expect(legendCents['conscious-savings']).toBe(0);
   const savingsAction = page.getByTestId('conscious-savings-row-action');
-  if (legendCents['conscious-savings'] === 0) {
-    await expect(savingsAction).toBeVisible();
-    await expect(savingsAction).toHaveAttribute('href', '/settings');
-  } else {
-    await expect(savingsAction).toHaveCount(0);
-  }
+  await expect(savingsAction).toBeVisible();
+  await expect(savingsAction).toHaveAttribute('href', '/settings');
 
   // C.11 / audit P1-14: a one-row panel certifies nothing, so it prints no
   // penny-match — one amount beside the figure it IS. And the provenance
@@ -123,4 +190,36 @@ test('each bucket amount opens a panel whose rows sum to exactly that amount', a
   expect(parseCents(await page.getByTestId('conscious-fixed-toggle').innerText())).toBe(
     legendCents['conscious-fixed'],
   );
+});
+
+test('a working savings figure renders no control beside it (O.18g)', async ({ page }) => {
+  const email = await signUpThrowaway(page);
+  seedWorkingSavings(email);
+
+  await page.goto('/budgets');
+  await expect(page.getByTestId('conscious-buckets')).toBeVisible();
+
+  // Anti-vacuity: the working-figure state must PROVABLY bind before the
+  // control assertion can pass. If the income pattern or the savings target
+  // ever fails to reach it (plan returns null, savings computes $0), this
+  // fails first — the `toHaveCount(0)` below can never pass vacuously.
+  const toggle = page.getByTestId('conscious-savings-toggle');
+  await expect(toggle).toBeVisible();
+  const savingsCents = parseCents(await toggle.innerText());
+  expect(savingsCents).toBeGreaterThan(0);
+
+  await toggle.click();
+  const panel = page.getByTestId('conscious-savings-panel');
+  await expect(panel).toBeVisible();
+  // The panel painted the working figure — the penny match between the figure
+  // the reader tapped and the rows behind it.
+  expect(parseCents(await page.getByTestId('conscious-savings-sum').innerText())).toBe(
+    savingsCents,
+  );
+  await expect(page.getByTestId('conscious-savings-reconciled')).toBeVisible();
+
+  // The else branch, bound: a control beside a working figure would read as a
+  // correction (L.29 — the action is authored only for the unset-$0 row,
+  // plan-row-labels.ts `savingsLabel`), so it must not render.
+  await expect(page.getByTestId('conscious-savings-row-action')).toHaveCount(0);
 });
