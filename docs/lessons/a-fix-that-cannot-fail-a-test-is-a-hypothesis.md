@@ -84,3 +84,31 @@ silently. Write the mutation ledger for your own slice *before* claiming a cycle
   container retaining its category — was verified clean by execution across reports, trends, register,
   tax, spending-plan, dashboard and Ask. All four cycle-2 P1s were in the UI-truth layer. Effort spent
   on the part that *feels* dangerous is not automatically effort spent where the defects are.
+
+## Addendum (O.20g, 2026-08-11): a fail-old fixture must move the STATISTIC the rule reads
+
+Two "FAIL-OLD" locks shipped green in O.20g and neither of them bound. A fresh-context critic proved
+it by mutation — restoring the old income accumulator left the whole suite passing — and the cause
+was arithmetic in the test's own comment:
+
+> *"median second half 700_000 vs 500_000 first half = +40%, which beats the spend growth and clears
+> it"*
+
+The second half was `[500000, 700000, 500000]`. Its median is **500000**. The rule under test
+compares two MEDIANS specifically because a median is robust to one anomalous month — the engine's
+own comment says so — and the fixture perturbed exactly one month. The test asserted a number that
+the old code and the new code both produce.
+
+**The rule:** when the behaviour under test is a median, a percentile, a majority, a quorum, a mode,
+or anything else chosen for robustness, a one-element fixture cannot fail it. Perturb enough
+elements to move the statistic — for a median of three, that is two — and then **prove it by
+mutation**, not by reading the fixture. The whole O.20g lock set was re-proven with an eleven-
+mutation battery (revert each fix in turn, confirm red); it found one more fix, a copy sentence,
+with no binding lock at all.
+
+Corollary: the same robustness makes the *product* rule safe in the direction a naive reviewer
+worries about, and unsafe in the direction they don't. O.20g's first refusal rule vetoed on a single
+missing month — a month the median provably ignores — and would have silenced a correct verdict for
+everyone paid ten months a year. Ask what the statistic is robust to BEFORE writing either the guard
+or the test that locks it.
+

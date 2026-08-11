@@ -35,6 +35,10 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Residuals, named not hidden (TASKS O.20i):** (a) a reader whose discretionary baseline is ALSO near zero satisfies `income >= spend` and the ratio still explodes — vanishingly narrow, absent from the live corpus; (b) a genuinely low-income reader living off a portfolio the app cannot see is now refused by design, which is the honest direction but is a live copy change on an unbounded population. Both re-measurable with the probe, which calls the shipped engine and prints both baselines plus the rendered verdict per real user.
 
+**Gate read (rule 5/K.8).** CI run **31531559114 on `bf40c37` = SUCCESS, first attempt** — the full `VERIFY_E2E=1` suite, no rerun — read via `scripts/ci-status.sh` (exit 0). Vercel commit status `success` ("Deployment has completed") on the same sha.
+
+**Live (production, on `bf40c37`):** `node scripts/o20g-live-deploy-check.mjs` — **DEPLOY PROOF: PASS, 11 checks.** The refusal verdict itself is NOT reachable on the production demo (its income is covered by construction — that state is covered by `coach-creep-verdict.spec.ts` on a throwaway user, in the CI gate), so the check discriminates on what this slice changed on the MEASURED path, which no pre-O.20g build can render: the new `creep-title` testid (the title was inline text before), the demo's exactly-flat income now reading **"income was flat"** with the old "income grew 0.0%" wording **GONE**, no negated-percentage growth phrase, the link matching the verdict, and — on the ONE demo month that carries a discretionary credit (2026-05; measured on the seed, the other five are false, so clicking `.first()` would have made this check vacuous) — the panel disclosure now reading "does not reduce this figure" with "counts as money in" gone. Zero page errors.
+
 ## ✅ BUILT 2026-08-11 — Cohesion pass slice 1: one chart palette + mission-led docs (Cowork session)
 
 **Owner request (Cowork, 2026-08-11): "visually beautiful, highly functional, entirely cohesive; clean up READMEs for clarity of mission."** Two bounded moves this slice; the judgment-heavy rest is queued, not half-done.
