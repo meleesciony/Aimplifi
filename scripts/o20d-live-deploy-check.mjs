@@ -154,6 +154,24 @@ try {
     'retirement: the age-currentAge bar says it is the current portfolio, not a projection',
     /current portfolio|live balance/i.test(curText) && !/no transactions or holdings/.test(curText),
   );
+  // O.20d-FU: the check above passes on the PRE-FU copy too ("…the live balance
+  // of your investment accounts today" contains "live balance"), so it cannot
+  // tell the deployed build apart. These three can: the new basis wording, the
+  // F3 reconciliation sentence that never existed before, and the ABSENCE of the
+  // old sentence — which the re-review removed because this figure totals
+  // account balances, not the holdings market value the page headlines.
+  check(
+    'retirement (FU): the sentence says "combined balance", the corrected basis',
+    /combined balance of your investment accounts/i.test(curText),
+  );
+  check(
+    'retirement (FU): the panel reconciles itself against the page’s "Portfolio value"',
+    /balances your investment accounts report/i.test(curText) && /so the two can differ/i.test(curText),
+  );
+  check(
+    'retirement (FU): the old "live balance of your investment accounts" claim is GONE',
+    !/live balance of your investment accounts/i.test(curText),
+  );
   await page.getByTestId('retirement-bar-40').click();
 
   // A projected bar REFUSES: it says the bar is a projection, not a transaction set.
