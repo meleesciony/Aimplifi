@@ -22,6 +22,8 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Gate read (rule 5/K.8).** CI run **31539275068 on `e7f7906` = SUCCESS, first attempt** — the full `VERIFY_E2E=1` suite, no rerun — read via `scripts/ci-status.sh` (exit 0). No live-deploy proof is needed or claimed: this slice changed no user-facing behavior (a measurement, a decision, and docs), so there is no new marker for a production check to discriminate on; Vercel auto-deploys the commit regardless, and the CI gate is the complete proof for a diff of this shape.
 
+**Docs-chain gate read (rule 5).** CI run **31540258999 on `0a4de26`** (docs-only: the gate-read record above) = **CANCELLED on attempt 1** — not superseded by a newer push (`origin/main` confirmed still at `0a4de26` when the cancellation was read; no intervening commit exists), so the rule 5 "a newer push superseded this one" reading did not apply here. `gh run rerun 31540258999` → attempt 2 = **SUCCESS**, read via `scripts/ci-status.sh` (exit 0). Head of main is green behind both the O.20a code and the record commit it carried.
+
 ## ✅ BUILT 2026-08-11 — O.20g: merchandise returns stop counting as income, and the creep card learns to say "I can't compare that" (verify green)
 
 **The queued task, and why its own prescription was wrong.** TASKS O.20g reported that `detectLifestyleCreep` added EVERY positive row to its income series, so a return counted as a raise — printing "income grew ~33.3%" and, because `flagged` is a DIFFERENCE, silencing the very warning the detector exists to raise. The row prescribed the fix: gate the accumulator with `isIncomeFlowRow`, the predicate `monthlyFlows` already uses on the same page (#166).
