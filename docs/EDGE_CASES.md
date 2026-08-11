@@ -2857,9 +2857,12 @@ the discretionary spending it is being compared with, the app is not seeing the 
 that spending. Hand-verified cases:
 - 8¢/month savings interest against $1,000/month discretionary → baselines **$0.08 vs $1,000.00**,
   `incomeMeasured` false, `flagged` false even though spend grew 15,000 bps against a flat income.
-- Live corpus (2026-08-11): first-half income median **$0.08** (one interest credit; the prior month
-  had zero income rows while carrying 59 others) against **$6,046.67** discretionary → income growth
-  **70,470,525%**, which silenced the flag while discretionary spending grew ~153%. Now refused.
+- Live corpus (2026-08-11, re-verified under O.20k against the reconciliation boundary): first-half
+  income median **$0.08** (one interest credit; the prior month had zero income rows while carrying
+  59 others) against **$6,046.67** discretionary → income growth **40,607,025%**, which silenced
+  the flag while discretionary spending grew ~59.7% (approx meta). Now refused. (The originally
+  recorded magnitudes — 70,470,525% growth, ~153% spend — were computed by a probe run carrying a
+  silent reconciliation-boundary bug and were superseded by the O.20k re-verification.)
 - ONE missing income month does NOT refuse: `median([500000, 500000, 0])` is still **$5,000.00**, so
   a reader paid ten months a year keeps a correct verdict. A count-of-covered-months rule was built
   first and rejected for exactly this (and for admitting the 8¢ case above).

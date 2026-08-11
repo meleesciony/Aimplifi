@@ -76,6 +76,7 @@ interface Acc {
   type: string;
   currency: string | null;
   userId: string;
+  currentBalanceCents: number;
 }
 
 /** The OLD income rule — reconstructed because the code no longer exists to call. */
@@ -88,7 +89,7 @@ const isIncomeNow = (t: Txn) =>
 
 async function loadAccounts(userIds: string[]): Promise<Acc[]> {
   const r = await c.query(
-    `select id, type, currency, "userId" from "Account" where "userId" = any($1::text[])`,
+    `select id, type, currency, "userId", "currentBalanceCents" from "Account" where "userId" = any($1::text[])`,
     [userIds],
   );
   return r.rows;
@@ -149,7 +150,7 @@ for (const u of users.rows) {
 
   const accs = await loadAccounts([u.id]);
   const keep = await boundaryFor(u.id, accs);
-  const txns = (await spendTxns(u.id)).filter((t) => keep({ accountId: t.accountId, date: t.date }));
+  const txns = (await spendTxns(u.id)).filter((t) => keep(t.accountId, t.date));
 
   const months: string[] = [];
   const lastFullMonthStart = addMonthsClamped(isoDate(`${monthKey(today)}-01`), 0);

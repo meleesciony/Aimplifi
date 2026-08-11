@@ -1,9 +1,11 @@
 # A task row's prescribed fix is a hypothesis too — measure the FIX, not just the bug
 
 **One line:** O.20g's row named the defect correctly and prescribed a fix that, applied alone, made
-the owner's live figure **seven orders of magnitude worse**; the probe that caught it was written
-before the code, and the only reason it caught it is that it measured the state AFTER the
-prescription, not just the state the row complained about.
+the owner's live income-growth figure **five orders of magnitude worse**; the probe that caught it
+was written before the code, and the only reason it caught it is that it measured the state AFTER
+the prescription, not just the state the row complained about. (Magnitudes re-verified 2026-08-11
+under O.20k, after the probe itself was found to carry the reconciliation-boundary bug — the
+direction held; the specific figures corrected below.)
 
 ## What happened
 
@@ -17,17 +19,25 @@ A read-only production probe was written first, in the C.19 pattern. It measured
 shipped rule and the counterfactual under the prescribed fix — per real user. The result:
 
 ```
-positives the OLD rule counted as income and isIncomeFlowRow refuses: 67 rows, $38619.68
+positives the OLD rule counted as income and isIncomeFlowRow refuses: 42 rows, $28673.90
 first-half income median: OLD $10604.95  ->  NEW $0.08
-growth: spend 153.3% / income 592.1%  ->  70,470,525.0%
+growth: spend 59.7% (approx meta) / income  ->  40,607,025.0%
 ```
 
 The gating is correct. It is also, by itself, a regression: removing the miscounted positives left a
 first-half median of **8 cents**, and growth is `(last - first) / first`, so the ratio exploded.
 That figure never printed (its sentence only renders when flagged) — but it silenced the flag, so
 the owner's real /coach page said *"Spending growth is tracking income growth — no lifestyle drift
-detected"* while his discretionary spending grew ~153%. Shipping the row as written would have kept
-the false all-clear and made the number underneath it far worse.
+detected"* while his discretionary spending grew ~59.7% (approx meta). Shipping the row as written
+would have kept the false all-clear and made the number underneath it far worse.
+
+The figures here were re-verified 2026-08-11 under O.20k: the probe's original run (67 rows /
+$38,619.68; spend 153.3% / income 592.1% → 70,470,525%) was computed with a silent
+reconciliation-boundary bug (a single object passed where the keep filter takes two positional
+args), so every probe-computed magnitude was tainted. The fixed probe confirms the first-half
+median **$10,604.95 → $0.08 exactly** and the verdict state, and supersedes the other magnitudes
+with the corrected block above; the old-rule growth figures (153.3% / 592.1%) are not reproducible
+from the corrected probe and are dropped rather than guessed at.
 
 ## Why it generalizes
 
