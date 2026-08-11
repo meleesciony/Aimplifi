@@ -45,6 +45,35 @@ const pct = (bps: number) => `${(bps / 100).toFixed(2)}%`;
 const pct1 = (bps: number) => `${(bps / 100).toFixed(1)}%`;
 
 /**
+ * A growth figure with the verb that matches its SIGN (O.20g).
+ *
+ * The creep sentences hard-coded "grew ~${pct1(bps)}", which prints "grew
+ * ~-12.0%" whenever the figure fell — reachable while flagged, since the flag is
+ * a DIFFERENCE (income falling faster than spending flags a spend figure that
+ * itself shrank). One helper so the two creep sentences and the refusal sentence
+ * cannot drift apart on it.
+ *
+ * Only an EXACT zero reads as "flat": `pct1` rounds 1–4 bps to "0.0%", so
+ * calling a rounded zero flat would assert more than the number does — the same
+ * trap the positive-streak sentence was corrected for (coach-copy.test.ts, "a
+ * zero is a claim and must name which zero"). For the same reason a rounded zero
+ * does not get a DIRECTION either: "fell ~0.0%" states a fall with a magnitude of
+ * nothing, which is self-refuting to a reader.
+ */
+const growthPhrase = (bps: number): string =>
+  bps === 0
+    ? 'was flat'
+    : Math.abs(bps) < 5
+      ? 'barely moved'
+      : bps > 0
+        ? `grew ~${pct1(bps)}`
+        : `fell ~${pct1(-bps)}`;
+
+/** "the last 6 months" / "the last month" — the creep window, named once. */
+const creepWindow = (c: CreepResult): string =>
+  c.windowMonths === 1 ? 'the last month' : `the last ${c.windowMonths} months`;
+
+/**
  * The two dial clauses, written ONCE (W.13).
  *
  * Six sentences across three cards name one or both of these rates, and each of them was a
@@ -758,10 +787,110 @@ export const COACH_COPY = {
     `Your money dials — ${dials.join(' and ')} — are where spending buys you the most life. Spend there proudly; the engine only hunts savings everywhere else.`,
 
   creepFlagged: (c: CreepResult) =>
-    `Heads up, not a verdict: typical discretionary spending grew ~${pct1(c.spendGrowthBps)} across the last ${c.windowMonths} months while income grew ${pct1(c.incomeGrowthBps)}. If that's deliberate (a money dial turning up), carry on — if it's drift, it's easier to steer now than later.`,
+    `Heads up, not a verdict: typical discretionary spending ${growthPhrase(c.spendGrowthBps)} across ${creepWindow(c)} while income ${growthPhrase(c.incomeGrowthBps)}. If that's deliberate (a money dial turning up), carry on — if it's drift, it's easier to steer now than later.`,
 
   creepClear: (c: CreepResult) =>
-    `Spending growth is tracking income growth over the last ${c.windowMonths} months — no lifestyle drift detected.`,
+    `Spending growth is tracking income growth over ${creepWindow(c)} — no lifestyle drift detected.`,
+
+  /**
+   * O.20g — the card when the comparison has no basis, which is neither of the
+   * two verdicts above. It states only the side that IS measured, names the gap
+   * on the side that is not, and says what a gap means, because the reader
+   * cannot otherwise tell "we looked and it's flat" from "we have nothing to
+   * look at".
+   */
+  creepNotComparable: (c: CreepResult) => {
+    const out: string[] = [];
+    // A growth figure is printed ONLY for a side that is measured. Printing the
+    // unmeasured one is how a card headed "Can't compare yet" came to open with
+    // "Typical income grew ~6,249,900.0%" — a refusal that refutes itself.
+    // Zero, one or two of these can hold: both-unmeasured is the ordinary empty
+    // account and pushes neither, so the clauses below must stand alone.
+    if (c.spendMeasured) {
+      out.push(`Typical discretionary spending ${growthPhrase(c.spendGrowthBps)} across ${creepWindow(c)}.`);
+    }
+    if (c.incomeMeasured) {
+      out.push(`Typical income ${growthPhrase(c.incomeGrowthBps)} across ${creepWindow(c)}.`);
+    }
+    if (!c.incomeMeasured) {
+      // The refusal states the two figures it rests on rather than a conclusion
+      // the reader cannot check, and it names the likely cause without asserting
+      // it. No pronoun ("compare THAT with") — the clause has to read correctly
+      // when nothing precedes it.
+      out.push(
+        c.incomeBaselineCents > 0
+          ? `There's no income growth to measure: across the first half of ${creepWindow(c)} the app counted ${formatCents(c.incomeBaselineCents)} a month of income against ${formatCents(c.discretionaryBaselineCents)} a month of discretionary spending, so what it can see of your income isn't a baseline to compare growth against.`
+          : `There's no income growth to measure: the app counted no income at all across the first half of ${creepWindow(c)}.`,
+      );
+      out.push(
+        `That usually means pay is landing somewhere the app isn't reading yet, or it's filed under a category that isn't income — not that you earned nothing.`,
+      );
+    }
+    if (!c.spendMeasured) {
+      // What `spendMeasured` actually tests is the MEDIAN of the first half, so
+      // it is false when at least half of those months recorded nothing — never
+      // "the first half recorded no purchases", which the card's own bar strip
+      // can contradict on screen with a named restaurant.
+      out.push(
+        `There's no discretionary-spending growth to measure: most months in the first half of ${creepWindow(c)} recorded no discretionary purchases, so there's no typical month to grow from.`,
+      );
+    }
+    return out.join(' ');
+  },
+
+  /** The Money Review line for the same refusal — the recap has no room for the card's full explanation. */
+  reviewCreepNotComparable: (c: CreepResult) =>
+    !c.incomeMeasured && c.spendMeasured
+      ? `What we can't tell yet: typical discretionary spending ${growthPhrase(c.spendGrowthBps)}, but what the app can see of your income over ${creepWindow(c)} isn't a baseline to compare it against.`
+      : c.incomeMeasured && !c.spendMeasured
+        ? `What we can't tell yet: typical income ${growthPhrase(c.incomeGrowthBps)}, but most of the first half of ${creepWindow(c)} recorded no discretionary purchases to compare it against.`
+        : `What we can't tell yet: ${creepWindow(c)} has neither an income baseline nor a discretionary-spending one, so there's nothing to compare.`,
+
+  /**
+   * The whole Lifestyle-creep card, composed here rather than selected in the
+   * page. The verdict is a CLAIM about the reader's money and it now has THREE
+   * states, and a three-way rule living in a .tsx cannot be locked by a test —
+   * the same reason `creepPanelBasis` is composed in the engine. The link goes
+   * with it: which register a verdict sends you to is part of the claim.
+   */
+  creepCard: (c: CreepResult): { title: string; body: string; linkHref: string; linkLabel: string } => {
+    // Checked FIRST and independently of `flagged`, which already requires both
+    // sides measured: the order documents that a refusal outranks a verdict,
+    // rather than relying on a flag that a future edit could widen.
+    if (!c.incomeMeasured || !c.spendMeasured) {
+      return {
+        title: `Can't compare yet`,
+        body: COACH_COPY.creepNotComparable(c),
+        // The diagnostic control is the register for the side that is MISSING.
+        //
+        // The label deliberately does NOT say "what the app counts as income".
+        // `type=income` in the register is a SIGN filter (`matchesType`,
+        // transactions/query.ts — `!isTransfer && amountCents > 0`), not
+        // `isIncomeFlowRow`, so a credit this engine refuses still appears
+        // there. A label asserting the engine's definition over a destination
+        // that implements a different one is a claim the page cannot keep —
+        // and it would land the reader on the exact February credit the
+        // sentence above calls "no income".
+        linkHref: c.incomeMeasured ? '/transactions?type=expense' : '/transactions?type=income',
+        linkLabel: c.incomeMeasured
+          ? 'See the expenses in your activity'
+          : 'See the money coming in on your activity',
+      };
+    }
+    return c.flagged
+      ? {
+          title: 'Spending is outpacing income',
+          body: COACH_COPY.creepFlagged(c),
+          linkHref: '/transactions?type=expense',
+          linkLabel: 'See the expenses in your activity',
+        }
+      : {
+          title: 'Tracking income',
+          body: COACH_COPY.creepClear(c),
+          linkHref: '/transactions?type=income',
+          linkLabel: 'See the income in your activity',
+        };
+  },
 
   runway: (months: number) => {
     if (!Number.isFinite(months)) {
@@ -800,8 +929,17 @@ export const COACH_COPY = {
   reviewCreep: (merchant: string, delta: Cents) =>
     `What crept: ${merchant} now costs ${formatCents(delta)}/mo more than it used to.`,
 
-  reviewCreepSpending: (growthBps: number) =>
-    `What crept: typical discretionary spending is up ~${pct1(growthBps)} over the recent window while income is flat.`,
+  /**
+   * O.20g — this took the spend figure ALONE and hard-coded "while income is
+   * flat", a clause with no input behind it: it printed beside a card saying
+   * income fell 50%. It also said "is up ~-10.0%" whenever the figure fell,
+   * which is reachable precisely when this line renders, because `flagged` is a
+   * DIFFERENCE (income falling faster flags a spend figure that itself shrank).
+   * It now takes the whole result and shares `growthPhrase` with the card, so
+   * the two sentences about the same two numbers cannot contradict each other.
+   */
+  reviewCreepSpending: (c: CreepResult) =>
+    `What crept: typical discretionary spending ${growthPhrase(c.spendGrowthBps)} over the recent window while income ${growthPhrase(c.incomeGrowthBps)}.`,
 
   reviewNextAction: (action: string) => `One next action: ${action}.`,
 
@@ -1141,8 +1279,13 @@ export function generateMoneyReview(input: {
   const creepLine = priceIncrease
     ? COACH_COPY.reviewCreep(priceIncrease.merchant, priceIncrease.monthlyCents)
     : creep.flagged
-      ? COACH_COPY.reviewCreepSpending(creep.spendGrowthBps)
-      : COACH_COPY.creepClear(creep);
+      ? COACH_COPY.reviewCreepSpending(creep)
+      : // O.20g — `!flagged` is no longer "clear": it is also every window the
+        // app could not compare. `creepClear` asserts spending tracked income,
+        // which is a claim about an income series that may not exist.
+        !creep.incomeMeasured || !creep.spendMeasured
+        ? COACH_COPY.reviewCreepNotComparable(creep)
+        : COACH_COPY.creepClear(creep);
 
   const unused = opportunities.find((o) => o.kind === 'unused-subscription');
   const nextAction = input.pendingTransfer

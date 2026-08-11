@@ -31,6 +31,9 @@ export type ReviewCandidateId =
   | 'improvement-runway'
   | 'watch-price-increase'
   | 'watch-creep'
+  // O.20g — the window the app could not compare. Distinct from 'watch-clear':
+  // that id carries a claim ("no lifestyle drift detected") this state cannot make.
+  | 'watch-creep-not-comparable'
   | 'watch-clear'
   | 'action-transfer'
   | 'action-cancel-sub'
@@ -44,6 +47,7 @@ export const REVIEW_CANDIDATE_IDS: readonly ReviewCandidateId[] = [
   'improvement-runway',
   'watch-price-increase',
   'watch-creep',
+  'watch-creep-not-comparable',
   'watch-clear',
   'action-transfer',
   'action-cancel-sub',
@@ -154,11 +158,24 @@ export function buildReviewCandidates(input: ReviewCandidateInput): ReviewCandid
       role: 'watch',
       priority: 55,
       material: false,
-      line: COACH_COPY.reviewCreepSpending(creep.spendGrowthBps),
+      line: COACH_COPY.reviewCreepSpending(creep),
+    });
+  }
+  // O.20g — a window the app could not compare is NOT an all clear, and it used
+  // to fall into the branch below and print one. It sits between the two: above
+  // "nothing to watch", below a real flag.
+  const creepNotComparable = !creep.incomeMeasured || !creep.spendMeasured;
+  if (!priceIncrease && !creep.flagged && creepNotComparable) {
+    out.push({
+      id: 'watch-creep-not-comparable',
+      role: 'watch',
+      priority: 40,
+      material: false,
+      line: COACH_COPY.reviewCreepNotComparable(creep),
     });
   }
   // "All clear" only when there's nothing to watch — exactly when generateMoneyReview shows it.
-  if (!priceIncrease && !creep.flagged) {
+  if (!priceIncrease && !creep.flagged && !creepNotComparable) {
     out.push({
       id: 'watch-clear',
       role: 'watch',
@@ -222,6 +239,15 @@ function selectDeterministic(candidates: readonly ReviewCandidate[]): ReviewCand
   const watch =
     byId(candidates, 'watch-price-increase') ??
     byId(candidates, 'watch-creep') ??
+    // O.20g — omitting the new id here dropped the watch role ENTIRELY for
+    // every reader in the refusal state (`buildReviewCandidates` emits this one
+    // and suppresses `watch-clear`, so the chain fell through to `undefined`
+    // and was filtered out below). That silently shrank the recap to two lines,
+    // broke this module's own byte-for-byte-with-`generateMoneyReview`
+    // contract, and — because `selectFromOrder` backfills from here — made the
+    // "Personalized" badge fire whenever a model returned a line the floor
+    // could not.
+    byId(candidates, 'watch-creep-not-comparable') ??
     byId(candidates, 'watch-clear');
   const action =
     byId(candidates, 'action-transfer') ??

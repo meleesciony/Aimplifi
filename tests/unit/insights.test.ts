@@ -377,6 +377,241 @@ describe('creep bars carry their rows out of the summing loop (O.20d)', () => {
   });
 });
 
+/**
+ * O.20g — the income series is the app's ONE definition of an income row, and a
+ * refused comparison is distinguishable from a measured flat one.
+ *
+ * Measured on the live corpus before this shipped: one real reader's 6-month
+ * window held a month with 59 counted rows and ZERO income rows, and the next
+ * month held one income row of $0.08 — a first-half median of 8 cents, which
+ * cleared the old `first <= 0` guard and produced an income growth of
+ * 70,470,525%, silencing the flag while discretionary spending grew ~153%.
+ */
+describe('creep income series counts only income rows, and says when it cannot measure (O.20g)', () => {
+  const txn = (
+    date: string,
+    amountCents: number,
+    over: Partial<Parameters<typeof detectLifestyleCreep>[0][number]> = {},
+  ) => ({
+    id: `id-${date}-${amountCents}`,
+    date,
+    amountCents,
+    rawDescriptor: 'STARBUCKS 800-782-7282',
+    accountId: 'a',
+    isTransfer: false,
+    status: 'POSTED' as const,
+    ...over,
+  });
+  /** A paycheck in every window month — the coverage `incomeMeasured` needs. */
+  const paychecks = (perMonthCents: Record<string, number>) =>
+    Object.entries(perMonthCents).map(([m, c]) =>
+      txn(`${m}-25`, c, { categoryId: 'paycheck', id: `pay-${m}`, rawDescriptor: 'ACH DEPOSIT ACME PAYROLL' }),
+    );
+  const WINDOW = ['2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05'];
+  const flat = Object.fromEntries(WINDOW.map((m) => [m, 500_000]));
+  const today = isoDate('2026-06-10');
+
+  it('the reported P1: merchandise returns no longer count as income, so the flag is not silenced', () => {
+    // Flat $5,000 income every month, and discretionary spending growing hard.
+    const rising = { '2025-12': 100_000, '2026-01': 100_000, '2026-02': 100_000, '2026-03': 200_000, '2026-04': 200_000, '2026-05': 200_000 };
+    const spend = Object.entries(rising).map(([m, c]) => txn(`${m}-10`, -c, { categoryId: 'shopping', id: `buy-${m}` }));
+    const base = [...paychecks(flat), ...spend];
+    const withoutReturns = detectLifestyleCreep(base, today);
+    expect(withoutReturns.flagged).toBe(true);
+    expect(withoutReturns.incomeGrowthBps).toBe(0); // flat income, MEASURED
+    expect(withoutReturns.incomeMeasured).toBe(true);
+
+    // Returns filed to `refund` in TWO of the three second-half months.
+    //
+    // Two, not one: the halves are compared by MEDIAN, and a median of three is
+    // unmoved by a single perturbed month — so a one-month fixture would pass
+    // against the OLD engine too and lock nothing. (It did: the first version of
+    // this test was green under a mutation that restored the old branch. "A fix
+    // that cannot fail a test is a hypothesis.")
+    const returns = [
+      txn('2026-03-15', 200_000, { categoryId: 'refund', id: 'return-mar' }),
+      txn('2026-04-15', 200_000, { categoryId: 'refund', id: 'return-apr' }),
+    ];
+    const withReturns = detectLifestyleCreep([...base, ...returns], today);
+    // FAIL-OLD: admitting every positive would make the second-half median
+    // $7,000 against a $5,000 first half = +4000 bps, which exceeds the spend
+    // growth (+100%... no: spend is +10000 bps) — see the flag assertion below.
+    expect(withReturns.incomeGrowthBps).toBe(0); // the returns are not a raise
+    expect(withReturns.incomeMeasured).toBe(true);
+    expect(withReturns.flagged).toBe(true);
+  });
+
+  it('FAIL-OLD, executed: returns big enough to clear the flag under the old rule no longer can', () => {
+    // The reported failure shape, sized so the OLD rule provably clears the
+    // flag: spend grows +50% (5000 bps) while two $20,000 returns would lift a
+    // $5,000 income median to $25,000 (+40000 bps) — 5000 - 40000 is far below
+    // the +500 bps bar, so the old engine reports "no lifestyle drift".
+    const spend = [
+      ...['2025-12', '2026-01', '2026-02'].map((m) => txn(`${m}-10`, -100_000, { categoryId: 'shopping', id: `buy-${m}` })),
+      ...['2026-03', '2026-04', '2026-05'].map((m) => txn(`${m}-10`, -150_000, { categoryId: 'shopping', id: `buy-${m}` })),
+    ];
+    const returns = [
+      txn('2026-03-15', 2_000_000, { categoryId: 'refund', id: 'big-return-mar' }),
+      txn('2026-04-15', 2_000_000, { categoryId: 'refund', id: 'big-return-apr' }),
+    ];
+    const creep = detectLifestyleCreep([...paychecks(flat), ...spend, ...returns], today);
+    expect(creep.spendGrowthBps).toBe(5000);
+    expect(creep.incomeGrowthBps).toBe(0); // OLD would be 40000
+    expect(creep.flagged).toBe(true); // OLD would be false — the silenced warning
+  });
+
+  it('a return filed to a discretionary category is dropped from income, and does NOT net the bar', () => {
+    const rows = [
+      ...paychecks(flat),
+      txn('2026-01-03', -45_000, { categoryId: 'shopping', id: 'buy-jan' }),
+      txn('2026-01-20', 45_000, { categoryId: 'shopping', id: 'return-jan' }),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    const jan = creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!;
+    // The bar stays GROSS — the shipped O.20d-FU behaviour this slice must not move.
+    expect(jan.amountCents).toBe(45_000);
+    expect(jan.rows.reduce((s, r) => s + r.amountCents, 0)).toBe(45_000);
+    expect(jan.hasDiscretionaryRefunds).toBe(true);
+    // The refused credit leaves the income series and does NOT enter the spend
+    // one — it is dropped, not netted. The baseline is the paychecks alone.
+    expect(creep.incomeBaselineCents).toBe(500_000);
+  });
+
+  it('FAIL-OLD, executed: the first-half BASELINE excludes refused credits', () => {
+    // Two of the three first-half months carry a $2,000 return. Under the old
+    // rule the first-half median was $7,000; the baseline is the median, so this
+    // fixture moves it and a one-month fixture would not.
+    const rows = [
+      ...paychecks(flat),
+      txn('2025-12-20', 200_000, { categoryId: 'refund', id: 'ret-dec' }),
+      txn('2026-01-20', 200_000, { categoryId: 'refund', id: 'ret-jan' }),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    expect(creep.incomeBaselineCents).toBe(500_000); // OLD: 700_000
+  });
+
+  it('an UNCATEGORIZED inflow still counts as income (it may be a deposit, not a return)', () => {
+    // The asymmetry `isIncomeFlowRow` has always had, and the reason the panel
+    // sentence cannot claim a credit is never counted as income.
+    //
+    // Two months, not one: the halves are compared by MEDIAN, so a single
+    // anomalous month cannot move the figure — which is exactly the property
+    // that makes the coverage rule (not a magnitude floor) the right guard.
+    const rows = [
+      ...paychecks(flat),
+      txn('2026-04-15', 200_000, { id: 'unlabelled-apr', rawDescriptor: 'DEPOSIT' }),
+      txn('2026-05-15', 200_000, { id: 'unlabelled-may', rawDescriptor: 'DEPOSIT' }),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    expect(creep.incomeMeasured).toBe(true);
+    // Second-half median $7,000 against a first-half $5,000 = +40%.
+    expect(creep.incomeGrowthBps).toBe(4000);
+  });
+
+  it('THE RULE: an income baseline below the discretionary spending it is compared against is refused', () => {
+    // The live-corpus shape, reduced: the app can see 8 cents a month of income
+    // (one interest credit) against $1,000 a month of discretionary spending.
+    // Whatever paid for that spending is not in the app, so no growth ratio over
+    // the income side means anything.
+    const rows = [
+      ...WINDOW.map((m) => txn(`${m}-01`, 8, { categoryId: 'interest-income', id: `int-${m}` })),
+      ...WINDOW.map((m, i) => txn(`${m}-10`, i < 3 ? -100_000 : -250_000, { categoryId: 'shopping', id: `buy-${m}` })),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    expect(creep.incomeBaselineCents).toBe(8);
+    expect(creep.discretionaryBaselineCents).toBe(100_000);
+    expect(creep.incomeMeasured).toBe(false);
+    expect(creep.spendMeasured).toBe(true);
+    // The whole point: the comparative claim is withheld rather than made from
+    // an 8-cent divisor. Spending grew 150%, so without the rule this reader is
+    // told "Spending is outpacing income" over an income the app cannot see.
+    expect(creep.spendGrowthBps).toBe(15_000);
+    expect(creep.flagged).toBe(false);
+  });
+
+  it('the same rule catches the divisor blow-up: a tiny baseline can no longer print or silence', () => {
+    // Two of the three first-half months are near-empty, so the MEDIAN itself is
+    // tiny and the ratio explodes — the live corpus produced 70,470,525% this
+    // way. Spending grew 150%, which under the old engine was silenced because
+    // `flagged` is a difference.
+    const tiny = { ...flat, '2025-12': 5, '2026-01': 8 };
+    const rows = [
+      ...paychecks(tiny),
+      ...WINDOW.map((m, i) => txn(`${m}-10`, i < 3 ? -100_000 : -250_000, { categoryId: 'shopping', id: `buy-${m}` })),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    expect(creep.incomeBaselineCents).toBe(8);
+    expect(creep.incomeGrowthBps).toBeGreaterThan(1_000_000); // the raw ratio, still absurd
+    expect(creep.incomeMeasured).toBe(false); // …and now known to be meaningless
+    expect(creep.flagged).toBe(false);
+  });
+
+  it('a SINGLE missing income month does not refuse — the median was already robust to it', () => {
+    // The rule is about the baseline, never a count of covered months. A count
+    // would silence anyone paid ten months a year (a teacher's summer lands one
+    // gap in each half) while both medians are untouched.
+    const short = { ...flat };
+    delete (short as Record<string, number>)['2026-02'];
+    const rows = [
+      ...paychecks(short),
+      ...WINDOW.map((m, i) => txn(`${m}-10`, i < 3 ? -100_000 : -250_000, { categoryId: 'shopping', id: `buy-${m}` })),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    expect(creep.incomeBaselineCents).toBe(500_000); // median of [500000, 500000, 0]
+    expect(creep.incomeMeasured).toBe(true);
+    expect(creep.flagged).toBe(true); // the correct figure is NOT suppressed
+  });
+
+  it('an empty app refuses rather than reporting a tracked, drift-free window', () => {
+    const creep = detectLifestyleCreep([], today);
+    expect(creep.incomeMeasured).toBe(false);
+    expect(creep.spendMeasured).toBe(false);
+    expect(creep.flagged).toBe(false);
+  });
+
+  it('no discretionary baseline refuses on its own side, leaving the income side measured', () => {
+    // Income every month, discretionary spending only in the SECOND half — the
+    // first-half median is 0, so there is nothing to grow from.
+    const rows = [
+      ...paychecks(flat),
+      txn('2026-03-10', -100_000, { categoryId: 'shopping', id: 'buy-mar' }),
+      txn('2026-04-10', -100_000, { categoryId: 'shopping', id: 'buy-apr' }),
+      txn('2026-05-10', -100_000, { categoryId: 'shopping', id: 'buy-may' }),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    expect(creep.spendMeasured).toBe(false);
+    expect(creep.incomeMeasured).toBe(true);
+    expect(creep.flagged).toBe(false);
+  });
+
+  it('the degenerate windowMonths=1 refuses on the NaN baseline', () => {
+    const creep = detectLifestyleCreep([txn('2026-05-10', -5_000, { categoryId: 'shopping' })], today, 1);
+    expect(creep.incomeMeasured).toBe(false);
+    expect(creep.spendMeasured).toBe(false);
+    expect(creep.flagged).toBe(false);
+  });
+
+  it('FAIL-OLD, executed: the flag itself is gated, not merely the copy', () => {
+    // The gate has to bind on `flagged`, because `buildReviewCandidates` reads
+    // it directly and would emit "spending is outpacing income" — a comparative
+    // claim over an income the app cannot see — into the recap and the digest,
+    // neither of which goes anywhere near `creepCard`.
+    const rows = [
+      ...WINDOW.map((m) => txn(`${m}-01`, 8, { categoryId: 'interest-income', id: `int-${m}` })),
+      ...WINDOW.map((m, i) => txn(`${m}-10`, i < 3 ? -100_000 : -250_000, { categoryId: 'shopping', id: `buy-${m}` })),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    // The arithmetic alone WOULD flag: +150% spend against a flat 8-cent income
+    // clears the +5pp bar by a wide margin.
+    expect(creep.spendGrowthBps).toBe(15_000);
+    expect(creep.incomeGrowthBps).toBe(0);
+    expect(creep.spendGrowthBps - creep.incomeGrowthBps).toBeGreaterThanOrEqual(500);
+    // So `incomeMeasured` is the ONLY thing holding the claim back.
+    expect(creep.incomeMeasured).toBe(false);
+    expect(creep.flagged).toBe(false);
+  });
+});
+
 describe('creepPanelBasis (O.20d)', () => {
   it('embeds the rendered figure and names what counts and what never does', () => {
     const basis = creepPanelBasis('May 2026', cents(12000), false);
@@ -415,11 +650,24 @@ describe('creepPanelBasis (O.20d)', () => {
     expect(creepPanelBasis('May 2026', cents(12000), false)).toHaveLength(3);
     const withRefund = creepPanelBasis('May 2026', cents(12000), true);
     expect(withRefund).toHaveLength(4);
-    expect(withRefund[3]).toContain('counts as money in, not as a reduction of this figure');
+    expect(withRefund[3]).toContain('does not reduce this figure');
     // F7: the sentence describes a CREDIT, not "a refund you filed" — the same
     // branch catches a bike sold and filed to 'shopping', and a category the app
     // guessed rather than one the reader chose.
     expect(withRefund[3]).not.toContain('you filed');
+    // O.20g — the sentence used to explain the gross-ness by naming where the
+    // credit went ("counts as money in"). A return filed to a discretionary
+    // category or to Refund is now refused by `isIncomeFlowRow` and never
+    // reaches the income series, so that clause became false at exactly the
+    // canonical case the disclosure exists for. It may not come back.
+    expect(withRefund[3]).not.toContain('counts as money in');
+    // Nor may it be replaced by the opposite claim, which is false for the OTHER
+    // row this branch catches: an uncategorized credit the pipeline files to a
+    // discretionary category IS admitted as income (an inflow the reader never
+    // labelled may be a deposit — the F7 argument). The sentence asserts only
+    // what holds for every row that reaches it.
+    expect(withRefund[3]).not.toContain('not counted as income');
+    expect(withRefund[3]).not.toContain("isn't counted as income");
   });
 });
 

@@ -302,11 +302,71 @@ export interface CreepMonth {
 }
 
 export interface CreepResult {
+  /**
+   * The comparative claim: discretionary spending outgrew income. REQUIRES both
+   * series to be measurable (O.20g) — you cannot outpace what the app cannot
+   * measure, and `false` alone no longer means "tracking income": read it with
+   * `incomeMeasured`/`spendMeasured`, or take the composed verdict from
+   * `COACH_COPY.creepCard`, which is the only place the three states are named.
+   */
   flagged: boolean;
   /** Growth of MEDIAN discretionary spend, first half → second half of the window (bps). */
   spendGrowthBps: number;
   /** Same measure for income — median is robust to biweekly-payroll months with 3 paydays. */
   incomeGrowthBps: number;
+  /**
+   * True iff `incomeGrowthBps` is a MEASUREMENT.
+   *
+   * `halfGrowth` returns 0 both for a genuinely flat income and as a REFUSAL
+   * when there is nothing to divide by, and nothing downstream could tell the
+   * two apart ("a zero is a claim — name WHICH zero"). This names it.
+   *
+   * THE RULE: the income baseline must be positive AND at least as large as the
+   * discretionary-spending baseline it is being compared against, both taken
+   * over the same first half. It is deliberately self-referential — there is no
+   * dollar threshold in it — and the argument is that this card compares exactly
+   * these two series: if the income the app can see over the baseline months is
+   * smaller than the discretionary spending it is being compared with, then the
+   * app is not seeing the income that paid for that spending, so one side of the
+   * comparison is incomplete and no growth ratio over it means anything.
+   *
+   * Why a ratio needs this at all: growth is `(last - first) / first`, so a
+   * baseline near zero yields an unbounded number that is not a measurement of
+   * anything. Measured on the live corpus: one real reader's first-half income
+   * median was **$0.08** (one interest credit; the month before it had no income
+   * row at all, while carrying 59 other rows), which produced an income growth
+   * of **70,470,525%**. That figure never printed — it only renders when flagged
+   * — but because `flagged` is a DIFFERENCE it silenced the flag, so the reader
+   * was told "no lifestyle drift detected" while their discretionary spending
+   * grew ~153%.
+   *
+   * Rejected: a count of months carrying an income row. Two independent critics
+   * broke it from opposite sides — it is too weak (8 cents of monthly interest
+   * on a savings account satisfies coverage while the reader's actual payroll
+   * account is unlinked, and the card then asserts "income was flat") and too
+   * strong (a median of three is unmoved by ONE missing month, so vetoing on a
+   * single gap silences a correct figure for anyone paid ten months a year).
+   * The median's own robustness is left intact here: a single odd month cannot
+   * move the baseline, and the rule only fires when the baseline itself is not
+   * a credible income.
+   */
+  incomeMeasured: boolean;
+  /**
+   * True iff `spendGrowthBps` is a measurement — the first-half discretionary
+   * median is a positive number to grow from. This is the pre-existing
+   * `first <= 0` refusal inside `halfGrowth`, surfaced rather than left to be
+   * read as a real 0% growth.
+   */
+  spendMeasured: boolean;
+  /**
+   * The two first-half medians the growth ratios divide by, rounded to the cent
+   * — carried so the copy can print the figures the refusal rests on instead of
+   * asserting a conclusion the reader cannot check. (A median over an even-sized
+   * half is a mean of two, so it can land on a half cent; it is rounded here
+   * because these are rendered as money.)
+   */
+  incomeBaselineCents: Cents;
+  discretionaryBaselineCents: Cents;
   monthlyDiscretionaryCents: CreepMonth[];
   windowMonths: number;
   /**
@@ -341,9 +401,9 @@ export function detectLifestyleCreep(
   const discRows = new Map<string, CreepRow[]>(months.map((m) => [m, []]));
   const income = new Map<string, number>(months.map((m) => [m, 0]));
   // A positive row filed to a discretionary category (a return, or cashback
-  // filed to "shopping") is routed to INCOME — so it never nets the bar. The
-  // bar is GROSS discretionary spend; the panel must disclose the divergence
-  // when one occurred, so we record it per month (O.20d critic P2-2).
+  // filed to "shopping") never nets the bar. The bar is GROSS discretionary
+  // spend; the panel must disclose the divergence when one occurred, so we
+  // record it per month (O.20d critic P2-2).
   const discRefunds = new Map<string, boolean>(months.map((m) => [m, false]));
   for (const t of transactions) {
     if (!countsInFlows(t, excludedFlowIds)) continue;
@@ -356,7 +416,24 @@ export function detectLifestyleCreep(
     // branch instead would let a $0.00 row raise the refund disclosure).
     if (t.amountCents === 0) continue;
     if (t.amountCents > 0) {
-      income.set(month, income.get(month)! + t.amountCents);
+      // O.20g — ONE definition of an income row, the one `monthlyFlows` (and so
+      // the savings-rate card sitting on this same page) already uses. This
+      // branch previously admitted EVERY positive row, so a merchandise return
+      // counted as income here while #166 explicitly refuses it four functions
+      // up: "counting it as income would inflate income AND expenses". The
+      // reported failure was a $2,000 furniture return filed to `refund` in the
+      // median month of the second half, which lifted income growth to ~33%,
+      // cleared the flag, and printed "income grew ~33.3%" — a raise that never
+      // happened — beside a savings-rate card reporting income unchanged.
+      //
+      // A refused positive is DROPPED, never netted into `discSpend`: the bar is
+      // deliberately GROSS discretionary spend (that is the whole subject of the
+      // disclosure `hasDiscretionaryRefunds` raises below), and netting it here
+      // would move a live figure on three surfaces and falsify that sentence.
+      // It leaves the income series; it does not enter the spending one.
+      if (isIncomeFlowRow(t, excludedFlowIds)) {
+        income.set(month, income.get(month)! + t.amountCents);
+      }
       // The same stored-category resolution the spend branch uses — the flag
       // must not drift from what the spend side counts by.
       const categoryId =
@@ -418,23 +495,51 @@ export function detectLifestyleCreep(
   // Median of first-half months vs median of second-half months. Median (not
   // mean) so a calendar month with 3 biweekly paydays doesn't read as an
   // "income raise", and one big restaurant night doesn't read as creep.
-  const halfGrowthBps = (series: number[]): number => {
+  // Returns the growth AND the baseline it was divided by, because the caller
+  // cannot otherwise tell a measured 0% (flat) from the 0% this returns when
+  // there was nothing to divide by (O.20g).
+  const halfGrowth = (series: number[]): { bps: number; baseline: number } => {
     const half = Math.floor(series.length / 2);
     const first = median(series.slice(0, half));
     const last = median(series.slice(series.length - half));
-    if (first <= 0) return 0;
-    return Math.round(((last - first) / first) * 10000);
+    if (first <= 0) return { bps: 0, baseline: first };
+    return { bps: Math.round(((last - first) / first) * 10000), baseline: first };
   };
 
-  const spendGrowth = halfGrowthBps(months.map((m) => discSpend.get(m)!));
-  const incomeGrowth = halfGrowthBps(months.map((m) => income.get(m)!));
+  const spend = halfGrowth(months.map((m) => discSpend.get(m)!));
+  const inc = halfGrowth(months.map((m) => income.get(m)!));
+  // Rounded to the cent because both are RENDERED by the refusal copy: a median
+  // over an even-sized half is the mean of two, so it can land on a half cent,
+  // and a money value this app prints is an integer number of cents (rule 3).
+  //
+  // A non-finite median becomes 0 — "no baseline", which is what it means. At
+  // the degenerate `windowMonths <= 1` the compared half is an EMPTY slice and
+  // `median([])` is NaN; passing that to `cents()` THROWS ("requires a safe
+  // integer"), so the exported API would crash rather than refuse. Both readings
+  // of NaN reach the same verdict here — nothing to divide by — so it is
+  // collapsed at the boundary instead of carried into a typed money field.
+  const toBaselineCents = (n: number): Cents => cents(Number.isFinite(n) ? Math.round(n) : 0);
+  const incomeBaselineCents = toBaselineCents(inc.baseline);
+  const discretionaryBaselineCents = toBaselineCents(spend.baseline);
+  const spendMeasured = discretionaryBaselineCents > 0;
+  // See `incomeMeasured`'s docblock for the argument.
+  const incomeMeasured =
+    incomeBaselineCents > 0 && incomeBaselineCents >= discretionaryBaselineCents;
 
   return {
-    // flag when spending outgrew income by ≥5 percentage points across the
-    // window — a sustained trend, not a single celebratory month
-    flagged: spendGrowth - incomeGrowth >= 500,
-    spendGrowthBps: spendGrowth,
-    incomeGrowthBps: incomeGrowth,
+    // Flag when spending outgrew income by ≥5 percentage points across the
+    // window — a sustained trend, not a single celebratory month. BOTH sides
+    // must be measurable first (O.20g): "spending is outpacing income" is a
+    // comparative claim, and an income the app cannot see is not an income the
+    // reader is outpacing. Without this the refusal 0 acts as a real income
+    // growth of 0% and the flag fires on the spend side alone.
+    flagged: incomeMeasured && spendMeasured && spend.bps - inc.bps >= 500,
+    spendGrowthBps: spend.bps,
+    incomeGrowthBps: inc.bps,
+    incomeMeasured,
+    spendMeasured,
+    incomeBaselineCents,
+    discretionaryBaselineCents,
     monthlyDiscretionaryCents: months.map((m) => ({
       month: m,
       amountCents: cents(discSpend.get(m)!),
@@ -492,14 +597,27 @@ export function creepPanelBasis(
   );
   if (hasDiscretionaryRefunds) {
     // The bar is GROSS spend: a credit posted to a discretionary category (or
-    // filed to Refund) went to income, so it never nets this figure — stated
-    // exactly when one occurred, never claimed when none did (critic P2-2).
+    // filed to Refund) never nets this figure — stated exactly when one
+    // occurred, never claimed when none did (critic P2-2).
     //
     // "A credit posted", not "a refund you filed" (F7): the same branch catches
     // a bike sold and filed to 'shopping', which is not a refund, and a category
     // the app guessed rather than one the reader chose.
+    //
+    // O.20g — the sentence used to explain the gross-ness by naming where the
+    // credit DID go ("counts as money in"), and that clause is now false for the
+    // canonical case: a return filed to a discretionary category or to Refund is
+    // refused by `isIncomeFlowRow` and no longer reaches the income series. It
+    // is not replaced by the opposite claim ("it isn't counted as income
+    // either"), which would be false in the other direction for the row this
+    // branch also catches — an UNCATEGORIZED credit that the pipeline files to a
+    // discretionary category is admitted as income, because an inflow the reader
+    // never labelled may be a deposit (the F7 argument). So the sentence now
+    // asserts only what holds for every row that reaches it: this figure is not
+    // reduced. Where the credit is counted is a claim for a surface that knows
+    // which of the two rows it has.
     out.push(
-      `A credit posted to a discretionary category this month — a return, cashback, or anything filed to Refund — counts as money in, not as a reduction of this figure.`,
+      `A credit posted to a discretionary category this month — a return, cashback, or anything filed to Refund — does not reduce this figure.`,
     );
   }
   return out;

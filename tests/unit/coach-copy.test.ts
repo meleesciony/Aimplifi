@@ -45,11 +45,44 @@ const creepFlagged: CreepResult = {
   flagged: true,
   spendGrowthBps: 1240,
   incomeGrowthBps: 10,
+  // O.20g — a flagged window is a MEASURED window by construction (`flagged`
+  // requires both sides), so the guardrail fixture says so.
+  incomeMeasured: true,
+  spendMeasured: true,
+  incomeBaselineCents: cents(500_000),
+  discretionaryBaselineCents: cents(120_000),
   monthlyDiscretionaryCents: [],
   windowMonths: 6,
   loanPaymentsExcluded: false,
 };
 const creepClear: CreepResult = { ...creepFlagged, flagged: false, spendGrowthBps: 20 };
+/**
+ * O.20g — the third verdict, scanned by the guardrails like the other two: a
+ * reader whose window has a month with no income row at all. `flagged` is false
+ * because the comparison was refused, NOT because spending tracked income.
+ */
+const creepNotComparable: CreepResult = {
+  ...creepFlagged,
+  flagged: false,
+  incomeMeasured: false,
+  incomeBaselineCents: cents(8),
+};
+/** The other side of the refusal: no discretionary baseline to grow from. */
+const creepNoSpendBaseline: CreepResult = {
+  ...creepFlagged,
+  flagged: false,
+  spendMeasured: false,
+  discretionaryBaselineCents: cents(0),
+};
+/** Neither side measurable — the ordinary brand-new account. */
+const creepNeitherMeasured: CreepResult = {
+  ...creepFlagged,
+  flagged: false,
+  incomeMeasured: false,
+  spendMeasured: false,
+  incomeBaselineCents: cents(0),
+  discretionaryBaselineCents: cents(0),
+};
 
 const opportunity = (kind: Opportunity['kind']): Opportunity => ({
   kind,
@@ -476,6 +509,24 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'moneyDials', text: COACH_COPY.moneyDials(['Travel', 'Dining Out']), isProjection: false },
   { label: 'creepFlagged', text: COACH_COPY.creepFlagged(creepFlagged), isProjection: false },
   { label: 'creepClear', text: COACH_COPY.creepClear(creepClear), isProjection: false },
+  // O.20g — the third verdict and its Money Review line, both refusal states each.
+  { label: 'creepNotComparable:income', text: COACH_COPY.creepNotComparable(creepNotComparable), isProjection: false },
+  { label: 'creepNotComparable:spend', text: COACH_COPY.creepNotComparable(creepNoSpendBaseline), isProjection: false },
+  // The third combination — BOTH sides unmeasured — is the one every brand-new
+  // account hits (`detectLifestyleCreep([])`), and it is the only branch that
+  // concatenates every clause. It was missing, so the shame/assumption sweeps
+  // skipped exactly the copy most readers see first.
+  { label: 'creepNotComparable:neither', text: COACH_COPY.creepNotComparable(creepNeitherMeasured), isProjection: false },
+  // And the zero-income variant, whose refusal clause takes the other branch.
+  { label: 'creepNotComparable:noIncomeAtAll', text: COACH_COPY.creepNotComparable({ ...creepNotComparable, incomeBaselineCents: cents(0) }), isProjection: false },
+  { label: 'reviewCreepNotComparable:income', text: COACH_COPY.reviewCreepNotComparable(creepNotComparable), isProjection: false },
+  { label: 'reviewCreepNotComparable:spend', text: COACH_COPY.reviewCreepNotComparable(creepNoSpendBaseline), isProjection: false },
+  { label: 'reviewCreepNotComparable:neither', text: COACH_COPY.reviewCreepNotComparable(creepNeitherMeasured), isProjection: false },
+  { label: 'creepCard:title', text: COACH_COPY.creepCard(creepNotComparable).title, isProjection: false },
+  { label: 'creepCard:body', text: COACH_COPY.creepCard(creepNotComparable).body, isProjection: false },
+  { label: 'creepCard:linkLabel', text: COACH_COPY.creepCard(creepNotComparable).linkLabel, isProjection: false },
+  { label: 'creepCard:flaggedTitle', text: COACH_COPY.creepCard(creepFlagged).title, isProjection: false },
+  { label: 'creepCard:clearTitle', text: COACH_COPY.creepCard(creepClear).title, isProjection: false },
   { label: 'runway', text: COACH_COPY.runway(3.2), isProjection: false },
   // Audit P2: the negative branches are SECOND strings these functions produce
   // and this file claims to scan every one of them — a negative runway must
@@ -486,7 +537,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'reviewImprovement', text: COACH_COPY.reviewImprovement('May 2026', 1836, 3197), isProjection: false },
   { label: 'reviewImprovementRunway', text: COACH_COPY.reviewImprovementRunway(3.2), isProjection: false },
   { label: 'reviewCreep', text: COACH_COPY.reviewCreep('Netflix', cents(250)), isProjection: false },
-  { label: 'reviewCreepSpending', text: COACH_COPY.reviewCreepSpending(410), isProjection: false },
+  { label: 'reviewCreepSpending', text: COACH_COPY.reviewCreepSpending(creepFlagged), isProjection: false },
   { label: 'nextAction:cancel', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionCancelSub('LA Fitness', cents(3499))), isProjection: false },
   { label: 'nextAction:transfer', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionTransfer(cents(105000), 'Tue, Jun 23', null)), isProjection: false },
   // TASKS L.18: the frozen-funding branch is a SECOND string this function can produce, and this
@@ -670,6 +721,168 @@ describe('coach copy guardrails — zero shame, assumptions everywhere, no ticke
     const review = generateMoneyReview({ flows: [], creep: creepClear, opportunities: [], runwayMonths: Infinity });
     expect(review.improvement).not.toMatch(/infinity/i);
     expect(review.improvement.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * O.20g — the lifestyle-creep card has THREE verdicts, and the third one used to
+ * render as the second. `creepCard` selects title, body and link together so
+ * they cannot disagree about which state the reader is in; these are the locks
+ * on that selection and on the sentences it picks.
+ */
+describe('lifestyle-creep card — three verdicts, and the refusal is not an all-clear (O.20g)', () => {
+  it('an unmeasured income window is neither "outpacing" nor "tracking"', () => {
+    const card = COACH_COPY.creepCard(creepNotComparable);
+    expect(card.title).toBe(`Can't compare yet`);
+    // The two claims this state may NOT make — the exact strings the other two
+    // verdicts render. Fail-old: before this slice, `!flagged` produced them.
+    expect(card.title).not.toBe('Tracking income');
+    expect(card.body).not.toContain('no lifestyle drift detected');
+    expect(card.body).not.toContain('tracking income growth');
+    // It states the side it CAN measure …
+    expect(card.body).toContain('Typical discretionary spending grew ~12.4%');
+    // … prints the two figures the refusal actually rests on, rather than a
+    // conclusion the reader cannot check …
+    expect(card.body).toContain('$0.08 a month of income against $1,200.00 a month of discretionary spending');
+    // … and names the likely cause without asserting it.
+    expect(card.body).toContain("not that you earned nothing");
+    // The unmeasured side's growth figure is NEVER printed: a card headed
+    // "Can't compare yet" that opens with "income grew ~6,249,900.0%" refutes
+    // itself. `creepNotComparable` embeds only measured figures.
+    expect(card.body).not.toContain('Typical income');
+    // And the control points at the side that is missing.
+    expect(card.linkHref).toBe('/transactions?type=income');
+  });
+
+  it('the link label does not assert a definition the register does not implement', () => {
+    // `type=income` is a SIGN filter (`matchesType`: !isTransfer && amountCents > 0),
+    // not `isIncomeFlowRow` — so a credit this engine refuses still shows there.
+    // A label promising "what the app counts as income" would land the reader on
+    // the very row the sentence above calls "no income".
+    const card = COACH_COPY.creepCard(creepNotComparable);
+    expect(card.linkLabel).toBe('See the money coming in on your activity');
+    expect(card.linkLabel).not.toContain('counts as income');
+  });
+
+  it('the measured verdicts are unchanged, and each keeps its own link', () => {
+    const flaggedCard = COACH_COPY.creepCard(creepFlagged);
+    expect(flaggedCard.title).toBe('Spending is outpacing income');
+    expect(flaggedCard.body).toContain('not a verdict');
+    expect(flaggedCard.linkHref).toBe('/transactions?type=expense');
+    const clearCard = COACH_COPY.creepCard(creepClear);
+    expect(clearCard.title).toBe('Tracking income');
+    expect(clearCard.body).toContain('no lifestyle drift detected');
+    expect(clearCard.linkHref).toBe('/transactions?type=income');
+  });
+
+  it('the refusal outranks the flag INDEPENDENTLY, not via `flagged` being false', () => {
+    // The engine gates `flagged` on both sides being measured, but the card must
+    // not rely on that: this asserts the ordering the docblock claims, with a
+    // (currently unreachable) result where both are set.
+    const contradictory: CreepResult = { ...creepNotComparable, flagged: true };
+    expect(COACH_COPY.creepCard(contradictory).title).toBe(`Can't compare yet`);
+  });
+
+  it('a missing SPEND baseline says what `spendMeasured` actually tests — a MEDIAN, not a total', () => {
+    const card = COACH_COPY.creepCard(creepNoSpendBaseline);
+    expect(card.title).toBe(`Can't compare yet`);
+    // `spendMeasured` is `median(firstHalf) > 0`, false when HALF the months are
+    // empty — so a claim that the half "recorded no discretionary purchases" is
+    // contradicted on screen by the card's own bar strip, which can show a
+    // month with named purchases in it.
+    expect(card.body).toContain('most months in the first half');
+    // The negative has to be anchored: the honest sentence CONTAINS the false
+    // one as a substring, so a bare `not.toContain` of the old wording would
+    // fail against the correct copy.
+    expect(card.body).not.toContain('measure: the first half of');
+    // It must not also claim an income gap it does not have.
+    expect(card.body).not.toContain('no income growth to measure');
+    expect(card.linkHref).toBe('/transactions?type=expense');
+  });
+
+  it('with NO income at all the refusal says so, instead of comparing two figures', () => {
+    const none: CreepResult = { ...creepNotComparable, incomeBaselineCents: cents(0) };
+    const body = COACH_COPY.creepNotComparable(none);
+    expect(body).toContain('the app counted no income at all across the first half');
+    expect(body).not.toContain('$0.00 a month of income');
+  });
+
+  it('the both-unmeasured body — every brand-new account — reads on its own', () => {
+    const body = COACH_COPY.creepNotComparable(creepNeitherMeasured);
+    // No dangling pronoun: the earlier draft opened "There's no income growth to
+    // compare THAT with" when no clause preceded it.
+    expect(body).not.toContain('compare that with');
+    expect(body.startsWith("There's no income growth to measure")).toBe(true);
+    expect(body).toContain('most months in the first half');
+    expect(body).not.toContain('undefined');
+    expect(body).not.toContain('NaN');
+    // Neither growth figure is printed, because neither is a measurement.
+    expect(body).not.toContain('Typical discretionary spending');
+    expect(body).not.toContain('Typical income');
+  });
+
+  it('the degenerate one-month window reads correctly', () => {
+    const degenerate: CreepResult = { ...creepNeitherMeasured, windowMonths: 1 };
+    const body = COACH_COPY.creepNotComparable(degenerate);
+    expect(body).toContain('the last month');
+    expect(body).not.toContain('the last 1 months');
+    expect(body).not.toContain('undefined');
+    expect(body).not.toContain('NaN');
+  });
+
+  it('a growth figure is described with the verb that matches its sign', () => {
+    // Fail-old: both creep sentences hard-coded "grew ~", so a figure that FELL
+    // printed "grew ~-12.4%". Reachable while flagged — the flag is a
+    // difference, so income falling faster flags a spend figure that shrank.
+    const fell: CreepResult = { ...creepFlagged, spendGrowthBps: -1240, incomeGrowthBps: -3000 };
+    const body = COACH_COPY.creepFlagged(fell);
+    expect(body).toContain('spending fell ~12.4%');
+    expect(body).toContain('income fell ~30.0%');
+    expect(body).not.toContain('grew ~-');
+    // An EXACT zero reads as flat; a ROUNDED zero must not (pct1 rounds 1–4 bps
+    // to "0.0%", and calling that flat asserts more than the number does).
+    expect(COACH_COPY.creepFlagged({ ...creepFlagged, incomeGrowthBps: 0 })).toContain('income was flat');
+    // A ROUNDED zero gets neither "flat" nor a direction: "fell ~0.0%" states a
+    // fall with a magnitude of nothing, which is self-refuting to a reader.
+    expect(COACH_COPY.creepFlagged({ ...creepFlagged, incomeGrowthBps: 3 })).toContain('income barely moved');
+    expect(COACH_COPY.creepFlagged({ ...creepFlagged, incomeGrowthBps: 3 })).not.toContain('was flat');
+    expect(COACH_COPY.creepFlagged({ ...creepFlagged, incomeGrowthBps: -3 })).toContain('income barely moved');
+    expect(COACH_COPY.creepFlagged({ ...creepFlagged, incomeGrowthBps: -3 })).not.toContain('fell ~0.0%');
+  });
+
+  it('the recap line about the SAME two figures cannot contradict the card', () => {
+    // Found by mutation: reverting this sentence left the whole suite green.
+    // It hard-coded "while income is flat" — a clause with no input behind it —
+    // and printed "is up ~-10.0%" whenever the figure fell, which is reachable
+    // exactly when it renders, because `flagged` is a DIFFERENCE (income falling
+    // faster than spending flags a spend figure that itself shrank).
+    const fell: CreepResult = { ...creepFlagged, spendGrowthBps: -1000, incomeGrowthBps: -5000 };
+    const line = COACH_COPY.reviewCreepSpending(fell);
+    expect(line).toContain('spending fell ~10.0%');
+    expect(line).toContain('income fell ~50.0%');
+    expect(line).not.toContain('is up ~-');
+    expect(line).not.toContain('income is flat');
+    // And it agrees with the card, verb for verb, on the same result.
+    const card = COACH_COPY.creepFlagged(fell);
+    expect(card).toContain('spending fell ~10.0%');
+    expect(card).toContain('income fell ~50.0%');
+    // A genuinely flat income still reads as flat in both.
+    const flatIncome: CreepResult = { ...creepFlagged, incomeGrowthBps: 0 };
+    expect(COACH_COPY.reviewCreepSpending(flatIncome)).toContain('income was flat');
+  });
+
+  it('the Money Review line refuses too, instead of taking the all-clear slot', () => {
+    const line = COACH_COPY.reviewCreepNotComparable(creepNotComparable);
+    expect(line).toContain("What we can't tell yet");
+    expect(line).not.toContain('no lifestyle drift detected');
+    const review = generateMoneyReview({
+      flows: [],
+      creep: creepNotComparable,
+      opportunities: [],
+      runwayMonths: 4,
+    });
+    expect(review.creep).toBe(line);
+    expect(review.creep).not.toContain('tracking income growth');
   });
 });
 

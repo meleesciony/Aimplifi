@@ -38,10 +38,25 @@ const flow = (month: string, incomeCents: number, expensesCents: number, savings
   savingsRateBps,
 });
 
-const creepOf = (flagged: boolean, spendGrowthBps = 0, incomeGrowthBps = 0, windowMonths = 6): CreepResult => ({
+/**
+ * O.20g — the fixture defaults to a MEASURED window (both sides comparable), so
+ * every pre-existing case keeps asserting what it always asserted. The
+ * unmeasured states are opted into explicitly by the tests that are about them.
+ */
+const creepOf = (
+  flagged: boolean,
+  spendGrowthBps = 0,
+  incomeGrowthBps = 0,
+  windowMonths = 6,
+  measured: { incomeMeasured?: boolean; spendMeasured?: boolean } = {},
+): CreepResult => ({
   flagged,
   spendGrowthBps,
   incomeGrowthBps,
+  incomeMeasured: measured.incomeMeasured ?? true,
+  spendMeasured: measured.spendMeasured ?? true,
+  incomeBaselineCents: cents(500_000),
+  discretionaryBaselineCents: cents(120_000),
   monthlyDiscretionaryCents: [],
   windowMonths,
   loanPaymentsExcluded: false,
@@ -85,6 +100,19 @@ const INPUTS: Record<string, ReviewCandidateInput> = {
     flows: quietFlows,
     streak: streakOf(quietFlows),
     creep: NO_CREEP,
+    opportunities: [],
+    runwayMonths: 8,
+    pendingTransfer: null,
+  },
+  // O.20g — the window the app cannot compare. In the INPUTS matrix so the A2
+  // byte-for-byte loop below covers it: the first cut of that slice added the
+  // `watch-creep-not-comparable` id and left `selectDeterministic`'s watch chain
+  // alone, so the floor dropped the watch role entirely and the recap silently
+  // shrank to two lines while `generateMoneyReview` still emitted three.
+  creepNotComparable: {
+    flows: quietFlows,
+    streak: streakOf(quietFlows),
+    creep: creepOf(false, 1240, 0, 6, { incomeMeasured: false }),
     opportunities: [],
     runwayMonths: 8,
     pendingTransfer: null,
@@ -144,10 +172,47 @@ describe('deterministic floor reproduces generateMoneyReview byte-for-byte (A2, 
     expect(down[0].id).toBe('improvement-runway');
   });
 
-  it('deterministic watch = price-increase ?? creep ?? clear', () => {
+  it('deterministic watch = price-increase ?? creep ?? not-comparable ?? clear', () => {
     expect(selectReview(buildReviewCandidates(INPUTS.rateUpTransfer), null)[1].id).toBe('watch-price-increase');
     expect(selectReview(buildReviewCandidates(INPUTS.rateDownCreepUnused), null)[1].id).toBe('watch-creep');
     expect(selectReview(buildReviewCandidates(INPUTS.quietClearAutomate), null)[1].id).toBe('watch-clear');
+    expect(selectReview(buildReviewCandidates(INPUTS.creepNotComparable), null)[1].id).toBe(
+      'watch-creep-not-comparable',
+    );
+  });
+
+  it('O.20g — an unmeasurable window keeps its watch line, and it is not the all-clear', () => {
+    const candidates = buildReviewCandidates(INPUTS.creepNotComparable);
+    const ids = candidates.map((c) => c.id);
+    expect(ids).toContain('watch-creep-not-comparable');
+    // `watch-clear` carries "no lifestyle drift detected" — a claim this state
+    // cannot make — so it must be SUPPRESSED, not merely outranked.
+    expect(ids).not.toContain('watch-clear');
+    expect(ids).not.toContain('watch-creep');
+    // The floor must still return all three roles. It returned two before the
+    // chain was widened, which is invisible to every other assertion here.
+    const floor = selectReview(candidates, null);
+    expect(floor).toHaveLength(3);
+    expect(floor.map((c) => c.role)).toEqual(['improvement', 'watch', 'action']);
+    expect(floor[1].line).toContain("What we can't tell yet");
+    expect(floor[1].line).not.toContain('no lifestyle drift detected');
+    // …and the LLM path backfills from the floor, so it recovers the line too.
+    const viaModel = selectReview(candidates, ['improvement-runway', 'action-automate']);
+    expect(viaModel.map((c) => c.id)).toContain('watch-creep-not-comparable');
+  });
+
+  it('every id in the frozen set is producible by some input (a dead id is invisible otherwise)', () => {
+    // The reverse of A1. Without it, an id can be added to the closed set,
+    // never emitted, and never selected — exactly how the dropped watch role
+    // survived a green gate.
+    const produced = new Set(
+      Object.values(INPUTS).flatMap((i) => buildReviewCandidates(i).map((c) => c.id)),
+    );
+    // Not every id is reachable from this matrix (the streak/personal-best pair
+    // needs its own flows), so pin the ones that ARE and name the rest.
+    for (const id of ['watch-price-increase', 'watch-creep', 'watch-creep-not-comparable', 'watch-clear'] as const) {
+      expect(produced, `${id} is in REVIEW_CANDIDATE_IDS but no INPUT produces it`).toContain(id);
+    }
   });
 
   it('deterministic action = transfer ?? cancel-sub ?? automate', () => {

@@ -1615,6 +1615,12 @@ Pinned 3-branch matrix (hand-verified in `money-review.test.ts`):
 - Rate down (3750→1250 bps) + creep flagged (1800 vs 200 bps) + unused sub (Peloton 4400c/mo) →
   `[improvement-runway, watch-creep, action-cancel-sub]` (down month → runway line, no shame).
 - Flat rates, nothing flagged → `[improvement-runway, watch-clear, action-automate]`.
+- Flat rates, creep NOT COMPARABLE (O.20g) → `[improvement-runway, watch-creep-not-comparable,
+  action-automate]`. `watch-clear` is SUPPRESSED, not merely outranked — it carries "no lifestyle
+  drift detected", a claim this state cannot make. The floor's watch chain is
+  `price-increase ?? creep ?? creep-not-comparable ?? clear`; omitting the third link dropped the
+  watch role entirely and shrank the recap to two lines while `generateMoneyReview` still emitted
+  three, which is why the byte-equality above is pinned across this branch too.
 - Empty flows → same honest minimal triple; no savings-rate/streak/best candidate is fabricated.
 
 ### Selection invariants (`selectReview(candidates, orderedIds)`)
@@ -2816,3 +2822,54 @@ paired with an INELIGIBLE account, even alongside an eligible one, never
 leaves (ambiguity keeps it visible); a lone ambiguous month stays too.
 Fixture A still excludes all four rows: Apr via the obligation capacity (no
 inflow that month), May/Jun/Jul each at capacity 1.
+
+## §Lifestyle creep — the income baseline and the three verdicts (O.20g, `engine/fi/insights.ts`)
+
+`detectLifestyleCreep` compares the growth of MEDIAN discretionary spend against the growth of
+MEDIAN income across two halves of a 6-month window, and flags when spending outgrew income by
+≥5 percentage points. Medians, not means, so one 3-payday month is not a raise and one big
+restaurant night is not creep.
+
+**What counts as income.** The one predicate `monthlyFlows` uses — `isIncomeFlowRow`: a positive,
+POSTED, non-transfer row with either NO stored category or an Income-group category that is not the
+`refund` leaf. Before O.20g this series admitted every positive row, so a merchandise return was
+income here while being netted against spend one function away (#166). Hand-verified: flat $5,000
+income for six months, discretionary $1,000 → $2,000, plus two $20,000 returns filed to `refund` in
+the second half → income growth **0 bps** (was 40,000 bps), spend growth **5,000 bps**, `flagged`
+**true** (was false — the silenced warning).
+
+**A refused positive is DROPPED, never netted into the bar.** The creep bar is deliberately GROSS
+discretionary spend and the panel discloses it; netting would move a live figure on three surfaces
+and falsify that sentence. Hand-verified: a $450 purchase + $450 return both filed to `shopping` →
+bar **$450.00**, `hasDiscretionaryRefunds` true, income baseline unchanged at the paycheck alone.
+
+**When the comparison is refused (`incomeMeasured` / `spendMeasured`).** `halfGrowth` returns 0
+both for a genuinely flat series and as a refusal when there is nothing to divide by, so the two are
+named apart:
+- `spendMeasured` = first-half discretionary median > 0.
+- `incomeMeasured` = first-half income median > 0 **AND** ≥ the first-half discretionary median.
+- `flagged` requires both. "Spending is outpacing income" is a comparative claim, and an income the
+  app cannot see is not an income the reader is outpacing.
+
+The income rule is self-referential — no dollar threshold — and the argument is that the card
+compares exactly these two series: if the income visible over the baseline months is smaller than
+the discretionary spending it is being compared with, the app is not seeing the income that paid for
+that spending. Hand-verified cases:
+- 8¢/month savings interest against $1,000/month discretionary → baselines **$0.08 vs $1,000.00**,
+  `incomeMeasured` false, `flagged` false even though spend grew 15,000 bps against a flat income.
+- Live corpus (2026-08-11): first-half income median **$0.08** (one interest credit; the prior month
+  had zero income rows while carrying 59 others) against **$6,046.67** discretionary → income growth
+  **70,470,525%**, which silenced the flag while discretionary spending grew ~153%. Now refused.
+- ONE missing income month does NOT refuse: `median([500000, 500000, 0])` is still **$5,000.00**, so
+  a reader paid ten months a year keeps a correct verdict. A count-of-covered-months rule was built
+  first and rejected for exactly this (and for admitting the 8¢ case above).
+- Empty account → both false. `windowMonths = 1` → the compared half is an EMPTY slice and
+  `median([])` is NaN; a non-finite baseline is collapsed to 0 at the boundary, because passing NaN
+  to `cents()` throws rather than refusing.
+
+**The three verdicts** are composed together in `COACH_COPY.creepCard` (title + body + link), never
+selected in the page: `Spending is outpacing income` / `Tracking income` / `Can't compare yet`. The
+refusal prints only the growth figure of the side that IS measured, and states the two baselines
+rather than a conclusion the reader cannot check. Its link label deliberately does not say "what the
+app counts as income": the register's `type=income` is a SIGN filter (`matchesType`), not
+`isIncomeFlowRow`, so a credit this engine refuses still appears there.

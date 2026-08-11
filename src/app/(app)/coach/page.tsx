@@ -75,6 +75,10 @@ export default async function CoachPage() {
     plannedSavingsCents: plan.plannedSavingsCents,
     savingsTargetBps: plan.savingsTargetBps,
   });
+  // O.20g — title, body and link for the lifestyle-creep card, selected together
+  // in one engine call so they cannot disagree about which of the three verdicts
+  // this reader is in.
+  const creepCard = COACH_COPY.creepCard(data.creep);
 
   return (
     <div className="space-y-4">
@@ -297,20 +301,26 @@ export default async function CoachPage() {
               {/* Audit P2: the verdict is a CLAIM about a set of transactions, so it
                   must not be the thing you click — a link on a claim reads as the
                   claim being clickable proof. The title states the verdict; the link
-                  below claims only the register filter that opens the set. */}
-              {data.creep.flagged ? 'Spending is outpacing income' : 'Tracking income'}
+                  below claims only the register filter that opens the set.
+
+                  O.20g: the verdict has THREE states — the third is the window the
+                  app cannot compare, which used to render as "Tracking income".
+                  Title, body and link are selected together in the engine, because
+                  a three-way rule in a .tsx cannot be locked by a test and these
+                  three must never disagree about which state they are in. */}
+              <span data-testid="creep-title">{creepCard.title}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <p className="text-sm" data-testid="creep-verdict">
-              {data.creep.flagged ? COACH_COPY.creepFlagged(data.creep) : COACH_COPY.creepClear(data.creep)}
+              {creepCard.body}
             </p>
             <Link
-              href={data.creep.flagged ? '/transactions?type=expense' : '/transactions?type=income'}
+              href={creepCard.linkHref}
               data-testid="coach-creep-link"
               className="text-xs underline underline-offset-2 hover:text-foreground"
             >
-              See the {data.creep.flagged ? 'expenses' : 'income'} in your activity
+              {creepCard.linkLabel}
             </Link>
             {/* O.20d: every bar opens the purchases the month figure was summed
                 from — the strip is now a set of real controls. */}
