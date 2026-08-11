@@ -2,10 +2,8 @@
 
 ## v1 — in this repo, verified
 
-- Cash-Needed Engine with the full edge-case suite (autopay modes, mid-cycle
-  payments, estimates, same-day aggregation, weekend/holiday walk-back,
-  post-close credits, $0-due, intra-period dips, pending applied once,
-  delinquent statements, past-date-proof recommendations).
+- FI Coach: savings rate, FI/Coast/years-to-FI, opportunity compounding,
+  lifestyle creep, runway, life energy, Money Review, copy guardrails.
 - Categorization: normalization table + cleanup fallback, confidence routing,
   contextual rules, seed review rate under the 5% target (asserted + printed by
   `tests/unit/categorize.test.ts`); triage inbox with gestures,
@@ -16,8 +14,10 @@
   surfacing remain open (the "B/C" options).
 - Recurring/subscription detection (cadence, price change, possibly-unused,
   payroll → projection wiring); transfer detection through one decision path.
-- FI Coach: savings rate, FI/Coast/years-to-FI, opportunity compounding,
-  lifestyle creep, runway, life energy, Money Review, copy guardrails.
+- Cash-Needed Engine with the full edge-case suite (autopay modes, mid-cycle
+  payments, estimates, same-day aggregation, weekend/holiday walk-back,
+  post-close credits, $0-due, intra-period dips, pending applied once,
+  delinquent statements, past-date-proof recommendations).
 - Calendar, goals→FI impact, budgets view, CSV/PDF export with audit log,
   CSP/rate-limit/401 middleware, AES-256-GCM token-crypto helper (live use awaits Plaid), PWA manifest,
   cron sync route, demo auth. WCAG AA (axe) green on all core pages.

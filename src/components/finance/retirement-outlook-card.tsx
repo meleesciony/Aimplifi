@@ -36,11 +36,12 @@ import {
 } from '@/lib/engine/investments/retirement-whatif';
 import { BreakdownPanel } from '@/components/finance/breakdown-panel';
 import type { RetirementOutlook } from '@/server/investments';
+import { CHART_POSITIVE, CHART_COMPARE } from '@/lib/ui/chart-colors';
 
 const GAIN_UP = 'text-emerald-600 dark:text-emerald-400';
 const AMBER = 'text-amber-700 dark:text-amber-400'; // darker amber clears AA contrast for small text
-const ACCUM_BAR = '#10b981'; // emerald — saving years
-const DRAW_BAR = '#3b82f6'; //  blue — retirement draw-down years
+const ACCUM_BAR = CHART_POSITIVE; // emerald — saving years
+const DRAW_BAR = CHART_COMPARE; //  blue — retirement draw-down years
 
 const money = (n: number): string => formatCents(cents(Math.round(n)));
 /** The card's own basis-percent renderer, kept for the SWR sentence (the engine
@@ -130,7 +131,15 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
           </p>
         )}
         <p className="text-sm" data-testid="retirement-outcome">
-          Projected balance at age {plan.retirementAge}:{' '}
+          {/* Re-review F5: retiring AT your current age is reachable in one
+              keystroke (`retireRange(currentAge).min === currentAge`) and in
+              saved settings, and then `accumMonths === 0`, so this figure IS
+              the starting portfolio. Calling it "projected" is the same defect
+              P1-1 fixed on the bar, left standing on the louder surface — and
+              the bar's own panel two rows down says "not a projection". */}
+          {plan.retirementAge === currentAge
+            ? 'Your portfolio today: '
+            : `Projected balance at age ${plan.retirementAge}: `}
           <span className="font-medium tabular-nums" data-testid="retirement-balance-at-retirement">
             {money(p.balanceAtRetirementCents)}
           </span>
@@ -187,7 +196,15 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
           (() => {
             const isCurrent = selectedYear.age === currentAge;
             const refusal = isCurrent
-              ? retirementCurrentPortfolioRefusal(cents(selectedYear.balanceCents), assumptionInput)
+              ? retirementCurrentPortfolioRefusal(cents(selectedYear.balanceCents), assumptionInput, {
+                  // The UNCLAMPED sum, so a floored $0.00 is never described as
+                  // the balance of the reader's accounts (re-review F2), and the
+                  // frozen-feed flag the card already renders above, so this
+                  // panel cannot say "today" while the note above says the feed
+                  // stopped (re-review F1).
+                  rawSumCents: inputs.rawPortfolioCents,
+                  hasFrozenFeed: outlook.frozenPortfolioNote != null,
+                })
               : retirementYearRefusal(selectedYear.age, cents(selectedYear.balanceCents), assumptionInput);
             return (
               <BreakdownPanel
@@ -211,6 +228,12 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
                 emptyCopy={refusal.emptyCopy}
                 netRefundCopy=""
                 basis={refusal.basis}
+                // Re-review F4: without this the panel region is announced
+                // "Transactions in Projection at age 65" over copy saying there
+                // are none — the same lie `rowNoun` was added in this slice to
+                // stop, on the one O.20d caller that skipped it. A retirement
+                // bar's constituents would be holdings, never transactions.
+                rowNoun="holding"
                 testIdPrefix="retirement-bar"
                 defaultOpen
                 onToggle={(o) => {

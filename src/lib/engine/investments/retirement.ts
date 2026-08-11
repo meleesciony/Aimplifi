@@ -343,23 +343,74 @@ export function retirementYearRefusal(
 }
 
 /**
+ * What the starting figure is actually made of — the facts the current-portfolio
+ * sentence needs in order to be true rather than merely plausible.
+ *
+ * `rawSumCents` is the UNCLAMPED, signed sum of the INVESTMENT account balances
+ * (`coach.fi.portfolioCents`). `buildRetirementInputs` floors that at 0 before
+ * the projection compounds it, and this module's own rule at the top of the file
+ * says a clamped output may not print its inputs as if they were measured. The
+ * composer therefore receives both numbers and never calls a floored 0 "the
+ * balance of your accounts" (O.20d re-review F2: one INVESTMENT account holding
+ * a −$5,000.00 margin balance printed "The $0.00 is … the live balance of your
+ * investment accounts today", which is wrong by $5,000.00 and in the wrong
+ * direction).
+ */
+export interface CurrentPortfolioBasis {
+  /** Unclamped, signed Σ of INVESTMENT account balances. */
+  rawSumCents: number;
+  /** Any counted investment account whose feed has stopped updating. */
+  hasFrozenFeed: boolean;
+}
+
+/**
  * The FIRST bar of the year strip (age === currentAge) is NOT a projection —
- * `projectRetirement` seeds it with today's live portfolio (the same figure
- * the /investments page headlines). The refusal sentence above would be a
- * false claim about a real money figure (O.20d critic P1-1: "$142,000.00 at
- * age 40 is a projection — no transactions or holdings make it up" is exactly
- * wrong: the five holdings DO make it up). This bar gets its own honest
- * refusal: it is the actual starting figure, not a what-if.
+ * `projectRetirement` seeds it with the balance of the user's investment
+ * accounts, so the generic refusal ("… is a projection — no transactions or
+ * holdings make it up") would be a false claim about a real money figure
+ * (O.20d critic P1-1). This bar gets its own honest refusal instead.
+ *
+ * Three corrections from the O.20d re-review, all of them the same failure —
+ * a sentence asserting more than the inputs support:
+ *
+ *  · **F2** a floored 0 is not a measurement. A negative raw sum says so and
+ *    names the clamp; a zero raw sum says there is nothing to start from.
+ *  · **F3** this figure is Σ *account balances*, NOT the holdings market value
+ *    the /investments page headlines as "Portfolio value" — the two differ
+ *    whenever positions mark away from the cash balance, and on the production
+ *    demo TODAY the page renders "no investment holdings" directly beneath this
+ *    panel's portfolio figure. The old docstring claimed they were the same
+ *    figure and that "the five holdings DO make it up"; both were false. The
+ *    basis now names the difference instead of asserting it away.
+ *  · **F1** "live … today" is contradicted by the frozen-feed note in the same
+ *    card, whose whole purpose is to deny that word.
  */
 export function retirementCurrentPortfolioRefusal(
   figureCents: Cents,
   assumptions: RetirementAssumptionInput,
+  basisFacts: CurrentPortfolioBasis,
 ): { emptyCopy: string; basis: readonly [string, ...string[]] } {
+  const { rawSumCents, hasFrozenFeed } = basisFacts;
+  // "today" is only true of a feed that is still reporting; when one has
+  // stopped, the card says so above and this sentence must not contradict it.
+  const asOf = hasFrozenFeed ? 'as we last have it' : 'today';
+  const emptyCopy =
+    rawSumCents < 0
+      ? `Your investment accounts total ${formatCents(cents(rawSumCents))} ${asOf} — a negative balance. ` +
+        `The projection starts from ${formatCents(figureCents)} instead, because a negative balance can’t be compounded forward.`
+      : rawSumCents === 0
+        ? `The projection starts from ${formatCents(figureCents)} — there’s no investment balance to start it from yet.`
+        : `The ${formatCents(figureCents)} is your current portfolio — the combined balance of your investment accounts ${asOf}, not a projection.`;
   return {
-    emptyCopy: `The ${formatCents(figureCents)} is your current portfolio — the live balance of your investment accounts today, not a projection.`,
+    emptyCopy,
     basis: [
       retirementAssumptionsSentence(assumptions),
       `Every later bar projects this starting portfolio forward under those assumptions; this bar is the actual starting figure.`,
+      // F3: the page headlines a DIFFERENT portfolio number right below this
+      // panel. Naming the two bases is the only honest reconciliation, because
+      // a reader who spots the gap is otherwise looking at an unexplained
+      // contradiction between two figures both labelled "portfolio".
+      `This counts the balances your investment accounts report. “Portfolio value” below totals what your holdings mark to, so the two can differ.`,
     ],
   };
 }

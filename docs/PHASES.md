@@ -6,7 +6,7 @@ start and add what you discover.
 
 ---
 
-## Phase 1 — Scaffold, seed data, Cash-Needed Engine (THE killer feature)
+## Phase 1 — Scaffold, seed data, Cash-Needed Engine (a flagship feature)
 
 **Build order:** `money.ts` + `dates.ts` (with tests) → Prisma schema + migration →
 seed script per `docs/SEED_SPEC.md` → cash-needed engine (pure) + full edge-case test

@@ -18,9 +18,11 @@
 import { useState } from 'react';
 import { PieChart } from 'lucide-react';
 import { allocationPanelBasis, type AllocationSegment } from '@/lib/engine/investments/panel';
+import { cents } from '@/lib/money';
 import { BreakdownPanel } from '@/components/finance/breakdown-panel';
+import { CHART_SERIES } from '@/lib/ui/chart-colors';
 
-const ALLOC_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#14b8a6', '#64748b'];
+const ALLOC_COLORS = CHART_SERIES;
 
 export function AllocationDrilldown({ segments }: { segments: AllocationSegment[] }) {
   const [selected, setSelected] = useState<string | null>(null);
@@ -92,8 +94,15 @@ export function AllocationDrilldown({ segments }: { segments: AllocationSegment[
             name: `${selectedSegment.symbol} holdings`,
             headlineCents: selectedSegment.marketValueCents,
             rows: selectedSegment.rows,
-            sumCents: selectedSegment.marketValueCents,
-            reconciles: true,
+            // Re-review F2: passing the headline as its own sum made "matched to
+            // the penny" a sentence about itself — the panel could not detect a
+            // row/figure divergence even in principle, and BreakdownPanel's
+            // documented mismatch branch was dead code here. Σ of the rows the
+            // reader is actually shown, compared against the figure.
+            sumCents: cents(selectedSegment.rows.reduce((s, r) => s + r.amountCents, 0)),
+            reconciles:
+              selectedSegment.rows.reduce((s, r) => s + r.amountCents, 0) ===
+              selectedSegment.marketValueCents,
             clampedByNetRefund: false,
           }}
           emptyCopy={`No holdings filed under ${selectedSegment.symbol}.`}

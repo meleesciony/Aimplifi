@@ -14,6 +14,7 @@ import { cents, formatCents } from '@/lib/money';
 import { forecastDayBasis } from '@/lib/engine/forecast/panel';
 import { BreakdownPanel } from '@/components/finance/breakdown-panel';
 import type { CashFlowForecastData } from '@/server/forecast';
+import { CHART_POSITIVE, CHART_NEGATIVE } from '@/lib/ui/chart-colors';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const tick = (d: string) => `${MONTHS[+d.slice(5, 7) - 1]} ${+d.slice(8, 10)}`;
@@ -22,7 +23,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
   const f = data.forecast;
   const dips = f.firstNegativeDate !== null;
   const deltaCents = f.endingBalanceCents - f.startingBalanceCents;
-  const color = dips ? '#f43f5e' : '#10b981';
+  const color = dips ? CHART_NEGATIVE : CHART_POSITIVE;
   const chart = f.days.map((d) => ({ date: tick(d.date), full: d.date, dollars: d.balanceCents / 100 }));
   // O.20d: days with scheduled flows are the drillable points on the balance
   // line — a day with no flows has nothing behind it to show.
@@ -121,7 +122,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
               </defs>
               <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={40} tickLine={false} axisLine={false} />
               <YAxis hide domain={[dips ? 'dataMin - 5000' : 0, 'dataMax + 5000']} />
-              {dips && <ReferenceLine y={0} stroke="#f43f5e" strokeDasharray="3 3" />}
+              {dips && <ReferenceLine y={0} stroke={CHART_NEGATIVE} strokeDasharray="3 3" />}
               <Tooltip
                 formatter={(v) => [formatCents(cents(Math.round(Number(v) * 100))), 'Balance']}
                 labelFormatter={(_, p) => p?.[0]?.payload?.full ?? ''}
@@ -193,8 +194,15 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
                 amountCents: cents(e.amountCents),
                 isPending: false,
               })),
-              sumCents: cents(selectedDayData.netCents),
-              reconciles: true,
+              // Re-review F2/F5: `sumCents` was a copy of `headlineCents` and
+              // `reconciles` a literal, so the penny-match sentence verified
+              // itself. Σ of the events actually rendered, checked against the
+              // day's net change — the guard that would catch any future
+              // display-side filter on this row list.
+              sumCents: cents(selectedDayData.events.reduce((s, e) => s + e.amountCents, 0)),
+              reconciles:
+                selectedDayData.events.reduce((s, e) => s + e.amountCents, 0) ===
+                selectedDayData.netCents,
               clampedByNetRefund: false,
             }}
             emptyCopy="No scheduled flows land on this day — the projected balance passes through unchanged."

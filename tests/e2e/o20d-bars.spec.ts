@@ -205,9 +205,15 @@ test('a retirement year bar opens the refusal panel — a projection has no rows
   const currentPanel = page.locator('[data-testid^="retirement-bar-panel-"]').first();
   await expect(currentPanel).toBeVisible();
   await expect(currentPanel.locator('[data-testid^="retirement-bar-empty-"]')).toContainText(
-    'is your current portfolio — the live balance of your investment accounts today, not a projection',
+    'is your current portfolio — the combined balance of your investment accounts today, not a projection',
   );
   await expect(currentPanel).not.toContainText('no transactions or holdings make it up');
+  // Re-review F3: this figure totals ACCOUNT BALANCES, while the page headlines
+  // "Portfolio value" from what the HOLDINGS mark to. The seed makes them equal,
+  // so only the basis sentence can prove the panel stopped claiming they are the
+  // same number.
+  await expect(currentPanel).toContainText('balances your investment accounts report');
+  await expect(currentPanel).toContainText('so the two can differ');
 
   // A LATER bar (the seeded retirement age, 65) IS a projection — the refusal
   // says so, and states the assumptions behind it, the same engine-composed

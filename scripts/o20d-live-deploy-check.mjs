@@ -73,7 +73,13 @@ try {
   const nwPanel = page.getByTestId(/net-worth-constituents-panel-/);
   await nwPanel.waitFor({ state: 'visible', timeout: 10000 });
   const nwText = await nwPanel.innerText();
-  check('dashboard: the net-worth point opens a constituent panel', nwText.length > 0);
+  // A non-empty panel proves nothing — an empty-state panel is also non-empty.
+  // The constituent panel's job is to list accounts WITH their balances, so the
+  // discriminating assertion is a rendered money figure inside the panel.
+  check(
+    'dashboard: the net-worth point opens a panel listing account balances',
+    /\$[\d,]+\.\d{2}/.test(nwText),
+  );
   check(
     'dashboard: the panel names its basis (assets minus liabilities / live balance)',
     /assets minus liabilities|live balance/i.test(nwText),
@@ -85,8 +91,16 @@ try {
   await acctPoints.waitFor({ timeout: 30000 });
   const acctChip = acctPoints.getByTestId(/accounts-net-worth-point-/).first();
   await acctChip.click();
-  await page.getByTestId(/accounts-net-worth-constituents-panel-/).first().waitFor({ state: 'visible', timeout: 10000 });
-  check('accounts: the net-worth points are drillable there too', true);
+  const acctPanel = page.getByTestId(/accounts-net-worth-constituents-panel-/).first();
+  await acctPanel.waitFor({ state: 'visible', timeout: 10000 });
+  // Was `check(..., true)` — a check that asserts a literal proves nothing about
+  // the live page and inflated the live-check count by one. The panel's own
+  // rendered text is the evidence: its basis sentence plus a balance figure.
+  const acctText = await acctPanel.innerText();
+  check(
+    'accounts: the net-worth point opens a panel naming its basis and balances',
+    /assets minus liabilities|live balance/i.test(acctText) && /\$[\d,]+\.\d{2}/.test(acctText),
+  );
 
   /* ── /forecast: a day chip opens the scheduled flows that move the line ── */
   await page.goto(`${BASE}/forecast`, { waitUntil: 'networkidle' });

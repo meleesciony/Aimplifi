@@ -92,7 +92,11 @@ export function LifestyleCreepChart({ creep }: { creep: CreepResult }) {
               headlineCents: selectedEntry.amountCents,
               rows: selectedEntry.rows,
               sumCents: cents(selectedEntry.rows.reduce((s, r) => s + r.amountCents, 0)),
-              reconciles: true,
+              // Re-review F2: the sum above is a real reduce, but a literal
+              // `true` still asserted the match rather than checking it.
+              reconciles:
+                selectedEntry.rows.reduce((s, r) => s + r.amountCents, 0) ===
+                selectedEntry.amountCents,
               clampedByNetRefund: false,
             }}
             emptyCopy={`No discretionary purchases were filed in ${selectedLabel} — a $0.00 month is a real answer.`}
@@ -100,7 +104,6 @@ export function LifestyleCreepChart({ creep }: { creep: CreepResult }) {
             basis={creepPanelBasis(
               selectedLabel,
               selectedEntry.amountCents,
-              creep.loanPaymentsExcluded,
               selectedEntry.hasDiscretionaryRefunds,
             )}
             registerHref={monthRegisterHref(selectedEntry.month)}

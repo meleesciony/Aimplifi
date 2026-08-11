@@ -17,6 +17,7 @@ import { ConnectSimplefin } from '@/components/finance/connect-simplefin';
 import { PlaidConnections } from '@/components/finance/plaid-connections';
 import { SyncAllButton } from '@/components/finance/sync-all-button';
 import { NetWorthTrendDrilldown } from '@/components/finance/net-worth-trend-drilldown';
+import { CHART_POSITIVE } from '@/lib/ui/chart-colors';
 import {
   cardOffersDisconnect,
   connectionsById,
@@ -162,8 +163,8 @@ function NetWorthCard({ data }: { data: AccountsView }) {
               <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
                 <defs>
                   <linearGradient id="nwacct" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.5} />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={CHART_POSITIVE} stopOpacity={0.5} />
+                    <stop offset="100%" stopColor={CHART_POSITIVE} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" tickLine={false} axisLine={false} />
@@ -173,7 +174,7 @@ function NetWorthCard({ data }: { data: AccountsView }) {
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.fullDate ?? ''}
                   contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
                 />
-                <Area type="monotone" dataKey="dollars" stroke="#10b981" strokeWidth={2} fill="url(#nwacct)" />
+                <Area type="monotone" dataKey="dollars" stroke={CHART_POSITIVE} strokeWidth={2} fill="url(#nwacct)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

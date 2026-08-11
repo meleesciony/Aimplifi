@@ -2921,3 +2921,38 @@ seeded pages, so moving it to a bare throwaway user could hollow out what it tes
 **The fix (DECISIONS #438):** (1) the SQLite busy_timeout is env-tunable — `SQLITE_BUSY_TIMEOUT_MS`, default 15s unchanged for dev/unit single-process use; the e2e harness sets 500ms so a collision costs ≤500ms + one serializableTx re-roll (3-attempt cap) instead of a 15s queue-blocking burn; (2) Playwright `retries: 2` (the K.8 close-out's named mitigation, evaluated with its own verification) absorbs the residual lottery — a test that fails after retries is a real failure and enters the ledger. Rejected with reasons: worker-isolated DBs (incompatible with one server process reading the seeded file) and per-spec server-routed seeds (the true single-writer fix, ~40-file refactor, follow-up if the lottery persists).
 
 **Verification (4 local draws with the fix):** standalone run 3: 319 passed / 1 flaky / 0 failed (transactions:295, ledger-class, retry-passed). Full gate `VERIFY_E2E=1 bash scripts/verify.sh`: GREEN — tsc 0 / eslint 0 / 6,575 unit + 1 skipped / build clean / e2e 318 passed / 2 flaky / 0 failed. Both flaky were CSV members, and transactions:638's retry-1 reproduced the EXACT CI signature on a local machine (180s stale-result window — the second import's action never produced a client-visible result; the K.4 forensic proved that class never writes): machine-independence of the class, and the retry absorbing it (2.3s on retry). Residuals recorded, not fixed: the C.14/C.15 severed-flight wedge has a non-DB component (stalls before writing) — follow-up if it persists on CI; the combine-connections 500 is a real engine race (concurrent combines → H.6b(a) carry), retry-absorbed, engine-side fix its own task (Opus 5, money-adjacent). Per the K.4 "verify gate GREEN" precedent the local verdict is complete; the CI conclusion is read on the shipped sha (rule 5) and recorded in STATUS.md.
+
+---
+
+## O.20d-FU (2026-08-11) — the re-review Flash never ran
+
+**Why:** O.20d was built AND critic-passed inside one DeepSeek V4 Flash session. CLAUDE.md routes every rule-3 hostile-critic pass to Opus 5 / Fable 5, *"including, especially, slices Flash built — Flash never self-certifies these."* The owner caught the routing error afterwards and asked for the check.
+
+**Done:**
+1. Re-verified the shipped tree independently — `bash scripts/verify.sh` GREEN on `c407404` before touching anything (the tree DeepSeek shipped is genuinely green).
+2. Ran three fresh-context Opus 5 hostile critics (one per surface: carry-out integrity, creep+forecast, retirement) plus a fabrication audit of the record itself.
+3. **Money verdict: HOLDS.** Carry-out is real in all three engines (two of them compute the figure *from* the carried array — stronger than "same loop"); integer-cents discipline intact; signed liabilities reconcile; denominators match the headlined figures. Every recorded number reproduces: unit 6,650 by delta arithmetic, e2e 330 by declaration count + the dual-project spec, CI run 31502352535 `success` attempt 1 on the right sha, empty `prisma/` diff.
+4. **10 P1 found**, all copy-honesty or tap-target — none arithmetic. 7 addressed in place, 3 queued (O.20f/g/h) because they move a live figure or a rendered layout.
+5. Fixed the deploy-proof script's two non-asserting checks (one literal `true`, one `length > 0`); re-ran live: 11 checks PASS.
+
+**Found (the ones worth remembering):**
+- A clamped output printed as a measurement — a −$5,000.00 margin balance rendered as "$0.00 … the live balance of your investment accounts today".
+- The gross-vs-net disclosure had a blind spot at its own canonical case: the app's "Refund" category ships `discretionary: false`, so the reader who files a return there got a gross bar and silence.
+- `reconciles: true` hardcoded at all four new panels, two of them passing the headline as its own `sumCents` — "matched to the penny" was verifying itself.
+- The record's critic scorecard was never committed; ~15 source comments cite numbered findings, so findings were acted on, but the round structure was unbacked narration.
+
+**Next:** O.20a (the /reports two-basis gap) is the next queue slice and is routed to Fable 5 — measurement first (decompose the $299.93 by rule; there are SEVEN divergences, not the five the row records — `spendingByCategory` also drops any category netting ≤ 0 from `totalCents`, and `countsInFlows` applies no category filter at all), then the basis decision, recorded before any code moves.
+
+---
+
+## Cohesion pass slice 1 (2026-08-11, Cowork session) — one chart palette + mission-led docs; O.20d-FU tree committed
+
+**Owner request:** make the app visually beautiful/cohesive; clean READMEs for clarity of mission (coach-first, cash-needed is a feature).
+
+**Done:**
+1. **Found the O.20d-FU source fixes UNCOMMITTED** in the working tree (engine/tests/docs for F1–F8 exactly as STATUS records them) — the committed-is-not-shipped failure repeating. Committed in this push, explicitly labeled.
+2. **Docs mission drift fixed:** README pillar list + "What's implemented" reordered coach-first ("none of them *is* the mission"); ROADMAP v1 list same; PHASES.md "(THE killer feature)" → "(a flagship feature)". Verified non-issues: no hardcoded counts anywhere; SPEC banner correct; Neon DB literally named `pulse`.
+3. **Chart colors unified:** new `src/lib/ui/chart-colors.ts` (CHART_POSITIVE/NEGATIVE/COMPARE/SERIES); 7 chart files migrated; /reports' 400-series palette and rose-400 spend bars now match the app-wide 500-series brand hues. Grep: zero remaining color-hex literals in src outside justified sites (global-error inline styles, PWA themeColor, canvas export).
+4. **Queued U.2** (TASKS.md): semantic brand/positive/warning class-token migration — 172 emerald/amber literals / 51 files — must land whole; spec'd for a Flash session. Empty states inspected, left alone (deliberate per-surface copy).
+
+**Verification, honestly:** Cowork Linux sandbox, fresh Linux `npm install`: `tsc --noEmit` exit 0, `eslint .` exit 0. vitest (global-setup `prisma db push` → CDN-blocked schema engine) and `next build` (Google Fonts fetch blocked) COULD NOT run in the sandbox — no schema diff, TS-only changes; the CI conclusion on this push is the slice's gate per rule 5/K.8.

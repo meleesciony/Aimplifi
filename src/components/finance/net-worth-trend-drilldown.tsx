@@ -93,7 +93,12 @@ export function NetWorthTrendDrilldown({
             sumCents: cents(
               selectedPoint.constituents.reduce((s, c) => s + c.balanceCents, 0),
             ),
-            reconciles: true,
+            // Re-review F2: `sumCents` already re-summed the rendered rows, but
+            // a literal `true` here would still have printed "matched to the
+            // penny" over two visibly different numbers. Compare them.
+            reconciles:
+              selectedPoint.constituents.reduce((s, c) => s + c.balanceCents, 0) ===
+              selectedPoint.netWorthCents,
             clampedByNetRefund: false,
           }}
           emptyCopy="This point has no accounts behind it — nothing was snapshotted or live on that date."

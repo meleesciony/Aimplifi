@@ -7,8 +7,9 @@ import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-
 import { reportsNotCountedYetCopy } from '@/lib/engine/glass-box/category-breakdown';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 import { SURFACE_CARD_CLASS } from '@/components/finance/surface-card-styles';
+import { CHART_SERIES } from '@/lib/ui/chart-colors';
 
-const PALETTE = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa'];
+const PALETTE = CHART_SERIES;
 
 /**
  * Dashboard summary of this month's top spending categories (DECISIONS #67).

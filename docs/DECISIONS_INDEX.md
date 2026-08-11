@@ -437,3 +437,4 @@ refuses to write if it would drop any number this file already carries.
 - **#441** (Phase ?): O.18e-FU: the C.25 loan-payment basis sentence is scoped per surface — one composer, five scopes, the universal "loan payments are not spending" removed (2026-08-10)
 - **#442** (Phase ?): O.18e-FU3: the /ask loan-payment answer copy loses the universal — the three cited sites plus the fourth one the record missed, scoped to the answer's own figures (2026-08-10)
 - **#443** (Phase ?): O.18g: the conscious-buckets e2e binds its savings else-branch — a throwaway user whose working $1,000.00 savings figure renders no control (2026-08-10)
+- **#444** (Phase ?): O.20d-FU: the re-review Flash never ran — what a fix pass may correct in place, and what has to become its own critic-gated slice (2026-08-11)

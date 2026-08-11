@@ -8,17 +8,17 @@ to Be Rich*, *The Psychology of Money*, and friends) built into the product's
 behavior, on top of Mint/Simplifi-grade account aggregation with AI-driven
 intelligence throughout.
 
-Three things carry that purpose:
+Three pillars support that mission — none of them *is* the mission:
 
-- **The Cash-Needed Engine**, which answers to the cent: *"How much money must
-  be in my checking account, and by what date, to pay every card in full this
-  cycle?"*
+- **An FI Coach** that treats your savings rate — not returns — as the
+  headline metric, ranks savings opportunities by compounded impact (never by
+  latte shame), and keeps conscious spending — your money dials — in view.
 - **Categorization that nearly disappears** — merchant normalization →
   confidence routing → a thumb-first triage inbox — the chore Mint and
-  Simplifi never got right.
-- **An FI Coach** that treats your savings rate — not returns — as the
-  headline metric, and ranks savings opportunities by compounded impact, never
-  by latte shame.
+  Simplifi never got right, in service of a transaction history you can trust.
+- **The Cash-Needed Engine**, a flagship feature that answers to the cent:
+  *"How much money must be in my checking account, and by what date, to pay
+  every card in full this cycle?"*
 
 ## Quickstart (demo mode — zero credentials)
 
@@ -53,13 +53,12 @@ in `tests/unit/critic*-*.test.ts`.
 
 ## What’s implemented
 
-- **Cash-Needed Engine** (`src/lib/engine/cash-needed/`) — per-card statement
-  intelligence, aggregate obligation timeline, day-by-day projection with
-  intra-period minimum (not just endpoints), autopay handled without double
-  counting, weekend/holiday due-date walk-back, estimates labeled, pay-in-full
-  ⇄ minimum toggle with average-daily-balance interest cost (APR÷365 × the
-  cycle's average balance, grace-gated), transfer recommendation (rounded up to
-  $50, never dated in the past).
+- **FI Coach** (`/coach`) — savings rate with net-worth-parity placement, FI
+  number (with its expense basis stated inline), years-to-FI (live slider),
+  Coast FI, opportunity engine ranked by 10/20/30-year compounding, lifestyle
+  creep detector (median-based, payroll-lump robust), months-of-runway,
+  life-energy view, monthly Money Review. Copy guardrails are enforced by
+  tests: zero shame language, assumptions on every projection, no tickers.
 - **Categorization** (`engine/categorize/`) — merchant normalization (SQ\*,
   TST\*, AMZN Mktp, PAYPAL \*, airport POS…), confidence routing (auto-silent ≥
   90%, AI-badge 70–90%, review < 70%), contextual rules (amount bands, weekend,
@@ -76,12 +75,13 @@ in `tests/unit/critic*-*.test.ts`.
   which prints the exact count at a documented 4 s/interaction budget.
 - **Recurring detection** (`engine/recurring/`) — cadence, price-change
   tracking, possibly-unused flag, biweekly payroll feeding the cash projection.
-- **FI Coach** (`/coach`) — savings rate with net-worth-parity placement, FI
-  number (with its expense basis stated inline), years-to-FI (live slider),
-  Coast FI, opportunity engine ranked by 10/20/30-year compounding, lifestyle
-  creep detector (median-based, payroll-lump robust), months-of-runway,
-  life-energy view, monthly Money Review. Copy guardrails are enforced by
-  tests: zero shame language, assumptions on every projection, no tickers.
+- **Cash-Needed Engine** (`src/lib/engine/cash-needed/`) — per-card statement
+  intelligence, aggregate obligation timeline, day-by-day projection with
+  intra-period minimum (not just endpoints), autopay handled without double
+  counting, weekend/holiday due-date walk-back, estimates labeled, pay-in-full
+  ⇄ minimum toggle with average-daily-balance interest cost (APR÷365 × the
+  cycle's average balance, grace-gated), transfer recommendation (rounded up to
+  $50, never dated in the past).
 - **Cash-flow calendar** (`/calendar`), **goals with FI-date impact**
   (`/goals`), **budgets** (`/budgets`), **CSV/PDF export** (audit-logged),
   **PWA manifest**, **security headers (CSP)**, **rate limiting**, **cron sync

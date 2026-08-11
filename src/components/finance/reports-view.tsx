@@ -21,12 +21,13 @@ import { withheldInlineNote, type WithheldAccountSummary } from '@/lib/providers
 import { loanPaymentBasisSentence } from '@/server/loan-payment-basis';
 import { REPORT_CHART_MONTHS, type ReportChartMonths } from '@/lib/engine/reports/chart-range';
 import type { ReportsData } from '@/server/reports';
+import { CHART_SERIES, CHART_POSITIVE, CHART_NEGATIVE } from '@/lib/ui/chart-colors';
 
 const MONTHS = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const monthLabel = (ym: string) => `${MONTHS[Number(ym.slice(5, 7))] ?? ym}`;
 
 // Palette cycled across categories/groups (kept consistent within a render).
-const PALETTE = ['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa', '#fb923c', '#22d3ee', '#f472b6', '#4ade80', '#94a3b8'];
+const PALETTE = CHART_SERIES;
 
 /** How many category rows render before the tail folds into "Everything else". */
 const TOP_CATEGORY_ROWS = 12;
@@ -327,14 +328,14 @@ export function ReportsView({
                 />
                 <Bar
                   dataKey="income"
-                  fill="#34d399"
+                  fill={CHART_POSITIVE}
                   radius={[3, 3, 0, 0]}
                   className="cursor-pointer"
                   onClick={(d: { payload?: { month?: string } }) => selectBar(d?.payload?.month, 'income')}
                 />
                 <Bar
                   dataKey="expense"
-                  fill="#fb7185"
+                  fill={CHART_NEGATIVE}
                   radius={[3, 3, 0, 0]}
                   className="cursor-pointer"
                   onClick={(d: { payload?: { month?: string } }) => selectBar(d?.payload?.month, 'expense')}

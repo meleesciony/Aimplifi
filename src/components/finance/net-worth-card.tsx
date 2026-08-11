@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { cents, formatCents } from '@/lib/money';
+import { CHART_POSITIVE } from '@/lib/ui/chart-colors';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { NetWorthSeriesPoint } from '@/lib/engine/networth/series';
 import { NetWorthTrendDrilldown } from '@/components/finance/net-worth-trend-drilldown';
@@ -83,8 +84,8 @@ export function NetWorthCard({
             <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
               <defs>
                 <linearGradient id="nw" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity={0.02} />
+                  <stop offset="0%" stopColor={CHART_POSITIVE} stopOpacity={0.5} />
+                  <stop offset="100%" stopColor={CHART_POSITIVE} stopOpacity={0.02} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" tickLine={false} axisLine={false} />
@@ -97,7 +98,7 @@ export function NetWorthCard({
                 labelFormatter={(_, payload) => payload?.[0]?.payload?.fullDate ?? ''}
                 contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
               />
-              <Area type="monotone" dataKey="dollars" stroke="#10b981" strokeWidth={2} fill="url(#nw)" />
+              <Area type="monotone" dataKey="dollars" stroke={CHART_POSITIVE} strokeWidth={2} fill="url(#nw)" />
             </AreaChart>
           </ResponsiveContainer>
         </div>

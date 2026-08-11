@@ -69,6 +69,11 @@ describe('getRetirementOutlook — grounded mapping', () => {
       retirementAge,
       endAge,
       currentPortfolioCents: 14_200_000,
+      // O.20d-FU F2 — the UNCLAMPED sum, equal to the clamped one whenever the
+      // portfolio is non-negative (the case here). It exists so the
+      // age-currentAge panel can tell a real $0.00 apart from a floored one; the
+      // divergent case is locked in the margin-balance test below.
+      rawPortfolioCents: 14_200_000,
       monthlyContributionCents: 120_000,
       annualRetirementSpendingCents: 6_000_000,
       annualReturnBps: realReturnBps,
@@ -95,6 +100,29 @@ describe('getRetirementOutlook — grounded mapping', () => {
       swrBps: 400,
     });
     expect(outlook.projection).toEqual(expected);
+  });
+
+  it('O.20d-FU F2 — a margin balance is floored for the projection but carried raw for the copy', async () => {
+    // One INVESTMENT account with a −$5,000.00 margin balance. The projection
+    // must start from $0.00 (a negative balance cannot be compounded forward),
+    // but the panel that PRINTS that $0.00 has to know it is a clamp: the old
+    // copy called it "the live balance of your investment accounts today",
+    // misstating the reader's position by $5,000.00 in the flattering direction.
+    mockCoach({
+      portfolioCents: cents(-500_000),
+      annualExpensesCents: cents(4_800_000),
+      monthlySavingsCents: cents(100_000),
+      expectedReturnBps: 700,
+      swrBps: 400,
+    });
+
+    const outlook = await getRetirementOutlook();
+    expect(outlook.inputs.currentPortfolioCents).toBe(0); // what the engine compounds
+    expect(outlook.inputs.rawPortfolioCents).toBe(-500_000); // what the reader actually holds
+    // The two must be able to disagree — a `rawPortfolioCents` sourced from the
+    // clamped value would pass every other assertion in this file.
+    expect(outlook.inputs.rawPortfolioCents).not.toBe(outlook.inputs.currentPortfolioCents);
+    expect(outlook.hasData).toBe(true); // the contribution alone still renders the card
   });
 
   it('floors negative monthly savings (spending > income) to a $0 contribution', async () => {

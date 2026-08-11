@@ -329,31 +329,97 @@ describe('creep bars carry their rows out of the summing loop (O.20d)', () => {
     const feb = creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-02')!;
     expect(feb.hasDiscretionaryRefunds).toBe(false);
   });
+
+  it('re-review F1 — a return filed to the app’s own "Refund" category flags too', () => {
+    // The CANONICAL case the old rule missed: the reader returns a jacket and
+    // picks "Refund" from the picker. That category ships as
+    // `{group: 'Income', discretionary: false}`, so the old `discretionary`-only
+    // test left the bar gross AND the explanation silent — on exactly the month
+    // whose disclosure exists to explain the gap.
+    const txns = [
+      txn('2026-01-03', -45000, { categoryId: 'shopping', id: 'nordstrom-jan' }),
+      txn('2026-01-20', 45000, { categoryId: 'refund', id: 'return-jan' }),
+    ];
+    const creep = detectLifestyleCreep(txns, isoDate('2026-06-10'), 6);
+    const jan = creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!;
+    expect(jan.hasDiscretionaryRefunds).toBe(true);
+    // The bar is still GROSS — that is the behaviour the sentence discloses,
+    // not a bug this test blesses away.
+    expect(jan.amountCents).toBe(45000);
+  });
+
+  it('re-review F1 — a return to a NON-discretionary category does not raise the flag', () => {
+    // A grocery return neither enters this bar nor is withheld from it, so
+    // disclosing it would explain a divergence that does not exist here.
+    const txns = [
+      txn('2026-01-03', -45000, { categoryId: 'shopping', id: 'nordstrom-jan' }),
+      txn('2026-01-20', 4000, { categoryId: 'groceries', id: 'grocery-return-jan' }),
+    ];
+    const creep = detectLifestyleCreep(txns, isoDate('2026-06-10'), 6);
+    const jan = creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!;
+    expect(jan.hasDiscretionaryRefunds).toBe(false);
+  });
+
+  it('re-review F8 — a $0.00 row is neither spend nor income and never becomes a panel row', () => {
+    const txns = [
+      txn('2026-01-03', -5000, { categoryId: 'shopping', id: 'real-jan' }),
+      txn('2026-01-09', 0, { categoryId: 'shopping', id: 'zero-auth-jan' }),
+    ];
+    const creep = detectLifestyleCreep(txns, isoDate('2026-06-10'), 6);
+    const jan = creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!;
+    expect(jan.amountCents).toBe(5000);
+    // One row, not two: the $0.00 authorization inflated "Show N purchases"
+    // without moving the figure by a cent.
+    expect(jan.rows).toHaveLength(1);
+    expect(jan.rows[0].transactionId).toBe('real-jan');
+    // And it may not raise the credit disclosure either.
+    expect(jan.hasDiscretionaryRefunds).toBe(false);
+  });
 });
 
 describe('creepPanelBasis (O.20d)', () => {
   it('embeds the rendered figure and names what counts and what never does', () => {
-    const basis = creepPanelBasis('May 2026', cents(12000), false, false);
+    const basis = creepPanelBasis('May 2026', cents(12000), false);
     expect(basis.length).toBeGreaterThanOrEqual(2);
     expect(basis[0]).toBe(
       'The $120.00 is May 2026’s discretionary spending: posted purchases in a discretionary category — dining out, shopping, entertainment, and the other categories the app treats as discretionary.',
     );
     expect(basis[1]).toContain('transfers, pending rows, and rows you’ve excluded are never in it');
   });
-  it('adds the loan-payment sentence only when exclusions were actually applied', () => {
-    expect(creepPanelBasis('May 2026', cents(12000), false, false)).toHaveLength(2);
-    const withLoan = creepPanelBasis('May 2026', cents(12000), true, false);
-    expect(withLoan).toHaveLength(3);
-    expect(withLoan[2]).toContain('Loan payments');
+
+  it('re-review F2 — always admits it counts by category, not by the Fixed/Discretionary setting', () => {
+    // The register labels a detected gym membership "Fixed"; this bar counts it
+    // anyway, because "discretionary" here is the category's taxonomy flag. The
+    // panel lists the row, so the contradiction is now visible to the reader and
+    // must be stated rather than discovered.
+    for (const hasRefunds of [false, true]) {
+      const basis = creepPanelBasis('May 2026', cents(12000), hasRefunds);
+      const admission = basis.find((s) => s.includes('not by the Fixed or Discretionary setting'));
+      expect(admission).toBeDefined();
+      expect(admission).toContain('marked Fixed is still counted here');
+    }
   });
-  it('discloses the gross-vs-net basis only when a discretionary refund occurred', () => {
-    expect(creepPanelBasis('May 2026', cents(12000), false, true)).toHaveLength(3);
-    const withRefund = creepPanelBasis('May 2026', cents(12000), false, true);
-    expect(withRefund[2]).toContain('counts as income, not spend');
-    // Both conditionals at once: refund sentence before the loan-payment one.
-    const both = creepPanelBasis('May 2026', cents(12000), true, true);
-    expect(both).toHaveLength(4);
-    expect(both[3]).toContain('Loan payments');
+
+  it('re-review F6 — the loan-payment sentence is gone: it was window-wide, and vacuous for this figure', () => {
+    // `loan-payment` is `discretionary: false`, so an excluded loan payment
+    // could never enter a discretionary bar; the old sentence explained an
+    // exclusion that cannot move this number, and fired on months where nothing
+    // was excluded at all.
+    for (const hasRefunds of [false, true]) {
+      const basis = creepPanelBasis('May 2026', cents(12000), hasRefunds);
+      expect(basis.join(' ')).not.toContain('Loan payments');
+    }
+  });
+
+  it('discloses the gross-vs-net basis only when a discretionary credit occurred', () => {
+    expect(creepPanelBasis('May 2026', cents(12000), false)).toHaveLength(3);
+    const withRefund = creepPanelBasis('May 2026', cents(12000), true);
+    expect(withRefund).toHaveLength(4);
+    expect(withRefund[3]).toContain('counts as money in, not as a reduction of this figure');
+    // F7: the sentence describes a CREDIT, not "a refund you filed" — the same
+    // branch catches a bike sold and filed to 'shopping', and a category the app
+    // guessed rather than one the reader chose.
+    expect(withRefund[3]).not.toContain('you filed');
   });
 });
 

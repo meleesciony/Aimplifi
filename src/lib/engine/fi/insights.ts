@@ -349,6 +349,12 @@ export function detectLifestyleCreep(
     if (!countsInFlows(t, excludedFlowIds)) continue;
     const month = monthKey(t.date);
     if (!discSpend.has(month)) continue;
+    // Re-review F8: a $0.00 authorization/adjustment fell through to the spend
+    // branch, pushing a `$0.00` row that inflated the panel's "Show N
+    // purchases" count without moving the figure by a cent. It is neither
+    // spend nor income; skip it before either branch (routing it to the income
+    // branch instead would let a $0.00 row raise the refund disclosure).
+    if (t.amountCents === 0) continue;
     if (t.amountCents > 0) {
       income.set(month, income.get(month)! + t.amountCents);
       // The same stored-category resolution the spend branch uses — the flag
@@ -361,7 +367,21 @@ export function detectLifestyleCreep(
           date: t.date,
           accountId: t.accountId,
         }).categoryId;
-      if (meta.get(categoryId)?.discretionary) discRefunds.set(month, true);
+      // Re-review F1: keying this on `discretionary` alone gave the disclosure a
+      // systematic blind spot at the CANONICAL case — the reader who returns a
+      // jacket and picks the app's own "Refund" category, which ships as
+      // `{group: 'Income', discretionary: false}`. The bar stayed gross, and the
+      // sentence that exists to explain exactly that stayed silent. The 'refund'
+      // leaf is a merchandise return by definition (#166), so it flags too.
+      //
+      // Deliberately NOT extended to every non-income positive: a return filed to
+      // a NON-discretionary category (groceries) neither enters this bar nor is
+      // withheld from it, so disclosing it would explain a divergence that does
+      // not exist on this figure — and an uncategorized inflow may be a deposit,
+      // not a return, which the sentence must not assert (F7).
+      if (meta.get(categoryId)?.discretionary || categoryId === 'refund') {
+        discRefunds.set(month, true);
+      }
       continue;
     }
     // The STORED category is the truth — it reflects the user's triage
@@ -432,31 +452,54 @@ export function detectLifestyleCreep(
  * and the two surfaces must never state in their own words what counts here.
  *
  * `monthLabel` is the already-rendered month ("May 2026"), like every embedded
- * string. The third sentence appears only when the engine actually excluded
- * loan-payment ids (C.25 / DECISIONS #403) — with an empty set the sentence
- * would claim an exclusion that never happened.
+ * string.
+ *
+ * Re-review F6 — the loan-payment exclusion sentence was REMOVED from this
+ * panel, for two independent reasons either of which is sufficient:
+ *
+ *  1. It was unscoped. `CreepResult.loanPaymentsExcluded` is one window-wide
+ *     boolean meaning "the caller handed me a non-empty set", not "I excluded
+ *     something from THIS month" — so a single July payment printed the
+ *     exclusion sentence on the February bar, where nothing was excluded.
+ *  2. It was vacuous here regardless. `loan-payment` ships as
+ *     `discretionary: false`, so an excluded loan payment could never have
+ *     entered a discretionary figure in the first place; the sentence explained
+ *     an exclusion that cannot move this number.
+ *
+ * The C.25 disclosure remains on the surfaces whose figures it actually changes.
  */
 export function creepPanelBasis(
   monthLabel: string,
   amountCents: Cents,
-  excludesLoanPayments: boolean,
   hasDiscretionaryRefunds: boolean,
 ): readonly [string, ...string[]] {
   const out: [string, string, ...string[]] = [
     `The ${formatCents(amountCents)} is ${monthLabel}’s discretionary spending: posted purchases in a discretionary category — dining out, shopping, entertainment, and the other categories the app treats as discretionary.`,
     `Each row counts by the category you filed it under (the app guesses only for uncategorized rows); transfers, pending rows, and rows you’ve excluded are never in it.`,
   ];
+  // Re-review F2: "discretionary" means two different things in this product.
+  // Here it is the CATEGORY's taxonomy flag; in the register and in /budgets it
+  // is the Fixed/Discretionary spend class, which honours a recurring-bill guess
+  // and the reader's own override (#397: "the reader's verdict on THIS row
+  // wins"). So a gym membership the register labels "Fixed · you set this" is
+  // still counted here, and listing the rows — which this slice added — turns
+  // that divergence into two visible, contradictory labels for one charge.
+  // Unifying the two definitions moves a live figure on three surfaces and is
+  // queued as its own critic-gated slice; until then the panel says so rather
+  // than letting the reader discover it.
+  out.push(
+    `This counts by category, not by the Fixed or Discretionary setting on a row — a charge you’ve marked Fixed is still counted here.`,
+  );
   if (hasDiscretionaryRefunds) {
-    // The bar is GROSS spend: a return/cashback filed to a discretionary
-    // category went to income, so it never nets this figure — stated exactly
-    // when one occurred, never claimed when none did (critic P2-2).
+    // The bar is GROSS spend: a credit posted to a discretionary category (or
+    // filed to Refund) went to income, so it never nets this figure — stated
+    // exactly when one occurred, never claimed when none did (critic P2-2).
+    //
+    // "A credit posted", not "a refund you filed" (F7): the same branch catches
+    // a bike sold and filed to 'shopping', which is not a refund, and a category
+    // the app guessed rather than one the reader chose.
     out.push(
-      `A refund (or cashback) filed to a discretionary category this month counts as income, not spend — it doesn’t net against this figure.`,
-    );
-  }
-  if (excludesLoanPayments) {
-    out.push(
-      `Loan payments carried on a loan account are excluded — they’re tracked in their own place.`,
+      `A credit posted to a discretionary category this month — a return, cashback, or anything filed to Refund — counts as money in, not as a reduction of this figure.`,
     );
   }
   return out;

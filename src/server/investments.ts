@@ -128,6 +128,11 @@ export interface RetirementOutlook {
     retirementAge: number;
     endAge: number;
     currentPortfolioCents: number;
+    /** The UNCLAMPED, signed Σ of INVESTMENT balances behind `currentPortfolioCents`
+     *  (which `buildRetirementInputs` floors at 0). The age-currentAge bar's panel
+     *  states this figure as a fact about the reader's accounts, so it needs to know
+     *  when the number it is about to print is a clamp rather than a measurement. */
+    rawPortfolioCents: number;
     monthlyContributionCents: number;
     annualRetirementSpendingCents: number;
     /** The REAL return fed to the engine (nominal − inflation), so figures are today's dollars. */
@@ -203,6 +208,12 @@ export async function getRetirementOutlook(): Promise<RetirementOutlook> {
       retirementAge: planning.retirementAge,
       endAge: planning.endAge,
       currentPortfolioCents: engineInputs.currentPortfolioCents,
+      // O.20d re-review F2: `buildRetirementInputs` floors the portfolio at 0,
+      // and the age-currentAge bar's panel prints that figure as a statement
+      // about the reader's accounts. The UNCLAMPED sum travels with it so the
+      // panel can tell "you hold $0.00" apart from "you hold −$5,000.00 and we
+      // start the projection at $0.00", which are different facts.
+      rawPortfolioCents: base.currentPortfolioCents,
       monthlyContributionCents: engineInputs.monthlyContributionCents,
       annualRetirementSpendingCents: engineInputs.annualRetirementSpendingCents,
       annualReturnBps: engineInputs.annualReturnBps,
