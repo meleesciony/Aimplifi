@@ -30,6 +30,8 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Also filed this slice (record integrity):** the `.mts`-invisible-to-`tsc` class was claimed "filed as its own row (Wave G)" by both DECISIONS #446 and TASKS O.20k — checked against Wave G, the row did not exist. Filed as **TASKS G.2** with the two incidents as evidence.
 
+**Docs-chain gate read (rule 5).** CI run **31545561845 on `c8788b1`** (docs-only: this record plus the G.2 row) = **SUCCESS, first attempt** — so head of main is green behind both the O.20k code and the record commit it carried.
+
 ## ✅ MEASURED 2026-08-11 — O.20a: the /reports basis gap is not what the task row thought it was (DECISIONS #446)
 
 **The queued task:** /reports prints one month's spending on two bases that can disagree — the income/expense CHART (`countsInFlows`) and the "Spending by category" CARD (`isSpendRow`) — measured at $299.93 on the demo, with an existing disclosure that deliberately names only the DIRECTION of the gap, never a mechanism. The row asked whether to unify the bases, give the card the chart's basis, or leave the disclosure. PROGRESS.md's carried note corrected the row's own count: "SEVEN divergences, not the five the row records."
