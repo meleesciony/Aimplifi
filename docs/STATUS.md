@@ -18,7 +18,9 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Decision: no basis change in O.20a itself.** The real driver is a transfer-DETECTION reliability problem (inconsistent `isTransfer` flagging and categorization), not "two reasonable definitions of spending." `countsInFlows`/`isSpendRow` are shared well beyond /reports (`/coach` savings rate + Money Review, Ask's income answers) — a fix here isn't safely scoped to this slice, per `check-what-the-fix-breaks-before-what-it-fixes`. The existing no-mechanism disclosure stays exactly as shipped; the measurement now BACKS that restraint rather than merely assuming it. Filed as their own rows: **O.20j** (the transfer-reliability finding, its own critic-gated slice) and **O.20k** (the inherited reconciliation-boundary bug in the already-shipped `o20g-creep-income-refunds.mts`, which means DECISIONS #445's specific dollar figures are unverified against this user's reconciliation links, though its direction and engine fix are not in question).
 
-**Gate:** no product code changed — a measurement + decision, not a fix. `bash scripts/verify.sh` run for the Definition of Done anyway (a new file under `scripts/`).
+**Gate:** no product code changed — a measurement + decision, not a fix. `bash scripts/verify.sh` run for the Definition of Done anyway (a new file under `scripts/`) — **GREEN**: tsc 0 / eslint 0 / **6,710 unit passed + 1 skipped / 407 files** / build clean; no `prisma/` diff.
+
+**Gate read (rule 5/K.8).** CI run **31539275068 on `e7f7906` = SUCCESS, first attempt** — the full `VERIFY_E2E=1` suite, no rerun — read via `scripts/ci-status.sh` (exit 0). No live-deploy proof is needed or claimed: this slice changed no user-facing behavior (a measurement, a decision, and docs), so there is no new marker for a production check to discriminate on; Vercel auto-deploys the commit regardless, and the CI gate is the complete proof for a diff of this shape.
 
 ## ✅ BUILT 2026-08-11 — O.20g: merchandise returns stop counting as income, and the creep card learns to say "I can't compare that" (verify green)
 
