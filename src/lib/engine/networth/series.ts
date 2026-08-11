@@ -10,37 +10,68 @@
  * period). The live "today" point is computed from current balances over ALL
  * accounts — including manual items, which have no historical snapshots — so the
  * latest point matches the headline net worth exactly.
+ *
+ * Every point carries its CONSTITUENTS — the signed account balances it was
+ * summed from — carried out of the SAME loop that produced the figure (the
+ * O.18c/O.20d carry-out rule), so a panel behind a point can show exactly what
+ * the point is made of without re-deriving anything. Σ constituents ===
+ * netWorthCents for every point by construction; the panel's "matched to the
+ * penny" sentence is therefore a real check. Balances are signed: a liability
+ * contributes negative.
  */
 import { isLiabilityType } from '@/lib/engine/transactions/query';
+
+export interface NetWorthConstituent {
+  accountId: string;
+  /** The name the reader knows the account by (the register's `accountLabel`). */
+  name: string;
+  /** Signed: assets positive, liabilities negative. */
+  balanceCents: number;
+}
 
 export interface NetWorthSeriesPoint {
   date: string; // YYYY-MM-DD
   netWorthCents: number;
+  constituents: NetWorthConstituent[];
 }
 
 export function netWorthSeries(input: {
   snapshots: readonly { accountId: string; date: string; balanceCents: number }[];
-  accounts: readonly { id: string; type: string; currentBalanceCents: number }[];
+  accounts: readonly { id: string; name: string; type: string; currentBalanceCents: number }[];
   today: string;
 }): NetWorthSeriesPoint[] {
-  const typeById = new Map(input.accounts.map((a) => [a.id, a.type]));
-  const byDate = new Map<string, number>();
+  const accountById = new Map(input.accounts.map((a) => [a.id, a]));
+  const byDate = new Map<string, NetWorthConstituent[]>();
 
   for (const s of input.snapshots) {
-    const type = typeById.get(s.accountId);
-    if (type === undefined) continue; // snapshot for an account we don't have
-    const sign = isLiabilityType(type) ? -1 : 1;
-    byDate.set(s.date, (byDate.get(s.date) ?? 0) + sign * s.balanceCents);
+    const acct = accountById.get(s.accountId);
+    if (acct === undefined) continue; // snapshot for an account we don't have
+    const arr = byDate.get(s.date) ?? [];
+    arr.push({
+      accountId: s.accountId,
+      name: acct.name,
+      balanceCents: (isLiabilityType(acct.type) ? -1 : 1) * s.balanceCents,
+    });
+    byDate.set(s.date, arr);
   }
 
   // Live point: current balances over ALL accounts (manual items included, even
   // though they carry no snapshot history). Replaces any same-dated snapshot.
-  let current = 0;
-  for (const a of input.accounts) current += (isLiabilityType(a.type) ? -1 : 1) * a.currentBalanceCents;
-  byDate.set(input.today, current);
+  byDate.set(
+    input.today,
+    input.accounts.map((a) => ({
+      accountId: a.id,
+      name: a.name,
+      balanceCents: (isLiabilityType(a.type) ? -1 : 1) * a.currentBalanceCents,
+    })),
+  );
 
   return [...byDate.entries()]
     .filter(([date]) => date <= input.today) // strictly history, no future month-ends
-    .map(([date, netWorthCents]) => ({ date, netWorthCents }))
+    .map(([date, constituents]) => ({
+      date,
+      netWorthCents: constituents.reduce((s, c) => s + c.balanceCents, 0),
+      constituents,
+    }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 }

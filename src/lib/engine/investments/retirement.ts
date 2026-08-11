@@ -28,7 +28,7 @@
  */
 
 import { geometricMonthlyRate } from '@/lib/engine/fi/fi';
-import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
+import { type Cents, cents, formatCents, roundHalfAwayFromZero } from '@/lib/money';
 
 export interface RetirementInputs {
   /** Portfolio value today (≥ 0). */
@@ -275,5 +275,91 @@ export function projectRetirement(input: RetirementInputs): RetirementProjection
     sustainableAnnualWithdrawalCents,
     plannedAnnualWithdrawalCents: annualRetirementSpendingCents,
     yearlyBalances,
+  };
+}
+
+// ── The refusal panel behind the year bars (O.20d) ──────────────────────────
+
+/**
+ * What the retirement year bars are made of — and the honest answer is NOTHING
+ * transactional. They are pure projection, so the drilldown behind a bar is a
+ * REFUSAL panel: it names the assumptions the projection follows instead of
+ * rows. Both sentences here are engine-composed with RENDERED figures embedded
+ * (the O.18c rule — a sentence written in a .tsx cannot be locked by a test).
+ */
+export interface RetirementAssumptionInput {
+  currentAge: number;
+  retirementAge: number;
+  endAge: number;
+  monthlyContributionCents: Cents;
+  /** The user's NOMINAL expected-return dial, bps. */
+  nominalReturnBps: number;
+  /** The planning inflation dial, bps. */
+  inflationBps: number;
+  /** True = the app's default return is in force (wording differs — W.13). */
+  returnIsDefault: boolean;
+  annualRetirementSpendingCents: Cents;
+}
+
+const pctFromBps = (bps: number): string => {
+  const v = bps / 100;
+  return `${Number.isInteger(v) ? v : v.toFixed(2)}%`;
+};
+
+/**
+ * The single assumption sentence behind the whole projection, composed once so
+ * the card's footnote and every refusal panel state the SAME sentence — two
+ * surfaces asserting different assumptions would be a drift no test could see.
+ */
+export function retirementAssumptionsSentence(input: RetirementAssumptionInput): string {
+  const ret = input.returnIsDefault
+    ? `our default ${pctFromBps(input.nominalReturnBps)} expected return`
+    : `your ${pctFromBps(input.nominalReturnBps)} expected return`;
+  const returnClause =
+    input.nominalReturnBps <= input.inflationBps
+      ? `${ret} (at or below ~${pctFromBps(input.inflationBps)} inflation, so no real growth is assumed)`
+      : `${ret} less ~${pctFromBps(input.inflationBps)} inflation`;
+  return (
+    // Typographic apostrophes, matching the app's copy convention (the old
+    // card paragraph rendered `&rsquo;`); the e2e suite locks `today’s`.
+    `Assumes you’re ${input.currentAge} today, retiring at ${input.retirementAge} and planning through ` +
+    `${input.endAge}; saving ${formatCents(input.monthlyContributionCents)}/mo until then; ${returnClause}; and ` +
+    `today’s ${formatCents(input.annualRetirementSpendingCents)}/yr of spending — all in today’s dollars.`
+  );
+}
+
+export function retirementYearRefusal(
+  age: number,
+  figureCents: Cents,
+  assumptions: RetirementAssumptionInput,
+): { emptyCopy: string; basis: readonly [string, ...string[]] } {
+  return {
+    emptyCopy: `${formatCents(figureCents)} at age ${age} is a projection — no transactions or holdings make it up.`,
+    basis: [
+      retirementAssumptionsSentence(assumptions),
+      `Change an assumption in the what-if above and every bar, including this one, recomputes with it.`,
+    ],
+  };
+}
+
+/**
+ * The FIRST bar of the year strip (age === currentAge) is NOT a projection —
+ * `projectRetirement` seeds it with today's live portfolio (the same figure
+ * the /investments page headlines). The refusal sentence above would be a
+ * false claim about a real money figure (O.20d critic P1-1: "$142,000.00 at
+ * age 40 is a projection — no transactions or holdings make it up" is exactly
+ * wrong: the five holdings DO make it up). This bar gets its own honest
+ * refusal: it is the actual starting figure, not a what-if.
+ */
+export function retirementCurrentPortfolioRefusal(
+  figureCents: Cents,
+  assumptions: RetirementAssumptionInput,
+): { emptyCopy: string; basis: readonly [string, ...string[]] } {
+  return {
+    emptyCopy: `The ${formatCents(figureCents)} is your current portfolio — the live balance of your investment accounts today, not a projection.`,
+    basis: [
+      retirementAssumptionsSentence(assumptions),
+      `Every later bar projects this starting portfolio forward under those assumptions; this bar is the actual starting figure.`,
+    ],
   };
 }

@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildSeedData } from '@/lib/seed/build';
 import {
+  creepPanelBasis,
   detectLifestyleCreep,
   findOpportunities,
   hoursOfWork,
@@ -229,6 +230,130 @@ describe('lifestyle-creep detector on the engineered seed rise', () => {
     ]).flat();
     const creep = detectLifestyleCreep(flat, isoDate('2025-09-01'));
     expect(creep.flagged).toBe(false);
+  });
+});
+
+describe('creep bars carry their rows out of the summing loop (O.20d)', () => {
+  const txn = (
+    date: string,
+    amountCents: number,
+    over: Partial<Parameters<typeof detectLifestyleCreep>[0][number]> = {},
+  ) => ({
+    id: `id-${date}-${amountCents}`,
+    date,
+    amountCents,
+    rawDescriptor: 'STARBUCKS 800-782-7282',
+    accountId: 'a',
+    isTransfer: false,
+    status: 'POSTED' as const,
+    ...over,
+  });
+
+  it('Σ rows === the month figure, on every month of the window', () => {
+    const txns = [
+      txn('2026-01-03', -5000),
+      txn('2026-01-15', -12000),
+      txn('2026-01-28', -2500),
+      txn('2026-02-06', -9000),
+      txn('2026-02-06', -9000, { id: 'feb-2' }), // same day, same descriptor, distinct id
+      txn('2026-02-20', -1400),
+    ];
+    const creep = detectLifestyleCreep(txns, isoDate('2026-06-10'));
+    for (const m of creep.monthlyDiscretionaryCents) {
+      expect(m.rows.reduce((s, r) => s + r.amountCents, 0)).toBe(m.amountCents);
+    }
+    expect(creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!.amountCents).toBe(19500);
+    expect(creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!.rows).toHaveLength(3);
+    expect(creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-02')!.rows).toHaveLength(3);
+    // The two identical rows get distinct keys.
+    const febRows = creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-02')!.rows;
+    expect(new Set(febRows.map((r) => r.key)).size).toBe(3);
+  });
+
+  it('rows carry the register name when the caller has one, else the normalized bank text', () => {
+    const txns = [
+      txn('2026-01-03', -5000, { id: 't1', merchantName: 'Starbucks' }),
+      txn('2026-01-04', -7000, { id: 't2' }), // no merchantName → normalized
+    ];
+    const creep = detectLifestyleCreep(txns, isoDate('2026-06-10'));
+    const rows = creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!.rows;
+    expect(rows.find((r) => r.transactionId === 't1')!.label).toBe('Starbucks');
+    // rawDescriptor shown only when it differs from the label.
+    expect(rows.find((r) => r.transactionId === 't1')!.rawDescriptor).toBe('STARBUCKS 800-782-7282');
+    expect(rows.find((r) => r.transactionId === 't2')!.label).not.toBe('STARBUCKS 800-782-7282');
+    expect(rows.find((r) => r.transactionId === 't2')!.label.length).toBeGreaterThan(0);
+  });
+
+  it('rows are POSTED-only, spend-oriented positive, and never transfers', () => {
+    const txns = [
+      txn('2026-01-03', -5000), // posted, counts
+      txn('2026-01-04', -8000, { status: 'PENDING' }), // pending, out
+      txn('2026-01-05', -9000, { isTransfer: true }), // transfer, out
+      txn('2026-01-06', 15000, { rawDescriptor: 'REFUND STARBUCKS' }), // positive → income side, never discretionary
+    ];
+    const creep = detectLifestyleCreep(txns, isoDate('2026-06-10'));
+    const m = creep.monthlyDiscretionaryCents.find((x) => x.month === '2026-01')!;
+    expect(m.amountCents).toBe(5000);
+    expect(m.rows).toHaveLength(1);
+    expect(m.rows[0].amountCents).toBe(5000); // positive, spend-oriented
+    expect(m.rows[0].isPending).toBe(false);
+  });
+
+  it('reports loanPaymentsExcluded only when the exclusion set is non-empty', () => {
+    const creep = detectLifestyleCreep([txn('2026-01-03', -5000)], isoDate('2026-06-10'));
+    expect(creep.loanPaymentsExcluded).toBe(false);
+    const excluded = detectLifestyleCreep(
+      [txn('2026-01-03', -5000)],
+      isoDate('2026-06-10'),
+      6,
+      undefined,
+      new Set(['lp-1']),
+    );
+    expect(excluded.loanPaymentsExcluded).toBe(true);
+    const empty = detectLifestyleCreep([txn('2026-01-03', -5000)], isoDate('2026-06-10'), 6, undefined, new Set());
+    expect(empty.loanPaymentsExcluded).toBe(false);
+  });
+
+  it('flags a month where a return was filed to a discretionary category (gross-vs-net disclosure)', () => {
+    const txns = [
+      txn('2026-01-03', -5000),
+      txn('2026-01-10', -12000),
+      txn('2026-01-18', 10000, { categoryId: 'shopping', id: 'refund-jan' }), // AMZN return filed to shopping
+      txn('2026-01-25', 250000, { categoryId: 'income', id: 'paycheck-jan' }), // income is NOT a refund flag
+    ];
+    const creep = detectLifestyleCreep(txns, isoDate('2026-06-10'), 6);
+    const jan = creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!;
+    expect(jan.hasDiscretionaryRefunds).toBe(true);
+    expect(jan.amountCents).toBe(17000); // the $100.00 refund never nets the bar
+    expect(jan.rows.reduce((s, r) => s + r.amountCents, 0)).toBe(17000);
+    const feb = creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-02')!;
+    expect(feb.hasDiscretionaryRefunds).toBe(false);
+  });
+});
+
+describe('creepPanelBasis (O.20d)', () => {
+  it('embeds the rendered figure and names what counts and what never does', () => {
+    const basis = creepPanelBasis('May 2026', cents(12000), false, false);
+    expect(basis.length).toBeGreaterThanOrEqual(2);
+    expect(basis[0]).toBe(
+      'The $120.00 is May 2026’s discretionary spending: posted purchases in a discretionary category — dining out, shopping, entertainment, and the other categories the app treats as discretionary.',
+    );
+    expect(basis[1]).toContain('transfers, pending rows, and rows you’ve excluded are never in it');
+  });
+  it('adds the loan-payment sentence only when exclusions were actually applied', () => {
+    expect(creepPanelBasis('May 2026', cents(12000), false, false)).toHaveLength(2);
+    const withLoan = creepPanelBasis('May 2026', cents(12000), true, false);
+    expect(withLoan).toHaveLength(3);
+    expect(withLoan[2]).toContain('Loan payments');
+  });
+  it('discloses the gross-vs-net basis only when a discretionary refund occurred', () => {
+    expect(creepPanelBasis('May 2026', cents(12000), false, true)).toHaveLength(3);
+    const withRefund = creepPanelBasis('May 2026', cents(12000), false, true);
+    expect(withRefund[2]).toContain('counts as income, not spend');
+    // Both conditionals at once: refund sentence before the loan-payment one.
+    const both = creepPanelBasis('May 2026', cents(12000), true, true);
+    expect(both).toHaveLength(4);
+    expect(both[3]).toContain('Loan payments');
   });
 });
 

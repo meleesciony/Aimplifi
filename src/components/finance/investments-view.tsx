@@ -7,12 +7,14 @@
  * explorer is its own client island (retirement-outlook-card.tsx).
  */
 import Link from 'next/link';
-import { PieChart, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cents, formatCents } from '@/lib/money';
 import { holdingProvenance, isPerShareApproximate } from '@/lib/engine/investments/portfolio';
 import { resolveInvestmentScope } from '@/lib/engine/investments/scope';
+import { allocationSegments } from '@/lib/engine/investments/panel';
+import { AllocationDrilldown } from '@/components/finance/allocation-drilldown';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { RetirementOutlookCard } from '@/components/finance/retirement-outlook-card';
 import type { WithheldAccountSummary } from '@/lib/providers/currency';
@@ -20,7 +22,6 @@ import type { InvestmentsView as InvestmentsData, RetirementOutlook } from '@/se
 
 const GAIN_UP = 'text-emerald-600 dark:text-emerald-400';
 const GAIN_DOWN = 'text-rose-600 dark:text-rose-400';
-const ALLOC_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#a855f7', '#ec4899', '#14b8a6', '#64748b'];
 
 const tone = (n: number) => (n >= 0 ? GAIN_UP : GAIN_DOWN);
 const pctLabel = (pct: number | null): string =>
@@ -43,6 +44,9 @@ export function InvestmentsView({
 }) {
   const { overall, accounts } = data;
   const hasHoldings = overall.positions.length > 0;
+  // O.20d: the allocation bar's segments — grouped by symbol from the same
+  // per-account positions the page renders (see the engine module).
+  const allocSegments = allocationSegments({ accounts });
   // Which per-account cards to show (the portfolio-wide summary card below stays whole-portfolio).
   const scope = resolveInvestmentScope(accounts, scopedAccountId);
 
@@ -87,28 +91,9 @@ export function InvestmentsView({
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="text-xs text-muted-foreground">Cost basis {money(overall.totalCostBasisCents)}</div>
-              <div>
-                <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  <PieChart className="size-3.5" aria-hidden /> Allocation
-                </div>
-                <div className="mt-1.5 flex h-2.5 w-full overflow-hidden rounded-full bg-muted" data-testid="investments-allocation">
-                  {overall.positions.map((p, i) => (
-                    <div
-                      key={p.symbol}
-                      style={{ width: `${Math.max(0, p.weight * 100)}%`, background: ALLOC_COLORS[i % ALLOC_COLORS.length] }}
-                      aria-hidden
-                    />
-                  ))}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  {overall.positions.map((p, i) => (
-                    <span key={p.symbol} className="inline-flex items-center gap-1">
-                      <span className="size-2 rounded-full" style={{ background: ALLOC_COLORS[i % ALLOC_COLORS.length] }} aria-hidden />
-                      {p.symbol} {Math.round(p.weight * 100)}%
-                    </span>
-                  ))}
-                </div>
-              </div>
+              {/* O.20d: the allocation strip is now a set of real controls —
+                  each segment opens the accounts holding that symbol. */}
+              <AllocationDrilldown segments={allocSegments} />
             </CardContent>
           </Card>
 

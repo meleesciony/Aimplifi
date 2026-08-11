@@ -16,6 +16,7 @@ import { ConnectAccountsButton } from '@/components/finance/connect-accounts-but
 import { ConnectSimplefin } from '@/components/finance/connect-simplefin';
 import { PlaidConnections } from '@/components/finance/plaid-connections';
 import { SyncAllButton } from '@/components/finance/sync-all-button';
+import { NetWorthTrendDrilldown } from '@/components/finance/net-worth-trend-drilldown';
 import {
   cardOffersDisconnect,
   connectionsById,
@@ -177,6 +178,9 @@ function NetWorthCard({ data }: { data: AccountsView }) {
             </ResponsiveContainer>
           </div>
         )}
+        {/* O.20d: the same point drilldown the dashboard card carries — every
+            month-end and the live point open their constituents. */}
+        <NetWorthTrendDrilldown points={data.trend} testIdPrefix="accounts-net-worth" />
       </CardContent>
     </Card>
   );

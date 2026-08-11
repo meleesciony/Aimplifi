@@ -13,7 +13,7 @@ import {
   selectLoanObligations,
   selectUndatableFrozenLoans,
 } from '@/lib/engine/loans/obligations';
-import { netWorthSeries } from '@/lib/engine/networth/series';
+import { netWorthSeries, type NetWorthSeriesPoint } from '@/lib/engine/networth/series';
 import { type PaymentReminder, selectPaymentReminders } from '@/lib/engine/reminders/select';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import { getProvider } from '@/lib/providers/demo';
@@ -38,11 +38,6 @@ import { renderSafe } from '@/lib/engine/account/render-safe';
  *  behavior; 'household' folds in every LIVE partner's shared-account obligations. */
 export type CashNeededScope = 'mine' | 'household';
 
-export interface NetWorthPoint {
-  date: string;
-  netWorthCents: number;
-}
-
 export interface DashboardData {
   today: string;
   paymentAccountName: string;
@@ -55,7 +50,9 @@ export interface DashboardData {
   payInFull: CashNeededResult;
   minimum: CashNeededResult;
   netWorthCents: Cents;
-  netWorthTrend: NetWorthPoint[];
+  /** Engine series points (each with per-account constituents, O.20d) — the
+   *  dashboard drilldown renders exactly what the series builder carried. */
+  netWorthTrend: NetWorthSeriesPoint[];
   /** Upcoming card payments this cycle (ROADMAP #6) — derived from the same obligations. */
   reminders: PaymentReminder[];
   /**
@@ -530,12 +527,6 @@ export async function getDashboardData(
   // via the one shared series builder (DECISIONS #40) — same classifier as the
   // headline + the /accounts page, so manual liabilities can't be miscounted.
   const current = netWorthCents(snap.accounts);
-  const netWorthTrend = netWorthSeries({
-    snapshots: snap.balanceSnapshots,
-    accounts: snap.accounts,
-    today,
-  });
-
   const accounts = snap.accounts.map((a) => ({
     id: a.id,
     name: accountLabel(a),
@@ -544,6 +535,15 @@ export async function getDashboardData(
     mask: (a as { mask?: string | null }).mask ?? null,
     feedDroppedAt: a.feedDroppedAt ?? null,
   }));
+
+  // The trend series — fed the SAME reader-facing `accounts` rows (names
+  // included, O.20d) so each point's constituents carry the names the reader
+  // knows, not raw Prisma rows.
+  const netWorthTrend = netWorthSeries({
+    snapshots: snap.balanceSnapshots,
+    accounts,
+    today,
+  });
 
   // cardId -> last-4, for the /cards identity line (#298). Built from `cashNeededSnap`, NOT from
   // `accounts` above: `accounts` is the PERSONAL snapshot, while the obligation list is computed

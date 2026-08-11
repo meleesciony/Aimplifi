@@ -19,7 +19,13 @@ import Link from 'next/link';
 import { CalendarClock, RotateCcw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cents, formatCents } from '@/lib/money';
-import { buildRetirementInputs, projectRetirement } from '@/lib/engine/investments/retirement';
+import {
+  buildRetirementInputs,
+  projectRetirement,
+  retirementAssumptionsSentence,
+  retirementCurrentPortfolioRefusal,
+  retirementYearRefusal,
+} from '@/lib/engine/investments/retirement';
 import {
   type WhatIfPlan,
   endRange,
@@ -28,6 +34,7 @@ import {
   setInflationPercent,
   setRetirement,
 } from '@/lib/engine/investments/retirement-whatif';
+import { BreakdownPanel } from '@/components/finance/breakdown-panel';
 import type { RetirementOutlook } from '@/server/investments';
 
 const GAIN_UP = 'text-emerald-600 dark:text-emerald-400';
@@ -36,9 +43,12 @@ const ACCUM_BAR = '#10b981'; // emerald — saving years
 const DRAW_BAR = '#3b82f6'; //  blue — retirement draw-down years
 
 const money = (n: number): string => formatCents(cents(Math.round(n)));
+/** The card's own basis-percent renderer, kept for the SWR sentence (the engine
+ *  composer covers the RETIREMENT assumptions; the withdrawal rate sentence is
+ *  not part of that composer). Matches pctFromBps's byte-identical output. */
 const pctFromBps = (bps: number): string => {
   const v = bps / 100;
-  return `${Number.isInteger(v) ? v : v.toFixed(2)}%`;
+  return Number.isInteger(v) ? `${v}` : v.toFixed(2);
 };
 
 const inputClass =
@@ -78,20 +88,27 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
     : `Funds run low around age ${depletion}`;
   const overSustainable = base.annualRetirementSpendingCents > p.sustainableAnnualWithdrawalCents;
   const peak = Math.max(...p.yearlyBalances.map((y) => y.balanceCents), 1);
-  // When the nominal return is at/below inflation, say "no real growth assumed" rather than
-  // show a subtraction that implies a negative rate (the engine floors the real return at 0).
-  // W.13 — whose expected return this is. `User.expectedReturnBps` is non-nullable with the
-  // app's own 700 as its default and the /settings field is required, so calling it "your
-  // expected return" claimed a decision from every reader who has never opened that page. Same
-  // clause, same rate, one honest possessive; the inflation half carries no possessive here
-  // because the reader is editing it in this very card.
-  const ret = inputs.returnIsDefault
-    ? `our default ${pctFromBps(base.nominalReturnBps)} expected return`
-    : `your ${pctFromBps(base.nominalReturnBps)} expected return`;
-  const returnClause =
-    base.nominalReturnBps <= plan.inflationBps
-      ? `${ret} (at or below ~${pctFromBps(plan.inflationBps)} inflation, so no real growth is assumed)`
-      : `${ret} less ~${pctFromBps(plan.inflationBps)} inflation`;
+
+  // The one assumption sentence behind the whole projection — composed in the
+  // ENGINE (O.20d) so this footnote and every bar's refusal panel state the
+  // same sentence; two surfaces asserting different assumptions would be a
+  // drift no test could see. The W.13 possessive and the no-real-growth clause
+  // are inside the composer, with the card's original wording byte-identical.
+  const assumptionInput = {
+    currentAge,
+    retirementAge: plan.retirementAge,
+    endAge: plan.endAge,
+    monthlyContributionCents: cents(base.monthlyContributionCents),
+    nominalReturnBps: base.nominalReturnBps,
+    inflationBps: plan.inflationBps,
+    returnIsDefault: inputs.returnIsDefault,
+    annualRetirementSpendingCents: cents(base.annualRetirementSpendingCents),
+  } satisfies Parameters<typeof retirementAssumptionsSentence>[0];
+
+  // O.20d: the year bars are real controls; the panel behind one is a REFUSAL
+  // — a projection has no rows, and the panel says so instead of inventing any.
+  const [selectedAge, setSelectedAge] = useState<number | null>(null);
+  const selectedYear = selectedAge !== null ? p.yearlyBalances.find((y) => y.age === selectedAge) ?? null : null;
 
   const rRange = retireRange(currentAge);
   const eRange = endRange(plan.retirementAge);
@@ -123,24 +140,85 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
             : `On these assumptions your savings would run low around age ${depletion}.`}
         </p>
 
-        {/* Balance over time: saving years (green) then draw-down years (blue). */}
+        {/* Balance over time: saving years (green) then draw-down years (blue).
+            Every bar is a control (O.20d): it opens the refusal panel that says
+            what a projection bar is made of — nothing transactional. */}
         <div
           className="flex h-16 items-end gap-px"
-          role="img"
-          aria-label={`Projected portfolio balance from age ${currentAge} to ${plan.endAge}, peaking near ${money(peak)}.`}
+          role="group"
+          aria-label={`Projected portfolio balance from age ${currentAge} to ${plan.endAge}, starting at your current portfolio, peaking near ${money(peak)} — select a year to see what its bar is made of.`}
         >
-          {p.yearlyBalances.map((y) => (
-            <div
-              key={y.age}
-              className="flex-1 rounded-sm"
-              style={{
-                height: `${Math.max(2, (y.balanceCents / peak) * 100)}%`,
-                background: y.age < plan.retirementAge ? ACCUM_BAR : DRAW_BAR,
-              }}
-              aria-hidden
-            />
-          ))}
+          {p.yearlyBalances.map((y) => {
+            const isOpen = selectedAge === y.age;
+            // The FIRST bar (age === currentAge) is the live portfolio, not a
+            // projection — its label and its panel must not claim otherwise
+            // (critic P1-1: "$142,000.00 at age 40 is a projection" is exactly
+            // wrong for the bar the holdings actually make up).
+            const isCurrent = y.age === currentAge;
+            const offered = isCurrent
+              ? 'It is your current portfolio — see what the projection assumes'
+              : 'It is a projection — see what it assumes';
+            return (
+              <button
+                key={y.age}
+                type="button"
+                data-testid={`retirement-bar-${y.age}`}
+                data-open={isOpen ? 'true' : 'false'}
+                aria-label={`Age ${y.age}: ${isCurrent ? 'current' : 'projected'} balance ${money(y.balanceCents)}. ${isOpen ? 'Hide' : offered}`}
+                aria-expanded={isOpen}
+                onClick={() => setSelectedAge(isOpen ? null : y.age)}
+                className="flex w-full cursor-pointer items-end focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                style={{ height: '64px' }}
+              >
+                <span
+                  className={`block w-full rounded-sm ${isOpen ? '' : 'opacity-80'}`}
+                  style={{
+                    height: `${Math.max(2, (y.balanceCents / peak) * 100)}%`,
+                    background: y.age < plan.retirementAge ? ACCUM_BAR : DRAW_BAR,
+                  }}
+                  aria-hidden
+                />
+              </button>
+            );
+          })}
         </div>
+
+        {selectedYear &&
+          (() => {
+            const isCurrent = selectedYear.age === currentAge;
+            const refusal = isCurrent
+              ? retirementCurrentPortfolioRefusal(cents(selectedYear.balanceCents), assumptionInput)
+              : retirementYearRefusal(selectedYear.age, cents(selectedYear.balanceCents), assumptionInput);
+            return (
+              <BreakdownPanel
+                // Remount on selection so `defaultOpen` re-applies: tapping the
+                // bar IS the open gesture.
+                key={selectedYear.age}
+                subject={{
+                  id: `${selectedYear.age}`,
+                  name: isCurrent ? `Current portfolio at age ${selectedYear.age}` : `Projection at age ${selectedYear.age}`,
+                  headlineCents: cents(selectedYear.balanceCents),
+                  rows: [],
+                  sumCents: cents(0),
+                  reconciles: false,
+                  clampedByNetRefund: false,
+                }}
+                emptyToggleLabel={
+                  isCurrent
+                    ? "It’s your current portfolio — see what the projection assumes"
+                    : "It’s a projection — see what it assumes"
+                }
+                emptyCopy={refusal.emptyCopy}
+                netRefundCopy=""
+                basis={refusal.basis}
+                testIdPrefix="retirement-bar"
+                defaultOpen
+                onToggle={(o) => {
+                  if (!o) setSelectedAge(null); // inner Hide clears the bar (critic P2-1)
+                }}
+              />
+            );
+          })()}
 
         <p className={`text-xs ${overSustainable ? AMBER : GAIN_UP}`}>
           {overSustainable
@@ -231,11 +309,8 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
           </p>
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          Assumes you&rsquo;re {currentAge} today, retiring at {plan.retirementAge} and planning through{' '}
-          {plan.endAge}; saving {money(base.monthlyContributionCents)}/mo until then; {returnClause}; and
-          today&rsquo;s {money(base.annualRetirementSpendingCents)}/yr of spending — all in
-          today&rsquo;s dollars.
+        <p className="text-xs text-muted-foreground" data-testid="retirement-assumptions">
+          {retirementAssumptionsSentence(assumptionInput)}
         </p>
       </CardContent>
     </Card>

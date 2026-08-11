@@ -8,8 +8,11 @@
  */
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { TrendingDown, TrendingUp } from 'lucide-react';
+import { useState } from 'react';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
+import { forecastDayBasis } from '@/lib/engine/forecast/panel';
+import { BreakdownPanel } from '@/components/finance/breakdown-panel';
 import type { CashFlowForecastData } from '@/server/forecast';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -21,6 +24,11 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
   const deltaCents = f.endingBalanceCents - f.startingBalanceCents;
   const color = dips ? '#f43f5e' : '#10b981';
   const chart = f.days.map((d) => ({ date: tick(d.date), full: d.date, dollars: d.balanceCents / 100 }));
+  // O.20d: days with scheduled flows are the drillable points on the balance
+  // line — a day with no flows has nothing behind it to show.
+  const flowDays = f.days.filter((d) => d.events.length > 0);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const selectedDayData = selectedDay ? f.days.find((d) => d.date === selectedDay) ?? null : null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -128,6 +136,79 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
             </AreaChart>
           </ResponsiveContainer>
         </div>
+
+        {/* O.20d: every day with scheduled flows is a real control — tap it to
+            see the flows that move the line that day. The line itself is
+            cumulative, so the panel's figure is the day's CHANGE, never the
+            balance (the basis sentence says exactly that). */}
+        {flowDays.length > 0 && (
+          <div className="mt-3" data-testid="forecast-flow-days">
+            <p className="text-xs text-muted-foreground">
+              Days with scheduled flows — tap one to see what lands on it:
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {flowDays.map((d) => {
+                const isOpen = selectedDay === d.date;
+                const label = tick(d.date);
+                return (
+                  <button
+                    key={d.date}
+                    type="button"
+                    data-testid={`forecast-day-chip-${d.date}`}
+                    data-open={isOpen ? 'true' : 'false'}
+                    aria-label={`${label}: ${d.events.length} scheduled flow${d.events.length === 1 ? '' : 's'}. Show them.`}
+                    aria-expanded={isOpen}
+                    onClick={() => setSelectedDay(isOpen ? null : d.date)}
+                    className={`rounded-full border px-2.5 py-1 text-xs transition hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                      isOpen
+                        ? 'border-ring bg-accent font-medium text-foreground'
+                        : 'border-border text-muted-foreground'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {selectedDayData && (
+          <BreakdownPanel
+            // Remount on selection so `defaultOpen` re-applies: tapping the
+            // chip IS the open gesture.
+            key={selectedDayData.date}
+            subject={{
+              id: selectedDayData.date,
+              // Date alone as the name — the region label prefixes "Flows in",
+              // so "Flows on <date>" would double it (critic P2-A).
+              name: formatISODate(isoDate(selectedDayData.date)),
+              headlineCents: cents(selectedDayData.netCents),
+              rows: selectedDayData.events.map((e, i) => ({
+                key: `${selectedDayData.date}:${i}`,
+                transactionId: null,
+                date: selectedDayData.date,
+                label: e.label,
+                rawDescriptor: null,
+                amountCents: cents(e.amountCents),
+                isPending: false,
+              })),
+              sumCents: cents(selectedDayData.netCents),
+              reconciles: true,
+              clampedByNetRefund: false,
+            }}
+            emptyCopy="No scheduled flows land on this day — the projected balance passes through unchanged."
+            netRefundCopy=""
+            basis={forecastDayBasis(cents(selectedDayData.netCents), selectedDayData.events.length)}
+            testIdPrefix="forecast-day"
+            hideRowDates
+            defaultOpen
+            rowNoun="flow"
+            onToggle={(o) => {
+              if (!o) setSelectedDay(null); // inner Hide clears the chip (critic P2-1)
+            }}
+          />
+        )}
       </section>
 
       {/* Upcoming flows */}

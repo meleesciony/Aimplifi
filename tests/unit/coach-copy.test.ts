@@ -47,6 +47,7 @@ const creepFlagged: CreepResult = {
   incomeGrowthBps: 10,
   monthlyDiscretionaryCents: [],
   windowMonths: 6,
+  loanPaymentsExcluded: false,
 };
 const creepClear: CreepResult = { ...creepFlagged, flagged: false, spendGrowthBps: 20 };
 

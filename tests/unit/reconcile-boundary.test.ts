@@ -23,9 +23,9 @@ import { netWorthSeries } from '@/lib/engine/networth/series';
 
 // ─── the EDGE_CASES fixture ─────────────────────────────────────────────────
 
-const PRED = { id: 'pred', type: 'CHECKING', currentBalanceCents: 240_000, availableBalanceCents: 239_000 };
-const SUCC = { id: 'succ', type: 'CHECKING', currentBalanceCents: 250_000, availableBalanceCents: 251_000 };
-const OTHER = { id: 'other', type: 'SAVINGS', currentBalanceCents: 100_000, availableBalanceCents: null };
+const PRED = { id: 'pred', name: 'Pred', type: 'CHECKING', currentBalanceCents: 240_000, availableBalanceCents: 239_000 };
+const SUCC = { id: 'succ', name: 'Succ', type: 'CHECKING', currentBalanceCents: 250_000, availableBalanceCents: 251_000 };
+const OTHER = { id: 'other', name: 'Other', type: 'SAVINGS', currentBalanceCents: 100_000, availableBalanceCents: null };
 const ACCOUNTS = [PRED, SUCC, OTHER];
 
 const LINK: ReconciliationLinkLike = {

@@ -6,10 +6,11 @@
  * coach-copy.ts so the guardrail test can scan them exhaustively.
  */
 
-import { type Cents, cents } from '@/lib/money';
+import { type Cents, cents, formatCents } from '@/lib/money';
 import { type ISODate, addMonthsClamped, isoDate, monthKey } from '@/lib/dates';
 import { median } from '@/lib/stats';
 import { categorize } from '@/lib/engine/categorize/pipeline';
+import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId } from '@/lib/engine/categorize/categories';
 import type { RecurringSeriesResult } from '@/lib/engine/recurring/detect';
@@ -38,6 +39,13 @@ export interface TxnLike {
   /** #397: the reader's per-row Fixed/Discretionary verdict ('fixed' |
    *  'guilt-free'); null/absent = the app's guess. */
   spendClassOverride?: string | null;
+  /**
+   * The register's own display name for this row (coach.ts carries it on the
+   * same array `monthlyFlows` sums — see its `merchantName` comment). Absent =
+   * the engine falls back to the normalized bank text, which is the register's
+   * own rule, so the two surfaces cannot disagree about a payee's name.
+   */
+  merchantName?: string | null;
 }
 
 /**
@@ -255,14 +263,58 @@ export function findOpportunities(
 
 // ── Lifestyle-creep detection (Psychology of Money: growth vs income) ───────
 
+/**
+ * One discretionary purchase inside a month's creep bar, as the panel prints it.
+ *
+ * Structurally the SAME shape as the Glass-Box `BreakdownRow` (same field
+ * names, same semantics), so a panel that takes `BreakdownRow[]` accepts these
+ * directly; kept here rather than imported so the fi engine does not couple to
+ * the glass-box layer. `amountCents` is oriented as SPEND (positive) like every
+ * panel row, so the rows sum to the month figure.
+ */
+export interface CreepRow {
+  /** Stable within the month's breakdown; a React key that needs no database id. */
+  key: string;
+  /** Present iff the source row had one — the row's link to `/transactions/<id>`. */
+  transactionId: string | null;
+  date: string;
+  /** The register's own display name when the caller had one; else the normalized bank text. */
+  label: string;
+  /** The bank's own descriptor, present ONLY when it differs from `label`. */
+  rawDescriptor: string | null;
+  amountCents: Cents;
+  /** Always false here — `countsInFlows` only admits POSTED rows; carried for shape parity. */
+  isPending: boolean;
+}
+
+export interface CreepMonth {
+  month: string; // YYYY-MM
+  amountCents: Cents;
+  /**
+   * The discretionary purchases the figure was summed from, carried out of the
+   * SAME loop (the O.18c/O.20d carry-out rule): Σ rows === amountCents by
+   * construction, and a panel's "matched to the penny" sentence is a real check.
+   */
+  rows: CreepRow[];
+  /** A positive row filed to a discretionary category occurred this month — it
+   *  went to income, so the bar is GROSS spend and the panel must say so. */
+  hasDiscretionaryRefunds: boolean;
+}
+
 export interface CreepResult {
   flagged: boolean;
   /** Growth of MEDIAN discretionary spend, first half → second half of the window (bps). */
   spendGrowthBps: number;
   /** Same measure for income — median is robust to biweekly-payroll months with 3 paydays. */
   incomeGrowthBps: number;
-  monthlyDiscretionaryCents: { month: string; amountCents: Cents }[];
+  monthlyDiscretionaryCents: CreepMonth[];
   windowMonths: number;
+  /**
+   * True iff the caller's C.25 exclusion set (DECISIONS #403) was non-empty, so
+   * the panel basis can say loan payments were carried elsewhere — the engine
+   * knows what it excluded, the caller's snapshot does not need to.
+   */
+  loanPaymentsExcluded: boolean;
 }
 
 /**
@@ -286,13 +338,30 @@ export function detectLifestyleCreep(
   }
 
   const discSpend = new Map<string, number>(months.map((m) => [m, 0]));
+  const discRows = new Map<string, CreepRow[]>(months.map((m) => [m, []]));
   const income = new Map<string, number>(months.map((m) => [m, 0]));
+  // A positive row filed to a discretionary category (a return, or cashback
+  // filed to "shopping") is routed to INCOME — so it never nets the bar. The
+  // bar is GROSS discretionary spend; the panel must disclose the divergence
+  // when one occurred, so we record it per month (O.20d critic P2-2).
+  const discRefunds = new Map<string, boolean>(months.map((m) => [m, false]));
   for (const t of transactions) {
     if (!countsInFlows(t, excludedFlowIds)) continue;
     const month = monthKey(t.date);
     if (!discSpend.has(month)) continue;
     if (t.amountCents > 0) {
       income.set(month, income.get(month)! + t.amountCents);
+      // The same stored-category resolution the spend branch uses — the flag
+      // must not drift from what the spend side counts by.
+      const categoryId =
+        t.categoryId ??
+        categorize({
+          rawDescriptor: t.rawDescriptor,
+          amountCents: t.amountCents,
+          date: t.date,
+          accountId: t.accountId,
+        }).categoryId;
+      if (meta.get(categoryId)?.discretionary) discRefunds.set(month, true);
       continue;
     }
     // The STORED category is the truth — it reflects the user's triage
@@ -309,6 +378,20 @@ export function detectLifestyleCreep(
       }).categoryId;
     if (meta.get(categoryId)?.discretionary) {
       discSpend.set(month, discSpend.get(month)! - t.amountCents);
+      // Carry the row out of the SAME loop that summed the figure (O.20d): the
+      // panel rows are these rows, so they cannot disagree with the bar.
+      const rows = discRows.get(month)!;
+      const label = t.merchantName ?? normalizeMerchant(t.rawDescriptor).canonical;
+      const id = typeof t.id === 'string' ? t.id : null;
+      rows.push({
+        key: id ?? `${t.date}:${t.rawDescriptor}:${rows.length}`,
+        transactionId: id,
+        date: t.date,
+        label,
+        rawDescriptor: label === t.rawDescriptor ? null : t.rawDescriptor,
+        amountCents: cents(-t.amountCents),
+        isPending: false, // countsInFlows admitted only POSTED rows
+      });
     }
   }
 
@@ -332,9 +415,51 @@ export function detectLifestyleCreep(
     flagged: spendGrowth - incomeGrowth >= 500,
     spendGrowthBps: spendGrowth,
     incomeGrowthBps: incomeGrowth,
-    monthlyDiscretionaryCents: months.map((m) => ({ month: m, amountCents: cents(discSpend.get(m)!) })),
+    monthlyDiscretionaryCents: months.map((m) => ({
+      month: m,
+      amountCents: cents(discSpend.get(m)!),
+      rows: discRows.get(m)!,
+      hasDiscretionaryRefunds: discRefunds.get(m)!,
+    })),
     windowMonths,
+    loanPaymentsExcluded: excludedFlowIds !== undefined && excludedFlowIds.size > 0,
   };
+}
+
+/**
+ * The basis sentences behind one month's creep bar (O.20d), engine-composed with
+ * the RENDERED figure embedded — a rule in a .tsx cannot be locked by a test,
+ * and the two surfaces must never state in their own words what counts here.
+ *
+ * `monthLabel` is the already-rendered month ("May 2026"), like every embedded
+ * string. The third sentence appears only when the engine actually excluded
+ * loan-payment ids (C.25 / DECISIONS #403) — with an empty set the sentence
+ * would claim an exclusion that never happened.
+ */
+export function creepPanelBasis(
+  monthLabel: string,
+  amountCents: Cents,
+  excludesLoanPayments: boolean,
+  hasDiscretionaryRefunds: boolean,
+): readonly [string, ...string[]] {
+  const out: [string, string, ...string[]] = [
+    `The ${formatCents(amountCents)} is ${monthLabel}’s discretionary spending: posted purchases in a discretionary category — dining out, shopping, entertainment, and the other categories the app treats as discretionary.`,
+    `Each row counts by the category you filed it under (the app guesses only for uncategorized rows); transfers, pending rows, and rows you’ve excluded are never in it.`,
+  ];
+  if (hasDiscretionaryRefunds) {
+    // The bar is GROSS spend: a return/cashback filed to a discretionary
+    // category went to income, so it never nets this figure — stated exactly
+    // when one occurred, never claimed when none did (critic P2-2).
+    out.push(
+      `A refund (or cashback) filed to a discretionary category this month counts as income, not spend — it doesn’t net against this figure.`,
+    );
+  }
+  if (excludesLoanPayments) {
+    out.push(
+      `Loan payments carried on a loan account are excluded — they’re tracked in their own place.`,
+    );
+  }
+  return out;
 }
 
 // ── Room for error (months of runway) ────────────────────────────────────────

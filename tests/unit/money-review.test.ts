@@ -44,6 +44,7 @@ const creepOf = (flagged: boolean, spendGrowthBps = 0, incomeGrowthBps = 0, wind
   incomeGrowthBps,
   monthlyDiscretionaryCents: [],
   windowMonths,
+  loanPaymentsExcluded: false,
 });
 
 const oppOf = (kind: OpportunityKind, merchant: string, monthlyCents: number): Opportunity => ({

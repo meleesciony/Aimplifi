@@ -11,6 +11,7 @@ import { FROZEN_RUNWAY_TESTID, frozenTotalNote } from '@/lib/engine/account/feed
 import { LifeEnergyCard } from '@/components/coach/life-energy-card';
 import { MoneySignatureCard } from '@/components/coach/money-signature-card';
 import { HabitStreaksCard } from '@/components/coach/habit-streaks-card';
+import { LifestyleCreepChart } from '@/components/coach/lifestyle-creep-chart';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { WealthTargetCard } from '@/components/coach/wealth-target-card';
 import { getSpendingPlan } from '@/server/spending-plan';
@@ -311,35 +312,9 @@ export default async function CoachPage() {
             >
               See the {data.creep.flagged ? 'expenses' : 'income'} in your activity
             </Link>
-            <div className="flex h-14 items-end gap-1" role="img" aria-label="Monthly discretionary spend">
-              {data.creep.monthlyDiscretionaryCents.map((m) => {
-                const max = Math.max(...data.creep.monthlyDiscretionaryCents.map((x) => x.amountCents), 1);
-                return (
-                  <div
-                    key={m.month}
-                    className="flex-1 rounded-sm bg-amber-500/70"
-                    style={{ height: `${Math.max(4, Math.round((m.amountCents / max) * 52))}px` }}
-                    title={`${m.month}: ${formatCents(m.amountCents)}`}
-                  />
-                );
-              })}
-            </div>
-            {(() => {
-              const series = data.creep.monthlyDiscretionaryCents;
-              const first = series[0];
-              const last = series[series.length - 1];
-              if (!first || !last) return null;
-              return (
-                <div className="flex justify-between text-[10px] text-muted-foreground" data-testid="creep-axis">
-                  <span>
-                    {formatMonth(first.month, 'short')} · {formatCents(first.amountCents)}
-                  </span>
-                  <span>
-                    {formatMonth(last.month, 'short')} · {formatCents(last.amountCents)}
-                  </span>
-                </div>
-              );
-            })()}
+            {/* O.20d: every bar opens the purchases the month figure was summed
+                from — the strip is now a set of real controls. */}
+            <LifestyleCreepChart creep={data.creep} />
           </CardContent>
         </Card>
 

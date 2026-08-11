@@ -78,6 +78,32 @@ export function BreakdownPanel({
    * value rather than a controlled prop.
    */
   defaultOpen = false,
+  /**
+   * O.20d: constituent panels whose rows all share the SUBJECT's own date — a
+   * net-worth point, a forecast day, an allocation segment — must not print
+   * that date once per row (the panel's own name already carries it). True for
+   * the three constituent surfaces; transaction rows always show their date.
+   */
+  hideRowDates = false,
+  /**
+   * What the ROWS are, for the two places the panel names them generically: the
+   * toggle's "Show N transaction(s)" and the region's "Transactions in {name}".
+   * The O.20d constituent surfaces pass rows that are NOT transactions — account
+   * balances (net-worth, allocation) or scheduled flows (forecast) — and the
+   * panel's own docblock says every surface-specific string is a required
+   * argument precisely because surfaces disagree about what they count (critic
+   * P1-2: "Show 3 transactions" over account rows is the same lie at a smaller
+   * size). The default keeps every existing call byte-identical.
+   */
+  rowNoun = 'transaction',
+  /**
+   * O.20d (critic P2-1): the bar/chip/segment that OPENED this panel derives
+   * its aria-expanded from its own selection state, which the panel's inner
+   * Hide collapses independently — announcing "expanded" over a hidden panel.
+   * The opening surface passes `onToggle` to clear its selection when the
+   * panel is collapsed from inside, so the two states can never desync.
+   */
+  onToggle = null,
 }: {
   subject: BreakdownPanelSubject;
   emptyToggleLabel?: string;
@@ -90,6 +116,9 @@ export function BreakdownPanel({
   registerLabel?: string;
   testIdPrefix?: string;
   defaultOpen?: boolean;
+  hideRowDates?: boolean;
+  rowNoun?: string;
+  onToggle?: ((nowOpen: boolean) => void) | null;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   /**
@@ -137,11 +166,14 @@ export function BreakdownPanel({
    * words instead of "Show 0 transactions", because a bucket that fell to
    * nothing is exactly the one a reader wants explained.
    */
+  // `nounPlural` also guards a caller passing a plural rowNoun ("accounts"),
+  // so count-1 never renders "Show 1 accounts" (critic P2-C, latent today).
+  const nounPlural = rowNoun.endsWith('s') ? rowNoun : `${rowNoun}s`;
   const visibleLabel = open
     ? 'Hide'
     : count === 0
       ? emptyToggleLabel
-      : `Show ${count} transaction${count === 1 ? '' : 's'}`;
+      : `Show ${count} ${count === 1 ? rowNoun : nounPlural}`;
 
   return (
     <>
@@ -149,7 +181,9 @@ export function BreakdownPanel({
         type="button"
         onClick={() => {
           setEverOpened(true);
-          setOpen((o) => !o);
+          const next = !open; // `open` is this render's value — correct for a click handler
+          setOpen(next);
+          onToggle?.(next);
         }}
         aria-expanded={open}
         aria-controls={panelId}
@@ -169,7 +203,7 @@ export function BreakdownPanel({
         id={panelId}
         hidden={!open}
         role="region"
-        aria-label={`Transactions in ${name}`}
+        aria-label={`${nounPlural[0].toUpperCase()}${nounPlural.slice(1)} in ${name}`}
         data-testid={`${testIdPrefix}-panel-${id}`}
         className="mt-1.5 rounded-xl border bg-muted/40 p-2.5"
       >
@@ -192,7 +226,11 @@ export function BreakdownPanel({
                     The document-level M.1 gate cannot see any of this: it measures
                     a passively-loaded page and these rows live behind a tap. */}
                 <span className="min-w-0 break-words">
-                  <span className="text-xs text-muted-foreground">{formatISODate(isoDate(r.date))}</span>{' '}
+                  {!hideRowDates && (
+                    <>
+                      <span className="text-xs text-muted-foreground">{formatISODate(isoDate(r.date))}</span>{' '}
+                    </>
+                  )}
                   {r.transactionId ? (
                     <Link
                       /* C.15 (audit F3): a bare /transactions/<id> here dumped the

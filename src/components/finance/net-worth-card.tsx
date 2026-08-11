@@ -14,11 +14,8 @@ import {
 } from '@/components/ui/card';
 import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
-
-export interface NetWorthPoint {
-  date: string;
-  netWorthCents: number;
-}
+import type { NetWorthSeriesPoint } from '@/lib/engine/networth/series';
+import { NetWorthTrendDrilldown } from '@/components/finance/net-worth-trend-drilldown';
 
 export function NetWorthCard({
   current,
@@ -26,7 +23,8 @@ export function NetWorthCard({
   runwayMonths,
 }: {
   current: number;
-  trend: NetWorthPoint[];
+  /** The engine's series — every point carries its constituents (O.20d). */
+  trend: NetWorthSeriesPoint[];
   /** Months of expenses held in cash (from getCoachData); optional so other call sites need not supply it. */
   runwayMonths?: number;
 }) {
@@ -106,6 +104,9 @@ export function NetWorthCard({
         <p className="mt-2 text-xs text-muted-foreground">
           Trend uses month-end balances across all accounts.
         </p>
+        {/* O.20d: every point on this chart opens its constituents — tap the
+            month, see the accounts that made the point. */}
+        <NetWorthTrendDrilldown points={trend} testIdPrefix="net-worth" />
       </CardContent>
     </Card>
   );
