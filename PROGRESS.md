@@ -2956,3 +2956,5 @@ seeded pages, so moving it to a bare throwaway user could hollow out what it tes
 4. **Queued U.2** (TASKS.md): semantic brand/positive/warning class-token migration — 172 emerald/amber literals / 51 files — must land whole; spec'd for a Flash session. Empty states inspected, left alone (deliberate per-surface copy).
 
 **Verification, honestly:** Cowork Linux sandbox, fresh Linux `npm install`: `tsc --noEmit` exit 0, `eslint .` exit 0. vitest (global-setup `prisma db push` → CDN-blocked schema engine) and `next build` (Google Fonts fetch blocked) COULD NOT run in the sandbox — no schema diff, TS-only changes; the CI conclusion on this push is the slice's gate per rule 5/K.8.
+
+**SHIP STATE (2026-08-11, end of Cowork session): `1adc826` was PUSHED by the owner (origin/main confirmed at 1adc826); this docs commit may still be local. The Cowork sandbox could not read the CI gate (no GitHub credentials). NEXT SESSION: push any remaining docs commit, then `bash scripts/ci-status.sh` on 1adc826's run and read the gate to CONCLUSION before starting anything new — the slice may not be called SHIPPED-green until that conclusion is read (rule 5/K.8).**
