@@ -38,6 +38,12 @@ const EXPECTED: Record<LoanPaymentBasisScope, string> = {
   // it names the answer's own claim, never an absent figure.
   answer:
     'Payments to Mr Cooper at $6,217.07/mo are counted on Mortgage, not in this answer. A payment at another amount counts normally.',
+  // O.18e-FU2: the figureless state — /reports and /trends abstain ("No
+  // income or spending recorded…" / PACE_NO_SPEND_YET) and render NO figure,
+  // so no "not in X" claim is possible; the sentence states the fact and
+  // points back at the empty claim it qualifies ("instead").
+  figureless:
+    'Payments to Mr Cooper at $6,217.07/mo are counted on Mortgage instead.',
 };
 
 const SCOPES = Object.keys(EXPECTED) as LoanPaymentBasisScope[];

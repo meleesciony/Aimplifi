@@ -80,13 +80,23 @@ export type LoanPaymentBasisScope =
    *  and in the abstain states ("No spending recorded this month" + appended
    *  sentence — the sentence is then the only sign money moved, and "not in
    *  this answer" names the claim it sits beside, never an absent figure). */
-  | 'answer';
+  | 'answer'
+  /** /reports and /trends — the ABSTAIN state (O.18e-FU2): the figure does
+   *  not render at all ("No income or spending recorded…" / PACE_NO_SPEND_YET),
+   *  so no "not in X" claim is possible — a claim about an absent figure is
+   *  the same falsehood class this module removed. The figureless sentence
+   *  states the fact and points back at the empty claim it qualifies
+   *  ("instead"); it never claims the page is empty, so it is true wherever
+   *  it renders (the new-merchant panel may even list the payment below). */
+  | 'figureless';
 
 /**
  * The basis sentence for one excluded loan payment, scoped to the figure(s)
- * the surface actually drops. One shape, five scopes — the surfaces cannot
- * phrase the same fact five different ways (this module's one-definition
- * promise, now including the sentence, not just the facts).
+ * the surface actually drops. One shape, seven scopes — the surfaces cannot
+ * phrase the same fact seven different ways (this module's one-definition
+ * promise, now including the sentence, not just the facts). The figureless
+ * scope is the one exception to the shape: it has no figure to name, so its
+ * sentence is its own (see the scope's note above).
  *
  * The amount is rendered here, once, so every surface prints the same
  * string for the same payment.
@@ -95,6 +105,17 @@ export function loanPaymentBasisSentence(
   fact: LoanPaymentBasisFact,
   scope: LoanPaymentBasisScope,
 ): string {
+  // O.18e-FU2: the figureless state renders NO figure, so the "not in X" claim
+  // would be a claim about an absent figure. "Instead" qualifies the empty
+  // claim the sentence sits under — the payment is counted on the loan, which
+  // is why the surface counts nothing. No escrow boundary here: that clause
+  // explains what counts in a figure, and there is no figure to explain.
+  if (scope === 'figureless') {
+    return (
+      `Payments to ${fact.payee} at ${formatCents(cents(fact.paymentCents))}/mo are counted on ` +
+      `${fact.loanName} instead.`
+    );
+  }
   const where = {
     'pace-figure': 'this pace figure',
     figures: 'these figures',

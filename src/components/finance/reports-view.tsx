@@ -343,9 +343,25 @@ export function ReportsView({
             </ResponsiveContainer>
           </div>
         ) : (
-          <p className="py-6 text-center text-sm text-muted-foreground" data-testid="income-expense-empty">
-            No income or spending recorded in the last {months} months.
-          </p>
+          <div className="py-6 text-center">
+            <p className="text-sm text-muted-foreground" data-testid="income-expense-empty">
+              No income or spending recorded in the last {months} months.
+            </p>
+            {/* O.18e-FU2: the figureless state. The claim above is the
+                surface's "silence means nothing did" — but a loan payment the
+                figures drop is money that DID move, so an empty exclusion set
+                is the only honest silence. The figureless scope says so
+                without claiming a figure this branch does not render. */}
+            {data.loanPaymentExclusions.map((e, i) => (
+              <p
+                key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`}
+                className="mt-1 text-xs text-muted-foreground"
+                data-testid="reports-loan-payment-basis-empty"
+              >
+                {loanPaymentBasisSentence(e, 'figureless')}
+              </p>
+            ))}
+          </div>
         )}
 
         {/* Every bar on the chart above opens the rows it is made of. The chart
@@ -408,7 +424,9 @@ export function ReportsView({
                 committed side, so the figures here drop it in every month,
                 not just the months the bank's settlement timing paired it.
                 The claim is scoped to these figures (O.18e-FU). Speaks only
-                when something moved; silence means nothing did. */}
+                when something moved; silence means nothing did. (When NOTHING
+                counts but a payment did move — the chart's empty branch —
+                the figureless scope speaks there instead; O.18e-FU2.) */}
             {data.loanPaymentExclusions.map((e, i) => (
               <p
                 key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`}

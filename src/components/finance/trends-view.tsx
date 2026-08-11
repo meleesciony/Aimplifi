@@ -311,7 +311,9 @@ export function TrendsView({
               month" panel lists them — it follows the register, which shows
               the charge — so a sentence that claimed the payment vanished
               from the whole page would contradict the card below it. Speaks
-              only when something moved; silence means nothing did. */}
+              only when something moved; silence means nothing did. (When the
+              pace ABSTAINS — the empty branch — but a payment did move, the
+              figureless scope speaks there instead; O.18e-FU2.) */}
           {trends.loanPaymentExclusions.map((e, i) => (
             <p
               key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`}
@@ -336,6 +338,20 @@ export function TrendsView({
             <Gauge className="size-3.5" aria-hidden /> Pace · {shortMonth(trends.asOfYm)}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">{PACE_NO_SPEND_YET}</p>
+          {/* O.18e-FU2: the figureless state. PACE_NO_SPEND_YET is the
+              surface's "silence means nothing did" — but a loan payment the
+              pace drops is money that DID move, so an empty exclusion set is
+              the only honest silence. The figureless scope says so without
+              claiming a pace figure this branch does not render. */}
+          {trends.loanPaymentExclusions.map((e, i) => (
+            <p
+              key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`}
+              className="mt-1 text-xs text-muted-foreground"
+              data-testid="trends-loan-payment-basis-empty"
+            >
+              {loanPaymentBasisSentence(e, 'figureless')}
+            </p>
+          ))}
         </section>
       )}
 
