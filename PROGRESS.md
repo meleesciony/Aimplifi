@@ -72,6 +72,14 @@ side is still covering and the tier order reaches the right row. The claim is st
 `u11e-per-link-verdict.mts`, `u11f-would-today-propose-these.mts`, `u11g-measure-the-number-veto.mts`,
 `u11h-does-the-money-already-count.mts`.
 
+**Gate (rule 5 / K.8).** No app code changed all session — docs, task rows, a lesson, and ten
+read-only probes — so there is no slice to call shipped. Static checks run locally: `npx tsc
+--noEmit` 0, `npx eslint .` 0. Pushed `62cd821`; **CI run 31624210105 = SUCCESS, attempt 1**,
+read to conclusion (job `verify`, the full `VERIFY_E2E=1` gate). The earlier run 31623667389 on
+the intermediate sha `8c56925` shows `cancelled` — this session's own later push superseded it
+under `cancel-in-progress: true`, which is rule 5's documented "re-run against the newest sha",
+and 62cd821 is that newest sha. No `prisma/` diff — the live Neon database is untouched.
+
 **NEXT:** three slices, ranked — (a) the $2,086.40 chain-rule silent loss (drop a row only when a
 counterpart is proven, ±3 days, exact |amount|); (b) the widened last-4 veto on the weak name signal,
 measured above; (c) the owner-only decision on the 9 stored links, which is data, reversible via
