@@ -29,6 +29,10 @@ function link(p: {
   return {
     id: p.id,
     cutoverDate: p.cutoverDate ?? '2026-07-18',
+    // U.15 defaults: these fixtures predate the audit and assert the card's IDENTITY copy, so
+    // they stand at the verdict that changes nothing on screen.
+    auditVerdict: 'still-supported' as const,
+    auditEvidence: [],
     predecessor: {
       id: p.predId ?? `pred-${p.id}`,
       name: p.predName,

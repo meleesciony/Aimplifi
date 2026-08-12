@@ -238,100 +238,6 @@ describe('detectDuplicateAccounts', () => {
   });
 });
 
-/**
- * U.14 — the weak NAME signal is disqualified when the two rows advertise account numbers that
- * do not correspond. `masksDiffer` already did this and read the mask COLUMN, which SimpleFIN
- * never populates, so the veto was inert across exactly the SimpleFIN→Plaid migration it exists
- * for. Every fixture below is production-shaped: names copied from the owner's real corpus, where
- * nine such pairs had been confirmed (see PROGRESS.md 2026-08-12, and
- * scripts/audit-probes/u11k-which-veto-catches-which.mts, which measured 9/9 caught and 0 of the
- * independently-judged-genuine links suppressed).
- */
-describe('U.14 — account-number conflict disqualifies the weak name signal', () => {
-  const sf = (id: string, name: string, cents: number): DuplicateAccountCandidate =>
-    acct({ id, provider: 'simplefin', name, type: 'INVESTMENT', mask: null, currentBalanceCents: cents });
-  const plaid = (id: string, name: string, mask: string, cents: number): DuplicateAccountCandidate =>
-    acct({ id, provider: 'plaid', name, type: 'INVESTMENT', mask, currentBalanceCents: cents });
-
-  it('refuses three distinct 529 plans against one retirement plan matched on “plan” alone', () => {
-    // FAIL-OLD: the mask column is null on the SimpleFIN side, so the old veto could not fire and
-    // each of these was proposed at medium confidence on the single shared token "plan".
-    for (const [id, name, cents] of [
-      ['p1', 'Charles Schwab US Schwab 529 Plan ...-01 (01)', 1_622_572],
-      ['p2', 'Charles Schwab US Schwab 529 Plan ...-02 (02)', 1_672_879],
-      ['p3', 'Charles Schwab US Schwab 529 Plan ...-03 (03)', 1_736_830],
-    ] as const) {
-      expect(
-        detectDuplicateAccounts([
-          sf(id, name, cents),
-          plaid('live', 'FINAN TEMPLETON DERMATOPATHOLOGY ASSOC PLAN Vanguard Retirement Plan Access', '3075', 36_828_771),
-        ]),
-      ).toEqual([]);
-    }
-  });
-
-  it('refuses a Schwab Roth Contributory IRA against a Vanguard Roth IRA on “ira”, “roth”', () => {
-    // Both resolve to registration 'roth', so the L.9 veto abstains — the account NUMBER is the
-    // only evidence that separates them, and it is decisive.
-    expect(
-      detectDuplicateAccounts([
-        sf('pred', 'Charles Schwab US Roth Contributory IRA ...156 (156)', 9_548_482),
-        plaid('succ', 'Michael Lee - Roth IRA Brokerage Account - ****5351', '5351', 2_400),
-      ]),
-    ).toEqual([]);
-  });
-
-  it('refuses two cardholders’ cards matched on a shared surname', () => {
-    expect(
-      detectDuplicateAccounts([
-        acct({ id: 'e', provider: 'simplefin', name: 'Chase Bank E. LEE (4034)', type: 'CREDIT', currentBalanceCents: 99_049 }),
-        acct({ id: 'm', provider: 'plaid', name: 'M. LEE', type: 'CREDIT', mask: '4927', currentBalanceCents: 97_449 }),
-      ]),
-    ).toEqual([]);
-  });
-
-  it('a truncated number that CORRESPONDS by suffix is not a conflict — the pair still surfaces', () => {
-    // Schwab renders "...383", Plaid's mask is "7383": one real account. Equality here condemned a
-    // genuine $898,889.99 brokerage pair while this slice was being measured.
-    const pairs = detectDuplicateAccounts([
-      sf('pred', 'Charles Schwab US Community Property ...383 (383)', 89_888_999),
-      plaid('succ', 'Community Property', '7383', 86_204_694),
-    ]);
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0].reasons.some((r) => r.startsWith('shared name'))).toBe(true);
-  });
-
-  it('one side advertising no number is an ABSENCE, never a difference', () => {
-    const pairs = detectDuplicateAccounts([
-      sf('pred', 'Vanguard Brokerage', 5_000),
-      plaid('succ', 'Vanguard Brokerage', '5351', 5_100),
-    ]);
-    expect(pairs).toHaveLength(1);
-  });
-
-  it('the STRONG signals survive a conflicting number — this gates the name signal only', () => {
-    // An identical non-zero balance is two cards on one account; the owner confirmed that shape
-    // (duplicates.ts) and it must keep surfacing despite different last-4s.
-    const pairs = detectDuplicateAccounts([
-      acct({ id: 'a', provider: 'simplefin', name: 'Chase Bank E. LEE (4034)', type: 'CREDIT', currentBalanceCents: 99_049 }),
-      acct({ id: 'b', provider: 'plaid', name: 'M. LEE', type: 'CREDIT', mask: '4927', currentBalanceCents: 99_049 }),
-    ]);
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0].confidence).toBe('high');
-    expect(pairs[0].reasons).toContain('identical balance');
-  });
-
-  it('a matching last-4 still wins outright', () => {
-    const pairs = detectDuplicateAccounts([
-      sf('pred', 'U.S. Bank Loan - 2927 (2927)', 100),
-      plaid('succ', 'US Bank Loan', '2927', 877),
-    ]);
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0].confidence).toBe('high');
-    expect(pairs[0].reasons.some((r) => r.startsWith('same last-4'))).toBe(true);
-  });
-});
-
 describe('U.14 — advertisedAccountNumbers reads renderings, not every digit run', () => {
   it('reads the mask column, parenthesized groups, and truncation-prefixed groups', () => {
     expect(advertisedAccountNumbers({ mask: '4927', name: 'M. LEE' })).toEqual(['4927']);
@@ -352,6 +258,54 @@ describe('U.14 — advertisedAccountNumbers reads renderings, not every digit ru
     expect(accountNumbersConflict({ mask: '7383', name: 'Acct' }, { mask: null, name: 'Acct ...383' })).toBe(false);
     expect(accountNumbersConflict({ mask: null, name: 'Acct ...191' }, { mask: '5351', name: 'Acct' })).toBe(true);
     expect(accountNumbersConflict({ mask: null, name: 'Acct' }, { mask: '5351', name: 'Acct' })).toBe(false);
+  });
+
+  // ── the hostile critic's findings, each locked so the parser cannot drift back ──
+
+  it('P0-1: a parenthesized YEAR is never an account number', () => {
+    // The misread #292 and critics F1/F2 named. Read as a number it made a genuine duplicate
+    // vanish; here it must yield NOTHING, so the evidence abstains instead of asserting.
+    for (const name of ['Roth IRA (2021)', 'Kids College (2035)', 'CD 12-month (2025)', 'Trust (1900)', 'Fund (2099)']) {
+      expect(advertisedAccountNumbers({ mask: null, name })).toEqual([]);
+    }
+    expect(accountNumbersConflict({ mask: null, name: 'Roth IRA (2021)' }, { mask: '8842', name: 'Fidelity Roth IRA' })).toBe(false);
+    // Just outside the range is an ordinary number again.
+    expect(advertisedAccountNumbers({ mask: null, name: 'Acct (1899)' })).toEqual(['1899']);
+    expect(advertisedAccountNumbers({ mask: null, name: 'Acct (2100)' })).toEqual(['2100']);
+    // The year rule is LENGTH-scoped: a 3- or 5-digit group is untouched.
+    expect(advertisedAccountNumbers({ mask: null, name: 'Acct (201)' })).toEqual(['201']);
+    expect(advertisedAccountNumbers({ mask: null, name: 'Acct (20211)' })).toEqual(['20211']);
+  });
+
+  it('P1-4: a number this app TRUNCATED is a prefix, and a prefix corresponds', () => {
+    // mapSimplefinAccount stores (org + ' ' + name).slice(0, 80) and SimpleFIN puts the number
+    // last, so "...3075" becomes "...30" — which under a suffix-only rule conflicted with 3075.
+    expect(accountNumbersConflict({ mask: null, name: 'Long Institution Name ...30' }, { mask: '3075', name: 'Retirement' })).toBe(false);
+    expect(accountNumbersConflict({ mask: '3075', name: 'Retirement' }, { mask: null, name: 'Long Institution Name ...30' })).toBe(false);
+  });
+
+  it('P1-6: a space between the bullets and the digits is the commonest mask rendering', () => {
+    expect(advertisedAccountNumbers({ mask: null, name: 'Chase CREDIT CARD •••• 1234' })).toEqual(['1234']);
+    expect(advertisedAccountNumbers({ mask: null, name: 'Amex Platinum **** 5351' })).toEqual(['5351']);
+    expect(advertisedAccountNumbers({ mask: null, name: 'Chase CREDIT CARD ••••1234' })).toEqual(['1234']);
+  });
+
+  it('P1-5: every alternative in the truncation prefix is exercised, so none can be deleted silently', () => {
+    expect(advertisedAccountNumbers({ mask: null, name: 'A •1234' })).toEqual(['1234']); // bullet
+    expect(advertisedAccountNumbers({ mask: null, name: 'A ·1234' })).toEqual(['1234']); // middot
+    expect(advertisedAccountNumbers({ mask: null, name: 'A *1234' })).toEqual(['1234']); // asterisk
+    expect(advertisedAccountNumbers({ mask: null, name: 'A #1234' })).toEqual(['1234']); // hash
+    expect(advertisedAccountNumbers({ mask: null, name: 'A ..1234' })).toEqual(['1234']); // two dots
+    expect(advertisedAccountNumbers({ mask: null, name: 'A …1234' })).toEqual(['1234']); // ellipsis char
+    expect(advertisedAccountNumbers({ mask: null, name: 'A ...-01' })).toEqual(['01']); // the SimpleFIN -NN form
+    expect(advertisedAccountNumbers({ mask: null, name: 'A ...12' })).toEqual(['12']); // the 2-digit floor
+    expect(advertisedAccountNumbers({ mask: null, name: 'A ...1' })).toEqual([]); // below the floor
+  });
+
+  it('a bare digit run in a name is never read, however long', () => {
+    expect(advertisedAccountNumbers({ mask: null, name: 'Bank of America 800 432 1000' })).toEqual([]);
+    expect(advertisedAccountNumbers({ mask: null, name: 'Est. 1852 Bank Checking' })).toEqual([]);
+    expect(advertisedAccountNumbers({ mask: null, name: 'Acct ending in 4034' })).toEqual([]);
   });
 });
 

@@ -50,6 +50,7 @@ export const CONTINUED_SOURCE_TESTID = 'reconcile-combined-pair';
 export const CONTINUED_COMBINES_TESTID = 'reconcile-combines-note';
 export const CONTINUED_CHAINED_TESTID = 'reconcile-chained-note';
 export const CONTINUED_UNDO_TESTID = 'reconcile-undo';
+export const CONTINUED_AUDIT_TESTID = 'reconcile-audit-flag';
 
 /**
  * The name sanitizer now lives in the engine tree (TASKS L.15): the duplicate-disclosure copy
@@ -77,6 +78,16 @@ export interface ContinuedSourceView {
   undoLabel: string;
   /** Accessible name — always starts with the visible face (WCAG 2.5.3), always unique card-wide. */
   undoAriaLabel: string;
+  /**
+   * U.15 — set ONLY when today's checks would not propose this pair, and then it is a sentence
+   * about THE APP ("we wouldn't suggest this now"), never about the accounts. The module's
+   * standing rule is that whether a match is correct is owner-only knowledge; this does not
+   * overturn it. It reports what the app's own checks now say and hands the reader the Undo that
+   * was already there, which is the difference between making the question answerable and
+   * answering it. `null` for every other verdict — an abstention and a still-supported link look
+   * identical here on purpose, because neither is a reason to act.
+   */
+  auditLine: string | null;
 }
 
 /** One live account, with every old account that was combined into it. */
@@ -89,6 +100,31 @@ export interface ContinuedAccountView {
   /** Rendered only when this "live" account was ITSELF later combined into another one. */
   chainedLine: string | null;
   sources: ContinuedSourceView[];
+}
+
+/**
+ * The audit sentence, or null.
+ *
+ * Only `unsupported` speaks. The other three verdicts are silent BY DESIGN and the distinction is
+ * the whole point: `not-checkable` is the detector abstaining on a shape it does not judge, and
+ * rendering an abstention as a warning would flag every same-connection link in the app; `inert`
+ * already has no effect on any figure; `still-supported` is the ordinary case.
+ *
+ * The sentence names the APP as its subject ("we wouldn't suggest") and then reports the evidence
+ * as fact. It deliberately does not say the accounts are different, does not tell the reader to
+ * undo, and does not call the earlier decision a mistake — the reader confirmed this pair and may
+ * know something no feed carries. Compare `chainedLine` above, which likewise states a mechanism
+ * and leaves the judgement alone.
+ */
+function auditLineFor(r: ReconciledPairView): string | null {
+  if (r.auditVerdict !== 'unsupported') return null;
+  const why = r.auditEvidence.filter((e) => e.trim().length > 0);
+  // States the FACT, not a recommendation and not a verdict on the accounts. An earlier draft
+  // opened "we wouldn't suggest combining these two", which is a claim about what the detector
+  // would do — and after U.14 was reverted the detector often WOULD still suggest it, so the
+  // sentence would have been false exactly where it mattered most.
+  const because = why.length > 0 ? ` ${why.join('; ')}.` : '';
+  return `Worth a look:${because} If these aren’t the same account, undo below — nothing else about them changes.`;
 }
 
 interface Draft {
@@ -146,6 +182,7 @@ export function continuedAccountsView(
       identityLine: '', // filled below, once the group's total is known
       undoLabel: '',
       undoAriaLabel: '',
+      auditLine: auditLineFor(r),
     };
     g.sources.push(view);
     drafts.push({

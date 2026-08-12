@@ -53,6 +53,10 @@ import {
   detectDuplicateAccounts,
   detectReconciliationCandidates,
 } from '@/lib/engine/account/duplicates';
+import {
+  type LinkAuditVerdict,
+  auditConfirmedLinks,
+} from '@/lib/engine/account/link-audit';
 import { duplicatePairDismissKey, getDismissedDuplicateKeys } from '@/server/duplicate-dismissal';
 import {
   type ReconciliationLinkLike,
@@ -970,6 +974,11 @@ export interface ReconciledPairView {
   cutoverDate: string; // YYYY-MM-DD
   predecessor: { id: string; name: string; mask: string | null; provider: string };
   successor: { id: string; name: string; mask: string | null; provider: string };
+  /** U.15: would the app propose this pair TODAY? `unsupported` is the only actionable verdict —
+   *  see `src/lib/engine/account/link-audit.ts` for what each one may and may not claim. */
+  auditVerdict: LinkAuditVerdict;
+  /** The reasons behind `auditVerdict`, already phrased for a reader. Facts, never conclusions. */
+  auditEvidence: string[];
 }
 
 export interface AccountsView extends AccountsSummary {
@@ -1507,17 +1516,46 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   // side) render nothing — the predecessor then counts normally, exactly as R7 requires.
   const acctById = new Map(accounts.map((a) => [a.id, a]));
   const idByPredecessor = new Map(activeReconciliations.map((r) => [r.predecessorAccountId, r.id]));
+
+  // U.15: re-audit every confirmed link against TODAY's rules. Nothing re-examined one of these
+  // rows after it was written, so a pair the detector has since learned to refuse kept being
+  // honoured — measured on real data at nine wrong links, four of which the shipped detector
+  // would already refuse to propose (docs/lessons/prevention-is-not-a-remedy.md).
+  //
+  // Fed the FEED's `name`, exactly as the duplicate detector below is (the audit reads account
+  // numbers out of that string, and a user's nickname need not carry them) — and over `supported`,
+  // the same currency-filtered set, so the audit and the boundary agree about which links are inert.
+  const auditByLinkId = new Map(
+    auditConfirmedLinks(
+      supported.map((a) => ({
+        id: a.id,
+        provider: a.provider,
+        name: a.name,
+        type: a.type,
+        mask: a.mask,
+        currentBalanceCents: a.currentBalanceCents,
+        currency: a.currency,
+        subtype: a.subtype,
+        plaidItemId: a.plaidItemId,
+      })),
+      activeReconciliations,
+    ).map((r) => [r.link.id, r]),
+  );
+
   const reconciliations: ReconciledPairView[] = effective.flatMap((l) => {
     const p = acctById.get(l.predecessorAccountId);
     const s = acctById.get(l.successorAccountId);
     const id = idByPredecessor.get(l.predecessorAccountId);
     if (!p || !s || id === undefined) return [];
+    const audited = auditByLinkId.get(id);
     return [
       {
         id,
         cutoverDate: l.cutoverDate,
         predecessor: { id: p.id, name: accountLabel(p), mask: p.mask, provider: p.provider },
         successor: { id: s.id, name: accountLabel(s), mask: s.mask, provider: s.provider },
+        auditVerdict: audited?.verdict ?? 'not-checkable',
+        auditEvidence: audited?.evidence ?? [],
       },
     ];
   });

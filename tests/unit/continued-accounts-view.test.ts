@@ -36,6 +36,10 @@ function link(p: {
   return {
     id: p.id,
     cutoverDate: p.cutoverDate ?? '2026-07-18',
+    // U.15 defaults: these fixtures predate the audit and assert the card's IDENTITY copy, so
+    // they stand at the verdict that changes nothing on screen.
+    auditVerdict: 'still-supported' as const,
+    auditEvidence: [],
     predecessor: {
       id: `pred-${p.id}`,
       name: p.predName,
@@ -288,5 +292,66 @@ describe('continuedAccountsView — copy honesty', () => {
     for (const line of allIdentityLines(views)) {
       expect(line).toContain("this old account's balance no longer counts on its own");
     }
+  });
+});
+
+/**
+ * U.15 — the audit sentence on a confirmed link. The card's standing rule (see the module header)
+ * is that whether a match is CORRECT is owner-only knowledge; these lock that the new line reports
+ * what the app's checks say without overturning that rule.
+ */
+describe('U.15 auditLine', () => {
+  const audited = (verdict: ReconciledPairView['auditVerdict'], evidence: string[]) => ({
+    ...link({ id: 'r1', predName: 'Charles Schwab US Roth Contributory IRA ...396 (396)' }),
+    auditVerdict: verdict,
+    auditEvidence: evidence,
+  });
+
+  it('speaks ONLY for an unsupported verdict', () => {
+    for (const v of ['still-supported', 'not-checkable', 'inert'] as const) {
+      const [g] = continuedAccountsView([audited(v, ['whatever'])]);
+      expect(g.sources[0].auditLine).toBeNull();
+    }
+    const [flagged] = continuedAccountsView([audited('unsupported', ['the account numbers don’t match (396 and 1548)'])]);
+    expect(flagged.sources[0].auditLine).not.toBeNull();
+  });
+
+  it('states the evidence as a fact, never a claim about what the detector would do', () => {
+    const [g] = continuedAccountsView([
+      audited('unsupported', ['the account numbers don’t match (396 and 1548)']),
+    ]);
+    const line = g.sources[0].auditLine!;
+    expect(line).toContain('Worth a look');
+    expect(line).toContain('the account numbers don’t match (396 and 1548)');
+    expect(line).toContain('undo below');
+  });
+
+  it('never asserts the accounts differ, never calls the earlier decision wrong', () => {
+    const [g] = continuedAccountsView([audited('unsupported', ['the account numbers don’t match (396 and 1548)'])]);
+    const line = g.sources[0].auditLine!.toLowerCase();
+    // The reader confirmed this pair and may know something no feed carries (rule 0).
+    // Also forbidden: any claim about what the app WOULD propose — the detector often still would.
+    for (const forbidden of ['are not the same', 'is wrong', 'mistake', 'error', 'you should undo', 'incorrectly', 'wouldn’t suggest']) {
+      expect(line).not.toContain(forbidden);
+    }
+    // It is conditional on the reader's own knowledge, not an instruction.
+    expect(g.sources[0].auditLine!).toContain('If these aren’t the same account');
+  });
+
+  it('stays a sentence when the verdict carries no evidence at all', () => {
+    const [g] = continuedAccountsView([audited('unsupported', [])]);
+    expect(g.sources[0].auditLine).toBe(
+      'Worth a look: If these aren’t the same account, undo below — nothing else about them changes.',
+    );
+  });
+
+  it('flags only the offending source when siblings fold into one account', () => {
+    const rows: ReconciledPairView[] = [
+      { ...link({ id: 'ok', predName: 'Old Checking' }), auditVerdict: 'still-supported' as const, auditEvidence: [] },
+      { ...link({ id: 'bad', predName: 'Charles Schwab US Rollover IRA ...191 (191)' }), auditVerdict: 'unsupported' as const, auditEvidence: ['the account numbers don’t match (191 and 5351)'] },
+    ];
+    const [g] = continuedAccountsView(rows);
+    expect(g.sources).toHaveLength(2);
+    expect(g.sources.filter((s) => s.auditLine !== null).map((s) => s.id)).toEqual(['bad']);
   });
 });

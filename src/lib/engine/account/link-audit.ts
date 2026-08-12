@@ -36,14 +36,16 @@ import {
 } from '@/lib/engine/account/duplicates';
 import { registrationsConflict } from '@/lib/engine/account/registration';
 
-/** A confirmed link, as stored. */
+/**
+ * A confirmed link, as stored. Deliberately the four fields `getActiveReconciliations` already
+ * selects: the audit judges the two ACCOUNTS, so `matchSignal` and `confidence` — what the app
+ * believed when the pair was proposed — are exactly the stale beliefs it must not defer to.
+ */
 export interface AuditableLink {
   id: string;
   predecessorAccountId: string;
   successorAccountId: string;
   cutoverDate: string;
-  matchSignal: string;
-  confidence: string;
 }
 
 export type LinkAuditVerdict =
@@ -128,8 +130,20 @@ export function auditConfirmedLinks(
       };
     }
 
+    // TWO independent grounds, because they answer different questions and the app needs both.
+    //
+    // The detector's refusal answers "would we offer this today?" — but the detector is a GATE on
+    // what the app proposes, and U.14 proved a gate must stay conservative: widening it to read
+    // account numbers out of names hid a genuine duplicate and turned a withheld L.9 ambiguity into
+    // a one-click Combine (reverted the same session; see `duplicates.ts`). Evidence too dangerous
+    // to gate on is not too dangerous to SHOW, because the failure directions are not the same. A
+    // wrong flag here is a visible sentence beside an Undo the reader already had, and they can
+    // ignore it; a wrong gate silently changes what counts.
+    //
+    // So the audit reads that evidence directly, and the copy says which ground it stands on.
+    const conflicts = conflictEvidence(pred, succ);
     const proposed = detectDuplicateAccounts([pred, succ]);
-    if (proposed.length > 0) {
+    if (proposed.length > 0 && conflicts.length === 0) {
       return {
         link,
         verdict: 'still-supported',
@@ -139,7 +153,6 @@ export function auditConfirmedLinks(
       };
     }
 
-    const conflicts = conflictEvidence(pred, succ);
     return {
       link,
       verdict: 'unsupported',

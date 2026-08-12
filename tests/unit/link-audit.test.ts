@@ -29,8 +29,6 @@ function link(p: Partial<AuditableLink> & { id: string }): AuditableLink {
     predecessorAccountId: 'pred',
     successorAccountId: 'succ',
     cutoverDate: '2026-07-24',
-    matchSignal: 'name',
-    confidence: 'medium',
     ...p,
   };
 }

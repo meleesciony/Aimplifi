@@ -152,9 +152,27 @@ function matchableMask(a: { mask: string | null; name: string }): string | null 
 export function advertisedAccountNumbers(a: { mask: string | null; name: string }): string[] {
   const out = new Set<string>();
   if (a.mask) out.add(a.mask);
-  for (const m of a.name.matchAll(/\((\d{2,})\)/g)) out.add(m[1]);
-  for (const m of a.name.matchAll(/(?:[•·*#]|\.{2,}|…)-?(\d{2,})\b/g)) out.add(m[1]);
+  for (const m of a.name.matchAll(/\((\d{2,})\)/g)) if (!looksLikeYear(m[1])) out.add(m[1]);
+  // `\s*` mirrors `maskFromName`: "•••• 1234" with a space is the commonest rendering of a mask in
+  // a display name, and the first draft of this function was blind to exactly it while the
+  // POSITIVE parser next to it was not — two parsers of one field that disagree (critic P1-6).
+  for (const m of a.name.matchAll(/(?:[•·*#]|\.{2,}|…)-?\s*(\d{2,})\b/g)) if (!looksLikeYear(m[1])) out.add(m[1]);
   return [...out];
+}
+
+/**
+ * A four-digit group in the plausible-year range, which a bank-composed name uses for something
+ * that is NOT an account number far more often than for one: "Roth IRA (2021)", "Kids College
+ * (2035)", "CD 12-month (2025)", "…2019 Contributions".
+ *
+ * This is the misread #292 and dup-veto critics F1/F2 named, and the reason a name-parsed number
+ * may never gate what the app offers. Excluding the range costs almost nothing here — a real last-4
+ * lands in 1900-2099 about 2% of the time, and losing it only makes this evidence ABSTAIN.
+ */
+function looksLikeYear(digits: string): boolean {
+  if (digits.length !== 4) return false;
+  const n = Number(digits);
+  return n >= 1900 && n <= 2099;
 }
 
 /**
@@ -175,7 +193,13 @@ export function accountNumbersConflict(
   const a = advertisedAccountNumbers(lo);
   const b = advertisedAccountNumbers(hi);
   if (a.length === 0 || b.length === 0) return false;
-  const corresponds = (x: string, y: string) => x === y || x.endsWith(y) || y.endsWith(x);
+  // Suffix AND prefix. Suffix alone was wrong in a way this app CAUSES: `mapSimplefinAccount`
+  // stores `(org + ' ' + name).slice(0, 80)`, and SimpleFIN renders the number at the END, so a
+  // long institution name truncates "…3075" to "…30" — a PREFIX, which under a suffix-only rule
+  // conflicts with the very account it came from (critic P1-4, executed through the real mapper).
+  // Being generous here only ever makes this evidence abstain, which is the direction it must fail.
+  const corresponds = (x: string, y: string) =>
+    x === y || x.endsWith(y) || y.endsWith(x) || x.startsWith(y) || y.startsWith(x);
   return !a.some((x) => b.some((y) => corresponds(x, y)));
 }
 
@@ -252,7 +276,24 @@ function duplicateSignals(
   // still surfaces on the strength that justified it. Measured both directions before shipping
   // (`scripts/audit-probes/u11k-which-veto-catches-which.mts`): 9 of 9 wrong pairs caught, and 0 of
   // the 8 links independently judged genuine suppressed.
-  const masksDiffer = accountNumbersConflict(lo, hi);
+  //
+  // U.14 REVERTED 2026-08-12, same session it shipped. Widening this to read the number out of the
+  // NAME was wrong twice over, and both were PROVEN rather than argued:
+  //   (a) it reintroduced exactly the direction #292/F1/F2 removed, and worse — the new parser read
+  //       TWO digits where `maskFromName` reads four, so `Roth IRA (2021)` yields "2021" and a
+  //       genuine duplicate against a real mask stopped being flagged at all. A hidden duplicate is
+  //       a silent double-count, which is the failure direction this file exists to avoid.
+  //   (b) the boolean's scope was NOT the whole story. `duplicateSignals` also feeds
+  //       `detectReconciliationCandidates`, where suppressing ONE candidate collapses a withheld
+  //       L.9 ambiguity ("it is one of these and we cannot tell which") into `list.length === 1` —
+  //       which renders a one-click Combine for the survivor. Confirming that zeroes a balance.
+  //       `tests/e2e/reconcile.spec.ts` "a Roth is never a Traditional … the right one offered"
+  //       caught it in CI (run 31627590689); the local gate skips e2e, which is why it shipped.
+  // The evidence the widening was built on is still good and still measured — it just belongs on an
+  // ADVISORY surface, not on a gate that decides what the app offers. It now lives in the U.15 link
+  // audit (`src/lib/engine/account/link-audit.ts`), where the worst case is a visible sentence next
+  // to an Undo the user already had, rather than a hidden change to what counts.
+  const masksDiffer = !!lo.mask && !!hi.mask && lo.mask !== hi.mask;
 
   const reasons: string[] = [];
   let confidence: DuplicateConfidence | null = null;

@@ -45,6 +45,7 @@ import {
   CONTINUED_CHAINED_TESTID,
   CONTINUED_COMBINES_TESTID,
   CONTINUED_SOURCE_TESTID,
+  CONTINUED_AUDIT_TESTID,
   CONTINUED_UNDO_TESTID,
 } from '@/components/finance/continued-accounts-view';
 import {
@@ -1108,6 +1109,17 @@ function ContinuedAccountsCard({
                     <span className="min-w-0 break-words text-xs text-muted-foreground">
                       {s.identityLine}
                     </span>
+                    {/* U.15: rendered only for a link today's checks would no longer propose. It
+                        sits with the Undo it refers to, and takes the full row so the sentence is
+                        never squeezed against the button on a 360px phone. */}
+                    {s.auditLine !== null && (
+                      <span
+                        data-testid={CONTINUED_AUDIT_TESTID}
+                        className="order-last w-full min-w-0 rounded-md border border-amber-700/40 bg-amber-950/20 px-2 py-1 text-xs break-words text-amber-700 dark:text-amber-400"
+                      >
+                        {s.auditLine}
+                      </span>
+                    )}
                     {/* max-w-full + whitespace-normal + break-words per the #265/#276 recipe: this
                         face now carries a bank-supplied name of uncapped length, so without them a
                         single long token would push the document wider than a 360px phone. */}
