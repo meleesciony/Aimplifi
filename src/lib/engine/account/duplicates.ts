@@ -136,6 +136,49 @@ function matchableMask(a: { mask: string | null; name: string }): string | null 
   return a.mask ?? maskFromName(a.name);
 }
 
+/**
+ * Every account NUMBER a row advertises — the mask column, plus any group a feed renders the way
+ * an account number is rendered: parenthesized ("… (4034)") or behind a truncation prefix
+ * ("…383", "····4034", "Schwab 529 Plan ...-01"). Two digits minimum, because SimpleFIN truncates
+ * to as few as two ("-01"), and `maskFromName` deliberately reads only FOUR — which is why the
+ * old veto was blind to exactly the rows this exists for.
+ *
+ * Deliberately NOT a bare `\d{3,}` sweep of the name: that reads "529" out of "Schwab 529 Plan"
+ * and "401" out of "401k" — product names, not account numbers. On the owner's corpus the sweep
+ * happens to reach the same verdicts (measured: both catch 9 of 9), and a rule that is right by
+ * accident is a rule that breaks silently the first time someone opens a "529 Plan" at a bank
+ * whose mask really is 529.
+ */
+export function advertisedAccountNumbers(a: { mask: string | null; name: string }): string[] {
+  const out = new Set<string>();
+  if (a.mask) out.add(a.mask);
+  for (const m of a.name.matchAll(/\((\d{2,})\)/g)) out.add(m[1]);
+  for (const m of a.name.matchAll(/(?:[•·*#]|\.{2,}|…)-?(\d{2,})\b/g)) out.add(m[1]);
+  return [...out];
+}
+
+/**
+ * True when both rows advertise an account number and NONE of them correspond.
+ *
+ * Correspondence is SUFFIX, never equality: providers truncate the same account to different
+ * lengths, so Schwab's "…383" and Plaid's mask "7383" are the same account. Equality here would
+ * condemn a genuine pair — measured on the owner's data at $898,889.99 before it was caught.
+ *
+ * One side with nothing to advertise is an ABSENCE, never a difference (the doctrine
+ * `registrationsConflict` states two functions up, and the reason #292 pulled a name-parsed
+ * last-4 off the general veto path).
+ */
+export function accountNumbersConflict(
+  lo: { mask: string | null; name: string },
+  hi: { mask: string | null; name: string },
+): boolean {
+  const a = advertisedAccountNumbers(lo);
+  const b = advertisedAccountNumbers(hi);
+  if (a.length === 0 || b.length === 0) return false;
+  const corresponds = (x: string, y: string) => x === y || x.endsWith(y) || y.endsWith(x);
+  return !a.some((x) => b.some((y) => corresponds(x, y)));
+}
+
 /** Distinctive lowercase name tokens (institution-ish), stopwords / numbers / 1-char removed. */
 export function distinctiveNameTokens(name: string): Set<string> {
   const tokens = name
@@ -192,7 +235,24 @@ function duplicateSignals(
   // stays SURFACED so he can Combine or dismiss it. Uses the mask COLUMN only — parsing a last-4 out
   // of a NAME mis-reads a parenthesized year ("Roth IRA (2021)") or the x in "Amex" and would wrongly
   // suppress a genuine duplicate (dup-veto critic F1/F2, the silent-double-count direction).
-  const masksDiffer = !!lo.mask && !!hi.mask && lo.mask !== hi.mask;
+  //
+  // U.14, 2026-08-12: the mask COLUMN is why this veto never fired on the migration it exists for.
+  // SimpleFIN populates no mask, so `!!lo.mask && !!hi.mask` is false for every SimpleFIN→Plaid
+  // pair, and the weak name signal ran unchecked across exactly those rows. MEASURED on the owner's
+  // production data: it proposed three distinct Schwab 529 plans against one Vanguard 401k on the
+  // single shared token "plan", and two different cardholders' cards on "lee" — and nine such pairs
+  // had already been confirmed, each asserting an identity between accounts that are not the same.
+  // `accountNumbersConflict` reads the number a feed ADVERTISES (mask column, parenthesized, or
+  // behind a truncation prefix) and corresponds them by suffix.
+  //
+  // F1/F2's argument is respected, not overturned: they refused a name-parsed last-4 on the GENERAL
+  // veto path, where a mis-read hides a real duplicate and money silently doubles. This stays where
+  // `masksDiffer` already stood — gating the WEAK NAME signal alone. A pair that matches on mask or
+  // on an identical non-zero balance is untouched, so the owner-confirmed Chase E.LEE/M.LEE case
+  // still surfaces on the strength that justified it. Measured both directions before shipping
+  // (`scripts/audit-probes/u11k-which-veto-catches-which.mts`): 9 of 9 wrong pairs caught, and 0 of
+  // the 8 links independently judged genuine suppressed.
+  const masksDiffer = accountNumbersConflict(lo, hi);
 
   const reasons: string[] = [];
   let confidence: DuplicateConfidence | null = null;

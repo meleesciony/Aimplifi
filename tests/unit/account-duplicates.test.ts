@@ -7,6 +7,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   type DuplicateAccountCandidate,
   type HouseholdDuplicateAccountCandidate,
+  accountNumbersConflict,
+  advertisedAccountNumbers,
   detectDuplicateAccounts,
   detectHouseholdDuplicateAccounts,
   distinctiveNameTokens,
@@ -233,6 +235,123 @@ describe('detectDuplicateAccounts', () => {
   it('handles the empty / single-account cases', () => {
     expect(detectDuplicateAccounts([])).toEqual([]);
     expect(detectDuplicateAccounts([acct({ id: 'only' })])).toEqual([]);
+  });
+});
+
+/**
+ * U.14 — the weak NAME signal is disqualified when the two rows advertise account numbers that
+ * do not correspond. `masksDiffer` already did this and read the mask COLUMN, which SimpleFIN
+ * never populates, so the veto was inert across exactly the SimpleFIN→Plaid migration it exists
+ * for. Every fixture below is production-shaped: names copied from the owner's real corpus, where
+ * nine such pairs had been confirmed (see PROGRESS.md 2026-08-12, and
+ * scripts/audit-probes/u11k-which-veto-catches-which.mts, which measured 9/9 caught and 0 of the
+ * independently-judged-genuine links suppressed).
+ */
+describe('U.14 — account-number conflict disqualifies the weak name signal', () => {
+  const sf = (id: string, name: string, cents: number): DuplicateAccountCandidate =>
+    acct({ id, provider: 'simplefin', name, type: 'INVESTMENT', mask: null, currentBalanceCents: cents });
+  const plaid = (id: string, name: string, mask: string, cents: number): DuplicateAccountCandidate =>
+    acct({ id, provider: 'plaid', name, type: 'INVESTMENT', mask, currentBalanceCents: cents });
+
+  it('refuses three distinct 529 plans against one retirement plan matched on “plan” alone', () => {
+    // FAIL-OLD: the mask column is null on the SimpleFIN side, so the old veto could not fire and
+    // each of these was proposed at medium confidence on the single shared token "plan".
+    for (const [id, name, cents] of [
+      ['p1', 'Charles Schwab US Schwab 529 Plan ...-01 (01)', 1_622_572],
+      ['p2', 'Charles Schwab US Schwab 529 Plan ...-02 (02)', 1_672_879],
+      ['p3', 'Charles Schwab US Schwab 529 Plan ...-03 (03)', 1_736_830],
+    ] as const) {
+      expect(
+        detectDuplicateAccounts([
+          sf(id, name, cents),
+          plaid('live', 'FINAN TEMPLETON DERMATOPATHOLOGY ASSOC PLAN Vanguard Retirement Plan Access', '3075', 36_828_771),
+        ]),
+      ).toEqual([]);
+    }
+  });
+
+  it('refuses a Schwab Roth Contributory IRA against a Vanguard Roth IRA on “ira”, “roth”', () => {
+    // Both resolve to registration 'roth', so the L.9 veto abstains — the account NUMBER is the
+    // only evidence that separates them, and it is decisive.
+    expect(
+      detectDuplicateAccounts([
+        sf('pred', 'Charles Schwab US Roth Contributory IRA ...156 (156)', 9_548_482),
+        plaid('succ', 'Michael Lee - Roth IRA Brokerage Account - ****5351', '5351', 2_400),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('refuses two cardholders’ cards matched on a shared surname', () => {
+    expect(
+      detectDuplicateAccounts([
+        acct({ id: 'e', provider: 'simplefin', name: 'Chase Bank E. LEE (4034)', type: 'CREDIT', currentBalanceCents: 99_049 }),
+        acct({ id: 'm', provider: 'plaid', name: 'M. LEE', type: 'CREDIT', mask: '4927', currentBalanceCents: 97_449 }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('a truncated number that CORRESPONDS by suffix is not a conflict — the pair still surfaces', () => {
+    // Schwab renders "...383", Plaid's mask is "7383": one real account. Equality here condemned a
+    // genuine $898,889.99 brokerage pair while this slice was being measured.
+    const pairs = detectDuplicateAccounts([
+      sf('pred', 'Charles Schwab US Community Property ...383 (383)', 89_888_999),
+      plaid('succ', 'Community Property', '7383', 86_204_694),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].reasons.some((r) => r.startsWith('shared name'))).toBe(true);
+  });
+
+  it('one side advertising no number is an ABSENCE, never a difference', () => {
+    const pairs = detectDuplicateAccounts([
+      sf('pred', 'Vanguard Brokerage', 5_000),
+      plaid('succ', 'Vanguard Brokerage', '5351', 5_100),
+    ]);
+    expect(pairs).toHaveLength(1);
+  });
+
+  it('the STRONG signals survive a conflicting number — this gates the name signal only', () => {
+    // An identical non-zero balance is two cards on one account; the owner confirmed that shape
+    // (duplicates.ts) and it must keep surfacing despite different last-4s.
+    const pairs = detectDuplicateAccounts([
+      acct({ id: 'a', provider: 'simplefin', name: 'Chase Bank E. LEE (4034)', type: 'CREDIT', currentBalanceCents: 99_049 }),
+      acct({ id: 'b', provider: 'plaid', name: 'M. LEE', type: 'CREDIT', mask: '4927', currentBalanceCents: 99_049 }),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].confidence).toBe('high');
+    expect(pairs[0].reasons).toContain('identical balance');
+  });
+
+  it('a matching last-4 still wins outright', () => {
+    const pairs = detectDuplicateAccounts([
+      sf('pred', 'U.S. Bank Loan - 2927 (2927)', 100),
+      plaid('succ', 'US Bank Loan', '2927', 877),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].confidence).toBe('high');
+    expect(pairs[0].reasons.some((r) => r.startsWith('same last-4'))).toBe(true);
+  });
+});
+
+describe('U.14 — advertisedAccountNumbers reads renderings, not every digit run', () => {
+  it('reads the mask column, parenthesized groups, and truncation-prefixed groups', () => {
+    expect(advertisedAccountNumbers({ mask: '4927', name: 'M. LEE' })).toEqual(['4927']);
+    expect(advertisedAccountNumbers({ mask: null, name: 'Chase Bank E. LEE (4034)' })).toEqual(['4034']);
+    expect(advertisedAccountNumbers({ mask: null, name: 'Charles Schwab US Community Property ...383 (383)' })).toEqual(['383']);
+    expect(advertisedAccountNumbers({ mask: null, name: 'Charles Schwab US Schwab 529 Plan ...-01 (01)' })).toEqual(['01']);
+  });
+
+  it('does NOT read a product name as an account number', () => {
+    // The bare \d{3,} sweep this rule was chosen over reads "529" here and "401" from "401k".
+    expect(advertisedAccountNumbers({ mask: null, name: 'Schwab 529 Plan' })).toEqual([]);
+    expect(advertisedAccountNumbers({ mask: null, name: 'Fidelity 401k' })).toEqual([]);
+    expect(accountNumbersConflict({ mask: null, name: 'Schwab 529 Plan' }, { mask: '3075', name: 'Retirement' })).toBe(false);
+  });
+
+  it('corresponds by suffix in both directions, and treats an empty side as an absence', () => {
+    expect(accountNumbersConflict({ mask: null, name: 'Acct ...383' }, { mask: '7383', name: 'Acct' })).toBe(false);
+    expect(accountNumbersConflict({ mask: '7383', name: 'Acct' }, { mask: null, name: 'Acct ...383' })).toBe(false);
+    expect(accountNumbersConflict({ mask: null, name: 'Acct ...191' }, { mask: '5351', name: 'Acct' })).toBe(true);
+    expect(accountNumbersConflict({ mask: null, name: 'Acct' }, { mask: '5351', name: 'Acct' })).toBe(false);
   });
 });
 
