@@ -59,9 +59,25 @@ locked) and appears inside the EXISTING "Combined accounts" card next to the Und
 there — the affordance existed; what was missing was the evidence. Validated against production:
 flags exactly **9 of 27**, agreeing exactly with the independent per-link method in `u11e`.
 
-**Gate:** `bash scripts/verify.sh` GREEN on the reverted tree — **6,869 passed / 1 expected fail / 1
-skipped / 418 files**, build clean, tsc 0, eslint 0; `playwright reconcile.spec.ts` **4/4** including
-the test that caught P0-2. CI read on `b95d905` recorded below once it lands. No `prisma/` diff.
+**Gate + live (rule 5 / K.8).** `bash scripts/verify.sh` GREEN on the reverted tree — **6,869 passed
+/ 1 expected fail / 1 skipped / 418 files**, build clean, tsc 0, eslint 0. **CI run 31629656208 on
+the revert `b95d905` = SUCCESS**, and **CI run 31630929344 on `dc3ae5c` (U.15(a) + its e2e) =
+SUCCESS, attempt 1** — the full `VERIFY_E2E=1` gate, which is the layer that caught U.14 and the one
+a shared-predicate change must never skip. Vercel reports success on `dc3ae5c`
+(`83ZHAY8QZy2RB5RSStL3R6nAdQPN`); live: `/sign-in` 200, `/accounts` 307 to the auth gate as designed.
+No `prisma/` diff — read-path and copy only, the live Neon database untouched.
+
+**What the live check CANNOT show, stated rather than dressed up.** The audit flag needs a confirmed
+`AccountReconciliation` between two accounts whose evidence conflicts, and the demo seed writes NO
+reconciliation rows at all — so no combined card, and therefore no flag, can render as the demo user.
+The same limitation U.5 and U.9 recorded. The behaviour is proven instead by `combined-accounts.spec.ts`
+in a real browser at 380px on a throwaway user seeded with a flagged pair AND a clean control, and its
+fail-old was proven RED by emptying the conflict evidence — **but only after a rebuild**: the first
+sabotage run came back green because Playwright reuses the running server and tests the last
+`next build` (`docs/lessons/e2e-runs-a-stale-build.md`, this repo's own lesson, walked into anyway).
+
+**e2e:** `combined-accounts.spec.ts` 4/4 and `reconcile.spec.ts` 4/4 on a fresh build, including
+`:237` "a Roth is never offered against a Traditional", the test that caught U.14's P0-2.
 
 ## 2026-08-12 — U.11 MEASURED, NOT BUILT: the task row's premise has zero true instances in production, and the scary number it implied is not real
 
