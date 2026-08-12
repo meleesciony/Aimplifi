@@ -90,6 +90,33 @@ spending recorded" — closing it needs a second, raw count that survives the ca
 **Gate:** `bash scripts/verify.sh` with `VERIFY_E2E=1` GREEN. No `prisma/` diff — read-path and copy only,
 so the live Neon database is untouched.
 
+
+**SHIPPED AND PROVEN LIVE (2026-08-12).** `bash scripts/verify.sh` with `VERIFY_E2E=1` GREEN on the
+shipped tree — tsc 0 / eslint 0 / **6,901 passed + 1 expected fail + 1 skipped / 420 files** / build clean
+/ **342 e2e passed, 5 flaky-but-passed on retry** (all in `phase5-a11y`, `register-return` and
+`transactions` — files this slice does not touch, and the load-induced local flake class the lessons
+already record). Committed `0e3d665` → pushed → **CI gate `success`, run 31650606917, attempt 1**, read to
+conclusion via `scripts/ci-status.sh` — the full `VERIFY_E2E=1` suite on the Linux runner, which is where
+`handover-day-disclosure.spec.ts` actually discriminates the build. Vercel reports `success` on that exact
+sha (deployment `FRsWtyzFUFDQa425jkp95aigkSGc`). No `prisma/` diff.
+
+**Live proof: `node scripts/u16-live-deploy-check.mjs` → 13 PASS / 0 FAIL / 4 declared SKIP.** It states up
+front that it CANNOT discriminate this deployment and why (no `AccountReconciliation` rows in the seed → no
+combined pair → no released day → no demo-visible string differs), and asserts instead the half that
+carries the real risk: this slice edited `spendingByCategory`, the selector behind /reports' table, the
+dashboard's top-spending card and three Ask answers, and every edit must be INERT for a reader with no
+combined accounts. The demo is that reader, and its figures are unmoved (`$299.93` on /reports, `$4,900.00`
+on /budgets, `$2,763.00` on /coach), with the new marker and the new sentence correctly ABSENT everywhere.
+**U.13's own proof re-run against the same deployment: 6 PASS / 0 FAIL / 3 SKIP** — this money-core change
+regressed neither.
+
+**Two bugs in the live check itself, found by running it rather than by reading it.** It first asserted a
+`reports-total` testid the app does not have, and then read `body.innerText()` after `domcontentloaded` —
+which returns before the client render finishes, so it reported "/budgets renders money: FAIL (none)"
+against a page that renders money perfectly well, and reported it *inconsistently between runs*, which is
+the tell. A check that races the app is testing the harness. Both fixed (`paintedText()` polls to a
+deadline and still fails an genuinely empty page); the corrected script is what produced the 13/13 above.
+
 **Residual filed:** the register (`transaction-list.tsx`) still carries no reconciliation vocabulary, so a
 reader scrolling their activity list sees both rows with only the account name to separate them. Different
 surface, different question — a list of events rather than a certified total — and it needs its own decision

@@ -61,6 +61,27 @@ const skipped = (name, why) => {
 
 const MONEY = /\$[\d,]+\.\d{2}/;
 
+/**
+ * Read the page's text once it has actually PAINTED.
+ *
+ * `waitUntil: 'domcontentloaded'` returns before the client render finishes, so a
+ * bare `innerText()` can capture an empty shell — an earlier draft of this script
+ * reported "/budgets renders money: FAIL (none)" against a page that renders money
+ * perfectly well, and reported it inconsistently between runs, which is the tell.
+ * A check that races the app is testing the harness. Polls for up to `ms` and
+ * returns whatever it has at the deadline, so a genuinely empty page still fails.
+ */
+async function paintedText(page, ms = 20_000) {
+  const deadline = Date.now() + ms;
+  let text = '';
+  do {
+    text = await page.locator('body').innerText().catch(() => '');
+    if (MONEY.test(text)) return text;
+    await page.waitForTimeout(500);
+  } while (Date.now() < deadline);
+  return text;
+}
+
 const browser = await chromium.launch();
 const ctx = await browser.newContext(mobile);
 const page = await ctx.newPage();
@@ -77,8 +98,16 @@ try {
 
   // ── /reports: the surface U.16 edited most ────────────────────────────────
   await page.goto(`${BASE}/reports`, { waitUntil: 'domcontentloaded' });
-  const total = await page.getByTestId('reports-total').innerText().catch(() => '');
-  check('the /reports spending total still renders a money figure', MONEY.test(total), total.trim() || '(missing)');
+  // Read the page text rather than a testid: the "$X total" line under "Spending
+  // by category" carries none (an earlier draft of this script invented one and
+  // failed against production — a check that asserts a selector the app does not
+  // have is testing the script, not the deploy).
+  const reportsText = await paintedText(page);
+  check(
+    'the /reports spending total still renders a money figure',
+    MONEY.test(reportsText) && /total/i.test(reportsText),
+    (reportsText.match(MONEY) ?? ['(none)'])[0],
+  );
 
   // The category table is built from `spendingByCategory`, whose signature and
   // inner loop this slice changed. A category row must still paint a figure.
@@ -117,8 +146,8 @@ try {
 
   // ── /budgets: the second surface whose panels this slice threaded ─────────
   await page.goto(`${BASE}/budgets`, { waitUntil: 'domcontentloaded' });
-  const budgetsText = await page.locator('main').innerText();
-  check('/budgets still renders money', MONEY.test(budgetsText), 'figures present');
+  const budgetsText = await paintedText(page);
+  check('/budgets still renders money', MONEY.test(budgetsText), (budgetsText.match(MONEY) ?? ['(none)'])[0]);
   check(
     '/budgets says nothing about handover days for a reader with no links',
     !budgetsText.includes('changing connections'),
@@ -127,13 +156,13 @@ try {
 
   // ── /coach: savings-rate month flows + lifestyle creep, both threaded ─────
   await page.goto(`${BASE}/coach`, { waitUntil: 'domcontentloaded' });
-  const coachText = await page.locator('main').innerText();
-  check('/coach still renders money', MONEY.test(coachText), 'figures present');
+  const coachText = await paintedText(page);
+  check('/coach still renders money', MONEY.test(coachText), (coachText.match(MONEY) ?? ['(none)'])[0]);
   check('/coach stays silent about handover days', !coachText.includes('changing connections'), 'silent, correctly');
 
   // ── /trends: movers' category panels + new-merchant panels ────────────────
   await page.goto(`${BASE}/trends`, { waitUntil: 'domcontentloaded' });
-  const trendsText = await page.locator('main').innerText();
+  const trendsText = await paintedText(page);
   check('/trends still renders', trendsText.length > 0, 'page painted');
   check('/trends stays silent about handover days', !trendsText.includes('changing connections'), 'silent, correctly');
 
