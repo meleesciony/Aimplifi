@@ -91,6 +91,34 @@ double; the repo already built `cardDuplicateTraceBasis` for this exact shape), 
 predecessor's released day can be months before the handover), **U.18** (three docblocks still promise
 "counted once", and one describes a `refreshRecurringForUser` exclusion that does not exist in the query).
 
+**SHIPPED AND PROVEN (2026-08-12).** `bash scripts/verify.sh` with `VERIFY_E2E=1` GREEN on the shipped
+tree — tsc 0 / eslint 0 / **6,879 passed + 1 expected fail + 1 skipped / 418 files** / build clean /
+**345 e2e passed, 0 failed**. Committed `411ff49` → pushed → **CI gate `success`, run 31638502577 on
+`411ff496`, attempt 1**, read to conclusion — the full `VERIFY_E2E=1` suite, which is the layer that
+caught U.14 and the one a shared-predicate change must never skip. Vercel reports success on that sha
+(`HRx8PMDj4v7iZ4T9fFtwu1G7rTMv`). No `prisma/` diff: read-path and copy only, the live Neon database is
+untouched.
+
+**Two e2e fixtures had to be repaired, and both for the same honest reason** — they seeded the successor
+with a row ON the predecessor's last day, so post-U.13 that connection genuinely OWNS the handover day and
+the state each test was named for ('counted-elsewhere' / 'No history of its own') was no longer reachable.
+Moved the successor's rows strictly inside the claim so each tests its stated property again, and locked
+the new state separately rather than deleting the old one. The register e2e moved $150.00 → **$220.00** on
+an unchanged fixture: $150.00 is the de-duplicated figure and the extra $70.00 is the single handover day,
+which is the slice's cost rendered on a real screen.
+
+**Live proof:** `node scripts/u13-live-deploy-check.mjs` against production → **6 PASS / 0 FAIL / 3
+declared SKIP**. It states up front that it CANNOT discriminate this deployment — the demo seed writes no
+`AccountReconciliation` rows, so no combined pair, and therefore no handover day, can render as the demo
+user (the same limit U.5, U.9 and U.15 recorded). What it does prove is the half that carries the real
+risk: with no effective links the boundary returns its inputs by reference, so the demo must be unmoved by
+a claim-span change — register rows, reports figures and account balances all intact, and no combined or
+handover copy anywhere on a user who has no linked pair.
+
+**Production replay after the change** (`u11c`, the probe that found the defect): the **$2,086.40 deposit
+is kept**, and silent loss on the corpus goes to **zero** — the two rows it still flags are the ±1-day
+duplicates decision 3 identifies, not losses. Kept 1517 → 1526, and `u13c` accounts for all nine.
+
 ## 2026-08-12 — U.14 SHIPPED AND REVERTED THE SAME SESSION (2 P0s, one caught by CI); U.15(a) audit built on top of the reverted evidence
 
 **The owner asked for the re-audit screen** ("yes please do that", after being offered the undo or
