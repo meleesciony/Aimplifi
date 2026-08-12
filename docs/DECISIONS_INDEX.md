@@ -447,3 +447,4 @@ refuses to write if it would drop any number this file already carries.
 - **#451** (Phase ?): U.6: a recorded balance keeps the class it was read under, and the guess we chose not to write down (2026-08-12)
 - **#452** (Phase ?): U.5: the panel and the chart are decided by ONE engine, and the input set is part of that engine (2026-08-12)
 - **#453** (Phase ?): U.9: a link's "same account" claim is transitive, so the unit of de-duplication is the component (2026-08-12)
+- **#454** (Phase ?): U.13: no side owns the handover day, because the handover happens inside it (2026-08-12)

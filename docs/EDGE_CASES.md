@@ -1129,13 +1129,57 @@ cur 250 000¢ / avail 251 000¢), OTHER (SAVINGS, 100 000¢). One active link PR
 
 **R1 — transactions: the predecessor is authoritative exactly over its own covered span.** PRED keeps
 `date ≤ cutover`; SUCC keeps dates OUTSIDE PRED's claim `[PRED's first txn, min(cutover, PRED's last
-txn)]`. Fixture (PRED txns span 06-29…07-01 ⇒ claim [06-29, 06-30]): PRED 06-29 (−1000) kept ·
-PRED 06-30 (−2000) **kept — the cutover day belongs to the predecessor** · PRED 07-01 (−3000) dropped ·
-SUCC 06-30 (−4000) **dropped — inside the claim** · SUCC 07-01 (−5000) kept. Pair total −8000¢; every
-claimed date owned exactly once. **F2:** SUCC's deeper backfill (2024-11-05 −120 000¢, 2026-03-15
-−80 000¢ — before PRED's first row) is KEPT — Plaid's 24-month backfill must never be dropped against a
-90-day SimpleFIN window. **F4 by construction:** a user-set cutover past PRED's last data claims nothing
-extra (claim end = min(cutover, last txn)), so the empty tail can't swallow successor rows.
+txn))` — **half-open at BOTH ends since U.13**. Fixture (PRED txns span 06-29…07-01 ⇒ claim
+[06-29, 06-30)): PRED 06-29 (−1000) kept · PRED 06-30 (−2000) **kept — the cutover day belongs to the
+predecessor** · PRED 07-01 (−3000) dropped · SUCC 06-30 (−4000) **KEPT — the handover day is released
+to both sides** · SUCC 07-01 (−5000) kept. Pair total **−12 000¢**; every date strictly inside the claim
+is owned exactly once, and 06-30 is the single date owned twice. **F2:** SUCC's deeper backfill
+(2024-11-05 −120 000¢, 2026-03-15 −80 000¢ — before PRED's first row) is KEPT — Plaid's 24-month backfill
+must never be dropped against a 90-day SimpleFIN window. **F4 by construction:** a user-set cutover past
+PRED's last data claims nothing extra (claim end = min(cutover, last txn)), so the empty tail can't
+swallow successor rows.
+
+**U.13 — why the claim end is EXCLUSIVE, decided on production measurement, not preference.** A handover
+does not happen at midnight: the retiring feed stops partway through a day while the live one covers all
+of it, and a business date here carries no time, so **no assignment of that one day to a single side can
+be right**. Both directions were measured against the owner's real corpus
+(`scripts/audit-probes/u13a-where-the-loss-lives.mts`, `u13b-the-boundary-day-itself.mts`):
+
+| Rule | Silently lost | Visible duplicates |
+|---|---|---|
+| Predecessor owns the day (pre-U.13) | **1 row / $2,086.40** | 0 |
+| Successor owns the day | **24 rows / $25,574.13** | 0 |
+| Neither — released to both (**shipped**) | none | 9 rows / $374.40 |
+
+The lost row was a real "Deposit Mobile Banking" of $2,086.40 on Investor Checking, dated exactly the
+cutover, which the retired Schwab feed never reported on any date (`u11i-confirm-the-lost-deposit.mts`)
+and which no surviving row replaced — absent from the register, budgets, reports AND the tax export.
+Successor-owns fails harder: 8 links have a successor that reported NOTHING on the handover day while
+the retired feed posted its final trades. So the day is released, which is the failure direction this
+engine already required of itself ("a visible, advisory-covered double, never a silent loss").
+Every earlier date still de-duplicates, so the overlap is exactly ONE day per predecessor.
+
+A rejected refinement, also measured: releasing the day only when the predecessor's claim end IS its
+last reported date. On all 9 real cases the two dates coincide (the cutover is derived from the
+handover), so it avoided zero duplicates and bought only a branch. **Sibling composition holds:** one
+predecessor's handover day can be strictly inside a SIBLING predecessor's claim, and is then still
+correctly dropped — measured, 1 of the 10 boundary-day rows (`u13c-which-rows-moved.mts`).
+
+**Multiplicity on a handover day is not always two** (U.13 money critic, executed — the first draft of
+this section said it was). A CHAIN whose links share one cutover releases that date at every
+generation, so A→B→C→D each keep it: one $999.99 charge measured at $3,999.96. Equal cutovers are
+legal — the confirm action refuses only a *strictly earlier* downstream cutover, and two same-day
+combines produce them. Likewise a predecessor holding exactly ONE day of history has claim `[D, D)` =
+empty and de-duplicates nothing. Both are configurations where every generation genuinely handed over
+inside the same day, so the release is still the honest answer, but the cost is depth-scaled.
+
+**Cadence detection does NOT read the released duplicate.** A second copy of one charge is a 0-day gap,
+and `detectRecurring` infers cadence from gaps — measured by the same critic: a fabricated BIWEEKLY
+series from two monthly sightings, a real QUARTERLY bill destroyed, and a BIWEEKLY $3,000.00 paycheck
+read as WEEKLY income (which *understates* the shortfall). Those series persist into forecast and
+cash-needed, so `collapseHandoverDuplicates` folds same-(component, date, amount) rows from DIFFERENT
+accounts to one occurrence for detection only. Two rows on the SAME account are never collapsed — a
+transaction is a FLOW, and two $5.00 coffees in a day are ordinary.
 
 **Balance snapshots are STOCKS, not flows (F3).** A lone observation is a correct single contribution —
 dropped ONLY on an exact-date collision with the linked counterpart, where the cutover picks the winner

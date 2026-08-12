@@ -144,10 +144,19 @@ describe('B-F1/C-1 — the register applies the boundary', () => {
     await link();
     const reg = await getTransactions(OWNER);
     const keys = reg.rows.map((r) => `${r.accountId === ownerPred ? 'pred' : 'succ'}:${r.date}:${r.amountCents}`).sort();
-    // Pred owns its claim span [05-01, 06-10]; succ keeps outside it.
-    expect(keys).toEqual(['pred:2026-05-01:-5000', 'pred:2026-06-10:-7000', 'succ:2026-07-01:-3000']);
-    expect(reg.summary.count).toBe(3);
-    expect(reg.summary.outflowCents).toBe(15_000); // pre-fix: 27_000 — an 80% inflation
+    // Pred owns its claim span [05-01, 06-10) — HALF-OPEN at the end (U.13); succ keeps
+    // everything outside it, which now includes 06-10, the handover day both feeds report.
+    expect(keys).toEqual([
+      'pred:2026-05-01:-5000',
+      'pred:2026-06-10:-7000',
+      'succ:2026-06-10:-7000',
+      'succ:2026-07-01:-3000',
+    ]);
+    expect(reg.summary.count).toBe(4);
+    // 5000 + 7000 + 7000 + 3000. Pre-boundary this was 27_000 (an 80% inflation across the
+    // whole overlap); the remaining 7_000 above the 15_000 the old rule showed is the single
+    // handover day, kept on purpose so a row only one feed saw can never vanish (U.13).
+    expect(reg.summary.outflowCents).toBe(22_000);
   });
 
   it('the shared keep-rule is the R8 fast path with no links (keeps everything, zero extra queries)', async () => {
@@ -159,8 +168,9 @@ describe('B-F1/C-1 — the register applies the boundary', () => {
   it('the shared keep-rule matches the assembler split when linked', async () => {
     await link();
     const keep = await getReconciliationTxnKeep(OWNER);
-    expect(keep(ownerPred, '2026-06-10')).toBe(true); // pred inside claim → keeps
-    expect(keep(ownerSucc, '2026-06-10')).toBe(false); // succ copy inside claim → dropped
+    expect(keep(ownerPred, '2026-06-10')).toBe(true); // pred on its claim end → keeps
+    expect(keep(ownerSucc, '2026-06-10')).toBe(true); // handover day → succ keeps it too (U.13)
+    expect(keep(ownerSucc, '2026-05-01')).toBe(false); // strictly inside the claim → dropped
     expect(keep(ownerSucc, '2026-07-01')).toBe(true); // succ outside claim → keeps
     expect(keep(ownerPred, '2026-07-15')).toBe(false); // pred after cutover → dropped
   });

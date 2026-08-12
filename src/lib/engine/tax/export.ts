@@ -113,10 +113,31 @@ export interface TaxExport {
  * `rows` may be the reader's whole history: the year filter lives here so no
  * caller can pass an already-narrowed set and lose the excluded counts.
  */
-export function buildTaxExport(rows: readonly TaxExportRow[], year: number): TaxExport {
+/**
+ * The handover days (U.13) — dates where two connections were changing over and BOTH sides'
+ * rows are kept, so a charge both reported is counted twice.
+ *
+ * Passed in rather than inferred, because the only honest detector is the boundary's own
+ * rule; guessing from the rows (two equal amounts on one date) cannot tell a real pair of
+ * identical charges from a handover duplicate. Defaults to empty, which is the truth for
+ * every reader with no combined accounts.
+ *
+ * This exists because every other sentence in the disclosure block explains why a total is
+ * LOW — pending, transfers, split containers, untagged groups — and U.13 created the app's
+ * first deliberate over-count. A block that enumerates five under-counts and stays silent
+ * about the one over-count reads as a completeness claim, and this file's own ethic
+ * ("counting both would report the money twice") is the reason that is not acceptable here:
+ * the CSV leaves the app, carries no account column, and gets forwarded to a preparer.
+ */
+export function buildTaxExport(
+  rows: readonly TaxExportRow[],
+  year: number,
+  handoverDates: ReadonlySet<string> = new Set<string>(),
+): TaxExport {
   const from = `${year}-01-01`;
   const to = `${year}-12-31`;
 
+  let countedOnHandoverDays = 0;
   let excludedPending = 0;
   let excludedTransfers = 0;
   let excludedSplitParents = 0;
@@ -143,6 +164,9 @@ export function buildTaxExport(rows: readonly TaxExportRow[], year: number): Tax
       excludedPending += 1;
       continue;
     }
+    // Counted AFTER every exclusion gate, so this reports rows that actually reached a
+    // total — a pending or transfer row on a handover day is already not in the figure.
+    if (handoverDates.has(r.date)) countedOnHandoverDays += 1;
     const lines = byClass.get(r.taxClass) ?? [];
     lines.push({ date: r.date, description: r.description, amountCents: r.amountCents, note: r.note });
     byClass.set(r.taxClass, lines);
@@ -196,6 +220,11 @@ export function buildTaxExport(rows: readonly TaxExportRow[], year: number): Tax
   if (excludedSplitParents > 0) {
     disclosures.push(
       `${excludedSplitParents} tagged ${excludedSplitParents === 1 ? 'row was split' : 'rows were split'} into parts, so the original ${excludedSplitParents === 1 ? 'is' : 'are'} not counted — the parts carry the amounts, and counting both would report the money twice. Tag the parts instead.`,
+    );
+  }
+  if (countedOnHandoverDays > 0) {
+    disclosures.push(
+      `${countedOnHandoverDays} counted ${countedOnHandoverDays === 1 ? 'row falls' : 'rows fall'} on a day one of your combined accounts was changing connections. On that day both connections' records are kept, because neither can be shown to have covered the whole of it — so if both reported the same charge, it is counted twice here. This is the only sentence in this file about a total being too HIGH rather than too low: check those ${countedOnHandoverDays === 1 ? 'date' : 'dates'} against your own records.`,
     );
   }
   if (groups.length < TAX_CLASSES.length) {

@@ -116,10 +116,38 @@ describe('getAccountsView — per-connection history depth is read through the r
 
   it('a connection holding rows it owns NONE of says so, and never prints a date', async () => {
     // The live Q3 hit (American Express, 7 rows held / 0 owned). Every successor row falls
-    // inside the predecessor's claim, so this connection owns nothing at all.
+    // STRICTLY inside the predecessor's claim, so this connection owns nothing at all.
+    // U.13: "strictly" is load-bearing now — the claim is [first, claimEnd), so a successor
+    // row ON the claim end is owned by the successor and this state would not apply. The
+    // fixture keeps the successor's rows inside the window so it still tests the state it
+    // is named for; the handover-day case is locked by the test below.
     await item('it-none', 'American Express');
     const pred = await account(null, 'Old Amex', 'simplefin');
     const succ = await account('it-none', 'New Amex');
+    for (const d of ['2026-05-05', '2026-07-09']) await txn(pred.id, d);
+    for (const d of ['2026-05-05', '2026-06-15']) await txn(succ.id, d);
+    await prisma.accountReconciliation.create({
+      data: {
+        userId: uid,
+        predecessorAccountId: pred.id,
+        successorAccountId: succ.id,
+        cutoverDate: '2026-07-20',
+        matchSignal: 'mask',
+        confidence: 'high',
+        confirmedByUserAt: new Date(),
+      },
+    });
+    expect(await depthOf('it-none')).toEqual({ state: 'counted-elsewhere' });
+  });
+
+  it('U.13: a connection whose ONLY owned row is the handover day reports that day, not "counted elsewhere"', async () => {
+    // Same shape as the Q3 Amex hit, but the successor also reported the predecessor's
+    // final day. That day is released to both sides (the old feed stopped partway through
+    // it), so this connection genuinely owns a row and must say so — claiming its history
+    // is counted elsewhere would be false about the one row only it may have seen.
+    await item('it-handover', 'American Express');
+    const pred = await account(null, 'Old Amex HO', 'simplefin');
+    const succ = await account('it-handover', 'New Amex HO');
     for (const d of ['2026-05-05', '2026-07-09']) await txn(pred.id, d);
     for (const d of ['2026-05-05', '2026-07-09']) await txn(succ.id, d);
     await prisma.accountReconciliation.create({
@@ -133,7 +161,7 @@ describe('getAccountsView — per-connection history depth is read through the r
         confirmedByUserAt: new Date(),
       },
     });
-    expect(await depthOf('it-none')).toEqual({ state: 'counted-elsewhere' });
+    expect(await depthOf('it-handover')).toEqual({ state: 'reaches', earliest: '2026-07-09' });
   });
 
   it('the PREDECESSOR side keeps its own depth — the boundary moves rows, it does not blank a connection', async () => {

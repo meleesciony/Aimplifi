@@ -171,6 +171,17 @@ export interface CategoryBreakdown {
  * types, reconciliation predecessors) are deliberately not listed: they shape
  * the figure too, so "these are the rows the figure counts" stays true, and each
  * has its own disclosure on the surfaces where it applies.
+ *
+ * U.13 CAVEAT, recorded rather than left implied: that last clause is no longer
+ * fully true. The boundary now releases the single handover day to BOTH sides
+ * (DECISIONS #454), so a charge both connections reported is counted twice on
+ * that one date. The sentence below stays TRUE — both rows are counted, and this
+ * panel does list both — but a reader auditing the figure sees two identical
+ * lines and the panel's `reconciles` tick affirms them, which is the shape
+ * `cardDuplicateTraceBasis` (trace.ts) exists to answer for card payments. There
+ * is no equivalent handover-day basis yet; it needs the released dates threaded
+ * into this path the way the tax export now receives them. Filed as TASKS U.16
+ * with its evidence rather than half-built here.
  */
 export const BREAKDOWN_BASIS =
   'These are the rows the figure counts. Pending charges are included; income, transfers ' +

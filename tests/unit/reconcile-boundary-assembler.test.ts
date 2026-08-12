@@ -139,9 +139,13 @@ describe('getFinanceSnapshot with an active reconciliation', () => {
     const snap = await provider.getFinanceSnapshot(USER);
     const key = (t: { accountId: string; date: string }) =>
       `${t.accountId === predId ? 'pred' : t.accountId === succId ? 'succ' : 'other'}:${t.date}`;
+    // U.13: the cutover day is the handover and is released to BOTH sides through the
+    // real assembler too — the engine change reaches every surface by construction,
+    // which is the property this assembler test exists to prove.
     expect(snap.transactions.map(key).sort()).toEqual([
       'pred:2026-06-29',
       `pred:${CUTOVER}`,
+      `succ:${CUTOVER}`,
       'succ:2026-07-01',
     ]);
     expect(snap.balanceSnapshots.map(key).sort()).toEqual([`pred:${CUTOVER}`, 'succ:2026-07-31']);

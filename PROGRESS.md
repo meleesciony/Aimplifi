@@ -2,6 +2,95 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-12 — U.13: the invariant was the defect, and both critics found real money inside my own fix
+
+**Picked up from the queue** (U.11's measurement session filed it): replaying the shipped
+`reconciliationTxnKeepFilter` over the owner's real corpus, of 709 rows the R1 rule drops, 706 were true
+duplicates and one was a genuine **+$2,086.40 "Deposit Mobile Banking"** dated exactly the cutover, which
+no surviving row replaced — gone from the register, budgets, reports AND the tax export. Reproduced this
+session before touching anything, and confirmed with the engine out of the way (`u11i`): the retired
+Schwab feed's LAST day IS the cutover 2026-07-21 and it reported one row that day (a −$11.00 Venmo); the
+live Plaid feed reported that same Venmo AND the deposit; the retired side holds no row of that amount on
+any date.
+
+**The row's prescribed fix was refused on evidence, and the root cause is deeper than the row states.**
+The row prescribed "drop a row only when a counterpart is PROVEN on the claiming side, exact amount ±3
+days". Measured (`u13a`, new): at ±1 day the corpus has **zero** mid-span losses — the two other rows the
+original probe flagged (PGA TOUR SUPERSTORE, DICK'S) are true duplicates the two feeds posted a day apart,
+an artifact of its exact-date test. **Every true loss is on the handover day.** The counterpart machinery
+addresses a problem the data does not have, and it is not expressible where the rule lives anyway: the
+filter is an `(accountId, date)` predicate with ~20 call sites across 13 files, several applying it to
+WINDOWED row sets that never hold the claiming side's rows. The real cause is that R1's own invariant —
+"exactly one side owns each date, no overlap, no gap" — is unachievable: a handover is an instant INSIDE
+a day, and a business date here carries no time.
+
+**Both whole-day awards lose real money** (`u13b`, new): predecessor-owns **$2,086.40**; successor-owns —
+the direction the shape suggests, since the live feed is the one still reporting — **$25,574.13 across 24
+rows**, because 8 links have a successor that reported NOTHING that day while the retired feed posted its
+final trades. Releasing the day to both loses nothing and costs **9 rows / $374.40** of visible
+duplication. Ten times the money rides on the direction that looks obvious. Shipped as one comparison:
+the claim is half-open at both ends, `[first, claimEnd)`. A refinement (release only when the claim end IS
+the feed's last day) was measured and rejected — on all 9 cases those dates coincide, so it avoided zero
+duplicates and bought only a branch. Fail-old proven by reverting that comparison; the deposit vanishes
+from the output entirely.
+
+**I found one P0 in my own change before the critics did, by asking what ELSE re-implements the rule.**
+`combine-connections.ts` computes the claim window twice for its pre-flight guard, and neither copy moved
+with the engine — a guard whose own docblock forbids "a window of its own invention" and cites an earlier
+critic P0 for exactly that drift. With the inclusive window it over-predicts loss on the handover day and
+**refuses the combine outright**, naming a figure: *"1 charge totalling $2,086.40 appears on only one of
+them, and combining would stop it being counted."* It would have blocked the very case U.13 exists to
+protect. The two sides now need DIFFERENT predicates (`succLoses` exclusive, `predKeeps` inclusive) —
+that asymmetry IS U.13. Locked, fail-old proven.
+
+**Two fresh-context Opus 5 critics returned 2 P0 + 10 P1 with executed evidence. The money one is why
+this slice is not a one-liner:**
+
+- **P0 (money):** the released duplicate injects a **0-day gap** into `detectRecurring`, which infers
+  cadence from gaps. Executed against the real detector: two monthly sightings plus one duplicate became a
+  fabricated BIWEEKLY series; a real QUARTERLY bill was **destroyed** (gaps [90, 91, 0] fail the every-gap
+  band); a BIWEEKLY $3,000.00 paycheck became **WEEKLY income**, which *understates* the shortfall — the
+  direction this codebase names as the expensive one. Those series PERSIST as ScheduledTransaction rows
+  into forecast, cash-needed and the calendar. Fixed with `collapseHandoverDuplicates`: on a handover
+  date, the same amount from DIFFERENT accounts of one component is one occurrence, for DETECTION only.
+  Two rows on the SAME account are never collapsed — a transaction is a FLOW, and two $5.00 coffees in a
+  day are ordinary (the U.11 reasoning). Nothing is lost, because a cadence is not a total.
+- **P0 (rendered):** the tax CSV — the one artifact that LEAVES the app, and it carries no account column
+  — held a doubled deduction under a disclosure block enumerating five reasons a total is too LOW and none
+  that it is too HIGH. That silence reads as a completeness claim. The released dates now reach it through
+  `getReconciliationHandoverDates`, and the block names the count and says outright that this is its one
+  sentence about a total being too high.
+- **The P1 the critic proved by mutation, and the one I most needed:** my updated sibling test had gone
+  HOLLOW. Both predecessors held one day of history, so post-U.13 both claims were empty and **either link
+  could be deleted with the test still passing** — it no longer tested sibling composition at all.
+  Refixtured so one sibling has multi-day history whose interior is still de-duplicated.
+- Also executed: **multiplicity is not always two.** A chain sharing one cutover releases the date at
+  every generation — one $999.99 charge measured at **$3,999.96** — and a predecessor with exactly one day
+  of history de-duplicates nothing at all. Both are degenerate shapes where every generation genuinely
+  handed over inside that day, so the release stands, but my docblock and EDGE_CASES said "the only date
+  that may be counted twice", which is simply false. Corrected in both.
+- **Copy:** the "Combined accounts" card headline read **"Counted once per date"**, unqualified, on the
+  one surface a reader visits after noticing a double — now "One balance per date", the half that is still
+  true (F3 snapshots are untouched). The success flash re-promised "counts once" ten lines from the
+  qualification. The span disclosure conflated two windows in one preposition, and asserted a CAUSE
+  ("that's the day one connection stopped") that is false whenever the reader drags the cutover input, and
+  false by sixteen months for a dormant feed — replaced with "neither connection can be shown to have
+  covered the whole of that day", which holds in every shape.
+
+**Verified unbroken rather than assumed:** net worth reads only snapshots and `currentBalanceCents` — no
+transaction input at all, so the double cannot reach it (checked myself; the critic independently
+confirmed). All three of cash-needed's direct transaction paths are keyed by `accountId`, which the
+duplicate does not share. Snapshots, statements, `paymentAccountId` and `supersededAccountIds` are
+untouched. The row-count delta reconciles exactly: 10 successor rows sit on a boundary day, 9 are now kept
+and **1 is still correctly dropped**, being one predecessor's handover day but STRICTLY INSIDE a sibling's
+claim (`u13c`).
+
+**Residuals filed with their evidence rather than papered over:** **U.16** (the glass-box drilldown lists
+both rows and green-ticks `reconciles`, and no spending surface — /reports, /budgets, Ask — discloses the
+double; the repo already built `cardDuplicateTraceBasis` for this exact shape), **U.17** (a dormant
+predecessor's released day can be months before the handover), **U.18** (three docblocks still promise
+"counted once", and one describes a `refreshRecurringForUser` exclusion that does not exist in the query).
+
 ## 2026-08-12 — U.14 SHIPPED AND REVERTED THE SAME SESSION (2 P0s, one caught by CI); U.15(a) audit built on top of the reverted evidence
 
 **The owner asked for the re-audit screen** ("yes please do that", after being offered the undo or

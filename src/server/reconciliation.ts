@@ -22,6 +22,7 @@ import type { DuplicateConfidence, ReconciliationMatchSignal } from '@/lib/engin
 import {
   accountIdentityMap,
   effectiveReconciliationLinks,
+  reconciliationHandoverDates,
   reconciliationTxnKeepFilter,
   terminalSuccessorMap,
 } from '@/lib/engine/account/reconcile-boundary';
@@ -481,6 +482,35 @@ export async function getReconciliationTxnKeep(userId: string): Promise<(account
     _max: { date: true },
   });
   return reconciliationTxnKeepFilter(
+    accounts.filter((a) => isSupportedCurrency(a.currency)),
+    links,
+    spans.flatMap((s) =>
+      s._min.date != null && s._max.date != null ? [{ accountId: s.accountId, first: s._min.date, last: s._max.date }] : [],
+    ),
+  );
+}
+
+/**
+ * The dates on which two connections were handing over, where BOTH sides' rows are kept
+ * (U.13). A surface that reports totals a reader will act on — the tax export above all,
+ * whose file leaves the app entirely — uses this to disclose that a charge both connections
+ * reported appears twice on those days. Built from the same links/spans as the keep filter
+ * and computed by the engine, never re-derived here.
+ */
+export async function getReconciliationHandoverDates(userId: string): Promise<ReadonlySet<string>> {
+  const links = await getActiveReconciliations(userId);
+  if (links.length === 0) return new Set<string>();
+  const accounts = await prisma.account.findMany({
+    where: { userId },
+    select: { id: true, type: true, currency: true, currentBalanceCents: true },
+  });
+  const spans = await prisma.transaction.groupBy({
+    by: ['accountId'],
+    where: { accountId: { in: links.map((l) => l.predecessorAccountId) }, account: { userId } },
+    _min: { date: true },
+    _max: { date: true },
+  });
+  return reconciliationHandoverDates(
     accounts.filter((a) => isSupportedCurrency(a.currency)),
     links,
     spans.flatMap((s) =>

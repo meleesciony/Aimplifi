@@ -357,7 +357,7 @@ function splitSeveredMessage(accountLabelText: string): string {
 /**
  * Which rows the date split would drop that are NOT duplicated on the surviving side.
  *
- * The window is the boundary's OWN claim — `[predFirst, claimEnd]` with
+ * The window is the boundary's OWN claim — `[predFirst, claimEnd)` with
  * `claimEnd = min(cutover, predLast)`, both computed by the caller over ALL stored rows, exactly
  * as `txnKeepRule` computes its spans (reconcile-boundary.ts) — so the guard predicts the same
  * ownership the combine will create, never a window of its own invention (H.6b(b) critic P0:
@@ -366,6 +366,17 @@ function splitSeveredMessage(accountLabelText: string): string {
  * rows inside it. A dropped row is harmless only if the side that survives that day holds an
  * identical (date, amount) row — a real duplicate. Matched as a MULTISET, so two genuine $5.00
  * charges on one day need two survivors, not one.
+ *
+ * U.13 — THE TWO SIDES NO LONGER SHARE ONE PREDICATE, and that asymmetry is the point.
+ * The claim end is now EXCLUSIVE for the successor (the handover day is released to both sides,
+ * because a feed stops partway through a day), while the predecessor still keeps its own rows
+ * THROUGH that day under its `date <= cutover` rule. So "inside the claim" means `< claimEnd`
+ * when asking what the SUCCESSOR loses, and `<= claimEnd` when asking what the PREDECESSOR
+ * keeps. Collapsing them back into one predicate is what this guard did before U.13, and it
+ * would now over-predict loss on exactly the handover day — refusing a combine, and naming a
+ * dollar figure, over rows the boundary no longer drops. That would have blocked the very case
+ * U.13 exists to protect: the owner's real $2,086.40 deposit sits on a handover day with no
+ * counterpart, which is precisely the shape `cannotSplitCleanly` refuses on.
  */
 function rowsLostToTheSplit(
   predRows: readonly DatedAmount[],
@@ -374,8 +385,10 @@ function rowsLostToTheSplit(
 ): { count: number; cents: number; allOnDroppedConnection: boolean } {
   const { predFirst, claimEnd } = window;
   const key = (r: DatedAmount) => `${r.date}|${r.amountCents}`;
-  const inWindow = (r: DatedAmount) =>
-    predFirst !== null && r.date >= predFirst && r.date <= claimEnd;
+  // What the SUCCESSOR loses: strictly inside the claim (U.13 — the handover day is released).
+  const succLoses = (r: DatedAmount) => predFirst !== null && r.date >= predFirst && r.date < claimEnd;
+  // What the PREDECESSOR keeps: through the claim end, under its own `date <= cutover` rule.
+  const predKeeps = (r: DatedAmount) => predFirst !== null && r.date >= predFirst && r.date <= claimEnd;
 
   const tally = (rows: readonly DatedAmount[]) => {
     const m = new Map<string, number>();
@@ -383,8 +396,8 @@ function rowsLostToTheSplit(
     return m;
   };
   // Survivors on each side, i.e. the rows the boundary keeps.
-  const predKept = tally(predRows.filter(inWindow));
-  const succKept = tally(succRows.filter((r) => !inWindow(r)));
+  const predKept = tally(predRows.filter(predKeeps));
+  const succKept = tally(succRows.filter((r) => !succLoses(r)));
 
   let count = 0;
   let cents = 0;
@@ -395,14 +408,14 @@ function rowsLostToTheSplit(
   };
   // Predecessor rows outside its claim are dropped; the successor must hold each of them.
   const succAvailable = new Map(succKept);
-  for (const r of predRows.filter((x) => !inWindow(x))) {
+  for (const r of predRows.filter((x) => !predKeeps(x))) {
     const left = succAvailable.get(key(r)) ?? 0;
     if (left <= 0) charge(r);
     else succAvailable.set(key(r), left - 1);
   }
   // Successor rows inside the predecessor's claim are dropped; the predecessor must hold each.
   const predAvailable = new Map(predKept);
-  for (const r of succRows.filter(inWindow)) {
+  for (const r of succRows.filter(succLoses)) {
     const left = predAvailable.get(key(r)) ?? 0;
     if (left <= 0) {
       charge(r);
@@ -919,12 +932,14 @@ export async function combineDuplicateConnectionsFor(
             tx.transaction.findMany({ where: { accountId: pair.successorAccountId }, select: guardSelect }),
           ]);
           // The window is the boundary's own claim, spans computed over ALL rows exactly as
-          // txnKeepRule computes them: [predFirst, min(cutover, predLast)].
+          // txnKeepRule computes them: [predFirst, min(cutover, predLast)) — HALF-OPEN at the
+          // end since U.13, so the successor keeps the handover day and a family that merely
+          // straddles it is no longer severed.
           const predFirst = firstDate(predAll);
           const predLast = lastDate(predAll);
           const cutover = handoverDate(predFirst, firstDate(succAll), today);
           const claimEnd = predLast !== null && compareDates(cutover, predLast) > 0 ? predLast : cutover;
-          const inClaim = (r: DatedAmount) => predFirst !== null && r.date >= predFirst && r.date <= claimEnd;
+          const inClaim = (r: DatedAmount) => predFirst !== null && r.date >= predFirst && r.date < claimEnd;
           // Predecessor keeps date <= cutover (rows before its own first cannot exist); the
           // successor loses exactly the rows inside the claim.
           const predDropped = (r: GuardRow) => compareDates(isoDate(r.date), cutover) > 0;

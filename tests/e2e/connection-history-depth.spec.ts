@@ -80,10 +80,14 @@ function seedFourConnections(email: string) {
       insTxn.run(`e2e-depth-txn-mortgage-${d}-${s}`, `e2e-depth-acct-mortgage-${s}`, d, `MORT ${d}`);
     }
 
-    // 3. claimed — every row it holds sits inside its predecessor's claim, so the boundary
-    //    gives all of them to the account it was combined with. Predecessor rows run
-    //    2026-05-05..2026-07-09 and the cutover is 2026-07-20, so the claim window covers the
-    //    successor's rows entirely.
+    // 3. claimed — every row it holds sits STRICTLY inside its predecessor's claim, so the
+    //    boundary gives all of them to the account it was combined with. Predecessor rows run
+    //    2026-05-05..2026-07-09 and the cutover is 2026-07-20, so the claim is
+    //    [2026-05-05, 2026-07-09) — half-open at the end since U.13, because the handover
+    //    happens inside that last day and it is released to both sides. The successor's rows
+    //    are therefore 05-05 and 06-15, both strictly inside: a row ON 07-09 would be OWNED by
+    //    this connection and it would correctly print a date, which is a different state
+    //    (locked in tests/unit/connection-history-depth-server.test.ts).
     insItem.run(`e2e-depth-item-claimed-${s}`, uid, `claimed-${s}`, 'American Express');
     insAcct.run(`e2e-depth-acct-claimed-${s}`, uid, `pl-claimed-${s}`, `claimed-${s}`, 'Bonvoy', '7788');
     db.prepare(
@@ -92,6 +96,8 @@ function seedFourConnections(email: string) {
     ).run(`e2e-depth-acct-pred-${s}`, uid, `sf-pred-${s}`);
     for (const d of ['2026-05-05', '2026-07-09']) {
       insTxn.run(`e2e-depth-txn-pred-${d}-${s}`, `e2e-depth-acct-pred-${s}`, d, `PRED ${d}`);
+    }
+    for (const d of ['2026-05-05', '2026-06-15']) {
       insTxn.run(`e2e-depth-txn-claimed-${d}-${s}`, `e2e-depth-acct-claimed-${s}`, d, `SUCC ${d}`);
     }
     db.prepare(

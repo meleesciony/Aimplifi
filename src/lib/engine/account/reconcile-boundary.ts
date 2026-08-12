@@ -15,11 +15,20 @@
  *  - Transactions (R1): the predecessor is authoritative exactly over its own
  *    covered span. It keeps rows with `date <= cutoverDate`; the successor keeps
  *    rows OUTSIDE the predecessor's claim `[predecessor's first txn date,
- *    min(cutoverDate, predecessor's last txn date)]`. So the successor's deeper
- *    backfill (Plaid reaches years further back than a 90-day SimpleFIN window)
- *    is NEVER dropped (critic cycle-1 F2), a cutover past the predecessor's last
- *    data claims nothing extra (F4), and inside the claim each calendar date is
- *    owned by exactly one side — no overlap, no fuzzy matching.
+ *    min(cutoverDate, predecessor's last txn date))` — HALF-OPEN AT BOTH ENDS.
+ *    So the successor's deeper backfill (Plaid reaches years further back than a
+ *    90-day SimpleFIN window) is NEVER dropped (critic cycle-1 F2), a cutover past
+ *    the predecessor's last data claims nothing extra (F4), and every date STRICTLY
+ *    INSIDE the claim is owned by exactly one side — no fuzzy matching.
+ *    The claim END is deliberately excluded (U.13): a handover happens partway
+ *    through a day and a business date carries no time, so that one day cannot be
+ *    awarded to either side without silently deleting whatever only the other side
+ *    reported. Measured both ways on the owner's real corpus — predecessor-owns
+ *    lost a real $2,086.40 deposit, successor-owns would have lost $25,574.13 — so
+ *    the handover day is released to BOTH. Handover days are the ONLY dates that may
+ *    carry more than one copy, and on a chain sharing one cutover the multiplicity is
+ *    depth-scaled rather than two. See txnKeepRule for the argument, the rejected
+ *    alternatives, and both degenerate shapes.
  *  - Balance snapshots (F3): snapshots are STOCKS, not flows — a lone observation
  *    is always a correct single contribution, so nothing is dropped unless MORE
  *    THAN ONE row observed the same real account on the SAME date. Exactly one
@@ -312,6 +321,52 @@ function chainMaps(links: readonly ReconciliationLinkLike[]): {
  * keeps date <= cutover; every account keeps only dates OUTSIDE each TRANSITIVE
  * upstream predecessor's claim (A-F1). A mid-chain account composes both roles
  * by AND: B owns exactly (claim end of A, cutover of B→C].
+ *
+ * U.13 — THE CLAIM END IS EXCLUSIVE, and that one day is a deliberate overlap.
+ *
+ * R1 used to state "exactly one side owns each date — no overlap, no gap", and
+ * that invariant was itself the defect. A handover does not happen at midnight:
+ * the old feed stops partway through a day and the new one covers the whole of
+ * it, and a business date here carries no time, so NO assignment of that day to
+ * one side can be right. Both directions were measured on the owner's real
+ * corpus rather than argued (scripts/audit-probes/u13a, u13b):
+ *
+ *   predecessor owns it (what shipped) — silently dropped a real $2,086.40
+ *     "Deposit Mobile Banking" the retired Schwab feed never reported on the day
+ *     it went quiet, from the register, budgets, reports AND the tax export;
+ *   successor owns it (the obvious alternative) — would have silently dropped
+ *     24 rows / $25,574.13, because 8 links have a successor that reported
+ *     NOTHING that day while the retired feed reported its final trades.
+ *
+ * So the claim is half-open at BOTH ends: [span.first, claimEnd). Neither side's
+ * absence on the handover day proves anything, so neither side's rows are
+ * dropped for it. The cost is bounded and was measured too — 9 rows / $374.40
+ * across the whole corpus appear on both feeds that day and are now VISIBLE
+ * duplicates, which is the failure direction this file already required of
+ * itself (see the degenerate-claim note below: "a visible, advisory-covered
+ * double, never a silent loss"). Every earlier date in the claim still drops,
+ * so the overlap is exactly one day per predecessor, never a widened window.
+ *
+ * A refinement was measured and rejected: releasing the day only when the
+ * predecessor's claim end IS its last reported date (the feed demonstrably
+ * stopped there) rather than always. On every one of the 9 real cases the two
+ * are the same date — the cutover is derived from the handover — so it avoided
+ * zero duplicates and bought only a second branch and a weaker argument.
+ *
+ * MULTIPLICITY IS NOT ALWAYS TWO — stated because the first draft of this note
+ * claimed it was, and the U.13 money critic disproved it by execution:
+ *  - A CHAIN whose links share one cutover (legal: the confirm action refuses only
+ *    a STRICTLY earlier downstream cutover, and two same-day combines produce it)
+ *    releases that date at every generation, so A→B→C→D all keep it — one $999.99
+ *    charge measured at $3,999.96. Sibling predecessors with equal claim ends give
+ *    3x the same way.
+ *  - A predecessor whose whole history is ONE day has claim [D, D) = empty, so it
+ *    de-duplicates nothing at all and that day doubles in full.
+ * Both are degenerate configurations where every generation genuinely handed over
+ * inside the same day, so no side's silence there proves anything and the release is
+ * still the honest answer — but the COST is depth-scaled, not a single extra row, and
+ * a reader of this file should not be told otherwise. The failure direction is
+ * unchanged (visible, never silent); the bound is not.
  */
 function txnKeepRule(
   links: readonly ReconciliationLinkLike[],
@@ -340,10 +395,74 @@ function txnKeepRule(
       if (compareDates(cut, span.first) < 0) continue; // degenerate claim (A-F8)
       const claimEnd = compareDates(cut, span.last) < 0 ? cut : span.last;
       const d = isoDate(date);
-      if (compareDates(d, span.first) >= 0 && compareDates(d, claimEnd) <= 0) return false;
+      // EXCLUSIVE at claimEnd (U.13): the handover happens inside that day, so it
+      // is released to both sides rather than silently awarded to either.
+      if (compareDates(d, span.first) >= 0 && compareDates(d, claimEnd) < 0) return false;
     }
     return true;
   };
+}
+
+/**
+ * U.13 follow-up — collapse the handover day's CROSS-ACCOUNT duplicates, for readers that
+ * count OCCURRENCES rather than money.
+ *
+ * The released handover day (see `txnKeepRule`) is right for every figure that sums money:
+ * dropping either side there deletes whatever only that side reported, which is the silent
+ * loss U.13 exists to end. It is WRONG for cadence detection, and the difference is what
+ * the number means. `detectRecurring` groups by merchant, counts rows against a
+ * three-sighting floor, and infers a cadence from the gaps between consecutive dates —
+ * so a second copy of one real charge injects a **0-day gap**, which is not a rhythm but
+ * an artifact. Executed by the U.13 money critic against the real detector: two monthly
+ * sightings plus one duplicate became a fabricated BIWEEKLY series; a real QUARTERLY bill
+ * was DESTROYED (gaps [90, 91, 0] fail the every-gap band); and a BIWEEKLY $3,000.00
+ * paycheck became WEEKLY income — which understates the shortfall, the direction
+ * `cash-needed/detected-payments.ts` states is the expensive one. Those series PERSIST as
+ * ScheduledTransaction rows into forecast, cash-needed and the calendar.
+ *
+ * So detection reads the same rows with one collapse: on a handover date, two rows of the
+ * same amount from DIFFERENT accounts of one supersession component are one real charge,
+ * and count once. Nothing is lost, because a cadence is not a total.
+ *
+ * Deliberately narrow, in three ways that each matter:
+ *  - only on HANDOVER dates, the only dates the boundary releases;
+ *  - only ACROSS accounts of one component — two rows on the SAME account are two genuine
+ *    charges (a transaction is a FLOW; two $5.00 coffees in a day are ordinary, the U.11
+ *    reasoning) and are never collapsed;
+ *  - matched as a MULTISET on the exact amount, so three copies against two survivors keep
+ *    the third.
+ */
+export function collapseHandoverDuplicates<R extends { accountId: string; date: string; amountCents: number }>(
+  rows: readonly R[],
+  handoverDates: ReadonlySet<string>,
+  terminalOf: ReadonlyMap<string, string>,
+): R[] {
+  if (handoverDates.size === 0) return [...rows];
+  const seen = new Map<string, Set<string>>();
+  const out: R[] = [];
+  for (const r of rows) {
+    if (!handoverDates.has(r.date)) {
+      out.push(r);
+      continue;
+    }
+    const component = terminalOf.get(r.accountId) ?? r.accountId;
+    const key = `${component}|${r.date}|${r.amountCents}`;
+    const accounts = seen.get(key);
+    if (accounts === undefined) {
+      seen.set(key, new Set([r.accountId]));
+      out.push(r);
+      continue;
+    }
+    // Same component, same date, same amount, but a DIFFERENT account — the other side of
+    // the handover reporting the same charge. Collapse it. From the SAME account it is a
+    // second real charge and is kept.
+    if (accounts.has(r.accountId)) {
+      out.push(r);
+      continue;
+    }
+    accounts.add(r.accountId);
+  }
+  return out;
 }
 
 /**
@@ -423,6 +542,38 @@ export function reconciliationTxnKeepFilter<A extends BoundaryAccountLike>(
       .map((s) => [s.accountId, { first: isoDate(s.first), last: isoDate(s.last) }]),
   );
   return txnKeepRule(eff, cutover, txnSpan);
+}
+
+/**
+ * The HANDOVER DAYS — the dates U.13 releases to both sides, so a surface that must
+ * disclose a possible duplicate can name them instead of guessing.
+ *
+ * Derived here, from the same effective links and spans `txnKeepRule` uses, because the
+ * alternative is a caller re-deriving `min(cutover, last)` for itself — which is exactly
+ * how the combine guard drifted from the boundary (H.6b(b) P0, and again at U.13). One
+ * author for the rule, one author for the dates it releases.
+ *
+ * A date appears only when the claim is non-degenerate: a cutover before the predecessor's
+ * first row claims nothing (A-F8), so it releases nothing either.
+ */
+export function reconciliationHandoverDates<A extends BoundaryAccountLike>(
+  accounts: readonly A[],
+  links: readonly ReconciliationLinkLike[],
+  predecessorSpans: readonly PredecessorSpanLike[],
+): ReadonlySet<string> {
+  const eff = effectiveReconciliationLinks(accounts, links);
+  const out = new Set<string>();
+  if (eff.length === 0) return out;
+  const cutover = new Map<string, ISODate>(eff.map((l) => [l.predecessorAccountId, isoDate(l.cutoverDate)]));
+  for (const s of predecessorSpans) {
+    const cut = cutover.get(s.accountId);
+    if (cut === undefined) continue;
+    const first = isoDate(s.first);
+    const last = isoDate(s.last);
+    if (compareDates(cut, first) < 0) continue; // degenerate claim (A-F8) — nothing claimed, nothing released
+    out.add(compareDates(cut, last) < 0 ? cut : last);
+  }
+  return out;
 }
 
 export function applyReconciliationBoundary<

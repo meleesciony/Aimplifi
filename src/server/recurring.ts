@@ -22,7 +22,12 @@ import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurrin
 import { upcomingRenewals, type UpcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCategoryMeta } from '@/server/category-meta';
-import { activeTerminalSuccessorMap, getReconciliationTxnKeep } from '@/server/reconciliation';
+import {
+  activeTerminalSuccessorMap,
+  getReconciliationHandoverDates,
+  getReconciliationTxnKeep,
+} from '@/server/reconciliation';
+import { collapseHandoverDuplicates } from '@/lib/engine/account/reconcile-boundary';
 import { getProvider } from '@/lib/providers/demo';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
@@ -187,14 +192,27 @@ export async function refreshRecurringForUser(
   // same-day, same-amount copies of every real charge — fed raw into detection they distort
   // cadence/price-change/possiblyUnused, and the persisted scheduled rows feed forecast and
   // cash-needed. Same shared R1 rule as the register.
+  // U.13: the boundary now RELEASES the one handover day to both sides, so exactly the
+  // "two same-day, same-amount copies" this comment warns about are back for that date.
+  // Right for money (dropping either side deletes what only it reported); wrong here,
+  // where a duplicate is a 0-day gap and cadence is inferred from gaps. Collapsed to one
+  // occurrence per component for DETECTION only — see collapseHandoverDuplicates.
   const keepsReconciled = await getReconciliationTxnKeep(userId);
+  const [handoverDates, componentOf] = await Promise.all([
+    getReconciliationHandoverDates(userId),
+    activeTerminalSuccessorMap(userId),
+  ]);
   // O.13f: the reader's own verdicts, applied by the detector itself — so what this
   // function PERSISTS (RecurringSeries + the ScheduledTransaction rows feeding
   // cash-needed, forecast, the calendar and the spending plan) is the same set the
   // /recurring page shows him. A bill he declared is projected; a series he demoted
   // stops being projected here, which is the only place a projection is written.
   const series = detectRecurring(
-    txns.filter((t) => keepsReconciled(t.accountId, t.date)) as RecurringTxn[],
+    collapseHandoverDuplicates(
+      txns.filter((t) => keepsReconciled(t.accountId, t.date)),
+      handoverDates,
+      componentOf,
+    ) as RecurringTxn[],
     today,
     await getRecurringOverrides(userId),
   );

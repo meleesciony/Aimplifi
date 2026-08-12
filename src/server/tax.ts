@@ -17,7 +17,7 @@
 import { prisma } from '@/lib/db';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
-import { getReconciliationTxnKeep } from '@/server/reconciliation';
+import { getReconciliationHandoverDates, getReconciliationTxnKeep } from '@/server/reconciliation';
 import { buildTaxExport, taxYearsWithTags, type TaxExport, type TaxExportRow } from '@/lib/engine/tax/export';
 
 /** Every row the tax engine may speak about, in the engine's own shape. */
@@ -58,7 +58,8 @@ async function taxRows(userId: string): Promise<TaxExportRow[]> {
 
 /** The report for one year. */
 export async function getTaxExport(userId: string, year: number): Promise<TaxExport> {
-  return buildTaxExport(await taxRows(userId), year);
+  const [rows, handoverDates] = await Promise.all([taxRows(userId), getReconciliationHandoverDates(userId)]);
+  return buildTaxExport(rows, year, handoverDates);
 }
 
 /** The years this reader has something to export for, most recent first. */

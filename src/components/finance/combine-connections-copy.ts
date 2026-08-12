@@ -87,7 +87,12 @@ export function combineOutcome(keepLabel: string, dropLabel: string, accounts: C
   // The handover is placed just before the surviving connection's own history begins, so what
   // falls away is the OLD connection's copies of days the live one also has. Say that, rather
   // than the flat "nothing is deleted" the first version claimed.
-  return `Combining disconnects ${dropLabel} and continues ${which} on ${keepLabel}. The old account and its history stay on this page — from the day ${keepLabel} started pulling, that connection is the one counted, so the old copies of those days stop being counted twice.`;
+  // U.13: the split is no longer total. The changeover day itself belongs to NEITHER side
+  // exclusively — a feed stops partway through a day — so both sides keep what they reported
+  // then, and a row from that one day can show twice. An unqualified "stop being counted twice"
+  // would now be false on exactly that day, so it is qualified here rather than left to be
+  // discovered in the register.
+  return `Combining disconnects ${dropLabel} and continues ${which} on ${keepLabel}. The old account and its history stay on this page — from the day ${keepLabel} started pulling, that connection is the one counted, so the old copies of those days stop being counted twice. The changeover day itself is the exception: both connections keep what they reported that day, so something from it can appear twice.`;
 }
 
 /** The two-step confirm. Names the irreversible half in the prompt itself. */
@@ -147,7 +152,12 @@ export function combineRevokeWarning(dropLabel: string): string {
 export function combineSuccessFlash(combined: number, failures: readonly string[]): string {
   const noun = combined === 1 ? 'account' : 'accounts';
   if (failures.length === 0) {
-    return `Done — ${combined} ${noun} now ${combined === 1 ? 'counts' : 'count'} once, and the duplicate connection is disconnected.`;
+    // U.13: "counts once" is about the ACCOUNT, so it inherits the transaction claim, and
+    // that is no longer true on the one changeover day the boundary keeps on both sides.
+    // The balance half is unconditionally true, so the flash says that and points at the
+    // card, where the fuller explanation already lives — a flash is not the place to teach
+    // the exception, but it may not deny it either.
+    return `Done — ${combined} ${noun} now ${combined === 1 ? 'has' : 'have'} one balance instead of two, and the duplicate connection is disconnected.`;
   }
   if (combined === 0) {
     return `The duplicate connection was disconnected, but combining didn’t finish, so nothing has been linked yet. You’ll see a “Combine” offer for the pair under “${ACCOUNT_CLEANUP_HEADING}” on this page — try it there. (${failures.join(

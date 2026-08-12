@@ -482,7 +482,9 @@ export interface ReconciliationAccountCandidate extends DuplicateAccountCandidat
  * A DIRECTIONAL reconciliation proposal: the stale/disconnected `predecessor` becomes historical
  * (its balance stops counting; it keeps only transactions on/before the cutover date) and the live
  * `successor` continues the same real account (its live balance counts; it owns transactions after
- * the cutover). This slice only PROPOSES — it mutates nothing. `matchSignal`/`confidence` carry the
+ * the cutover — and, since U.13, ON the handover day too, concurrently with the predecessor, because
+ * neither side can be shown to have covered the whole of that day). This slice only PROPOSES — it
+ * mutates nothing. `matchSignal`/`confidence` carry the
  * #192 evidence that suggested the pair (schema `AccountReconciliation.matchSignal`, §4).
  */
 export interface ReconciliationCandidate {

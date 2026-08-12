@@ -16,6 +16,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyReconciliationBoundary,
+  collapseHandoverDuplicates,
   effectiveReconciliationLinks,
   type ReconciliationLinkLike,
 } from '@/lib/engine/account/reconcile-boundary';
@@ -78,25 +79,41 @@ function apply(links: ReconciliationLinkLike[], paymentAccountId: string | null 
 }
 
 describe('applyReconciliationBoundary — the money core', () => {
-  it('R1: half-open split — predecessor owns the cutover date itself, successor owns strictly after', () => {
+  it('R1: half-open split — the handover DAY is released to both sides, every earlier day is the predecessor’s alone', () => {
     const out = apply([LINK]);
+    // U.13: the claim is [first, claimEnd) — exclusive at the end. The successor's
+    // 6/30 row is KEPT because the handover happens inside 6/30 and neither feed's
+    // silence that day proves anything. Awarding the day either way silently loses
+    // real money on the owner's corpus (u13a/u13b: $2,086.40 one way, $25,574.13
+    // the other). 6/29 is strictly inside the claim and is still the predecessor's
+    // alone — the release is ONE day, never a widened window.
     expect(out.transactions).toEqual([
       { accountId: 'pred', date: '2026-06-29', amountCents: -1_000 },
       { accountId: 'pred', date: '2026-06-30', amountCents: -2_000 },
+      { accountId: 'succ', date: '2026-06-30', amountCents: -4_000 },
       { accountId: 'succ', date: '2026-07-01', amountCents: -5_000 },
       { accountId: 'other', date: '2026-06-30', amountCents: -6_000 },
     ]);
   });
 
-  it('R1: every pair-date is owned exactly once — no overlap, no gap (union check)', () => {
+  it('R1: no gap ever, and the ONLY doubled date is the handover day (union check)', () => {
     const out = apply([LINK]);
     const pairRows = out.transactions.filter((t) => t.accountId !== 'other');
-    // Each calendar date the pair has activity on appears exactly once in the output.
     const dates = pairRows.map((t) => t.date).sort();
-    expect(dates).toEqual(['2026-06-29', '2026-06-30', '2026-07-01']);
-    // Hand-verified pair total (EDGE_CASES): −1000 −2000 −5000 = −8000 —
-    // the 6/30 date is counted from the predecessor ONLY and 7/01 from the successor ONLY.
-    expect(pairRows.reduce((s, t) => s + t.amountCents, 0)).toBe(-8_000);
+    // NO GAP — the half that prevents a silent loss: every date either side had
+    // activity on survives somewhere in the output.
+    const inputDates = [...new Set(TXNS.filter((t) => t.accountId !== 'other').map((t) => t.date))].sort();
+    expect([...new Set(dates)]).toEqual(inputDates);
+    // BOUNDED OVERLAP — at most one date may appear from both sides, and it must be
+    // the claim end (min(cutover, predecessor's last row) = 2026-06-30). This is the
+    // assertion that would catch a release that widened beyond the handover day.
+    const doubled = [...new Set(dates.filter((d, i) => dates.indexOf(d) !== i))];
+    expect(doubled).toEqual(['2026-06-30']);
+    // Hand-verified pair total (EDGE_CASES): −1000 −2000 −4000 −5000 = −12000.
+    // The 6/30 date now carries BOTH feeds' rows: a visible, advisory-covered
+    // double (accounts-list.tsx already tells the reader this can happen at the
+    // boundary), which this engine prefers to a silent loss.
+    expect(pairRows.reduce((s, t) => s + t.amountCents, 0)).toBe(-12_000);
   });
 
   it('R2: predecessor balance contributes 0 (current AND available); successor + bystander keep identity', () => {
@@ -155,11 +172,11 @@ describe('applyReconciliationBoundary — the money core', () => {
       transactions: [
         { accountId: 'a', date: '2026-03-31' }, // ≤ cutAB → kept
         { accountId: 'a', date: '2026-04-01' }, // > cutAB → dropped
-        { accountId: 'b', date: '2026-03-31' }, // ≤ cutAB → dropped (A owns it)
+        { accountId: 'b', date: '2026-03-31' }, // A's handover day → KEPT (U.13 release)
         { accountId: 'b', date: '2026-04-01' }, // in window → kept
         { accountId: 'b', date: '2026-06-30' }, // ON cutBC → kept
         { accountId: 'b', date: '2026-07-01' }, // > cutBC → dropped
-        { accountId: 'c', date: '2026-06-30' }, // ≤ cutBC → dropped (B owns it)
+        { accountId: 'c', date: '2026-06-30' }, // B's handover day → KEPT (U.13 release)
         { accountId: 'c', date: '2026-07-01' }, // > cutBC → kept
       ],
       balanceSnapshots: [],
@@ -170,10 +187,15 @@ describe('applyReconciliationBoundary — the money core', () => {
         { predecessorAccountId: 'b', successorAccountId: 'c', cutoverDate: '2026-06-30' },
       ],
     });
+    // U.13: each handover day is released to BOTH generations, so a chain has one
+    // doubled date per link and no others. Every day strictly inside a claim is
+    // still owned once — b:2026-04-01 is not doubled by a, c is not doubled by b.
     expect(out.transactions.map((t) => `${t.accountId}:${t.date}`)).toEqual([
       'a:2026-03-31',
+      'b:2026-03-31',
       'b:2026-04-01',
       'b:2026-06-30',
+      'c:2026-06-30',
       'c:2026-07-01',
     ]);
     // Both stale generations contribute 0; only the terminal live side counts.
@@ -190,9 +212,11 @@ describe('applyReconciliationBoundary — the money core', () => {
       accounts: [P1, P2, S],
       transactions: [
         { accountId: 's', date: '2026-04-01' }, // neither predecessor has data there → KEPT (F2 class)
-        { accountId: 's', date: '2026-06-30' }, // inside P2's claim → dropped (P2 owns it)
+        { accountId: 's', date: '2026-05-15' }, // STRICTLY inside P2's claim → dropped (P2 owns it)
+        { accountId: 's', date: '2026-06-30' }, // P2's handover day → KEPT (U.13 release)
         { accountId: 's', date: '2026-07-01' }, // beyond both claims → kept
         { accountId: 'p1', date: '2026-03-31' }, // kept
+        { accountId: 'p2', date: '2026-05-01' }, // P2's history starts here, so its claim is real
         { accountId: 'p2', date: '2026-06-30' }, // kept
       ],
       balanceSnapshots: [],
@@ -203,10 +227,19 @@ describe('applyReconciliationBoundary — the money core', () => {
         { predecessorAccountId: 'p2', successorAccountId: 's', cutoverDate: '2026-06-30' },
       ],
     });
+    // P2 now holds MULTI-DAY history [05-01, 06-30], so its claim [05-01, 06-30) is a real
+    // window and `s:2026-05-15` inside it is dropped. This is the discriminating assertion:
+    // the U.13 money critic proved the earlier one-day-each fixture had gone hollow — both
+    // claims were empty, so DELETING EITHER LINK left the expected output unchanged and the
+    // test asserted nothing about sibling composition. P1 keeps its single day on purpose,
+    // so the two shapes sit side by side: a one-day predecessor de-duplicates nothing (its
+    // only day is entirely a handover day), a multi-day one still owns its interior.
     expect(out.transactions.map((t) => `${t.accountId}:${t.date}`)).toEqual([
       's:2026-04-01',
+      's:2026-06-30',
       's:2026-07-01',
       'p1:2026-03-31',
+      'p2:2026-05-01',
       'p2:2026-06-30',
     ]);
     expect(out.accounts.map((a) => a.currentBalanceCents)).toEqual([0, 0, 3_000]);
@@ -228,10 +261,12 @@ describe('applyReconciliationBoundary — the money core', () => {
       links: [LINK],
     });
     const succDates = out.transactions.filter((t) => t.accountId === 'succ').map((t) => t.date);
-    expect(succDates).toEqual(['2026-07-01', '2024-11-05', '2026-03-15']);
-    // Total spend is the union counted once: the backfill months are not understated.
+    // 2026-06-30 is the handover day, released to both sides by U.13; the deep
+    // backfill dates are the F2 property under test and are untouched by it.
+    expect(succDates).toEqual(['2026-06-30', '2026-07-01', '2024-11-05', '2026-03-15']);
+    // Total spend is the union, with the handover day's two rows both present.
     expect(out.transactions.reduce((s, t) => s + (t.amountCents ?? 0), 0)).toBe(
-      -1_000 - 2_000 - 5_000 - 6_000 - 120_000 - 80_000,
+      -1_000 - 2_000 - 4_000 - 5_000 - 6_000 - 120_000 - 80_000,
     );
   });
 
@@ -244,7 +279,7 @@ describe('applyReconciliationBoundary — the money core', () => {
       transactions: [
         { accountId: 'pred', date: '2026-06-29', amountCents: -1_000 },
         { accountId: 'pred', date: '2026-07-01', amountCents: -3_000 },
-        { accountId: 'succ', date: '2026-07-01', amountCents: -3_000 }, // inside claim → dropped (pred owns it)
+        { accountId: 'succ', date: '2026-07-01', amountCents: -3_000 }, // claim END (pred's last row) → KEPT (U.13)
         { accountId: 'succ', date: '2026-07-10', amountCents: -9_000 }, // in the empty tail → KEPT
       ],
       balanceSnapshots: [],
@@ -252,11 +287,138 @@ describe('applyReconciliationBoundary — the money core', () => {
       scheduled: [],
       links: [{ ...LINK, cutoverDate: '2026-07-15' }],
     });
+    // U.13: the claim END here is the predecessor's LAST row (07-01), not the
+    // stored cutover — the feed stopped inside that day, so it is released.
     expect(out.transactions.map((t) => `${t.accountId}:${t.date}`)).toEqual([
       'pred:2026-06-29',
       'pred:2026-07-01',
+      'succ:2026-07-01',
       'succ:2026-07-10',
     ]);
+  });
+
+  /**
+   * test_regression__u13_handover_day_never_silently_drops_a_row
+   *
+   * The production shape, with the owner's real numbers (scripts/audit-probes/
+   * u11c, u11i, u13a, u13b). The retired Schwab feed's LAST day was the cutover
+   * 2026-07-21 and it reported exactly one row that day (−$11.00 Venmo). The live
+   * Plaid feed reported that same Venmo AND a +$2,086.40 "Deposit Mobile Banking",
+   * and the retired side holds no row of that amount on ANY date. Under the old
+   * inclusive claim end the deposit was dropped from the register, budgets,
+   * reports and the tax export, with nothing replacing it.
+   *
+   * FAIL-OLD: with `compareDates(d, claimEnd) <= 0` this test goes red on the
+   * deposit assertion — the row is absent from the output entirely.
+   */
+  it('test_regression__u13_handover_day_never_silently_drops_a_row', () => {
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: ACCOUNTS,
+      transactions: [
+        { accountId: 'pred', date: '2026-07-20', amountCents: -621_707 }, // both feeds have it
+        { accountId: 'succ', date: '2026-07-20', amountCents: -621_707 }, // inside the claim → dropped
+        { accountId: 'pred', date: '2026-07-21', amountCents: -1_100 }, // the feed's last row
+        { accountId: 'succ', date: '2026-07-21', amountCents: -1_100 }, // handover day → kept (visible double)
+        { accountId: 'succ', date: '2026-07-21', amountCents: 208_640 }, // ONLY the live feed saw this
+      ],
+      balanceSnapshots: [],
+      statements: [],
+      scheduled: [],
+      links: [{ ...LINK, cutoverDate: '2026-07-21' }],
+    });
+    const survived = out.transactions.map((t) => `${t.accountId}:${t.date}:${t.amountCents}`);
+    // The money that was disappearing is present.
+    expect(survived).toContain('succ:2026-07-21:208640');
+    // The day BEFORE the handover is still de-duplicated — the release did not
+    // widen into the claim, which is what keeps the double bounded to one day.
+    expect(survived).not.toContain('succ:2026-07-20:-621707');
+    expect(survived).toEqual([
+      'pred:2026-07-20:-621707',
+      'pred:2026-07-21:-1100',
+      'succ:2026-07-21:-1100',
+      'succ:2026-07-21:208640',
+    ]);
+    // Net effect on every spending surface: the $2,086.40 inflow is counted, and
+    // the handover day's shared −$11.00 appears twice rather than the deposit
+    // vanishing. −621707 −1100 −1100 +208640.
+    expect(out.transactions.reduce((s, t) => s + (t.amountCents ?? 0), 0)).toBe(-415_267);
+  });
+
+  /**
+   * test_regression__u13_handover_duplicates_collapse_for_cadence_detection
+   *
+   * The U.13 money critic executed these against the real `detectRecurring`: the released
+   * handover day injects a 0-day gap, and because cadence is a median over gaps, two real
+   * monthly sightings plus one duplicate became a fabricated BIWEEKLY series, a real
+   * QUARTERLY bill was DESTROYED, and a BIWEEKLY $3,000.00 paycheck became WEEKLY income —
+   * understating the shortfall, which this codebase names as the expensive direction. Those
+   * series PERSIST into forecast and cash-needed.
+   *
+   * The collapse is what stops that, and it must stay narrow: same component, same date,
+   * same amount, DIFFERENT accounts.
+   */
+  describe('test_regression__u13_handover_duplicates_collapse_for_cadence_detection', () => {
+    const terminal = new Map([
+      ['pred', 'succ'],
+      ['sib', 'succ'],
+    ]);
+    const handover = new Set(['2026-07-01']);
+
+    it('collapses one real charge reported by both sides of a handover into one occurrence', () => {
+      const out = collapseHandoverDuplicates(
+        [
+          { accountId: 'pred', date: '2026-07-01', amountCents: -1_599 },
+          { accountId: 'succ', date: '2026-07-01', amountCents: -1_599 },
+        ],
+        handover,
+        terminal,
+      );
+      expect(out).toEqual([{ accountId: 'pred', date: '2026-07-01', amountCents: -1_599 }]);
+    });
+
+    it('NEVER collapses two genuine charges on the SAME account — a transaction is a flow', () => {
+      // Two $5.00 coffees in a day are ordinary (the U.11 reasoning). Collapsing these
+      // would be the silent loss U.13 exists to end, reintroduced by its own remedy.
+      const out = collapseHandoverDuplicates(
+        [
+          { accountId: 'succ', date: '2026-07-01', amountCents: -500 },
+          { accountId: 'succ', date: '2026-07-01', amountCents: -500 },
+        ],
+        handover,
+        terminal,
+      );
+      expect(out).toHaveLength(2);
+    });
+
+    it('is a MULTISET match: three copies against two accounts keep the third', () => {
+      const out = collapseHandoverDuplicates(
+        [
+          { accountId: 'pred', date: '2026-07-01', amountCents: -500 },
+          { accountId: 'succ', date: '2026-07-01', amountCents: -500 },
+          { accountId: 'succ', date: '2026-07-01', amountCents: -500 },
+        ],
+        handover,
+        terminal,
+      );
+      expect(out).toHaveLength(2);
+    });
+
+    it('touches no date but a handover date, and no row outside the component', () => {
+      const rows = [
+        { accountId: 'pred', date: '2026-06-30', amountCents: -1_599 },
+        { accountId: 'succ', date: '2026-06-30', amountCents: -1_599 },
+        { accountId: 'other', date: '2026-07-01', amountCents: -1_599 },
+        { accountId: 'succ', date: '2026-07-01', amountCents: -1_599 },
+      ];
+      // 'other' is its own component, so its row is not the successor's counterpart.
+      expect(collapseHandoverDuplicates(rows, handover, terminal)).toEqual(rows);
+    });
+
+    it('is inert with no links at all (R8 golden path)', () => {
+      const rows = [{ accountId: 'a', date: '2026-07-01', amountCents: -100 }];
+      expect(collapseHandoverDuplicates(rows, new Set<string>(), new Map())).toEqual(rows);
+    });
   });
 
   it('F3: a snapshot with no same-date counterpart is ALWAYS kept — no fabricated trend dip', () => {

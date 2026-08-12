@@ -65,6 +65,26 @@ describe('what the card claims', () => {
     expect(s).toContain('Chase · connection 4 of 4');
   });
 
+  it('test_regression__u13_the_outcome_qualifies_the_counted_once_promise', () => {
+    // U.13 released the handover day to both connections, so an UNQUALIFIED "stop being
+    // counted twice" over-promises on exactly that day. The sibling test above still
+    // requires that phrase (it is true of every other day and the reader needs it), which
+    // is precisely why this lock is separate: without it the qualification can be deleted
+    // and every existing copy test stays green.
+    const s = combineOutcome('Chase · connection 1 of 4', 'Chase · connection 4 of 4', [CARD]);
+    expect(s).toMatch(/changeover day/i);
+    expect(s).toMatch(/appear twice/i);
+  });
+
+  it('test_regression__u13_the_success_flash_does_not_re-promise_counted_once', () => {
+    // The LAST sentence the reader sees. It said "N accounts now count once" — a claim about
+    // the account, so it inherited the transaction claim U.13 qualified, ten lines from the
+    // qualification itself. Balances remain one per date, so it may say that and no more.
+    const s = combineSuccessFlash(1, []);
+    expect(s).not.toMatch(/counts once|count once/i);
+    expect(s).toContain('one balance');
+  });
+
   it('test_regression__the_confirm_step_names_the_irreversible_half', () => {
     const s = combineConfirmPrompt('Chase · connection 1 of 4', 'Chase · connection 4 of 4');
     expect(s).toContain('Disconnect Chase · connection 4 of 4');
@@ -117,8 +137,10 @@ describe('what the card claims', () => {
 
 describe('the flash after the action', () => {
   it('reports a clean run as clean', () => {
-    expect(combineSuccessFlash(1, [])).toContain('now counts once');
-    expect(combineSuccessFlash(2, [])).toContain('now count once');
+    // The property is "a clean run reads as clean, singular and plural" — U.13 changed the
+    // claim it makes (balances, not "counts once"), not the property under test.
+    expect(combineSuccessFlash(1, [])).toContain('now has one balance instead of two');
+    expect(combineSuccessFlash(2, [])).toContain('now have one balance instead of two');
   });
 
   it('never reports a partial run as a clean one, and points at the way to finish', () => {

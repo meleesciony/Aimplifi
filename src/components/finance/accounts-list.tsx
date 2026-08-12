@@ -1018,8 +1018,8 @@ function CandidateRow({
           engine uses, never a paraphrase of the default. */}
       {span !== null && claimEnd !== null ? (
         <p className="mt-2 text-xs text-muted-foreground" data-testid="reconcile-span-disclosure">
-          We’ll keep <strong>{predLabel.name}</strong>’s records from {span.first} through {claimEnd} —
-          inside that window they replace anything <strong>{succLabel.name}</strong> re-imported.{' '}
+          We’ll keep <strong>{predLabel.name}</strong>’s records from {span.first} through {claimEnd}.
+          Before {claimEnd} they replace anything <strong>{succLabel.name}</strong> re-imported.{' '}
           <strong>{succLabel.name}</strong> counts everywhere else, including older history it brought
           back.{cedesTail ? (
             <>
@@ -1028,8 +1028,10 @@ function CandidateRow({
               <strong>{succLabel.name}</strong>’s version of those days counts instead.
             </>
           ) : null}{' '}
-          If the two banks dated the same purchase differently right at the boundary, it can briefly
-          appear twice. You can undo this anytime.
+          On {claimEnd} itself we keep both sides’ records, because neither connection can be shown
+          to have covered the whole of that day — so something from that one day can appear twice.
+          That’s deliberate: it’s the only way not to drop a payment just one of them reported. You
+          can undo this anytime.
         </p>
       ) : (
         <p className="mt-2 text-xs text-muted-foreground" data-testid="reconcile-span-disclosure">
@@ -1069,7 +1071,13 @@ function ContinuedAccountsCard({
     >
       <CardHeader className="pb-2">
         <CardDescription className="text-emerald-300">Combined accounts</CardDescription>
-        <CardTitle className="text-base">Counted once per date</CardTitle>
+        {/* U.13: "Counted once per date" was an unqualified claim about EVERY figure these
+            accounts touch, and it became false for transactions on the one handover day the
+            boundary now releases to both sides. Balances are untouched (F3 still keeps exactly
+            one snapshot per component per date), so the title says the half that is still true
+            and stops certifying the half that is not — the rule balance-history-view.ts already
+            applied when it refused the unqualified version of this same sentence. */}
+        <CardTitle className="text-base">One balance per date</CardTitle>
       </CardHeader>
       <CardContent className="text-sm">
         <ul className="space-y-2" role="list">

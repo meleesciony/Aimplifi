@@ -409,9 +409,17 @@ describe('the critic findings, locked', () => {
     const descriptors = rows.map((r) => r.rawDescriptor).sort();
     expect(descriptors).toContain('SHELL OIL');
     expect(descriptors).toContain('DELTA AIR');
-    // …and the duplicated days are counted once, which is the point of combining.
-    expect(descriptors.filter((d) => d === 'RENT')).toHaveLength(1);
+    // …and the duplicated days are counted once, which is the point of combining —
+    // COSTCO sits strictly inside the old connection's claim and still de-duplicates.
     expect(descriptors.filter((d) => d === 'COSTCO')).toHaveLength(1);
+    // RENT is the exception, and deliberately so (U.13): 2026-06-01 is the old
+    // connection's LAST day, so it is the handover day, and a feed that stops partway
+    // through a day cannot be trusted to have reported all of it. Both copies are kept
+    // rather than silently dropping whatever only one side saw — the same trade that
+    // recovered a real $2,086.40 deposit on the owner's corpus. This test's P0 property
+    // (the live feed keeps its OWN transactions) is strictly better served by keeping
+    // more rows, never fewer; the combine card's copy now names this exception.
+    expect(descriptors.filter((d) => d === 'RENT')).toHaveLength(2);
   });
 
   it('test_regression__two_opposite_combines_cannot_destroy_both_connections', async () => {
@@ -666,6 +674,39 @@ describe('the money-and-boundary critic findings, locked', () => {
     expect(await prisma.plaidItem.count({ where: { userId: uid } })).toBe(2);
   });
 
+  it('test_regression__u13_the_guard_does_not_refuse_over_a_handover_day_row_the_boundary_keeps', async () => {
+    // The guard re-implements the claim window to PREDICT what the boundary will drop, and
+    // U.13 made the two sides asymmetric: the successor loses only rows STRICTLY inside the
+    // claim, while the predecessor keeps its own through the claim end. A guard still using
+    // one inclusive predicate over-predicts loss on exactly the handover day — and would
+    // refuse this combine, citing $2,086.40, over a row the boundary now keeps. That is the
+    // owner's real shape (a deposit only the live feed reported, dated the handover day), so
+    // the guard would have blocked the case U.13 exists to protect.
+    //
+    // FAIL-OLD: restore `r.date <= claimEnd` in `succLoses`/`inClaim` and this goes red with
+    // res.ok false and the refusal naming the deposit.
+    await prisma.transaction.createMany({
+      data: [
+        { accountId: `${uid}-a2`, date: '2026-07-18', rawDescriptor: 'DINNER', amountCents: -10_000, status: 'POSTED' },
+        { accountId: `${uid}-a1`, date: '2026-07-18', rawDescriptor: 'DINNER', amountCents: -10_000, status: 'POSTED' },
+        // Only the surviving connection ever saw this one, on the handover day itself.
+        { accountId: `${uid}-a1`, date: '2026-07-18', rawDescriptor: 'DEPOSIT MOBILE BANKING', amountCents: 208_640, status: 'POSTED' },
+      ],
+    });
+    const res = await combineDuplicateConnectionsFor(
+      uid,
+      { keepItemId: 'item-first', dropItemId: 'item-second' },
+      TODAY,
+      fakeDisconnect,
+    );
+    expect(res).toEqual({ ok: true, combined: 1, failures: [], revokeFailed: null });
+    // And the money is actually there afterwards, not merely un-refused.
+    const { rows } = await getTransactions(uid);
+    expect(rows.filter((r) => r.rawDescriptor === 'DEPOSIT MOBILE BANKING').reduce((s, r) => s + r.amountCents, 0)).toBe(
+      208_640,
+    );
+  });
+
   it('test_regression__a_split_on_the_KEPT_side_is_read_in_bank_shape_too (H.6b(b) critic P1)', async () => {
     // The successor-side half of the bank-shape read was completely unlocked — the critic
     // reverted it alone and 33 tests stayed green, while the false-refusal defect this fix
@@ -690,11 +731,20 @@ describe('the money-and-boundary critic findings, locked', () => {
       fakeDisconnect,
     );
     expect(res).toEqual({ ok: true, combined: 1, failures: [], revokeFailed: null });
-    // Money conserved: the charge counts exactly once ($100.00) — here as the predecessor's
-    // pre-cutover copy, since the claim window owns that day.
+    // The property under test is the bank-shape read of a KEPT-side split: the guard must
+    // see -$100.00 (the parent), not -$60.00 + -$40.00 as two rows, so it does not refuse.
+    // That is asserted by res.ok above and by the sibling refusal test.
+    // U.13 moved the money line here: 2026-07-18 is the predecessor's last day, so it is
+    // the handover day and BOTH sides keep it — the split children (-$60 + -$40) from the
+    // kept side and the predecessor's -$100.00 copy. Nothing is lost; one day is visibly
+    // doubled, which is this engine's stated failure direction. Pre-U.13 this read
+    // -$100.00 because the successor's copy of that day was dropped.
     const { rows } = await getTransactions(uid);
     const dinner = rows.filter((r) => r.rawDescriptor === 'DINNER');
-    expect(dinner.reduce((s, r) => s + r.amountCents, 0)).toBe(-10_000);
+    expect(dinner.reduce((s, r) => s + r.amountCents, 0)).toBe(-20_000);
+    // The kept side's split survived AS ITS PIECES (bank shape is a read concern, not a
+    // stored one) — the parent is excluded from sums, so the pieces are what carry it.
+    expect(dinner.filter((r) => r.accountId === `${uid}-a1`).reduce((s, r) => s + r.amountCents, 0)).toBe(-10_000);
   });
 
   it('the deep-history refusal names the true remedy: combine the other way round (H.6c critic P1)', async () => {

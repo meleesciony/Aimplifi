@@ -204,7 +204,7 @@ test('reconciling a stale account with its live twin stops net worth from doubli
   await expect(page.getByTestId('reconcile-candidates')).toBeVisible();
 });
 
-test('slice 6: the register agrees with the dashboard after combining — overlap rows count once', async ({
+test('slice 6: the register agrees with the dashboard after combining — overlap rows count once, except the handover day', async ({
   page,
 }) => {
   const email = await signUpThrowaway(page);
@@ -224,14 +224,19 @@ test('slice 6: the register agrees with the dashboard after combining — overla
   await page.goto('/transactions');
   await expect(page.getByTestId('summary-out')).toContainText('270.00', { timeout: 20_000 });
 
-  // Combine, then the register must match the dashboard: 3 real transactions, $150.00 out
-  // (pre-fix: still 5 rows / $270.00 — an 80% inflation contradicting /reports on screen).
+  // Combine, then the register must match the dashboard: $220.00 out.
+  // Pre-boundary this was 5 rows / $270.00 — an 80% inflation contradicting /reports on screen.
+  // The de-duplicated figure is $150.00; the remaining $70.00 is the ONE handover day
+  // (2026-06-10 = the claim end), which U.13 deliberately keeps on both sides because a feed
+  // that stops partway through a day cannot be shown to have reported all of it. Awarding that
+  // day to either side silently deleted real money on the owner's corpus ($2,086.40 one way,
+  // $25,574.13 the other — DECISIONS #454), so the double is the chosen, disclosed cost.
   await page.goto('/accounts');
   await openAccountCleanup(page);
   await page.getByTestId('reconcile-confirm').click();
   await expect(page.getByTestId('reconcile-combined')).toBeVisible({ timeout: 20_000 });
   await page.goto('/transactions');
-  await expect(page.getByTestId('summary-out')).toContainText('150.00', { timeout: 20_000 });
+  await expect(page.getByTestId('summary-out')).toContainText('220.00', { timeout: 20_000 });
 });
 
 test('L.9: a Roth is never offered against a Traditional — the wrong pair is vetoed, the right one offered', async ({
