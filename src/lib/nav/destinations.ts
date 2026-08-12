@@ -177,7 +177,10 @@ export const NAV_DESTINATIONS: readonly NavDestination[] = [
   {
     href: '/accounts',
     label: 'Accounts',
-    description: 'Everything you own and owe. Tap an account to see its transactions.',
+    // "to open it", not "to see its transactions" (2026-08-11): loans,
+    // mortgages and other tracked accounts have no register rows by
+    // construction — they open their detail in place on /accounts.
+    description: 'Everything you own and owe. Tap an account to open it.',
     keywords: ['balances', 'bank', 'connect', 'link', 'plaid', 'net worth', 'institution', 'add'],
     group: 'money',
     icon: Landmark,
@@ -195,7 +198,9 @@ export const NAV_DESTINATIONS: readonly NavDestination[] = [
   {
     href: '/transactions',
     label: 'Activity',
-    description: 'Every transaction across all accounts. Search, filter, split, or add one by hand.',
+    // "spending accounts", not "all accounts" (2026-08-11): the register's
+    // basis is checking + savings + cards only (#62).
+    description: 'Every transaction across your spending accounts. Search, filter, split, or add one by hand.',
     keywords: [
       'register',
       'search',

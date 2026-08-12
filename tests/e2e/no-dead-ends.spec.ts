@@ -17,8 +17,11 @@
  * 'use client' module and got a stub. Only a rendered-page assertion catches
  * that class, so this walks the real routes and reads the real DOM.
  *
- * Render-only: every assertion here navigates and reads. Nothing mutates, so
- * this is safe against the shared demo row (the #182/#234 precedent).
+ * Render-only against the DEMO: every demo-signed assertion here navigates and
+ * reads, so the shared demo row is safe (the #182/#234 precedent). The U.3
+ * account-row tests that need WRITES (a hand-added mortgage, a zero-row card)
+ * run as throwaway SIGNUPS instead — the account-deletion.spec idiom — and
+ * never touch the demo user.
  */
 import { expect, test, type Page } from './helpers/test';
 
@@ -201,4 +204,169 @@ test('following a merchant link actually lands on that merchant’s rows', async
   const names = await landed.allInnerTexts();
   expect(names.length).toBeGreaterThan(0);
   for (const shown of names) expect(shown.trim()).toBe(name);
+});
+
+// ── the account rows themselves (owner report 2026-08-11) ─────────────────────
+//
+// "When I click on my mortgage in accounts, why does it bring me to a
+// completely empty transaction page?" — the register's basis excludes
+// LOAN/MORTGAGE/etc. BY CONSTRUCTION, so the /accounts row for those types was
+// a link whose destination could never answer it. The same rule as the rest of
+// this file: a click the app offers must land on the thing it promised.
+
+test('/accounts — a loan account expands its detail in place instead of linking to an empty register', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/accounts');
+
+  const loanRow = page.getByTestId('account-row').filter({ hasText: 'Auto Loan' });
+  await expect(loanRow).toBeVisible({ timeout: 20000 });
+
+  // The row's own promise: a Details cue, an href that TOGGLES the panel —
+  // never the register the account cannot appear in.
+  await expect(loanRow.getByTestId('account-row-detail-cue')).toContainText('Details');
+  const href = await loanRow.getAttribute('href');
+  expect(href).toBe('/accounts?detail=acct-autoloan');
+
+  await loanRow.click();
+  await page.waitForURL('**/accounts?detail=acct-autoloan', { timeout: 20000 });
+
+  // The panel answers with facts the app actually holds: the account's role,
+  // the seed's own loan terms (aprBps 649 / min 38500 / due day 5), and the
+  // recorded balance history the net-worth trend is drawn from.
+  const panel = page.getByTestId('account-detail-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('money you owe');
+  await expect(panel.getByTestId('account-detail-loan-facts')).toContainText('APR 6.49%');
+  await expect(panel.getByTestId('account-detail-loan-facts')).toContainText('minimum payment $385.00');
+  await expect(panel.getByTestId('account-detail-history')).toBeVisible();
+
+  // The toggle closes: same row, second tap, panel gone and URL bare again.
+  await loanRow.click();
+  await page.waitForURL('**/accounts', { timeout: 20000 });
+  await expect(page.getByTestId('account-detail-panel')).toHaveCount(0);
+});
+
+test('/accounts — spending and investment rows keep their real destinations', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/accounts');
+
+  const checkingRow = page.getByTestId('account-row').filter({ hasText: 'Everyday Checking' });
+  await expect(checkingRow).toBeVisible({ timeout: 20000 });
+  expect(await checkingRow.getAttribute('href')).toBe('/transactions?account=acct-checking');
+
+  const brokerageRow = page.getByTestId('account-row').filter({ hasText: 'Brokerage' });
+  expect(await brokerageRow.getAttribute('href')).toBe('/investments?account=acct-brokerage');
+});
+
+test('a stale deep link to a loan account names the account and the way out, never "these filters"', async ({ page }) => {
+  // The URL the owner's click used to produce. It stays reachable forever —
+  // bookmarks, history, hand-edits — so the register must answer it honestly.
+  await signIn(page);
+  await page.goto('/transactions?account=acct-autoloan');
+
+  const empty = page.getByTestId('txn-empty-account-not-here');
+  await expect(empty).toBeVisible({ timeout: 20000 });
+  await expect(empty).toContainText('“Auto Loan” is a loan account');
+
+  // The banner above says "the controls below say which" — the SELECT is what
+  // makes that true: it displays the loan by name instead of painting "All
+  // accounts" over an active filter (U.3 critic #6).
+  const select = page.getByTestId('txn-filter-account');
+  await expect(select).toHaveValue('acct-autoloan');
+  await expect(page.getByTestId('txn-filter-account-missing-option')).toHaveText('Auto Loan');
+
+  // The named way out really goes to /accounts.
+  await expect(empty.getByRole('link', { name: 'Accounts' })).toHaveAttribute('href', '/accounts');
+
+  // And choosing "All accounts" is a LIVE escape now — the injected option
+  // means the DOM value really changes: back to the whole register.
+  await select.selectOption('');
+  await page.waitForURL('**/transactions', { timeout: 20000 });
+  await expect(page.getByTestId('txn-empty-account-not-here')).toHaveCount(0);
+});
+
+test('a hand-added mortgage — the app’s own advertised mortgage — opens its panel too, with the REAL-user shape', async ({ page }) => {
+  // U.3 critic #1: ManualRow had no destination at all while the page said
+  // "Tap an account to open it", and the Add-liability placeholder is
+  // literally "e.g. Mortgage". A throwaway signup (the account-deletion.spec
+  // idiom — the shared demo must not accumulate rows) adds one and taps it.
+  // This is ALSO the critic's #3 lock in a real browser: a manual account has
+  // no snapshots and no loan facts, so the panel it gets is the role line
+  // plus the honest no-history line — asserted here, not just in the unit
+  // render.
+  const email = `e2e-mort-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+
+  await page.goto('/accounts');
+  await expect(async () => {
+    await page.getByTestId('add-liability-btn').click({ timeout: 2000 });
+    await expect(page.getByTestId('manual-name')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await page.getByTestId('manual-name').fill('My Mortgage');
+  await page.getByTestId('manual-type').selectOption('MORTGAGE');
+  await page.getByTestId('manual-value').fill('250000');
+  await page.getByTestId('manual-submit').click();
+
+  const row = page.getByTestId('manual-account-row').filter({ hasText: 'My Mortgage' });
+  await expect(row).toBeVisible({ timeout: 20000 });
+  await expect(row.getByTestId('account-row-detail-cue')).toContainText('Details');
+
+  await row.getByTestId('manual-account-open').click();
+  await page.waitForURL('**/accounts?detail=*', { timeout: 20000 });
+  const panel = page.getByTestId('account-detail-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('money you owe');
+  await expect(panel.getByTestId('account-detail-no-history')).toContainText('No balance history recorded');
+  await expect(panel.getByTestId('account-detail-loan-facts')).toHaveCount(0);
+
+  // Toggle closed again.
+  await row.getByTestId('manual-account-open').click();
+  await page.waitForURL('**/accounts', { timeout: 20000 });
+  await expect(page.getByTestId('account-detail-panel')).toHaveCount(0);
+});
+
+test('a zero-row spending account names its own empty history, never "these filters"', async ({ page }) => {
+  // U.3 critic #2 — the owner's report one type-class over. A throwaway user
+  // whose only checking account has no rows: its dropdown entry exists, its
+  // register view names the account.
+  const email = `e2e-norow-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+
+  // A manual CREDIT card is a spending-type account with zero rows — and its
+  // /accounts row now links into the register (dest 'register'), so follow
+  // the app's own door rather than a hand-built URL.
+  await page.goto('/accounts');
+  await expect(async () => {
+    await page.getByTestId('add-liability-btn').click({ timeout: 2000 });
+    await expect(page.getByTestId('manual-name')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await page.getByTestId('manual-name').fill('Empty Card');
+  await page.getByTestId('manual-type').selectOption('CREDIT');
+  // A non-zero BALANCE (the add form refuses $0) with zero TRANSACTIONS —
+  // the balance isn't the axis under test, the empty register is.
+  await page.getByTestId('manual-value').fill('100');
+  await page.getByTestId('manual-submit').click();
+
+  const row = page.getByTestId('manual-account-row').filter({ hasText: 'Empty Card' });
+  await expect(row).toBeVisible({ timeout: 20000 });
+  await row.getByTestId('manual-account-open').click();
+  await page.waitForURL('**/transactions?account=*', { timeout: 20000 });
+
+  const empty = page.getByTestId('txn-empty-account-empty');
+  await expect(empty).toBeVisible({ timeout: 20000 });
+  await expect(empty).toContainText('The register holds no transactions for “Empty Card” yet');
+  // The dropdown holds the zero-row account — the filter is visible in its
+  // own control, no injected option needed.
+  await expect(page.getByTestId('txn-filter-account-missing-option')).toHaveCount(0);
+  await expect(empty.getByRole('link', { name: 'See it on Accounts' })).toHaveAttribute('href', '/accounts');
 });

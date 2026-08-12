@@ -74,10 +74,15 @@ const noFilters = {
 const ACCOUNTS = [{ id: 'acct_1', name: 'Chase Checking' }];
 const CATEGORIES = [{ id: 'groceries', name: 'Groceries' }];
 
-function renderBar(current: Partial<typeof noFilters>, unclassifiedCount = 0) {
+function renderBar(
+  current: Partial<typeof noFilters>,
+  unclassifiedCount = 0,
+  missingAccountOption: { name: string | null } | null = null,
+) {
   return render(
     <TransactionFilters
       accountOptions={ACCOUNTS}
+      missingAccountOption={missingAccountOption}
       categoryOptions={CATEGORIES}
       current={{ ...noFilters, ...current }}
       unclassifiedCount={unclassifiedCount}
@@ -250,5 +255,125 @@ describe('the empty state names the merchant zero', () => {
   it('the pre-existing filters copy is untouched for every other narrowing', () => {
     render(<TransactionList rows={[]} summary={summary} pageInfo={pageInfo} emptyReason={{ kind: 'filters' }} />);
     expect(screen.getByTestId('txn-empty').textContent).toContain('No transactions match these filters.');
+  });
+});
+
+// ── the account axis (owner report 2026-08-11: the mortgage dead-end) ─────────
+
+describe('the account select tells the truth about a filter its options do not hold', () => {
+  it("the owner's screen: `?account=<mortgageId>` set — the select DISPLAYS the mortgage instead of painting All accounts over an active filter", () => {
+    renderBar({ account: 'acct-mortgage' }, 0, { name: 'Home Mortgage' });
+    const select = screen.getByLabelText('Account') as HTMLSelectElement;
+    expect(select.value).toBe('acct-mortgage');
+    const injected = screen.getByTestId('txn-filter-account-missing-option') as HTMLOptionElement;
+    expect(injected.textContent).toBe('Home Mortgage');
+    expect(injected.value).toBe('acct-mortgage');
+    // With the injected option, choosing "All accounts" actually CHANGES the
+    // DOM value — before it, the reader's most obvious escape was a silent
+    // no-op (U.3 critic #6). Asserted structurally: the '' option exists and
+    // is not the selected one.
+    expect(select.value).not.toBe('');
+  });
+
+  it('an id matching no account of the reader is named as not found, never rendered blank', () => {
+    renderBar({ account: 'acct-gone' }, 0, { name: null });
+    expect(screen.getByTestId('txn-filter-account-missing-option').textContent).toBe('(account not found)');
+  });
+
+  it('no injected option when the dropdown already holds the filter — the option list stays exactly the filterable set', () => {
+    renderBar({ account: 'acct_1' });
+    expect(screen.queryByTestId('txn-filter-account-missing-option')).toBeNull();
+  });
+});
+
+describe('the empty state names the account zero', () => {
+  const summary = { count: 0, inflowCents: cents(0), outflowCents: cents(0), netCents: cents(0), excludedCount: 0 };
+  const pageInfo = { page: 1, pageSize: 50, pageCount: 1, total: 0, fromIndex: 0, toIndex: 0 };
+
+  it("a mortgage filter states the account, the register's basis, and the page that actually holds it", () => {
+    render(
+      <TransactionList
+        rows={[]}
+        summary={summary}
+        pageInfo={pageInfo}
+        emptyReason={{ kind: 'account-not-here', id: 'acct-m', name: 'Home Mortgage', type: 'MORTGAGE' }}
+      />,
+    );
+    const box = screen.getByTestId('txn-empty-account-not-here');
+    expect(box.textContent).toContain('“Home Mortgage” is a mortgage account');
+    expect(box.textContent).toContain('checking, savings, and card accounts');
+    expect(screen.getByText('Accounts').getAttribute('href')).toBe('/accounts');
+  });
+
+  it('an investment filter routes to Investments WITHOUT claiming the page will narrow to it — /investments falls back silently (#160, U.3 critic #9)', () => {
+    render(
+      <TransactionList
+        rows={[]}
+        summary={summary}
+        pageInfo={pageInfo}
+        emptyReason={{ kind: 'account-not-here', id: 'acct-b', name: 'Schwab Brokerage', type: 'INVESTMENT' }}
+      />,
+    );
+    const box = screen.getByTestId('txn-empty-account-not-here');
+    expect(box.textContent).toContain('“Schwab Brokerage” is an investment account');
+    // The claim is about the PAGE, not this account's presence on it.
+    expect(box.textContent).toContain('holdings for investment accounts live on');
+    expect(box.textContent).not.toContain('its holdings live on');
+    expect(screen.getByText('Investments').getAttribute('href')).toBe('/investments?account=acct-b');
+  });
+
+  it("a SPENDING type wearing not-here can only mean the currency guard — the copy says currency, never the self-contradiction 'a checking account…transactions come from checking' (U.3 critic #5)", () => {
+    render(
+      <TransactionList
+        rows={[]}
+        summary={summary}
+        pageInfo={pageInfo}
+        emptyReason={{ kind: 'account-not-here', id: 'acct-eur', name: 'Chequing (EUR)', type: 'CHECKING' }}
+      />,
+    );
+    const box = screen.getByTestId('txn-empty-account-not-here');
+    expect(box.textContent).toContain('held in another currency');
+    expect(box.textContent).toContain('USD accounts only');
+    // Not the type sentence — that pair of claims contradicts itself here.
+    expect(box.textContent).not.toContain('is a checking account');
+    // The link promises the currency NOTE, not a row /accounts does not render.
+    expect(box.textContent).toContain('currency note on');
+    expect(screen.getByText('Accounts').getAttribute('href')).toBe('/accounts');
+  });
+
+  it('an in-basis account with no rows names its own empty history (U.3 critic #2)', () => {
+    render(
+      <TransactionList
+        rows={[]}
+        summary={summary}
+        pageInfo={pageInfo}
+        emptyReason={{ kind: 'account-empty', name: 'New Checking' }}
+      />,
+    );
+    const box = screen.getByTestId('txn-empty-account-empty');
+    expect(box.textContent).toContain('The register holds no transactions for “New Checking” yet');
+    expect(screen.getByText('See it on Accounts').getAttribute('href')).toBe('/accounts');
+  });
+
+  it("an unknown account id says 'isn't one of your own' — deletion is a cause this page cannot establish, and a partner's id lands here too (U.3 critic #10)", () => {
+    render(
+      <TransactionList rows={[]} summary={summary} pageInfo={pageInfo} emptyReason={{ kind: 'account-unknown' }} />,
+    );
+    const box = screen.getByTestId('txn-empty-account-unknown');
+    expect(box.textContent).toContain("isn't one of your own");
+    expect(box.textContent).toContain('may have been deleted or belong to someone else');
+    expect(screen.getByText('Show all transactions').getAttribute('href')).toBe('/transactions');
+  });
+
+  it('the count line names the account zero beside the $0.00 tiles — the F2 rule extended (U.3 critic #7)', () => {
+    render(
+      <TransactionList
+        rows={[]}
+        summary={summary}
+        pageInfo={pageInfo}
+        emptyReason={{ kind: 'account-not-here', id: 'acct-m', name: 'Home Mortgage', type: 'MORTGAGE' }}
+      />,
+    );
+    expect(screen.getByTestId('txn-list').textContent).toContain('0 transactions in an account this page can’t show');
   });
 });

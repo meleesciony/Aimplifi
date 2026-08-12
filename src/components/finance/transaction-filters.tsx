@@ -34,6 +34,7 @@ const selectClass =
 
 export function TransactionFilters({
   accountOptions,
+  missingAccountOption,
   categoryOptions,
   current,
   unclassifiedCount,
@@ -41,6 +42,15 @@ export function TransactionFilters({
   oldestDate,
 }: {
   accountOptions: { id: string; name: string }[];
+  /** Set when `?account=` names an account `accountOptions` does not hold — a
+   *  non-spending account (mortgage/loan/investment, resolved to its painted
+   *  name) or an id matching no account of the reader's (`name: null`). The
+   *  select renders it as an extra option so the control shows the truth:
+   *  without it the browser paints "All accounts" while a filter is active,
+   *  and choosing All accounts is a silent no-op because the DOM value never
+   *  changes (U.3 critic, finding #6). One control per axis — the select IS
+   *  the account control, so the fix lives in it rather than beside it. */
+  missingAccountOption: { name: string | null } | null;
   /** Category dropdown options — the user's visible assignable set incl. customs
    *  (DECISIONS #111). Hidden categories are still findable via the search box. */
   categoryOptions: { id: string; name: string }[];
@@ -200,6 +210,15 @@ export function TransactionFilters({
           className={selectClass}
         >
           <option value="">All accounts</option>
+          {/* The active filter the options don't hold, injected so the select
+              can DISPLAY it and so "All accounts" becomes a live escape (the
+              DOM value actually changes). Present only while that filter is
+              on — it is a mirror of the URL, never a choice offered. */}
+          {missingAccountOption !== null && current.account !== '' && (
+            <option value={current.account} data-testid="txn-filter-account-missing-option">
+              {missingAccountOption.name !== null ? missingAccountOption.name : '(account not found)'}
+            </option>
+          )}
           {accountOptions.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}

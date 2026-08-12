@@ -7,7 +7,9 @@
  * while "History available from Wed, Mar 25, 2026" sat four lines above it.
  */
 import { describe, it, expect } from 'vitest';
-import { registerEmptyReason, isWindowExplainedZero } from '@/lib/engine/transactions/empty-reason';
+import { registerEmptyReason, isAccountExplainedZero, isWindowExplainedZero } from '@/lib/engine/transactions/empty-reason';
+
+import type { RegisterEmptyInput } from '@/lib/engine/transactions/empty-reason';
 
 /** Defaults matching a register with a year of history and no filters on. */
 const base = {
@@ -18,6 +20,7 @@ const base = {
   newest: '2026-08-05' as string | null,
   merchant: null as string | null,
   otherFilters: false,
+  accountFilter: null as RegisterEmptyInput['accountFilter'],
 };
 
 describe('registerEmptyReason', () => {
@@ -236,5 +239,117 @@ describe('registerEmptyReason', () => {
     // is per-comparison so a half-populated input degrades to #186, never to a
     // sentence naming a bound that does not exist.
     expect(registerEmptyReason({ ...base, hasFilters: true, from: '2027-01-01', newest: null }).kind).toBe('filters');
+  });
+
+  // ── the account axis (owner report 2026-08-11: the mortgage dead-end) ───────
+
+  const mortgage = { kind: 'not-here', id: 'acct-m', name: 'Home Mortgage', type: 'MORTGAGE' } as const;
+
+  it("the owner's third live shape: his mortgage's /accounts row linked here and the page blamed 'these filters'", () => {
+    // The screen: /transactions?account=<mortgageId>, every control on its
+    // default, 0 transactions, $0.00 × 3, "No transactions match these
+    // filters" — while the register's basis (SPENDING_ACCOUNT_TYPES) excludes
+    // MORTGAGE by construction, so no control change could ever populate it.
+    const r = registerEmptyReason({ ...base, hasFilters: true, accountFilter: mortgage });
+    expect(r).toEqual({ kind: 'account-not-here', id: 'acct-m', name: 'Home Mortgage', type: 'MORTGAGE' });
+  });
+
+  it('an out-of-basis account wins over EVERY window branch — its set is empty whatever the dates say', () => {
+    // Inverted window AND a not-here account: both true, but "swap the two
+    // dates" is a remedy that provably cannot work here, the same failure the
+    // inverted-window branch itself exists to prevent one level down.
+    const inverted = registerEmptyReason({
+      ...base,
+      hasFilters: true,
+      accountFilter: mortgage,
+      from: '2026-08-01',
+      to: '2024-01-01',
+    });
+    expect(inverted.kind).toBe('account-not-here');
+    const disjoint = registerEmptyReason({
+      ...base,
+      hasFilters: true,
+      accountFilter: mortgage,
+      to: '2025-08-06',
+    });
+    expect(disjoint.kind).toBe('account-not-here');
+  });
+
+  it('an out-of-basis account wins over the merchant axis for the same reason', () => {
+    const r = registerEmptyReason({
+      ...base,
+      hasFilters: true,
+      accountFilter: mortgage,
+      merchant: 'Peloton',
+      otherFilters: true,
+    });
+    expect(r.kind).toBe('account-not-here');
+  });
+
+  it('an id matching NO account of the reader answers account-unknown, never a name it does not have', () => {
+    const r = registerEmptyReason({ ...base, hasFilters: true, accountFilter: { kind: 'unknown' } });
+    expect(r).toEqual({ kind: 'account-unknown' });
+  });
+
+  it("an IN-BASIS account with zero rows names the account's own empty history, never 'these filters' (U.3 critic #2)", () => {
+    // The owner's dead end one type-class over: a just-linked checking
+    // account, a balance-only feed, a manual card nobody typed a row into.
+    const r = registerEmptyReason({
+      ...base,
+      hasFilters: true,
+      accountFilter: { kind: 'no-rows', name: 'New Checking' },
+      // K.4 scoping makes the account-scoped bounds null here.
+      oldest: null,
+      newest: null,
+    });
+    expect(r).toEqual({ kind: 'account-empty', name: 'New Checking' });
+  });
+
+  it('account-empty wins over the window branches too — a date remedy cannot conjure rows the account never delivered', () => {
+    const r = registerEmptyReason({
+      ...base,
+      hasFilters: true,
+      accountFilter: { kind: 'no-rows', name: 'New Checking' },
+      from: '2026-08-01',
+      to: '2024-01-01',
+    });
+    expect(r.kind).toBe('account-empty');
+  });
+
+  it('a filter on a SPENDING account arrives as null and changes nothing — zero rows there mean what the other branches say', () => {
+    expect(registerEmptyReason({ ...base, hasFilters: true, accountFilter: null }).kind).toBe('filters');
+    expect(
+      registerEmptyReason({ ...base, hasFilters: true, accountFilter: null, to: '2025-08-06' }).kind,
+    ).toBe('before-history');
+  });
+
+  it('the account zeros are NOT window-explained — nothing about them belongs on the "in this window" line', () => {
+    expect(isWindowExplainedZero(registerEmptyReason({ ...base, hasFilters: true, accountFilter: mortgage }))).toBe(false);
+    expect(
+      isWindowExplainedZero(registerEmptyReason({ ...base, hasFilters: true, accountFilter: { kind: 'unknown' } })),
+    ).toBe(false);
+  });
+
+  it('exactly the account kinds are account-explained zeros — the F2 rule extended (U.3 critic #7)', () => {
+    const accountKinds = [
+      registerEmptyReason({ ...base, hasFilters: true, accountFilter: mortgage }),
+      registerEmptyReason({ ...base, hasFilters: true, accountFilter: { kind: 'unknown' } }),
+      registerEmptyReason({ ...base, hasFilters: true, accountFilter: { kind: 'no-rows', name: 'X' } }),
+    ];
+    for (const r of accountKinds) expect(isAccountExplainedZero(r)).toBe(true);
+    expect(isAccountExplainedZero(registerEmptyReason({ ...base, hasFilters: true }))).toBe(false);
+    expect(isAccountExplainedZero(registerEmptyReason({ ...base }))).toBe(false);
+    expect(
+      isAccountExplainedZero(registerEmptyReason({ ...base, hasFilters: true, from: '2026-08-01', to: '2024-01-01' })),
+    ).toBe(false);
+  });
+
+  it('carries id, name and type verbatim, so the copy can quote the account and link its real destination', () => {
+    const inv = registerEmptyReason({
+      ...base,
+      hasFilters: true,
+      accountFilter: { kind: 'not-here', id: 'acct-b', name: 'Schwab Brokerage', type: 'INVESTMENT' },
+    });
+    expect(inv).toEqual({ kind: 'account-not-here', id: 'acct-b', name: 'Schwab Brokerage', type: 'INVESTMENT' });
   });
 });

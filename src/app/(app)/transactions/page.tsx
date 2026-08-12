@@ -103,7 +103,7 @@ export default async function TransactionsPage({
     spendClass !== null;
   const hasFilters = hasFiltersBesidesMerchant || !!merchant;
 
-  const [{ rows, summary, accountOptions, pageInfo, lens, unclassifiedCount, oldestDate, newestDate }, categoryGroups, withheld, shared] =
+  const [{ rows, summary, accountOptions, accountFilter, pageInfo, lens, unclassifiedCount, oldestDate, newestDate }, categoryGroups, withheld, shared] =
     await Promise.all([
       getTransactions(session.user.id, filter, page),
       getVisibleGroups(session.user.id),
@@ -166,9 +166,13 @@ export default async function TransactionsPage({
           </>
         ) : (
           <>
-            Every transaction across all your accounts — checking, savings, credit,
-            and more. Cash and other purchases not pulled automatically can be added
-            by hand.
+            {/* "spending accounts", not "all your accounts" (2026-08-11): the
+                register's basis is checking + savings + cards only (#62) — a
+                mortgage or brokerage never posts here, and the old sentence
+                claimed otherwise on every unfiltered load. */}
+            Every transaction across your spending accounts — checking, savings,
+            and credit cards. Cash and other purchases not pulled automatically can
+            be added by hand.
           </>
         )}{' '}
         Each row is labeled Fixed or Discretionary for your Plan
@@ -183,6 +187,18 @@ export default async function TransactionsPage({
 
       <TransactionFilters
         accountOptions={accountOptions}
+        // An account filter the DROPDOWN's own options cannot express (a
+        // non-spending or unknown id) still narrows the set, so the select
+        // is handed the name to display — otherwise it paints "All accounts"
+        // while a filter is on, falsifying "the controls below say which",
+        // and choosing All accounts is a silent no-op because the DOM value
+        // never changes (U.3 critic, finding #6). 'no-rows' accounts are in
+        // the options already.
+        missingAccountOption={
+          accountFilter === null || accountFilter.kind === 'no-rows'
+            ? null
+            : { name: accountFilter.kind === 'not-here' ? accountFilter.name : null }
+        }
         categoryOptions={categoryGroups.flatMap((g) => g.categories)}
         current={{
           search,
@@ -238,6 +254,9 @@ export default async function TransactionsPage({
           // zero it is explaining.
           merchant: filter.merchant ?? null,
           otherFilters: hasFiltersBesidesMerchant,
+          // Resolved by getTransactions against the reader's OWN accounts —
+          // the same query run that produced the zero this sentence explains.
+          accountFilter,
         })}
         // The CSV remedy is REFUSED for the shared demo user
         // (`transaction-actions.ts` returns DEMO_ENTRY_BLOCKED), and on

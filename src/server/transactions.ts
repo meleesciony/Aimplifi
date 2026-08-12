@@ -129,8 +129,24 @@ export interface MerchantLensView {
 export interface TransactionsResult {
   rows: TxnView[];
   summary: TxnSummary;
-  /** Distinct accounts for the filter dropdown (id + name). */
+  /** The register's filterable set for the account dropdown: the user's
+   *  spending accounts through `registerAccountWhere` (one author with the row
+   *  query), INCLUDING accounts with zero rows — an active filter must always
+   *  be visible in the control that expresses it. */
   accountOptions: { id: string; name: string }[];
+  /**
+   * The `?account=` axis resolved against the reader's own accounts, for
+   * `registerEmptyReason` and the filter bar's account chip. `null` when the
+   * axis is off or names a spending account (the dropdown expresses those);
+   * 'not-here' when the account exists but the register's basis excludes its
+   * type (the mortgage dead-end, owner 2026-08-11); 'unknown' when no account
+   * of the reader's has this id.
+   */
+  accountFilter:
+    | null
+    | { kind: 'not-here'; id: string; name: string; type: string }
+    | { kind: 'no-rows'; name: string }
+    | { kind: 'unknown' };
   /** Pagination state for the current (filtered) page (ROADMAP #8). */
   pageInfo: PageInfo;
   /** Set only when the filter names a merchant AND the profile has something
@@ -267,8 +283,14 @@ function suggestionForRow(t: SuggestibleRow, inputs: SuggestionLadderInputs): Tx
  * construction; a second copy of this clause is how a reader starts
  * disagreeing with the register (H.8).
  */
+export const registerAccountWhere = (userId: string) => ({
+  userId,
+  type: { in: [...SPENDING_ACCOUNT_TYPES] },
+  OR: [{ currency: null }, { currency: 'USD' as const }],
+});
+
 export const registerRowWhere = (userId: string) => ({
-  account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' as const }] },
+  account: registerAccountWhere(userId),
   isSplitParent: false,
 });
 
@@ -349,8 +371,11 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   // double-counted here — rows AND summary totals — while the dashboard, reports, and
   // trends (snapshot-fed) counted them once, on the same screenload. Apply the
   // assembler's EXACT R1 ownership rule before anything derives from the row set:
-  // merchant counts, provenance, the lens, the summary, pagination, and the account
-  // dropdown all inherit it. No active links → constant-true fast path (R8).
+  // merchant counts, provenance, the lens, the summary, and pagination all inherit
+  // it. (The account DROPDOWN no longer derives from rows — since U.3 it lists the
+  // filterable Account set, and inherits the reconciliation rule as the
+  // superseded-predecessor exclusion below instead.) No active links →
+  // constant-true fast path (R8).
   const keepsReconciled = await getReconciliationTxnKeep(userId);
   const txns = rawTxns.filter((t) => keepsReconciled(t.accountId, t.date));
 
@@ -527,10 +552,70 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   const summary = summarizeTransactions(filtered);
   const { items, info } = paginate(filtered, page, PAGE_SIZE);
 
-  // Account options come from the full (unfiltered) set so the dropdown is stable.
-  const seen = new Map<string, string>();
-  for (const r of rows) if (!seen.has(r.accountId)) seen.set(r.accountId, r.accountName);
-  const accountOptions = [...seen.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => (a.name < b.name ? -1 : 1));
+  // Account options are the register's FILTERABLE SET — the user's spending
+  // accounts, from the Account table through the register's own scope
+  // expression (`registerAccountWhere`, one author with the row query). Not
+  // from rows-present: a just-linked checking account with zero rows used to
+  // vanish from this dropdown, so filtering to it showed "All accounts" while
+  // a filter was active — the banner above ("the controls below say which")
+  // was false exactly when the reader most needed it (owner report
+  // 2026-08-11, the mortgage dead-end slice). Its zero-row register view now
+  // names itself honestly ('account-empty' below), so listing it is an
+  // affordance rather than a dead end. Active superseded PREDECESSORS are
+  // excluded on the same basis /transactions/new, /rules and /import use —
+  // reconciliation disowns their rows, so offering the name beside its
+  // successor's would be a near-duplicate whose selection can only show a
+  // zero the reader cannot act on (U.3 critic, finding #8).
+  const [filterableAccounts, supersededIds] = await Promise.all([
+    prisma.account.findMany({
+      where: registerAccountWhere(userId),
+      select: { id: true, name: true, displayName: true },
+    }),
+    activeSupersededPredecessorIds([userId]),
+  ]);
+  const accountOptions = filterableAccounts
+    .filter((a) => !supersededIds.has(a.id))
+    .map((a) => ({ id: a.id, name: accountLabel(a) }))
+    .sort((a, b) => (a.name < b.name ? -1 : 1));
+
+  // Resolve the `?account=` axis against the reader's own accounts so the
+  // empty state can name WHICH zero this is (`registerEmptyReason`):
+  // 'not-here' for an account the basis excludes (a LOAN / MORTGAGE /
+  // INVESTMENT id returns zero rows BY CONSTRUCTION — until this slice the
+  // page blamed "these filters" for it), 'no-rows' for an in-basis account
+  // the register holds nothing for (the same dead end one type-class over —
+  // U.3 critic, finding #2), 'unknown' for an id that is not the reader's.
+  // Scoped to userId — another user's account id resolves to 'unknown', never
+  // to a name.
+  let accountFilter: TransactionsResult['accountFilter'] = null;
+  if (filter.accountId) {
+    const option = accountOptions.find((a) => a.id === filter.accountId);
+    if (option) {
+      // `rows` is the register's own kept pre-filter set, so "has no rows"
+      // here agrees byte-for-byte with what every filter combination on this
+      // account could ever show.
+      if (!rows.some((r) => r.accountId === filter.accountId)) {
+        accountFilter = { kind: 'no-rows', name: option.name };
+      }
+    } else {
+      const acct = await prisma.account.findFirst({
+        where: { id: filter.accountId, userId },
+        select: { id: true, name: true, displayName: true, type: true, currency: true },
+      });
+      if (!acct) {
+        accountFilter = { kind: 'unknown' };
+      } else if (SPENDING_ACCOUNT_TYPES.includes(acct.type) && isSupportedCurrency(acct.currency)) {
+        // In the register's type+currency basis yet absent from the options:
+        // the only remaining exclusion is the superseded-predecessor rule,
+        // whose KEPT rows are zero by construction — so 'no-rows' is the true
+        // statement, and 'not-here' would make the copy layer derive a false
+        // currency story from the spending type (U.3 critic follow-up).
+        accountFilter = { kind: 'no-rows', name: accountLabel(acct) };
+      } else {
+        accountFilter = { kind: 'not-here', id: acct.id, name: accountLabel(acct), type: acct.type };
+      }
+    }
+  }
 
   // Through the caller's filter with the `unclassified` axis dropped — see
   // `countUnclassified`. Not over `rows`: a global figure printed on a filtered
@@ -557,7 +642,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     unclassified: filter.unclassified,
   });
 
-  return { rows: items, summary, accountOptions, pageInfo: info, lens, unclassifiedCount, oldestDate, newestDate };
+  return { rows: items, summary, accountOptions, accountFilter, pageInfo: info, lens, unclassifiedCount, oldestDate, newestDate };
 }
 
 /** One piece of a split, as the detail view lists it. */
@@ -1579,6 +1664,61 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
  * `OR: [{ currency: null }, { currency: 'USD' }]` predicate, and the pure summarizer
  * re-applies `isSupportedCurrency`, so the disclosure can never disagree with the withhold.
  */
+/**
+ * What the in-place detail panel on /accounts renders for ONE account (the
+ * mortgage dead-end slice, owner 2026-08-11): the account types the register
+ * excludes by construction (`accountRowDestination` → 'detail') open here
+ * instead of a structurally-empty /transactions.
+ *
+ * Loaded only when a panel is OPEN (`/accounts?detail=<id>`). The cost this
+ * avoids is the CLIENT payload — serializing every account's history into the
+ * page to render none of it, the exact dead weight O.20b measured on
+ * /dashboard. (The DB cost is not the argument: `getAccountsView` on the same
+ * request already reads every snapshot for the trend — U.3 critic, #11.)
+ *
+ * `history` is the same BalanceSnapshot store the page's net-worth trend is
+ * drawn from, so the panel and the chart above it can never disagree about a
+ * recorded balance. TODAY, only the seed writes snapshots — a live synced
+ * account has none, and the panel says so rather than promising history no
+ * writer produces (a snapshot writer at sync time is queued separately in
+ * TASKS.md).
+ *
+ * Scoped to `userId` IN THE QUERY — a stale or foreign id resolves to null,
+ * never to another user's balances.
+ */
+export interface AccountDetailView {
+  id: string;
+  /** Recorded balances, oldest first. Stored positive like
+   *  `Account.currentBalanceCents`; the LIABILITY sign is painted by the row's
+   *  own convention at the UI boundary, same as the balance beside the name. */
+  history: { date: string; balanceCents: number }[];
+  /** Loan facts, when the feed supplied them (the demo Auto Loan carries all
+   *  three; a synced account may carry none). Absent facts render nothing. */
+  aprBps: number | null;
+  minimumPaymentCents: number | null;
+  dueDayOfMonth: number | null;
+}
+
+export async function getAccountDetail(userId: string, accountId: string): Promise<AccountDetailView | null> {
+  const account = await prisma.account.findFirst({
+    where: { id: accountId, userId },
+    select: { id: true, aprBps: true, minimumPaymentCents: true, dueDayOfMonth: true },
+  });
+  if (!account) return null;
+  const history = await prisma.balanceSnapshot.findMany({
+    where: { accountId: account.id },
+    orderBy: { date: 'asc' },
+    select: { date: true, balanceCents: true },
+  });
+  return {
+    id: account.id,
+    history,
+    aprBps: account.aprBps,
+    minimumPaymentCents: account.minimumPaymentCents,
+    dueDayOfMonth: account.dueDayOfMonth,
+  };
+}
+
 export async function getWithheldAccountSummary(userId: string): Promise<WithheldAccountSummary> {
   const rows = await prisma.account.findMany({
     where: { userId, NOT: { OR: [{ currency: null }, { currency: 'USD' }] } },

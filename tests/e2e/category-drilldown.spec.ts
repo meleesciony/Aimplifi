@@ -65,7 +65,10 @@ test('Reports: a category figure links to a register that nets to the same amoun
 
   // The page must not greet a filtered arrival by claiming it shows everything
   // (critic F-10) — and the control the reader needs to get back out is present.
-  await expect(page.getByText('Every transaction across all your accounts')).toHaveCount(0);
+  // The string is the CURRENT unfiltered greeting ("spending accounts",
+  // 2026-08-11) — asserting the absence of copy that no longer exists anywhere
+  // would pass vacuously and lock nothing.
+  await expect(page.getByText('Every transaction across your spending accounts')).toHaveCount(0);
   await expect(page.getByTestId('txn-clear')).toBeVisible();
   // The category control can DISPLAY the filter it arrived under — the condition
   // the href builder refuses on when it cannot (uncategorized, hidden categories).

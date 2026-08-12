@@ -52,8 +52,9 @@ import {
   PROVENANCE_CONFIRM_TESTID,
   provenanceBadgeView,
 } from '@/components/finance/provenance-badge';
-import type { PageInfo, TxnSummary, TxnView } from '@/lib/engine/transactions/query';
-import { isWindowExplainedZero, type RegisterEmptyReason } from '@/lib/engine/transactions/empty-reason';
+import { SPENDING_ACCOUNT_TYPES, type PageInfo, type TxnSummary, type TxnView } from '@/lib/engine/transactions/query';
+import { isAccountExplainedZero, isWindowExplainedZero, type RegisterEmptyReason } from '@/lib/engine/transactions/empty-reason';
+import { accountTypeLabel } from '@/lib/engine/account/type-label';
 import { SpendClassBadge } from '@/components/finance/spend-class-badge';
 import { outOfScopeReason } from '@/lib/engine/spending-plan/spend-class';
 
@@ -544,6 +545,19 @@ export function TransactionList({
                 : ' — it ends before it starts'}
           </>
         )}
+        {/* The account zeros get the same F2 treatment as the window zeros
+            (U.3 critic #7): the $0.00 tiles above this line are about a set
+            the account axis emptied, and the line that counts them says so
+            where the count is — the box below carries the full sentence. */}
+        {rows.length === 0 && isAccountExplainedZero(emptyReason) && (
+          <>
+            {emptyReason.kind === 'account-not-here'
+              ? ' in an account this page can’t show'
+              : emptyReason.kind === 'account-empty'
+                ? ' recorded for this account'
+                : ' for an account filter nothing matches'}
+          </>
+        )}
         . Totals include pending charges and exclude transfers between your own accounts
         {/* Branches on the SUMMARY (set-scoped, critic P2-1), never the page
             slice: an excluded row on page 3 moves page 1's totals too. */}
@@ -614,6 +628,89 @@ export function TransactionList({
             <p data-testid="txn-empty-merchant">
               No transactions here match “{emptyReason.merchant}”
               {emptyReason.withOtherFilters ? ' with your other filters' : ''}.{' '}
+              <Link href="/transactions" className="underline underline-offset-2">
+                Show all transactions
+              </Link>
+              .
+            </p>
+          ) : emptyReason.kind === 'account-not-here' ? (
+            // The mortgage dead-end (owner, 2026-08-11): his /accounts row
+            // linked here, and this box answered "No transactions match these
+            // filters" — a remedy (change the controls) that cannot work,
+            // because the register's basis excludes the account. Name the
+            // account, name the exclusion, offer the page that holds it. The
+            // type word is the same vocabulary /accounts prints under the row
+            // the reader clicked. THREE exclusions wear this kind, told apart
+            // by the type the reason carries (U.3 critic #5): a spending TYPE
+            // here can only mean the currency guard (type + currency are the
+            // basis's only per-account axes), and a currency-withheld account
+            // does not render a row on /accounts either — only the currency
+            // note there names it, so that is what the link may promise.
+            SPENDING_ACCOUNT_TYPES.includes(emptyReason.type) ? (
+              <p data-testid="txn-empty-account-not-here">
+                “{emptyReason.name}” is held in another currency, and activity here totals USD
+                accounts only — the currency note on{' '}
+                <Link href="/accounts" className="underline underline-offset-2">
+                  Accounts
+                </Link>{' '}
+                covers it.
+              </p>
+            ) : (
+              <p data-testid="txn-empty-account-not-here">
+                “{emptyReason.name}” is {/^[aeiou]/i.test(accountTypeLabel(emptyReason.type)) ? 'an' : 'a'}{' '}
+                {accountTypeLabel(emptyReason.type).toLowerCase()} account. Transactions here come from
+                checking, savings, and card accounts, so its activity never appears on this page —{' '}
+                {emptyReason.type === 'INVESTMENT' ? (
+                  <>
+                    {/* "holdings … live on", not "ITS holdings live on": with
+                        no holdings for this id, /investments deliberately
+                        falls back to the whole portfolio (#160), and the
+                        possessive would promise a narrowing that fallback
+                        drops (U.3 critic #9). */}
+                    holdings for investment accounts live on{' '}
+                    <Link
+                      href={`/investments?account=${emptyReason.id}`}
+                      className="underline underline-offset-2"
+                    >
+                      Investments
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    its balance is tracked on{' '}
+                    <Link href="/accounts" className="underline underline-offset-2">
+                      Accounts
+                    </Link>
+                  </>
+                )}
+                .
+              </p>
+            )
+          ) : emptyReason.kind === 'account-empty' ? (
+            // In the basis, zero rows — the owner's dead end one type-class
+            // over (U.3 critic #2): a just-linked or balance-only or manual
+            // spending account. WHY the history is empty is not asserted —
+            // several causes produce this state and the page cannot tell
+            // them apart; /accounts (freshness lines, connection cards) can.
+            <p data-testid="txn-empty-account-empty">
+              The register holds no transactions for “{emptyReason.name}” yet.{' '}
+              <Link href="/accounts" className="underline underline-offset-2">
+                See it on Accounts
+              </Link>
+              .
+            </p>
+          ) : emptyReason.kind === 'account-unknown' ? (
+            // A stale bookmark or hand-edited id: nothing of the reader's OWN
+            // matches, so no name can be printed — say that, never "these
+            // filters". "isn't one of your own", not "was deleted": a
+            // partner's shared account id would also land here, and deletion
+            // is a cause this page cannot establish (U.3 critic #10). The way
+            // out is a LINK for the same reason the merchant branch gives
+            // one: the reader who meets this sentence has already failed to
+            // find the control.
+            <p data-testid="txn-empty-account-unknown">
+              This view is filtered to an account that isn&apos;t one of your own — it may have been
+              deleted or belong to someone else.{' '}
               <Link href="/transactions" className="underline underline-offset-2">
                 Show all transactions
               </Link>

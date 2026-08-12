@@ -97,7 +97,31 @@ export type RegisterEmptyReason =
   // honest when the merchant is not the only narrowing in play: with a
   // category and a type also set, "nothing matches X" would assert a cause
   // this function did not establish.
-  | { kind: 'merchant'; merchant: string; withOtherFilters: boolean };
+  | { kind: 'merchant'; merchant: string; withOtherFilters: boolean }
+  // The `?account=` axis when it names an account the register EXCLUDES BY
+  // CONSTRUCTION (owner report 2026-08-11: his mortgage's row on /accounts
+  // linked here and the page answered "No transactions match these filters").
+  // `registerRowWhere` scopes to SPENDING_ACCOUNT_TYPES, so a LOAN / MORTGAGE /
+  // INVESTMENT / other-asset filter returns zero rows whatever every other
+  // control is set to — blaming "these filters" hands the reader a remedy
+  // (change the controls) that cannot work. `name` and `type` arrive resolved
+  // by the caller against the reader's OWN accounts; the copy layer paints the
+  // type through the same label vocabulary /accounts uses.
+  | { kind: 'account-not-here'; id: string; name: string; type: string }
+  // `?account=` names no account of the reader's at all — a deleted account's
+  // stale bookmark, another user's id, or a hand-edited URL. Nothing on the
+  // page can name it, so the copy says that instead of blaming the filters.
+  | { kind: 'account-unknown' }
+  // `?account=` names an account the register CAN show — it simply holds no
+  // rows for it (just linked and not yet synced, a balance-only feed, or a
+  // manual account nobody has typed a transaction into). The dropdown lists
+  // it (the filterable set comes from the Account table), so without this
+  // kind the page would blame "these filters" for a zero that is about the
+  // ACCOUNT's own history — the owner's mortgage report one type-class over
+  // (hostile critic on this slice, finding #2). WHY the feed is empty is not
+  // asserted: several causes produce this state and the module cannot tell
+  // them apart.
+  | { kind: 'account-empty'; name: string };
 
 export interface RegisterEmptyInput {
   /** The #186 predicate: any register filter active. Unchanged in meaning. */
@@ -133,6 +157,28 @@ export interface RegisterEmptyInput {
    * sentence may stand alone as the cause.
    */
   otherFilters: boolean;
+  /**
+   * The `?account=` axis, RESOLVED by the caller against the reader's own
+   * accounts (this module cannot see the database):
+   *
+   * - `null` — the axis is off, or it names an in-basis account that HAS rows.
+   *   Zero rows on screen then mean what the window / merchant / filter
+   *   branches say they mean.
+   * - `{ kind: 'not-here', … }` — the account EXISTS and is the reader's, but
+   *   the register's basis excludes it. Carries the painted name (the same
+   *   `accountLabel` resolution every surface renders) plus the raw type so
+   *   the copy layer can label it with the shared vocabulary — and can tell a
+   *   type exclusion from a currency withholding, because a spending TYPE
+   *   here can only mean the currency guard excluded it (type + currency are
+   *   the basis's only per-account axes).
+   * - `{ kind: 'no-rows', … }` — in the basis, zero register rows.
+   * - `{ kind: 'unknown' }` — no account of the reader's has this id.
+   */
+  accountFilter:
+    | null
+    | { kind: 'not-here'; id: string; name: string; type: string }
+    | { kind: 'no-rows'; name: string }
+    | { kind: 'unknown' };
 }
 
 export function registerEmptyReason(input: RegisterEmptyInput): RegisterEmptyReason {
@@ -141,6 +187,26 @@ export function registerEmptyReason(input: RegisterEmptyInput): RegisterEmptyRea
   const to = asBound(input.to);
   const oldest = asBound(input.oldest);
   const newest = asBound(input.newest);
+
+  // The account axis is decided FIRST, above even the inverted window: an
+  // out-of-basis account defines an EMPTY SET by construction, so every other
+  // branch's remedy (swap the dates, import a CSV, clear a control) is one
+  // that cannot work — the exact failure the inverted-window comment below
+  // describes, one level up. With such a filter the scoped bounds are null and
+  // the window branches would fall through to 'filters' anyway; naming the
+  // account is the difference between a cause and a shrug.
+  if (input.accountFilter !== null) {
+    if (input.accountFilter.kind === 'unknown') return { kind: 'account-unknown' };
+    if (input.accountFilter.kind === 'no-rows') {
+      // In the basis but historyless: still decided above the window branches,
+      // because the account-scoped bounds are null here (K.4 scoping), so no
+      // window branch could fire — and a date remedy cannot conjure rows an
+      // account has never delivered.
+      return { kind: 'account-empty', name: input.accountFilter.name };
+    }
+    const { id, name, type } = input.accountFilter;
+    return { kind: 'account-not-here', id, name, type };
+  }
 
   // A window that ends before it starts holds nothing WHATEVER the data is, so
   // it is decided first and without consulting the bounds at all. Checked
@@ -203,4 +269,15 @@ export function registerEmptyReason(input: RegisterEmptyInput): RegisterEmptyRea
  */
 export function isWindowExplainedZero(reason: RegisterEmptyReason): boolean {
   return reason.kind === 'inverted-window' || reason.kind === 'before-history' || reason.kind === 'after-history';
+}
+
+/**
+ * True when the reason is one the ACCOUNT AXIS explains — the same F2 rule as
+ * `isWindowExplainedZero`, extended to the account kinds (hostile critic on
+ * the U.3 slice, finding #7): the "$0.00 × 3 / 0 transactions" strip renders
+ * above the empty box, and for these zeros the count line must say the set is
+ * about the account, not leave the tiles implying a sum that came up empty.
+ */
+export function isAccountExplainedZero(reason: RegisterEmptyReason): boolean {
+  return reason.kind === 'account-not-here' || reason.kind === 'account-unknown' || reason.kind === 'account-empty';
 }

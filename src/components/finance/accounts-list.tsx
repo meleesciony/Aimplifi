@@ -96,25 +96,14 @@ import {
   visibleBlockedReasons,
 } from '@/components/finance/connection-matters-view';
 import type { AccountGroup, AccountView } from '@/lib/engine/transactions/query';
-import type { AccountsView, ManualCardBilling, ReconciledPairView, ReconciliationCandidateView } from '@/server/transactions';
+import { accountTypeLabel } from '@/lib/engine/account/type-label';
+import { accountRowDestination } from '@/lib/engine/account/row-destination';
+import { AccountDetailPanel } from '@/components/finance/account-detail-panel';
+import type { AccountDetailView, AccountsView, ManualCardBilling, ReconciledPairView, ReconciliationCandidateView } from '@/server/transactions';
 
-const TYPE_LABEL: Record<string, string> = {
-  CHECKING: 'Checking',
-  SAVINGS: 'Savings',
-  CREDIT: 'Credit card',
-  INVESTMENT: 'Investment',
-  LOAN: 'Loan',
-  REAL_ESTATE: 'Real estate',
-  VEHICLE: 'Vehicle',
-  CASH: 'Cash',
-  OTHER_ASSET: 'Other asset',
-  MORTGAGE: 'Mortgage',
-  OTHER_LIABILITY: 'Other debt',
-};
-
-function typeLabel(t: string): string {
-  return TYPE_LABEL[t] ?? t;
-}
+// One author with the register's 'account-not-here' empty state — see the
+// module docblock (the mortgage dead-end slice, 2026-08-11).
+const typeLabel = accountTypeLabel;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -254,7 +243,15 @@ function writeCleanupOpen(open: boolean): void {
   }
 }
 
-export function AccountsList({ data }: { data: AccountsView }) {
+export function AccountsList({
+  data,
+  detail = null,
+}: {
+  data: AccountsView;
+  /** Server-loaded detail for the one account `/accounts?detail=` names, when
+   *  that account expands in place (`accountRowDestination` → 'detail'). */
+  detail?: AccountDetailView | null;
+}) {
   const [adding, setAdding] = useState<null | 'asset' | 'liability'>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [statementCardId, setStatementCardId] = useState<string | null>(null);
@@ -526,6 +523,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
         title="Assets"
         paymentAccountId={data.paymentAccountId}
         cardBilling={data.cardBilling}
+        detail={detail}
         editingId={editingId}
         statementCardId={statementCardId}
         pending={pending}
@@ -551,6 +549,7 @@ export function AccountsList({ data }: { data: AccountsView }) {
         title="Liabilities"
         paymentAccountId={data.paymentAccountId}
         cardBilling={data.cardBilling}
+        detail={detail}
         editingId={editingId}
         statementCardId={statementCardId}
         pending={pending}
@@ -1118,6 +1117,7 @@ function Group({
   title,
   paymentAccountId,
   cardBilling,
+  detail,
   editingId,
   renamingId,
   canRename,
@@ -1140,6 +1140,8 @@ function Group({
   title: string;
   paymentAccountId: string | null;
   cardBilling: Record<string, ManualCardBilling>;
+  /** The one open `?detail=` panel's data, or null — matched to its row by id below. */
+  detail: AccountDetailView | null;
   editingId: string | null;
   renamingId: string | null;
   canRename: boolean;
@@ -1183,6 +1185,7 @@ function Group({
                 canRename={canRename}
                 statementOpen={statementCardId === a.id}
                 pending={pending}
+                openDetail={detail !== null && detail.id === a.id ? detail : null}
                 onRename={() => onRename(a.id)}
                 onCancelRename={onCancelRename}
                 onSaveName={(name) => onSaveName(a.id, name)}
@@ -1209,6 +1212,7 @@ function Group({
                 renaming={renamingId === a.id}
                 canRename={canRename}
                 pending={pending}
+                openDetail={detail !== null && detail.id === a.id ? detail : null}
                 onRename={() => onRename(a.id)}
                 onCancelRename={onCancelRename}
                 onSaveName={(name) => onSaveName(a.id, name)}
@@ -1312,6 +1316,7 @@ function LinkedRow({
   renaming,
   canRename,
   pending,
+  openDetail,
   onRename,
   onCancelRename,
   onSaveName,
@@ -1324,6 +1329,9 @@ function LinkedRow({
   renaming: boolean;
   canRename: boolean;
   pending: boolean;
+  /** Server-loaded detail for THIS row when `/accounts?detail=` names it —
+   *  null for every other row and for rows whose click navigates away. */
+  openDetail: AccountDetailView | null;
   onRename: () => void;
   onCancelRename: () => void;
   onSaveName: (name: string) => void;
@@ -1333,13 +1341,20 @@ function LinkedRow({
   // the row Link (never nested inside it — interactive-in-interactive is invalid
   // and this file already avoids it for ManualRow).
   const confirm = useConfirmArm();
-  // #159: a linked brokerage (INVESTMENT) has holdings / performance / a retirement
-  // projection on /investments — a far more useful destination than its transaction
-  // ledger — so its row navigates there. Every other linked account still opens its
-  // transactions. (A manual INVESTMENT account is just a typed balance with no
-  // holdings and carries inline edit/delete controls, so it renders as a ManualRow
-  // and is intentionally not linked here — that also avoids nesting buttons in a link.)
-  const isInvestment = account.type === 'INVESTMENT';
+  // Where this row's click goes is decided by ONE author against the
+  // register's own type set (`accountRowDestination`, owner report 2026-08-11):
+  // spending accounts open their transactions, a linked brokerage keeps its
+  // #159 holdings destination, and every other type — LOAN, MORTGAGE,
+  // REAL_ESTATE, VEHICLE, CASH, OTHER_* — expands its detail IN PLACE, because
+  // the register excludes those types by construction and linking there was a
+  // structurally-empty dead end ("No transactions match these filters" under
+  // the owner's mortgage). (A manual INVESTMENT account is just a typed
+  // balance with no holdings and carries inline edit/delete controls, so it
+  // renders as a ManualRow and is intentionally not linked here — that also
+  // avoids nesting buttons in a link.)
+  const dest = accountRowDestination(account);
+  const isInvestment = dest.kind === 'holdings';
+  const detailOpen = openDetail !== null;
   // TASKS L.14. Built here rather than server-side because this row already owns the painted
   // identity the sentence has to use — the same "labels arrive already painted" discipline as
   // the duplicate disclosure, so the note can never name the account differently from the line
@@ -1354,9 +1369,11 @@ function LinkedRow({
         currentBalanceCents: account.currentBalanceCents,
       }, account.connectionLive ?? false)
     : null;
-  // #160: carry the account id so /investments narrows to THIS account's holdings for a
-  // multi-brokerage user (inert with one account — the demo lands on the full portfolio).
-  const href = isInvestment ? `/investments?account=${account.id}` : `/transactions?account=${account.id}`;
+  // #160: dest.href carries the account id so /investments and /transactions
+  // narrow to THIS account. A detail row's link is the TOGGLE: it opens
+  // `?detail=<id>` and, while open, points back at the bare page — the URL is
+  // the expand state, so it survives reload and the back button collapses it.
+  const href = dest.kind === 'detail' ? (detailOpen ? '/accounts' : `/accounts?detail=${account.id}`) : dest.href;
   // TASKS L.7. Once the user renames a row, the bank's own name still has to be readable
   // somewhere on it: it is what he sees in his bank's app, and it is the string every
   // duplicate / continue-an-account card on this page is reasoning about. Printed only when
@@ -1386,6 +1403,11 @@ function LinkedRow({
         <Link
           href={href}
           data-testid="account-row"
+          // A detail toggle must not scroll-jump a list the reader is mid-way
+          // down; page navigations keep the default top-of-page landing.
+          scroll={dest.kind === 'detail' ? false : undefined}
+          aria-expanded={dest.kind === 'detail' ? detailOpen : undefined}
+          aria-controls={dest.kind === 'detail' ? `account-detail-${account.id}` : undefined}
           className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 hover:bg-accent"
         >
           <div className="min-w-0">
@@ -1400,6 +1422,11 @@ function LinkedRow({
               {account.mask ? ` ····${account.mask}` : ''}
               {bankName && <span data-testid="account-feed-name"> · synced as {bankName}</span>}
               {isInvestment && <span data-testid="account-row-investment-cue"> · View holdings →</span>}
+              {/* The click's promise, stated like the holdings cue above — a
+                  row that expands must not read like a row that navigates. */}
+              {dest.kind === 'detail' && (
+                <span data-testid="account-row-detail-cue"> · {detailOpen ? 'Hide details ▴' : 'Details ▾'}</span>
+              )}
             </div>
             {account.freshness && (
               <div
@@ -1457,9 +1484,19 @@ function LinkedRow({
           {droppedNote}
         </p>
       )}
+      {/* `dest.kind` guard by construction: a hand-edited `?detail=` naming a
+          spending/investment account must not open a panel under a row whose
+          own link navigates away (and whose cue never promised one). */}
+      {openDetail !== null && dest.kind === 'detail' && (
+        <AccountDetailPanel account={account} isLiability={isLiability} detail={openDetail} />
+      )}
     </li>
   );
 }
+
+// The in-place detail panel lives in its own module (account-detail-panel.tsx)
+// so its REAL-user shape is renderable under test without this file's
+// server-action import graph — see its docblock (U.3 critic, finding #3).
 
 function ManualRow({
   account,
@@ -1470,6 +1507,7 @@ function ManualRow({
   canRename,
   statementOpen,
   pending,
+  openDetail,
   onRename,
   onCancelRename,
   onSaveName,
@@ -1490,6 +1528,8 @@ function ManualRow({
   canRename: boolean;
   statementOpen: boolean;
   pending: boolean;
+  /** Server-loaded detail for THIS row when `/accounts?detail=` names it. */
+  openDetail: AccountDetailView | null;
   onRename: () => void;
   onCancelRename: () => void;
   onSaveName: (name: string) => void;
@@ -1505,16 +1545,47 @@ function ManualRow({
   const [value, setValue] = useState((account.currentBalanceCents / 100).toFixed(2));
   const confirm = useConfirmArm();
   const isCard = account.type === 'CREDIT' && billing !== undefined;
+  // Manual rows open too (U.3 critic #1 — the Add-liability placeholder is
+  // literally "e.g. Mortgage", so a hand-added mortgage is this app's modal
+  // mortgage, and the page's "Tap an account to open it" must be true of it).
+  // Same one-author destination as LinkedRow, with ONE override: a manual
+  // INVESTMENT is a typed balance with no holdings (#159's own rationale for
+  // not linking it), so its "open" is the in-place panel, never the holdings
+  // page whose scope would silently fall back to the whole portfolio.
+  const manualDest = accountRowDestination(account);
+  const manualKind: 'register' | 'detail' = manualDest.kind === 'register' ? 'register' : 'detail';
+  const detailOpen = openDetail !== null;
+  const nameHref =
+    manualKind === 'register'
+      ? (manualDest as { kind: 'register'; href: string }).href
+      : detailOpen
+        ? '/accounts'
+        : `/accounts?detail=${account.id}`;
   return (
     <li className="px-3 py-2" data-testid="manual-account-row">
       {renaming ? (
         <RenameForm account={account} pending={pending} onSave={onSaveName} onCancel={onCancelRename} />
       ) : (
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
+        {/* The NAME block is the link — the value/rename/delete controls stay
+            its siblings, never its children (interactive-in-interactive is the
+            trap this file has already been burned by). */}
+        <Link
+          href={nameHref}
+          data-testid="manual-account-open"
+          scroll={manualKind === 'detail' ? false : undefined}
+          aria-expanded={manualKind === 'detail' ? detailOpen : undefined}
+          aria-controls={manualKind === 'detail' ? `account-detail-${account.id}` : undefined}
+          className="min-w-0 rounded hover:bg-accent"
+        >
           <div className="truncate font-medium">{account.name}</div>
-          <div className="text-xs text-muted-foreground">{typeLabel(account.type)} · manual</div>
-        </div>
+          <div className="text-xs text-muted-foreground">
+            {typeLabel(account.type)} · manual
+            {manualKind === 'detail' && (
+              <span data-testid="account-row-detail-cue"> · {detailOpen ? 'Hide details ▴' : 'Details ▾'}</span>
+            )}
+          </div>
+        </Link>
         {!editing ? (
           <div className="flex shrink-0 items-center gap-2">
             <span className={`shrink-0 tabular-nums ${isLiability ? 'text-red-400' : 'text-foreground'}`}>
@@ -1580,6 +1651,11 @@ function ManualRow({
             />
           )}
         </div>
+      )}
+      {/* Same guard-by-construction as LinkedRow: only a detail-kind row may
+          render the panel a hand-edited `?detail=` asks for. */}
+      {openDetail !== null && manualKind === 'detail' && (
+        <AccountDetailPanel account={account} isLiability={isLiability} detail={openDetail} />
       )}
     </li>
   );

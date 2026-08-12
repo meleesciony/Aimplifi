@@ -442,3 +442,4 @@ refuses to write if it would drop any number this file already carries.
 - **#446** (Phase ?): O.20a: measured before deciding, and the measurement found a different, bigger bug than the one the row named (2026-08-11)
 - **#447** (Phase ?): O.20f: the tap-target floor ships on all five O.20d controls, and each same-file P2's open choice is decided here (2026-08-11)
 - **#448** (Phase ?): O.20b: the /reports payload measured — the rows are the feature, the dashboard was the only dead weight, and both "fixes" the row offered were falsified (2026-08-11)
+- **#449** (Phase ?): U.3: account clicks land somewhere true — the mortgage dead-end, its whole class, and one critic cycle (2026-08-11)
