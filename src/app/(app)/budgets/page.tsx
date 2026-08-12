@@ -27,7 +27,7 @@ import {
   categoryWindowRegisterHref,
 } from '@/lib/engine/transactions/links';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
-import { getReconciliationTxnKeep } from '@/server/reconciliation';
+import { getReconciliationHandoverKeys, getReconciliationTxnKeep } from '@/server/reconciliation';
 import { getSpendingPlan } from '@/server/spending-plan';
 import {
   spendClassLoanPaymentNote,
@@ -158,6 +158,12 @@ export default async function BudgetsPage() {
   // raw month query counted every category's spend twice — while /reports showed it once.
   // Same shared R1 rule as the register/export.
   const keepsReconciled = await getReconciliationTxnKeep(userId);
+  // U.16: the other half of that same boundary. `keepsReconciled` decides which
+  // rows SURVIVE; these are the days it deliberately lets BOTH sides through
+  // (DECISIONS #454), which is the one place this page's figures can count a
+  // charge more than once. Fetched beside the keep so the two can never
+  // describe different links.
+  const handoverKeys = await getReconciliationHandoverKeys(userId);
   // O.6 critic F-5: the Prisma clause above is only PART of the basis. `isSpendRow`
   // is the reports engine's own per-row predicate and it excludes two populations
   // this page never did — the whole Income GROUP and the `transfer` category id —
@@ -242,6 +248,10 @@ export default async function BudgetsPage() {
     new Map(rows.map((r) => [r.categoryId, r.spentCents])),
     meta,
     excludedFlowIds,
+    // U.16: this page already reads the boundary (`keepsReconciled` above), so
+    // its rows can contain a released handover day and its panels tick
+    // "matched to the penny" over them.
+    handoverKeys,
   );
 
   // Wave B.1, per transaction (#397): this month's rows classified one by one —

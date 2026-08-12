@@ -31,6 +31,12 @@ export function LifestyleCreepChart({ creep }: { creep: CreepResult }) {
   const max = Math.max(...months.map((m) => m.amountCents), 1);
   const selectedEntry = selected ? months.find((m) => m.month === selected) : undefined;
   const selectedLabel = selectedEntry ? formatMonth(selectedEntry.month) : '';
+  // Summed ONCE (U.16): the panel prints this, checks the headline against it,
+  // and the handover sentence's "these still add up" clause is gated on the
+  // same check — three readers of one number, which must not be three reduces
+  // that could drift apart.
+  const selectedSumCents = cents(selectedEntry ? selectedEntry.rows.reduce((s, r) => s + r.amountCents, 0) : 0);
+  const selectedReconciles = selectedEntry ? selectedSumCents === selectedEntry.amountCents : false;
 
   return (
     <>
@@ -96,12 +102,10 @@ export function LifestyleCreepChart({ creep }: { creep: CreepResult }) {
               name: `${selectedLabel} discretionary spend`,
               headlineCents: selectedEntry.amountCents,
               rows: selectedEntry.rows,
-              sumCents: cents(selectedEntry.rows.reduce((s, r) => s + r.amountCents, 0)),
+              sumCents: selectedSumCents,
               // Re-review F2: the sum above is a real reduce, but a literal
               // `true` still asserted the match rather than checking it.
-              reconciles:
-                selectedEntry.rows.reduce((s, r) => s + r.amountCents, 0) ===
-                selectedEntry.amountCents,
+              reconciles: selectedReconciles,
               clampedByNetRefund: false,
             }}
             emptyCopy={`No discretionary purchases were filed in ${selectedLabel} — a $0.00 month is a real answer.`}
@@ -110,6 +114,9 @@ export function LifestyleCreepChart({ creep }: { creep: CreepResult }) {
               selectedLabel,
               selectedEntry.amountCents,
               selectedEntry.hasDiscretionaryRefunds,
+              selectedEntry.countedOnHandoverDays,
+              // The panel only PRINTS a tally when it has more than one row.
+              selectedReconciles && selectedEntry.rows.length > 1,
             )}
             registerHref={monthRegisterHref(selectedEntry.month)}
             registerLabel={`Open ${selectedLabel} in your activity, where you can re-file one →`}

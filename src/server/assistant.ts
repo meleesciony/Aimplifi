@@ -11,7 +11,7 @@
  */
 import { requireUserId, rateLimitDurable } from '@/server/authz';
 import { terminalSuccessorMap } from '@/lib/engine/account/reconcile-boundary';
-import { getActiveReconciliations } from '@/server/reconciliation';
+import { getActiveReconciliations, getReconciliationHandoverKeys } from '@/server/reconciliation';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
 import { resolvePaymentAccount, getCashNeeded } from '@/server/finance';
@@ -324,6 +324,13 @@ async function composeAnswer(
             // it must drop the same loan-payment rows or a correct answer
             // would reconcile FALSE.
             excludedFlowIds: snap.loanPaymentFlowExclusions?.excludeIds,
+            // U.16: the trace CERTIFIES the rows it cites with a green check, so
+            // it is the one Ask surface where a released handover day must be
+            // both marked on the row and named in the basis. Without this the
+            // drilldown behind the answer's own disclosure shows two identical
+            // lines under a tick and says nothing — the exact defect the
+            // disclosure exists to remove, one tap away from it.
+            handoverKeys: await getReconciliationHandoverKeys(userId),
           }),
         }
       : answer;
@@ -478,18 +485,42 @@ async function buildAnswer(
       // C.26 the same stop-at-today window (`askSpendWindow`), or Ask and
       // /reports would answer the same month differently.
       return answerSpendTotal(
-        spendingByCategory(snap.transactions as ReportTxn[], askSpendWindow(intent.timeframe), meta, snap.loanPaymentFlowExclusions?.excludeIds),
+        spendingByCategory(
+          snap.transactions as ReportTxn[],
+          askSpendWindow(intent.timeframe),
+          meta,
+          snap.loanPaymentFlowExclusions?.excludeIds,
+          // U.16: this answer is a headline with no rows beneath it, so the
+          // released handover day has to be nameable in the answer itself.
+          await getReconciliationHandoverKeys(userId),
+        ),
         intent.timeframe,
       );
     case 'spend_by_category':
       return answerSpendByCategory(
-        spendingByCategory(snap.transactions as ReportTxn[], askSpendWindow(intent.timeframe), meta, snap.loanPaymentFlowExclusions?.excludeIds),
+        spendingByCategory(
+          snap.transactions as ReportTxn[],
+          askSpendWindow(intent.timeframe),
+          meta,
+          snap.loanPaymentFlowExclusions?.excludeIds,
+          // U.16: this answer is a headline with no rows beneath it, so the
+          // released handover day has to be nameable in the answer itself.
+          await getReconciliationHandoverKeys(userId),
+        ),
         intent.target,
         intent.timeframe,
       );
     case 'top_categories':
       return answerTopCategories(
-        spendingByCategory(snap.transactions as ReportTxn[], askSpendWindow(intent.timeframe), meta, snap.loanPaymentFlowExclusions?.excludeIds),
+        spendingByCategory(
+          snap.transactions as ReportTxn[],
+          askSpendWindow(intent.timeframe),
+          meta,
+          snap.loanPaymentFlowExclusions?.excludeIds,
+          // U.16: this answer is a headline with no rows beneath it, so the
+          // released handover day has to be nameable in the answer itself.
+          await getReconciliationHandoverKeys(userId),
+        ),
         intent.timeframe,
         intent.limit,
       );

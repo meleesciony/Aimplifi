@@ -82,7 +82,7 @@ const reportsFigureless = (exclusions = true): ReportsData => ({
   categoryHrefs: {},
   notCountedYetCents: 0,
   months: [{ month: '2026-06', incomeCents: 0, expensesCents: 0 }],
-  breakdown: { totalCents: 0, byCategory: [], byGroup: [] },
+  breakdown: { totalCents: 0, countedOnHandoverDays: 0, byCategory: [], byGroup: [] },
   breakdowns: {},
   monthFlows: {},
   loanPaymentExclusions: exclusions ? [EXCLUSION] : [],

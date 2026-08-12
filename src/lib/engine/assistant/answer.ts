@@ -30,6 +30,9 @@ import {
   cardDuplicateAnswerNote,
   cardDuplicateUndatedNote,
 } from '@/lib/engine/account/card-duplicate-view';
+// U.16: the no-row-list variant of the handover-day sentence. Ask states a
+// figure with nothing beneath it, so it cannot use the panel's wording.
+import { handoverDayAnswerNote } from '@/lib/engine/glass-box/category-breakdown';
 import {
   currentCycleAmountSource,
   frozenCardsNote,
@@ -437,7 +440,15 @@ export function answerSpendTotal(breakdown: SpendingBreakdown, tf: Timeframe): A
     // sentence one module over: that one names an AMOUNT (a claim about this
     // reader's rows, so it is gated on there being one); this names a RULE,
     // which is true for every reader and every timeframe.
-    detail: "Purchases only — transfers and income are excluded, and anything dated after today isn't counted yet.",
+    // U.16: appended, never replacing — the rule sentence above is true for
+    // every reader, and this clause is a fact about THIS reader's rows. The
+    // empty branch above deliberately carries no note: it states no figure, and
+    // a released day can only make a figure too high.
+    detail:
+      "Purchases only — transfers and income are excluded, and anything dated after today isn't counted yet." +
+      (breakdown.countedOnHandoverDays > 0
+        ? ` ${handoverDayAnswerNote(breakdown.countedOnHandoverDays)}`
+        : ''),
     // Tagged (slice 2b): each top category is a trace group, so its figure is
     // independently tappable. traceKey/cents come from the SAME breakdown entry.
     // O.19b: the headline is the WHOLE period total, so the capped list carries
@@ -454,15 +465,23 @@ export function answerSpendTotal(breakdown: SpendingBreakdown, tf: Timeframe): A
 
 export function answerSpendByCategory(breakdown: SpendingBreakdown, target: SpendTarget, tf: Timeframe): AssistantAnswer {
   let amount = 0;
+  // U.16: accumulated from the SAME entries `amount` is summed from, in each of
+  // the three branches — never `breakdown.countedOnHandoverDays`, which counts
+  // every category and would claim a doubling inside a figure that may hold
+  // none of it. A disclosure is scoped to the figure it qualifies.
+  let handovers = 0;
   const facts: AssistantFact[] = [];
   if (target.type === 'category') {
-    amount = breakdown.byCategory.find((c) => c.categoryId === target.categoryId)?.amountCents ?? 0;
+    const hit = breakdown.byCategory.find((c) => c.categoryId === target.categoryId);
+    amount = hit?.amountCents ?? 0;
+    handovers = hit?.countedOnHandoverDays ?? 0;
   } else if (target.type === 'categories') {
     // Umbrella: sum the named leaves and surface the top 3 as the supporting facts.
     // byCategory is already amount-desc, so the filtered slice stays ranked.
     const ids = new Set(target.categoryIds);
     const matches = breakdown.byCategory.filter((c) => ids.has(c.categoryId));
     amount = matches.reduce((sum, c) => sum + c.amountCents, 0);
+    handovers = matches.reduce((sum, c) => sum + c.countedOnHandoverDays, 0);
     // Tagged (slice 2b): each member category is a trace group when >1 are cited.
     for (const c of matches.slice(0, 3))
       facts.push({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents });
@@ -472,6 +491,7 @@ export function answerSpendByCategory(breakdown: SpendingBreakdown, target: Spen
   } else {
     const g = breakdown.byGroup.find((x) => x.group === target.group);
     amount = g?.amountCents ?? 0;
+    handovers = (g?.categories ?? []).reduce((sum, c) => sum + c.countedOnHandoverDays, 0);
     for (const c of g?.categories.slice(0, 3) ?? [])
       facts.push({ label: c.name, value: fmt(c.amountCents), traceKey: c.categoryId, cents: c.amountCents });
     // O.19b: same identity for the group branch — `g.amountCents` sums all of
@@ -492,7 +512,13 @@ export function answerSpendByCategory(breakdown: SpendingBreakdown, target: Spen
     kind: 'spend_by_category',
     headline: `You spent ${fmt(amount)} on ${target.label} ${tf.label}.`,
     headlineCents: amount,
-    detail: share ? `That's ${share} of your ${tf.label} spending.` : undefined,
+    // U.16: the share sentence is optional, so the note has to survive its
+    // absence — a figure that can be counted twice must say so whether or not
+    // it happens to have a percentage beside it.
+    detail:
+      [share ? `That's ${share} of your ${tf.label} spending.` : null, handovers > 0 ? handoverDayAnswerNote(handovers) : null]
+        .filter((x): x is string => x !== null)
+        .join(' ') || undefined,
     facts,
     source: REPORTS_SOURCE,
   };
@@ -509,7 +535,18 @@ export function answerTopCategories(breakdown: SpendingBreakdown, tf: Timeframe,
     // The headline figure is the TOP category's amount — exactly what the trace
     // reconciles (the period total in `detail` is NOT traced, so it stays untapped).
     headlineCents: top[0].amountCents,
-    detail: `Total ${tf.label}: ${fmt(breakdown.totalCents)}.`,
+    // U.16 (critic): this answer states TWO figures a released handover day can
+    // inflate — the top category in the headline and the period total here — and
+    // the first draft of the slice qualified neither, which is the exact silence
+    // U.16 exists to remove. Both are covered by one sentence because both are
+    // drawn from this breakdown: the total's count is the breakdown's, and the
+    // top category is inside it. Scoped to the TOTAL's count, since that is the
+    // figure this sentence sits beside.
+    detail:
+      `Total ${tf.label}: ${fmt(breakdown.totalCents)}.` +
+      (breakdown.countedOnHandoverDays > 0
+        ? ` ${handoverDayAnswerNote(breakdown.countedOnHandoverDays)}`
+        : ''),
     // Tagged (slice 2b): every listed category rides in the trace as a reconciled
     // group, so each fact is independently tappable — including the non-top ones
     // the HEADLINE panel honestly hides (they don't sum to the tapped figure).

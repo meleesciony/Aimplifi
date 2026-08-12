@@ -2,6 +2,101 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-12 — U.16: the panel was not silent, it was CERTIFYING — and the compiler found the surfaces the ticket did not
+
+**Picked up from the queue** (U.13's own residual, filed by its rendered-claims critic as P1-6 with executed
+evidence). U.13 released the single handover day to both sides of a combined pair and priced that at
+"9 rows / $374.40 of VISIBLE duplication". The visibility did not exist. Every spending surface counted
+those rows in silence, and the glass-box drilldown did worse than stay quiet: it listed both copies of one
+charge and printed "matched to the penny" beneath them. A reader opens that panel precisely to AUDIT a
+figure, so the tick reads as confirmation that both lines belong. `BREAKDOWN_BASIS` stayed literally true
+the whole time — both rows ARE counted, the panel DOES list both — which is exactly why silence was not
+survivable: nothing was false, and nothing said the one thing that mattered.
+
+**The compiler did the sweep, and it was bigger than the ticket.** The row named the glass-box drilldown,
+/reports, /budgets and Ask. Making `onHandoverDay` a REQUIRED field on `BreakdownRow` turned `tsc` into the
+enumerator, and it named three more transaction panels nobody had listed — the /reports chart's month-flow
+panels, the lifestyle-creep bars on /coach, and /trends' new-merchant panels — each listing transactions
+under the same penny-match line. A fourth Ask answer (`top_categories`) that prints a period total came out
+of the critic pass. Seven surfaces, one authored sentence. The three genuinely non-transaction panels
+(allocation holdings, forecast projections, net-worth constituents) answer `false` by construction with the
+reason on the field, because six months from now a stub and a true answer look identical.
+
+**One author for the fact, two for the sentence.** `breakdownHandoverDayCopy` serves every panel so two
+drilldowns cannot state one rule two ways. Ask needed its own: the panel sentence says "N rows here", "the
+figure above", and reassures about a tally the reader can see — every clause of which is false in an answer
+that prints one number and nothing else.
+
+**Three critic findings, all executed, all false statements about money that would have shipped:**
+
+- **A count summed before a filter the figure applies after.** `spendingByCategory` drops any category whose
+  net is `<= 0` and `totalCents` sums only the survivors, so a handover-day purchase more than cancelled by
+  a refund left the figure entirely while still being counted in the sentence beside it — Ask qualified a
+  **$20.00 total containing no released row at all** with "2 … fall on a day…". This is the same false-scope
+  defect the slice was already guarding against per category, one level up. Now summed off `byCategory`.
+- **"Charge" is false of a refund.** A refund can land on a handover day, and a duplicated refund pushes a
+  spending figure DOWN — so the noun was wrong about the kind of row AND the direction of the error. Three
+  sites now say "transaction".
+- **A pointer to a page that cannot serve the reader.** The Ask note ended "Spending in Reports lists those
+  rows and marks them." /reports' category table is ALWAYS the current month, while an Ask timeframe is
+  whatever the reader said — so it was false for every answer about last month or last quarter. Removed and
+  locked by a test asserting the word cannot come back.
+
+**Fail-old proven four ways, not asserted:** blanking the row flag reddens 2 locks; deleting the panel
+sentence reddens 1; widening the Ask count to breakdown scope reddens exactly the scoping lock; and the e2e
+was sabotaged against a REBUILT server, because a Playwright run tests the last `next build` and not the
+working tree (`e2e-runs-a-stale-build`). The e2e seeds a real combined pair whose handover day carries a
+genuine duplicate and asserts **3 rows, not 4** — 4 would mean de-duplication stopped, 2 would mean the
+engine started silently dropping a real row, which is the direction U.13 measured and rejected.
+
+
+**A SECOND critic cycle, and it found more than the first.** Two fresh-context critics ran against the
+post-cycle-1 tree and returned 2 P0 + 8 P1/P2 between them, with executed evidence. Four mattered:
+
+- **The marker was scoped to a DATE, not to the pair.** Every consumer tested `handoverDates.has(t.date)`,
+  and a released day is an ordinary shopping day on every other account the reader owns. Measured: six
+  grocery rows on the handover day, two of them from the pair, and the panel marked **all six** and said
+  "6 rows here fall on a day one of your combined accounts was changing connections". The set came from
+  `getReconciliationHandoverDates`, built for the tax export — which has no account column and is right to
+  be unscoped. Inheriting a helper inherits its SCOPE. Now `handoverKey(accountId, date)`, and
+  `toTrendTxns` had to start carrying `accountId` at all, without which /trends silently marked nothing.
+- **"A released day can only make a figure too high" — my own comment, and false.** The release is a rule
+  about a date, not a sign, so a RETURN both feeds reported subtracts twice. Executed: one $100 purchase
+  and one real $30 return doubled renders **"You spent $40.00" against a true $70.00**, with the only
+  sentence beside it saying the figure may be too high. A disclosure naming the wrong direction is worse
+  than silence — it steers a reader auditing a low number away from the cause. Both sentences and the tax
+  export now name both directions.
+- **Ask's own drilldown, four lines under the slice's own new sentence.** "Tap to see the transactions
+  behind this number" opens a trace that listed the two identical rows unmarked under "✓ 3 transactions
+  add up to $130.00". `assistant/trace.ts` was untouched: the slice threaded the ANSWER path and left the
+  TRACE path, a second selector over the same rows, with its own un-fed call. Both critics found it
+  independently.
+- **The tally clause claimed a tally the panel had declined to print.** At exactly one row `BreakdownPanel`
+  says "This amount is the whole figure." and suppresses the penny-match, while the basis asserted "These
+  rows still add up" — plural, over one row, and with an antecedent that read as *the marked rows alone*
+  sum to the figure. The gate is now `statesATally` (`reconciles && rows.length > 1`) at all four call
+  sites.
+
+Also executed: the tax CSV still said "both … counted twice", the sentence this slice's own test declares
+false at multiplicity ≥ 3; and `combineSuccessFlash`'s PARTIAL branch still promised "count once" eight
+lines below the success branch U.13 had already requalified.
+
+**Filed rather than fixed, with the critics' evidence: U.19** (the transactions CSV ships the double
+silently while the tax CSV discloses it), **U.20** (Ask's `merchant_spend` and the register's own in/out/net
+totals), **U.21** (a doubled RETURN can hold a category at $0.00, and the zero branches then print "No
+spending recorded" — closing it needs a second, raw count that survives the category drop), **U.22**
+(/reports' page-level total).
+
+**Gate:** `bash scripts/verify.sh` with `VERIFY_E2E=1` GREEN. No `prisma/` diff — read-path and copy only,
+so the live Neon database is untouched.
+
+**Residual filed:** the register (`transaction-list.tsx`) still carries no reconciliation vocabulary, so a
+reader scrolling their activity list sees both rows with only the account name to separate them. Different
+surface, different question — a list of events rather than a certified total — and it needs its own decision
+about whether a per-row marker there informs or just adds noise to every row of a busy day.
+
+---
+
 ## 2026-08-12 — U.13: the invariant was the defect, and both critics found real money inside my own fix
 
 **Picked up from the queue** (U.11's measurement session filed it): replaying the shipped

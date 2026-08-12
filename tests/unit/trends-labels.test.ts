@@ -282,6 +282,8 @@ describe('newMerchantPanelBasis (O.18e)', () => {
         monthLabel: "Jun '26",
         throughLabel: 'Wed, Jun 10, 2026',
         futureDatedCents: 0,
+        countedOnHandoverDays: 0,
+        statesATally: true,
       }),
     ).toEqual([
       "The $80.00 above is this merchant's spending in Jun '26 through Wed, Jun 10, 2026.",
@@ -295,6 +297,8 @@ describe('newMerchantPanelBasis (O.18e)', () => {
       monthLabel: "Jun '26",
       throughLabel: 'Wed, Jun 10, 2026',
       futureDatedCents: 4000,
+      countedOnHandoverDays: 0,
+      statesATally: true,
     });
     expect(withFuture).toHaveLength(3);
     expect(withFuture[1]).toBe(
@@ -305,6 +309,8 @@ describe('newMerchantPanelBasis (O.18e)', () => {
       monthLabel: "Jun '26",
       throughLabel: 'Wed, Jun 10, 2026',
       futureDatedCents: 0,
+      countedOnHandoverDays: 0,
+      statesATally: true,
     });
     expect(without).toHaveLength(2);
   });
@@ -317,6 +323,8 @@ describe('newMerchantPanelBasis (O.18e)', () => {
           monthLabel: "Jun '26",
           throughLabel: 'Wed, Jun 10, 2026',
           futureDatedCents,
+          countedOnHandoverDays: 0,
+          statesATally: true,
         }),
       ).toHaveLength(2);
     }

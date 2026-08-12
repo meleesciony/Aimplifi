@@ -9,11 +9,15 @@
 import { type Cents, cents, formatCents } from '@/lib/money';
 import { type ISODate, addMonthsClamped, isoDate, monthKey } from '@/lib/dates';
 import { median } from '@/lib/stats';
+import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId } from '@/lib/engine/categorize/categories';
 import type { RecurringSeriesResult } from '@/lib/engine/recurring/detect';
+// U.16: the handover-day sentence has ONE author (`category-breakdown`), so the
+// three transaction panels that can show it cannot state it in different words.
+import { breakdownHandoverDayCopy } from '@/lib/engine/glass-box/category-breakdown';
 import { OPPORTUNITY_HORIZON_MONTHS, opportunityValueTodayCents, savingsRateBps } from './fi';
 
 /** The three horizons the list prints, named once (`fi.ts` owns the order). */
@@ -285,6 +289,14 @@ export interface CreepRow {
   amountCents: Cents;
   /** Always false here — `countsInFlows` only admits POSTED rows; carried for shape parity. */
   isPending: boolean;
+  /**
+   * U.16: this row is dated on a day one of the reader's combined accounts
+   * changed connections, which the boundary releases to BOTH sides — so a
+   * charge both connections reported is listed twice in this month's panel and
+   * counted twice in its bar. A fact about the DATE, not a claim that this row
+   * is the duplicate; see the field's note on `BreakdownRow`.
+   */
+  onHandoverDay: boolean;
 }
 
 export interface CreepMonth {
@@ -296,6 +308,11 @@ export interface CreepMonth {
    * construction, and a panel's "matched to the penny" sentence is a real check.
    */
   rows: CreepRow[];
+  /**
+   * How many of `rows` fall on a released handover day (U.16). Zero for every
+   * reader with no combined accounts.
+   */
+  countedOnHandoverDays: number;
   /** A positive row filed to a discretionary category occurred this month — it
    *  went to income, so the bar is GROSS spend and the panel must say so. */
   hasDiscretionaryRefunds: boolean;
@@ -390,6 +407,10 @@ export function detectLifestyleCreep(
   // count toward lifestyle creep. Defaults to the static map (no-custom = identical).
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403): loan payments leave the creep baseline too
+  // U.16: the days the boundary released to BOTH sides of a combined pair
+  // (`getReconciliationHandoverDates`). Empty = the truth for a reader with no
+  // combined accounts, so an existing caller changes nothing by not passing it.
+  handoverKeys: ReadonlySet<string> = new Set<string>(),
 ): CreepResult {
   const lastFullMonthStart = addMonthsClamped(isoDate(`${monthKey(today)}-01`), 0);
   const months: string[] = [];
@@ -488,6 +509,7 @@ export function detectLifestyleCreep(
         rawDescriptor: label === t.rawDescriptor ? null : t.rawDescriptor,
         amountCents: cents(-t.amountCents),
         isPending: false, // countsInFlows admitted only POSTED rows
+        onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)), // U.16
       });
     }
   }
@@ -545,6 +567,9 @@ export function detectLifestyleCreep(
       amountCents: cents(discSpend.get(m)!),
       rows: discRows.get(m)!,
       hasDiscretionaryRefunds: discRefunds.get(m)!,
+      // U.16: counted off the rows this month's panel LISTS, so its sentence
+      // can never describe money the panel does not show.
+      countedOnHandoverDays: discRows.get(m)!.reduce((n, r) => (r.onHandoverDay ? n + 1 : n), 0),
     })),
     windowMonths,
     loanPaymentsExcluded: excludedFlowIds !== undefined && excludedFlowIds.size > 0,
@@ -577,6 +602,13 @@ export function creepPanelBasis(
   monthLabel: string,
   amountCents: Cents,
   hasDiscretionaryRefunds: boolean,
+  // U.16: how many LISTED rows fall on a released handover day, and whether the
+  // panel's penny-match currently holds. Both required rather than defaulted:
+  // this bar lists transactions under a "matched to the penny" line exactly like
+  // the category panel, so it carries the same exposure, and a default of 0
+  // would let a caller ship the silence U.16 exists to remove.
+  countedOnHandoverDays: number,
+  statesATally: boolean,
 ): readonly [string, ...string[]] {
   const out: [string, string, ...string[]] = [
     `The ${formatCents(amountCents)} is ${monthLabel}’s discretionary spending: posted purchases in a discretionary category — dining out, shopping, entertainment, and the other categories the app treats as discretionary.`,
@@ -619,6 +651,13 @@ export function creepPanelBasis(
     out.push(
       `A credit posted to a discretionary category this month — a return, cashback, or anything filed to Refund — does not reduce this figure.`,
     );
+  }
+  // U.16, and the SAME sentence the category and month-flow panels print: one
+  // fact, one author. This bar lists transactions under a penny-match line, so a
+  // released handover day is counted here too, and silence beside a matching
+  // total reads as confirmation that both lines belong.
+  if (countedOnHandoverDays > 0) {
+    out.push(breakdownHandoverDayCopy(countedOnHandoverDays, statesATally));
   }
   return out;
 }

@@ -29,6 +29,7 @@ import {
   monthWindow,
 } from '@/lib/dates';
 import { cents, roundHalfAwayFromZero } from '@/lib/money';
+import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import type { BreakdownRow } from '@/lib/engine/glass-box/category-breakdown';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import { monthsPerCadence } from '@/lib/engine/recurring/detect';
@@ -234,6 +235,11 @@ export interface NewMerchant {
   merchant: string;
   categoryName: string;
   /**
+   * How many of this merchant's listed rows fall on a released handover day
+   * (U.16). Zero for every reader with no combined accounts.
+   */
+  countedOnHandoverDays: number;
+  /**
    * Spending at this merchant this month, on the REGISTER basis (O.8a): posted
    * AND pending, refunds netted against it, bucketed by the stored category —
    * the same per-row predicate `spendingByCategory` and Ask's `merchantSpend`
@@ -327,6 +333,19 @@ export interface TrendsInput {
    * pre-C.25 behaviour when absent (demo golden unchanged).
    */
   excludedFlowIds?: ReadonlySet<string>;
+  /**
+   * U.16: the days the boundary released to BOTH sides of a combined pair
+   * (`getReconciliationHandoverDates`), so the new-merchant panel can mark the
+   * rows a released day may have counted more than once and say so.
+   *
+   * Optional, unlike `scheduled` above: absent means "this reader has no
+   * combined accounts", which is the truth for almost every reader and is not a
+   * fact a caller can get WRONG by omission — an empty set produces exactly the
+   * pre-U.16 output. `scheduled` is required for the opposite reason (a silent
+   * `[]` there reads on screen as "no bills"), and the difference is that a
+   * missing disclosure here cannot invent money.
+   */
+  handoverKeys?: ReadonlySet<string>;
   /**
    * C.25 (#403, critic P1-1): the merchant canonicals behind
    * `excludedFlowIds`. Pace's bill basis needs them at MERCHANT scope: a
@@ -869,6 +888,8 @@ function computeNewMerchants(
   txns: readonly TrendTxn[],
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
+  // U.16: the (account, released day) pairs a combined pair duplicates on.
+  handoverKeys: ReadonlySet<string>,
 ): { newMerchants: NewMerchant[]; newMerchantTotal: number } {
   const ym = monthKey(today);
   const earliestPrior = addMonthsToMonthKey(ym, -(NEW_MERCHANT_LOOKBACK_MONTHS)); // inclusive lower bound
@@ -951,11 +972,18 @@ function computeNewMerchants(
       firstDate: n.firstDate,
       // The carried rows, oldest first — the exact rows the figure above sums.
       rows: (rowsByKey.get(key) ?? [])
-        .map(({ row, index }) => merchantBreakdownRow(row, key, index))
+        .map(({ row, index }) => merchantBreakdownRow(row, key, index, handoverKeys))
         .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)),
       // Floor at 0: a future-dated refund netting out the rest is disclosed as
       // "no future-dated money", never as a negative here.
       futureDatedCents: Math.max(0, futureByKey.get(key) ?? 0),
+      // U.16: counted off the rows this panel LISTS. A future-dated row already
+      // `continue`d into `futureByKey` and is in neither the figure nor `rows`,
+      // so it is correctly not described as possibly counted twice.
+      countedOnHandoverDays: (rowsByKey.get(key) ?? []).reduce(
+        (n, { row }) => (row.accountId && handoverKeys.has(handoverKey(row.accountId, row.date)) ? n + 1 : n),
+        0,
+      ),
     });
   }
 
@@ -973,7 +1001,12 @@ function computeNewMerchants(
  * merchant's collected rows, which keeps the key unique for a merchant+date
  * without needing the transaction id.
  */
-function merchantBreakdownRow(t: TrendTxn, key: string, index: number): BreakdownRow {
+function merchantBreakdownRow(
+  t: TrendTxn,
+  key: string,
+  index: number,
+  handoverKeys: ReadonlySet<string>,
+): BreakdownRow {
   const label = t.merchantName?.trim() || t.rawDescriptor?.trim() || 'No description';
   const raw = t.rawDescriptor?.trim();
   return {
@@ -986,12 +1019,23 @@ function merchantBreakdownRow(t: TrendTxn, key: string, index: number): Breakdow
     rawDescriptor: raw ? (raw === label ? null : raw) : null,
     amountCents: cents(spendContributionCents(t)),
     isPending: t.status === 'PENDING',
+    // U.16: a fact about the row's DATE — this merchant's figure counts it once
+    // per connection that reported it.
+    onHandoverDay: t.accountId ? handoverKeys.has(handoverKey(t.accountId, t.date)) : false,
   };
 }
 
 /** Compute all spending-trend insights from a posted-spend transaction list. */
 export function computeSpendingTrends(
-  { txns, today, scheduled, excludedFlowIds, excludedLoanCanonicals, elapsedDayFraction }: TrendsInput,
+  {
+    txns,
+    today,
+    scheduled,
+    excludedFlowIds,
+    excludedLoanCanonicals,
+    elapsedDayFraction,
+    handoverKeys,
+  }: TrendsInput,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
 ): SpendingTrends {
   const { comparedYm, baselineMonths, movers, moverTotal } = computeMovers(txns, today, meta, excludedFlowIds);
@@ -1012,6 +1056,6 @@ export function computeSpendingTrends(
     // ALL rows (O.8a) — `computeNewMerchants` applies the settled narrowing to
     // its naming pass itself, because only half of what that card prints is a
     // claim about a settled event; the money beside it is an aggregate.
-    ...computeNewMerchants(txns, today, meta),
+    ...computeNewMerchants(txns, today, meta, handoverKeys ?? new Set<string>()),
   };
 }

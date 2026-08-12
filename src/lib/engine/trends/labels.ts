@@ -5,7 +5,11 @@
  */
 import { addMonthsToMonthKey, formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
-import { BREAKDOWN_BASIS, breakdownNotCountedYetCopy } from '@/lib/engine/glass-box/category-breakdown';
+import {
+  BREAKDOWN_BASIS,
+  breakdownHandoverDayCopy,
+  breakdownNotCountedYetCopy,
+} from '@/lib/engine/glass-box/category-breakdown';
 import type { SpendingPace } from '@/lib/engine/trends/trends';
 
 const money = (n: number) => formatCents(cents(n));
@@ -233,6 +237,13 @@ export function newMerchantPanelBasis(input: {
   throughLabel: string;
   /** This merchant's spend rows dated after today this month, floored at 0. */
   futureDatedCents: number;
+  /** U.16: how many LISTED rows fall on a released handover day. */
+  countedOnHandoverDays: number;
+  /** U.16: whether this panel actually PRINTS a tally — its penny-match holds
+   *  AND it lists more than one row. At exactly one row the panel says "This
+   *  amount is the whole figure." instead, so a sentence about rows adding up
+   *  would describe a line the panel declined to print. */
+  statesATally: boolean;
 }): [string, ...string[]] {
   return [
     `The ${input.figure} above is this merchant's spending in ${input.monthLabel} through ${input.throughLabel}.`,
@@ -240,5 +251,11 @@ export function newMerchantPanelBasis(input: {
       ? [breakdownNotCountedYetCopy(money(input.futureDatedCents))]
       : []),
     BREAKDOWN_BASIS,
+    // U.16, and the SAME sentence the category, month-flow and creep panels
+    // print — one fact, one author, so a reader comparing two panels cannot meet
+    // two accounts of one rule.
+    ...(input.countedOnHandoverDays > 0
+      ? [breakdownHandoverDayCopy(input.countedOnHandoverDays, input.statesATally)]
+      : []),
   ];
 }

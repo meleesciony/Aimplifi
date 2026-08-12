@@ -37,17 +37,18 @@ const LAST_MONTH: Timeframe = { fromYm: '2026-05', toYm: '2026-05', label: 'last
 
 const BREAKDOWN: SpendingBreakdown = {
   totalCents: 50000,
+  countedOnHandoverDays: 0,
   byCategory: [
-    { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 30000 },
-    { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 20000 },
+    { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 30000, countedOnHandoverDays: 0 },
+    { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 20000, countedOnHandoverDays: 0 },
   ],
   byGroup: [
     {
       group: 'Food & Dining',
       amountCents: 50000,
       categories: [
-        { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 30000 },
-        { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 20000 },
+        { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 30000, countedOnHandoverDays: 0 },
+        { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 20000, countedOnHandoverDays: 0 },
       ],
     },
   ],
@@ -98,7 +99,7 @@ describe('headlineCents — the trace drift guard is non-vacuous', () => {
 
 describe('headlineCents — absent when there is no figure to reconcile', () => {
   it('empty spend_total omits it', () => {
-    expect(answerSpendTotal({ totalCents: 0, byCategory: [], byGroup: [] }, THIS_MONTH).headlineCents).toBeUndefined();
+    expect(answerSpendTotal({ totalCents: 0, countedOnHandoverDays: 0, byCategory: [], byGroup: [] }, THIS_MONTH).headlineCents).toBeUndefined();
   });
   it('empty income omits it', () => {
     expect(answerIncome(0, THIS_MONTH).headlineCents).toBeUndefined();

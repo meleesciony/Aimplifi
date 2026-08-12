@@ -579,6 +579,16 @@ function TraceRows({ rows, correction }: { rows: readonly TraceRow[]; correction
             <div className="flex items-baseline justify-between gap-3 text-sm">
               <span className="min-w-0 truncate text-muted-foreground">
                 <span className="tabular-nums">{r.date}</span> · {r.merchant}
+                {/* U.16: the basis sentence below says N rows fall on a day a
+                    combined account changed connections; the two lines it is
+                    about are identical by construction, so without this the
+                    reader cannot tell which of the cited rows it means — and
+                    the green check above certifies all of them equally. */}
+                {r.onHandoverDay && (
+                  <span className="ml-1.5 text-xs" data-testid="ask-trace-handover-row">
+                    (connection changeover)
+                  </span>
+                )}
               </span>
               <span className="flex shrink-0 items-baseline gap-2">
                 <span data-testid="ask-trace-row-amount" className="font-medium tabular-nums">

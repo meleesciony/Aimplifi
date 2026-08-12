@@ -224,7 +224,7 @@ export function buildTaxExport(
   }
   if (countedOnHandoverDays > 0) {
     disclosures.push(
-      `${countedOnHandoverDays} counted ${countedOnHandoverDays === 1 ? 'row falls' : 'rows fall'} on a day one of your combined accounts was changing connections. On that day both connections' records are kept, because neither can be shown to have covered the whole of it — so if both reported the same charge, it is counted twice here. This is the only sentence in this file about a total being too HIGH rather than too low: check those ${countedOnHandoverDays === 1 ? 'date' : 'dates'} against your own records.`,
+      `${countedOnHandoverDays} counted ${countedOnHandoverDays === 1 ? 'row falls' : 'rows fall'} on a day one of your combined accounts was changing connections. On that day every connection's records are kept, because neither can be shown to have covered the whole of it — so if more than one of them reported the same transaction, it is counted once for each here. This is the only sentence in this file about a total moving the WRONG way — too high when the repeats are purchases, too low when they are returns: check those ${countedOnHandoverDays === 1 ? 'date' : 'dates'} against your own records.`,
     );
   }
   if (groups.length < TAX_CLASSES.length) {

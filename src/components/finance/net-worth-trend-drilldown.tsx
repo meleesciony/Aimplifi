@@ -131,6 +131,13 @@ export function NetWorthTrendDrilldown({
               rawDescriptor: null,
               amountCents: cents(c.balanceCents),
               isPending: false,
+              // U.16: a BALANCE, not a transaction. U.13 verified this
+              // deliberately — net worth reads only snapshots and current
+              // balances, with no transaction input at all, so the released
+              // handover day cannot reach these constituents. A same-date pair
+              // here is the F3 snapshot rule's business (U.9/U.12), not this
+              // field's.
+              onHandoverDay: false,
             })),
             sumCents: cents(
               selectedPoint.constituents.reduce((s, c) => s + c.balanceCents, 0),

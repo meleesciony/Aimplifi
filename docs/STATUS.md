@@ -6,6 +6,60 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-12 — U.16: the drilldown stops certifying the handover-day double, on every surface that counts it (DECISIONS #455)
+
+**The defect.** U.13 (#454) deliberately releases the one handover day between a retired feed and the live one that replaced it to BOTH sides — a measured decision, since either whole-day award silently lost real money — and priced it as "9 rows / $374.40 of VISIBLE duplication". Nothing made it visible. Every spending surface counted those rows in silence, and the glass-box panel actively certified them: two identical lines listed together with "matched to the penny" printed underneath, on the one screen a suspicious reader opens to AUDIT a figure. `BREAKDOWN_BASIS` stayed literally true throughout — both rows are counted and the panel does list both — which is precisely why silence could not stand.
+
+**Shipped.** One authored sentence (`breakdownHandoverDayCopy`) on every transaction panel, a no-row-list variant (`handoverDayAnswerNote`) for Ask, and a per-row `(connection changeover)` marker so the reader can find the two lines rather than scan a bucket. Fed by `getReconciliationHandoverDates` — the function U.13 built for the tax export — threaded through `server/reports.ts`, `server/trends.ts`, `server/coach.ts`, `server/assistant.ts` and `/budgets`.
+
+**The sweep was bigger than the task row, and the compiler is why.** The row named the drilldown, /reports, /budgets and Ask. Making `onHandoverDay` REQUIRED on `BreakdownRow` made `tsc` enumerate: three more transaction panels nobody had listed (the /reports chart's month-flow panels, the lifestyle-creep bars, /trends' new-merchant panels), each printing the same penny-match line, plus a fourth Ask answer (`top_categories`) found by the critic pass. The three non-transaction panels — allocation holdings, forecast projections, net-worth constituents — answer `false` by construction with the reason recorded on the field.
+
+**Three critic findings, each executed, each a false money claim that would have shipped.** (1) The breakdown-wide count was accumulated before a filter the figure applies after: `spendingByCategory` drops any category whose net is `<= 0`, so a handover-day purchase more than cancelled by a refund left the figure while still being counted in the sentence beside it — Ask qualified a **$20.00 total containing no released row** with "2 … fall on a day…". Now summed off the surviving categories. (2) The copy called every released row a "charge", which is false of a REFUND in both senses — wrong kind of row, and a duplicated refund pushes a spending figure DOWN, not up. (3) The Ask note promised "Spending in Reports lists those rows and marks them"; /reports' category table is always the CURRENT month while an Ask timeframe is whatever the reader said, so the pointer was false for every answer about last month or last quarter.
+
+
+**A SECOND critic cycle, and it found more than the first.** Two fresh-context critics ran against the
+post-cycle-1 tree and returned 2 P0 + 8 P1/P2 between them, with executed evidence. Four mattered:
+
+- **The marker was scoped to a DATE, not to the pair.** Every consumer tested `handoverDates.has(t.date)`,
+  and a released day is an ordinary shopping day on every other account the reader owns. Measured: six
+  grocery rows on the handover day, two of them from the pair, and the panel marked **all six** and said
+  "6 rows here fall on a day one of your combined accounts was changing connections". The set came from
+  `getReconciliationHandoverDates`, built for the tax export — which has no account column and is right to
+  be unscoped. Inheriting a helper inherits its SCOPE. Now `handoverKey(accountId, date)`, and
+  `toTrendTxns` had to start carrying `accountId` at all, without which /trends silently marked nothing.
+- **"A released day can only make a figure too high" — my own comment, and false.** The release is a rule
+  about a date, not a sign, so a RETURN both feeds reported subtracts twice. Executed: one $100 purchase
+  and one real $30 return doubled renders **"You spent $40.00" against a true $70.00**, with the only
+  sentence beside it saying the figure may be too high. A disclosure naming the wrong direction is worse
+  than silence — it steers a reader auditing a low number away from the cause. Both sentences and the tax
+  export now name both directions.
+- **Ask's own drilldown, four lines under the slice's own new sentence.** "Tap to see the transactions
+  behind this number" opens a trace that listed the two identical rows unmarked under "✓ 3 transactions
+  add up to $130.00". `assistant/trace.ts` was untouched: the slice threaded the ANSWER path and left the
+  TRACE path, a second selector over the same rows, with its own un-fed call. Both critics found it
+  independently.
+- **The tally clause claimed a tally the panel had declined to print.** At exactly one row `BreakdownPanel`
+  says "This amount is the whole figure." and suppresses the penny-match, while the basis asserted "These
+  rows still add up" — plural, over one row, and with an antecedent that read as *the marked rows alone*
+  sum to the figure. The gate is now `statesATally` (`reconciles && rows.length > 1`) at all four call
+  sites.
+
+Also executed: the tax CSV still said "both … counted twice", the sentence this slice's own test declares
+false at multiplicity ≥ 3; and `combineSuccessFlash`'s PARTIAL branch still promised "count once" eight
+lines below the success branch U.13 had already requalified.
+
+**Filed rather than fixed, with the critics' evidence: U.19** (the transactions CSV ships the double
+silently while the tax CSV discloses it), **U.20** (Ask's `merchant_spend` and the register's own in/out/net
+totals), **U.21** (a doubled RETURN can hold a category at $0.00, and the zero branches then print "No
+spending recorded" — closing it needs a second, raw count that survives the category drop), **U.22**
+(/reports' page-level total).
+
+**Gate.** `bash scripts/verify.sh` with `VERIFY_E2E=1` green. Fail-old proven four ways rather than asserted: three unit sabotages each redden exactly their own locks, and the e2e sabotage ran against a REBUILT server because a Playwright run tests the last `next build`, not the working tree. The e2e seeds a real combined pair and asserts **3 rows, not 4** — 4 would mean de-duplication stopped, 2 would mean a real row is being silently dropped, the direction U.13 measured and rejected. No `prisma/` diff: read-path and copy only, the live database untouched.
+
+**What the live check cannot prove, stated in the script itself.** `prisma/seed.ts` writes no `AccountReconciliation` rows, so the demo cannot express a combined pair, no released day can exist, and NO demo-visible string differs between the pre- and post-U.16 builds (the same limit U.5, U.9, U.13 and U.15 recorded). `scripts/u16-live-deploy-check.mjs` declares that as explicit SKIPs and asserts instead the half that carries the real deployment risk: this slice edited `spendingByCategory`, the selector behind /reports' table, the dashboard's top-spending card and three Ask answers, and every edit is supposed to be INERT for a reader with no combined accounts. The demo IS that reader, so a figure moving there is exactly how this could go wrong at scale.
+
+**Residual, filed not papered over:** the register (`transaction-list.tsx`) still carries no reconciliation vocabulary, so a reader scrolling their activity list sees both rows with only the account name to tell them apart. A list of events is a different question from a certified total, and whether a per-row marker there informs or merely adds noise to every row of a busy day needs its own decision.
+
 ## ✅ BUILT 2026-08-12 — U.9: one real account connected twice is one account, and the tiebreak was the money (DECISIONS #453)
 
 **The defect.** `AccountReconciliation.successorAccountId` is deliberately not unique — "one live account may supersede more than one old row" — so two stale rows can be continued onto one live account. `keepsSnapshot` decided same-date collisions by walking `upstreamsOf`/`downstreamsOf`, and siblings are neither to each other: each was compared against the successor, which it correctly beat, and never against its twin. On every date on or before both cutovers BOTH survived, and one real $5,000.00 savings account contributed $10,000.00 to the net-worth trend. Reproduced by the U.5 critic, recorded, and fixed here.

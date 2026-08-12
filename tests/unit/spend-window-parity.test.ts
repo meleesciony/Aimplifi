@@ -282,7 +282,7 @@ describe('C.26 critic cycle 1 — the disclosures a reader actually meets', () =
     expect(held[0]).toBe(BREAKDOWN_BASIS);
     expect(held.some((b) => b.includes('$400.00'))).toBe(true);
     // CONTROL: nothing dated ahead → no clause, byte-identical to pre-C.26.
-    expect(categoryPanelBasis({ notCountedYetCents: cents(0) })).toEqual([BREAKDOWN_BASIS]);
+    expect(categoryPanelBasis({ notCountedYetCents: cents(0), countedOnHandoverDays: 0, reconciles: true, rows: [] })).toEqual([BREAKDOWN_BASIS]);
   });
 
   it('P1-3/P1-4: the chart panel carries the clamp, and its label says "so far"', async () => {

@@ -398,7 +398,7 @@ describe('the spend-family basis copy states only what the predicate does', () =
     // card this app does not hold has no counterpart to pair, stays unflagged,
     // and is counted — so the old sentence was false. Restoring it fails here.
     const total = answerSpendTotal(
-      { totalCents: 50000, byCategory: [], byGroup: [] },
+      { totalCents: 50000, countedOnHandoverDays: 0, byCategory: [], byGroup: [] },
       THIS_MONTH,
     );
     // C.26 added the date clause to both sentences (critic cycle 1, P1-6: they
@@ -410,7 +410,7 @@ describe('the spend-family basis copy states only what the predicate does', () =
     );
     expect(total.detail).not.toMatch(FALSE_CLAUSE);
 
-    const trace = traceSpendTotal({ totalCents: 0, byCategory: [], byGroup: [] }, [], THIS_MONTH, CATEGORY_BY_ID);
+    const trace = traceSpendTotal({ totalCents: 0, countedOnHandoverDays: 0, byCategory: [], byGroup: [] }, [], THIS_MONTH, CATEGORY_BY_ID);
     expect(trace.basis.join(' ')).not.toMatch(FALSE_CLAUSE);
     expect(trace.basis[0]).toBe(
       'Purchases only — transfers and income are excluded; refunds count against their category; ' +

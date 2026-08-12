@@ -34,6 +34,7 @@
  */
 import { type Cents, cents, formatCents, sumCents } from '@/lib/money';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import {
   isSpendRow,
   spendContributionCents,
@@ -101,6 +102,22 @@ export interface BreakdownRow {
    */
   amountCents: Cents;
   isPending: boolean;
+  /**
+   * This row is dated on a day one of the reader's combined accounts changed
+   * connections — a day the boundary releases to BOTH sides (DECISIONS #454), so
+   * a charge both connections reported is listed twice here and counted twice in
+   * the figure above.
+   *
+   * A fact about the row's DATE, never a claim about the row: it says this row
+   * sits on a released day, not that it is a duplicate. The boundary's own dates
+   * are the only honest detector, which is why they are passed in rather than
+   * inferred — `buildTaxExport` records the same reasoning, and guessing from the
+   * rows (two equal amounts on one date) cannot tell a real pair of identical
+   * charges from a handover duplicate.
+   *
+   * False for every reader with no combined accounts, which is the default.
+   */
+  onHandoverDay: boolean;
 }
 
 export interface CategoryBreakdown {
@@ -142,6 +159,20 @@ export interface CategoryBreakdown {
    * money (the `dataDerived` gate, C.11/#407).
    */
   notCountedYetCents: Cents;
+  /**
+   * How many of `rows` fall on a released handover day (U.16).
+   *
+   * Counted from the rows this panel actually LISTS, so the sentence it drives
+   * can never describe money that is not on screen — the same discipline
+   * `cardDuplicateTraceBasis` follows when it resolves its pairs against the
+   * displayed rows rather than against the whole account set.
+   *
+   * Zero for every reader with no combined accounts, and zero on a category
+   * whose rows all fall elsewhere, so the sentence is `dataDerived` in the
+   * C.11/#407 sense: it fires on rows that exist, never on the mere existence of
+   * a combined pair.
+   */
+  countedOnHandoverDays: number;
 }
 
 /**
@@ -172,16 +203,20 @@ export interface CategoryBreakdown {
  * the figure too, so "these are the rows the figure counts" stays true, and each
  * has its own disclosure on the surfaces where it applies.
  *
- * U.13 CAVEAT, recorded rather than left implied: that last clause is no longer
- * fully true. The boundary now releases the single handover day to BOTH sides
- * (DECISIONS #454), so a charge both connections reported is counted twice on
- * that one date. The sentence below stays TRUE — both rows are counted, and this
- * panel does list both — but a reader auditing the figure sees two identical
- * lines and the panel's `reconciles` tick affirms them, which is the shape
- * `cardDuplicateTraceBasis` (trace.ts) exists to answer for card payments. There
- * is no equivalent handover-day basis yet; it needs the released dates threaded
- * into this path the way the tax export now receives them. Filed as TASKS U.16
- * with its evidence rather than half-built here.
+ * U.13 CAVEAT, ANSWERED BY U.16 (DECISIONS #455) rather than left implied: the
+ * boundary releases the single handover day to BOTH sides (DECISIONS #454), so a
+ * charge both connections reported is counted twice on that one date. The
+ * sentence below stays TRUE — both rows are counted, and this panel does list
+ * both — and that is exactly why silence was not acceptable: a reader auditing
+ * the figure sees two identical lines and the panel's `reconciles` tick affirms
+ * them. `breakdownHandoverDayCopy` is the answer, on the same pattern
+ * `cardDuplicateTraceBasis` (trace.ts) uses for card payments, fed by the
+ * released dates the tax export already receives.
+ *
+ * It stays a SEPARATE sentence rather than a clause of this constant, for the
+ * reason `breakdownNotCountedYetCopy` gives above: this constant is
+ * unconditional and the handover fact is not. A reader with no combined accounts
+ * must not be told about a rule that never touched their money.
  */
 export const BREAKDOWN_BASIS =
   'These are the rows the figure counts. Pending charges are included; income, transfers ' +
@@ -209,6 +244,83 @@ export const BREAKDOWN_BASIS =
  */
 export function breakdownNotCountedYetCopy(amount: string, noun: 'spending' | 'income' = 'spending'): string {
   return `${amount} here is dated after today and isn't counted yet — this figure covers ${noun} through today.`;
+}
+
+/**
+ * The handover-day sentence (U.16), printed only when this panel actually LISTS
+ * rows on a released day — `countedOnHandoverDays > 0`, a fact about this
+ * reader's rows, never about the mere existence of a combined pair.
+ *
+ * Three things it deliberately does NOT say, each one a false claim this repo
+ * has already paid for once:
+ *
+ *  1. It does not say the rows ARE duplicated. The boundary releases the day to
+ *     both sides; whether both connections reported a given charge is not
+ *     knowable from the dates, and `buildTaxExport` records why guessing from
+ *     the rows cannot settle it. So the doubling is stated as a conditional.
+ *  2. It does not say "twice". A chain whose links share one cutover releases
+ *     the date at every generation — U.13 measured one $999.99 charge at
+ *     $3,999.96 — and EDGE_CASES records "the only date that may be counted
+ *     twice" as a sentence that was simply false. "Once for each" is true at
+ *     every multiplicity, including the ordinary two.
+ *  3. It does not assert a CAUSE for the date. "That's the day one connection
+ *     stopped" is false whenever the reader drags the cutover input, and false
+ *     by sixteen months for a dormant feed (U.17). U.13 replaced it with
+ *     "neither connection can be shown to have covered the whole of that day",
+ *     which holds in every shape, and this sentence reuses exactly that clause.
+ *
+ * `reconciles` is a required argument rather than a default because the clause
+ * it gates is the entire reason U.16 exists: the reader opened this panel to
+ * AUDIT a figure, the rows tally to the penny, and that tally reads as
+ * CONFIRMATION that both lines belong. Saying so is only honest while the tally
+ * actually holds — on a panel already reporting a mismatch, "these still add up"
+ * would be the false sentence. Same reasoning, and same wording, as the trace's
+ * card-duplicate note: the check is on this app's internal consistency, not on
+ * whether the world has two charges.
+ */
+export function breakdownHandoverDayCopy(count: number, statesATally: boolean): string {
+  const subject = count === 1 ? '1 row here falls' : `${count} rows here fall`;
+  const tally = statesATally
+    ? ' The rows in this panel still add up to the figure above, and that check is about this app’s arithmetic — it cannot tell whether two lines are one transaction.'
+    : '';
+  return (
+    `${subject} on a day one of your combined accounts was changing connections. Both ` +
+    `connections’ records are kept for that day, because neither can be shown to have covered ` +
+    `the whole of it — so if more than one of them reported the same transaction, it is counted ` +
+    `once for each — which makes this figure too high when they are purchases, and ` +
+    `too LOW when they are returns.${tally} Nothing has been adjusted: dropping either side’s ` +
+    `records would lose transactions only one connection saw.`
+  );
+}
+
+/**
+ * The handover-day sentence for a surface with NO row list (U.16) — Ask's spend
+ * answers, and the /reports page total.
+ *
+ * A separate author from `breakdownHandoverDayCopy` for the reason
+ * `cardDuplicateAnswerNote` is separate from `cardDuplicateTraceBasis`: the panel
+ * sentence says "N rows HERE", points at marked lines, and reassures about a
+ * penny-match the reader can see. None of that is true in an answer that prints
+ * one figure and nothing else. Saying "rows here" where there are no rows is the
+ * `a-disclosure-written-for-a-page-is-false-in-an-email` failure exactly — a
+ * qualifying sentence carries an implicit claim about where the reader is
+ * standing.
+ *
+ * So this one names the FIGURE instead of the rows, and points at the surface
+ * that can actually show them. It states no tally, because there is none on
+ * screen to state.
+ */
+export function handoverDayAnswerNote(count: number): string {
+  const subject =
+    count === 1 ? '1 transaction in this figure falls' : `${count} transactions in this figure fall`;
+  return (
+    `${subject} on a day one of your combined accounts was changing connections. Both ` +
+    `connections’ records are kept for that day, because neither can be shown to have covered ` +
+    `the whole of it — so if more than one of them reported the same transaction, it is counted ` +
+    `once for each — which makes this figure too high when they are purchases, and ` +
+    `too LOW when they are returns. Nothing has been adjusted — dropping either side’s records ` +
+    `would lose transactions only one connection saw.`
+  );
 }
 
 /**
@@ -262,13 +374,20 @@ export function windowLabelSoFar(windowLabel: string, notCountedYetCents: number
  * the rule a pure function with a test, and leaves the component a spread.
  */
 export function categoryPanelBasis(
-  breakdown: Pick<CategoryBreakdown, 'notCountedYetCents'>,
+  breakdown: Pick<CategoryBreakdown, 'notCountedYetCents' | 'countedOnHandoverDays' | 'reconciles' | 'rows'>,
   extra: readonly string[] = [],
 ): [string, ...string[]] {
   return [
     BREAKDOWN_BASIS,
     ...(breakdown.notCountedYetCents > 0
       ? [breakdownNotCountedYetCopy(formatCents(breakdown.notCountedYetCents))]
+      : []),
+    // U.16. Assembled HERE, not at the call sites, for the reason this function
+    // exists at all: a sentence composed in a .tsx is unlockable by construction,
+    // and a disclosure a call site has to remember is one a call site can forget.
+    // Every surface that opens a category panel inherits it in the same commit.
+    ...(breakdown.countedOnHandoverDays > 0
+      ? [breakdownHandoverDayCopy(breakdown.countedOnHandoverDays, breakdown.reconciles && breakdown.rows.length > 1)]
       : []),
     ...extra,
   ];
@@ -418,6 +537,12 @@ export function buildCategoryBreakdowns(
   // C.25 (#403): the SAME set the category totals were summed with, so the
   // rows a category opens cannot name money the total itself does not show.
   excludedFlowIds?: ReadonlySet<string>,
+  // U.16: the days the boundary released to BOTH sides of a combined pair
+  // (`getReconciliationHandoverDates`). Passed in rather than inferred, because
+  // the boundary's own rule is the only honest detector — see `onHandoverDay`.
+  // Defaults to empty, which is the truth for every reader with no combined
+  // accounts, so no existing caller changes behaviour by not passing it.
+  handoverKeys: ReadonlySet<string> = new Set<string>(),
 ): Record<string, CategoryBreakdown> {
   const range = window;
   const wanted = new Set(headlines.keys());
@@ -447,6 +572,7 @@ export function buildCategoryBreakdowns(
       rawDescriptor: raw && raw !== label ? raw : null,
       amountCents: cents(spendContributionCents(t)),
       isPending: t.status === 'PENDING',
+      onHandoverDay: t.accountId ? handoverKeys.has(handoverKey(t.accountId, t.date)) : false,
     });
     collected.set(categoryId, rows);
   }
@@ -467,6 +593,11 @@ export function buildCategoryBreakdowns(
       sumCents: sum,
       reconciles: sum === headline,
       clampedByNetRefund: headline === 0 && sum < 0,
+      // Counted off the LISTED rows (U.16), so the sentence this drives can
+      // never describe money that is not on screen. `rows` has already been
+      // through `isSpendRow`, so a transfer or an excluded flow dated on a
+      // handover day is not counted here — it is not in the figure either.
+      countedOnHandoverDays: rows.reduce((n, r) => (r.onHandoverDay ? n + 1 : n), 0),
       // Floored per category by `notCountedYetByCategory` (a later-dated refund
       // is not "money not counted yet"); the page-level total sums these same
       // floored values, so the two can never disagree — see that function.

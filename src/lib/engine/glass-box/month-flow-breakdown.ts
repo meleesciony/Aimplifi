@@ -36,7 +36,9 @@
  */
 import { type Cents, cents, formatCents, sumCents } from '@/lib/money';
 import { countsInFlows, isIncomeFlowRow, type TxnLike } from '@/lib/engine/fi/insights';
+import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import {
+  breakdownHandoverDayCopy,
   breakdownNotCountedYetCopy,
   type BreakdownRow,
 } from '@/lib/engine/glass-box/category-breakdown';
@@ -80,6 +82,12 @@ export interface MonthFlowBreakdown {
    * rows are all positive by `isIncomeFlowRow`.
    */
   clampedByNetRefund: boolean;
+  /**
+   * How many of `rows` fall on a released handover day (U.16) — counted off the
+   * rows this panel LISTS, so its sentence can never describe money that is not
+   * on screen. Zero for every reader with no combined accounts.
+   */
+  countedOnHandoverDays: number;
   /**
    * Money in this bar's month and flow that the CHART does not draw because it
    * is dated after `asOf` (C.26 critic cycle 1, P1-3/P1-4).
@@ -212,7 +220,10 @@ export function monthFlowNetRefundCopy(sumCents: number, windowLabel: string): s
  * one names the amount that is actually waiting.
  */
 export function monthFlowPanelBasis(
-  breakdown: Pick<MonthFlowBreakdown, 'flow' | 'notCountedYetCents'>,
+  breakdown: Pick<
+    MonthFlowBreakdown,
+    'flow' | 'notCountedYetCents' | 'countedOnHandoverDays' | 'reconciles' | 'rows'
+  >,
 ): [string, ...string[]] {
   return [
     MONTH_FLOW_BASIS[breakdown.flow],
@@ -223,6 +234,15 @@ export function monthFlowPanelBasis(
             breakdown.flow === 'income' ? 'income' : 'spending',
           ),
         ]
+      : []),
+    // U.16, and the SAME sentence the category panel prints — one author for one
+    // fact. This panel is a second surface where the released handover day is
+    // both counted and penny-matched, and a reader comparing a bar's panel with
+    // a category's panel must not meet two different accounts of one rule. The
+    // enumeration in `MONTH_FLOW_BASIS` is unaffected: a handover row is not
+    // EXCLUDED from the bar, it is counted by it, possibly more than once.
+    ...(breakdown.countedOnHandoverDays > 0
+      ? [breakdownHandoverDayCopy(breakdown.countedOnHandoverDays, breakdown.reconciles && breakdown.rows.length > 1)]
       : []),
   ];
 }
@@ -261,6 +281,11 @@ export function buildMonthFlowBreakdowns(
    * sentence for both. Omitted = every row counts, the pre-C.26 behaviour.
    */
   asOf?: string | null,
+  // U.16: the days the boundary released to BOTH sides of a combined pair
+  // (`getReconciliationHandoverDates`). Passed in rather than inferred — the
+  // boundary's own rule is the only honest detector. Empty = the truth for a
+  // reader with no combined accounts, so an existing caller changes nothing.
+  handoverKeys: ReadonlySet<string> = new Set<string>(),
 ): Record<string, MonthFlowBreakdown> {
   const wanted = new Set(headlines.map((h) => h.month));
   const collected = new Map<string, BreakdownRow[]>();
@@ -300,6 +325,9 @@ export function buildMonthFlowBreakdowns(
       // field that silently disappeared would be a lie by omission if the flows
       // predicate ever widened.
       isPending: t.status === 'PENDING',
+      // U.16: a fact about the row's DATE — this bar counts it, and counts it
+      // once per connection that reported it.
+      onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)),
     });
     collected.set(key, rows);
   }
@@ -331,6 +359,11 @@ export function buildMonthFlowBreakdowns(
         // refund is not "money not counted yet", and naming it as such would
         // tell a reader a scheduled return is spending waiting to land.
         notCountedYetCents: cents(Math.max(0, notYet.get(key) ?? 0)),
+        // U.16: off the LISTED rows, so the sentence cannot name money the
+        // panel does not show. A row dated ahead of `asOf` already `continue`d
+        // above and is not in `rows` — it is not in the bar either, so it is
+        // correctly not described as counted twice.
+        countedOnHandoverDays: rows.reduce((n, r) => (r.onHandoverDay ? n + 1 : n), 0),
       };
     }
   }

@@ -253,6 +253,22 @@ export function BreakdownPanel({
                     r.label
                   )}
                   {r.isPending && <span className="ml-1.5 text-xs text-muted-foreground">(pending)</span>}
+                  {/* U.16. The basis sentence below says N rows fall on a day a
+                      combined account was changing connections; without this the
+                      reader has to find them among every row in the bucket, and
+                      the two lines it is about are IDENTICAL by construction —
+                      same date, same payee, same amount. Marking the row is a
+                      fact about its date, not a claim that it is the duplicate:
+                      a handover day with only one connection reporting is marked
+                      too, and the sentence is conditional for the same reason. */}
+                  {r.onHandoverDay && (
+                    <span
+                      className="ml-1.5 text-xs text-muted-foreground"
+                      data-testid={`${testIdPrefix}-handover-row`}
+                    >
+                      (connection changeover)
+                    </span>
+                  )}
                   {/* The bank's own text, when the payee name has cleaned it up.
                       This is the line the question is actually about: it is what
                       the categorizer read before deciding on this bucket. */}

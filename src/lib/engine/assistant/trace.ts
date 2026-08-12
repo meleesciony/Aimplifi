@@ -34,6 +34,8 @@ import {
 } from '@/lib/engine/reports/reports';
 import { isIncomeFlowRow, monthlyFlows, type MonthlyFlow, type TxnLike } from '@/lib/engine/fi/insights';
 import type { CategoryMeta } from '@/lib/engine/categorize/categories';
+import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
+import { breakdownHandoverDayCopy } from '@/lib/engine/glass-box/category-breakdown';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
 import {
@@ -89,6 +91,18 @@ export interface TraceRow {
    *  change does not move the same way, so they carry no id and no chip
    *  (slice 2b scope — never offer a correction whose effect we can't show). */
   txnId?: string;
+  /**
+   * U.16: this row sits on a day one of the reader's combined accounts changed
+   * connections, which the boundary releases to BOTH sides — so a transaction
+   * both connections reported is cited twice here and counted twice in the
+   * headline this trace certifies.
+   *
+   * The trace is the surface where silence costs the most: the reader TAPPED to
+   * see the rows behind a number, and `reconciled` then prints a green check
+   * over them. Two identical cited lines under a tick read as confirmation that
+   * both belong — the same shape `cardDuplicateTraceBasis` exists to answer.
+   */
+  onHandoverDay?: boolean;
 }
 
 /** A per-category bucket inside a hierarchical trace (spend_total & friends):
@@ -209,6 +223,7 @@ function spendRowsFor(
   meta: ReadonlyMap<string, CategoryMeta>,
   id: string,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403) — same set the answer summed with
+  handoverKeys: ReadonlySet<string> = new Set<string>(), // U.16
 ): TraceRow[] {
   return txns
     .filter((t) => isSpendRow(t, window, meta, excludedFlowIds) && spendRowCategoryId(t) === id)
@@ -218,6 +233,7 @@ function spendRowsFor(
       categoryId: id,
       contributionCents: spendContributionCents(t),
       txnId: t.id,
+      onHandoverDay: t.accountId ? handoverKeys.has(handoverKey(t.accountId, t.date)) : false,
     }));
 }
 
@@ -230,13 +246,28 @@ function groupsFor(
   window: SpendWindow,
   meta: ReadonlyMap<string, CategoryMeta>,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
+  handoverKeys: ReadonlySet<string> = new Set<string>(), // U.16
 ): TraceGroup[] {
   return cats.map((c) => ({
     key: c.categoryId,
     label: c.name,
     amountCents: c.amountCents,
-    rows: spendRowsFor(txns, window, meta, c.categoryId, excludedFlowIds),
+    rows: spendRowsFor(txns, window, meta, c.categoryId, excludedFlowIds, handoverKeys),
   }));
+}
+
+/**
+ * The handover sentence for a TRACE, counted off the CITED rows (U.16).
+ *
+ * The panel wording is correct here and the answer wording is not: a trace DOES
+ * list rows, they ARE "here", and the reader is looking at the tally the second
+ * clause talks about. `reconciles` is passed as the same equality `assemble`
+ * checks, so the sentence cannot promise a tally the drawer is reporting broken.
+ */
+function handoverBasis(rows: readonly TraceRow[], headlineCents: number): string[] {
+  const n = rows.reduce((s, r) => (r.onHandoverDay ? s + 1 : s), 0);
+  if (n === 0) return [];
+  return [breakdownHandoverDayCopy(n, sumRows(rows) === headlineCents && rows.length > 1)];
 }
 
 const sumRows = (rows: readonly TraceRow[]) => rows.reduce((s, r) => s + r.contributionCents, 0);
@@ -279,13 +310,15 @@ export function traceSpendTotal(
   window: SpendWindow,
   meta: ReadonlyMap<string, CategoryMeta>,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
+  handoverKeys: ReadonlySet<string> = new Set<string>(), // U.16
 ): RowSumTrace {
-  const groups = groupsFor(breakdown.byCategory, txns, window, meta, excludedFlowIds);
+  const groups = groupsFor(breakdown.byCategory, txns, window, meta, excludedFlowIds, handoverKeys);
+  const rows = groups.flatMap((g) => g.rows);
   return assemble(
     'spend_total',
     breakdown.totalCents,
-    groups.flatMap((g) => g.rows),
-    [NET_SPEND_BASIS, DROPPED_CATEGORY_BASIS],
+    rows,
+    [NET_SPEND_BASIS, DROPPED_CATEGORY_BASIS, ...handoverBasis(rows, breakdown.totalCents)],
     groups,
   );
 }
@@ -299,6 +332,7 @@ export function traceSpendByCategory(
   window: SpendWindow,
   meta: ReadonlyMap<string, CategoryMeta>,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
+  handoverKeys: ReadonlySet<string> = new Set<string>(), // U.16
 ): RowSumTrace {
   let amount = 0;
   let cited: { categoryId: string; name: string; amountCents: number }[] = [];
@@ -315,12 +349,13 @@ export function traceSpendByCategory(
     amount = g?.amountCents ?? 0;
     cited = g?.categories ?? [];
   }
-  const groups = groupsFor(cited, txns, window, meta, excludedFlowIds);
+  const groups = groupsFor(cited, txns, window, meta, excludedFlowIds, handoverKeys);
+  const rows = groups.flatMap((g) => g.rows);
   return assemble(
     'spend_by_category',
     amount,
-    groups.flatMap((g) => g.rows),
-    [NET_SPEND_BASIS, DROPPED_CATEGORY_BASIS],
+    rows,
+    [NET_SPEND_BASIS, DROPPED_CATEGORY_BASIS, ...handoverBasis(rows, amount)],
     groups.length > 1 ? groups : undefined,
   );
 }
@@ -334,14 +369,18 @@ export function traceTopCategories(
   window: SpendWindow,
   meta: ReadonlyMap<string, CategoryMeta>,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403)
+  handoverKeys: ReadonlySet<string> = new Set<string>(), // U.16
 ): RowSumTrace {
   const top = breakdown.byCategory.slice(0, limit);
-  const groups = groupsFor(top, txns, window, meta, excludedFlowIds);
+  const groups = groupsFor(top, txns, window, meta, excludedFlowIds, handoverKeys);
+  // The headline is the TOP category's amount, so the sentence is scoped to the
+  // rows that certify it — not to every cited group.
+  const rows = groups[0]?.rows ?? [];
   return assemble(
     'top_categories',
     top[0]?.amountCents ?? 0,
-    groups[0]?.rows ?? [],
-    [NET_SPEND_BASIS, DROPPED_CATEGORY_BASIS],
+    rows,
+    [NET_SPEND_BASIS, DROPPED_CATEGORY_BASIS, ...handoverBasis(rows, top[0]?.amountCents ?? 0)],
     groups,
   );
 }
@@ -431,6 +470,13 @@ export interface TraceInput {
    *  a wrong number stamped reconciled. Callers with no custom categories
    *  pass CATEGORY_BY_ID explicitly. */
   meta: ReadonlyMap<string, CategoryMeta>;
+  /**
+   * U.16: the (account, released day) pairs a combined pair duplicates on. The
+   * trace re-selects the rows behind the figure and then CERTIFIES them with a
+   * green check, so it is the one Ask surface where the released day must be
+   * both marked on the row and named in the basis. Empty = no combined accounts.
+   */
+  handoverKeys?: ReadonlySet<string>;
   /** The cents figure the user actually TAPPED, from the answer payload
    *  (critic 2026-07-15 F2). The trace recomputes from tap-time inputs; if
    *  data synced in between and the recomputed headline no longer equals the
@@ -475,29 +521,32 @@ function traceForKind(intent: AssistantIntent, input: TraceInput): AnswerTrace {
   switch (intent.kind) {
     case 'spend_total':
       return traceSpendTotal(
-        spendingByCategory(txns, askWindow(intent.timeframe), meta, excludedFlowIds),
+        spendingByCategory(txns, askWindow(intent.timeframe), meta, excludedFlowIds, input.handoverKeys),
         txns,
         askWindow(intent.timeframe),
         meta,
         excludedFlowIds,
+        input.handoverKeys,
       );
     case 'spend_by_category':
       return traceSpendByCategory(
-        spendingByCategory(txns, askWindow(intent.timeframe), meta, excludedFlowIds),
+        spendingByCategory(txns, askWindow(intent.timeframe), meta, excludedFlowIds, input.handoverKeys),
         intent.target,
         txns,
         askWindow(intent.timeframe),
         meta,
         excludedFlowIds,
+        input.handoverKeys,
       );
     case 'top_categories':
       return traceTopCategories(
-        spendingByCategory(txns, askWindow(intent.timeframe), meta, excludedFlowIds),
+        spendingByCategory(txns, askWindow(intent.timeframe), meta, excludedFlowIds, input.handoverKeys),
         intent.limit,
         txns,
         askWindow(intent.timeframe),
         meta,
         excludedFlowIds,
+        input.handoverKeys,
       );
     case 'merchant_spend':
       return traceMerchantSpend(

@@ -164,9 +164,14 @@ export function combineSuccessFlash(combined: number, failures: readonly string[
       ' ',
     )})`;
   }
+  // U.16 (critic): the success branch above was requalified by U.13 and this one
+  // was not, so the same function made opposite claims about the same rule — and
+  // this is the branch a reader reaches when something already went wrong. Same
+  // wording as the success branch: the BALANCE half is unconditionally true, the
+  // "counts once" half is not, on the one changeover day.
   return `Partly done: ${combined} ${noun} now ${
-    combined === 1 ? 'counts' : 'count'
-  } once, and the duplicate connection is disconnected — but ${failures.length} didn’t link. You’ll see a “Combine” offer for the rest under “${ACCOUNT_CLEANUP_HEADING}” on this page. (${failures.join(
+    combined === 1 ? 'has' : 'have'
+  } one balance instead of two, and the duplicate connection is disconnected — but ${failures.length} didn’t link. You’ll see a “Combine” offer for the rest under “${ACCOUNT_CLEANUP_HEADING}” on this page. (${failures.join(
     ' ',
   )})`;
 }

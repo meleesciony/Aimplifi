@@ -614,7 +614,7 @@ describe('creep income series counts only income rows, and says when it cannot m
 
 describe('creepPanelBasis (O.20d)', () => {
   it('embeds the rendered figure and names what counts and what never does', () => {
-    const basis = creepPanelBasis('May 2026', cents(12000), false);
+    const basis = creepPanelBasis('May 2026', cents(12000), false, 0, true);
     expect(basis.length).toBeGreaterThanOrEqual(2);
     expect(basis[0]).toBe(
       'The $120.00 is May 2026’s discretionary spending: posted purchases in a discretionary category — dining out, shopping, entertainment, and the other categories the app treats as discretionary.',
@@ -628,7 +628,7 @@ describe('creepPanelBasis (O.20d)', () => {
     // panel lists the row, so the contradiction is now visible to the reader and
     // must be stated rather than discovered.
     for (const hasRefunds of [false, true]) {
-      const basis = creepPanelBasis('May 2026', cents(12000), hasRefunds);
+      const basis = creepPanelBasis('May 2026', cents(12000), hasRefunds, 0, true);
       const admission = basis.find((s) => s.includes('not by the Fixed or Discretionary setting'));
       expect(admission).toBeDefined();
       expect(admission).toContain('marked Fixed is still counted here');
@@ -641,14 +641,14 @@ describe('creepPanelBasis (O.20d)', () => {
     // exclusion that cannot move this number, and fired on months where nothing
     // was excluded at all.
     for (const hasRefunds of [false, true]) {
-      const basis = creepPanelBasis('May 2026', cents(12000), hasRefunds);
+      const basis = creepPanelBasis('May 2026', cents(12000), hasRefunds, 0, true);
       expect(basis.join(' ')).not.toContain('Loan payments');
     }
   });
 
   it('discloses the gross-vs-net basis only when a discretionary credit occurred', () => {
-    expect(creepPanelBasis('May 2026', cents(12000), false)).toHaveLength(3);
-    const withRefund = creepPanelBasis('May 2026', cents(12000), true);
+    expect(creepPanelBasis('May 2026', cents(12000), false, 0, true)).toHaveLength(3);
+    const withRefund = creepPanelBasis('May 2026', cents(12000), true, 0, true);
     expect(withRefund).toHaveLength(4);
     expect(withRefund[3]).toContain('does not reduce this figure');
     // F7: the sentence describes a CREDIT, not "a refund you filed" — the same

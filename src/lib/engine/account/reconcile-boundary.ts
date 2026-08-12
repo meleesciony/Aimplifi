@@ -556,6 +556,57 @@ export function reconciliationTxnKeepFilter<A extends BoundaryAccountLike>(
  * A date appears only when the claim is non-degenerate: a cutover before the predecessor's
  * first row claims nothing (A-F8), so it releases nothing either.
  */
+/**
+ * The key a disclosure surface tests a ROW against: this account, on this released
+ * day (U.16).
+ *
+ * Account-scoped, and that is the whole point. `reconciliationHandoverDates` below
+ * returns bare dates, which is correct for its two original consumers — the tax
+ * export counts rows in a file that has no account column, and cadence detection
+ * folds by component. But a per-row MARKER tested on the date alone labels every
+ * row the reader posted that day, on every account they own, including accounts in
+ * no combined pair at all. A U.16 critic executed it: six grocery rows on the
+ * handover day, only two of them from the combined pair, and the panel marked all
+ * six and said "6 rows here fall on a day one of your combined accounts was
+ * changing connections". Only the pair's own rows can be doubled.
+ */
+export function handoverKey(accountId: string, date: string): string {
+  // A pipe cannot occur in a cuid or an ISO date, so the join is unambiguous.
+  return `${accountId}|${date}`;
+}
+
+/**
+ * The (account, released day) pairs a combined pair actually duplicates on (U.16).
+ *
+ * Both SIDES of each effective link are keyed at that link's own released date:
+ * the released day is exactly the date on which the predecessor keeps its rows
+ * (`date <= cutover`) and the successor's are no longer dropped, so both can
+ * contribute a copy. A chain contributes one entry per link, per side, which is
+ * also why multiplicity is not always two.
+ */
+export function reconciliationHandoverKeys<A extends BoundaryAccountLike>(
+  accounts: readonly A[],
+  links: readonly ReconciliationLinkLike[],
+  predecessorSpans: readonly PredecessorSpanLike[],
+): ReadonlySet<string> {
+  const eff = effectiveReconciliationLinks(accounts, links);
+  const out = new Set<string>();
+  if (eff.length === 0) return out;
+  const spanOf = new Map(predecessorSpans.map((s) => [s.accountId, s]));
+  for (const l of eff) {
+    const s = spanOf.get(l.predecessorAccountId);
+    if (s === undefined) continue;
+    const cut = isoDate(l.cutoverDate);
+    const first = isoDate(s.first);
+    const last = isoDate(s.last);
+    if (compareDates(cut, first) < 0) continue; // degenerate claim (A-F8)
+    const released = compareDates(cut, last) < 0 ? cut : last;
+    out.add(handoverKey(l.predecessorAccountId, released));
+    out.add(handoverKey(l.successorAccountId, released));
+  }
+  return out;
+}
+
 export function reconciliationHandoverDates<A extends BoundaryAccountLike>(
   accounts: readonly A[],
   links: readonly ReconciliationLinkLike[],

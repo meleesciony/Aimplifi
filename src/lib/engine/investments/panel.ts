@@ -25,6 +25,15 @@ export interface AllocationRow {
   rawDescriptor: null;
   amountCents: Cents;
   isPending: false;
+  /**
+   * Always false, and true-by-construction rather than a stub (U.16): these rows
+   * are HOLDINGS — one per account holding the symbol, valued today — not
+   * transactions. The handover-day release is a rule about which transaction
+   * rows survive on the one day a combined pair changed connections, so it has
+   * no instance here. Carried because the shared panel prints a marker from this
+   * field, and a row type that omitted it could not be handed to that panel.
+   */
+  onHandoverDay: false;
 }
 
 export interface AllocationSegment {
@@ -72,6 +81,8 @@ export function allocationSegments(input: {
         rawDescriptor: null,
         amountCents: p.marketValueCents,
         isPending: false,
+        // U.16: a holding, not a transaction — see the field's own note.
+        onHandoverDay: false,
       });
     }
   }

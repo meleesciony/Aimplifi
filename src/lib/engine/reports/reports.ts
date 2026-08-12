@@ -7,11 +7,20 @@
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { isoDate, monthWindow } from '@/lib/dates';
+import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 
 export interface ReportTxn {
   /** Present on every real row; optional so hand-built fixtures stay terse,
    *  nullable to match the breakdown row shapes that extend this type. */
   id?: string | null;
+  /**
+   * U.16: which account reported this row, so the handover-day disclosure can be
+   * scoped to the accounts a combined pair actually duplicates on. Optional for
+   * the same reason `id` is — a hand-built fixture that omits it simply matches
+   * no handover key, which is the correct answer for a row whose account is
+   * unknown.
+   */
+  accountId?: string | null;
   date: string; // YYYY-MM-DD
   amountCents: number; // signed; negative = spend
   categoryId?: string | null;
@@ -26,6 +35,17 @@ export interface CategorySpend {
   name: string;
   group: string;
   amountCents: number;
+  /**
+   * How many of THIS category's counted rows fall on a released handover day
+   * (U.16), counted in the same pass that summed `amountCents`.
+   *
+   * Per category, not merely per breakdown, because a disclosure is scoped to
+   * the figure it qualifies: Ask answers "you spent $X on groceries" with one
+   * category's total, and a breakdown-wide count attached there would claim a
+   * doubling inside a figure that may contain none of it — the false-scope
+   * failure `a-disclosure-is-several-claims-in-one-sentence` is about.
+   */
+  countedOnHandoverDays: number;
 }
 export interface GroupSpend {
   group: string;
@@ -36,6 +56,24 @@ export interface SpendingBreakdown {
   totalCents: number;
   byCategory: CategorySpend[]; // sorted desc
   byGroup: GroupSpend[]; // sorted desc
+  /**
+   * How many COUNTED rows fall on a day the reconciliation boundary released to
+   * both sides of a combined pair (U.16) — the one shape in which this total can
+   * include one real charge more than once (DECISIONS #454).
+   *
+   * Counted in the SAME pass that summed `totalCents`, through the same
+   * `isSpendRow` gate, because this repo's panels exist to stop a figure and its
+   * explanation being selected by two different predicates. A consumer that
+   * re-counted the rows itself would be that second derivation.
+   *
+   * It rides on the breakdown rather than being computed by each consumer
+   * because the consumer that needs it MOST has no rows at all: Ask states this
+   * total as a single sentence with no drilldown beneath it, so it cannot show
+   * the reader the two lines and must be able to say so instead.
+   *
+   * Zero for every reader with no combined accounts.
+   */
+  countedOnHandoverDays: number;
 }
 
 /**
@@ -186,15 +224,26 @@ export function spendingByCategory(
   // a user with no custom categories gets byte-identical output.
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403), threaded to isSpendRow
+  // U.16: the days the boundary released to BOTH sides of a combined pair
+  // (`getReconciliationHandoverDates`). Empty = the truth for a reader with no
+  // combined accounts, so every existing caller keeps byte-identical output.
+  handoverKeys: ReadonlySet<string> = new Set<string>(),
 ): SpendingBreakdown {
   // Validated ONCE here rather than per row: a malformed `asOf` compared as a
   // plain string would drop every row and print "$0.00 spent" — a fabricated
   // fact. `isoDate` throws instead.
   if (range.asOf) isoDate(range.asOf);
   const totals = new Map<string, number>();
+  // U.16: counted in this same pass, AFTER the same gate — so it describes
+  // exactly the rows `totalCents` is summed from. A row dropped by `isSpendRow`
+  // (a transfer, an excluded flow, the wrong window) is not in the figure and is
+  // correctly not reported as possibly counted twice in it.
+  const handoverByCategory = new Map<string, number>();
   for (const t of txns) {
     if (!isSpendRow(t, range, meta, excludedFlowIds)) continue;
     const id = spendRowCategoryId(t);
+    if (t.accountId && handoverKeys.has(handoverKey(t.accountId, t.date)))
+      handoverByCategory.set(id, (handoverByCategory.get(id) ?? 0) + 1);
     totals.set(id, (totals.get(id) ?? 0) + spendContributionCents(t));
   }
 
@@ -202,7 +251,13 @@ export function spendingByCategory(
   for (const [id, amountCents] of totals) {
     if (amountCents <= 0) continue; // net refund / zero → drop
     const cat = meta.get(id);
-    byCategory.push({ categoryId: id, name: cat?.name ?? 'Uncategorized', group: cat?.group ?? 'Other', amountCents });
+    byCategory.push({
+      categoryId: id,
+      name: cat?.name ?? 'Uncategorized',
+      group: cat?.group ?? 'Other',
+      amountCents,
+      countedOnHandoverDays: handoverByCategory.get(id) ?? 0,
+    });
   }
   byCategory.sort((a, b) => b.amountCents - a.amountCents);
 
@@ -221,5 +276,14 @@ export function spendingByCategory(
     .sort((a, b) => b.amountCents - a.amountCents);
 
   const totalCents = byCategory.reduce((s, c) => s + c.amountCents, 0);
-  return { totalCents, byCategory, byGroup };
+  // Summed from the SURVIVING categories, never from the raw pass (U.16 critic).
+  // `byCategory` drops any category whose net is <= 0, and `totalCents` is the
+  // sum of what is left — so a category whose handover-day purchase was more
+  // than cancelled by a refund is in NEITHER. Counting it in the raw pass made
+  // Ask qualify a $20.00 total, containing no released row at all, with "2
+  // charges in this figure fall on a day…". The count and the figure it
+  // qualifies now come off the same array, which is the only way they cannot
+  // disagree.
+  const countedOnHandoverDays = byCategory.reduce((s, c) => s + c.countedOnHandoverDays, 0);
+  return { totalCents, byCategory, byGroup, countedOnHandoverDays };
 }

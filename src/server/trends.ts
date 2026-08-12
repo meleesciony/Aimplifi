@@ -54,6 +54,7 @@ import { wholeMonthWindow } from '@/lib/engine/reports/reports';
 import { computeSpendingTrends, type SpendingTrends, type TrendTxn } from '@/lib/engine/trends/trends';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
+import { getReconciliationHandoverKeys } from '@/server/reconciliation';
 import {
   loanPaymentBasisFacts,
   loanPaymentRefusedCategories,
@@ -90,6 +91,10 @@ export function toTrendTxns(
     // Display only (O.18) — carried so the breakdown panel can be built from THIS
     // array rather than from the snapshot a second time. See `TrendTxn`.
     id?: string;
+    // U.16: which account reported the row. Without it the handover-day marker is
+    // silently always-false on /trends — a hand-built payload dropping the one
+    // field a new feature needs is `the-narrowing-you-did-not-list` exactly.
+    accountId?: string;
     merchant?: { canonical: string } | null;
   }[],
 ): TrendTxn[] {
@@ -123,6 +128,7 @@ export function toTrendTxns(
       aggregateMerchant: m.aggregate,
       // Display only, never read by an insight — see the note on `TrendTxn`.
       id: t.id,
+      accountId: t.accountId,
       rawDescriptor: t.rawDescriptor,
       merchantName: registerDisplayName(t),
     };
@@ -160,9 +166,13 @@ export interface SpendingTrendsData extends SpendingTrends {
 export async function getSpendingTrends(userId: string): Promise<SpendingTrendsData> {
   const provider = getProvider();
   const today = provider.today(userId);
-  const [snap, meta] = await Promise.all([
+  const [snap, meta, handoverKeys] = await Promise.all([
     provider.getFinanceSnapshot(userId),
     getCategoryMeta(userId),
+    // U.16: fetched ONCE and handed to both the movers' category panels and the
+    // new-merchant panels, so two panels on one page cannot disagree about
+    // which days a combined pair released.
+    getReconciliationHandoverKeys(userId),
   ]);
 
   // ONE array, handed to both. The first cut built the panel rows from
@@ -200,6 +210,7 @@ export async function getSpendingTrends(userId: string): Promise<SpendingTrendsD
       excludedFlowIds,
       excludedLoanCanonicals,
       elapsedDayFraction: businessDayFraction(userId),
+      handoverKeys,
     },
     meta,
   );
@@ -216,6 +227,7 @@ export async function getSpendingTrends(userId: string): Promise<SpendingTrendsD
         new Map(trends.movers.map((m) => [m.categoryId, m.currentCents])),
         meta,
         excludedFlowIds,
+        handoverKeys,
       )
     : {};
 

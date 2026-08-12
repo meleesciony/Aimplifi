@@ -98,17 +98,18 @@ describe('answerAccountBalance', () => {
 
 const BREAKDOWN: SpendingBreakdown = {
   totalCents: 50000,
+  countedOnHandoverDays: 0,
   byCategory: [
-    { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 30000 },
-    { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 20000 },
+    { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 30000, countedOnHandoverDays: 0 },
+    { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 20000, countedOnHandoverDays: 0 },
   ],
   byGroup: [
     {
       group: 'Food & Dining',
       amountCents: 50000,
       categories: [
-        { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 30000 },
-        { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 20000 },
+        { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 30000, countedOnHandoverDays: 0 },
+        { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 20000, countedOnHandoverDays: 0 },
       ],
     },
   ],
@@ -132,13 +133,14 @@ describe('answerSpend*', () => {
   it('by category-set (utilities umbrella) sums the family and ranks facts', () => {
     const UTIL_BREAKDOWN = {
       totalCents: 40000,
+      countedOnHandoverDays: 0,
       byCategory: [
-        { categoryId: 'electricity', name: 'Electricity', group: 'Bills & Utilities', amountCents: 12000 },
-        { categoryId: 'water', name: 'Water & Sewer', group: 'Bills & Utilities', amountCents: 6000 },
-        { categoryId: 'trash', name: 'Trash & Recycling', group: 'Bills & Utilities', amountCents: 4000 },
-        { categoryId: 'natural-gas', name: 'Natural Gas', group: 'Bills & Utilities', amountCents: 3000 },
-        { categoryId: 'utilities', name: 'Internet & Utilities', group: 'Bills & Utilities', amountCents: 2000 },
-        { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 13000 },
+        { categoryId: 'electricity', name: 'Electricity', group: 'Bills & Utilities', amountCents: 12000, countedOnHandoverDays: 0 },
+        { categoryId: 'water', name: 'Water & Sewer', group: 'Bills & Utilities', amountCents: 6000, countedOnHandoverDays: 0 },
+        { categoryId: 'trash', name: 'Trash & Recycling', group: 'Bills & Utilities', amountCents: 4000, countedOnHandoverDays: 0 },
+        { categoryId: 'natural-gas', name: 'Natural Gas', group: 'Bills & Utilities', amountCents: 3000, countedOnHandoverDays: 0 },
+        { categoryId: 'utilities', name: 'Internet & Utilities', group: 'Bills & Utilities', amountCents: 2000, countedOnHandoverDays: 0 },
+        { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 13000, countedOnHandoverDays: 0 },
       ],
       byGroup: [],
     };
@@ -591,12 +593,13 @@ describe('answerUnknown', () => {
 describe('O.19b — capped category lists state their remainder', () => {
   const WIDE: SpendingBreakdown = {
     totalCents: 150000, // = Σ byCategory, the engine identity (reports.ts:101)
+    countedOnHandoverDays: 0,
     byCategory: [
-      { categoryId: 'rent', name: 'Rent', group: 'Housing', amountCents: 50000 },
-      { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 40000 },
-      { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 30000 },
-      { categoryId: 'fuel', name: 'Gas & Fuel', group: 'Transport', amountCents: 20000 },
-      { categoryId: 'fun', name: 'Entertainment', group: 'Lifestyle', amountCents: 10000 },
+      { categoryId: 'rent', name: 'Rent', group: 'Housing', amountCents: 50000, countedOnHandoverDays: 0 },
+      { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 40000, countedOnHandoverDays: 0 },
+      { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 30000, countedOnHandoverDays: 0 },
+      { categoryId: 'fuel', name: 'Gas & Fuel', group: 'Transport', amountCents: 20000, countedOnHandoverDays: 0 },
+      { categoryId: 'fun', name: 'Entertainment', group: 'Lifestyle', amountCents: 10000, countedOnHandoverDays: 0 },
     ],
     byGroup: [],
   };
@@ -640,16 +643,17 @@ describe('O.19b — capped category lists state their remainder', () => {
   it('spend_by_category group branch: 4th leaf gets the remainder line', () => {
     const grouped: SpendingBreakdown = {
       totalCents: 150000,
+      countedOnHandoverDays: 0,
       byCategory: WIDE.byCategory,
       byGroup: [
         {
           group: 'Bills & Utilities',
           amountCents: 25000,
           categories: [
-            { categoryId: 'electricity', name: 'Electricity', group: 'Bills & Utilities', amountCents: 12000 },
-            { categoryId: 'water', name: 'Water & Sewer', group: 'Bills & Utilities', amountCents: 6000 },
-            { categoryId: 'trash', name: 'Trash & Recycling', group: 'Bills & Utilities', amountCents: 4000 },
-            { categoryId: 'natural-gas', name: 'Natural Gas', group: 'Bills & Utilities', amountCents: 3000 },
+            { categoryId: 'electricity', name: 'Electricity', group: 'Bills & Utilities', amountCents: 12000, countedOnHandoverDays: 0 },
+            { categoryId: 'water', name: 'Water & Sewer', group: 'Bills & Utilities', amountCents: 6000, countedOnHandoverDays: 0 },
+            { categoryId: 'trash', name: 'Trash & Recycling', group: 'Bills & Utilities', amountCents: 4000, countedOnHandoverDays: 0 },
+            { categoryId: 'natural-gas', name: 'Natural Gas', group: 'Bills & Utilities', amountCents: 3000, countedOnHandoverDays: 0 },
           ],
         },
       ],

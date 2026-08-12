@@ -61,6 +61,7 @@ import { prisma } from '@/lib/db';
 import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
+import { getReconciliationHandoverKeys } from '@/server/reconciliation';
 import { loanPaymentBasisFacts, type LoanPaymentBasisFact } from '@/server/loan-payment-basis';
 import { accountLabel } from '@/lib/engine/account/display-name';
 
@@ -258,6 +259,11 @@ export async function getCoachData(
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('User not found');
   const meta = await getCategoryMeta(userId); // custom-category aware creep (DECISIONS #111)
+  // U.16: the days the boundary released to BOTH sides of a combined pair. This
+  // page draws two transaction panels — the savings-rate chart's month flows and
+  // the lifestyle-creep bars — and both tick "matched to the penny" over rows a
+  // released day may have counted more than once.
+  const handoverDates = await getReconciliationHandoverKeys(userId);
 
   const txns = snap.transactions.map((t, i) => ({
     id: (t as { id?: string }).id ?? `txn-${i}`,
@@ -295,7 +301,7 @@ export async function getCoachData(
   // `flows` is the array the chart draws, so these headlines are the figures the
   // reader will actually see — `reconciles` is checked against the painted
   // numbers, not against a second derivation of them.
-  const monthFlows = buildMonthFlowBreakdowns(txns, flows, snap.loanPaymentFlowExclusions?.excludeIds);
+  const monthFlows = buildMonthFlowBreakdowns(txns, flows, snap.loanPaymentFlowExclusions?.excludeIds, null, handoverDates);
   // C.25 (#403, critic P1-5): these figures MOVE when the exclusion applies
   // (savings rate, creep baseline, discretionary average, and the FI number
   // itself reads annual expenses off these flows) — so the page names what
@@ -397,7 +403,7 @@ export async function getCoachData(
   // construction (the fence), so demo always sees the unconfirmed nudge.
   const confirmedPauses = await getConfirmedIncomePauses(userId);
   const incomePauses = incomePausesForFeed(series, today, confirmedPauses);
-  const creep = detectLifestyleCreep(txns, today, 6, meta, snap.loanPaymentFlowExclusions?.excludeIds);
+  const creep = detectLifestyleCreep(txns, today, 6, meta, snap.loanPaymentFlowExclusions?.excludeIds, handoverDates);
   // documented rounding rule, not Math.round (consistency with monthlySavings above)
   const avgMonthlyExpenses = cents(roundHalfAwayFromZero(expenses6 / Math.max(1, last6.length)));
   const runway = monthsOfRunway(liquid, avgMonthlyExpenses);

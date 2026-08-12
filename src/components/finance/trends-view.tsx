@@ -557,6 +557,14 @@ export function TrendsView({
                       monthLabel: shortMonth(asOfYm),
                       throughLabel: formatISODate(isoDate(asOfDate), 'long'),
                       futureDatedCents: n.futureDatedCents,
+                      countedOnHandoverDays: n.countedOnHandoverDays,
+                      // The SAME check the panel's penny-match line prints,
+                      // read off the same `sum` two lines above — so the
+                      // sentence's "these still add up" clause cannot claim a
+                      // tally the panel is simultaneously reporting as broken.
+                      // The panel prints a tally only when it lists more than one row;
+                      // at exactly one it says "This amount is the whole figure." instead.
+                      statesATally: sum === cents(n.amountCents) && n.rows.length > 1,
                     })}
                     registerHref={merchantRegisterHref(n.merchant)}
                     // The default label ("Open these...") would promise exactly

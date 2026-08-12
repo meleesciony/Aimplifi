@@ -23,6 +23,7 @@ import {
   accountIdentityMap,
   effectiveReconciliationLinks,
   reconciliationHandoverDates,
+  reconciliationHandoverKeys,
   reconciliationTxnKeepFilter,
   terminalSuccessorMap,
 } from '@/lib/engine/account/reconcile-boundary';
@@ -497,6 +498,36 @@ export async function getReconciliationTxnKeep(userId: string): Promise<(account
  * reported appears twice on those days. Built from the same links/spans as the keep filter
  * and computed by the engine, never re-derived here.
  */
+/**
+ * The (account, released day) pairs the DISCLOSURE surfaces test each row against
+ * (U.16) — account-scoped, unlike `getReconciliationHandoverDates` below.
+ *
+ * A per-row marker keyed on the date alone labels every row the reader posted that
+ * day on every account they own, including accounts in no combined pair. Only the
+ * pair's own two sides can double.
+ */
+export async function getReconciliationHandoverKeys(userId: string): Promise<ReadonlySet<string>> {
+  const links = await getActiveReconciliations(userId);
+  if (links.length === 0) return new Set<string>();
+  const accounts = await prisma.account.findMany({
+    where: { userId },
+    select: { id: true, type: true, currency: true, currentBalanceCents: true },
+  });
+  const spans = await prisma.transaction.groupBy({
+    by: ['accountId'],
+    where: { accountId: { in: links.map((l) => l.predecessorAccountId) }, account: { userId } },
+    _min: { date: true },
+    _max: { date: true },
+  });
+  return reconciliationHandoverKeys(
+    accounts.filter((a) => isSupportedCurrency(a.currency)),
+    links,
+    spans.flatMap((s) =>
+      s._min.date != null && s._max.date != null ? [{ accountId: s.accountId, first: s._min.date, last: s._max.date }] : [],
+    ),
+  );
+}
+
 export async function getReconciliationHandoverDates(userId: string): Promise<ReadonlySet<string>> {
   const links = await getActiveReconciliations(userId);
   if (links.length === 0) return new Set<string>();

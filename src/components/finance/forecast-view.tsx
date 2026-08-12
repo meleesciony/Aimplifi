@@ -198,6 +198,11 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
                 rawDescriptor: null,
                 amountCents: cents(e.amountCents),
                 isPending: false,
+                // U.16: these are SCHEDULED flows the forecast projects, not
+                // reported transactions, so no handover day can apply to them.
+                // The release decides which reported rows survive on the one day
+                // a combined pair changed connections; a projection has no feed.
+                onHandoverDay: false,
               })),
               // Re-review F2/F5: `sumCents` was a copy of `headlineCents` and
               // `reconciles` a literal, so the penny-match sentence verified
