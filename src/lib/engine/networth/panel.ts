@@ -6,26 +6,28 @@
  * kinds are built from, which the surfaces must never re-state in their own
  * words (the O.18c `a-link-on-a-figure-asserts-two-engines-agree` rule).
  *
- * Month-end points are built from the snapshots the app held for their date;
- * the live "today" point is built from every account's current balance. The two
- * sentences must never be swapped — the panel behind a month-end point saying
- * "manual items included" would be a lie the series engine cannot see.
- *
- * KNOWN COUPLING (critic P2-4, accepted as latent): the month-end sentence
- * calls snapshot dates "month-end" because every snapshot writer today writes
- * month-ends (the seed's balance snapshots are the only writer). If a future
- * writer snapshots on arbitrary dates, a mid-month point would render
- * "month-end balance on Jul 15" — the sentence must then be parameterized by
- * what the writer actually wrote. No reachable state violates it today.
+ * The LIVE "today" point is built from every account's current balance and must
+ * always use `netWorthLiveBasis` — a live point on a month-end date is still a
+ * live point (manual items included). Every OTHER point is built from the
+ * snapshots the app held for its date, and `netWorthPointBasis` derives the
+ * sentence from the DATE ITSELF: a true month-end reads "month-end balance",
+ * and a snapshot dated mid-month (the seed's `back === 0` row is dated `asOf`,
+ * so `npx prisma db seed -- --asOf 2026-05-15` with `DEMO_TODAY` still
+ * 2026-06-10 produces exactly one) reads "balance on" — never "month-end" over
+ * a date that is not one (O.20f P2-g; the KNOWN COUPLING this replaces held
+ * only by the coincidence that every snapshot writer wrote month-ends).
  */
+import { type ISODate, formatISODate, isMonthEnd } from '@/lib/dates';
 import { type Cents, formatCents } from '@/lib/money';
 
-export function netWorthMonthEndBasis(
+export function netWorthPointBasis(
   figureCents: Cents,
-  dateLabel: string,
+  date: ISODate,
 ): readonly [string, ...string[]] {
+  const dateLabel = formatISODate(date);
+  const monthEnd = isMonthEnd(date);
   return [
-    `The ${formatCents(figureCents)} is the sum of every account's month-end balance on ${dateLabel} — assets minus liabilities.`,
+    `The ${formatCents(figureCents)} is the sum of every account's ${monthEnd ? 'month-end ' : ''}balance on ${dateLabel} — assets minus liabilities.`,
     `It is built from the snapshots the app held for that date; an account with no snapshot then is not in it.`,
   ];
 }

@@ -11,10 +11,14 @@
  * TOUCH-PRIMARY DEVICES ONLY (`@media (pointer: coarse)`), leaving desktop
  * compact.
  *
- * This spec locks that floor two ways, so a future edit that drops the token or
+ * This spec locks that floor three ways, so a future edit that drops the token or
  * the coarse-pointer rule fails here:
  *   • the shadcn <Button> primitive (demo-sign-in on the public /sign-in page),
- *   • a hand-rolled control carrying `.tap-target` (the /accounts add buttons).
+ *   • a hand-rolled control carrying `.tap-target` (the /accounts add buttons),
+ *   • every O.20d drill-down control (O.20f): the creep bars, the net-worth
+ *     chips, the forecast day chips, the allocation legend entries, and the
+ *     retirement year bars — the critic's "none of the five O.20d controls
+ *     carries the floor" P1, enumerated so the gate sees the next one too.
  *
  * It runs under the mobile-380 project (Pixel 5 — isMobile/hasTouch, so the
  * browser reports `pointer: coarse` and the floor is live). If this ever fails
@@ -57,4 +61,62 @@ test('hand-rolled /accounts controls meet the 44px tap-target floor', async ({ p
   // <button>s carrying `.tap-target` — they lock the utility, not the primitive.
   await expectTapFloor(page.getByTestId('add-asset-btn'), '/accounts Add asset');
   await expectTapFloor(page.getByTestId('add-liability-btn'), '/accounts Add liability');
+});
+
+// O.20f — the five O.20d drill-down controls (demo-seeded, the only fixture
+// with the history these charts are drawn from; same sign-in as o20d-bars).
+// Each measures the FIRST control of its kind; a regression that drops the
+// token from one surface fails that surface's test by name.
+test('O.20d: the /coach creep bars meet the 44px tap-target floor', async ({ page }) => {
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+  await page.goto('/coach');
+  await expectTapFloor(
+    page.getByTestId('creep-card').locator('[data-testid^="creep-bar-"]').first(),
+    'creep bar (the whole 56px column is the target)',
+  );
+});
+
+test('O.20d: the net-worth point chips meet the 44px tap-target floor', async ({ page }) => {
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+  await expectTapFloor(
+    page.getByTestId('net-worth-points').locator('[data-testid^="net-worth-point-"]').first(),
+    'net-worth point chip',
+  );
+});
+
+test('O.20d: the forecast day chips meet the 44px tap-target floor', async ({ page }) => {
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+  await page.goto('/forecast');
+  await expectTapFloor(
+    page.getByTestId('forecast-flow-days').locator('[data-testid^="forecast-day-chip-"]').first(),
+    'forecast day chip',
+  );
+});
+
+test('O.20d: the allocation legend entries meet the 44px tap-target floor', async ({ page }) => {
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+  await page.goto('/investments');
+  await expectTapFloor(
+    page.getByTestId('investments-allocation').locator('[data-testid^="allocation-segment-"]').first(),
+    'allocation legend entry',
+  );
+});
+
+test('O.20d: the retirement year bars meet the 44px tap-target floor', async ({ page }) => {
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+  await page.goto('/investments');
+  await expectTapFloor(
+    page.getByTestId('retirement-outlook').locator('[data-testid^="retirement-bar-"]').first(),
+    'retirement year bar',
+  );
 });

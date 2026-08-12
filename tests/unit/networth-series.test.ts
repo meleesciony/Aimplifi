@@ -37,11 +37,13 @@ describe('netWorthSeries (DECISIONS #40)', () => {
       {
         date: '2026-06-10',
         netWorthCents: 500_250_00,
-        // Live point: EVERY account, manual items included, signed.
+        // Live point: EVERY account, manual items included, signed, sorted by
+        // name (O.20f P2-c: "Apr 30" and "Today" panels list the same accounts
+        // in the SAME sequence — Checking, Home, Venture here).
         constituents: [
           { accountId: 'chk', name: 'Checking', balanceCents: 300_00 },
-          { accountId: 'card', name: 'Venture', balanceCents: -50_00 },
           { accountId: 'home', name: 'Home', balanceCents: 500_000_00 },
+          { accountId: 'card', name: 'Venture', balanceCents: -50_00 },
         ],
       },
     ]);
@@ -72,7 +74,8 @@ describe('netWorthSeries (DECISIONS #40)', () => {
     expect(series).toHaveLength(1);
     expect(series[0].netWorthCents).toBe(500_250_00); // current, not the 1.00 snapshot
     // The snapshot would have contributed {chk: 1.00}; the live point replaced it wholesale.
-    expect(series[0].constituents.map((c) => c.accountId)).toEqual(['chk', 'card', 'home']);
+    // Name-sorted (O.20f P2-c): Checking < Home < Venture.
+    expect(series[0].constituents.map((c) => c.accountId)).toEqual(['chk', 'home', 'card']);
     expect(series[0].constituents.find((c) => c.accountId === 'chk')!.balanceCents).toBe(300_00);
   });
 

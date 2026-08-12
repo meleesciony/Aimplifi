@@ -46,6 +46,11 @@ export function daysInMonth(year: number, month: number): number {
   return lengths[month - 1];
 }
 
+/** True when `date` is the last day of its month (2026-02-28 on a non-leap year). */
+export function isMonthEnd(date: ISODate): boolean {
+  return +date.slice(8, 10) === daysInMonth(+date.slice(0, 4), +date.slice(5, 7));
+}
+
 function parts(d: ISODate): { y: number; m: number; d: number } {
   return { y: +d.slice(0, 4), m: +d.slice(5, 7), d: +d.slice(8, 10) };
 }

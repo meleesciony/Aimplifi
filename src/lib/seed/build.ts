@@ -573,7 +573,12 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
       const monthStart = addMonthsClamped(isoDate(`${asOf.slice(0, 7)}-01`), -back);
       const y = +monthStart.slice(0, 4);
       const mo = +monthStart.slice(5, 7);
-      // current month's snapshot is dated asOf (never a future month-end)
+      // current month's snapshot is dated asOf (never a future month-end), so a
+      // non-default invocation like `npx prisma db seed -- --asOf 2026-05-15`
+      // writes exactly ONE mid-month snapshot — the case
+      // `netWorthPointBasis`/`isMonthEnd` exists for (O.20f P2-g): the trend's
+      // point for that date must read "balance on Fri, May 15", never
+      // "month-end balance" over a date that is not one.
       const date =
         back === 0
           ? asOf

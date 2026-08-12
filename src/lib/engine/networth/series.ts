@@ -71,7 +71,14 @@ export function netWorthSeries(input: {
     .map(([date, constituents]) => ({
       date,
       netWorthCents: constituents.reduce((s, c) => s + c.balanceCents, 0),
-      constituents,
+      // Deterministic row order for every point, in every surface: the
+      // "Apr 30" and "Today" panels must list the same accounts in the SAME
+      // sequence so a reader comparing two points can follow a row across
+      // them. Database order is not that (O.20f P2-c). Σ is order-invariant,
+      // so sorting never moves a figure.
+      constituents: [...constituents].sort(
+        (a, b) => a.name.localeCompare(b.name) || a.accountId.localeCompare(b.accountId),
+      ),
     }))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
 }

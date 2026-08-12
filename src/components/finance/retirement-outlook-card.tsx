@@ -35,6 +35,7 @@ import {
   setRetirement,
 } from '@/lib/engine/investments/retirement-whatif';
 import { BreakdownPanel } from '@/components/finance/breakdown-panel';
+import { usePanelToggleFocus } from '@/components/finance/use-panel-toggle-focus';
 import type { RetirementOutlook } from '@/server/investments';
 import { CHART_POSITIVE, CHART_COMPARE } from '@/lib/ui/chart-colors';
 
@@ -110,6 +111,7 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
   // — a projection has no rows, and the panel says so instead of inventing any.
   const [selectedAge, setSelectedAge] = useState<number | null>(null);
   const selectedYear = selectedAge !== null ? p.yearlyBalances.find((y) => y.age === selectedAge) ?? null : null;
+  const { rememberOpener, restoreFocus } = usePanelToggleFocus();
 
   const rRange = retireRange(currentAge);
   const eRange = endRange(plan.retirementAge);
@@ -153,7 +155,12 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
             Every bar is a control (O.20d): it opens the refusal panel that says
             what a projection bar is made of — nothing transactional. */}
         <div
-          className="flex h-16 items-end gap-px"
+          // O.20f: up to 103 bars share this strip (~4.7px each at
+          // currentAge 18 / endAge 120) — a mis-tap returned the WRONG
+          // refusal on the WRONG bar. Bars are floored at 24px (WCAG 2.2 AA
+          // 2.5.8) and the strip scrolls horizontally past that; a 24×64px
+          // bar is still a target a finger can land on.
+          className="flex h-16 items-end gap-px overflow-x-auto"
           role="group"
           aria-label={`Projected portfolio balance from age ${currentAge} to ${plan.endAge}, starting at your current portfolio, peaking near ${money(peak)} — select a year to see what its bar is made of.`}
         >
@@ -175,8 +182,11 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
                 data-open={isOpen ? 'true' : 'false'}
                 aria-label={`Age ${y.age}: ${isCurrent ? 'current' : 'projected'} balance ${money(y.balanceCents)}. ${isOpen ? 'Hide' : offered}`}
                 aria-expanded={isOpen}
-                onClick={() => setSelectedAge(isOpen ? null : y.age)}
-                className="flex w-full cursor-pointer items-end focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                onClick={(e) => {
+                  rememberOpener(e);
+                  setSelectedAge(isOpen ? null : y.age);
+                }}
+                className="flex min-w-6 w-full cursor-pointer items-end focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 style={{ height: '64px' }}
               >
                 <span
@@ -238,6 +248,7 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
                 defaultOpen
                 onToggle={(o) => {
                   if (!o) setSelectedAge(null); // inner Hide clears the bar (critic P2-1)
+                  restoreFocus(o); // …and puts focus back on the bar (O.20f P2-d)
                 }}
               />
             );

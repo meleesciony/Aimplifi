@@ -19,12 +19,14 @@ import { useState } from 'react';
 import type { CreepResult } from '@/lib/engine/fi/insights';
 import { creepPanelBasis } from '@/lib/engine/fi/insights';
 import { BreakdownPanel } from '@/components/finance/breakdown-panel';
+import { usePanelToggleFocus } from '@/components/finance/use-panel-toggle-focus';
 import { monthRegisterHref } from '@/lib/engine/transactions/links';
 import { cents, formatCents } from '@/lib/money';
 import { formatMonth } from '@/lib/dates';
 
 export function LifestyleCreepChart({ creep }: { creep: CreepResult }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const { rememberOpener, restoreFocus } = usePanelToggleFocus();
   const months = creep.monthlyDiscretionaryCents;
   const max = Math.max(...months.map((m) => m.amountCents), 1);
   const selectedEntry = selected ? months.find((m) => m.month === selected) : undefined;
@@ -51,7 +53,10 @@ export function LifestyleCreepChart({ creep }: { creep: CreepResult }) {
               aria-label={`${label}: ${formatCents(m.amountCents)} of discretionary spending. Show the purchases behind it.`}
               aria-expanded={isOpen}
               title={`${label}: ${formatCents(m.amountCents)}`}
-              onClick={() => setSelected(isOpen ? null : m.month)}
+              onClick={(e) => {
+                rememberOpener(e);
+                setSelected(isOpen ? null : m.month);
+              }}
               className={`flex w-full cursor-pointer items-end justify-center rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${
                 isOpen ? 'ring-2 ring-ring ring-offset-1' : ''
               }`}
@@ -112,6 +117,7 @@ export function LifestyleCreepChart({ creep }: { creep: CreepResult }) {
             defaultOpen
             onToggle={(o) => {
               if (!o) setSelected(null); // inner Hide clears the bar (critic P2-1)
+              restoreFocus(o); // …and puts focus back on the bar (O.20f P2-d)
             }}
           />
         </div>

@@ -12,9 +12,10 @@ import {
   fromEpochDays,
   holidayTable,
   isBusinessDay,
-  monthKey,
   isLeapYear,
+  isMonthEnd,
   isWeekend,
+  monthKey,
   isoDate,
   nextDayOfMonth,
   previousBusinessDay,
@@ -50,6 +51,16 @@ describe('leap years and month lengths', () => {
     expect(daysInMonth(2024, 2)).toBe(29);
     expect(daysInMonth(2026, 6)).toBe(30);
     expect(daysInMonth(2026, 7)).toBe(31);
+  });
+  it('month ends (O.20f P2-g — the basis sentence decides on this)', () => {
+    expect(isMonthEnd(isoDate('2026-01-31'))).toBe(true);
+    expect(isMonthEnd(isoDate('2026-04-30'))).toBe(true); // 30-day month
+    expect(isMonthEnd(isoDate('2026-12-31'))).toBe(true);
+    expect(isMonthEnd(isoDate('2026-02-28'))).toBe(true); // non-leap February
+    expect(isMonthEnd(isoDate('2024-02-29'))).toBe(true); // leap February
+    expect(isMonthEnd(isoDate('2026-05-15'))).toBe(false); // mid-month
+    expect(isMonthEnd(isoDate('2026-06-10'))).toBe(false); // mid-month
+    expect(isMonthEnd(isoDate('2026-02-27'))).toBe(false); // day before a month end
   });
 });
 

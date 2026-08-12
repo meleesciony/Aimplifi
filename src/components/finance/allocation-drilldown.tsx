@@ -8,8 +8,14 @@
  * per-account positions the page renders: grouped by symbol, each carrying the
  * per-account rows summed in the same pass (Σ rows === segment value by
  * construction — the panel's "matched to the penny" sentence is a real check).
- * The bar drawn here is a picture of those segments; the legend and the panel
- * are the affordances.
+ *
+ * The bar drawn here is a PICTURE of those segments — the LEGEND entries are
+ * the affordances (O.20f): a segment's painted bar is its weight in the row,
+ * so a 2% position draws ~2px and a 2px-wide tap target is the affordance
+ * being missing in miniature (the demo's NVDA segment was a 34×10px target,
+ * and a portfolio priced at 0 drew every segment 0px — nothing tappable at
+ * all). The legend buttons carry the symbol, the swatch, the percent and the
+ * full 44px `.tap-target` floor; the bar stays a picture.
  *
  * Colors are stable by segment INDEX (first-appearance order, same as the
  * legend) — a reordering of the segments would repaint the bar and the legend
@@ -21,67 +27,73 @@ import { allocationPanelBasis, type AllocationSegment } from '@/lib/engine/inves
 import { cents } from '@/lib/money';
 import { BreakdownPanel } from '@/components/finance/breakdown-panel';
 import { CHART_SERIES } from '@/lib/ui/chart-colors';
+import { allocationPercent } from '@/components/finance/allocation-format';
+import { usePanelToggleFocus } from '@/components/finance/use-panel-toggle-focus';
 
 const ALLOC_COLORS = CHART_SERIES;
 
 export function AllocationDrilldown({ segments }: { segments: AllocationSegment[] }) {
   const [selected, setSelected] = useState<string | null>(null);
   const selectedSegment = segments.find((s) => s.symbol === selected) ?? null;
-  // Whole-percent when exact, one decimal otherwise — a sub-0.5% position must
-  // not announce "0% of the portfolio" (critic P2-5); matches the legend.
-  const pct = (w: number) => {
-    const v = w * 100;
-    return Number.isInteger(v) ? `${v}` : v.toFixed(1);
-  };
+  const { rememberOpener, restoreFocus } = usePanelToggleFocus();
+  const pct = (w: number) => allocationPercent(w);
 
   return (
-    <div>
+    <div data-testid="investments-allocation">
       <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         <PieChart className="size-3.5" aria-hidden /> Allocation
       </div>
+      {/* The picture: the legend below carries the labels AND the controls
+          (O.20f) — a segment painted to its weight is rarely finger-sized. */}
       <div
         className="mt-1.5 flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
-        role="group"
-        aria-label="Portfolio allocation by symbol — select a segment to see the accounts holding it"
-        data-testid="investments-allocation"
+        role="img"
+        aria-label={`Portfolio allocation by symbol: ${segments
+          .map((s) => `${s.symbol} ${pct(s.weight)}%`)
+          .join(', ')}`}
+        data-testid="investments-allocation-bar"
       >
+        {segments.map((s, i) => (
+          <span
+            key={s.symbol}
+            className={`block h-full ${i === 0 ? 'rounded-l-full' : i === segments.length - 1 ? 'rounded-r-full' : ''}`}
+            style={{ width: `${Math.max(0, s.weight * 100)}%`, background: ALLOC_COLORS[i % ALLOC_COLORS.length] }}
+            aria-hidden
+          />
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
         {segments.map((s, i) => {
           const isOpen = selected === s.symbol;
+          const pctLabel = `${s.symbol} ${pct(s.weight)}%`;
           return (
             <button
               key={s.symbol}
               type="button"
               data-testid={`allocation-segment-${s.symbol}`}
               data-open={isOpen ? 'true' : 'false'}
-              aria-label={`${s.symbol}: ${pct(s.weight)}% of the portfolio. Show the accounts holding it.`}
+              // The visible text is a PREFIX of the accessible name (WCAG 2.5.3).
+              aria-label={`${pctLabel} of the portfolio. Show the accounts holding it.`}
               aria-expanded={isOpen}
-              onClick={() => setSelected(isOpen ? null : s.symbol)}
-              className="cursor-pointer overflow-hidden rounded-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring first:rounded-l-full last:rounded-r-full"
-              style={{ width: `${Math.max(0, s.weight * 100)}%` }}
+              onClick={(e) => {
+                rememberOpener(e);
+                setSelected(isOpen ? null : s.symbol);
+              }}
+              className={`tap-target inline-flex items-center gap-1 rounded-full border px-2.5 py-1 transition hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                isOpen
+                  ? 'border-ring bg-accent font-medium text-foreground'
+                  : 'border-border text-muted-foreground'
+              }`}
             >
-              {/* The whole segment is the hit target, not just this painted
-                  bar: a 2% position draws ~2px, and a 2px tap target is the
-                  affordance being missing again in a smaller way. */}
               <span
-                className={`block h-full w-full ${isOpen ? '' : 'opacity-80'}`}
+                className="size-2 rounded-full"
                 style={{ background: ALLOC_COLORS[i % ALLOC_COLORS.length] }}
                 aria-hidden
               />
+              {pctLabel}
             </button>
           );
         })}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        {segments.map((s, i) => (
-          <span key={s.symbol} className="inline-flex items-center gap-1">
-            <span
-              className="size-2 rounded-full"
-              style={{ background: ALLOC_COLORS[i % ALLOC_COLORS.length] }}
-              aria-hidden
-            />
-            {s.symbol} {pct(s.weight)}%
-          </span>
-        ))}
       </div>
 
       {selectedSegment && (
@@ -118,6 +130,7 @@ export function AllocationDrilldown({ segments }: { segments: AllocationSegment[
           rowNoun="account"
           onToggle={(o) => {
             if (!o) setSelected(null); // inner Hide clears the segment (critic P2-1)
+            restoreFocus(o); // …and puts focus back on the legend button (O.20f P2-d)
           }}
         />
       )}

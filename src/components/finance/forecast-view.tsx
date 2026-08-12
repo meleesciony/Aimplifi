@@ -13,6 +13,7 @@ import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { forecastDayBasis } from '@/lib/engine/forecast/panel';
 import { BreakdownPanel } from '@/components/finance/breakdown-panel';
+import { usePanelToggleFocus } from '@/components/finance/use-panel-toggle-focus';
 import type { CashFlowForecastData } from '@/server/forecast';
 import { CHART_POSITIVE, CHART_NEGATIVE } from '@/lib/ui/chart-colors';
 
@@ -30,6 +31,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
   const flowDays = f.days.filter((d) => d.events.length > 0);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const selectedDayData = selectedDay ? f.days.find((d) => d.date === selectedDay) ?? null : null;
+  const { rememberOpener, restoreFocus } = usePanelToggleFocus();
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -159,8 +161,11 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
                     data-open={isOpen ? 'true' : 'false'}
                     aria-label={`${label}: ${d.events.length} scheduled flow${d.events.length === 1 ? '' : 's'}. Show them.`}
                     aria-expanded={isOpen}
-                    onClick={() => setSelectedDay(isOpen ? null : d.date)}
-                    className={`rounded-full border px-2.5 py-1 text-xs transition hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 ${
+                    onClick={(e) => {
+                      rememberOpener(e);
+                      setSelectedDay(isOpen ? null : d.date);
+                    }}
+                    className={`tap-target rounded-full border px-2.5 py-1 text-xs transition hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 ${
                       isOpen
                         ? 'border-ring bg-accent font-medium text-foreground'
                         : 'border-border text-muted-foreground'
@@ -214,6 +219,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
             rowNoun="flow"
             onToggle={(o) => {
               if (!o) setSelectedDay(null); // inner Hide clears the chip (critic P2-1)
+              restoreFocus(o); // …and puts focus back on the chip (O.20f P2-d)
             }}
           />
         )}

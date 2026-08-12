@@ -73,6 +73,9 @@ test('a creep bar opens the discretionary purchases that month was summed from',
   // panel's toggle is its SIBLING, outside the region.)
   await page.getByTestId(`creep-bar-toggle-${month}`).click();
   await expect(first).toHaveAttribute('aria-expanded', 'false');
+  // …and the Hide unmounts the panel the toggle lives in, so focus must land
+  // back on the bar — not <body>, which a keyboard user cannot see (O.20f P2-d).
+  await expect(first).toBeFocused();
 
   // It is a toggle, not a one-way door: the bar re-opens it…
   await first.click();
@@ -128,6 +131,12 @@ test('a net-worth point chip opens the account constituents it was summed from',
   const livePanel = page.getByTestId(`net-worth-constituents-panel-${(await today.getAttribute('data-testid'))!.replace('net-worth-point-', '')}`);
   await expect(livePanel).toBeVisible();
   await expect(livePanel).toContainText('live balance');
+
+  // Inner Hide: focus returns to the chip that opened it (O.20f P2-d).
+  const liveDate = (await today.getAttribute('data-testid'))!.replace('net-worth-point-', '');
+  await page.getByTestId(`net-worth-constituents-toggle-${liveDate}`).click();
+  await expect(livePanel).toHaveCount(0);
+  await expect(today).toBeFocused();
 });
 
 test('the /accounts net-worth trend opens the same drilldown (second surface)', async ({ page }) => {
@@ -165,6 +174,12 @@ test('a forecast day chip opens the scheduled flows that move the line that day'
   // day's CHANGE, never the balance shown on the chart.
   await expect(panel).toContainText('cumulative');
   await expect(panel).toContainText('never add up to the balance');
+
+  // Inner Hide: focus returns to the chip that opened it (O.20f P2-d).
+  const day = (await chips.first().getAttribute('data-testid'))!.replace('forecast-day-chip-', '');
+  await page.getByTestId(`forecast-day-toggle-${day}`).click();
+  await expect(panel).toHaveCount(0);
+  await expect(chips.first()).toBeFocused();
 });
 
 test('an allocation segment opens the accounts holding that symbol', async ({ page }) => {
@@ -188,6 +203,12 @@ test('an allocation segment opens the accounts holding that symbol', async ({ pa
   // The rows are ACCOUNTS, not transactions — the region must not call them
   // that (critic P1-2).
   await expect(panel).toHaveAttribute('aria-label', /^Accounts in/);
+
+  // Inner Hide: focus returns to the legend entry that opened it (O.20f P2-d).
+  const symbol = (await segments.first().getAttribute('data-testid'))!.replace('allocation-segment-', '');
+  await page.getByTestId(`allocation-toggle-${symbol}`).click();
+  await expect(panel).toHaveCount(0);
+  await expect(segments.first()).toBeFocused();
 });
 
 test('a retirement year bar opens the refusal panel — a projection has no rows', async ({ page }) => {
@@ -228,4 +249,9 @@ test('a retirement year bar opens the refusal panel — a projection has no rows
   );
   await expect(projectionPanel).toContainText('Assumes you’re 40 today');
   await expect(projectionPanel).toContainText('in today’s dollars');
+
+  // Inner Hide: focus returns to the bar that opened it (O.20f P2-d).
+  await page.getByTestId('retirement-bar-toggle-65').click();
+  await expect(projectionPanel).toHaveCount(0);
+  await expect(page.getByTestId('retirement-bar-65')).toBeFocused();
 });
