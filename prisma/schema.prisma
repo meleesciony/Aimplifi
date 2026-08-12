@@ -689,7 +689,26 @@ model BalanceSnapshot {
   id           String @id @default(cuid())
   accountId    String
   date         String // YYYY-MM-DD — the day the balance was read, not a month end
-  balanceCents Int // stored positive, like Account.currentBalanceCents
+  balanceCents Int // a copy of Account.currentBalanceCents: the MAGNITUDE owed/held,
+  // normally positive, and `accountType` decides the net-worth sign. Not guaranteed
+  // positive — SimpleFIN abs()es a liability (simplefin-map.ts) but Plaid keeps its
+  // own sign (plaid-map.ts: negative for an overpaid card or an overdrawn account),
+  // so a row's sign is NOT a substitute for knowing its class.
+  accountType String? // the account's `type` AS OBSERVED on `date` (TASKS U.6).
+  // Both providers rewrite Account.type on every ordinary sync (see
+  // reconcile-boundary.ts), so signing a stored row by the account's CURRENT type
+  // let one reclassification across the asset/liability line retroactively flip
+  // the sign of every past point. The row records the class it was read under;
+  // `isLiabilityType` — still the single sign author — is applied to THIS value.
+  // NULL = written before U.6 shipped, the only rows for which readers fall back
+  // to the account's current type (the pre-U.6 behaviour).
+  //
+  // These are deliberately NOT backfilled. A backfill could only copy the class
+  // the account carries TODAY, and every surface renders a non-null value as an
+  // OBSERVATION ("recorded as checking") — so filling them would launder a guess
+  // into a record, and for a row whose account was reclassified BEFORE U.6 it
+  // would stamp the wrong class permanently and unmarkably. The NULL is the only
+  // evidence the app has that it does not know, and the panel says so.
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 

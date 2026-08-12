@@ -444,3 +444,4 @@ refuses to write if it would drop any number this file already carries.
 - **#448** (Phase ?): O.20b: the /reports payload measured — the rows are the feature, the dashboard was the only dead weight, and both "fixes" the row offered were falsified (2026-08-11)
 - **#449** (Phase ?): U.3: account clicks land somewhere true — the mortgage dead-end, its whole class, and one critic cycle (2026-08-11)
 - **#450** (Phase ?): U.4: a live account gets balance history, and the shape of that history is decided by what reads it (2026-08-12)
+- **#451** (Phase ?): U.6: a recorded balance keeps the class it was read under, and the guess we chose not to write down (2026-08-12)

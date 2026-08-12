@@ -253,4 +253,13 @@ describe('net worth (EDGE_CASES §Seed-headline)', () => {
       expect(seed.snapshots.filter((s) => s.accountId === a.id)).toHaveLength(18);
     }
   });
+  it('every snapshot records the class it was taken under, matching its account (U.6)', () => {
+    // The golden dataset writes the same complete row the live writer does — a
+    // seeded null would be read as "recorded before U.6" and signed by whatever
+    // the account is at read time, which is the defect U.6 closed.
+    const typeById = new Map(seed.accounts.map((a) => [a.id, a.type]));
+    for (const s of seed.snapshots) {
+      expect(s.accountType).toBe(typeById.get(s.accountId));
+    }
+  });
 });

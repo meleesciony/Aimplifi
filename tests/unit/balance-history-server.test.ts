@@ -82,7 +82,7 @@ describe('recordMonthlyBalanceSnapshot', () => {
 
     const rows = await prisma.balanceSnapshot.findMany({
       where: { account: { userId: USER } },
-      select: { accountId: true, date: true, balanceCents: true },
+      select: { accountId: true, date: true, balanceCents: true, accountType: true },
       orderBy: { balanceCents: 'asc' },
     });
     expect(rows).toHaveLength(3);
@@ -90,9 +90,39 @@ describe('recordMonthlyBalanceSnapshot', () => {
     expect(new Set(rows.map((r) => r.date))).toEqual(new Set([TODAY]));
     // Completeness: the manual mortgage and the frozen feed are both in it.
     expect(rows.map((r) => r.accountId).sort()).toEqual([chkId, frozenId, mortgageId].sort());
-    // Balances carried verbatim, stored positive like Account.currentBalanceCents.
+    // Balances carried verbatim, as Account.currentBalanceCents holds them.
     expect(rows.find((r) => r.accountId === mortgageId)?.balanceCents).toBe(31_500_000);
     expect(rows.find((r) => r.accountId === frozenId)?.balanceCents).toBe(1_200);
+    // U.6: the CLASS the balance was read under lands on the row. Without it the
+    // row is re-signed by whatever the account has become — and both providers
+    // rewrite `Account.type` on every ordinary sync.
+    expect(rows.find((r) => r.accountId === mortgageId)?.accountType).toBe('LOAN');
+    expect(rows.find((r) => r.accountId === chkId)?.accountType).toBe('CHECKING');
+    expect(rows.find((r) => r.accountId === frozenId)?.accountType).toBe('SAVINGS');
+    // No row may be written without one — a null here is indistinguishable from
+    // a pre-U.6 row, which readers deliberately sign by the current type.
+    expect(rows.every((r) => r.accountType !== null)).toBe(true);
+  });
+
+  it('records the type the account had THEN, so a later reclassification cannot reach the row', async () => {
+    // The month is already claimed above, so this is a fresh user: sync in one
+    // class, have the feed rewrite the account, and read the row back.
+    const user = `${USER}-flip`;
+    await prisma.user.create({ data: { id: user, email: `${user}@test.local` } });
+    const acct = await prisma.account.create({
+      data: { userId: user, provider: 'plaid', name: 'Reclassified', type: 'CHECKING', currentBalanceCents: 1_000_000 },
+    });
+    await recordMonthlyBalanceSnapshot(user);
+    // What every ordinary sync is documented to do (reconcile-boundary.ts).
+    await prisma.account.update({ where: { id: acct.id }, data: { type: 'CREDIT' } });
+
+    const row = await prisma.balanceSnapshot.findFirstOrThrow({
+      where: { accountId: acct.id },
+      select: { accountType: true, balanceCents: true },
+    });
+    expect(row.accountType).toBe('CHECKING'); // NOT the account's current 'CREDIT'
+    expect(row.balanceCents).toBe(1_000_000);
+    await prisma.user.deleteMany({ where: { id: user } });
   });
 
   it('is idempotent within the month — a second sync writes nothing', async () => {

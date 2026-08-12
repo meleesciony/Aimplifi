@@ -6,6 +6,35 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-12 — U.6: a recorded balance keeps the class it was read under (DECISIONS #451)
+
+**The defect (found by the U.4 critic, executed against the real engine):** `BalanceSnapshot` stored a balance magnitude, and whether it added to or subtracted from net worth was decided at READ time from the account's CURRENT `Account.type` — which this repo states in its own code that both providers rewrite on every ordinary sync. One reclassification across the asset/liability line rewrote the sign of every past point for that account, silently: one stored row of 1,000,000 renders `$10,000.00` as CHECKING and `−$10,000.00` as CREDIT.
+
+**Shipped:** `BalanceSnapshot.accountType` — the class the balance was read under — written by the planner and the live writer, and by the seed so the golden dataset carries the same complete row. `isLiabilityType` stays the single sign author, applied to THAT value rather than to what the account has since become, so a later correction to the classification rule still reaches history. `NetWorthConstituent` carries the class explicitly because a stored balance's SIGN cannot recover it: SimpleFIN `abs()`es a liability, Plaid keeps its own sign (negative for an overpaid card), and an overdrawn checking or margin account is a genuinely negative ASSET.
+
+**The slice owns a surface it created.** Pre-U.6 a reclassification re-signed both points of a comparison together — history was wrong, but the subtraction came out clean. With history pinned, two points covering the same accounts can be counted under different classes, and the delta would print 2× a balance as a month's earnings. `netWorthDelta` refuses and names it — but only when the change MOVES the figure, since the distorting term is exactly 2 × the previous balance and a paid-off card at $0.00 distorts nothing.
+
+**Critic cycle — two fresh-context critics (money/data-integrity and rendered claims): 3 P0 + 11 P1, all executed.**
+
+1. **The decision they reversed: no backfill.** The slice shipped a script to fill pre-U.6 NULL rows, verified on a scratch DB (36 filled, 0 remaining, idempotent). A critic proved it wrong through the real engine — a **$40,000.00 swing** — and named the property that settles it: an un-backfilled NULL row **self-heals** when a misclassification is corrected, because it is re-signed by the corrected type; a stamped row never can. Every surface renders a non-null value as an OBSERVATION, so filling it launders a guess into a record. Deleted, not fixed. (It also could not have run against Neon — the generated client is built from the sqlite schema — and with `DATABASE_URL` unset would have silently written to the local dev database while printing success.)
+2. **P0** — the panel's note claimed the trend "counts every balance the way it was recorded", an absolute the slice's own NULL fallback falsifies, rendered exactly where NULL rows are most likely mis-signed.
+3. **P0** — carried-forward rows were counted as balances that "were read", four lines beneath the note saying nothing had been read since a date.
+4. **P1** — "money you owned at the time" asserted a classification the app cannot validate (a re-classing feed may be CORRECTING itself), contradicted the panel's own top line, and pointed at a remedy that does not exist — there is no control anywhere to change an account's type.
+5. **P1** — a false refusal deleting a true +$2,000.00 delta over a $0.00 account changing sides.
+6. **P1** — the chart cliff nobody explained: both delta call sites compare only the last two points, so an earlier reclassification refuses nothing while the chart keeps a permanent step. The shared trend basis sentence now names it.
+7. **P1** — the fact was carried to the render and dropped: the drilldown mapped `label: c.name` and ignored `isLiability`, showing a credit card positive inside a sum called "assets minus liabilities".
+8. **P1** — `netWorthSeries`'s new field was optional, so a `select` could drop it and revert that surface with a green gate. Now required: a caller must SAY null.
+
+**Sabotage proofs (each reverted):** the pre-U.6 sign rule reddens 2 series locks; dropping the delta refusal reddens 2; repainting panel rows from the current class reddens 1; dropping the drilldown marker reddens 1.
+
+**Known residuals, split out:** **U.7** — a reconciled pair's collision winner now decides that date's sign (filed as a shape, unverified in practice). **U.8** — the detail panel never renders for CHECKING/SAVINGS/CREDIT accounts, the likelier reclassification targets, so their per-row explanation rides on the drilldown marker alone.
+
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,808 unit passed + 1 skipped / 415 files** / build clean.
+
+**Schema:** the `prisma/` diff is ONE nullable column plus comments, so the `prisma db push` the Vercel build runs against live Neon is additive and destroys nothing. Until a sync writes new rows, every existing row is NULL and reads byte-identically to pre-U.6.
+
+**Live proof, and what it cannot show:** U.6 deliberately changes nothing the demo can see — seeded types never move, so every demo figure and sentence is byte-identical. `scripts/u6-live-deploy-check.mjs` therefore proves the deployment is the U.6 build (the rewritten trend basis, asserted with the absence of the sentence it replaced) plus the half that must NOT move (the demo delta still reads `+$1,667.46 vs last month-end`, no refusal misfires). Run against production BEFORE deploying it returned 8/12 with the four discriminating checks failing — the fail-old proof that it can tell the builds apart. The reclassification behaviour itself is unreachable on the demo and is declared as four SKIPs, locked instead in the unit gate and in a real browser at 380px by `no-dead-ends.spec.ts`.
+
 ## ✅ BUILT 2026-08-12 — U.4: a live account gets balance history, and its shape is decided by what reads it (DECISIONS #450)
 
 **The gap U.3 left, honestly:** the /accounts detail panel read *"No balance history recorded"* for every real account, permanently, because **only `prisma/seed.ts` had ever written a `BalanceSnapshot` row** — no Plaid or SimpleFIN path did.

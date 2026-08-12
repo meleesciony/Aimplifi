@@ -17,6 +17,12 @@ export interface BalanceSnapshotLike {
   accountId: string;
   date: string;
   balanceCents: number;
+  /**
+   * The account's class when this balance was read (U.6) — what decides whether
+   * it adds to net worth or subtracts from it. Null on rows written before the
+   * column existed, the only ones a reader signs by the account's current type.
+   */
+  accountType: string | null;
 }
 
 /** Everything the engines need, in one consistent read. */

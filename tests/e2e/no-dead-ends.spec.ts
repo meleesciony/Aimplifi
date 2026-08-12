@@ -350,6 +350,18 @@ test('a hand-added mortgage — the app’s own advertised mortgage — opens it
     db.prepare(
       'INSERT INTO BalanceSnapshot (id, accountId, date, balanceCents) VALUES (?, ?, ?, ?)',
     ).run(`snap-e2e-${Date.now()}`, acct.id, '2026-05-01', 25_000_000);
+    // U.6, in the two shapes only a browser can show side by side on one panel:
+    //  - the row above carries NO `accountType` — a row written before that
+    //    column existed, signed by the account's current class (the pre-U.6
+    //    behaviour, kept only for rows recorded under it) and marked as nothing;
+    //  - this one was recorded while the account was a CHECKING account, so it
+    //    counts as money OWNED and must keep that sign next to a mortgage row.
+    // Hand-inserted deliberately: the live writer reads the account's type at
+    // write time, so it cannot produce a disagreeing pair — its own contract is
+    // locked against real Prisma in tests/unit/balance-history-server.test.ts.
+    db.prepare(
+      'INSERT INTO BalanceSnapshot (id, accountId, date, balanceCents, accountType) VALUES (?, ?, ?, ?, ?)',
+    ).run(`snap-e2e-flip-${Date.now()}`, acct.id, '2026-04-01', 9_900_00, 'CHECKING');
   } finally {
     db.close();
   }
@@ -365,6 +377,27 @@ test('a hand-added mortgage — the app’s own advertised mortgage — opens it
   // name is — a recorded mortgage is money owed, not an asset.
   await expect(filled).toContainText('Recorded balance history');
   await expect(filled).toContainText('−$250,000.00');
+  // U.6: the row recorded under a different class keeps ITS sign — positive, on
+  // a mortgage panel — and says why, on the row. Pre-U.6 the panel painted every
+  // row from the account's current type, so this would read −$9,900.00.
+  await expect(filled).toContainText('$9,900.00');
+  await expect(filled).not.toContainText('−$9,900.00');
+  await expect(filled.getByTestId('account-detail-reclassified')).toContainText('counted as checking');
+  // What the APP did, never what was true in the world — a feed that re-classes
+  // an account may be CORRECTING itself, so "you owned it then" would assert the
+  // very thing in doubt.
+  await expect(filled.getByTestId('account-detail-reclassified-note')).toContainText(
+    'while Aimplifi had this account classed differently',
+  );
+  await expect(filled.getByTestId('account-detail-reclassified-note')).toContainText(
+    'only your bank can say',
+  );
+  // The row above it carries NO recorded class, and the app must not assert it
+  // differed — but beside a known reclassification it must not be left to read
+  // as confirmed either.
+  await expect(filled.getByTestId('account-detail-unrecorded-class-note')).toContainText(
+    'predates',
+  );
 
   // Toggle closed again.
   await row.getByTestId('manual-account-open').click();

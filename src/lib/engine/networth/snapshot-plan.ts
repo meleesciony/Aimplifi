@@ -53,6 +53,22 @@
  * the shape the seed established. The month is claimed by the FIRST covered sync
  * in it: later syncs that month write nothing, so the recorded figure is always
  * one real observation rather than a running overwrite.
+ *
+ * ── Which class (U.6) ────────────────────────────────────────────────────────
+ * A balance is a magnitude; whether it ADDS to net worth or subtracts from it is
+ * the account's class, and this repo states in its own words that both providers
+ * rewrite `Account.type` on every ordinary sync (`reconcile-boundary.ts`). So the
+ * class travels ON the row: one reclassification across the asset/liability line
+ * would otherwise re-sign every balance already recorded for that account, and a
+ * $10,000 history reads `+$10,000.00` as CHECKING and `−$10,000.00` as CREDIT.
+ * Silently — nothing on either surface would say a past figure had moved.
+ *
+ * The row records the TYPE, not the derived sign. The sign rule (`isLiabilityType`)
+ * stays a single author applied at read: if that rule is ever CORRECTED — a type
+ * wrongly classed as an asset — the correction reaches history, which is what a
+ * bug fix should do. Pinning the sign instead would freeze the old bug into every
+ * stored row. What must not change under the app's feet is the observed fact; the
+ * classification of that fact is the app's own rule to get right.
  */
 import { type ISODate, addMonthsToMonthKey, monthKey } from '@/lib/dates';
 
@@ -77,14 +93,22 @@ export function trendHistoryFloor(today: ISODate): string {
 
 export interface SnapshotPlanAccount {
   id: string;
-  /** Stored positive, exactly as `Account.currentBalanceCents` is; `type` decides the sign at read. */
+  /** A magnitude, exactly as `Account.currentBalanceCents` is; the CLASS decides the sign at read. */
   currentBalanceCents: number;
+  /**
+   * The account's type right now — recorded ONTO the row (U.6). Both providers
+   * rewrite `Account.type` on every ordinary sync, so a row that does not carry
+   * the class it was read under is re-signed by whatever the account has become.
+   */
+  type: string;
 }
 
 export interface PlannedBalanceSnapshot {
   accountId: string;
   date: ISODate;
   balanceCents: number;
+  /** The observed class, never re-derived later. See `SnapshotPlanAccount.type`. */
+  accountType: string;
 }
 
 export function planMonthlyBalanceSnapshots(input: {
@@ -106,5 +130,6 @@ export function planMonthlyBalanceSnapshots(input: {
     accountId: a.id,
     date: input.today,
     balanceCents: a.currentBalanceCents,
+    accountType: a.type,
   }));
 }

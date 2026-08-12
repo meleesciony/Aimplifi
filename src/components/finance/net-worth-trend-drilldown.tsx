@@ -48,6 +48,15 @@ export function NetWorthTrendDrilldown({
   const { rememberOpener, restoreFocus } = usePanelToggleFocus();
   const liveDate = points.length > 0 ? points[points.length - 1].date : null;
   const selectedPoint = points.find((p) => p.date === selected) ?? null;
+  // The live point is built from every account's CURRENT class (`netWorthSeries`
+  // says so in its own comment), so it is the current-class source already in
+  // this component's props — no new prop, no second query.
+  const currentClassById = new Map(
+    (points.length > 0 ? points[points.length - 1].constituents : []).map((c) => [
+      c.accountId,
+      c.isLiability,
+    ]),
+  );
   // The strip is the tap affordance for the RECENT trend; older points stay on
   // the chart. `slice(-N)` keeps the live point last by construction.
   const shown = points.slice(-CHIP_WINDOW);
@@ -106,7 +115,19 @@ export function NetWorthTrendDrilldown({
               key: `${c.accountId}:${i}`,
               transactionId: null,
               date: selectedPoint.date,
-              label: c.name,
+              // U.6: a point counts each account as the class it was RECORDED
+              // under, so a reclassified account appears here with the opposite
+              // sign to the one it has today — a credit card rendered positive
+              // inside a sum the basis sentence calls "assets minus
+              // liabilities". The live point (always last) carries every
+              // account's current class, so the disagreement is nameable
+              // without a new prop, and the fact rides the row that carries the
+              // money rather than a sentence below the list.
+              label:
+                currentClassById.get(c.accountId) !== undefined &&
+                currentClassById.get(c.accountId) !== c.isLiability
+                  ? `${c.name} · counted here as money you ${c.isLiability ? 'owed' : 'owned'}`
+                  : c.name,
               rawDescriptor: null,
               amountCents: cents(c.balanceCents),
               isPending: false,

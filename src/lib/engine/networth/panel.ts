@@ -59,6 +59,15 @@ export function netWorthPointBasis(
  * smaller number — it is the absence of one, WITH its reason named
  * (a-zero-is-a-claim: never a silent suppression).
  *
+ * U.6 added the SECOND way two points can fail to be comparable: the same set of
+ * accounts, counted under different classes. Before it, a reclassification
+ * re-signed both points together — history was wrong but the delta between two
+ * equally-wrong points still subtracted cleanly. Now each row keeps the class it
+ * was read under, so the two points really do disagree, and subtracting them
+ * would report 2× a balance as earnings. Same rule, one level down: a difference
+ * is a change in wealth only when both points count the same accounts AND count
+ * them the same way.
+ *
  * The comparable branch's words still come from the date, the same rule
  * `netWorthPointBasis` applies above: "vs last month-end" is claimed only for a
  * point that IS a month-end AND is the month immediately before this one, since
@@ -76,7 +85,9 @@ export interface NetWorthDeltaView {
 interface DeltaPointLike {
   date: string;
   netWorthCents: number;
-  constituents: readonly { accountId: string }[];
+  /** `balanceCents` is read only to tell a class change that MOVES the figure
+   *  from one that cannot (a $0.00 account changing sides). */
+  constituents: readonly { accountId: string; isLiability: boolean; balanceCents: number }[];
 }
 
 export function netWorthDelta(
@@ -89,16 +100,70 @@ export function netWorthDelta(
   const left = [...before].filter((id) => !after.has(id)).length;
   const when = formatISODate(isoDate(previous.date), 'long');
 
+  // Computed before the set branch so a point that changed BOTH ways can say so:
+  // "1 account joined" sends the reader to their account list, where they find
+  // the new account and stop — a complete-looking answer to half the question.
+  // (Ids present in both points only; a joined/left account has no counterpart
+  // to disagree with.)
+  const previousById = new Map(previous.constituents.map((c) => [c.accountId, c]));
+  // DISTINCT accounts, like the joined/left checks above, which use Sets — the
+  // engine blesses two same-account constituents on one date, so counting an
+  // array here would disagree with the branch directly above it.
+  const movedIds = new Set(
+    current.constituents
+      .filter((c) => {
+        const before = previousById.get(c.accountId);
+        if (before === undefined || before.isLiability === c.isLiability) return false;
+        // A class change only DISTORTS the subtraction through the previous
+        // point's contribution: had the class been stable, that term would have
+        // carried the current sign, so the spurious amount is exactly 2× the
+        // previous balance. At $0.00 it is 2 × 0. Refusing there would delete a
+        // true figure over a paid-off card or a closed account the feed moved —
+        // routine events, and a false refusal is as much a defect as a false
+        // number.
+        return before.balanceCents !== 0;
+      })
+      .map((c) => c.accountId),
+  );
+  const reclassified = movedIds.size;
+  // One clause, reused by both branches: the reader needs the same words for the
+  // same event whether or not the account set moved too.
+  const movedClause =
+    reclassified === 1
+      ? 'one account moved between the things you own and the things you owe'
+      : `${reclassified} accounts moved between the things you own and the things you owe`;
+
   if (joined > 0 || left > 0) {
     const plural = (n: number) => (n === 1 ? 'account' : 'accounts');
+    const setClause =
+      joined > 0 && left > 0
+        ? 'the accounts counted have changed'
+        : joined > 0
+          ? `${joined} ${plural(joined)} joined`
+          : `${left} ${plural(left)} left`;
     return {
       deltaCents: null,
-      label:
-        joined > 0 && left > 0
-          ? `No comparison — the accounts counted have changed since ${when}.`
-          : joined > 0
-            ? `No comparison — ${joined} ${plural(joined)} joined since ${when}.`
-            : `No comparison — ${left} ${plural(left)} left since ${when}.`,
+      label: `No comparison — ${setClause} since ${when}${reclassified > 0 ? `, and ${movedClause}` : ''}.`,
+    };
+  }
+
+  // Same accounts, counted the other way round: an account that was a liability
+  // on one of these dates and an asset on the other (U.6 — the providers rewrite
+  // `Account.type`, and the row now keeps the class it was read under, so the two
+  // points genuinely disagree instead of both being rewritten together). The
+  // subtraction would print 2× that balance as a change in wealth on a month
+  // where nothing was earned, spent or paid — the same lie as a changed account
+  // SET, one level down: a set can match while the measurement does not.
+  //
+  // The sentence leads with the DATE and spells the move out, because the reader
+  // has no other way to find the account: /accounts groups by an account's
+  // CURRENT class, so the one that moved sits among its new neighbours looking
+  // ordinary. The three siblings above can be resolved from the account list;
+  // this one cannot, so it says where to look.
+  if (reclassified > 0) {
+    return {
+      deltaCents: null,
+      label: `No comparison — since ${when} ${movedClause}, so the two dates are not measuring the same thing. Open that account on Accounts to see which balances were counted which way.`,
     };
   }
 
@@ -115,6 +180,15 @@ export function netWorthDelta(
 /**
  * What the trend chart is made of, stated once for both surfaces that draw it.
  *
+ * U.6 is why the second sentence exists. The rule above names ONE reason a point
+ * can differ from what a reader expects (an account the app had no balance for),
+ * and U.6 created a second: a point before a reclassification is drawn on the
+ * opposite side from a point after it, which on the chart is a cliff of twice the
+ * balance with no transaction behind it. `netWorthDelta` only ever compares the
+ * LAST two points (both call sites), so a move further back refuses nothing and
+ * the chart is the only thing that speaks. Opening a gap grows the disclosure
+ * that enumerates them — the inverse of the closing-a-gap lesson below.
+ *
  * A POSITIVE admission rule, not a list of exclusions
  * (docs/lessons/closing-a-gap-shrinks-the-disclosure-that-described-it.md): it
  * says what IS in a point, so every account the app cannot put there — one
@@ -124,7 +198,7 @@ export function netWorthDelta(
  * asserted a SHAPE that U.4 ended and a COMPLETENESS that was never true.
  */
 export const NET_WORTH_TREND_BASIS =
-  'Each point is the balances the app had recorded on that date — an account it had no balance for then is not in it. Today’s point is your live balances.';
+  'Each point is the balances the app had recorded on that date, counted as what each account was classed as then — an account it had no balance for then is not in it. If an account moves between what you own and what you owe, points before and after that move are drawn on opposite sides. Today’s point is your live balances.';
 
 export function netWorthLiveBasis(figureCents: Cents): readonly [string, ...string[]] {
   return [

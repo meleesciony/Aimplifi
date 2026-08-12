@@ -21,11 +21,11 @@ import { planMonthlyBalanceSnapshots, trendHistoryFloor } from '@/lib/engine/net
 const TODAY = isoDate('2026-06-10');
 
 const ACCOUNTS = [
-  { id: 'chk', currentBalanceCents: 250_000 },
-  { id: 'card', currentBalanceCents: 84_231 },
-  { id: 'mortgage-manual', currentBalanceCents: 31_500_000 },
-  { id: 'frozen-feed', currentBalanceCents: 1_200 },
-  { id: 'zero', currentBalanceCents: 0 },
+  { id: 'chk', currentBalanceCents: 250_000, type: 'CHECKING' },
+  { id: 'card', currentBalanceCents: 84_231, type: 'CREDIT' },
+  { id: 'mortgage-manual', currentBalanceCents: 31_500_000, type: 'MORTGAGE' },
+  { id: 'frozen-feed', currentBalanceCents: 1_200, type: 'SAVINGS' },
+  { id: 'zero', currentBalanceCents: 0, type: 'CHECKING' },
 ];
 
 describe('planMonthlyBalanceSnapshots — completeness', () => {
@@ -137,7 +137,9 @@ describe('planMonthlyBalanceSnapshots × reconciliation boundary', () => {
   const SUCC = { id: 'succ', name: 'Succ', type: 'CHECKING', currentBalanceCents: 250_000 };
   const LINK = { predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-05-31' };
 
-  function pointOn(snapshots: { accountId: string; date: string; balanceCents: number }[]) {
+  function pointOn(
+    snapshots: { accountId: string; date: string; balanceCents: number; accountType: string | null }[],
+  ) {
     const out = applyReconciliationBoundary({
       paymentAccountId: null,
       accounts: [PRED, SUCC],
@@ -170,8 +172,8 @@ describe('planMonthlyBalanceSnapshots × reconciliation boundary', () => {
     // The same two accounts, planned as two provider syncs would have stamped
     // them — one day apart. No collision, so the boundary cannot fire.
     const split = [
-      { accountId: 'pred', date: '2026-06-09', balanceCents: 240_000 },
-      { accountId: 'succ', date: TODAY as string, balanceCents: 250_000 },
+      { accountId: 'pred', date: '2026-06-09', balanceCents: 240_000, accountType: 'CHECKING' },
+      { accountId: 'succ', date: TODAY as string, balanceCents: 250_000, accountType: 'CHECKING' },
     ];
     const out = applyReconciliationBoundary({
       paymentAccountId: null,

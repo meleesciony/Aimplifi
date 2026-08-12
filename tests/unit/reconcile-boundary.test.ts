@@ -44,11 +44,11 @@ const TXNS = [
 ];
 
 const SNAPSHOTS = [
-  { accountId: 'pred', date: '2026-06-30', balanceCents: 240_000 }, // kept
-  { accountId: 'pred', date: '2026-07-31', balanceCents: 240_000 }, // dropped
-  { accountId: 'succ', date: '2026-06-30', balanceCents: 249_000 }, // dropped
-  { accountId: 'succ', date: '2026-07-31', balanceCents: 252_000 }, // kept
-  { accountId: 'other', date: '2026-06-30', balanceCents: 100_000 }, // kept
+  { accountId: 'pred', date: '2026-06-30', balanceCents: 240_000, accountType: 'CHECKING' }, // kept
+  { accountId: 'pred', date: '2026-07-31', balanceCents: 240_000, accountType: 'CHECKING' }, // dropped
+  { accountId: 'succ', date: '2026-06-30', balanceCents: 249_000, accountType: 'CHECKING' }, // dropped
+  { accountId: 'succ', date: '2026-07-31', balanceCents: 252_000, accountType: 'CHECKING' }, // kept
+  { accountId: 'other', date: '2026-06-30', balanceCents: 100_000, accountType: 'CHECKING' }, // kept
 ];
 
 // Slice 4 (R4/F6): statements are full-dropped for a predecessor; scheduled rows
@@ -128,10 +128,13 @@ describe('applyReconciliationBoundary — the money core', () => {
 
   it('balance snapshots obey the same half-open rule as transactions', () => {
     const out = apply([LINK]);
+    // The boundary FILTERS rows; it never rewrites one. So the recorded class
+    // (U.6) rides through untouched — which is what lets a surviving row keep
+    // signing itself by what it was read under.
     expect(out.balanceSnapshots).toEqual([
-      { accountId: 'pred', date: '2026-06-30', balanceCents: 240_000 },
-      { accountId: 'succ', date: '2026-07-31', balanceCents: 252_000 },
-      { accountId: 'other', date: '2026-06-30', balanceCents: 100_000 },
+      { accountId: 'pred', date: '2026-06-30', balanceCents: 240_000, accountType: 'CHECKING' },
+      { accountId: 'succ', date: '2026-07-31', balanceCents: 252_000, accountType: 'CHECKING' },
+      { accountId: 'other', date: '2026-06-30', balanceCents: 100_000, accountType: 'CHECKING' },
     ]);
   });
 
@@ -264,10 +267,10 @@ describe('applyReconciliationBoundary — the money core', () => {
       accounts: ACCOUNTS,
       transactions: [],
       balanceSnapshots: [
-        { accountId: 'pred', date: '2026-05-31', balanceCents: 238_000 },
-        { accountId: 'pred', date: '2026-06-30', balanceCents: 240_000 }, // AFTER cutover 06-25, no succ copy → kept
-        { accountId: 'succ', date: '2026-04-30', balanceCents: 230_000 }, // deep backfill, no pred copy → kept
-        { accountId: 'succ', date: '2026-07-31', balanceCents: 252_000 },
+        { accountId: 'pred', date: '2026-05-31', balanceCents: 238_000, accountType: 'CHECKING' },
+        { accountId: 'pred', date: '2026-06-30', balanceCents: 240_000, accountType: 'CHECKING' }, // AFTER cutover 06-25, no succ copy → kept
+        { accountId: 'succ', date: '2026-04-30', balanceCents: 230_000, accountType: 'CHECKING' }, // deep backfill, no pred copy → kept
+        { accountId: 'succ', date: '2026-07-31', balanceCents: 252_000, accountType: 'CHECKING' },
       ],
       statements: [],
       scheduled: [],

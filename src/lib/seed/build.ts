@@ -120,6 +120,13 @@ export interface SeedSnapshot {
   accountId: string;
   date: ISODate;
   balanceCents: number;
+  /**
+   * The class the balance was recorded under (U.6). The demo's account types
+   * never change, so this is the account's own type on every row and no figure
+   * moves — but the seed is the dataset every known-answer test reads, so it
+   * writes the same complete row the live writer does.
+   */
+  accountType: string;
 }
 
 export interface SeedHolding {
@@ -591,6 +598,7 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
         accountId: acct.id,
         date,
         balanceCents: Math.max(0, Math.round(base + noise)),
+        accountType: acct.type,
       });
     }
   }

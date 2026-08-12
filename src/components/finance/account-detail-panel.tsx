@@ -29,7 +29,7 @@
 import { cents, formatCents } from '@/lib/money';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { accountTypeLabel } from '@/lib/engine/account/type-label';
-import type { AccountView } from '@/lib/engine/transactions/query';
+import { isLiabilityType, type AccountView } from '@/lib/engine/transactions/query';
 import type { AccountDetailView } from '@/server/transactions';
 
 export function AccountDetailPanel({
@@ -49,11 +49,41 @@ export function AccountDetailPanel({
   // Newest first: the reader's question is "where is it NOW and how has it
   // moved" — and the full recorded set renders (scroll past ten), never a
   // silently-capped slice (the O.20f no-silent-caps rule).
-  const history = [...detail.history].reverse();
+  //
+  // Each row is signed by the class IT was recorded under (U.6), never by what
+  // the account is today: the providers rewrite `Account.type` on every ordinary
+  // sync, and the trend on this same page counts these rows the same way. A row
+  // written before that column existed (`accountType: null`) has nothing better
+  // than the account's current class — the behaviour that shipped before.
   // A row dated after the feed stopped sharing the account is the last balance
   // the bank sent, repeated — not a reading taken that day.
   const dropped = detail.feedDroppedAt;
-  const carriedCount = dropped === null ? 0 : history.filter((h) => h.date > dropped).length;
+  const history = [...detail.history].reverse().map((h) => ({
+    ...h,
+    rowIsLiability: h.accountType === null ? isLiability : isLiabilityType(h.accountType),
+    carriedForward: dropped !== null && h.date > dropped,
+  }));
+  const carriedCount = history.filter((h) => h.carriedForward).length;
+  // A row counted under a different class than the account's current one is the
+  // only reason two rows here can carry different signs, so it says so on the
+  // row — the unexplained sign flip is what a reader would otherwise have to
+  // invent a story for (the U.4 "the fact rides the row" rule).
+  //
+  // The NOTE below counts only rows the app actually READ. A carried-forward row
+  // is the last real reading repeated, so calling it a balance that "was
+  // recorded" on its own date would attribute an observation to a day the panel
+  // says — four lines away — that nothing was read on. Its marker still renders,
+  // because its SIGN still needs explaining; the two markers say different
+  // things and are separated so neither the eye nor a screen reader runs them
+  // together.
+  const reclassified = history.filter((h) => h.rowIsLiability !== isLiability);
+  const reclassifiedRead = reclassified.filter((h) => !h.carriedForward);
+  // Rows written before U.6 added the class column. They are signed by what the
+  // account is TODAY — there is nothing better — and the note must not let the
+  // sentence above it claim the trend is faithful to every recording when these
+  // are present. An absolute is exactly what `netWorthPointBasis` was rewritten
+  // to stop asserting; it must not come back one file over.
+  const unrecordedClass = history.filter((h) => h.accountType === null);
   return (
     <div
       id={`account-detail-${account.id}`}
@@ -75,31 +105,89 @@ export function AccountDetailPanel({
         <div data-testid="account-detail-history">
           <p className="mb-1 text-xs font-medium text-muted-foreground">Recorded balance history</p>
           <ul className="max-h-48 divide-y overflow-y-auto rounded border">
-            {history.map((h) => {
-              const carriedForward = dropped !== null && h.date > dropped;
-              return (
+            {history.map((h) => (
                 <li key={h.date} className="flex items-center justify-between gap-2 px-2 py-1 text-xs">
                   <span>
                     {formatISODate(isoDate(h.date), 'long')}
-                    {carriedForward && (
-                      <span className="ml-1 text-amber-500" data-testid="account-detail-carried">
-                        carried forward
+                    {h.carriedForward && (
+                      <span className="ml-1 text-amber-600 dark:text-amber-400" data-testid="account-detail-carried">
+                        · carried forward
+                      </span>
+                    )}
+                    {h.accountType !== null && h.rowIsLiability !== isLiability && (
+                      <span className="ml-1 text-amber-600 dark:text-amber-400" data-testid="account-detail-reclassified">
+                        {/* The separator is real content, not an `ml-1` margin: two
+                            adjacent markers otherwise read out as one run-on token
+                            ("carried forwardrecorded as checking"). `accountTypeLabel`
+                            returns its input for a type it has no label for, so an
+                            unrecognised value says "another type" rather than
+                            printing a raw enum at the reader. */}
+                        · counted as{' '}
+                        {accountTypeLabel(h.accountType) === h.accountType
+                          ? 'another type'
+                          : accountTypeLabel(h.accountType).toLowerCase()}
                       </span>
                     )}
                   </span>
-                  <span className={`tabular-nums ${isLiability ? 'text-red-400' : ''}`}>
-                    {isLiability ? '−' : ''}
+                  <span className={`tabular-nums ${h.rowIsLiability ? 'text-red-400' : ''}`}>
+                    {h.rowIsLiability ? '−' : ''}
                     {formatCents(cents(h.balanceCents))}
                   </span>
                 </li>
-              );
-            })}
+              ))}
           </ul>
           {carriedCount > 0 && (
             <p className="mt-1 text-xs text-amber-500" data-testid="account-detail-carried-note">
               {carriedCount === 1 ? 'One row repeats' : `${carriedCount} rows repeat`} the last
               balance your bank sent, on {formatISODate(isoDate(dropped as string), 'long')} —
               nothing has been read from this account since.
+            </p>
+          )}
+          {reclassifiedRead.length > 0 && (
+            <p
+              className="mt-1 text-xs text-amber-600 dark:text-amber-400"
+              data-testid="account-detail-reclassified-note"
+            >
+              {/* What the APP did, never what was true in the world. A feed that
+                  re-classes an account may be CORRECTING itself, so "you owned it
+                  then" would assert the very thing in doubt; Aimplifi can only
+                  say which side it counted the balance on, and who could settle
+                  it. There is no control anywhere to change an existing
+                  account's type, so pointing at one would be a remedy that does
+                  not exist. */}
+              {reclassifiedRead.length === 1
+                ? 'One balance here was read'
+                : `${reclassifiedRead.length} balances here were read`}{' '}
+              while Aimplifi had this account classed differently, so for{' '}
+              {reclassifiedRead.length === 1 ? 'that date it counts' : 'those dates they count'} on
+              the {isLiability ? 'own' : 'owe'} side of your net worth instead of the{' '}
+              {isLiability ? 'owe' : 'own'} side. The balance is what your bank sent; only your bank
+              can say which description of the account was right at the time.
+            </p>
+          )}
+          {/* Only alongside a known reclassification. On its own this account has
+              shown no class instability, so a permanent "we don't know what these
+              were read under" would fire on every live panel until a year of rows
+              accrues — the note-blindness that makes the ones that matter
+              invisible. Beside a reclassification it is load-bearing: THAT is
+              when a reader would otherwise read the unmarked older rows as
+              confirmed. */}
+          {unrecordedClass.length > 0 && reclassified.length > 0 && (
+            <p
+              className="mt-1 text-xs text-muted-foreground"
+              data-testid="account-detail-unrecorded-class-note"
+            >
+              {/* Named, never silent: these rows are counted by what the account
+                  is TODAY, and if it has been re-classed since, that is not what
+                  they were read under. Saying "the trend counts every balance the
+                  way it was recorded" while these exist would be false — the
+                  absolute `netWorthPointBasis` was rewritten to stop asserting. */}
+              {unrecordedClass.length === 1
+                ? 'One balance predates'
+                : `${unrecordedClass.length} balances predate`}{' '}
+              Aimplifi recording which side of your net worth an account was counted on, so{' '}
+              {unrecordedClass.length === 1 ? 'it is counted' : 'they are counted'} as{' '}
+              {accountTypeLabel(account.type).toLowerCase()} — the same as today.
             </p>
           )}
         </div>

@@ -55,7 +55,9 @@ export async function recordMonthlyBalanceSnapshot(
   return serializableTx(async (tx) => {
     const accounts = await tx.account.findMany({
       where: { userId },
-      select: { id: true, currentBalanceCents: true },
+      // `type` is recorded ONTO each row (U.6): it is what the account was when
+      // this balance was read, and every ordinary sync may rewrite it.
+      select: { id: true, currentBalanceCents: true, type: true },
     });
     if (accounts.length === 0) return { written: 0, date: null, skipped: 'no-accounts' as const };
 

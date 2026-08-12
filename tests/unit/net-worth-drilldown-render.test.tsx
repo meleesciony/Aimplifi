@@ -20,7 +20,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => '/dashboard',
 }));
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { NetWorthTrendDrilldown } from '@/components/finance/net-worth-trend-drilldown';
 import type { NetWorthSeriesPoint } from '@/lib/engine/networth/series';
 
@@ -72,5 +72,57 @@ describe('NetWorthTrendDrilldown chip cap (O.20f P2-f)', () => {
   it('no points renders no strip at all', () => {
     const { container } = render(<NetWorthTrendDrilldown points={[]} testIdPrefix="net-worth" />);
     expect(container.querySelector('[data-testid^="net-worth-point-"]')).toBeNull();
+  });
+});
+
+/**
+ * U.6 — a point counts each account as the class it was RECORDED under, so a
+ * reclassified account appears in an older point with the opposite sign to the
+ * one it has today: a credit card rendered POSITIVE inside a breakdown whose
+ * own basis sentence calls the sum "assets minus liabilities".
+ *
+ * This is the surface that has to carry it. The account detail panel explains
+ * the same fact per row, but `accountRowDestination` routes CHECKING, SAVINGS
+ * and CREDIT rows to /transactions — so for exactly the account types a feed
+ * most often re-classes, the panel never renders. The drilldown is reachable
+ * for every account in the trend.
+ */
+describe('NetWorthTrendDrilldown — an account counted the other way round (U.6)', () => {
+  const pointWith = (
+    date: string,
+    constituents: NetWorthSeriesPoint['constituents'],
+  ): NetWorthSeriesPoint => ({
+    date,
+    netWorthCents: constituents.reduce((s, c) => s + c.balanceCents, 0),
+    constituents,
+  });
+
+  // April: read while the feed called it checking. Today: a credit card.
+  const APRIL = pointWith('2026-04-30', [
+    { accountId: 'flip', name: 'Flex Line', balanceCents: 10_000_00, isLiability: false },
+    { accountId: 'chk', name: 'Checking', balanceCents: 5_000_00, isLiability: false },
+  ]);
+  const TODAY_POINT = pointWith(LIVE, [
+    { accountId: 'flip', name: 'Flex Line', balanceCents: -10_000_00, isLiability: true },
+    { accountId: 'chk', name: 'Checking', balanceCents: 5_000_00, isLiability: false },
+  ]);
+
+  it('names the account whose class differs from what it is today, on the row carrying the money', () => {
+    render(<NetWorthTrendDrilldown points={[APRIL, TODAY_POINT]} testIdPrefix="net-worth" />);
+    fireEvent.click(screen.getByTestId('net-worth-point-2026-04-30'));
+    const panel = screen.getByTestId('net-worth-constituents-rows-2026-04-30');
+    // The fact rides the row, not a sentence below the list.
+    expect(panel.textContent).toContain('Flex Line · counted here as money you owned');
+    // The account whose class never moved says nothing.
+    expect(panel.textContent).toContain('Checking');
+    expect(panel.textContent).not.toContain('Checking · counted here');
+  });
+
+  it('says nothing on the live point, and nothing when every class is stable', () => {
+    render(<NetWorthTrendDrilldown points={[APRIL, TODAY_POINT]} testIdPrefix="net-worth" />);
+    fireEvent.click(screen.getByTestId(`net-worth-point-${LIVE}`));
+    expect(
+      screen.getByTestId(`net-worth-constituents-rows-${LIVE}`).textContent,
+    ).not.toContain('counted here as');
   });
 });

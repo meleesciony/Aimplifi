@@ -3019,3 +3019,24 @@ seeded pages, so moving it to a bare throwaway user could hollow out what it tes
 **Residuals split out, not papered over:** U.5 (panel reads snapshots raw, chart reads them through the reconciliation boundary) and U.6 (a stored row is signed by the account's CURRENT mutable `type`, which every sync rewrites).
 
 **Verification:** three sabotage proofs, each reverted; `bash scripts/verify.sh` green; full `VERIFY_E2E=1` and the CI conclusion recorded in STATUS.md §U.4. `prisma/` diff is comment-only — no column, index or constraint changed, so the live Neon database is untouched.
+
+---
+
+## U.6 DONE (2026-08-12, Fable 5 session, DECISIONS #451) — the fix was easy; the critics reversed the part I was most confident about
+
+**Picked up from the queue** (U.4's own residual): `netWorthSeries` signed each STORED snapshot by the account's CURRENT `Account.type`, and this repo states in its own code that both providers rewrite that on every ordinary sync — so one reclassification across the asset/liability line rewrote the sign of all recorded history for that account, silently.
+
+**Three things checked rather than assumed, each of which changed the design:**
+- Storing the observed TYPE beat storing the derived SIGN: `isLiabilityType` stays the single author, so a later correction to the classification rule still reaches history instead of being frozen out of it.
+- A stored balance's sign cannot recover its class. SimpleFIN `abs()`es a liability, Plaid keeps its own sign (negative for an overpaid card), and an overdrawn checking or margin account is a genuinely negative ASSET. The "negative means liability" shortcut this slice nearly used is unsound both ways — so the class is carried explicitly on every constituent.
+- Making history truthful CREATES a disagreement the old code could not produce: two points, same accounts, different classes. The delta would print 2× a balance as a month's earnings, so it refuses — and the slice owns that surface because it created it.
+
+**Two fresh-context Opus 5 critics (money/data-integrity, rendered claims): 3 P0 + 11 P1, all executed.** The one that mattered most reversed a decision I was confident in. The slice shipped a backfill for pre-U.6 NULL rows, verified on a scratch DB (36 filled, 0 remaining, idempotent). A critic proved it wrong through the real engine — a **$40,000.00 swing** — with an argument I had not considered: an un-backfilled NULL row **self-heals** when a misclassification is corrected, because it is re-signed by the corrected type, while a stamped row never can. It also stamped a class it could disprove from its own table, and could not have run against Neon at all (the generated client is built from the sqlite schema), and with `DATABASE_URL` unset would have written to the local dev DB while printing success. Deleted, not fixed.
+
+The other seven: a note asserting the trend counts "every balance the way it was recorded" (false for the NULL rows sitting right under it); carried-forward rows described as balances that "were read", four lines beneath the note saying nothing had been read; copy asserting a classification the app cannot validate (a re-classing feed may be CORRECTING itself) with no remedy to point at, since nothing anywhere edits an account's type; a **false refusal** deleting a true +$2,000.00 over a $0.00 account changing sides; the unexplained chart cliff (both delta call sites compare only the last two points); the fact carried all the way to the drilldown render and dropped there; and the new engine field being optional, so a `select` could revert a surface with a green gate.
+
+**Verification:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,808 unit + 1 skipped / 415 files** / build clean. Full local `npx playwright test`: **342 passed / 1 flaky / 0 failed** (exit 0). Five sabotage proofs, each reverted. `scripts/u6-live-deploy-check.mjs` run against production BEFORE deploying returned 8/12 — the four discriminating checks failing is its own fail-old proof.
+
+**The `prisma/` diff is a REAL schema change this time** (U.4's was comment-only): one nullable column. `prisma db push` adding it destroys nothing, and until a sync writes new rows every existing row is NULL and reads byte-identically to pre-U.6.
+
+**Residuals filed:** U.7 (a reconciled pair's collision winner now decides that date's sign) and U.8 (the detail panel never renders for CHECKING/SAVINGS/CREDIT — the likelier reclassification targets — so their explanation rides on the drilldown marker alone).

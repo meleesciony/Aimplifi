@@ -1066,7 +1066,9 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
       // page renders, so this bounds a payload that now grows monthly without
       // capping what a reader can see.
       where: { account: { userId }, date: { gte: trendHistoryFloor(businessToday(userId)) } },
-      select: { accountId: true, date: true, balanceCents: true },
+      // `accountType` is the class the balance was READ under (U.6) — the trend
+      // signs each row by it, never by what the account has since become.
+      select: { accountId: true, date: true, balanceCents: true, accountType: true },
     }),
     prisma.statement.findMany({
       where: { account: { userId } },
@@ -1701,10 +1703,12 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
  */
 export interface AccountDetailView {
   id: string;
-  /** Recorded balances, oldest first. Stored positive like
-   *  `Account.currentBalanceCents`; the LIABILITY sign is painted by the row's
-   *  own convention at the UI boundary, same as the balance beside the name. */
-  history: { date: string; balanceCents: number }[];
+  /** Recorded balances, oldest first, each carrying the CLASS it was read under
+   *  (U.6) — the panel signs a row by its own `accountType`, not by what the
+   *  account is today, because both providers rewrite `Account.type` on every
+   *  ordinary sync. `accountType: null` is a row written before that column
+   *  existed; those alone fall back to the account's current class. */
+  history: { date: string; balanceCents: number; accountType: string | null }[];
   /** Loan facts, when the feed supplied them (the demo Auto Loan carries all
    *  three; a synced account may carry none). Absent facts render nothing. */
   aprBps: number | null;
@@ -1724,7 +1728,7 @@ export async function getAccountDetail(userId: string, accountId: string): Promi
   const history = await prisma.balanceSnapshot.findMany({
     where: { accountId: account.id },
     orderBy: { date: 'asc' },
-    select: { date: true, balanceCents: true },
+    select: { date: true, balanceCents: true, accountType: true },
   });
   return {
     id: account.id,
