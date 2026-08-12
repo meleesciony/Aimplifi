@@ -2,6 +2,71 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-12 — U.11 MEASURED, NOT BUILT: the task row's premise has zero true instances in production, and the scary number it implied is not real
+
+**Nothing shipped this session. Six read-only production probes, no code change, no push.** U.11's
+row demands the failure direction be decided "on evidence — how often two feeds of one account
+actually disagree within an overlap — not inherit it". The evidence says the row's own fix would
+have destroyed real accounts, and the alarming figure it implies collapses to $990.49 once checked.
+
+**1. The sibling shape exists — and not one instance is what U.11 assumed.**
+`u11-sibling-overlap-census.mts`: 27 live links, 17 components, **5 successors carrying more than
+one live predecessor**. U.11 describes these as "one real account connected twice". They are not.
+Every genuine one-account-two-feeds pair in the same database agrees **98–100%** on transactions
+inside the overlap (Venture 6271 338/338, Chase Sapphire 54/54, Delta 7/7, Investor Checking
+171/172); every sibling pair agrees **0%** (Vanguard Roth 5351 × Schwab Rollover 584: 0 of 14;
+Chase M.LEE × Chase E.LEE: 0 of 12). Three distinct Schwab 529 plans sit under one Vanguard 401k;
+three distinct Schwab IRAs under one Vanguard Roth IRA. **De-duplicating siblings by claim span —
+U.11's prescribed fix — would have silently deleted 100% of the losing side's rows in every
+instance that exists.** The direction is therefore decided and now measured: proven match, never
+claim span. Today's sibling behaviour (they do not de-duplicate each other) is correct.
+
+**2. The $468,840.29 does not exist, and finding that out took one more probe.** Nine stored links
+pair rows advertising different account numbers, and R2 zeroes a predecessor's balance, so the
+arithmetic said $468,840.29 had been removed from net worth. `u11h-does-the-money-already-count.mts`
+falsifies it: **$467,849.80 of that is already counted through the correct live Plaid twin** —
+"Schwab US Rollover IRA ...584" ($61,762.92) is zeroed while Plaid's "Rollover IRA" 0584
+($54,699.42) counts, and so on for every IRA and 529. The stale row *should* stop counting; the
+wrong link reaches the right total by the wrong reasoning. **Genuinely missing: $990.49** — Chase
+E. LEE (4034), a real separate card with no twin anywhere, whose balance is a CREDIT liability, so
+net worth is overstated by that much. (An earlier probe run classified links by
+`matchSignal`/`confidence` and printed $1,379,513.62; that bucket mixes genuine pairs with wrong
+ones and the number is void. A third draft called a genuine $898,889.99 brokerage pair WRONG because
+Schwab renders "...383" where Plaid's mask is "7383" — suffix, not equality. Both errors were caught
+by inspection before anything was reported, and both are recorded here rather than quietly dropped.)
+
+**3. A real silent loss, and it is the CHAIN rule, not U.11.** `u11c-silent-loss-today.mts` replays
+the shipped `reconciliationTxnKeepFilter` over the owner's real corpus: of **709 rows it drops, 706
+are true duplicates** — the rule works — but **one is a genuine $2,086.40 "Deposit Mobile Banking"
+on Investor Checking dated exactly the cutover**, which the predecessor never reported and which no
+surviving row replaces. It is gone from the register, budgets, reports and the tax export. (Two more
+flagged rows are the same purchases posted a day apart by the two feeds — PGA TOUR SUPERSTORE 06-12
+vs 06-13 — so they are covered, and they are why a match rule needs a ±3-day tolerance.) This
+violates the engine's own stated failure direction, quoted at `reconcile-boundary.ts:329-331`: "a
+visible, advisory-covered double, never a silent loss."
+
+**4. The proposer still offers 15 wrong pairs today.** `u11f` / `u11g`: of the 9 provably-wrong
+stored links, **4 today's detector now refuses** (the registration veto shipped after the owner's
+2026-07-24 report) and **5 it would still propose** — three Schwab 529 plans matched to a Vanguard
+401k on the single shared token **"plan"**, and two cards matched on **"lee"**. `masksDiffer` already
+disqualifies the weak name signal on its own, but reads the `mask` COLUMN, which SimpleFIN never
+populates — so the veto is structurally inert across exactly the SimpleFIN→Plaid migration this
+feature exists for. Widening it to the `matchableMask` the positive path already uses suppresses
+**15 of 85** proposed pairs, every one of them a different account, including the owner's + spouse's
+Ventures that `duplicates.ts:189-191` already promises stay hidden. Nothing re-examines a stored
+link, so the 4 the app would now refuse keep being honoured — `prevention-is-not-a-remedy` exactly.
+
+**Probes committed (all read-only, every statement a SELECT):** `u11-sibling-overlap-census.mts`,
+`u11b-sibling-pairing-truth.mts`, `u11c-silent-loss-today.mts`, `u11d-networth-cost-of-mispairs.mts`
+(superseded by u11e/u11h — kept with its method named as the proxy error it was),
+`u11e-per-link-verdict.mts`, `u11f-would-today-propose-these.mts`, `u11g-measure-the-number-veto.mts`,
+`u11h-does-the-money-already-count.mts`.
+
+**NEXT:** three slices, ranked — (a) the $2,086.40 chain-rule silent loss (drop a row only when a
+counterpart is proven, ±3 days, exact |amount|); (b) the widened last-4 veto on the weak name signal,
+measured above; (c) the owner-only decision on the 9 stored links, which is data, reversible via
+R9, and his to make. U.11 as filed should be CLOSED as measured-and-refused, not built.
+
 ## 2026-08-11 — O.20b SHIPPED: /reports payload measured on the heavy real account — 13.2× carry measured (not ~6×), both prescribed fixes falsified, the one dead weight was /dashboard's 89%
 
 **The queued task measured first, per its own instruction.** New read-only probe `scripts/audit-probes/o20b-reports-payload.mts` (the o20a pattern: raw `pg` against production, the shipped engine functions composed exactly as `getReports` assembles them — with the merchant JOIN `registerDisplayName` reads, because byte size depends on the label; every statement a SELECT). **Real user, 6-month window: 316.9 KB payload, `monthFlows` 282.6 KB (89%) — 1,415 rows across 12 bars, largest bar 305 rows.** 12-month 403.4 KB, 24-month 508.7 KB. The one-month baseline (the shape the feature predates) is 21.4 KB ⇒ **the six-month carry is 13.2×, not the row's guessed ~6×** — complete trailing months hold more rows than the asOf-clamped current month. Both prescribed fixes falsified on evidence: the per-bar fetch breaks the same-array guarantee (the row's own framing — a re-query can sum to a different number than the painted bar); `rawDescriptor` is a RENDERED panel line (breakdown-panel.tsx:256-263) on 86% of the real user's rows — trimming deletes a displayed feature to save ~44.5 KB (14%). The /reports six-month carry IS the O.20 feature and stays (decision, not default).
