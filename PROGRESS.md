@@ -56,6 +56,16 @@ feature exists for. Widening it to the `matchableMask` the positive path already
 Ventures that `duplicates.ts:189-191` already promises stay hidden. Nothing re-examines a stored
 link, so the 4 the app would now refuse keep being honoured — `prevention-is-not-a-remedy` exactly.
 
+**5. A fifth claim of my own, tested and falsified before it could mislead the next session.** The
+first draft of TASKS U.15 asserted the net-worth TREND could plot an unrelated account's balance,
+since post-U.9 exactly one snapshot survives per (component, date) and these components hold up to
+five unrelated accounts. `u11j-which-snapshot-wins.mts` runs the real boundary over the real rows:
+in **every** mis-paired component the survivor is the LIVE terminal successor — $368,665.83, $24.00,
+$15.71, $974.49 — never a stale sibling, because every cutover is already in the past so no stale
+side is still covering and the tier order reaches the right row. The claim is struck from the row.
+**The remaining harm from the 9 links is ATTRIBUTION, not arithmetic:** the owner's Schwab IRA and
+529 history hangs off the wrong account and the app asserts an identity that is not true.
+
 **Probes committed (all read-only, every statement a SELECT):** `u11-sibling-overlap-census.mts`,
 `u11b-sibling-pairing-truth.mts`, `u11c-silent-loss-today.mts`, `u11d-networth-cost-of-mispairs.mts`
 (superseded by u11e/u11h — kept with its method named as the proxy error it was),
