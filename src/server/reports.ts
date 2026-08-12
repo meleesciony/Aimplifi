@@ -117,11 +117,28 @@ export interface ReportsData {
    * describe different sets. Deliberately NOT the same basis as `breakdowns`
    * above: this chart is posted-only and nets refunds against spending, which is
    * why it has its own builder and its own disclosure sentence.
+   *
+   * `{}` when the caller opted out with `{ includeMonthFlows: false }` (O.20b):
+   * the ONLY such caller is /dashboard, which reads four fields of this payload
+   * and never renders the chart panels — on the heaviest real account these
+   * rows measured 282.6 KB of a 316.9 KB payload (89%), so a page that throws
+   * them away was shipping six months of dead rows on every load. /reports
+   * always takes the default; a trim anywhere else is a visible-feature
+   * decision, not a payload one.
    */
   monthFlows: Record<string, MonthFlowBreakdown>;
 }
 
-export async function getReports(userId: string, months: ReportChartMonths = 6): Promise<ReportsData> {
+export async function getReports(
+  userId: string,
+  months: ReportChartMonths = 6,
+  // O.20b: the one assembler stays ONE author for both callers — /reports
+  // renders the chart panels (rows needed), /dashboard renders only the
+  // TopSpending card (rows never read, measured 89% of its reports payload).
+  // A second lean assembler would be a second copy of this composition, which
+  // is exactly the drift shape the repo's panels exist to prevent.
+  { includeMonthFlows = true }: { includeMonthFlows?: boolean } = {},
+): Promise<ReportsData> {
   const provider = getProvider();
   const today = provider.today(userId);
   const ym = today.slice(0, 7);
@@ -187,7 +204,11 @@ export async function getReports(userId: string, months: ReportChartMonths = 6):
   // — passed as `asOf` rather than pre-filtered, because a panel handed a
   // filtered array cannot tell an empty bar from one whose money is dated
   // ahead, and it printed the wrong sentence for both (critic cycle 1, P1-3/4).
-  const monthFlows = buildMonthFlowBreakdowns(named, series, excludedFlowIds, today);
+  // O.20b: `series` still ships as `months` (tiny — six headline objects), so
+  // the opt-out skips only the ROW assembly, which is the whole measured cost.
+  const monthFlows = includeMonthFlows
+    ? buildMonthFlowBreakdowns(named, series, excludedFlowIds, today)
+    : {};
   // One href per category figure, from the window that figure was summed over.
   const linkable = new Set(linkableCategoryIds);
   const refused = new Set(loanPaymentRefusedCategories(snap));

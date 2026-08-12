@@ -66,7 +66,11 @@ export default async function DashboardPage({
       getCoachData(session.user.id),
       getSpendingPlan(session.user.id),
       getDashboardRecent(session.user.id),
-      getReports(session.user.id),
+      // O.20b: the dashboard renders the TopSpending card, never the chart
+      // panels — measured 282.6 KB of the 316.9 KB reports payload (89%) was
+      // monthFlows rows no surface here reads. The one opt-out; /reports
+      // always ships them.
+      getReports(session.user.id, 6, { includeMonthFlows: false }),
       getSpendingTrends(session.user.id),
       getWithheldAccountSummary(session.user.id),
       getFeedDroppedAccounts(session.user.id),

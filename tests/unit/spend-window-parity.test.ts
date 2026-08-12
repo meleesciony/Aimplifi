@@ -398,3 +398,31 @@ describe('C.26 critic cycle 2, F1 — the page figure and its panels are one com
     expect(notCountedYetByCategory(onlyFuture, window).totalCents).toBe(40_000);
   });
 });
+
+describe('O.20b — the dashboard opt-out (includeMonthFlows: false) trims only the chart rows', () => {
+  // Measured against production (scripts/audit-probes/o20b-reports-payload.mts):
+  // monthFlows is 89% of the getReports payload on the heaviest account (282.6 KB
+  // of 316.9 KB at the 6-month default), and /dashboard — the only caller that
+  // never renders the chart panels — reads exactly four fields of it. The opt-out
+  // must change NOTHING the dashboard renders; that is the anti-drift half of
+  // this lock. It binds by mutation: deleting the opt-out from server/reports.ts
+  // (always computing the rows) fails the `toEqual({})` assertion below.
+  it('the opt-out drops monthFlows and nothing the dashboard reads', async () => {
+    const full = await getReports(USER);
+    const lean = await getReports(USER, 6, { includeMonthFlows: false });
+    expect(Object.keys(full.monthFlows).length).toBeGreaterThan(0);
+    expect(lean.monthFlows).toEqual({});
+    expect(lean.ym).toBe(full.ym);
+    expect(lean.window).toEqual(full.window);
+    expect(lean.breakdown).toEqual(full.breakdown);
+    expect(lean.breakdowns).toEqual(full.breakdowns);
+    expect(lean.notCountedYetCents).toBe(full.notCountedYetCents);
+  });
+
+  it('the default payload still ships the rows /reports renders', async () => {
+    const full = await getReports(USER);
+    // The fixture's June expense bar has exactly one counted row: the $120.00
+    // dated 06-04; its $400.00 dated 06-20 is the bar's notCountedYet money.
+    expect(full.monthFlows['2026-06:expense']?.rows).toHaveLength(1);
+  });
+});
