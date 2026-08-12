@@ -100,6 +100,7 @@ import {
   countUnclassified,
   filterTransactions,
   groupAccounts,
+  isLiabilityType,
   paginate,
   scopedDateBounds,
   sortByDateDesc,
@@ -107,6 +108,7 @@ import {
 } from '@/lib/engine/transactions/query';
 import { isDemoUser } from '@/lib/demo-user';
 import { accountLabel } from '@/lib/engine/account/display-name';
+import type { CountedInsteadOf } from '@/lib/engine/account/balance-history-view';
 import {
   SPLIT_BLOCKED_CHILD,
   SPLIT_BLOCKED_REIMBURSED,
@@ -1687,12 +1689,23 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
  * this panel is no longer empty for real users — and two consequences of that
  * are load-bearing:
  *
- *  - The rows are read RAW here, while the trend reads them through
- *    `applyReconciliationBoundary` (see `getAccountsView`). For a reconciled
- *    pair the boundary keeps one side of a same-dated collision, so a
- *    predecessor's panel can name a balance the chart does not count. Recorded
- *    as a known divergence (TASKS U.5) rather than papered over — do NOT
- *    restate the old "can never disagree" guarantee.
+ *  - WHICH ROWS THE TREND COUNTS is decided here by the SAME
+ *    `applyReconciliationBoundary` the trend runs (TASKS U.5), never by a
+ *    second rule written for this panel: the boundary keeps one side of a
+ *    same-dated collision between combined accounts, and a row it drops is
+ *    still SHOWN (it was genuinely read for this account) carrying
+ *    `countsInNetWorth: false`. Dropping it instead would delete a true
+ *    observation; printing it unmarked is what U.5 filed — the panel's
+ *    per-row "counted as" marker and its notes are COUNTING claims, and they
+ *    were false for exactly these rows.
+ *  - The boundary's inputs mirror the trend's: non-USD accounts withheld
+ *    (#135) so a link whose side the trend never sees stays inert here too
+ *    (R7), and the collision scan is deliberately UNWINDOWED — this panel
+ *    renders the full history, and a row evaluated without its counterpart in
+ *    the input would be marked counted when it is not.
+ *  - A row outside the trend's 19-month render window is still COUNTED. That
+ *    window bounds a payload (U.4), it is not a counting rule, and marking
+ *    those rows would assert a second, false thing.
  *  - A row is what the app HELD on that date, which for an account whose feed
  *    has gone quiet is a value it last actually read before `feedDroppedAt`.
  *    That is why `feedDroppedAt` travels with the history: the panel marks the
@@ -1707,8 +1720,27 @@ export interface AccountDetailView {
    *  (U.6) — the panel signs a row by its own `accountType`, not by what the
    *  account is today, because both providers rewrite `Account.type` on every
    *  ordinary sync. `accountType: null` is a row written before that column
-   *  existed; those alone fall back to the account's current class. */
-  history: { date: string; balanceCents: number; accountType: string | null }[];
+   *  existed; those alone fall back to the account's current class.
+   *
+   *  `countsInNetWorth` is the reconciliation boundary's own verdict on the row
+   *  (U.5), REQUIRED so a future reader must answer it rather than inherit a
+   *  default — the U.6 lesson about an optional field a `select` can silently
+   *  drop. False means: this balance was read for this account, and your net
+   *  worth counts the combined account's balance for that date instead.
+   *
+   *  `countedInstead` is THAT balance, carried per row rather than summarised
+   *  for the panel, because each dropped date has its own counterpart figure —
+   *  the two sides of a combined pair disagree, which is why one has to win.
+   *  Null on a counted row, and null when the date's owner is not this
+   *  account's direct counterpart (a chain): the row then states only what is
+   *  certain rather than naming a wrong account. */
+  history: {
+    date: string;
+    balanceCents: number;
+    accountType: string | null;
+    countsInNetWorth: boolean;
+    countedInstead: CountedInsteadOf | null;
+  }[];
   /** Loan facts, when the feed supplied them (the demo Auto Loan carries all
    *  three; a synced account may carry none). Absent facts render nothing. */
   aprBps: number | null;
@@ -1725,14 +1757,128 @@ export async function getAccountDetail(userId: string, accountId: string): Promi
     select: { id: true, aprBps: true, minimumPaymentCents: true, dueDayOfMonth: true, feedDroppedAt: true },
   });
   if (!account) return null;
-  const history = await prisma.balanceSnapshot.findMany({
-    where: { accountId: account.id },
-    orderBy: { date: 'asc' },
-    select: { date: true, balanceCents: true, accountType: true },
+  const [history, accounts, links] = await Promise.all([
+    prisma.balanceSnapshot.findMany({
+      where: { accountId: account.id },
+      orderBy: { date: 'asc' },
+      select: { date: true, balanceCents: true, accountType: true },
+    }),
+    // The boundary's account set, built to the SAME rule the trend's is (#135
+    // currency withhold): a link whose side the trend never sees is inert (R7),
+    // so including a withheld account here would mark rows uncounted that the
+    // trend counts. `currentBalanceCents` is required by the input type and
+    // unread by the snapshot rule — the collision verdict depends only on
+    // accounts + snapshots + links (the #274 precedent for feeding this engine
+    // the rows a surface has and empty arrays for the rest).
+    prisma.account.findMany({
+      where: { userId },
+      select: { id: true, name: true, displayName: true, type: true, currency: true, currentBalanceCents: true },
+    }),
+    getActiveReconciliations(userId),
+  ]);
+
+  const supported = accounts.filter((a) => isSupportedCurrency(a.currency));
+  const activeLinks: ReconciliationLinkLike[] = links.map((r) => ({
+    predecessorAccountId: r.predecessorAccountId,
+    successorAccountId: r.successorAccountId,
+    cutoverDate: r.cutoverDate,
+  }));
+  // Nothing effective → every row counts, and no query beyond the ones above
+  // ever runs. This is the ONLY shape the demo can reach (the seed writes no
+  // reconciliations), so the golden panel is byte-identical by construction.
+  const effective = effectiveReconciliationLinks(supported, activeLinks);
+  // An account the currency guard withholds (#135) is in NO net-worth figure at
+  // all — `getAccountsView` builds its rows from `supported` only, so this page
+  // has no row to hang the panel on and never renders one. There is therefore no
+  // honest value for `countsInNetWorth` here: `true` claims a counting that
+  // never happens, and `false` would be explained by a combine note about a
+  // combine that never happened (both states were shipped and both were caught
+  // by the U.5 money critic). The view describes accounts this page counts; for
+  // one it does not, the answer is the same null a stale or foreign id gets.
+  if (!supported.some((a) => a.id === account.id)) return null;
+  // THIS account's direct counterparts — who may be NAMED on a dropped row.
+  // (Which rows are dropped is decided over the whole chain below; only the
+  // naming is restricted to a direct counterpart, so a chain never attributes a
+  // balance to the wrong account.)
+  const counterpartIds = new Set(
+    effective.flatMap((l) =>
+      l.predecessorAccountId === account.id
+        ? [l.successorAccountId]
+        : l.successorAccountId === account.id
+          ? [l.predecessorAccountId]
+          : [],
+    ),
+  );
+
+  let countedDates: ReadonlySet<string> | null = null;
+  const keptCounterpartAt = new Map<string, { accountId: string; balanceCents: number; accountType: string | null }[]>();
+  if (effective.length > 0) {
+    // Scoped to this account and EVERY account in an effective link — not just
+    // this one's direct counterparts. `keepsSnapshot` walks `upstreamsOf` /
+    // `downstreamsOf` TRANSITIVELY, so in a chain A→B→C a row of C's can be
+    // dropped in favour of A's; a direct-counterparts-only input hides A and
+    // silently returns the wrong verdict AND the wrong counterpart figure (found
+    // by the U.5 money critic, reproduced on a 3-link chain). Every chain member
+    // appears in some link by construction, so this set is exactly the one the
+    // boundary consults — the same `linkedIds` it builds internally.
+    //
+    // UNWINDOWED, deliberately: the trend's 19-month floor is a payload bound on
+    // what it RENDERS, but evaluating an old row with its counterpart missing
+    // from the input would mark it counted when it is not.
+    const linkedIds = new Set(effective.flatMap((l) => [l.predecessorAccountId, l.successorAccountId]));
+    const chainIds = [...new Set([account.id, ...linkedIds])];
+    const chainRows = await prisma.balanceSnapshot.findMany({
+      where: { accountId: { in: chainIds }, account: { userId } },
+      select: { accountId: true, date: true, balanceCents: true, accountType: true },
+    });
+    const kept = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: supported,
+      transactions: [],
+      balanceSnapshots: chainRows,
+      statements: [],
+      scheduled: [],
+      links: activeLinks,
+    }).balanceSnapshots;
+    countedDates = new Set(kept.filter((b) => b.accountId === account.id).map((b) => b.date));
+    for (const b of kept) {
+      if (b.accountId === account.id || !counterpartIds.has(b.accountId)) continue;
+      keptCounterpartAt.set(b.date, [...(keptCounterpartAt.get(b.date) ?? []), b]);
+    }
+  }
+
+  const byId = new Map(supported.map((a) => [a.id, a]));
+  const rows = history.map((h) => {
+    const counts = countedDates?.has(h.date) ?? true;
+    // Read off the boundary's OUTPUT (the rows it KEPT), never re-derived from
+    // the collision rule. Exactly one surviving counterpart names itself; a date
+    // owned by something further up a chain leaves the row unnamed rather than
+    // attributing the balance to the wrong account.
+    const winners = counts ? [] : (keptCounterpartAt.get(h.date) ?? []);
+    const win = winners.length === 1 ? winners[0] : undefined;
+    const winAcct = win === undefined ? undefined : byId.get(win.accountId);
+    return {
+      ...h,
+      countsInNetWorth: counts,
+      countedInstead:
+        win === undefined || winAcct === undefined
+          ? null
+          : {
+              name: accountLabel(winAcct),
+              balanceCents: win.balanceCents,
+              // The U.6 rule, applied to the counterpart's row: the class it was
+              // READ under decides its sign, falling back to the account's
+              // current class only for a row written before that column existed.
+              isLiability: isLiabilityType(
+                win.accountType === null || win.accountType === '' ? winAcct.type : win.accountType,
+              ),
+            },
+    };
   });
+
   return {
     id: account.id,
-    history,
+    history: rows,
     aprBps: account.aprBps,
     minimumPaymentCents: account.minimumPaymentCents,
     dueDayOfMonth: account.dueDayOfMonth,

@@ -1,0 +1,259 @@
+/**
+ * TASKS U.5 — the account detail panel and the net-worth trend must not name
+ * different balances for the same date.
+ *
+ * `getAccountDetail` read `BalanceSnapshot` RAW while the trend on the SAME page
+ * reads it through `applyReconciliationBoundary`. U.4 writes both sides of a
+ * combined pair at ONE date (deliberately — it is what lets the boundary
+ * de-duplicate them), so every month a combined pair produces a same-dated
+ * collision and the boundary drops one side. The panel showed the dropped row
+ * as an ordinary recorded balance, under a "counted as" marker and notes that
+ * say which side of net worth the date lands on — claims that were false for
+ * exactly those rows.
+ *
+ * These are real-Prisma tests because the property under test is that TWO
+ * SERVER READS AGREE: what `getAccountDetail` marks uncounted is exactly what
+ * `getAccountsView`'s trend leaves out. A pure test of the boundary would pass
+ * while the panel's own query kept bypassing it — which is the bug.
+ *
+ * Isolation mirrors reconcile-accounts-view.test.ts: collision-proof throwaway
+ * user ids, wipe in before/afterAll, links reset per-test.
+ */
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { prisma } from '@/lib/db';
+import { getAccountDetail, getAccountsView } from '@/server/transactions';
+
+const STAMP = `${Date.now()}-${process.pid}`;
+const OWNER = `ad-owner-${STAMP}`;
+const FOREIGN = `ad-foreign-${STAMP}`;
+const ALL_USERS = [OWNER, FOREIGN];
+
+// The U.5 shape, with the row's own numbers: an auto loan that moved from
+// SimpleFIN to Plaid. Both sides carry a row on the SAME three dates, which is
+// what U.4's writer produces for every account a user holds.
+const DATES = ['2026-03-15', '2026-04-15', '2026-05-15'] as const;
+const CUTOVER = '2026-04-15';
+const PRED_BALANCE = 1_430_000; // $14,300.00
+const SUCC_BALANCE = 1_290_000; // $12,900.00
+
+let pred = '';
+let succ = '';
+let foreignPred = '';
+let foreignSucc = '';
+
+async function wipe() {
+  await prisma.user.deleteMany({ where: { id: { in: ALL_USERS } } });
+}
+
+async function seedPair(userId: string, predCurrency: string) {
+  const p = await prisma.account.create({
+    data: {
+      userId, provider: 'simplefin', providerRef: `sf-${userId}`, name: 'Auto Loan (old)',
+      type: 'LOAN', mask: '6619', currency: predCurrency, currentBalanceCents: PRED_BALANCE,
+    },
+  });
+  await prisma.plaidItem.create({ data: { userId, itemId: `ad-item-${userId}`, accessToken: 'ct-ad' } });
+  const s = await prisma.account.create({
+    data: {
+      userId, provider: 'plaid', providerRef: `pl-${userId}`, plaidItemId: `ad-item-${userId}`,
+      name: 'Auto Loan', type: 'LOAN', mask: '6619', currency: 'USD', currentBalanceCents: SUCC_BALANCE,
+    },
+  });
+  await prisma.balanceSnapshot.createMany({
+    data: DATES.flatMap((date) => [
+      { accountId: p.id, date, balanceCents: PRED_BALANCE, accountType: 'LOAN' },
+      { accountId: s.id, date, balanceCents: SUCC_BALANCE, accountType: 'LOAN' },
+    ]),
+  });
+  return { predId: p.id, succId: s.id };
+}
+
+beforeAll(async () => {
+  await wipe();
+  await prisma.user.createMany({ data: ALL_USERS.map((id) => ({ id, email: `${id}@test.local` })) });
+  ({ predId: pred, succId: succ } = await seedPair(OWNER, 'USD'));
+  ({ predId: foreignPred, succId: foreignSucc } = await seedPair(FOREIGN, 'EUR'));
+});
+
+afterEach(async () => {
+  await prisma.accountReconciliation.deleteMany({ where: { userId: { in: ALL_USERS } } });
+});
+
+afterAll(wipe);
+
+async function link(userId: string, predecessorAccountId: string, successorAccountId: string, undone = false) {
+  await prisma.accountReconciliation.create({
+    data: {
+      userId, predecessorAccountId, successorAccountId, cutoverDate: CUTOVER,
+      matchSignal: 'mask', confidence: 'high', ...(undone ? { undoneAt: new Date() } : {}),
+    },
+  });
+}
+
+const uncountedDates = (d: Awaited<ReturnType<typeof getAccountDetail>>) =>
+  (d?.history ?? []).filter((h) => !h.countsInNetWorth).map((h) => h.date);
+
+const countedInsteadAt = (d: Awaited<ReturnType<typeof getAccountDetail>>, date: string) =>
+  (d?.history ?? []).find((h) => h.date === date)?.countedInstead ?? null;
+
+/** The dates the TREND actually counts for an account — read off the same view
+ *  the page renders, so the comparison is between two real surfaces. */
+async function trendDatesFor(userId: string, accountId: string): Promise<string[]> {
+  const view = await getAccountsView(userId);
+  return view.trend
+    .filter((p) => p.constituents.some((c) => c.accountId === accountId))
+    .map((p) => p.date);
+}
+
+describe('getAccountDetail — nothing combined (the shape every demo panel has)', () => {
+  it('counts every recorded row and names no counterpart', async () => {
+    const detail = await getAccountDetail(OWNER, succ);
+    expect(detail?.history.map((h) => h.date)).toEqual([...DATES]);
+    expect(detail?.history.every((h) => h.countsInNetWorth)).toBe(true);
+    expect(detail?.history.every((h) => h.countedInstead === null)).toBe(true);
+  });
+});
+
+describe('getAccountDetail — a combined pair', () => {
+  it('marks the successor rows the trend drops, and names the account counted instead (FAIL-OLD: every row read as counted)', async () => {
+    await link(OWNER, pred, succ);
+    const detail = await getAccountDetail(OWNER, succ);
+
+    // The boundary keeps the PREDECESSOR on/before the cutover, so the
+    // successor's own rows on those dates are not what net worth counts.
+    expect(uncountedDates(detail)).toEqual(['2026-03-15', '2026-04-15']);
+    expect(detail?.history.find((h) => h.date === '2026-05-15')?.countsInNetWorth).toBe(true);
+    // The figure the trend used for that date, carried per row.
+    expect(countedInsteadAt(detail, '2026-03-15')).toEqual({
+      name: 'Auto Loan (old)',
+      balanceCents: PRED_BALANCE,
+      isLiability: true,
+    });
+    expect(countedInsteadAt(detail, '2026-05-15')).toBeNull();
+
+    // Every row is still SHOWN — a balance the bank really did send for this
+    // account is never deleted to make the page tidy.
+    expect(detail?.history.map((h) => h.date)).toEqual([...DATES]);
+    expect(detail?.history.every((h) => h.balanceCents === SUCC_BALANCE)).toBe(true);
+  });
+
+  it('THE U.5 PROPERTY: the panel marks uncounted exactly the dates the trend leaves the account out of', async () => {
+    await link(OWNER, pred, succ);
+    const detail = await getAccountDetail(OWNER, succ);
+    const counted = (detail?.history ?? []).filter((h) => h.countsInNetWorth).map((h) => h.date);
+    const inTrend = await trendDatesFor(OWNER, succ);
+
+    // Two independent server reads, one page: the dates the panel calls counted
+    // are the dates the chart's own constituents contain, and the rest are not.
+    //
+    // SCOPE, stated rather than implied: the forward direction holds for dates
+    // inside the trend's 19-month render window (every fixture date here is).
+    // That window bounds a payload, not a counting rule — it is a uniform date
+    // filter, so it removes whole dates and never changes a collision verdict.
+    for (const d of counted) expect(inTrend).toContain(d);
+    for (const d of uncountedDates(detail)) expect(inTrend).not.toContain(d);
+  });
+
+  it('the other side of the same collision: the predecessor loses the dates AFTER the cutover', async () => {
+    await link(OWNER, pred, succ);
+    const detail = await getAccountDetail(OWNER, pred);
+    expect(uncountedDates(detail)).toEqual(['2026-05-15']);
+    expect(countedInsteadAt(detail, '2026-05-15')?.name).toBe('Auto Loan');
+    const inTrend = await trendDatesFor(OWNER, pred);
+    expect(inTrend).not.toContain('2026-05-15');
+  });
+
+  it('undo restores every row (R9 — a reversible act may not leave a permanent mark on history)', async () => {
+    await link(OWNER, pred, succ, true);
+    const detail = await getAccountDetail(OWNER, succ);
+    expect(detail?.history.every((h) => h.countsInNetWorth)).toBe(true);
+    expect(detail?.history.every((h) => h.countedInstead === null)).toBe(true);
+  });
+});
+
+describe('getAccountDetail — the boundary inputs mirror the trend`s', () => {
+  it('a link whose side the currency guard withholds is INERT here too (R7), so nothing is marked uncounted', async () => {
+    // The predecessor is EUR: the trend never sees it (#135), so the link takes
+    // no effect there. Building this account set WITHOUT the same withhold
+    // would mark the successor's rows uncounted against a trend that counts
+    // them — the panel disagreeing with the chart in the opposite direction.
+    await link(FOREIGN, foreignPred, foreignSucc);
+    const detail = await getAccountDetail(FOREIGN, foreignSucc);
+    expect(detail?.history.every((h) => h.countsInNetWorth)).toBe(true);
+    expect(detail?.history.every((h) => h.countedInstead === null)).toBe(true);
+
+    const inTrend = await trendDatesFor(FOREIGN, foreignSucc);
+    for (const d of DATES) expect(inTrend).toContain(d);
+  });
+
+  it('the withheld account ITSELF gets null, not a verdict it has no honest value for', async () => {
+    // A non-USD account is in no net-worth figure at all, and `getAccountsView`
+    // builds its rows from the supported set — so this page never renders a
+    // panel for it. `true` would claim a counting that never happens; `false`
+    // would be explained by a combine note about a combine that never happened.
+    // Both were shipped during this slice and both were caught; null is the same
+    // answer a stale or foreign id gets, and the page renders identically.
+    expect(await getAccountDetail(FOREIGN, foreignPred)).toBeNull();
+    const view = await getAccountsView(FOREIGN);
+    expect(
+      [...view.assets.accounts, ...view.liabilities.accounts].some((a) => a.id === foreignPred),
+    ).toBe(false);
+  });
+});
+
+describe('getAccountDetail — a CHAIN (A→B→C), where the winner is not the direct counterpart', () => {
+  // FAIL-OLD for the U.5 money critic's P0: `keepsSnapshot` walks the chain
+  // TRANSITIVELY, so a row of C's can be dropped in favour of A's. Feeding the
+  // boundary only C's DIRECT counterpart (B) hid A and produced both a wrong
+  // verdict ("counted", when the trend counts nothing of C's that date) and a
+  // wrong figure (naming B's balance where the chart used A's).
+  const CHAIN = `ad-chain-${STAMP}`;
+  let a = '';
+  let b = '';
+  let c = '';
+
+  beforeAll(async () => {
+    await prisma.user.create({ data: { id: CHAIN, email: `${CHAIN}@test.local` } });
+    const mk = async (name: string, balanceCents: number, dates: string[]) => {
+      const acct = await prisma.account.create({
+        data: {
+          userId: CHAIN, provider: 'simplefin', providerRef: `sf-${name}-${STAMP}`, name,
+          type: 'LOAN', mask: '4242', currency: 'USD', currentBalanceCents: balanceCents,
+        },
+      });
+      await prisma.balanceSnapshot.createMany({
+        data: dates.map((date) => ({ accountId: acct.id, date, balanceCents, accountType: 'LOAN' })),
+      });
+      return acct.id;
+    };
+    // A and C hold 2026-03-15; B deliberately does NOT — so only a transitive
+    // walk can see that A owns that date.
+    a = await mk('Loan A', 1_430_000, ['2026-03-15', '2026-04-15']);
+    b = await mk('Loan B', 1_400_000, ['2026-04-15']);
+    c = await mk('Loan C', 1_290_000, ['2026-03-15', '2026-04-15']);
+    await prisma.accountReconciliation.createMany({
+      data: [
+        { userId: CHAIN, predecessorAccountId: a, successorAccountId: b, cutoverDate: '2026-04-30', matchSignal: 'mask', confidence: 'high' },
+        { userId: CHAIN, predecessorAccountId: b, successorAccountId: c, cutoverDate: '2026-05-31', matchSignal: 'mask', confidence: 'high' },
+      ],
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: CHAIN } });
+  });
+
+  it("C's rows are judged over the WHOLE chain, and a date its direct counterpart does not own is never attributed to it", async () => {
+    const detail = await getAccountDetail(CHAIN, c);
+    // Both of C's dates are owned upstream: 2026-03-15 by A (B has no row),
+    // 2026-04-15 by A as well (A's cutover is 2026-04-30, so A wins it).
+    expect(uncountedDates(detail)).toEqual(['2026-03-15', '2026-04-15']);
+    const inTrend = await trendDatesFor(CHAIN, c);
+    for (const d of uncountedDates(detail)) expect(inTrend).not.toContain(d);
+    // B is C's direct counterpart but owns NEITHER date, so no row may name it.
+    // Naming a balance the chart did not use is the same defect as the one this
+    // slice exists to fix, one link further out.
+    expect(countedInsteadAt(detail, '2026-03-15')).toBeNull();
+    expect(countedInsteadAt(detail, '2026-04-15')?.name ?? null).not.toBe('Loan B');
+  });
+});

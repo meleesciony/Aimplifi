@@ -445,3 +445,96 @@ test('a zero-row spending account names its own empty history, never "these filt
   await expect(page.getByTestId('txn-filter-account-missing-option')).toHaveCount(0);
   await expect(empty.getByRole('link', { name: 'See it on Accounts' })).toHaveAttribute('href', '/accounts');
 });
+
+test('U.5: a combined account’s panel marks the balances net worth does not count, and names what is counted instead', async ({
+  page,
+}) => {
+  // The panel lists what was RECORDED for this account; the trend on the same
+  // page counts a subset, because combining two accounts drops one side of each
+  // same-dated pair (U.4 writes both sides at ONE date — it is what lets the
+  // boundary de-duplicate them). Pre-U.5 the dropped rows printed as ordinary
+  // recorded balances, so the panel and the chart named different money for the
+  // same date with nothing on screen to reconcile them.
+  //
+  // Only a browser can show the finished sentence next to the row it qualifies.
+  // The reconciliation row is inserted rather than driven through the combine
+  // UI: that flow is locked end-to-end in reconcile.spec.ts, and what is under
+  // test here is the PANEL's reading of an already-combined pair.
+  const email = `e2e-u5-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+
+  // A car loan that moved from SimpleFIN to Plaid. Both sides carry a row on the
+  // SAME two dates — the shape U.4's writer produces every month — straddling
+  // the cutover, so exactly one row on each side is dropped.
+  const dbFile = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(dbFile, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
+  const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+  const predId = `e2e-u5-pred-${suffix}`;
+  const succId = `e2e-u5-succ-${suffix}`;
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string };
+    const itemId = `e2e-u5-item-${suffix}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, name, type, mask, currentBalanceCents, currency)
+       VALUES (?, ?, 'simplefin', ?, 'Car Loan Retired', 'LOAN', '6619', 1430000, 'USD')`,
+    ).run(predId, user.id, `sf-u5-${suffix}`);
+    db.prepare(`INSERT INTO PlaidItem (id, userId, itemId, accessToken) VALUES (?, ?, ?, 'ct-u5')`).run(
+      `e2e-u5-item-row-${suffix}`,
+      user.id,
+      itemId,
+    );
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, plaidItemId, name, type, mask, currentBalanceCents, currency)
+       VALUES (?, ?, 'plaid', ?, ?, 'Car Loan Current', 'LOAN', '6619', 1290000, 'USD')`,
+    ).run(succId, user.id, `pl-u5-${suffix}`, itemId);
+    const snap = db.prepare(
+      'INSERT INTO BalanceSnapshot (id, accountId, date, balanceCents, accountType) VALUES (?, ?, ?, ?, ?)',
+    );
+    // Same dates on both sides. Cutover 2026-04-15: the predecessor owns that
+    // date, the successor owns 2026-05-15.
+    snap.run(`snap-u5-p1-${suffix}`, predId, '2026-04-15', 1430000, 'LOAN');
+    snap.run(`snap-u5-p2-${suffix}`, predId, '2026-05-15', 1430000, 'LOAN');
+    snap.run(`snap-u5-s1-${suffix}`, succId, '2026-04-15', 1310000, 'LOAN');
+    snap.run(`snap-u5-s2-${suffix}`, succId, '2026-05-15', 1290000, 'LOAN');
+    db.prepare(
+      `INSERT INTO AccountReconciliation (id, userId, predecessorAccountId, successorAccountId, cutoverDate, matchSignal, confidence)
+       VALUES (?, ?, ?, ?, '2026-04-15', 'mask', 'high')`,
+    ).run(`e2e-u5-recon-${suffix}`, user.id, predId, succId);
+  } finally {
+    db.close();
+  }
+
+  await page.goto('/accounts');
+  // The predecessor is folded out of the groups (it is disclosed as one logical
+  // account), so the reader's only way in is the surviving row.
+  const row = page.getByTestId('account-row').filter({ hasText: 'Car Loan Current' });
+  await expect(row).toBeVisible({ timeout: 20000 });
+  await row.click();
+  await page.waitForURL(`**/accounts?detail=${succId}`, { timeout: 20000 });
+
+  const panel = page.getByTestId('account-detail-panel');
+  await expect(panel).toBeVisible();
+  // Both recorded balances are still listed — deleting the dropped one would
+  // remove a balance the bank really did send for this account.
+  await expect(panel).toContainText('−$13,100.00');
+  await expect(panel).toContainText('−$12,900.00');
+  // Exactly one of them is marked, and it is the one the trend does not count.
+  await expect(panel.getByTestId('account-detail-not-counted')).toHaveCount(1);
+  const marked = panel.getByRole('listitem').filter({ hasText: '$13,100.00' });
+  // The row names the figure the chart actually used for that date — otherwise
+  // the panel shows the balance net worth did NOT use and never the one it did.
+  await expect(marked.getByTestId('account-detail-not-counted')).toContainText(
+    'your net worth counts −$14,300.00 from Car Loan Retired',
+  );
+  // The mechanism once, and where the pair can be seen: the named account is
+  // deliberately folded out of this page's groups.
+  const note = panel.getByTestId('account-detail-not-counted-note');
+  await expect(note).toContainText('One balance here is not in your net worth');
+  await expect(note).toContainText('so the same account is not counted twice');
+  await expect(note).toContainText('Account cleanup');
+});

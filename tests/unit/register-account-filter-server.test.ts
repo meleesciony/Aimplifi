@@ -139,6 +139,10 @@ describe('the register resolves its ?account= axis against the reader’s own ac
     const d = await getAccountDetail(USER, ids.checkingNoRows);
     // `feedDroppedAt` joined the view in U.4: the panel needs it to mark rows
     // recorded AFTER the feed went quiet as carried forward rather than read.
+    // U.5 added its fields to the HISTORY ROW (`countsInNetWorth` and the
+    // balance counted instead), not to the view, so an account with no rows is
+    // unchanged by it. Whole-object equality on purpose: a field added to the
+    // view has to be declared here before it can ship.
     expect(d).toEqual({
       id: ids.checkingNoRows,
       history: [],

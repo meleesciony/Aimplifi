@@ -873,8 +873,9 @@ function ReconciliationCandidatesCard({
       <CardContent className="space-y-3 text-sm">
         <p className="text-muted-foreground">
           One of your live connections looks like an account you linked before. Continue it so its
-          history stays and its balance stops counting twice — we keep both records and only ever
-          count the live one.
+          history stays and its balance stops counting twice — we keep both records, and count the
+          live one from the cutover date on. Before that date the record you already had is the one
+          that counts, so a date is never counted twice.
         </p>
         <ul className="space-y-3" role="list">
           {candidates.map((c) => (
@@ -1067,7 +1068,7 @@ function ContinuedAccountsCard({
     >
       <CardHeader className="pb-2">
         <CardDescription className="text-emerald-300">Combined accounts</CardDescription>
-        <CardTitle className="text-base">Counted once, on the live connection</CardTitle>
+        <CardTitle className="text-base">Counted once per date</CardTitle>
       </CardHeader>
       <CardContent className="text-sm">
         <ul className="space-y-2" role="list">

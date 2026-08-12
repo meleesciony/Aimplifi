@@ -33,7 +33,7 @@ export function netWorthPointBasis(
     // first sentence claiming completeness made that line a retraction rather
     // than an elaboration, and the first sentence is the one a reader stops at.
     `The ${formatCents(figureCents)} is the sum of the ${monthEnd ? 'month-end ' : ''}balances the app had recorded on ${dateLabel} — assets minus liabilities.`,
-    `It is built from the snapshots the app held for that date; an account with no snapshot then is not in it.`,
+    `It is built from the snapshots the app held for that date — one per account, so a pair you have combined contributes the single snapshot kept for it; an account with no snapshot then is not in it.`,
   ];
 }
 
@@ -198,7 +198,7 @@ export function netWorthDelta(
  * asserted a SHAPE that U.4 ended and a COMPLETENESS that was never true.
  */
 export const NET_WORTH_TREND_BASIS =
-  'Each point is the balances the app had recorded on that date, counted as what each account was classed as then — an account it had no balance for then is not in it. If an account moves between what you own and what you owe, points before and after that move are drawn on opposite sides. Today’s point is your live balances.';
+  'Each point is the balances the app had recorded on that date, counted as what each account was classed as then — one per account, so accounts you have combined contribute the single balance kept for that date, and an account it had no balance for then is not in it. If an account moves between what you own and what you owe, points before and after that move are drawn on opposite sides. Today’s point is your live balances.';
 
 export function netWorthLiveBasis(figureCents: Cents): readonly [string, ...string[]] {
   return [

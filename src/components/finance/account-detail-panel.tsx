@@ -9,6 +9,19 @@
  * (`isLiability` → −), so the panel can never call the balance a different
  * number than the line the reader tapped.
  *
+ * COUNTED vs RECORDED (U.5). The list is every balance RECORDED for this
+ * account; the trend on the same page counts a subset, because combining two
+ * accounts drops one side of each same-dated pair. The server decides which
+ * subset with the trend's own boundary and hands each row
+ * `countsInNetWorth` plus the balance counted instead — this file never
+ * re-derives either. Every claim about COUNTING (the reclassified note, the
+ * pre-U.6 note, and the "counted as" wording of the class marker) is therefore
+ * scoped to the counting rows, while the rows themselves name the figure the
+ * trend used for their date. Showing an uncounted row unmarked was the U.5
+ * defect; hiding it would delete a balance the bank really did send for this
+ * account, and dropping its class marker would re-open the unexplained sign
+ * flip U.6 closed.
+ *
  * Its own module rather than a corner of accounts-list.tsx so the REAL-user
  * shape (no loan facts, and — until U.4's writer records its first month — no
  * snapshots) is renderable under test without that file's server-action import
@@ -29,6 +42,10 @@
 import { cents, formatCents } from '@/lib/money';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { accountTypeLabel } from '@/lib/engine/account/type-label';
+import {
+  uncountedBalanceMarker,
+  uncountedBalancesNote,
+} from '@/lib/engine/account/balance-history-view';
 import { isLiabilityType, type AccountView } from '@/lib/engine/transactions/query';
 import type { AccountDetailView } from '@/server/transactions';
 
@@ -76,14 +93,31 @@ export function AccountDetailPanel({
   // because its SIGN still needs explaining; the two markers say different
   // things and are separated so neither the eye nor a screen reader runs them
   // together.
-  const reclassified = history.filter((h) => h.rowIsLiability !== isLiability);
-  const reclassifiedRead = reclassified.filter((h) => !h.carriedForward);
+  // U.5: the NOTES below are COUNTING claims — they say which side of net worth
+  // a date lands on. A row the reconciliation boundary drops lands on NEITHER:
+  // the account this one was combined with owns that date. So every counting
+  // claim is scoped to the rows that count.
+  //
+  // The per-row class MARKER is not scoped, because it is not a counting claim:
+  // it explains the row's SIGN, and an uncounted row's sign still needs
+  // explaining (it says "recorded as", not "counted as"). Nor is the
+  // carried-forward marker — that describes how the balance was obtained, which
+  // stays true of a row nothing counts.
+  const counted = history.filter((h) => h.countsInNetWorth);
+  const uncounted = history.filter((h) => !h.countsInNetWorth);
+  // Every row that RENDERS a class marker, counted or not — the gate for the
+  // pre-U.6 note below, which exists to stop unmarked older rows reading as
+  // confirmed beside visible class instability. Scoping that gate to counted
+  // rows would have hidden the note on exactly the panel that shows the
+  // instability on a dropped row.
+  const classMarked = history.filter((h) => h.accountType !== null && h.rowIsLiability !== isLiability);
+  const reclassifiedRead = classMarked.filter((h) => h.countsInNetWorth && !h.carriedForward);
   // Rows written before U.6 added the class column. They are signed by what the
   // account is TODAY — there is nothing better — and the note must not let the
   // sentence above it claim the trend is faithful to every recording when these
   // are present. An absolute is exactly what `netWorthPointBasis` was rewritten
   // to stop asserting; it must not come back one file over.
-  const unrecordedClass = history.filter((h) => h.accountType === null);
+  const unrecordedClass = counted.filter((h) => h.accountType === null);
   return (
     <div
       id={`account-detail-${account.id}`}
@@ -114,6 +148,18 @@ export function AccountDetailPanel({
                         · carried forward
                       </span>
                     )}
+                    {!h.countsInNetWorth && (
+                      <span
+                        className="ml-1 text-muted-foreground"
+                        data-testid="account-detail-not-counted"
+                      >
+                        {/* Deliberately NOT amber. The other two markers flag
+                            something the reader may need to act on or doubt;
+                            this one reports a correct de-duplication of an
+                            account they themselves combined. */}
+                        · {uncountedBalanceMarker(h.countedInstead)}
+                      </span>
+                    )}
                     {h.accountType !== null && h.rowIsLiability !== isLiability && (
                       <span className="ml-1 text-amber-600 dark:text-amber-400" data-testid="account-detail-reclassified">
                         {/* The separator is real content, not an `ml-1` margin: two
@@ -121,8 +167,16 @@ export function AccountDetailPanel({
                             ("carried forwardrecorded as checking"). `accountTypeLabel`
                             returns its input for a type it has no label for, so an
                             unrecognised value says "another type" rather than
-                            printing a raw enum at the reader. */}
-                        · counted as{' '}
+                            printing a raw enum at the reader.
+
+                            "counted as" vs "recorded as" (U.5): this marker
+                            exists to explain the row's SIGN, which is not a
+                            counting claim — deleting it from an uncounted row
+                            re-opened the unexplained sign flip U.6 closed (a
+                            positive figure inside a liability account's history
+                            with no story). So it still renders; it just stops
+                            saying the trend counts a row the trend drops. */}
+                        · {h.countsInNetWorth ? 'counted' : 'recorded'} as{' '}
                         {accountTypeLabel(h.accountType) === h.accountType
                           ? 'another type'
                           : accountTypeLabel(h.accountType).toLowerCase()}
@@ -141,6 +195,20 @@ export function AccountDetailPanel({
               {carriedCount === 1 ? 'One row repeats' : `${carriedCount} rows repeat`} the last
               balance your bank sent, on {formatISODate(isoDate(dropped as string), 'long')} —
               nothing has been read from this account since.
+            </p>
+          )}
+          {uncounted.length > 0 && (
+            <p
+              className="mt-1 break-words text-xs text-muted-foreground"
+              data-testid="account-detail-not-counted-note"
+            >
+              {/* The mechanism once, here; the FIGURES on the rows (each dropped
+                  date has its own counterpart balance — the two sides of a
+                  combined pair disagree, which is why one has to win). The
+                  sentence also names where the pair can be seen: the combined
+                  account is folded out of the groups on this page, so its name
+                  on those rows is otherwise one a reader cannot find. */}
+              {uncountedBalancesNote(uncounted.length)}
             </p>
           )}
           {reclassifiedRead.length > 0 && (
@@ -172,7 +240,7 @@ export function AccountDetailPanel({
               invisible. Beside a reclassification it is load-bearing: THAT is
               when a reader would otherwise read the unmarked older rows as
               confirmed. */}
-          {unrecordedClass.length > 0 && reclassified.length > 0 && (
+          {unrecordedClass.length > 0 && classMarked.length > 0 && (
             <p
               className="mt-1 text-xs text-muted-foreground"
               data-testid="account-detail-unrecorded-class-note"
