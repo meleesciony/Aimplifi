@@ -440,3 +440,4 @@ refuses to write if it would drop any number this file already carries.
 - **#444** (Phase ?): O.20d-FU: the re-review Flash never ran — what a fix pass may correct in place, and what has to become its own critic-gated slice (2026-08-11)
 - **#445** (Phase ?): O.20g: what makes an income baseline credible enough to divide by, and why a count of covered months is not it (2026-08-11)
 - **#446** (Phase ?): O.20a: measured before deciding, and the measurement found a different, bigger bug than the one the row named (2026-08-11)
+- **#447** (Phase ?): O.20f: the tap-target floor ships on all five O.20d controls, and each same-file P2's open choice is decided here (2026-08-11)
