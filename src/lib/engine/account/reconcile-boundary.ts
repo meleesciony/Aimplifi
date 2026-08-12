@@ -21,11 +21,19 @@
  *    data claims nothing extra (F4), and inside the claim each calendar date is
  *    owned by exactly one side — no overlap, no fuzzy matching.
  *  - Balance snapshots (F3): snapshots are STOCKS, not flows — a lone observation
- *    is always a correct single contribution, so nothing is dropped unless BOTH
- *    sides observed the same real account on the SAME date. On an exact-date
- *    collision the predecessor's copy wins on/before the cutover, the successor's
- *    after — one contribution per date, and never a fabricated dip in the
- *    net-worth trend where only one side has data.
+ *    is always a correct single contribution, so nothing is dropped unless MORE
+ *    THAN ONE row observed the same real account on the SAME date. Exactly one
+ *    survives per (supersession COMPONENT, date) — the component, not the chain,
+ *    because a link's "same real account" claim is transitive and two stale rows
+ *    can share one live successor (U.9). The side whose ownership window most
+ *    tightly contains the date wins: still-covering sides first (earliest cutover),
+ *    then the live terminal row, then closed windows (latest cutover). An EQUAL
+ *    cutover is broken by chain DEPTH, never by account id — a chain's two links may
+ *    legitimately share a cutover, and the mid-chain window is then empty, so ranking
+ *    by id handed the date to a row that owns nothing and moved a real figure on cuid
+ *    order (U.9 critic P0-1). Account id is the last resort and settles only true
+ *    siblings, which are symmetric. One contribution per date, order-independent, and
+ *    never a fabricated dip in the net-worth trend where only one side has data.
  *  - `paymentAccountId`: if the user's designated funding account is a predecessor,
  *    it is remapped to its successor (following chains to the terminal live side).
  *    Without this, cash-needed and the forecast would fund from a zeroed balance —
@@ -169,11 +177,30 @@ export function effectiveReconciliationLinks<A extends BoundaryAccountLike>(
     return pred.type === succ.type; // cross-type would sign-flip series history
   });
 
+  // Out-degree guard (U.9 critic finding 3): a predecessor with TWO successors says
+  // one stale row was continued onto two different live accounts — mutually exclusive
+  // claims, and the shape silently breaks the component key (`chainMaps` builds
+  // `succOf` with `new Map`, so the LAST edge wins and the other successor keys its
+  // own component; measured: two survivors for one real account, the exact U.9 defect
+  // through a different door). `predecessorAccountId @unique` makes this unreachable
+  // from the database, which is precisely why it must be guarded HERE too: this file
+  // already re-checks the cycle and monotonicity invariants at read time although both
+  // are refused at write time (docs/lessons/a-guard-must-read-what-it-guards), and the
+  // component key's soundness now rests on out-degree <= 1. Same doctrine as those
+  // guards: the ambiguous shape goes INERT — every link out of that predecessor drops
+  // and all the rows count fully, a visible advisory-covered double, never a silent
+  // drop or a wrong winner.
+  const outDegree = new Map<string, number>();
+  for (const l of structural) {
+    outDegree.set(l.predecessorAccountId, (outDegree.get(l.predecessorAccountId) ?? 0) + 1);
+  }
+  const singleExit = structural.filter((l) => (outDegree.get(l.predecessorAccountId) ?? 0) === 1);
+
   // Cycle guard: walk pred → succ edges; any link on OR leading into a cycle is
-  // inert. With `predecessorAccountId` unique there is at most one outgoing edge
-  // per node, so a simple visited-walk per link suffices and terminates.
-  const succOf = new Map(structural.map((l) => [l.predecessorAccountId, l.successorAccountId]));
-  const acyclic = structural.filter((l) => {
+  // inert. Out-degree is now <= 1 by the guard above, so a simple visited-walk per
+  // link suffices and terminates.
+  const succOf = new Map(singleExit.map((l) => [l.predecessorAccountId, l.successorAccountId]));
+  const acyclic = singleExit.filter((l) => {
     const seen = new Set<string>([l.predecessorAccountId]);
     let cursor: string | undefined = l.successorAccountId;
     while (cursor !== undefined) {
@@ -216,14 +243,20 @@ export function effectiveReconciliationLinks<A extends BoundaryAccountLike>(
 }
 
 /**
- * Chain traversal maps over EFFECTIVE links (slice-6 critic A-F1/A-F4): claims
- * and snapshot collisions must compose across a CHAIN (A→B→C), not just across
- * direct links — the terminal successor's deep backfill re-imports history the
- * ORIGINAL predecessor already holds, two links away, and a direct-only check
- * double-counted it. `upstreamsOf(X)` = every account whose chain of links leads
- * INTO X; `downstreamsOf(X)` = the chain from X to the terminal successor; the
- * terminal remap is the slice-3 payment-account/re-key walk. All cycle-free by
- * construction (effective links only), visited-guarded anyway.
+ * Chain traversal maps over EFFECTIVE links (slice-6 critic A-F1/A-F4): transaction
+ * CLAIMS must compose across a CHAIN (A→B→C), not just across direct links — the
+ * terminal successor's deep backfill re-imports history the ORIGINAL predecessor
+ * already holds, two links away, and a direct-only check double-counted it.
+ * `upstreamsOf(X)` = every account whose chain of links leads INTO X;
+ * `downstreamsOf(X)` = the chain from X to the terminal successor; the terminal
+ * remap is the slice-3 payment-account/re-key walk. All cycle-free by construction
+ * (effective links only), visited-guarded anyway.
+ *
+ * Snapshot collisions are NO LONGER decided by these two walks (U.9): they compose
+ * over the whole connected COMPONENT, because two accounts can be the same real
+ * account without either being upstream or downstream of the other. `downstreamsOf`
+ * still serves that rule — its length is an account's DEPTH, which is what orders
+ * two chain members whose cutovers are equal.
  */
 function chainMaps(links: readonly ReconciliationLinkLike[]): {
   upstreamsOf: (id: string) => string[];
@@ -458,25 +491,79 @@ export function applyReconciliationBoundary<
 
   // Chain maps + the shared R1 keep rule (module-level builders so the register
   // filter applies the IDENTICAL rule — see reconciliationTxnKeepFilter).
-  const { upstreamsOf, downstreamsOf, remapToTerminal } = chainMaps(links);
+  const { downstreamsOf, remapToTerminal } = chainMaps(links);
   const keepsTxn = txnKeepRule(links, cutover, txnSpan);
 
-  // F3 rule for balance snapshots, composed transitively (A-F4): drop only on
-  // an exact-date collision with a chain counterpart; the OLDER side's cutover
-  // picks the winner — upstream wins on/before its cutover, downstream after.
-  const keepsSnapshot = (accountId: string, date: string): boolean => {
-    for (const p of upstreamsOf(accountId)) {
-      const predHasDate = snapshotDates.get(p)?.has(date) ?? false;
-      if (predHasDate && compareDates(isoDate(date), cutover.get(p) as ISODate) <= 0) return false;
-    }
-    const cutSelf = cutover.get(accountId);
-    if (cutSelf !== undefined) {
-      for (const s of downstreamsOf(accountId)) {
-        const succHasDate = snapshotDates.get(s)?.has(date) ?? false;
-        if (succHasDate && compareDates(isoDate(date), cutSelf) > 0) return false;
+  // F3 rule for balance snapshots, composed over the whole SUPERSESSION COMPONENT
+  // (A-F4 chains AND U.9 siblings). A link asserts "these two rows are the same
+  // real account", and that assertion is TRANSITIVE: s1 ≡ live and s2 ≡ live makes
+  // s1 ≡ s2 even though neither is upstream nor downstream of the other. The old
+  // rule walked only `upstreamsOf`/`downstreamsOf`, so two stale rows continued
+  // onto ONE live account — the shape the non-unique `successorAccountId` exists
+  // for (#274) — were each compared against the successor and never against each
+  // other, and on a date both cutovers covered BOTH survived: one real $5,000.00
+  // savings account measured as $10,000.00 in the trend (U.9).
+  //
+  // So the unit of de-duplication is the connected component, and the invariant is
+  // exactly ONE surviving snapshot per (component, date). `remapToTerminal` is the
+  // component key: effective links are acyclic with out-degree <= 1, so every
+  // account in a component walks to the same single terminal live row.
+  //
+  // The winner is chosen ONLY among accounts that actually have a row on that date,
+  // so a lone observation is still never dropped and the trend never gains a
+  // fabricated dip. Among the rows that do exist, it is the side whose ownership
+  // window most tightly contains the date:
+  //   0. sides still covering it (cutover >= date), EARLIEST cutover first — the
+  //      chain's own half-open rule (A owns [..cutAB], B owns (cutAB..cutBC]);
+  //   1. then the live terminal row, which owns every date past every cutover;
+  //   2. then sides whose window already closed, LATEST cutover first — a dead feed
+  //      that kept reporting is the last resort, never a second copy.
+  //
+  // EQUAL cutovers are then broken by CHAIN POSITION, never by account id, and this
+  // is load-bearing rather than tidiness (U.9 critic P0-1). Two links of one chain may
+  // legitimately share a cutover — the confirm action refuses only a STRICTLY earlier
+  // downstream one (`reconciliation.ts`), and both defaulting to today is the ordinary
+  // way to get there — and in that shape the mid-chain account's window `(cut..cut]` is
+  // EMPTY, so the upstream owns the date outright. Breaking that tie on id made the
+  // winner depend on cuid order: the same data moved a trend point by $5,000.00
+  // depending only on how two opaque ids happened to sort. `depth` = links between an
+  // account and its terminal, so an ancestor always outranks its descendant; before a
+  // cutover the older side owns the date (greater depth wins) and after it the newer
+  // one does (lesser depth wins). Account id is the last resort and applies only to
+  // true SIBLINGS, which are symmetric — there is no fact left to prefer one by.
+  const depthOf = new Map<string, number>();
+  for (const id of linkedIds) depthOf.set(id, downstreamsOf(id).length);
+  const snapshotTier = (accountId: string, date: ISODate): number => {
+    const cut = cutover.get(accountId);
+    if (cut === undefined) return 1; // the terminal live row — no window of its own
+    return compareDates(date, cut) <= 0 ? 0 : 2;
+  };
+  const outranksForDate = (a: string, b: string, date: ISODate): boolean => {
+    const tierA = snapshotTier(a, date);
+    const tierB = snapshotTier(b, date);
+    if (tierA !== tierB) return tierA < tierB;
+    if (tierA === 1) return a < b; // one terminal per component — defensive only
+    const cmp = compareDates(cutover.get(a) as ISODate, cutover.get(b) as ISODate);
+    if (cmp !== 0) return tierA === 0 ? cmp < 0 : cmp > 0; // covering: earliest; closed: latest
+    const depthA = depthOf.get(a) ?? 0;
+    const depthB = depthOf.get(b) ?? 0;
+    if (depthA !== depthB) return tierA === 0 ? depthA > depthB : depthA < depthB;
+    return a < b;
+  };
+  const snapshotWinner = new Map<string, string>(); // `${componentId}:${date}` → account id
+  for (const [accountId, dates] of snapshotDates) {
+    const component = remapToTerminal(accountId);
+    for (const date of dates) {
+      const key = `${component}:${date}`;
+      const held = snapshotWinner.get(key);
+      if (held === undefined || outranksForDate(accountId, held, isoDate(date))) {
+        snapshotWinner.set(key, accountId);
       }
     }
-    return true;
+  }
+  const keepsSnapshot = (accountId: string, date: string): boolean => {
+    if (!linkedIds.has(accountId)) return true; // bystander — no link touches it
+    return snapshotWinner.get(`${remapToTerminal(accountId)}:${date}`) === accountId;
   };
 
   // R4 statements: the latest cycleEnd each SUCCESSOR/bystander already has of its OWN

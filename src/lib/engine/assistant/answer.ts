@@ -319,7 +319,12 @@ export function answerAccountBalance(
   // named the OLD account) — a plain type query over live accounts stays undecorated.
   const foldNote =
     foldedFrom.length > 0
-      ? `${foldedFrom.join(' and ')} was combined into its connected account, so it counts once.`
+      ? // Number agreement holds for a MULTI-account fold (U.9): one live account may
+        // continue more than one old row, and the singular read "X and Y was combined
+        // into its connected account".
+        foldedFrom.length === 1
+        ? `${foldedFrom[0]} was combined into its connected account, so it counts once.`
+        : `${foldedFrom.join(' and ')} were combined into their connected account, so it counts once.`
       : undefined;
 
   // TASKS L.18. Resolved against the accounts each BRANCH actually quotes, not against the whole

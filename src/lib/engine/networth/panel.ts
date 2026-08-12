@@ -33,7 +33,14 @@ export function netWorthPointBasis(
     // first sentence claiming completeness made that line a retraction rather
     // than an elaboration, and the first sentence is the one a reader stops at.
     `The ${formatCents(figureCents)} is the sum of the ${monthEnd ? 'month-end ' : ''}balances the app had recorded on ${dateLabel} — assets minus liabilities.`,
-    `It is built from the snapshots the app held for that date — one per account, so a pair you have combined contributes the single snapshot kept for it; an account with no snapshot then is not in it.`,
+    // "accounts you have combined", never "a pair" (U.9): the app keeps one balance
+    // per date for a whole COMBINED SET, which can be three or more rows — two stale
+    // connections continued onto one live account is supported data. Read literally,
+    // "a pair contributes one" predicts two rows for two pairs, so a reader with two
+    // old connections would go looking for a snapshot the chart is right to omit.
+    // `NET_WORTH_TREND_BASIS` below already states it this way; this is the same rule
+    // on the surface that shows the constituent rows.
+    `It is built from the snapshots the app held for that date — one per account, so accounts you have combined contribute the single snapshot kept for that date; an account with no snapshot then is not in it.`,
   ];
 }
 

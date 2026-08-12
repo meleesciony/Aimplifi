@@ -67,6 +67,34 @@ export function uncountedBalanceMarker(counted: CountedInsteadOf | null): string
  * it": the two sides carry DIFFERENT balances, so "double" is false of the two
  * figures actually in play, and the honest claim is about counting the same
  * account twice — not about doubling a number.
+ *
+ * Four separate claims in this one sentence were wrong, and two critics had to
+ * take them apart clause by clause (docs/lessons/a-disclosure-is-several-claims-in-one-sentence):
+ *
+ *  1. NOT "both sides recorded a balance on that date". True only of the
+ *     two-account pair it was written for. The date's winner is decided across the
+ *     whole supersession COMPONENT, so the row that displaced this one can belong
+ *     to a third account — a chain member (reachable since U.5, where this clause
+ *     was already false) or a SIBLING, a second stale row continued onto the same
+ *     live account (U.9). In the chain shape the reader's own counterpart may have
+ *     recorded nothing at all that date; in the sibling shape there is no "both
+ *     sides" to speak of, because three accounts are in play.
+ *  2. NOT "another one" (singular). One live account may continue several old
+ *     rows, and the panel that renders this note is the live one — the same page
+ *     says "Combines 2 old accounts into this one" under Account cleanup.
+ *  3. NOT "Aimplifi counts one of them". The nearest plural antecedent is the
+ *     uncounted balances named in the first clause, none of which is counted;
+ *     it read as a promise that one of the greyed rows in front of the reader is
+ *     in their net worth.
+ *  4. NOT "the same ACCOUNT is not counted twice", unqualified. That is a claim
+ *     about every figure the account touches, and TASKS U.11 measures it false for
+ *     spending: two stale feeds of one account still contribute a purchase twice.
+ *     The de-duplication this note explains is over BALANCES, so the sentence says
+ *     balances. A disclosure may only certify the surface it actually covers.
+ *
+ * And the first repair overshot: "more than one row CAN describe the same real
+ * account" is a statement of possibility answering a question about an event. The
+ * row was dropped because more than one row DID.
  */
 export function uncountedBalancesNote(uncountedCount: number): string | null {
   if (uncountedCount <= 0) return null;
@@ -74,9 +102,10 @@ export function uncountedBalancesNote(uncountedCount: number): string | null {
     uncountedCount === 1
       ? 'One balance here is not in your net worth'
       : `${uncountedCount} balances here are not in your net worth`;
+  const dates = uncountedCount === 1 ? 'that date' : 'those dates';
   return (
-    `${subject}. You combined this account with another one, and both sides recorded a balance on ` +
-    `${uncountedCount === 1 ? 'that date' : 'those dates'} — Aimplifi keeps one of them so the same ` +
-    `account is not counted twice. The pair is listed under Account cleanup.`
+    `${subject}. This account is combined with at least one other account you had, and on ${dates} ` +
+    `more than one of them recorded a balance — Aimplifi counts a single balance per date for a ` +
+    `combined account, so no balance is counted twice. Your combined accounts are listed under Account cleanup.`
   );
 }

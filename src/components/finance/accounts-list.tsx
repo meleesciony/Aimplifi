@@ -874,8 +874,8 @@ function ReconciliationCandidatesCard({
         <p className="text-muted-foreground">
           One of your live connections looks like an account you linked before. Continue it so its
           history stays and its balance stops counting twice — we keep both records, and count the
-          live one from the cutover date on. Before that date the record you already had is the one
-          that counts, so a date is never counted twice.
+          live one from the cutover date on. Before that date the balance counted comes from an
+          older record, and only one balance is counted per date.
         </p>
         <ul className="space-y-3" role="list">
           {candidates.map((c) => (

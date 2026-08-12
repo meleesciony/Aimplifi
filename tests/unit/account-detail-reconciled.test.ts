@@ -257,3 +257,105 @@ describe('getAccountDetail — a CHAIN (A→B→C), where the winner is not the 
     expect(countedInsteadAt(detail, '2026-04-15')?.name ?? null).not.toBe('Loan B');
   });
 });
+
+describe('getAccountDetail — SIBLINGS (two stale rows continued onto ONE live account, TASKS U.9)', () => {
+  // FAIL-OLD for the U.9 double-count. `keepsSnapshot` compared each stale row
+  // against the successor and never against its TWIN — siblings are neither
+  // `upstreamsOf` nor `downstreamsOf` each other — so on a date both cutovers
+  // covered, BOTH survived and one real account contributed twice. This is a
+  // real-Prisma test for the same reason the file exists: the property is that
+  // the panel's verdict and the TREND'S OWN CONSTITUENTS agree.
+  const SIB = `ad-sib-${STAMP}`;
+  const BAL = 500_000; // $5,000.00 — the figure the U.5 critic measured as $10,000.00
+  const BOTH = '2026-03-15'; // on/before BOTH cutovers → the double-count date
+  const MIDDLE = '2026-05-15'; // past s1 cutover, inside s2's
+  // Past both cutovers AND still in the past relative to this environment's
+  // `today` (2026-06-10 — the seed's asOf). A fixture dated after it is filtered
+  // out of the series entirely and proves nothing:
+  // docs/lessons/the-fixture-must-live-at-the-same-today-as-the-server.md
+  const AFTER = '2026-06-05';
+  let s1 = '';
+  let s2 = '';
+  let live = '';
+
+  beforeAll(async () => {
+    await prisma.user.create({ data: { id: SIB, email: `${SIB}@test.local` } });
+    const mk = async (name: string) => {
+      const acct = await prisma.account.create({
+        data: {
+          userId: SIB, provider: 'simplefin', providerRef: `sf-${name}-${STAMP}`, name,
+          type: 'LOAN', mask: '7788', currency: 'USD', currentBalanceCents: BAL,
+        },
+      });
+      await prisma.balanceSnapshot.createMany({
+        data: [BOTH, MIDDLE, AFTER].map((date) => ({ accountId: acct.id, date, balanceCents: BAL, accountType: 'LOAN' })),
+      });
+      return acct.id;
+    };
+    s1 = await mk('Loan (SimpleFIN)');
+    s2 = await mk('Loan (Plaid old)');
+    live = await mk('Loan');
+    await prisma.accountReconciliation.createMany({
+      data: [
+        { userId: SIB, predecessorAccountId: s1, successorAccountId: live, cutoverDate: '2026-04-30', matchSignal: 'mask', confidence: 'high' },
+        { userId: SIB, predecessorAccountId: s2, successorAccountId: live, cutoverDate: '2026-05-31', matchSignal: 'mask', confidence: 'high' },
+      ],
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: SIB } });
+  });
+
+  it('the trend counts ONE balance per date — $5,000.00 once, not twice (FAIL-OLD: two constituents, −$10,000.00)', async () => {
+    const view = await getAccountsView(SIB);
+    const at = (date: string) => view.trend.find((p) => p.date === date);
+
+    // The date both dead feeds still covered: pre-fix s1 AND s2 both survived.
+    expect(at(BOTH)?.constituents.map((c) => c.accountId)).toEqual([s1]);
+    expect(at(BOTH)?.netWorthCents).toBe(-BAL);
+    // Past s1's cutover, s2 is the side still covering the date.
+    expect(at(MIDDLE)?.constituents.map((c) => c.accountId)).toEqual([s2]);
+    expect(at(MIDDLE)?.netWorthCents).toBe(-BAL);
+    // Past both cutovers the live row owns it.
+    expect(at(AFTER)?.constituents.map((c) => c.accountId)).toEqual([live]);
+    expect(at(AFTER)?.netWorthCents).toBe(-BAL);
+  });
+
+  it('the losing SIBLING row is marked uncounted and names nothing — never the wrong account', async () => {
+    // s2 loses BOTH to s1, and s1 is not s2's direct counterpart (they meet only
+    // through `live`), so the honest answer is a verdict with no attribution.
+    //
+    // REACHABILITY, stated rather than implied (a U.9 critic caught the previous
+    // slice making this mistake): a superseded predecessor is folded out of the
+    // /accounts groups and the panel renders only inside a rendered row, so no user
+    // can currently OPEN s2's panel. This asserts SERVER behaviour — the verdict
+    // `getAccountDetail` returns for a predecessor — as defence in depth, not a
+    // rendered claim. The rendered sibling case is the live row's panel, in the
+    // next test, and that one a user can reach.
+    const detail = await getAccountDetail(SIB, s2);
+    // BOTH is lost to the sibling s1; AFTER is lost to `live` (ordinary post-cutover
+    // behaviour, unchanged by U.9). MIDDLE is the date s2 still covers.
+    expect(uncountedDates(detail)).toEqual([BOTH, AFTER]);
+    expect(countedInsteadAt(detail, BOTH)).toBeNull();
+    // The successor IS a direct counterpart, so that row may name it — the contrast
+    // with the unnamed sibling row above is the whole point.
+    expect(countedInsteadAt(detail, AFTER)).toEqual({ name: 'Loan', balanceCents: BAL, isLiability: true });
+    expect(detail?.history.find((h) => h.date === MIDDLE)?.countsInNetWorth).toBe(true);
+    // Every row is still shown — a balance the bank sent is never deleted.
+    expect(detail?.history.map((h) => h.date)).toEqual([BOTH, MIDDLE, AFTER]);
+  });
+
+  it("the live row's dropped dates name the sibling that won them, and the panel matches the trend exactly", async () => {
+    const detail = await getAccountDetail(SIB, live);
+    expect(uncountedDates(detail)).toEqual([BOTH, MIDDLE]);
+    // Both winners ARE direct counterparts of `live`, so both can be named.
+    expect(countedInsteadAt(detail, BOTH)).toEqual({ name: 'Loan (SimpleFIN)', balanceCents: BAL, isLiability: true });
+    expect(countedInsteadAt(detail, MIDDLE)).toEqual({ name: 'Loan (Plaid old)', balanceCents: BAL, isLiability: true });
+    // The two surfaces agree: what the panel calls uncounted is exactly what the
+    // trend leaves out for this account.
+    const inTrend = await trendDatesFor(SIB, live);
+    for (const d of uncountedDates(detail)) expect(inTrend).not.toContain(d);
+    expect(inTrend).toContain(AFTER);
+  });
+});

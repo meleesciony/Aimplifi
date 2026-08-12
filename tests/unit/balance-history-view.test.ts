@@ -61,10 +61,55 @@ describe('uncountedBalancesNote', () => {
   it('never claims the two balances would "double" anything — they differ, which is why one has to win', () => {
     const note = uncountedBalancesNote(2) ?? '';
     expect(note).not.toContain('double');
-    expect(note).toContain('not counted twice');
+    // Scoped to balances since U.9 — see the U.11 test below for why the
+    // unqualified "the same account is not counted twice" had to go.
+    expect(note).toContain('no balance is counted twice');
   });
 
   it('points at the surface that shows the pair, because the named account is folded out of the groups', () => {
     expect(uncountedBalancesNote(1) ?? '').toContain('Account cleanup');
+  });
+
+  it('U.9: never claims BOTH SIDES recorded a balance on the date — a sibling or chain member may be the winner', () => {
+    // The displacing row can belong to a third account (a chain member, or a second
+    // stale row continued onto the same live account), in which case this account's
+    // own counterpart recorded nothing that date. The note may only claim that more
+    // than one row DID record, never that a specific pair both observed it.
+    for (const n of [1, 2, 5]) {
+      const note = uncountedBalancesNote(n) ?? '';
+      expect(note).not.toContain('both sides');
+      expect(note).toContain('more than one of them recorded a balance');
+    }
+  });
+
+  it('U.9: never says a SINGULAR "another one" / "the combination" — one live account can continue several', () => {
+    // The only panel that renders this note is the live account's, and it may have
+    // continued two old rows; the same page then says "Combines 2 old accounts into
+    // this one" a few sections down.
+    for (const n of [1, 2, 5]) {
+      const note = uncountedBalancesNote(n) ?? '';
+      expect(note).toContain('at least one other account');
+      expect(note).not.toContain('with another one');
+      expect(note).not.toContain('The combination is listed');
+      expect(note).toContain('Your combined accounts are listed');
+    }
+  });
+
+  it('U.9: certifies BALANCES only — U.11 measures the same account counted twice in spending', () => {
+    // An unqualified "the same account is not counted twice" claims every figure the
+    // account touches. Two stale feeds of one account still contribute a purchase
+    // twice (TASKS U.11), so the sentence may only certify what this rule covers.
+    for (const n of [1, 2]) {
+      const note = uncountedBalancesNote(n) ?? '';
+      expect(note).toContain('no balance is counted twice');
+      expect(note).not.toContain('the same account is not counted twice');
+      expect(note).not.toContain('double');
+    }
+  });
+
+  it('U.9: states what HAPPENED, not what is possible — no modal "can describe"', () => {
+    // The reader is asking why THEIR balance is missing; "more than one row can
+    // describe the same account" is true, vacuous, and answers a different question.
+    expect(uncountedBalancesNote(1) ?? '').not.toContain('can describe');
   });
 });

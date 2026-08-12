@@ -407,7 +407,11 @@ describe('AccountDetailPanel', () => {
       expect(marks[0].textContent).toContain('your net worth counts −$14,300.00 from Auto Loan Retired');
       const note = screen.getByTestId('account-detail-not-counted-note').textContent ?? '';
       expect(note).toContain('One balance here is not in your net worth');
-      expect(note).toContain('so the same account is not counted twice');
+      // U.9 narrowed this claim from "the same ACCOUNT is not counted twice" to
+      // balances: U.11 measures the same account counted twice in SPENDING, so the
+      // unqualified form certified a surface this rule does not cover.
+      expect(note).toContain('no balance is counted twice');
+      expect(note).not.toContain('the same account is not counted twice');
       // Points at the surface that shows the pair: the named account is folded
       // out of this page's groups, so it is otherwise a name with no home.
       expect(note).toContain('Account cleanup');

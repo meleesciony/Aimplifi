@@ -535,6 +535,7 @@ test('U.5: a combined account’s panel marks the balances net worth does not co
   // deliberately folded out of this page's groups.
   const note = panel.getByTestId('account-detail-not-counted-note');
   await expect(note).toContainText('One balance here is not in your net worth');
-  await expect(note).toContainText('so the same account is not counted twice');
+  // U.9: scoped to balances (U.11 measures the same account counted twice in spending).
+  await expect(note).toContainText('no balance is counted twice');
   await expect(note).toContainText('Account cleanup');
 });

@@ -1730,10 +1730,15 @@ export interface AccountDetailView {
    *
    *  `countedInstead` is THAT balance, carried per row rather than summarised
    *  for the panel, because each dropped date has its own counterpart figure —
-   *  the two sides of a combined pair disagree, which is why one has to win.
-   *  Null on a counted row, and null when the date's owner is not this
-   *  account's direct counterpart (a chain): the row then states only what is
-   *  certain rather than naming a wrong account. */
+   *  two combined records disagree, which is why one has to win.
+   *  Null on a counted row, and null whenever the date's owner is not this
+   *  account's DIRECT counterpart: the row then states only what is certain
+   *  rather than naming a wrong account. That covers a chain (the owner is two
+   *  links up) and, since U.9, a SIBLING — a second stale row continued onto the
+   *  same live account, which displaces this one while being no counterpart of
+   *  it. The set of unnamed-but-uncounted rows is therefore wider than when this
+   *  was written; the panel's note explains the class, and the row itself never
+   *  guesses. */
   history: {
     date: string;
     balanceCents: number;
@@ -1814,13 +1819,16 @@ export async function getAccountDetail(userId: string, accountId: string): Promi
   const keptCounterpartAt = new Map<string, { accountId: string; balanceCents: number; accountType: string | null }[]>();
   if (effective.length > 0) {
     // Scoped to this account and EVERY account in an effective link — not just
-    // this one's direct counterparts. `keepsSnapshot` walks `upstreamsOf` /
-    // `downstreamsOf` TRANSITIVELY, so in a chain A→B→C a row of C's can be
-    // dropped in favour of A's; a direct-counterparts-only input hides A and
-    // silently returns the wrong verdict AND the wrong counterpart figure (found
-    // by the U.5 money critic, reproduced on a 3-link chain). Every chain member
-    // appears in some link by construction, so this set is exactly the one the
-    // boundary consults — the same `linkedIds` it builds internally.
+    // this one's direct counterparts. `keepsSnapshot` decides a date over the whole
+    // supersession COMPONENT (U.9), so the row that displaces one of this account's
+    // can belong to an account it never links to directly: in a chain A→B→C a row of
+    // C's can be dropped in favour of A's, and two stale rows continued onto ONE live
+    // account displace each other while being neither's counterpart. A
+    // direct-counterparts-only input hides those accounts and silently returns the
+    // wrong verdict AND the wrong counterpart figure (found by the U.5 money critic,
+    // reproduced on a 3-link chain). Every component member appears in some link by
+    // construction, so this set is exactly the one the boundary consults — the same
+    // `linkedIds` it builds internally.
     //
     // UNWINDOWED, deliberately: the trend's 19-month floor is a payload bound on
     // what it RENDERS, but evaluating an old row with its counterpart missing

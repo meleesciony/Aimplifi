@@ -680,3 +680,279 @@ describe('slice-6 chain composition (critics A-F1/A-F4/A-F6/A-F8, B-F4)', () => 
     expect(effectiveReconciliationLinks([A, B, C], CHAIN)).toEqual(CHAIN);
   });
 });
+
+// ─── U.9: SIBLING predecessors of one successor (DECISIONS #453) ─────────────
+
+/**
+ * The shape `successorAccountId`'s non-uniqueness exists for: ONE real account
+ * connected twice, both stale rows continued onto the live one (#274). Siblings
+ * are neither `upstreamsOf` nor `downstreamsOf` each other, so every rule built
+ * from those two walks compared each sibling ONLY against the successor and
+ * never against its twin — and on a date both cutovers cover, both survived.
+ *
+ * A link asserts "these two rows are the same real account", so the assertion is
+ * transitive: s1 ≡ live and s2 ≡ live means s1 ≡ s2. The whole connected
+ * component is one account, and one account contributes ONE balance per date and
+ * owns each transaction date exactly once.
+ */
+describe('U.9 sibling predecessors — one real account connected twice', () => {
+  // The reproduction filed in STATUS.md §U.5: a single real $5,000.00 savings
+  // account, connected through two dead feeds onto one live row.
+  const S1 = { id: 's1', name: 'Savings (SimpleFIN)', type: 'SAVINGS', currentBalanceCents: 500_000 };
+  const S2 = { id: 's2', name: 'Savings (Plaid old)', type: 'SAVINGS', currentBalanceCents: 500_000 };
+  const LIVE = { id: 'live', name: 'Savings', type: 'SAVINGS', currentBalanceCents: 500_000 };
+  // Deliberately DIFFERENT cutovers: the two feeds died on different days, and the
+  // rule has to pick a winner per date rather than per pair.
+  const CUT_S1 = '2026-04-30';
+  const CUT_S2 = '2026-06-30';
+  const SIBLINGS: ReconciliationLinkLike[] = [
+    { predecessorAccountId: 's1', successorAccountId: 'live', cutoverDate: CUT_S1 },
+    { predecessorAccountId: 's2', successorAccountId: 'live', cutoverDate: CUT_S2 },
+  ];
+  const sibApply = (over: {
+    transactions?: { accountId: string; date: string; amountCents: number }[];
+    balanceSnapshots?: { accountId: string; date: string; balanceCents: number; accountType?: string }[];
+    links?: ReconciliationLinkLike[];
+  }) =>
+    applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [S1, S2, LIVE],
+      transactions: over.transactions ?? [],
+      balanceSnapshots: over.balanceSnapshots ?? [],
+      statements: [],
+      scheduled: [],
+      links: over.links ?? SIBLINGS,
+    });
+
+  it('U.9: a date BOTH cutovers cover keeps ONE snapshot — $5,000.00 counts once, not twice', () => {
+    // 2026-03-31 <= CUT_S1 <= CUT_S2, so both stale rows claim it and the live row
+    // is dropped by both. Pre-fix: s1 AND s2 both survived → 1 000 000 cents.
+    const out = sibApply({
+      balanceSnapshots: [
+        { accountId: 's1', date: '2026-03-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+        { accountId: 's2', date: '2026-03-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+        { accountId: 'live', date: '2026-03-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+      ],
+    });
+    expect(out.balanceSnapshots).toHaveLength(1);
+    // The EARLIEST cutover that still covers the date is the authoritative side —
+    // the same "tightest window containing the date" rule the chain already used
+    // (A owns [..cutAB], B owns (cutAB..cutBC], C owns the rest).
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s1');
+
+    // And the money figure the owner would actually read.
+    const series = netWorthSeries({
+      snapshots: out.balanceSnapshots.map((b) => ({
+        accountId: b.accountId,
+        date: b.date,
+        balanceCents: b.balanceCents,
+        accountType: 'SAVINGS' as string | null,
+      })),
+      accounts: out.accounts.map((a) => ({ ...a, name: [S1, S2, LIVE].find((x) => x.id === a.id)!.name })),
+      today: '2026-07-31',
+    });
+    const point = series.find((p) => p.date === '2026-03-31')!;
+    expect(point.netWorthCents).toBe(500_000); // pre-fix: 1 000 000
+    expect(point.constituents).toHaveLength(1);
+  });
+
+  it('U.9: between the two cutovers the still-live feed wins — the expired twin does not add a second copy', () => {
+    // 2026-05-15 is PAST s1 cutover and inside s2. The successor has no row that
+    // date, which is exactly what hid this: s1 was only ever dropped when a
+    // DOWNSTREAM copy existed, so with `live` silent both stale rows survived.
+    const out = sibApply({
+      balanceSnapshots: [
+        { accountId: 's1', date: '2026-05-15', balanceCents: 500_000, accountType: 'SAVINGS' },
+        { accountId: 's2', date: '2026-05-15', balanceCents: 500_000, accountType: 'SAVINGS' },
+      ],
+    });
+    expect(out.balanceSnapshots).toEqual([
+      { accountId: 's2', date: '2026-05-15', balanceCents: 500_000, accountType: 'SAVINGS' },
+    ]);
+  });
+
+  it('U.9 control: a LONE observation is still never dropped — no fabricated dip', () => {
+    // Only the expired twin observed this date. Dropping it would put a hole in the
+    // trend where the app genuinely has a reading of the account (F3 doctrine).
+    const out = sibApply({
+      balanceSnapshots: [{ accountId: 's1', date: '2026-05-15', balanceCents: 500_000, accountType: 'SAVINGS' }],
+    });
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s1');
+  });
+
+  it('U.9 control: after BOTH cutovers the live row wins', () => {
+    const out = sibApply({
+      balanceSnapshots: [
+        { accountId: 's1', date: '2026-07-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+        { accountId: 's2', date: '2026-07-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+        { accountId: 'live', date: '2026-07-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+      ],
+    });
+    expect(out.balanceSnapshots).toEqual([
+      { accountId: 'live', date: '2026-07-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+    ]);
+  });
+
+  it('U.9: the winner is order-independent (link order and row order)', () => {
+    const rows = [
+      { accountId: 's1', date: '2026-03-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+      { accountId: 's2', date: '2026-03-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+    ];
+    for (const links of [SIBLINGS, [...SIBLINGS].reverse()]) {
+      for (const balanceSnapshots of [rows, [...rows].reverse()]) {
+        const out = sibApply({ balanceSnapshots, links });
+        expect(out.balanceSnapshots.map((b) => b.accountId)).toEqual(['s1']);
+      }
+    }
+  });
+
+  it('U.9 critic P0-1: a CHAIN whose two cutovers are equal is decided by chain position, NEVER by account id', () => {
+    // Two links of one chain may legitimately share a cutover — the confirm action
+    // refuses only a STRICTLY earlier downstream one, and both defaulting to today is
+    // the ordinary way to get there. The mid account's window (cut..cut] is EMPTY, so
+    // the upstream owns the date. Breaking the tie on id moved this point by $5,000.00
+    // depending only on how two opaque cuids sorted — the same data, two answers.
+    const CUT = '2026-06-30';
+    const DATE = '2026-03-31';
+    for (const upId of ['a-up', 'z-up']) {
+      const accounts = [upId, 'm-mid', 'm-live'].map((id) => ({ id, type: 'CHECKING', currentBalanceCents: 0 }));
+      const out = applyReconciliationBoundary({
+        paymentAccountId: null,
+        accounts,
+        transactions: [],
+        balanceSnapshots: [
+          { accountId: upId, date: DATE, balanceCents: 400_000 },
+          { accountId: 'm-mid', date: DATE, balanceCents: 900_000 },
+        ],
+        statements: [],
+        scheduled: [],
+        links: [
+          { predecessorAccountId: upId, successorAccountId: 'm-mid', cutoverDate: CUT },
+          { predecessorAccountId: 'm-mid', successorAccountId: 'm-live', cutoverDate: CUT },
+        ],
+      });
+      // The upstream wins in BOTH id orders (pre-fix: 'z-up' lost to 'm-mid', $9,000.00).
+      expect(out.balanceSnapshots.map((b) => b.accountId)).toEqual([upId]);
+      expect(out.balanceSnapshots[0]!.balanceCents).toBe(400_000);
+    }
+  });
+
+  it('U.9 critic P0-1: after an equal-cutover pair the DOWNSTREAM side wins instead', () => {
+    // The mirror of the rule above: before a cutover the older side owns the date,
+    // after it the newer one does. Depth breaks the tie in the opposite direction.
+    const CUT = '2026-06-30';
+    const DATE = '2026-08-31'; // past both
+    const accounts = ['a-up', 'm-mid', 'm-live'].map((id) => ({ id, type: 'CHECKING', currentBalanceCents: 0 }));
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts,
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 'a-up', date: DATE, balanceCents: 400_000 },
+        { accountId: 'm-mid', date: DATE, balanceCents: 900_000 },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [
+        { predecessorAccountId: 'a-up', successorAccountId: 'm-mid', cutoverDate: CUT },
+        { predecessorAccountId: 'm-mid', successorAccountId: 'm-live', cutoverDate: CUT },
+      ],
+    });
+    expect(out.balanceSnapshots.map((b) => b.accountId)).toEqual(['m-mid']);
+  });
+
+  it('U.9 critic finding 3: a predecessor with TWO successors goes inert — never two survivors for one account', () => {
+    // Unreachable from the database (`predecessorAccountId @unique`) and guarded here
+    // anyway, because the component key's soundness depends on out-degree <= 1: without
+    // the guard `chainMaps` keeps only the LAST edge, the other successor keys its own
+    // component, and both survive — the U.9 defect through a different door.
+    const p = { id: 'p', type: 'CHECKING', currentBalanceCents: 0 };
+    const x = { id: 'x', type: 'CHECKING', currentBalanceCents: 0 };
+    const y = { id: 'y', type: 'CHECKING', currentBalanceCents: 0 };
+    const forked: ReconciliationLinkLike[] = [
+      { predecessorAccountId: 'p', successorAccountId: 'x', cutoverDate: '2026-06-30' },
+      { predecessorAccountId: 'p', successorAccountId: 'y', cutoverDate: '2026-06-30' },
+    ];
+    // Both links inert → the boundary changes nothing at all (R8 doctrine: an
+    // ambiguous shape falls back to "everything counts fully", never to a wrong winner).
+    expect(effectiveReconciliationLinks([p, x, y], forked)).toEqual([]);
+    const rows = [
+      { accountId: 'p', date: '2026-03-31', balanceCents: 10_000 },
+      { accountId: 'x', date: '2026-03-31', balanceCents: 20_000 },
+      { accountId: 'y', date: '2026-03-31', balanceCents: 40_000 },
+    ];
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null, accounts: [p, x, y], transactions: [],
+      balanceSnapshots: rows, statements: [], scheduled: [], links: forked,
+    });
+    expect(out.balanceSnapshots).toBe(rows); // exact input reference — the R8 fast path
+    // A well-formed sibling shape (two preds, ONE successor) is unaffected by the guard.
+    expect(
+      effectiveReconciliationLinks([p, x, y], [
+        { predecessorAccountId: 'p', successorAccountId: 'y', cutoverDate: '2026-06-30' },
+        { predecessorAccountId: 'x', successorAccountId: 'y', cutoverDate: '2026-06-30' },
+      ]),
+    ).toHaveLength(2);
+  });
+
+  it('U.9: equal cutovers tie-break deterministically by account id', () => {
+    const sameDay: ReconciliationLinkLike[] = [
+      { predecessorAccountId: 's1', successorAccountId: 'live', cutoverDate: CUT_S1 },
+      { predecessorAccountId: 's2', successorAccountId: 'live', cutoverDate: CUT_S1 },
+    ];
+    const rows = [
+      { accountId: 's1', date: '2026-03-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+      { accountId: 's2', date: '2026-03-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+    ];
+    for (const balanceSnapshots of [rows, [...rows].reverse()]) {
+      const out = sibApply({ balanceSnapshots, links: sameDay });
+      expect(out.balanceSnapshots.map((b) => b.accountId)).toEqual(['s1']);
+    }
+  });
+
+  /**
+   * OPEN DEFECT (TASKS U.11), asserted as `it.fails` ON PURPOSE.
+   *
+   * This states the CORRECT answer — one real $50.00 purchase reported by both dead
+   * feeds must contribute $50.00 — and declares that the engine does not yet give it
+   * (today it contributes $100.00 to every spending surface). Written this way rather
+   * than as a characterization asserting `-10_000`, because a test whose `expect` is
+   * the wrong number teaches the next reader that the wrong number is intended, and a
+   * slice's own test ratifying the defect it declined to fix is exactly how a bad
+   * claim survives (docs/lessons/hiding-a-surface-reassigns-its-claims-by-certainty).
+   * When U.11 lands, this test PASSES and vitest fails it as an unexpected pass —
+   * forcing whoever fixes it to come here and promote it to a plain `it`.
+   *
+   * Why U.9 did not fix it too, being the same sibling blind spot: the F3 snapshot
+   * rule is fixable with a PROOF, because a snapshot is a STOCK — one account has at
+   * most one balance on a date, so a second row for that date is necessarily a
+   * duplicate. A transaction is a FLOW: two $50.00 charges on one day are ordinary,
+   * so "the twin also has this date" establishes nothing, and de-duplicating by CLAIM
+   * SPAN instead would silently delete a row only one feed ever saw — inverting this
+   * engine's stated failure direction (a visible, advisory-covered double, never a
+   * silent loss). Choosing that direction needs its own evidence and its own critic.
+   */
+  it.fails('U.11 OPEN DEFECT: sibling feeds must count the same purchase once (currently twice)', () => {
+    const out = sibApply({
+      transactions: [
+        { accountId: 's1', date: '2026-02-10', amountCents: -5_000 },
+        { accountId: 's2', date: '2026-02-10', amountCents: -5_000 },
+        { accountId: 'live', date: '2026-02-10', amountCents: -5_000 },
+      ],
+    });
+    // The live row IS correctly dropped (both sibling claims cover the date). What
+    // survives today is BOTH stale copies: -10 000.
+    expect(out.transactions.reduce((s, t) => s + t.amountCents, 0)).toBe(-5_000);
+  });
+
+  it('U.9 transactions control: a row only ONE feed ever saw is never dropped', () => {
+    const out = sibApply({
+      transactions: [
+        { accountId: 's1', date: '2026-02-10', amountCents: -5_000 },
+        { accountId: 's2', date: '2026-02-11', amountCents: -7_000 },
+      ],
+    });
+    expect(out.transactions.reduce((s, t) => s + t.amountCents, 0)).toBe(-12_000);
+  });
+});
