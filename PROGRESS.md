@@ -2,6 +2,67 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-12 — U.14 SHIPPED AND REVERTED THE SAME SESSION (2 P0s, one caught by CI); U.15(a) audit built on top of the reverted evidence
+
+**The owner asked for the re-audit screen** ("yes please do that", after being offered the undo or
+the screen). Read as the screen — the durable option, and the non-destructive one. **No production
+data was changed at any point this session.**
+
+**U.14 first, because the screen would otherwise be a half-truth:** today's detector refuses only 4
+of the 9 wrong links, so the audit would have stayed silent on 5. The cause was clean —
+`masksDiffer`, the veto disqualifying the weak NAME signal when two rows carry different last-4s,
+read the `mask` COLUMN, which SimpleFIN never populates, so it was inert across exactly the
+SimpleFIN→Plaid migration the feature exists for. MEASURED before writing
+(`u11k-which-veto-catches-which.mts`): the row's own prescription (widen to `matchableMask`) catches
+5 of 9, not 9 — `maskFromName` reads FOUR digits and these names carry three. A rule reading account
+numbers the way feeds render them catches 9 of 9 with 0 of 8 genuine links suppressed. A third rule
+(bare `\d{3,}` sweep) matched that score by reading "529" out of "Schwab 529 Plan" — right by
+accident, rejected.
+
+**Shipped `bc7ca79` on a local green, and both P0s were found within the hour.**
+
+* **P0-1 (fresh-context Opus critic, executed):** the widened parser reintroduced exactly the
+  direction `#292` and dup-veto critics F1/F2 removed — and worse, it read TWO digits where the
+  banned `maskFromName` reads four. `Roth IRA (2021)` yields "2021", so a genuine duplicate against a
+  real mask stopped being flagged AT ALL: a hidden duplicate is a silent double-count, the direction
+  this file exists to avoid. The comment forbidding it was three lines above the new code.
+* **P0-2 (the critic AND, independently, the CI gate):** the scope claim was TRUE of the boolean and
+  false of the consequence. `duplicateSignals` also feeds `detectReconciliationCandidates`, where
+  suppressing ONE candidate collapses a withheld L.9 ambiguity into `list.length === 1` — which
+  renders a **one-click Combine** for the survivor. `tests/e2e/reconcile.spec.ts:237` ("a Roth is
+  never offered against a Traditional — the wrong pair is vetoed, the right one offered") FAILED in
+  **CI run 31627590689**.
+* **P1-5:** the critic's mutation test survived **5 of 8** mutations to the new regex, including
+  deleting the entire `[•·*#]` class. The locks were nearly as weak as the code.
+
+**Reverted in `b95d905`.** `masksDiffer` restored to the mask column byte-for-byte. The MEASUREMENT
+was never the problem — its POSITION was: evidence too dangerous to GATE on is not too dangerous to
+SHOW. The repaired parser (parenthesized years excluded, prefix as well as suffix correspondence for
+names this app's own 80-char `mapSimplefinAccount` truncation cuts, whitespace after bullet masks)
+now feeds ONLY the U.15 advisory audit, where a wrong flag is a visible sentence beside an Undo the
+reader already had.
+
+**The process failure, recorded because it is the repeatable part:** `scripts/verify.sh` skips
+Playwright without `VERIFY_E2E=1`. It returned green (6,858) and that was reported as shipped; CI
+runs the full gate and caught it. Rule 5 already says the CI conclusion is the SHIP gate. A change to
+a predicate with more than one consumer is the LAST change that should ever be called shipped on a
+local green. Lesson filed: `a-vetos-blast-radius-is-not-the-booleans-scope.md`.
+
+**U.15(a) BUILT (not yet gated in CI at the time of writing).** `auditConfirmedLinks`
+(`src/lib/engine/account/link-audit.ts`) re-audits every confirmed supersession. It stands on two
+independent grounds — the shipped detector's refusal, and the repaired conflict evidence — and it is
+careful about what it may claim: `not-checkable` for the detector's ABSTENTION (two rows in one
+provider connection, which it does not judge), `inert` for a missing side, and never an assertion
+that the accounts differ, because the user confirmed the pair and may know what no feed carries. The
+rendered line lives in `continued-accounts-view.ts` as pure copy (a rule in a `.tsx` cannot be
+locked) and appears inside the EXISTING "Combined accounts" card next to the Undo that was already
+there — the affordance existed; what was missing was the evidence. Validated against production:
+flags exactly **9 of 27**, agreeing exactly with the independent per-link method in `u11e`.
+
+**Gate:** `bash scripts/verify.sh` GREEN on the reverted tree — **6,869 passed / 1 expected fail / 1
+skipped / 418 files**, build clean, tsc 0, eslint 0; `playwright reconcile.spec.ts` **4/4** including
+the test that caught P0-2. CI read on `b95d905` recorded below once it lands. No `prisma/` diff.
+
 ## 2026-08-12 — U.11 MEASURED, NOT BUILT: the task row's premise has zero true instances in production, and the scary number it implied is not real
 
 **Nothing shipped this session. Six read-only production probes, no code change, no push.** U.11's
