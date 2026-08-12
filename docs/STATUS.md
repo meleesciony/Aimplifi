@@ -6,6 +6,29 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ MEASURED + SHIPPED 2026-08-11 — O.20b: the /reports payload measured against the heavy real account — the rows are the feature, both suggested trims falsified, and the one dead weight was /dashboard's 89% (DECISIONS #448)
+
+**The queued task:** `monthFlows` ships the transaction rows behind every bar of the income-vs-spending chart (six months at the default window) — "~6× this route's RSC payload, unmeasured against a heavy real account". The row prescribed: measure first, then choose between a per-bar fetch (which would break the same-array guarantee) and trimming `rawDescriptor` from chart panels.
+
+**Measured first** (new read-only probe `scripts/audit-probes/o20b-reports-payload.mts`, the o20a pattern: raw `pg` against production, the shipped engines composed exactly as `getReports` assembles them, with the merchant JOIN `registerDisplayName` reads — byte fidelity requires the label; type-checks clean under the one-off `.mts` `--project` check, the O.20k mechanism, temp tsconfig not committed):
+
+| Window | Payload | monthFlows | monthFlows rows (bars) | Largest bar |
+|---|---|---|---|---|
+| 6 mo (real user) | **316.9 KB** | **282.6 KB (89%)** | 1,415 across 12 | 305 rows |
+| 12 mo (real user) | 403.4 KB | 368.7 KB (91%) | 1,853 across 24 | 305 rows |
+| 24 mo (real user) | 508.7 KB | 473.4 KB (93%) | 2,375 across 48 | 305 rows |
+| 6 mo (demo) | 49.9 KB | 41.1 KB (82%) | 213 across 12 | 41 rows |
+
+The one-month baseline (the pre-feature shape the row's "~6×" refers to) measures **21.4 KB** — the six-month carry is **13.2×**, not ~6×: complete trailing months hold more rows than the asOf-clamped current month. `rawDescriptor` is present on **86% of the real user's rows (1,217/1,415)**; dropping the field entirely would save ~44.5 KB (14%).
+
+**The decisions (all recorded in DECISIONS #448):**
+1. **Per-bar fetch: REJECTED** — the row's own framing (a re-query can sum to a different number than the painted bar; panels reconcile against it).
+2. **rawDescriptor trim: REJECTED, falsified by reading the consumer** — it is a RENDERED line (`breakdown-panel.tsx:256-263`, "the line the question is actually about: it is what the categorizer read before deciding on this bucket"), present on 86% of the real user's rows, already deduped at build. Trimming deletes a displayed feature to save 14%.
+3. **The /reports six-month carry: KEPT** — the rows ARE the O.20 feature ("every single bar immediately available"); 316.9 KB is that page's reason for existing on the heaviest account. 12/24-month sizes recorded for the owner's awareness.
+4. **The measured dead weight: /dashboard pays 282.6 KB (89% of its reports payload) for rows no surface on the page renders.** Its call (`dashboard/page.tsx:69`) reads exactly four fields — `breakdown`, `breakdowns`, `ym`, `notCountedYetCents` (TopSpendingCard's props). Shipped: `getReports(userId, months, { includeMonthFlows: false })` — ONE assembler stays one author for both callers (a second lean function would be a second copy of the composition, the drift shape the panels exist to prevent); /reports always ships the rows; the dashboard's figures are byte-identical by construction. Locked in `tests/unit/spend-window-parity.test.ts` (O.20b block): opt-out yields `monthFlows: {}` while everything the dashboard reads equals the full payload's — **fail-old proven by mutation** (deleting the opt-out from `server/reports.ts` turns the lock red at `expect(lean.monthFlows).toEqual({})`; reverted, green again). The default payload's `2026-06:expense` bar row count is locked too.
+
+**Gate:** tsc 0 / eslint 0 (probe cleaned of 4 unused-import warnings; product files zero errors) / parity suite 25/25 including the 2 new locks / ledger test 16/16 after the `ledger.ts reindex` for #448 — full `bash scripts/verify.sh` and the CI read recorded below once the run lands. No `prisma/` diff — the live Neon database is untouched. Also observed (recorded for Wave G.2, not fixed here): the one-off `.mts` `--project` check surfaces **21 pre-existing errors across 11 other probes** — the documented class, untouched by this slice.
+
 ## ✅ BUILT 2026-08-11 — O.20f: the five O.20d controls carry the tap-target floor, plus the seven same-file P2s (verify green, shipped)
 
 **The P1 (WCAG 2.2 AA 2.5.8, in the Definition of Done):** making the O.20d bars controls is what created the violation. An allocation segment's BUTTON was the painted bar (`h-2.5` = 10px tall, width = the position's weight) — the demo's NVDA segment was a **34×10px** target at 380px, and a portfolio priced at 0 rendered every segment `width: 0%` (nothing openable by touch at all). The retirement strip is worse by count: up to 103 bars share ~316px ⇒ **≈4.7px each**, and a mis-tap returned the WRONG refusal on the WRONG bar. Two of three fresh-context O.20d-FU critics found the class independently, on different surfaces. The e2e missed it because Playwright's `.click()` hits an element's center at any size, and the mobile-380 gate measured two hand-picked controls.
