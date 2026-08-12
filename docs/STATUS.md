@@ -27,7 +27,11 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Known residuals, split out rather than papered over:** **U.5** — the detail panel reads snapshots raw while the trend reads them through the reconciliation boundary, so a reconciled pair's panel can name a balance the chart does not count. **U.6** — `netWorthSeries` signs a stored row by the account's CURRENT, mutable `type`, which both providers rewrite on every sync, so a reclassification across the asset/liability line retroactively flips the sign of recorded history.
 
-**Gate:** see the PASS/FAIL record below once CI has been read.
+**Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,786 unit passed + 1 skipped / 415 files** / build clean. Full local `npx playwright test`: **341 passed / 2 flaky / 0 failed** (exit 0). Shipped as `2a8fbf1`; **CI gate SUCCESS on run 31565312675, first attempt** — the full `VERIFY_E2E=1` suite, so the changed panel and copy assertions passed in a real browser on the Linux runner. The `prisma/` diff is COMMENT ONLY (verified by reading the diff: no column, index or constraint changed), so the live Neon database is untouched.
+
+**Live proof:** `node scripts/u4-live-deploy-check.mjs` → **11/11 checks PASS** against production (plus 2 declared SKIPs). Each check asserts the new sentence AND the absence of the one it replaced, so a stale deployment cannot pass it. It also asserts the half that must NOT have moved: the demo's delta still reads "+$1,667.46 vs last month-end", byte-identical, because the seeded buckets are complete and its previous point is a true month-end.
+
+**What the live check deliberately CANNOT prove, and the event to watch instead:** the writer itself. The shared demo user is fenced out of it by construction, and the one real production user's rows appear on his **next nightly cron sweep (`0 11 * * *`) or next sync, whichever comes first** — that is when his /accounts detail panels start showing recorded history and his net-worth trend gains its second point. Not "the number moved on deploy". The writer's own contract is locked against real Prisma (`balance-history-server.test.ts`) and its wiring through the cron route (`cron-sync-snapshot.test.ts`).
 
 ## ✅ BUILT 2026-08-11 — U.3: account clicks land somewhere true — the owner's mortgage dead-end closed across its whole class (DECISIONS #449)
 
