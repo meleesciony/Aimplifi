@@ -523,7 +523,7 @@ export async function getDashboardData(
   // `upcoming` is a subset of it, so spreading both would double-count estimated cards.
   const reminders = selectPaymentReminders({ obligations: payInFull.cards, loanObligations, today });
 
-  // Net-worth trend from month-end snapshots (assets − liabilities per date),
+  // Net-worth trend from the recorded balance snapshots (assets − liabilities per date),
   // via the one shared series builder (DECISIONS #40) — same classifier as the
   // headline + the /accounts page, so manual liabilities can't be miscounted.
   const current = netWorthCents(snap.accounts);

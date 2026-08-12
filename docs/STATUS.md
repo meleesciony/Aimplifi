@@ -6,6 +6,29 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-12 — U.4: a live account gets balance history, and its shape is decided by what reads it (DECISIONS #450)
+
+**The gap U.3 left, honestly:** the /accounts detail panel read *"No balance history recorded"* for every real account, permanently, because **only `prisma/seed.ts` had ever written a `BalanceSnapshot` row** — no Plaid or SimpleFIN path did.
+
+**Shipped:** a pure planner (`src/lib/engine/networth/snapshot-plan.ts`) and a thin writer (`src/server/balance-history.ts`), called from the nightly `/api/cron/sync` sweep AND from both sync actions, idempotent within the calendar month, demo-fenced inside the writer itself so no trigger added later can accumulate history onto the shared seeded demo row.
+
+**The basis decision (the money part):** ONE date across ALL of a user's accounts, stamped the day the balance was actually read.
+- `netWorthSeries` sums a date BUCKET, so a bucket missing an account is an **understated net-worth figure**, not a shorter list. A per-provider writer would date SimpleFIN accounts and Plaid accounts differently — 25 against 13 on the owner's live corpus — making every historical point a partial sum.
+- `reconcile-boundary.keepsSnapshot` de-duplicates a reconciled pair **only on an exact-date collision**, and a reconciled pair here is cross-provider by definition. Different dates would defeat it and count one real account twice. The FAIL-OLD lock in `networth-snapshot-plan.test.ts` runs the split-date case through the real boundary and shows the double presence.
+- No synthesized month-end: that would either write a future-dated row (invisible until the month closes, then asserting as month-end a figure observed weeks earlier) or force rewriting the row all month. The schema comment that DEFINED the model as month-end — what every later writer would have read — is corrected.
+
+**Critic cycle — two fresh-context hostile critics (money/data-integrity and rendered-claims): 1 P0 + 7 P1, all executed.**
+1. **P0** — a quiet feed's carried-forward rows printed as dated observations, directly beneath the amber note saying the bank stopped sharing the account and the balance "has not changed since". Fixed: `feedDroppedAt` travels with the history and each row after it is marked *carried forward*, with a note naming the last date anything was read.
+2. **P1** — the delta under the net-worth headline compared points built from DIFFERENT account sets: add an account mid-month and it printed −$251,200.00, or +$50,000.00 in green depending only on arrival order. Pre-U.4 a live user had one point so it never rendered at all; this slice created that surface. `netWorthDelta` now refuses the comparison and names the reason.
+3. **P1 × 5** — copy asserting a shape or completeness the code no longer had: the chart footnote (now ONE shared positive admission rule on BOTH surfaces — /accounts had none at all), the drilldown's "every account's balance", the live basis's "not a month-end snapshot", the "vs last month-end" label across a gap, and **the exported PDF's "Trend (month-end)" heading** — the one artifact handed to a third party.
+4. **P2** — both trend reads were unwindowed and now grow ~accounts × 12 rows a year into the page payload; bounded to 19 months, one more than the 18 points the chip strip renders.
+
+**Sabotage proofs (each reverted):** a "snapshot only what the feed refreshed" writer turns the completeness lock red; a same-day-only guard turns the calendar-month lock red; deleting the cron's call turns the wiring lock red.
+
+**Known residuals, split out rather than papered over:** **U.5** — the detail panel reads snapshots raw while the trend reads them through the reconciliation boundary, so a reconciled pair's panel can name a balance the chart does not count. **U.6** — `netWorthSeries` signs a stored row by the account's CURRENT, mutable `type`, which both providers rewrite on every sync, so a reclassification across the asset/liability line retroactively flips the sign of recorded history.
+
+**Gate:** see the PASS/FAIL record below once CI has been read.
+
 ## ✅ BUILT 2026-08-11 — U.3: account clicks land somewhere true — the owner's mortgage dead-end closed across its whole class (DECISIONS #449)
 
 **The report (owner, with screenshot):** *"when i click on my mortgage in accounts, why does it bring me to a completely empty transaction page?"* — plus the standing directive to make every click make sense. The defect was structural, not cosmetic: the register's basis is `SPENDING_ACCOUNT_TYPES` (#62), so **8 of the 11 account types linked from /accounts to a page empty by construction**, the account dropdown (built from rows-present) could not display the active filter — "the controls below say which" was false exactly on that screen — and the empty state blamed "these filters", a remedy that cannot work.
@@ -21,7 +44,7 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Gate read (rule 5/K.8):** CI run **31559826062 on `fb2ad52` = SUCCESS, first attempt** — the full `VERIFY_E2E=1` suite, read via `scripts/ci-status.sh` (exit 0). **Live deploy proof: PASS 9/9** (`scripts/u3-live-deploy-check.mjs`, Pixel-5 emulation against www.aimplifi.app, exit 0 from the script itself — the first run's `| tail` had reported tail's exit over a 8/9, the `proof-is-the-full-output` trap, caught and re-run): subtitle honest, Auto Loan row hrefs `/accounts?detail=acct-autoloan`, panel renders role + loan facts + 18 rows of declining balance history, the deep link names the loan in both the empty state and the select, count line names the zero, zero page errors. One check made data-adaptive on inspection: the PRODUCTION demo's loan row carries `aprBps` + `dueDayOfMonth` but a NULL `minimumPaymentCents` (seed drift vs the local dataset) — the panel's contract is to render exactly the held facts, and it does; the all-three case stays locked by the CI e2e on the seeded set.
 
-**Known residuals (deliberate):** U.4 (BalanceSnapshot writer for live synced accounts — until it ships, live panels show no history, honestly); /investments `?account=` silent full-portfolio fallback (#160's documented decision — the copy no longer overclaims, a visible-chip fix is a candidate row for Wave U).
+**Known residuals (deliberate):** U.4 (BalanceSnapshot writer for live synced accounts — until it ships, live panels show no history, honestly; **SHIPPED 2026-08-12, see the U.4 entry above** — the two claims in this U.3 entry that only the seed writes snapshots were true when written and are not now); /investments `?account=` silent full-portfolio fallback (#160's documented decision — the copy no longer overclaims, a visible-chip fix is a candidate row for Wave U).
 
 ## ✅ MEASURED + SHIPPED 2026-08-11 — O.20b: the /reports payload measured against the heavy real account — the rows are the feature, both suggested trims falsified, and the one dead weight was /dashboard's 89% (DECISIONS #448)
 

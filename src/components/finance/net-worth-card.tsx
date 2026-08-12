@@ -15,6 +15,7 @@ import {
 import { cents, formatCents } from '@/lib/money';
 import { CHART_POSITIVE } from '@/lib/ui/chart-colors';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import { NET_WORTH_TREND_BASIS, netWorthDelta } from '@/lib/engine/networth/panel';
 import type { NetWorthSeriesPoint } from '@/lib/engine/networth/series';
 import { NetWorthTrendDrilldown } from '@/components/finance/net-worth-trend-drilldown';
 
@@ -47,8 +48,12 @@ export function NetWorthCard({
     dollars: p.netWorthCents / 100,
     label: formatCents(cents(p.netWorthCents)),
   }));
+  // U.4: a difference between two points is a change in WEALTH only when both
+  // points count the same accounts, so the engine decides whether there is a
+  // comparison at all and says why when there isn't.
   const prev = trend.length >= 2 ? trend[trend.length - 2] : null;
-  const deltaCents = prev ? current - prev.netWorthCents : null;
+  const delta = prev ? netWorthDelta(prev, trend[trend.length - 1]) : null;
+  const deltaCents = delta?.deltaCents ?? null;
 
   return (
     <Card data-testid="net-worth-card">
@@ -57,12 +62,19 @@ export function NetWorthCard({
         <CardTitle as="div" className="text-2xl tabular-nums sm:text-3xl" data-testid="net-worth-amount">
           {formatCents(cents(current))}
         </CardTitle>
-        {deltaCents !== null && (
+        {delta !== null && (
           <p
-            className={`text-xs ${deltaCents >= 0 ? 'text-emerald-500' : 'text-red-400'}`}
+            className={`text-xs ${
+              deltaCents === null
+                ? 'text-muted-foreground'
+                : deltaCents >= 0
+                  ? 'text-emerald-500'
+                  : 'text-red-400'
+            }`}
             data-testid="net-worth-delta"
           >
-            {formatCents(cents(deltaCents), { signDisplay: 'always' })} vs last month-end
+            {deltaCents !== null && `${formatCents(cents(deltaCents), { signDisplay: 'always' })} `}
+            {delta.label}
           </p>
         )}
         {runwayBand !== null && (
@@ -102,8 +114,9 @@ export function NetWorthCard({
             </AreaChart>
           </ResponsiveContainer>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Trend uses month-end balances across all accounts.
+        {/* One sentence, one author, both surfaces that draw this chart (U.4). */}
+        <p className="mt-2 text-xs text-muted-foreground" data-testid="net-worth-trend-basis">
+          {NET_WORTH_TREND_BASIS}
         </p>
         {/* O.20d: every point on this chart opens its constituents — tap the
             month, see the accounts that made the point. */}

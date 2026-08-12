@@ -45,6 +45,7 @@ function categoryLabel(
 }
 import { cents, formatCents } from '@/lib/money';
 import { type NetWorthSeriesPoint, netWorthSeries } from '@/lib/engine/networth/series';
+import { trendHistoryFloor } from '@/lib/engine/networth/snapshot-plan';
 import {
   type AmbiguousReconciliationGroup,
   type ReconciliationCandidate,
@@ -1061,7 +1062,10 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, orderBy: [{ type: 'asc' }, { name: 'asc' }] }),
     prisma.balanceSnapshot.findMany({
-      where: { account: { userId } },
+      // Windowed since U.4 — see `trendHistoryFloor`. Wider than anything the
+      // page renders, so this bounds a payload that now grows monthly without
+      // capping what a reader can see.
+      where: { account: { userId }, date: { gte: trendHistoryFloor(businessToday(userId)) } },
       select: { accountId: true, date: true, balanceCents: true },
     }),
     prisma.statement.findMany({
@@ -1677,11 +1681,20 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
  * request already reads every snapshot for the trend — U.3 critic, #11.)
  *
  * `history` is the same BalanceSnapshot store the page's net-worth trend is
- * drawn from, so the panel and the chart above it can never disagree about a
- * recorded balance. TODAY, only the seed writes snapshots — a live synced
- * account has none, and the panel says so rather than promising history no
- * writer produces (a snapshot writer at sync time is queued separately in
- * TASKS.md).
+ * drawn from. Since U.4 a live account accrues one row per calendar month, so
+ * this panel is no longer empty for real users — and two consequences of that
+ * are load-bearing:
+ *
+ *  - The rows are read RAW here, while the trend reads them through
+ *    `applyReconciliationBoundary` (see `getAccountsView`). For a reconciled
+ *    pair the boundary keeps one side of a same-dated collision, so a
+ *    predecessor's panel can name a balance the chart does not count. Recorded
+ *    as a known divergence (TASKS U.5) rather than papered over — do NOT
+ *    restate the old "can never disagree" guarantee.
+ *  - A row is what the app HELD on that date, which for an account whose feed
+ *    has gone quiet is a value it last actually read before `feedDroppedAt`.
+ *    That is why `feedDroppedAt` travels with the history: the panel marks the
+ *    carried-forward rows instead of printing them as observations.
  *
  * Scoped to `userId` IN THE QUERY — a stale or foreign id resolves to null,
  * never to another user's balances.
@@ -1697,12 +1710,15 @@ export interface AccountDetailView {
   aprBps: number | null;
   minimumPaymentCents: number | null;
   dueDayOfMonth: number | null;
+  /** YYYY-MM-DD the feed stopped returning this account, or null. Rows dated
+   *  after it repeat the last balance the bank actually sent — see the docblock. */
+  feedDroppedAt: string | null;
 }
 
 export async function getAccountDetail(userId: string, accountId: string): Promise<AccountDetailView | null> {
   const account = await prisma.account.findFirst({
     where: { id: accountId, userId },
-    select: { id: true, aprBps: true, minimumPaymentCents: true, dueDayOfMonth: true },
+    select: { id: true, aprBps: true, minimumPaymentCents: true, dueDayOfMonth: true, feedDroppedAt: true },
   });
   if (!account) return null;
   const history = await prisma.balanceSnapshot.findMany({
@@ -1716,6 +1732,7 @@ export async function getAccountDetail(userId: string, accountId: string): Promi
     aprBps: account.aprBps,
     minimumPaymentCents: account.minimumPaymentCents,
     dueDayOfMonth: account.dueDayOfMonth,
+    feedDroppedAt: account.feedDroppedAt,
   };
 }
 

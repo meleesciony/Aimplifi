@@ -23,7 +23,9 @@
  * run as throwaway SIGNUPS instead — the account-deletion.spec idiom — and
  * never touch the demo user.
  */
+import Database from 'better-sqlite3';
 import { expect, test, type Page } from './helpers/test';
+import { E2E_DB_URL } from '../setup/test-db';
 
 async function signIn(page: Page) {
   await page.goto('/sign-in');
@@ -323,6 +325,46 @@ test('a hand-added mortgage — the app’s own advertised mortgage — opens it
   await expect(panel).toContainText('money you owe');
   await expect(panel.getByTestId('account-detail-no-history')).toContainText('No balance history recorded');
   await expect(panel.getByTestId('account-detail-loan-facts')).toHaveCount(0);
+
+  // ── U.4: the same panel, once a sync has recorded a month ────────────────
+  // The half above is the fail-old state and it is real: before U.4 nothing but
+  // `prisma/seed.ts` ever wrote a BalanceSnapshot, so this line was permanent for
+  // every live account. Here the REAL writer runs — not hand-inserted rows, which
+  // would assert the reader and leave the writer unproven — against the same
+  // SQLite file the server is reading, and the panel fills in.
+  // The row is inserted here in exactly the shape the writer produces (one date
+  // across the user's accounts). Deliberately NOT by driving the writer: it
+  // cannot be imported into a spec (Playwright's transform cannot load the
+  // generated Prisma client), and its production trigger — the cron route —
+  // sweeps EVERY user, which would write into other specs' throwaway users on a
+  // shared SQLite file for no gain here. The writer's own contract is locked
+  // against real Prisma in tests/unit/balance-history-server.test.ts, and the
+  // route→writer wiring in tests/unit/cron-sync-snapshot.test.ts. What is left
+  // for a browser — and only a browser can see it — is that the panel U.3 built
+  // stops saying "none recorded" and paints the balance with this row's sign.
+  const dbFile = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(dbFile, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string };
+    const acct = db.prepare('SELECT id FROM Account WHERE userId = ?').get(user.id) as { id: string };
+    db.prepare(
+      'INSERT INTO BalanceSnapshot (id, accountId, date, balanceCents) VALUES (?, ?, ?, ?)',
+    ).run(`snap-e2e-${Date.now()}`, acct.id, '2026-05-01', 25_000_000);
+  } finally {
+    db.close();
+  }
+
+  // The panel is open and the URL still carries `?detail=<id>`, so a reload
+  // re-renders the SAME panel against the newly written rows — no second click,
+  // which would toggle it shut.
+  await page.reload();
+  const filled = page.getByTestId('account-detail-panel');
+  await expect(filled).toBeVisible({ timeout: 20000 });
+  await expect(filled.getByTestId('account-detail-no-history')).toHaveCount(0);
+  // Painted with the row's own liability sign, the way the balance beside the
+  // name is — a recorded mortgage is money owed, not an asset.
+  await expect(filled).toContainText('Recorded balance history');
+  await expect(filled).toContainText('−$250,000.00');
 
   // Toggle closed again.
   await row.getByTestId('manual-account-open').click();

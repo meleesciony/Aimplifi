@@ -4,12 +4,17 @@
  * computation that used to live in src/server/finance.ts (a latent drift bug:
  * it didn't know about manual MORTGAGE / OTHER_LIABILITY types).
  *
- * Pure: month-end net worth = Σ (asset balances) − Σ (liability balances), with
+ * Pure: a point's net worth = Σ (asset balances) − Σ (liability balances), with
  * asset/liability decided by the single `isLiabilityType` source of truth. Each
- * period's snapshots are summed by date (providers snapshot every account per
- * period). The live "today" point is computed from current balances over ALL
- * accounts — including manual items, which have no historical snapshots — so the
- * latest point matches the headline net worth exactly.
+ * date's snapshots are summed by date, so the writer's contract is that ALL of a
+ * user's accounts share ONE date per period — a bucket missing an account is not
+ * a shorter list, it is an understated figure (see `snapshot-plan.ts`, which
+ * holds that invariant; the seed satisfies it with month-ends, U.4's live writer
+ * with the day each month's balances were read). The live "today" point is
+ * computed from current balances over ALL accounts — including manual items,
+ * which may have no historical snapshots — so the latest point matches the
+ * headline net worth exactly. Two points can therefore cover DIFFERENT account
+ * sets; comparing them is `netWorthDelta`'s job, not a subtraction's.
  *
  * Every point carries its CONSTITUENTS — the signed account balances it was
  * summed from — carried out of the SAME loop that produced the figure (the
@@ -67,7 +72,7 @@ export function netWorthSeries(input: {
   );
 
   return [...byDate.entries()]
-    .filter(([date]) => date <= input.today) // strictly history, no future month-ends
+    .filter(([date]) => date <= input.today) // strictly history, never a future date
     .map(([date, constituents]) => ({
       date,
       netWorthCents: constituents.reduce((s, c) => s + c.balanceCents, 0),

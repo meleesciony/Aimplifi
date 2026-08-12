@@ -677,12 +677,18 @@ model ScheduledTransaction {
   @@index([accountId, nextDate])
 }
 
-// Month-end balance history per account — drives the net-worth trend chart.
-// (Additive refinement over the Phase 0 draft; see docs/DECISIONS.md.)
+// Balance history per account — drives the net-worth trend chart. ONE row per
+// account per calendar month, stamped the day the balance was actually read
+// (TASKS U.4 / DECISIONS #450). It was month-end-only while `prisma/seed.ts` was
+// the sole writer, and this comment said so — the definition every later writer
+// would have read. A month's rows share ONE date across ALL of the user's
+// accounts: `netWorthSeries` sums a date bucket, so a partial bucket is an
+// understated net-worth figure, and `reconcile-boundary.keepsSnapshot`
+// de-duplicates a reconciled pair only on an exact-date collision.
 model BalanceSnapshot {
   id           String @id @default(cuid())
   accountId    String
-  date         String // YYYY-MM-DD (month end)
+  date         String // YYYY-MM-DD — the day the balance was read, not a month end
   balanceCents Int // stored positive, like Account.currentBalanceCents
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)

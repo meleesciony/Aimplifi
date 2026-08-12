@@ -13,6 +13,7 @@ import { applyReconciliationBoundary } from '@/lib/engine/account/reconcile-boun
 import { loanPaymentFlowExclusions } from '@/lib/engine/categorize/loan-payment-flows';
 import { LOAN_ACCOUNT_TYPES } from '@/lib/engine/categorize/transfers';
 import { selectLoanObligations } from '@/lib/engine/loans/obligations';
+import { trendHistoryFloor } from '@/lib/engine/networth/snapshot-plan';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { isSupportedCurrency } from './currency';
 import type { DataProvider, FinanceSnapshot, SyncResult } from './types';
@@ -60,7 +61,13 @@ export class DemoProvider implements DataProvider {
           include: { merchant: { select: { canonical: true } } },
         }),
         prisma.scheduledTransaction.findMany({ where: ownedByUser }),
-        prisma.balanceSnapshot.findMany({ where: ownedByUser, orderBy: { date: 'asc' } }),
+        // Windowed since U.4 (see `trendHistoryFloor`): its only consumer is the
+        // net-worth trend, whose chip strip renders 18 points — this bounds a
+        // payload that now grows every month without capping what is shown.
+        prisma.balanceSnapshot.findMany({
+          where: { ...ownedByUser, date: { gte: trendHistoryFloor(this.today()) } },
+          orderBy: { date: 'asc' },
+        }),
         // Active reconciliation links (Wave 4.6 slice 3) — same predicate as
         // server/reconciliation.ts getActiveReconciliations (undoneAt: null).
         prisma.accountReconciliation.findMany({

@@ -12,6 +12,7 @@ import { encryptToken } from '@/lib/crypto';
 import { DEMO_CONNECT_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { prisma } from '@/lib/db';
 import { auditLog, rateLimitDurable, requireUserId } from '@/server/authz';
+import { recordMonthlyBalanceSnapshot } from '@/server/balance-history';
 import { claimAccessUrl, syncFromSimplefin } from '@/lib/providers/simplefin';
 import type { SyncResult } from '@/lib/providers/types';
 import { accountShapeDigest } from '@/server/sync-change-digest';
@@ -160,6 +161,17 @@ export async function syncSimplefinNow(): Promise<SimplefinResult> {
       } catch {
         /* leave it to the counters rather than guessing */
       }
+    }
+    // U.4: this month's balance point, once the sync has refreshed the balances.
+    // Idempotent within the month (and demo-fenced) inside the writer, so calling
+    // it here as well as from the nightly cron costs one indexed read per sync and
+    // means history accrues for a user whose deployment never runs the cron.
+    // Best-effort like the digest reads above: recording history must never turn a
+    // successful data pull into a red error.
+    try {
+      await recordMonthlyBalanceSnapshot(userId);
+    } catch {
+      /* the sync itself succeeded; the next one re-attempts the month */
     }
     revalidateAfterSync();
     return { ok: true, changed, added: r.added, holdings: r.holdings };

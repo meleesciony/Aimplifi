@@ -137,6 +137,15 @@ describe('the register resolves its ?account= axis against the reader’s own ac
 
   it('getAccountDetail on an owned account with no snapshots returns the empty-history shape, not an error', async () => {
     const d = await getAccountDetail(USER, ids.checkingNoRows);
-    expect(d).toEqual({ id: ids.checkingNoRows, history: [], aprBps: null, minimumPaymentCents: null, dueDayOfMonth: null });
+    // `feedDroppedAt` joined the view in U.4: the panel needs it to mark rows
+    // recorded AFTER the feed went quiet as carried forward rather than read.
+    expect(d).toEqual({
+      id: ids.checkingNoRows,
+      history: [],
+      aprBps: null,
+      minimumPaymentCents: null,
+      dueDayOfMonth: null,
+      feedDroppedAt: null,
+    });
   });
 });

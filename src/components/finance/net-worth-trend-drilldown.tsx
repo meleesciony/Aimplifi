@@ -2,8 +2,8 @@
 
 /**
  * The drilldown behind the net-worth trend (O.20d): a row of point chips —
- * one per month-end, plus "Today" — each opening the constituent panel behind
- * that point.
+ * one per recorded balance date, plus "Today" — each opening the constituent
+ * panel behind that point.
  *
  * The trend chart itself stays a passive picture; these chips are the
  * affordance the owner's "every single bar" request is about, and they work
@@ -12,7 +12,7 @@
  * The panel shows the point's CONSTITUENTS — the signed account balances the
  * engine summed in the same pass that produced the point (`netWorthSeries`
  * carries them), so Σ rows === the figure by construction and the panel's
- * "matched to the penny" sentence is a real check. Month-end points and the
+ * "matched to the penny" sentence is a real check. Recorded points and the
  * live "today" point get DIFFERENT basis sentences: they are built from
  * different things (snapshots vs live balances incl. manual items), and the
  * sentences are engine-composed so a component cannot restate them wrongly.

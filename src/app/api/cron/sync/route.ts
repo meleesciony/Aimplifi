@@ -10,6 +10,7 @@ import { prisma } from '@/lib/db';
 import { DEMO_USER_ID } from '@/lib/demo-user';
 import { getProvider } from '@/lib/providers/demo';
 import { checkCronBearer } from '@/lib/cron-auth';
+import { recordMonthlyBalanceSnapshot } from '@/server/balance-history';
 import {
   plaidSyncConfigured,
   sweepPlaidLinkedUsers,
@@ -39,6 +40,8 @@ export async function GET(request: NextRequest) {
     select: { id: true },
   });
   const results = [];
+  /** U.4 balance-history outcomes, one row per user that wrote or failed to write. */
+  const snapshots: { userId: string; written?: number; date?: string | null; error?: string }[] = [];
   for (const user of users) {
     try {
       const result = await provider.syncTransactions(user.id);
@@ -56,6 +59,20 @@ export async function GET(request: NextRequest) {
       } catch {
         // if the DB itself is down, the failure audit must not abort the sweep
       }
+    }
+    // U.4: record the month's balance point AFTER the sync above has had its
+    // chance to refresh balances — and outside its try, because a sync that
+    // failed leaves the balances the app holds no less true (a frozen balance
+    // keeps counting everywhere else, so it belongs in the history too).
+    // This nightly sweep is the trigger that reaches every user; the sync
+    // actions call the same writer so history still accrues if the cron is
+    // never configured. Isolated like every other half of this route: a
+    // snapshot failure must not cost the remaining users their sync.
+    try {
+      const snap = await recordMonthlyBalanceSnapshot(user.id);
+      if (snap.written > 0) snapshots.push({ userId: user.id, written: snap.written, date: snap.date });
+    } catch (e) {
+      snapshots.push({ userId: user.id, error: e instanceof Error ? e.message : 'snapshot failed' });
     }
   }
   // Plaid-linked users are swept REGARDLESS of DATA_PROVIDER (src/server/plaid-sync.ts
@@ -84,6 +101,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     synced: results.length,
     results,
+    snapshots,
     plaid,
     ...(plaidError ? { plaidError } : {}),
   });

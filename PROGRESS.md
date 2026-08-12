@@ -2999,3 +2999,23 @@ seeded pages, so moving it to a bare throwaway user could hollow out what it tes
 **Closed out:** DECISIONS #446 written with the corrected, twice-independently-reproduced numbers; TASKS.md's O.20a row → DONE; two new rows filed — **O.20j** (the transfer-`isTransfer`-reliability finding, its own critic-gated slice) and **O.20k** (the inherited reconciliation-boundary bug in the already-shipped `o20g-creep-income-refunds.mts`, meaning DECISIONS #445's specific dollar figures are unverified against this user's reconciliation links). STATUS.md §O.20a records the measurement.
 
 **SHIPPED.** `bash scripts/verify.sh` GREEN (tsc 0 / eslint 0 / 6,710 unit + 1 skipped / build clean, no prisma diff) → committed `e7f7906` → pushed → CI run **31539275068 = SUCCESS, first attempt**, read via `scripts/ci-status.sh` to conclusion. Docs-chain gate for the record commit `0a4de26`: CI run 31540258999 CANCELLED on attempt 1 (not superseded by a newer push) → `gh run rerun` → attempt 2 SUCCESS. No live-deploy check (no user-facing behavior changed — a measurement, a decision, and docs). This O.20a slice is DONE end to end.
+
+---
+
+## U.4 DONE (2026-08-12, Opus 5 xhigh session, DECISIONS #450) — the writer was easy; what reads the rows decided its shape
+
+**Picked up from the queue** (U.3's own finding): only `prisma/seed.ts` had ever written a `BalanceSnapshot`, so every live account's detail panel read "No balance history recorded" permanently and every real user's net-worth trend was a single point.
+
+**The design was settled by evidence, not preference.** Two facts in the existing code decided it before any line was written: `netWorthSeries` sums a date BUCKET (so an account missing from a bucket is an understated money figure, not a shorter list), and `reconcile-boundary.keepsSnapshot` de-duplicates a reconciled pair ONLY on an exact-date collision — while a reconciled pair here is cross-provider by definition. Both force the same answer: ONE pass per USER, ONE date, EVERY account, stamped the day the balance was read. A per-provider writer — the obvious shape, and the one the task row's wording suggested — would have made every historical point a partial sum AND silently double-counted every re-linked account.
+
+**Shipped:** `src/lib/engine/networth/snapshot-plan.ts` (pure planner + the trend read window), `src/server/balance-history.ts` (writer, demo-fenced by construction), called from the nightly cron sweep and both sync actions; idempotent within the calendar month.
+
+**Two fresh-context hostile critics (money/data-integrity + rendered-claims) returned 1 P0 + 7 P1 + P2s, all executed.** The two that mattered:
+- The **P0** was a fabricated figure, not a wrong one: a quiet feed's carried-forward rows printed as dated observations directly beneath the note saying nothing had been read since. The fact now rides the row.
+- The **P1** I could not have found by reading my own diff: the net-worth delta subtracts two points that can cover different account sets. Pre-U.4 a live user had ONE point, so that figure never rendered — the slice created the surface it broke. Add an account mid-month and it printed −$251,200.00, or +$50,000.00 in green depending only on arrival order.
+
+**Lesson worth keeping (written to docs/lessons/):** a slice that makes a previously-unreachable surface reachable owns that surface's correctness, and a coverage change is not a wealth change.
+
+**Residuals split out, not papered over:** U.5 (panel reads snapshots raw, chart reads them through the reconciliation boundary) and U.6 (a stored row is signed by the account's CURRENT mutable `type`, which every sync rewrites).
+
+**Verification:** three sabotage proofs, each reverted; `bash scripts/verify.sh` green; full `VERIFY_E2E=1` and the CI conclusion recorded in STATUS.md §U.4. `prisma/` diff is comment-only — no column, index or constraint changed, so the live Neon database is untouched.

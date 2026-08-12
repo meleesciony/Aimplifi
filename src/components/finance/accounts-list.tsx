@@ -64,6 +64,7 @@ import { cents, formatCents } from '@/lib/money';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { MANUAL_ASSET_TYPES, MANUAL_LIABILITY_TYPES } from '@/lib/engine/networth/manual';
+import { NET_WORTH_TREND_BASIS, netWorthDelta } from '@/lib/engine/networth/panel';
 import type { SuspectedDuplicatePair } from '@/lib/engine/account/duplicates';
 import { freshnessMessage } from '@/lib/engine/sync/health';
 import { FEED_DROPPED_ROW_TESTID, feedDroppedRowNote } from '@/lib/engine/account/feed-dropped-view';
@@ -115,7 +116,10 @@ function NetWorthCard({ data }: { data: AccountsView }) {
     dollars: p.netWorthCents / 100,
   }));
   const t = data.trend;
-  const deltaCents = t.length >= 2 ? t[t.length - 1].netWorthCents - t[t.length - 2].netWorthCents : null;
+  // U.4: same engine decision as the dashboard card — a delta is a change in
+  // wealth only when both points count the same accounts.
+  const delta = t.length >= 2 ? netWorthDelta(t[t.length - 2], t[t.length - 1]) : null;
+  const deltaCents = delta?.deltaCents ?? null;
 
   return (
     <Card data-testid="accounts-net-worth">
@@ -127,12 +131,19 @@ function NetWorthCard({ data }: { data: AccountsView }) {
         >
           {formatCents(data.netWorthCents)}
         </CardTitle>
-        {deltaCents !== null && (
+        {delta !== null && (
           <p
-            className={`text-xs ${deltaCents >= 0 ? 'text-emerald-500' : 'text-red-400'}`}
+            className={`text-xs ${
+              deltaCents === null
+                ? 'text-muted-foreground'
+                : deltaCents >= 0
+                  ? 'text-emerald-500'
+                  : 'text-red-400'
+            }`}
             data-testid="accounts-net-worth-delta"
           >
-            {formatCents(cents(deltaCents), { signDisplay: 'always' })} vs last month-end
+            {deltaCents !== null && `${formatCents(cents(deltaCents), { signDisplay: 'always' })} `}
+            {delta.label}
           </p>
         )}
       </CardHeader>
@@ -168,8 +179,16 @@ function NetWorthCard({ data }: { data: AccountsView }) {
             </ResponsiveContainer>
           </div>
         )}
+        {/* U.4: this surface drew the identical chart with no basis sentence at
+            all, so the fix to the dashboard's would have left the two disagreeing
+            by omission. One shared constant, rendered by both. */}
+        {chartData.length >= 2 && (
+          <p className="text-xs text-muted-foreground" data-testid="accounts-net-worth-trend-basis">
+            {NET_WORTH_TREND_BASIS}
+          </p>
+        )}
         {/* O.20d: the same point drilldown the dashboard card carries — every
-            month-end and the live point open their constituents. */}
+            recorded point and the live point open their constituents. */}
         <NetWorthTrendDrilldown points={data.trend} testIdPrefix="accounts-net-worth" />
       </CardContent>
     </Card>

@@ -8,6 +8,7 @@
  * preserving the zero-credential demo.
  */
 import { revalidatePath } from 'next/cache';
+import { recordMonthlyBalanceSnapshot } from '@/server/balance-history';
 import { accountShapeDigest } from '@/server/sync-change-digest';
 import { revalidateAfterSync } from '@/server/sync-revalidate';
 import { prisma } from '@/lib/db';
@@ -484,6 +485,19 @@ export async function syncPlaidNow(itemId?: string): Promise<PlaidSyncNowResult>
       if (holdings.upserted > 0 || holdings.removed > 0) changed = true;
     } catch {
       /* provider isolates + audits per-item failures; a total failure is non-fatal here */
+    }
+
+    // U.4: this month's balance point, after every half above has had its chance to
+    // write balances. Idempotent within the month (and demo-fenced) inside the writer,
+    // so calling it here as well as from the nightly cron costs one indexed read per
+    // sync and means history accrues for a user whose deployment never runs the cron.
+    // Best-effort like the backfills above: recording history must never turn a
+    // successful data pull into a red error, and it changes nothing a page renders
+    // this instant, so it is deliberately NOT folded into `changed`.
+    try {
+      await recordMonthlyBalanceSnapshot(userId);
+    } catch {
+      /* the sync itself succeeded; the next one re-attempts the month */
     }
 
     // Balances, new account rows, APRs, due days, cycle-close days and loan minimums —
