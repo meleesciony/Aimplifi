@@ -67,7 +67,19 @@ evidence for those surfaces. No `prisma/` diff — read-path and copy only.
 CSV header is the one demo-visible string that differs between builds, so unlike U.5/U.9/U.13/
 U.16 this script can actually catch a stale deploy. Run against production PRE-deploy: **16
 PASS / 1 FAIL / 4 declared SKIP**, the single failure being exactly the discriminating header
-check (old header captured verbatim) — its own fail-old proof. Post-deploy target: 17/17.
+check (old header captured verbatim) — its own fail-old proof.
+
+**SHIPPED AND PROVEN LIVE (2026-08-12).** Commit `2629e7d` → pushed → **CI gate `success`, run
+31660421048, attempt 1**, read to conclusion via `scripts/ci-status.sh` — the full
+`VERIFY_E2E=1` suite on the Linux runner, where the extended
+`handover-day-disclosure.spec.ts` (register marker + caption, /reports total note, exported CSV
+against a real seeded combined pair) actually discriminates the build. Post-deploy live check:
+**17 PASS / 0 FAIL / 4 declared SKIP** — the discriminating header check flipped from its
+pre-deploy FAIL, which is this family's first live proof that can and did tie production to the
+commit. Predecessor proofs re-run against the same deployment: **U.16 13/13, U.13 6/6** — this
+money-core change regressed neither. Demo figures unmoved ($299.93 /reports, $4,900.00
+/budgets, $2,763.00 /coach); every new marker and sentence correctly ABSENT for a reader with
+no combined accounts.
 
 ## ✅ BUILT 2026-08-12 — U.16: the drilldown stops certifying the handover-day double, on every surface that counts it (DECISIONS #455)
 

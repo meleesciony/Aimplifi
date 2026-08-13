@@ -3527,3 +3527,10 @@ note, with comment). Locks now 56 across both files + new regression tests. Full
 a-disclosure-gated-to-the-loudest-branch-misses-the-reachable-one. DECISIONS #456 + addendum,
 TASKS rows U.23/U.24 filed. verify.sh VERIFY_E2E=1 running in background → then STATUS entry,
 archive U.19–U.22 task rows, ship (commit/push/CI gate/deploy/live check 17-17 expected).
+
+**U.19–U.22 SHIPPED AND PROVEN LIVE (2026-08-12).** Commit `2629e7d` → pushed → CI gate
+`success`, run 31660421048, attempt 1, read to conclusion via scripts/ci-status.sh. Live:
+`node scripts/u19-live-deploy-check.mjs` → **17 PASS / 0 FAIL / 4 declared SKIP**, where the
+same script scored 16/1 pre-deploy with exactly the discriminating CSV-header check failing —
+this slice's live check can discriminate the build (first in the family), and it did. U.16's
+proof re-run: 13/13. U.13's: 6/6. Neither predecessor regressed.
