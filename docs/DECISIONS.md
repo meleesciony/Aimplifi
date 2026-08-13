@@ -7282,3 +7282,128 @@ flaky-passed-on-retry** (`action-menu.spec.ts:391`, `category-rename.spec.ts:110
 K.10/`ci-e2e-timing-flake.md` shared-SQLite contention class on reload-bearing mutation specs,
 none touching calendar or reconciliation code). No `prisma/` diff.
 
+
+## #465 — U.33: the boundary's last two hand-rolled reads, and a link table read four times
+inside one write (2026-08-13)
+
+**Context.** U.31 consolidated the reconciliation link table's double read at six loaders and
+left two views out of the consolidated helper. The U.31 critic filed the remainder as U.33 and
+named two call sites: `refreshRecurringForUser` (recurring.ts), which awaited
+`getReconciliationTxnKeep` and then, in a separate `Promise.all`, `getReconciliationHandoverDates`
+— both feeding ONE `collapseHandoverDuplicates` call whose output is `detectRecurring`'s input and
+is PERSISTED as `RecurringSeries` + `ScheduledTransaction` rows driving forecast, the calendar, the
+spending plan and the Cash-Needed Engine — and `getTaxExport` (tax.ts), which paired
+`taxRows(userId)` with `getReconciliationHandoverDates(userId)` in one `Promise.all` while
+`taxRows` fetched the keep for itself, so a file that leaves the app entirely was assembled from
+two independent snapshots of the same table.
+
+**The row's scope was short by two reads, and the measurement found them before any code moved.**
+`refreshRecurringForUser` reads `accountReconciliation` FOUR times, not two: the keep, the dates,
+`activeTerminalSuccessorMap` at the collapse (the third argument of that same
+`collapseHandoverDuplicates` call), and `activeTerminalSuccessorMap` AGAIN fifty lines later,
+where `new Set(terminalOf.keys())` decides which accounts are in scope for the rows this function
+writes. That second terminal read is the same function with the same argument as the first, with
+detection and merchant resolution running in between. This is the second consecutive slice in this
+family whose row under-counted its own scope (#463 was the first), which is now enough of a
+pattern to state plainly: a row that names "two reads" is naming the two someone noticed, and the
+count is worth re-measuring before trusting it.
+
+**Decision: FOUR views from one read, not a second parallel helper.** The row offered a
+`getReconciliationDatesBoundary`-shaped sibling or a shared signature covering both. Neither: a
+second boundary function is a second place for the fetch to drift, which is the defect this family
+exists to remove. `getReconciliationBoundary` instead returns `keepsReconciled`, `handoverKeys`,
+`handoverDates` and `terminalOf` — every one of them the same derivation from the same two inputs
+(`effectiveReconciliationLinks(accounts, links)`, plus predecessor spans where a date is needed).
+That is not a grab bag: it is everything the boundary says about one user, resolved from one
+snapshot. All four are pure O(links) computations over arrays already in memory, so a caller
+destructuring two pays no query for the other two, and with no active links every view is the
+empty / constant-true fast path. `getReconciliationHandoverDates` — which held the LAST hand-rolled
+copy of the links + accounts + spans triple, written out a third time after U.31 consolidated the
+other two — now routes through the shared fetch like its three siblings. The single-output wrappers
+stay for the callers that need exactly one view (assistant, coach, reports, backfill, keyword-rules,
+triage, and `getTaxYears`): a second read there is real but is not a DESYNC risk, because nothing
+downstream compares it against a second independently fetched value.
+
+**`taxRows` takes the keep as a REQUIRED parameter, not an optional one with a fallback.** An
+optional parameter defaulting to its own fetch is exactly how a second read survives a
+consolidation unnoticed — the call site keeps compiling, and the drift comes back silently. Making
+it required let the compiler enumerate both callers: `getTaxExport` resolves it from the boundary
+alongside the dates it also needs, and `getTaxYears` keeps the single-output wrapper because a year
+list names no dates.
+
+**What was traded, stated rather than buried.** `getTaxExport` was two reads run CONCURRENTLY and
+is now one read awaited before the row query starts — one sequential round trip bought back, against
+three fewer queries and a file that can no longer contradict itself. `refreshRecurringForUser` loses
+nothing: its terminal map was already read before the collapse, so reusing that value moves no await
+earlier, it only stops a second one from happening later.
+
+**The direction of the consistency fix is the safe one.** In every case the new code resolves one
+snapshot of the links and uses it throughout, where the old code could resolve two. There is no
+shape in which the old behavior was preferable: a confirm or an undo landing between two awaits
+produced a collapse decided on one set of links and an account scope decided on another, and in
+`refreshRecurringForUser` that disagreement was not rendered, it was written to the database.
+
+**Locked, and the lock is a COUNT.** `tests/unit/reconciliation-boundary-shared-read.test.ts`
+(U.31's file, extended) proves equivalence — `handoverDates` and `terminalOf` from the boundary
+equal what `getReconciliationHandoverDates` and `activeTerminalSuccessorMap` compute standalone
+over the same fixture, dates and keys are proven DIFFERENT sets rather than one output renamed
+(1 date, 2 keys; a bare date is not a key and a key is not a bare date), and the no-links path
+returns all four empty. But equivalence tests would pass just as well against four separate reads,
+so the regression lock is a `vi.spyOn(prisma.accountReconciliation, 'findMany')` call count:
+`getTaxExport` and `refreshRecurringForUser` each read the link table EXACTLY ONCE. Both were
+proven fail-old by sabotage, not asserted: restoring tax.ts's concurrent pair reddened its count
+test at "expected 1, got 2", and restoring recurring.ts's second `activeTerminalSuccessorMap` read
+reddened its own at "expected 1, got 2". The tax count test also asserts the export really
+assembled ($125.00 total) — a read count over a file that produced nothing proves nothing.
+
+**Residual filed, not fixed (U.34).** `getSpendingPlan` (spending-plan.ts:186) reads
+`activeTerminalSuccessorMap` for the income median's account scope, then calls
+`countedExpenseSeriesForPlan` (:243), which reads it AGAIN (:667) for the expense scope — one
+rendered plan, two independent reads of one table. Same defect class, different file, and RENDERED
+rather than persisted, so it is a separate slice rather than a widening of this one.
+
+**Hostile critic (fresh context, Opus 5): PASS — 0 P0, 0 P1, five P2.** It earned the clean bill by
+execution rather than reading, and the decisive artifact is one I had not thought to build: it seeded a
+fixture with a real mid-stream cutover (predecessor owns rows ≤ 2026-04-15, successor after), a monthly
+subscription straddling it and DOUBLED on the released day, biweekly income straddling it, and a
+tax-tagged charge reported by both sides — then ran `refreshRecurringForUser` + `getTaxExport` +
+`getTaxYears`, dumped every persisted `RecurringSeries` and `ScheduledTransaction` field plus the whole
+export, reverted `src/` to HEAD, and re-ran the identical fixture. `diff` → **identical, on two
+independent runs**. The dump exercises the machinery that matters: Netflix still detected MONTHLY (the
+collapse worked, so the released-day duplicate did not distort cadence), the series still re-keyed onto
+the successor (L.26), income BIWEEKLY, tax total 55000 with both $125.00 copies kept per U.13. Measured
+query counts with links present: `getTaxExport` 6 → 3, `refreshRecurringForUser` 11 → 4 (the link table
+itself 4 → 1).
+
+**It also corrected the Maker's own reasoning on the one real risk.** I had justified `terminalOf`'s
+order-independence on two grounds — the engine's out-degree guard AND `predecessorAccountId @unique`.
+The critic's correction: the schema constraint is not load-bearing and must not be leaned on, because
+this file's whole doctrine is to re-check at READ time what the writer already refuses
+(`a-guard-must-read-what-it-guards`) — resting the claim on the constraint rests it on the half that
+does not run here. It then built the out-degree-2 shape that would be the counterexample to my argument
+and showed the output identical anyway, because the engine guard caught it. It permuted every ordering
+of six link shapes (chain, fan-in, cycle, non-monotone chain, out-degree-2, cross-type inert) against
+all four views: identical every time. One residue it surfaced that I had missed: `chainMaps`' `predsOf`
+LISTS genuinely are order-dependent, so `upstreamsOf` returns a differently-ordered array — harmless,
+because `txnKeepRule` consumes it order-independently and `recurring.ts` reads the map only through
+`.get()` and `new Set(terminalOf.keys())`. The comment now leads with the guard and names the
+constraint as explicitly NOT the argument.
+
+**P2 dispositions — three executed, one accepted, one filed.**
+*Executed:* P2-2, the zero-caller export — `getReconciliationHandoverDates` had no production caller
+left and the docblock still named it as a wrapper callers keep, so the function is DELETED and the
+sentence now names only the two wrappers that are really used. P2-3, the tautological assertion — the
+dates test compared the boundary against `getReconciliationHandoverDates`, which after the
+consolidation ran the same two lines (f(x) vs f(x)); it now asserts the values themselves, with the
+real old-vs-new parity recorded as having been executed by the critic against a verbatim copy of the
+pre-U.33 body. P2-4, the thin fixture — the two read-count tests ran on a user with NO links, i.e. the
+`links.length === 0` fast path, the one branch that reads once however you ask; the fixture now carries
+a real active link and a predecessor row, which moved the fail-old count for `refreshRecurringForUser`
+from 2 to **4** and put the lock on the branch that actually costs the queries.
+*Accepted with the measurement recorded:* P2-1, `effectiveReconciliationLinks` now derived four times
+per boundary call instead of two, eagerly, at all six call sites. Measured: no delta at 5 links,
++0.155ms at 20, +4.2ms at 100, +119ms at 500. Real users hold a handful — the owner's own production
+data, the largest ever measured here, holds 19 — and the alternative (threading a precomputed `eff`
+into four engine functions) would put a second author on the effectiveness rule to save a fraction of
+a millisecond. Recorded in the docblock with the numbers and the trigger for revisiting it.
+*Filed:* P2-5 became U.34, widened by the critic's measurement from one site to two.

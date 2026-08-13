@@ -3935,3 +3935,94 @@ $50.00 charge released to both sides) through the browser and asserts the $100.0
 text, its DOM position above the projected line, and the day marker's exact wording — plus the
 no-combined-accounts control asserting /calendar stays silent. A bespoke production probe would
 assert only that the deployment exists, which the two gate reads above already prove more precisely.
+
+---
+
+## ✅ BUILT 2026-08-13 — U.33: the boundary's last two hand-rolled reads, and a link table read four times inside one write (DECISIONS #465)
+
+The last two views of the reconciliation boundary that U.31 did not consolidate. `refreshRecurringForUser`
+read the `accountReconciliation` table FOUR times per run — not the two the row named — and fed three of
+those reads into a SINGLE `collapseHandoverDuplicates` call whose output is `detectRecurring`'s input and
+is PERSISTED as `RecurringSeries` + `ScheduledTransaction` rows driving forecast, the calendar, the
+spending plan and the Cash-Needed Engine. `getTaxExport` read it twice for one file that leaves the app.
+
+**The row's scope was short by two reads, and the measurement came before the code.** The two the U.31
+critic named were the keep and the released dates. The two it missed were both `activeTerminalSuccessorMap`
+— once as the third argument of that same `collapseHandoverDuplicates` call, and again fifty lines later
+where `new Set(terminalOf.keys())` decides which accounts are in scope for the rows the function WRITES,
+with detection and merchant resolution running in between. Second consecutive slice in this family whose
+row under-counted itself (#463 was the first).
+
+**Neither shape the row offered was built.** It proposed a parallel `getReconciliationDatesBoundary` or a
+shared signature covering both; a second boundary function is a second place for the fetch to drift, which
+is the defect this family exists to remove. `getReconciliationBoundary` instead returns FOUR views from one
+read — `keepsReconciled`, `handoverKeys`, `handoverDates`, `terminalOf` — every one the same derivation
+from the same two inputs, all four empty/constant-true on the no-links fast path, all pure O(links) work
+over arrays already in memory (so the three pre-existing callers pay no query for the two new views).
+`getReconciliationHandoverDates`, which held the LAST hand-rolled copy of the links+accounts+spans triple,
+now routes through the shared fetch like its siblings. `taxRows` takes the keep as a REQUIRED parameter —
+an optional one with a fallback is exactly how a second read survives a consolidation unnoticed.
+
+**The one real risk was checked, not assumed.** `terminalOf` reaches `terminalSuccessorMap` through a
+differently-ordered array than `activeTerminalSuccessorMap` used (`getActiveReconciliations` sorts by
+`confirmedByUserAt`; the standalone query has no `orderBy`), and order could matter because `chainMaps`
+builds `succOf` with `new Map`, where a repeated predecessor key means the last edge wins. It is
+unreachable twice over: `effectiveReconciliationLinks`' out-degree guard drops every link out of a
+two-successor predecessor before `chainMaps` sees it (U.9 critic finding 3, written for this exact hazard),
+and `AccountReconciliation.predecessorAccountId` is `@unique`, so the database cannot hold the shape
+either. Recorded in the code beside the line it justifies.
+
+**Locked by a COUNT, because equivalence would pass against four separate reads.**
+`tests/unit/reconciliation-boundary-shared-read.test.ts` (U.31's file, extended by 6 tests): equivalence of
+`handoverDates`/`terminalOf` against their standalone functions, dates-vs-keys proven DIFFERENT sets (1
+date, 2 keys — a bare date is not a key and a key is not a bare date), the all-four-empty fast path, and a
+`vi.spyOn(prisma.accountReconciliation, 'findMany')` count asserting `getTaxExport` and
+`refreshRecurringForUser` each read the table EXACTLY ONCE (the tax case also asserting the export really
+assembled, $125.00 — a read count over a file that produced nothing proves nothing). **Both counts proven
+fail-old by sabotage, not asserted:** restoring tax.ts's concurrent pair reddened at "expected 1, got 2";
+restoring recurring.ts's second `activeTerminalSuccessorMap` read reddened at "expected 1, got 2". Both
+sabotages reverted and re-verified green.
+
+**Hostile critic (fresh context, Opus 5): PASS — 0 P0, 0 P1, five P2.** It proved behavior preservation
+the way I had not thought to: a fixture with a real mid-stream cutover, a subscription doubled on the
+released day, income straddling it and a tax-tagged charge on both sides — then dumped every persisted
+`RecurringSeries` and `ScheduledTransaction` field plus the whole tax export, reverted `src/` to HEAD,
+re-ran, and `diff`ed. **Identical, twice.** Netflix still MONTHLY (the collapse worked), the series still
+re-keyed onto the successor, tax total 55000 with both copies kept. It also CORRECTED my own reasoning:
+I justified the ordering safety on the out-degree guard AND the `@unique` constraint; the constraint is
+not load-bearing and must not be leaned on, since this file's doctrine is to re-check at read time what
+the writer refuses — so it built the out-degree-2 shape that defeats *my* argument and showed the output
+identical anyway, because the guard caught it. Three P2s executed (the zero-caller export deleted, the
+tautological assertion replaced, the count fixture given a real link — which moved recurring's fail-old
+count from 2 to **4**); one accepted with its measurement recorded (the effectiveness walk now runs 4×
+per boundary call: +0.155ms at 20 links, noise at real counts); one filed as U.34.
+
+**Gate (final tree, quiet — see the process note below).** `VERIFY_E2E=1 bash scripts/verify.sh` →
+**✅ VERIFY GREEN** (exit 0): tsc 0, eslint 0, unit **7,001 passed + 1 expected fail + 1 skipped / 426
+files**, `next build` clean, e2e **349 passed, 4 flaky-passed-on-retry** (`category-rename.spec.ts:110`,
+`pwa-offline.spec.ts:51`, `transactions.spec.ts:610`, `transactions.spec.ts:1014` — all members of the
+documented K.10 / `ci-e2e-timing-flake.md` shared-SQLite contention class, none touching reconciliation,
+recurring or tax code). No `prisma/` diff: read-path only, so the live Neon database is untouched.
+
+**Process note worth keeping: I ran the gate while the critic subagent was working in the SAME directory,
+and it reddened seven tests that were not defects.** The critic reverted `src/` to HEAD twice to measure
+the old code (~15s each) and added three scratch files under `tests/unit/`, which vitest globs, on the
+shared SQLite test database. That is LOOP_ENGINEERING rule 9 — one agent, one directory — and I broke it
+myself. The failing run was discarded and the gate re-run on a quiet tree. The lesson is not "subagents
+are risky": it is that a verification gate and a mutating agent cannot share a working tree, and a red
+gate under that condition proves nothing in either direction.
+
+**Residual filed as U.34, not fixed:** `getSpendingPlan` reads `activeTerminalSuccessorMap` at
+spending-plan.ts:186 for the income scope and again at :667 (via `countedExpenseSeriesForPlan`) for the
+expense scope — one rendered plan, two snapshots of one table. Same class, different file, RENDERED rather
+than persisted, so it is a separate slice.
+
+**Also this session: an ORPHANED uncommitted schema edit was found in the working tree and filed rather
+than shipped or discarded.** `prisma/schema.prisma` carried an un-committed `Account.paymentMerchantId`
+column (a debt-payment-history bridge, labelled "V.1" in its own comments — an id already owned by Wave V)
+with no task row, no code, no test and no ledger entry anywhere. A schema change runs `prisma db push`
+against live Neon on deploy, and a column no code reads is exactly the dangling migration rule 5 exists to
+prevent. Stashed (`git stash list` → the entry beginning `ORPHANED V.1 start`), the Prisma client
+regenerated from the tracked schema, and the whole design recorded as **TASKS H.9** so the one decision it
+had already made — the link is chosen by the reader and NEVER inferred from name similarity — is not
+re-derived by whoever picks it up.

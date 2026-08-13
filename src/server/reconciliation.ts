@@ -514,16 +514,89 @@ async function loadReconciliationBoundaryInputs(userId: string): Promise<{
  * to call, which independently re-fetched the same links, accounts and spans and left a window
  * (an "Undo combine" committing between the two awaits) where the keep could resolve against the
  * OLD links while the handover set resolved against the NEW ones.
+ *
+ * U.33 widens it to FOUR views, because every one of them is the same derivation from the same
+ * two inputs — `effectiveReconciliationLinks(accounts, links)`, plus the predecessor spans for
+ * the two that need a date. This is not a grab bag: it is everything the boundary says about
+ * one user, resolved from one snapshot of the link table.
+ *
+ *   `keepsReconciled` — the R1 row-ownership rule (which side owns a row on a date).
+ *   `handoverKeys`    — the (account, released day) PAIRS, for per-row disclosure markers (U.16).
+ *   `handoverDates`   — the bare released DATES, for the two consumers with no account column:
+ *                       the tax export's file, and cadence detection's collapse.
+ *   `terminalOf`      — predecessor id → the live account it was combined into.
+ *
+ * The two added by U.33 close a window the U.31 pass left open at `refreshRecurring`
+ * (recurring.ts), which read this table FOUR times — keep, dates, and `activeTerminalSuccessorMap`
+ * TWICE — and fed three of those reads into a SINGLE `collapseHandoverDuplicates` call whose
+ * output is `detectRecurring`'s input and is PERSISTED as `RecurringSeries` + `ScheduledTransaction`
+ * rows driving forecast, the calendar, the spending plan and the Cash-Needed Engine. An undo
+ * landing between those awaits could collapse duplicates against one set of links while deciding
+ * account scope against another, and the disagreement would be written down rather than rendered.
+ *
+ * Callers needing exactly one view keep their single-output wrapper — `getReconciliationTxnKeep`
+ * (assistant, coach, reports, backfill, keyword-rules, triage, the transaction actions, and
+ * `getTaxYears`) and `getReconciliationHandoverKeys` (the disclosure surfaces). A second read
+ * there is real but is not a DESYNC risk, since nothing downstream compares it against a second
+ * independently fetched value. There is deliberately no `handoverDates` wrapper: U.33 consumed
+ * the only two callers it ever had, and an exported function with no caller is a claim about
+ * this file that stops being true the moment someone reads it (U.33 critic F-2).
+ *
+ * All four views are pure computations over arrays already in memory, so a caller destructuring
+ * two pays no QUERY for the other two — and with no active links every one is the empty /
+ * constant-true fast path. They are computed EAGERLY, and each re-derives
+ * `effectiveReconciliationLinks` internally, so the effectiveness walk now runs four times per
+ * call rather than two. Measured by the U.33 critic (F-2, accepted not fixed, 20 iterations per
+ * point): no delta at 5 links, +0.155ms at 20, +4.2ms at 100, +119ms at 500. Real users hold a
+ * handful of links — the owner's own production data, the largest measured, holds 19 — so this
+ * is noise, and the alternative (threading a precomputed `eff` into four engine functions)
+ * would put a second author on the effectiveness rule to save it. If link counts ever reach the
+ * hundreds, make the two added views lazy getters rather than moving that rule.
  */
 export async function getReconciliationBoundary(userId: string): Promise<{
   keepsReconciled: (accountId: string, date: string) => boolean;
   handoverKeys: ReadonlySet<string>;
+  handoverDates: ReadonlySet<string>;
+  terminalOf: ReadonlyMap<string, string>;
 }> {
   const { accounts, links, spans } = await loadReconciliationBoundaryInputs(userId);
-  if (links.length === 0) return { keepsReconciled: () => true, handoverKeys: new Set<string>() };
+  if (links.length === 0) {
+    return {
+      keepsReconciled: () => true,
+      handoverKeys: new Set<string>(),
+      handoverDates: new Set<string>(),
+      terminalOf: new Map<string, string>(),
+    };
+  }
   return {
     keepsReconciled: reconciliationTxnKeepFilter(accounts, links, spans),
     handoverKeys: reconciliationHandoverKeys(accounts, links, spans),
+    handoverDates: reconciliationHandoverDates(accounts, links, spans),
+    // Identical to `activeTerminalSuccessorMap(userId)` despite reaching `terminalSuccessorMap`
+    // through a DIFFERENTLY-ORDERED array — that function's own query carries no `orderBy`,
+    // `getActiveReconciliations` sorts by `confirmedByUserAt`. Order could only matter because
+    // `chainMaps` builds `succOf` with `new Map`, where a repeated predecessor key means the
+    // LAST edge wins. The ENGINE rules that out: `effectiveReconciliationLinks`' out-degree
+    // guard sends every link out of a two-successor predecessor inert (U.9 critic finding 3,
+    // written for exactly this last-wins hazard), so each predecessor appears at most once in
+    // `eff` and both `succOf` and `terminalSuccessorMap`'s own map are key-unique whatever the
+    // order. The cycle and monotonicity walks are set-based, so they are order-free too.
+    //
+    // `AccountReconciliation.predecessorAccountId` is ALSO `@unique`, and that is deliberately
+    // not the argument: this file re-checks at read time what the schema already refuses at
+    // write time (docs/lessons/a-guard-must-read-what-it-guards), so resting an ordering claim
+    // on the constraint would be resting it on the half that does not run here. The U.33
+    // critic made that correction and then built the out-degree-2 shape to test it — output
+    // identical, because the guard caught it, not because the database refused it.
+    //
+    // Executed rather than argued, by that critic: every permutation of six link shapes (chain,
+    // fan-in, cycle, non-monotone chain, out-degree-2, cross-type inert) × all four views —
+    // identical every time. One residue: `chainMaps`' `predsOf` LISTS do vary in order, so
+    // `upstreamsOf` returns a differently-ordered array; `txnKeepRule` consumes it
+    // order-independently, and `recurring.ts` reads this map only through `.get()` and
+    // `new Set(terminalOf.keys())`. Worth the check — an ordering difference here would
+    // silently move the account scope of PERSISTED recurring rows.
+    terminalOf: terminalSuccessorMap(accounts, links),
   };
 }
 
@@ -534,46 +607,20 @@ export async function getReconciliationTxnKeep(userId: string): Promise<(account
 }
 
 /**
- * The dates on which two connections were handing over, where BOTH sides' rows are kept
- * (U.13). A surface that reports totals a reader will act on — the tax export above all,
- * whose file leaves the app entirely — uses this to disclose that a charge both connections
- * reported appears twice on those days. Built from the same links/spans as the keep filter
- * and computed by the engine, never re-derived here.
- */
-/**
  * The (account, released day) pairs the DISCLOSURE surfaces test each row against
- * (U.16) — account-scoped, unlike `getReconciliationHandoverDates` below.
+ * (U.16) — account-scoped, unlike the bare-date `handoverDates` view of
+ * `getReconciliationBoundary`.
  *
  * A per-row marker keyed on the date alone labels every row the reader posted that
  * day on every account they own, including accounts in no combined pair. Only the
- * pair's own two sides can double.
+ * pair's own two sides can double. The bare-date view is still the right one for the
+ * two consumers with no account column — the tax export's file, and cadence
+ * detection's collapse — and both now take it off the boundary directly.
  */
 export async function getReconciliationHandoverKeys(userId: string): Promise<ReadonlySet<string>> {
   const { accounts, links, spans } = await loadReconciliationBoundaryInputs(userId);
   if (links.length === 0) return new Set<string>();
   return reconciliationHandoverKeys(accounts, links, spans);
-}
-
-export async function getReconciliationHandoverDates(userId: string): Promise<ReadonlySet<string>> {
-  const links = await getActiveReconciliations(userId);
-  if (links.length === 0) return new Set<string>();
-  const accounts = await prisma.account.findMany({
-    where: { userId },
-    select: { id: true, type: true, currency: true, currentBalanceCents: true },
-  });
-  const spans = await prisma.transaction.groupBy({
-    by: ['accountId'],
-    where: { accountId: { in: links.map((l) => l.predecessorAccountId) }, account: { userId } },
-    _min: { date: true },
-    _max: { date: true },
-  });
-  return reconciliationHandoverDates(
-    accounts.filter((a) => isSupportedCurrency(a.currency)),
-    links,
-    spans.flatMap((s) =>
-      s._min.date != null && s._max.date != null ? [{ accountId: s.accountId, first: s._min.date, last: s._max.date }] : [],
-    ),
-  );
 }
 
 /**

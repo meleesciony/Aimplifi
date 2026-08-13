@@ -4672,3 +4672,41 @@ commit, proving the widened marker and the caption clause both render correctly 
 the money-scoped month sentence staying silent — the shape a bespoke production probe could not
 usefully add to (no demo-visible marker: `grep AccountReconciliation prisma/seed.ts` — zero hits,
 same K.4 fact as every slice in this family).
+
+## ✅ BUILT 2026-08-13 — U.33: the boundary's last two hand-rolled reads, and a link table read four times inside one write (DECISIONS #465)
+
+U.31 consolidated the reconciliation link table's double read at six loaders and left two views out.
+The U.31 critic filed the remainder as U.33 and named two call sites; the measurement found four reads,
+not two, at the more consequential of them. `refreshRecurringForUser` read `accountReconciliation` FOUR
+times per run — the keep, the released dates, `activeTerminalSuccessorMap` feeding the same
+`collapseHandoverDuplicates` call, and `activeTerminalSuccessorMap` again fifty lines later where
+`new Set(terminalOf.keys())` decides the account scope for the rows it WRITES — and that call's output
+is persisted as `RecurringSeries` + `ScheduledTransaction`, driving forecast, the calendar, the spending
+plan and the Cash-Needed Engine. `getTaxExport` read it twice for a file that leaves the app.
+
+**What shipped.** `getReconciliationBoundary` returns FOUR views from one read (`keepsReconciled`,
+`handoverKeys`, `handoverDates`, `terminalOf`) — every one the same derivation from the same two inputs,
+all empty/constant-true on the no-links fast path. Neither shape the row proposed was built: a second
+boundary function is a second place for the fetch to drift. `getReconciliationHandoverDates` is deleted
+outright (U.33 consumed its only two callers; the critic caught that leaving it exported made a docblock
+sentence false). `taxRows` takes the keep as a REQUIRED parameter so the compiler enumerates its callers.
+Measured query counts with links present: `getTaxExport` 6 → 3, `refreshRecurringForUser` 11 → 4.
+
+**Locked by a COUNT, because equivalence passes just as well against four reads.**
+`tests/unit/reconciliation-boundary-shared-read.test.ts` (+6 tests): a
+`vi.spyOn(prisma.accountReconciliation, 'findMany')` count asserting one read each, on a fixture carrying
+a real ACTIVE link (the critic caught the first draft measuring the links-empty fast path — the one
+branch that reads once however you ask). Fail-old proven by sabotage: reverting `src/` to HEAD reddens
+6 of 9, at "expected 1, got 2" for the export and "expected 1, got **4**" for the refresh.
+
+**Hostile critic (fresh context, Opus 5): PASS — 0 P0, 0 P1.** Behavior preservation proven by dumping
+every persisted `RecurringSeries`/`ScheduledTransaction` field plus the whole tax export on a
+mid-stream-cutover fixture, reverting to HEAD, re-running and diffing — identical on two runs. Ordering
+safety proven by permuting every ordering of six link shapes against all four views. Three P2s executed,
+one accepted with its measurement, one filed as U.34 (`getSpendingPlan` reads the table three times per
+call; `assistant.ts` six times in one file).
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN** (exit 0): tsc 0, eslint 0, unit
+**7,001 passed + 1 expected fail + 1 skipped / 426 files**, `next build` clean, e2e **349 passed, 4
+flaky-passed-on-retry** (all K.10 shared-SQLite contention class, none touching this slice's code). No
+`prisma/` diff.

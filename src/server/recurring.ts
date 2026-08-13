@@ -22,11 +22,7 @@ import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurrin
 import { upcomingRenewals, type UpcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCategoryMeta } from '@/server/category-meta';
-import {
-  activeTerminalSuccessorMap,
-  getReconciliationHandoverDates,
-  getReconciliationTxnKeep,
-} from '@/server/reconciliation';
+import { getReconciliationBoundary } from '@/server/reconciliation';
 import { collapseHandoverDuplicates } from '@/lib/engine/account/reconcile-boundary';
 import { getProvider } from '@/lib/providers/demo';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
@@ -197,11 +193,12 @@ export async function refreshRecurringForUser(
   // Right for money (dropping either side deletes what only it reported); wrong here,
   // where a duplicate is a 0-day gap and cadence is inferred from gaps. Collapsed to one
   // occurrence per component for DETECTION only — see collapseHandoverDuplicates.
-  const keepsReconciled = await getReconciliationTxnKeep(userId);
-  const [handoverDates, componentOf] = await Promise.all([
-    getReconciliationHandoverDates(userId),
-    activeTerminalSuccessorMap(userId),
-  ]);
+  // U.33: keep + released dates + the terminal map from ONE read of the link table. All three
+  // land in the SAME `collapseHandoverDuplicates` call below, and this function PERSISTS what
+  // that call feeds, so a mid-flight "Undo combine" desyncing them would be written down rather
+  // than merely rendered. `terminalOf` is reused for the account-scope decision further down
+  // (it was read a second time there) — one snapshot of the links decides this whole refresh.
+  const { keepsReconciled, handoverDates, terminalOf } = await getReconciliationBoundary(userId);
   // O.13f: the reader's own verdicts, applied by the detector itself — so what this
   // function PERSISTS (RecurringSeries + the ScheduledTransaction rows feeding
   // cash-needed, forecast, the calendar and the spending plan) is the same set the
@@ -211,7 +208,7 @@ export async function refreshRecurringForUser(
     collapseHandoverDuplicates(
       txns.filter((t) => keepsReconciled(t.accountId, t.date)),
       handoverDates,
-      componentOf,
+      terminalOf,
     ) as RecurringTxn[],
     today,
     await getRecurringOverrides(userId),
@@ -252,10 +249,13 @@ export async function refreshRecurringForUser(
   // bill" — was FALSE and cost the owner every cash-paid bill on the guilt-free
   // breakdown: re-linking an account does not retire its bills, it moves them. They
   // are re-keyed onto the live successor below (L.26) rather than dropped.
-  const [user, accounts, terminalOf, digestBefore] = await Promise.all([
+  // U.33: `terminalOf` is NOT re-read here. It was, and it was the same call with the same
+  // argument as the one feeding the collapse above — so this function decided which duplicates
+  // to collapse against one snapshot of the links and which accounts are in scope against
+  // another, with detection and merchant resolution running in between.
+  const [user, accounts, digestBefore] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId }, select: { id: true, type: true } }),
-    activeTerminalSuccessorMap(userId),
     // Read here because this is the last point in the function before anything is
     // written. It is not free: the digest is two `findMany` calls and it runs again
     // after the write, so the signal costs four queries per refresh over the user's

@@ -17,11 +17,23 @@
 import { prisma } from '@/lib/db';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
-import { getReconciliationHandoverDates, getReconciliationTxnKeep } from '@/server/reconciliation';
+import { getReconciliationBoundary, getReconciliationTxnKeep } from '@/server/reconciliation';
 import { buildTaxExport, taxYearsWithTags, type TaxExport, type TaxExportRow } from '@/lib/engine/tax/export';
 
-/** Every row the tax engine may speak about, in the engine's own shape. */
-async function taxRows(userId: string): Promise<TaxExportRow[]> {
+/**
+ * Every row the tax engine may speak about, in the engine's own shape.
+ *
+ * U.33: the R1 keep arrives as a PARAMETER rather than being fetched here, so
+ * `getTaxExport` — which also needs the released dates the same links produce — can
+ * resolve both from one read. Required, not optional-with-a-fallback: an optional
+ * parameter defaulting to its own fetch is how the second read survives a consolidation
+ * unnoticed, and the whole point of this slice is that a file leaving the app must not
+ * be assembled from two different snapshots of the link table.
+ */
+async function taxRows(
+  userId: string,
+  keepsReconciled: (accountId: string, date: string) => boolean,
+): Promise<TaxExportRow[]> {
   const raw = await prisma.transaction.findMany({
     where: {
       account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] }, OR: [{ currency: null }, { currency: 'USD' }] },
@@ -39,7 +51,6 @@ async function taxRows(userId: string): Promise<TaxExportRow[]> {
     include: { merchant: true },
     orderBy: [{ date: 'asc' }, { id: 'asc' }],
   });
-  const keepsReconciled = await getReconciliationTxnKeep(userId);
   return raw
     .filter((t) => keepsReconciled(t.accountId, t.date))
     .map((t) => ({
@@ -58,11 +69,21 @@ async function taxRows(userId: string): Promise<TaxExportRow[]> {
 
 /** The report for one year. */
 export async function getTaxExport(userId: string, year: number): Promise<TaxExport> {
-  const [rows, handoverDates] = await Promise.all([taxRows(userId), getReconciliationHandoverDates(userId)]);
-  return buildTaxExport(rows, year, handoverDates);
+  // U.33: ONE read of the link table decides both which rows this file may speak about and
+  // which of its dates carry two connections' copies. It used to be two independent reads run
+  // concurrently — `taxRows` fetching the keep for itself while `getReconciliationHandoverDates`
+  // fetched the same links again — so an "Undo combine" landing between them could produce a
+  // file whose rows were filtered on one set of links and whose duplicate disclosure named the
+  // dates of another. Concurrency is what was traded away: the keep is now awaited before the
+  // row query starts. That is one round trip, against three fewer queries and a file that can
+  // no longer contradict itself.
+  const { keepsReconciled, handoverDates } = await getReconciliationBoundary(userId);
+  return buildTaxExport(await taxRows(userId, keepsReconciled), year, handoverDates);
 }
 
 /** The years this reader has something to export for, most recent first. */
 export async function getTaxYears(userId: string): Promise<number[]> {
-  return taxYearsWithTags(await taxRows(userId));
+  // Only the keep is needed here (a year list names no dates), so this keeps the single-output
+  // wrapper rather than resolving three views it would discard.
+  return taxYearsWithTags(await taxRows(userId, await getReconciliationTxnKeep(userId)));
 }
