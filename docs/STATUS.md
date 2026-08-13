@@ -4623,3 +4623,12 @@ flaky-passed-on-retry** (`category-rename.spec.ts:110`, the documented pre-exist
 member; `triage-write-in.spec.ts:129`, a `SQLITE_BUSY_SNAPSHOT` contention hit — the
 K.10-documented e2e-harness class the configured retries exist to absorb, in a spec untouched by
 this diff). No `prisma/` diff — the live Neon database is untouched by a read-path refactor.
+
+**SHIPPED AND PROVEN LIVE (2026-08-13).** Commit `c061050` → pushed → CI run 31727687546
+**`success`**, read to conclusion via `gh run view` (not inferred). Vercel commit status:
+`success`, "Deployment has completed", same sha. Production `/`, `/budgets` and `/transactions`
+all 307 (expected unauthenticated redirect to sign-in, not a 500). This slice's correctness rests
+on the full existing e2e/unit suite (behavior-preserving refactor, no new user-visible surface):
+the six converted call sites' own tests — register, calendar, dashboard, budgets, CSV export,
+transaction detail — all ran green against a genuine build of this exact commit inside CI's full
+`VERIFY_E2E=1` gate, alongside the new unit-level equivalence proof.

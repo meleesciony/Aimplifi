@@ -32,7 +32,10 @@ passed, 2 flaky-passed-on-retry** (`category-rename.spec.ts:110`, documented pre
 `triage-write-in.spec.ts:129`, a `SQLITE_BUSY_SNAPSHOT` contention hit absorbed by the K.10 retry
 config, spec untouched by this diff). No `prisma/` diff.
 
-**Next: push, read the CI gate, confirm Vercel, then record the SHIPPED-live paragraph.**
+**Shipped and proven live.** Pushed as `c061050`. CI run 31727687546 `success` on first attempt.
+Vercel: `success`, "Deployment has completed", same sha. Production `/`, `/budgets`,
+`/transactions` all 307 (expected). Behavior-preserving refactor — no new user-visible surface, so
+correctness rests on the full existing e2e/unit suite running green against this exact commit.
 
 ## 2026-08-13 — U.30: the dashboard's Recent transactions card discloses the released handover day (DECISIONS #462)
 
