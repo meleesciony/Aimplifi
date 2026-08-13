@@ -4387,3 +4387,16 @@ reader. Docblock corrected to describe that; the unsupported sentence removed.
 No test locked either string (grepped `tests/`). Gate: `bash scripts/verify.sh` — tsc and
 eslint printed nothing between their headers (zero errors), 423 files / 6980 unit tests
 passed (1 expected fail, 1 skipped, both pre-existing), build clean, all 42 routes generated.
+
+**SHIPPED AND PROVEN LIVE (2026-08-13).** Commit `b78504d` → pushed → CI gate `success`
+(run 31702774413, read via `scripts/ci-status.sh`, exit 0). First Vercel build on this sha
+FAILED — `P1001: Can't reach database server at ep-proud-sound-atpgfoct...neon.tech:5432`
+during the build's `prisma db push` step, confirmed via `npx vercel inspect --logs` to be a
+transient Neon connectivity gap, not caused by this commit (zero `prisma/` diff, pure
+docblock comments): the immediately prior commit `eef777b` built clean, and production kept
+serving that last-good deploy throughout (`curl` → 307, never a 500 — the owner was never
+locked out). Retried with `npx vercel redeploy`; the second build reached the same Neon
+endpoint successfully and went `Ready` in 2m, aliased to `www.aimplifi.app`. GitHub commit
+status for `b78504d` now reads `success` on both CI and Vercel; production `/` and
+`/dashboard` both 307 (expected, unauthenticated). No demo-visible marker needed or
+possible — this is a pure copy/comment fix with no rendered or exported string touched.
