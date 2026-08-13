@@ -4346,3 +4346,17 @@ currency.ts reverted → 3 red across two files), not asserted.
 (`merchant-lens.spec.ts`, `transactions.spec.ts` CSV import — both pre-existing members of
 the recorded load-induced local flake class, in specs this slice does not touch). No
 `prisma/` diff — copy-only change to three rendered strings and two comments.
+
+**Gate read (rule 5) + live.** CI run **31690491184 on `eef777b`** = **SUCCESS**, read to
+conclusion via `scripts/ci-status.sh` (exit 0). Vercel commit status: success, "Deployment
+has completed", same sha. Production responds correctly post-deploy (`/` → 307 to
+`/sign-in`, `/dashboard` → 307 unauthenticated — both expected). **No demo-visible marker,
+and deliberately none exists (the K.4 situation, same as U.23):** every changed string sits
+behind the currency guard or a household-scoped non-USD share, and the seed writes neither
+a non-USD account nor a household (confirmed fact from U.23/U.25/U.26, not re-derived).
+Unlike U.23, this slice has no computational claim to check live either — it is pure copy,
+with zero engine logic and no `prisma/` diff — so there is nothing further a live probe
+could assert beyond deployment health. The correctness claim rests on the CI e2e suite,
+which ran the FULL suite (incl. `currency-disclosure.spec.ts`'s locks on the correct
+family phrasing) against a genuine build of this exact commit, plus the unit-level
+fail-old/pass-new sabotage proofs above.

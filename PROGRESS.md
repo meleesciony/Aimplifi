@@ -3751,5 +3751,22 @@ tsc and eslint printed nothing between their headers — zero errors, zero warni
 rendered strings and two comments, plus the new locking test file. DECISIONS #459 +
 index row; REGRESSION_LEDGER row appended; TASKS.md U.27 marked done, U.28 filed.
 
-**Next:** commit, push, read the CI gate to conclusion (rule 5), confirm Vercel READY on
-the shipped sha, and prove the fixed copy is live before reporting done.
+**SHIPPED AND PROVEN LIVE (2026-08-13).** Commit `eef777b` → pushed → CI gate `success`,
+run 31690491184, read to conclusion via `scripts/ci-status.sh` (exit 0). Vercel commit
+status: success, "Deployment has completed", same sha. Production responds correctly
+(`curl -I https://www.aimplifi.app/` → 307 to `/sign-in`; `/dashboard` unauthenticated →
+307 — both expected, not a 500).
+
+**No demo-visible marker, and none is possible — declared, not skipped.** Every changed
+string sits behind either the currency guard (a non-USD account) or a household-scoped
+non-USD share, and the demo seed writes neither (the K.4 fact U.23/U.25/U.26 already
+established — not re-derived here, just re-applies). Unlike U.23, which still had ONE
+computational claim to check live (the export route running the register's own clause),
+U.27 is pure copy with zero engine logic and no `prisma/` diff, so there is no figure or
+row count a production probe could compare either. What stands in for a live check: CI's
+full e2e suite ran against a genuine build of this exact commit, including
+`currency-disclosure.spec.ts`'s existing locks on the correct family phrasing family-wide,
+plus the fail-old/pass-new sabotage proofs on the new sweep test. Writing a bespoke
+`u27-live-deploy-check.mjs` for a slice with no reachable content to probe would be
+verification theater — asserting the deployment exists, which the gate reads above already
+prove more precisely.
