@@ -4450,3 +4450,14 @@ panel cannot show; the file's existing no-combined-accounts control test gained 
 green (spend-class 23/23 incl. 4 new), `next build` clean, e2e **349 passed, 1 flaky-passed-on-
 retry** (`transactions.spec.ts` CSV import — the pre-existing load-induced local flake class,
 unrelated to this slice). No `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-13).** Commit `4c8bc6e` → pushed → CI gate `success` (run
+31710700200, read via `scripts/ci-status.sh`, exit 0). Vercel commit status: `success`,
+"Deployment has completed", same sha (`gh api repos/meleesciony/Aimplifi/commits/4c8bc6e/status`).
+Production `/` and `/budgets` both 307 (expected, unauthenticated). **No demo-visible marker
+exists, and deliberately none does** (the K.4 shape, same as U.18/U.27): the demo seed writes no
+`AccountReconciliation` row at all (`grep AccountReconciliation prisma/seed.ts` → zero hits), so
+the handover-day disclosure this slice adds has nothing to fire on for the demo user — the
+correctness claim rests on the new e2e test, which drives a real seeded combined-account handover
+pair through a genuine build of this exact commit inside the FULL `VERIFY_E2E=1` CI suite, plus
+the unit-level counting-boundary tests above.
