@@ -4710,3 +4710,21 @@ call; `assistant.ts` six times in one file).
 **7,001 passed + 1 expected fail + 1 skipped / 426 files**, `next build` clean, e2e **349 passed, 4
 flaky-passed-on-retry** (all K.10 shared-SQLite contention class, none touching this slice's code). No
 `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-13).** Commit `fb4be1e` → pushed → CI gate **`success`**, run
+31754057887, read to conclusion via `scripts/ci-status.sh` (exit 0, first attempt, no rerun). Vercel
+commit status: `success`, "Deployment has completed", same sha. Production responds correctly: `/`,
+`/recurring`, `/calendar` and `/spending-plan` all 307 (the expected unauthenticated redirect to
+sign-in, not a 500), and `/api/export` 401 (the expected unauthenticated refusal). No `prisma/` diff,
+so the live Neon database is untouched.
+
+**No demo-visible marker, and none is possible — declared, not skipped (the K.4 shape).** Re-verified
+this session rather than inherited: `grep -c "AccountReconciliation\|accountReconciliation"
+prisma/seed.ts` → **0**, so the demo dataset holds no combined pair and every consolidated view resolves
+to the empty / constant-true fast path for that user. This slice also adds no rendered surface of any
+kind — it is a read-path consolidation whose entire claim is a QUERY COUNT, which no production probe
+can observe from outside. What stands in for a live check: CI's full `VERIFY_E2E=1` suite ran against a
+genuine build of this exact commit, and the behavior-preservation evidence is stronger than a probe
+could be — the fresh-context critic diffed every persisted `RecurringSeries` and `ScheduledTransaction`
+field plus the whole tax export between HEAD and this change on a mid-stream-cutover fixture and found
+them byte-identical, twice.

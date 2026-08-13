@@ -4026,3 +4026,12 @@ prevent. Stashed (`git stash list` → the entry beginning `ORPHANED V.1 start`)
 regenerated from the tracked schema, and the whole design recorded as **TASKS H.9** so the one decision it
 had already made — the link is chosen by the reader and NEVER inferred from name similarity — is not
 re-derived by whoever picks it up.
+
+**SHIPPED AND PROVEN LIVE (2026-08-13).** Commit `fb4be1e` → pushed → CI gate **`success`**, run
+31754057887, read to conclusion via `scripts/ci-status.sh` (exit 0, first attempt). Vercel commit
+status: `success`, "Deployment has completed", same sha. Production `/`, `/recurring`, `/calendar` and
+`/spending-plan` all 307; `/api/export` 401 — the expected unauthenticated responses, not 500s. No
+`prisma/` diff. No demo-visible marker and none possible: `grep -c accountReconciliation prisma/seed.ts`
+→ 0 (re-verified, K.4), and the slice adds no rendered surface at all — its claim is a query count,
+which is unobservable from outside. The critic's byte-identical persisted-output diff is the stronger
+substitute.
