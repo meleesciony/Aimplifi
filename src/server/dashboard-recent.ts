@@ -8,7 +8,7 @@ import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import { getCategoryMeta } from '@/server/category-meta';
-import { getReconciliationHandoverKeys, getReconciliationTxnKeep } from '@/server/reconciliation';
+import { getReconciliationBoundary } from '@/server/reconciliation';
 import { getReviewCount } from '@/server/triage';
 
 export interface DashboardRecentTxn {
@@ -48,7 +48,12 @@ export async function getDashboardRecent(
   userId: string,
   limit = 6,
 ): Promise<DashboardRecentResult> {
-  const [raw, meta, keepsReconciled, handoverKeys, needsFileCount] = await Promise.all([
+  // U.31: keep + handover keys from ONE read of the link table (`getReconciliationBoundary`)
+  // rather than the two separate calls this used to make — the shape `getAccountsView`
+  // (transactions.ts, critic F-4) already argued against: independently re-reading the link
+  // table twice leaves a window where a confirm/undo landing between the two reads desyncs
+  // one output from the other.
+  const [raw, meta, { keepsReconciled, handoverKeys }, needsFileCount] = await Promise.all([
     prisma.transaction.findMany({
       where: {
         account: {
@@ -67,8 +72,7 @@ export async function getDashboardRecent(
       take: Math.max(limit * 3, 24),
     }),
     getCategoryMeta(userId),
-    getReconciliationTxnKeep(userId),
-    getReconciliationHandoverKeys(userId),
+    getReconciliationBoundary(userId),
     getReviewCount(userId),
   ]);
 

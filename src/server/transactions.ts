@@ -73,8 +73,7 @@ import {
 import {
   activeSupersededPredecessorIds,
   getActiveReconciliations,
-  getReconciliationHandoverKeys,
-  getReconciliationTxnKeep,
+  getReconciliationBoundary,
   isAccountLive,
 } from '@/server/reconciliation';
 import {
@@ -342,12 +341,15 @@ export async function getPostedCalendarRows(
     where: registerRowWhere(userId),
     select: { accountId: true, date: true, amountCents: true, isTransfer: true, excludeFromTotals: true, status: true },
   });
-  const keepsReconciled = await getReconciliationTxnKeep(userId);
+  // U.31: keep + handover keys from ONE read of the link table (`getReconciliationBoundary`)
+  // — the two used to be fetched by separate sequential calls that each independently
+  // re-read the links, the exact shape `getAccountsView` (below, critic F-4) already argued
+  // against: a confirm/undo landing between the two awaits could desync the keep from the
+  // handover set. Fetched together, never derived from one another: the keep answers "does
+  // this row survive", which is true of BOTH copies on a released day and of every ordinary
+  // row — it cannot tell them apart.
+  const { keepsReconciled, handoverKeys } = await getReconciliationBoundary(userId);
   const kept = raw.filter((t) => keepsReconciled(t.accountId, t.date));
-  // U.24: the days the keep above deliberately RELEASED to both sides (U.13). Fetched beside
-  // the keep, never derived from it: the keep answers "does this row survive", which is true
-  // of BOTH copies on a released day and of every ordinary row — it cannot tell them apart.
-  const handoverKeys = await getReconciliationHandoverKeys(userId);
   let oldestPostedDate: string | null = null;
   let newestPostedDate: string | null = null;
   for (const r of kept) {
@@ -395,15 +397,16 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   // filterable Account set, and inherits the reconciliation rule as the
   // superseded-predecessor exclusion below instead.) No active links →
   // constant-true fast path (R8).
-  const keepsReconciled = await getReconciliationTxnKeep(userId);
-  const txns = rawTxns.filter((t) => keepsReconciled(t.accountId, t.date));
-
-  // U.20: the (account, day) pairs the keep above deliberately RELEASED to both
+  // U.31: keep + handover keys from ONE read of the link table — see the comment on the
+  // identical fetch in `getPostedCalendarRows` above.
+  //
+  // U.20: the (account, day) pairs the keep below deliberately RELEASED to both
   // sides of a combined pair (U.13) — the register is the surface that lists the
   // two identical rows, so it is the one place the flag must ride every row.
   // Account-scoped, same as every panel since U.16's second critic cycle: an
   // unscoped date set would mark ordinary rows on accounts in no pair at all.
-  const handoverKeys = await getReconciliationHandoverKeys(userId);
+  const { keepsReconciled, handoverKeys } = await getReconciliationBoundary(userId);
+  const txns = rawTxns.filter((t) => keepsReconciled(t.accountId, t.date));
 
   // How many transactions share each merchant — drives the "apply to N" count
   // on the register's "Always" action (DECISIONS #42).
@@ -797,13 +800,13 @@ export async function getTransactionDetail(
   // transaction that every total in the app treats as nonexistent — the
   // "one question, one basis" divergence, reachable by bookmark or a stale link.
   // Withheld here means not found, exactly as the register means it.
-  const keepsReconciled = await getReconciliationTxnKeep(userId);
+  // U.31: keep + handover keys from ONE read of the link table — see the comment on the
+  // identical fetch in `getPostedCalendarRows` above. U.20: `handoverKeys` is the same
+  // released-day flag the register rows carry, from the same account-scoped set — a
+  // detail page reached from a marked row must not silently drop the one fact that
+  // explains its twin.
+  const { keepsReconciled, handoverKeys } = await getReconciliationBoundary(userId);
   if (!keepsReconciled(t.accountId, t.date)) return null;
-
-  // U.20: same released-day flag the register rows carry, from the same
-  // account-scoped set — a detail page reached from a marked row must not
-  // silently drop the one fact that explains its twin.
-  const handoverKeys = await getReconciliationHandoverKeys(userId);
 
   // The suggestion ladder only ever fires on an UNFILED row — `suggestionForRow`
   // returns null on its first line otherwise — so a filed row was loading four

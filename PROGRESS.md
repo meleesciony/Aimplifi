@@ -2,6 +2,38 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-13 — U.31: the reconciliation link table's double-read, at six sites not two (DECISIONS #463)
+
+**Picked up from the queue** (opened by the U.24 critic; U.31 was the next small, non-money-labeled
+item, though the money-adjacent shape of the fix earned it a critic pass anyway). `getReconciliationTxnKeep`
+and `getReconciliationHandoverKeys` each independently re-read the link table, accounts and spans —
+the exact shape `getAccountsView` already argued against in writing. The row named two call sites;
+there were four by the time this session started (U.30 added a third, this session's own read found
+a fourth, `getTransactionDetail`).
+
+**Shipped.** `getReconciliationBoundary(userId)` — one shared fetch, both outputs together — via a
+new private `loadReconciliationBoundaryInputs`. Converted at all four known sites plus, per the
+fresh-context critic's own grep of every consumer (not trusting the row's "single-value elsewhere"
+claim), two MORE sequential-pair sites it missed: `budgets/page.tsx` and `api/export/route.ts`. Six
+total.
+
+**Critic: 0 P0, 2 P1 (the two extra sites, fixed), 1 P2 (orphaned comment, fixed).** Filed rather
+than fixed: **U.33** — `recurring.ts`/`tax.ts` pair `getReconciliationTxnKeep` with a DIFFERENT
+sibling (`getReconciliationHandoverDates`, unscoped, its own fetch), feeding PERSISTED
+`RecurringSeries` rows and the tax export. Needs its own shared function, not a mechanical reuse of
+this slice's fix — filed as its own small/money-persisted row.
+
+**Locked.** New `tests/unit/reconciliation-boundary-shared-read.test.ts` proves row-by-row
+behavioral equivalence with the old two-call shape (not just "returns a value"), the
+(account, day)-scoping shape, and the no-links fast path. Full unit suite (6,995 tests) unchanged.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0, eslint 0, e2e **350
+passed, 2 flaky-passed-on-retry** (`category-rename.spec.ts:110`, documented pre-existing;
+`triage-write-in.spec.ts:129`, a `SQLITE_BUSY_SNAPSHOT` contention hit absorbed by the K.10 retry
+config, spec untouched by this diff). No `prisma/` diff.
+
+**Next: push, read the CI gate, confirm Vercel, then record the SHIPPED-live paragraph.**
+
 ## 2026-08-13 — U.30: the dashboard's Recent transactions card discloses the released handover day (DECISIONS #462)
 
 **Picked up from the queue** (U.24's own critic residual, filed rather than fixed as P1). Of the

@@ -4585,3 +4585,41 @@ stands in for a live probe: CI's full `VERIFY_E2E=1` suite ran against a genuine
 commit, including the new /dashboard e2e test, which drives a REAL seeded combined-account handover
 pair through the browser and asserts the 3-row shape and the exact marker count, plus the
 no-combined-accounts control asserting /dashboard stays silent.
+
+## ✅ BUILT 2026-08-13 — U.31: six loaders read the reconciliation link table twice, not two (DECISIONS #463)
+
+The exact "two independent reads of the same link table" shape `getAccountsView` already argued
+against in writing, at scale: `getReconciliationTxnKeep` and `getReconciliationHandoverKeys` each
+independently re-fetched the same links/accounts/spans, and the row's own text named two call
+sites carrying that pattern. There were six.
+
+**What shipped.** `getReconciliationBoundary(userId)` reads the link table once and returns both
+outputs together, via a private shared loader `loadReconciliationBoundaryInputs`. Converted at
+`getPostedCalendarRows`, `getTransactions`, `getTransactionDetail` (all `transactions.ts`),
+`getDashboardRecent` (`dashboard-recent.ts`, U.30's addition), and — found only by the fresh-context
+critic grepping every consumer rather than trusting the row's own background text —
+`budgets/page.tsx` and `api/export/route.ts`, both of which paired the two functions sequentially
+in one loader exactly like the four sites already named.
+
+**Fresh-context hostile critic — 0 P0, 2 P1 (both fixed in-session), 1 P2 (fixed).** The two P1s
+were the missed call sites above. The row's claimed "single-value elsewhere" list for these two
+functions was checked, not trusted, and found false.
+
+**Filed rather than fixed — U.33.** `recurring.ts` and `tax.ts` pair `getReconciliationTxnKeep`
+with a DIFFERENT sibling, `getReconciliationHandoverDates` (unscoped by account, its own
+triplicated fetch) — feeding PERSISTED `RecurringSeries`/`ScheduledTransaction` rows and the tax
+export respectively. Same race shape, needs a different shared function (undecided design, not a
+mechanical swap) — its own row rather than scope creep on this one.
+
+**Locked.** `tests/unit/reconciliation-boundary-shared-read.test.ts` (new, 3 tests) proves
+`getReconciliationBoundary`'s two outputs agree row-by-row with the two standalone functions over
+an identical fixture — behavioral equivalence, not just "returns a value" — plus the
+(account, day)-scoping shape and the no-active-links fast path. The full existing suite (6,995
+unit tests, unchanged pass count) proves no behavior moved at any of the six converted sites.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0, eslint 0, unit
+**6,995 passed + 1 skipped / 426 files**, `next build` clean, e2e **350 passed, 2
+flaky-passed-on-retry** (`category-rename.spec.ts:110`, the documented pre-existing flake-class
+member; `triage-write-in.spec.ts:129`, a `SQLITE_BUSY_SNAPSHOT` contention hit — the
+K.10-documented e2e-harness class the configured retries exist to absorb, in a spec untouched by
+this diff). No `prisma/` diff — the live Neon database is untouched by a read-path refactor.

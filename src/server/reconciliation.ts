@@ -468,27 +468,69 @@ export async function activeAccountIdentityMap(userId: string): Promise<Map<stri
  * rows, which would move the claim edge). With no active links: a constant-true fast path,
  * zero extra queries beyond the link lookup (R8).
  */
-export async function getReconciliationTxnKeep(userId: string): Promise<(accountId: string, date: string) => boolean> {
+/**
+ * U.31: the shared fetch behind `getReconciliationTxnKeep` and `getReconciliationHandoverKeys`
+ * — links, the currency-supported account set, and each linked predecessor's full-history
+ * span, read ONCE. Both functions built this identically and independently, which is exactly
+ * the shape `getAccountsView` (transactions.ts:1332-1344, critic F-4) already argued against
+ * in writing: a confirm/undo landing between two separate reads of the link table can desync
+ * whatever each read derives from it. `getReconciliationBoundary` below is the fix for callers
+ * that need BOTH outputs; `getReconciliationTxnKeep`/`getReconciliationHandoverKeys` stay as
+ * single-output convenience wrappers for callers that only ever need one (assistant.ts,
+ * coach.ts, reports.ts, backfill.ts, keyword-rules.ts) — a real second read there too, but not
+ * a DESYNC risk, since nothing downstream compares it against a second independently-fetched
+ * value.
+ */
+async function loadReconciliationBoundaryInputs(userId: string): Promise<{
+  accounts: readonly { id: string; type: string; currency: string | null; currentBalanceCents: number }[];
+  links: readonly ActiveReconciliation[];
+  spans: readonly { accountId: string; first: string; last: string }[];
+}> {
   const links = await getActiveReconciliations(userId);
-  if (links.length === 0) return () => true;
+  if (links.length === 0) return { accounts: [], links: [], spans: [] };
   const accounts = await prisma.account.findMany({
     where: { userId },
     select: { id: true, type: true, currency: true, currentBalanceCents: true },
   });
-  const predIds = links.map((l) => l.predecessorAccountId);
   const spans = await prisma.transaction.groupBy({
     by: ['accountId'],
-    where: { accountId: { in: predIds }, account: { userId } },
+    where: { accountId: { in: links.map((l) => l.predecessorAccountId) }, account: { userId } },
     _min: { date: true },
     _max: { date: true },
   });
-  return reconciliationTxnKeepFilter(
-    accounts.filter((a) => isSupportedCurrency(a.currency)),
+  return {
+    accounts: accounts.filter((a) => isSupportedCurrency(a.currency)),
     links,
-    spans.flatMap((s) =>
+    spans: spans.flatMap((s) =>
       s._min.date != null && s._max.date != null ? [{ accountId: s.accountId, first: s._min.date, last: s._max.date }] : [],
     ),
-  );
+  };
+}
+
+/**
+ * U.31: BOTH boundary outputs from ONE read of the link table, for the three loaders that need
+ * both together (`getTransactions`, `getPostedCalendarRows`, `getDashboardRecent`) — replacing
+ * the sequential `getReconciliationTxnKeep` + `getReconciliationHandoverKeys` pair each one used
+ * to call, which independently re-fetched the same links, accounts and spans and left a window
+ * (an "Undo combine" committing between the two awaits) where the keep could resolve against the
+ * OLD links while the handover set resolved against the NEW ones.
+ */
+export async function getReconciliationBoundary(userId: string): Promise<{
+  keepsReconciled: (accountId: string, date: string) => boolean;
+  handoverKeys: ReadonlySet<string>;
+}> {
+  const { accounts, links, spans } = await loadReconciliationBoundaryInputs(userId);
+  if (links.length === 0) return { keepsReconciled: () => true, handoverKeys: new Set<string>() };
+  return {
+    keepsReconciled: reconciliationTxnKeepFilter(accounts, links, spans),
+    handoverKeys: reconciliationHandoverKeys(accounts, links, spans),
+  };
+}
+
+export async function getReconciliationTxnKeep(userId: string): Promise<(accountId: string, date: string) => boolean> {
+  const { accounts, links, spans } = await loadReconciliationBoundaryInputs(userId);
+  if (links.length === 0) return () => true;
+  return reconciliationTxnKeepFilter(accounts, links, spans);
 }
 
 /**
@@ -507,25 +549,9 @@ export async function getReconciliationTxnKeep(userId: string): Promise<(account
  * pair's own two sides can double.
  */
 export async function getReconciliationHandoverKeys(userId: string): Promise<ReadonlySet<string>> {
-  const links = await getActiveReconciliations(userId);
+  const { accounts, links, spans } = await loadReconciliationBoundaryInputs(userId);
   if (links.length === 0) return new Set<string>();
-  const accounts = await prisma.account.findMany({
-    where: { userId },
-    select: { id: true, type: true, currency: true, currentBalanceCents: true },
-  });
-  const spans = await prisma.transaction.groupBy({
-    by: ['accountId'],
-    where: { accountId: { in: links.map((l) => l.predecessorAccountId) }, account: { userId } },
-    _min: { date: true },
-    _max: { date: true },
-  });
-  return reconciliationHandoverKeys(
-    accounts.filter((a) => isSupportedCurrency(a.currency)),
-    links,
-    spans.flatMap((s) =>
-      s._min.date != null && s._max.date != null ? [{ accountId: s.accountId, first: s._min.date, last: s._max.date }] : [],
-    ),
-  );
+  return reconciliationHandoverKeys(accounts, links, spans);
 }
 
 export async function getReconciliationHandoverDates(userId: string): Promise<ReadonlySet<string>> {

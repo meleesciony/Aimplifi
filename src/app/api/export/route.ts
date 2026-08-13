@@ -11,11 +11,7 @@ import { netWorthReportPdf, netWorthToCsv, transactionsToCsv } from '@/lib/expor
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getWithheldRegisterAccountSummary, registerRowWhere } from '@/server/transactions';
-import {
-  activeSupersededPredecessorIds,
-  getReconciliationHandoverKeys,
-  getReconciliationTxnKeep,
-} from '@/server/reconciliation';
+import { activeSupersededPredecessorIds, getReconciliationBoundary } from '@/server/reconciliation';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import { accountLabel } from '@/lib/engine/account/display-name';
 import { getTaxExport } from '@/server/tax';
@@ -58,15 +54,15 @@ export async function GET(request: NextRequest) {
     // Reconciliation boundary (slice-6 critic C-2): the exported ledger must match the
     // in-app register/reports — without this, a reconciled pair's overlap rows exported
     // both providers' copies of every real transaction. Same shared R1 rule as the register.
-    const keepsReconciled = await getReconciliationTxnKeep(userId);
     // U.19: the ACCOUNT-scoped set, never `getReconciliationHandoverDates`. The
     // tax export is right to use the unscoped dates — it has no account column,
     // so it can only speak about the day — but this file has one, and marking
     // every account's rows on that date would label ordinary purchases on
     // accounts that are in no combined pair at all. That is the exact defect
     // U.16's second critic cycle found on the panels: a set carries the scope it
-    // was built for.
-    const handoverKeys = await getReconciliationHandoverKeys(userId);
+    // was built for. U.31: keep + handover keys from ONE read of the link table
+    // (`getReconciliationBoundary`), not two sequential independent reads.
+    const { keepsReconciled, handoverKeys } = await getReconciliationBoundary(userId);
     // The reader's own vocabulary: their custom categories plus any built-in they
     // renamed. Same resolver the register, reports and Ask read.
     const categoryMeta = await getCategoryMeta(userId);

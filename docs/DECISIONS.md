@@ -7162,3 +7162,66 @@ retry** (`category-rename.spec.ts:110`, `merchant-lens.spec.ts:22` — both name
 pre-existing load-induced local flake class in `docs/lessons/ci-e2e-timing-flake.md`, neither a
 spec this slice touches). No `prisma/` diff — read-path and copy only.
 
+## #463 — U.31: six loaders read the reconciliation link table twice, not two — the row's own
+scope claim was incomplete, and the critic that checked it found the rest (2026-08-13)
+
+**Context.** `getReconciliationTxnKeep` and `getReconciliationHandoverKeys` (`server/reconciliation.ts`)
+each independently called `getActiveReconciliations` plus their own identical Prisma queries for
+accounts and predecessor transaction spans — the exact "two independent reads of the same link
+table" shape `getAccountsView` (`transactions.ts`, critic F-4) already argued against in writing: a
+confirm/undo committing between the two separate awaits can desync whatever each read derives from
+the link table (the row's own hypothesis, never reproduced but the two-read shape verified real).
+The row named two call sites needing the fix (`getPostedCalendarRows`, `getTransactions`); by the
+time this slice started there were four, U.30 having added a third (`getDashboardRecent`) the row
+predates, and this session's own read finding a fourth (`getTransactionDetail`, same file).
+
+**What shipped.** A private `loadReconciliationBoundaryInputs` in `reconciliation.ts` does the
+shared fetch — links, currency-filtered accounts, predecessor spans — ONCE. A new exported
+`getReconciliationBoundary(userId)` calls it once and returns `{ keepsReconciled, handoverKeys }`
+together; `getReconciliationTxnKeep` and `getReconciliationHandoverKeys` were refactored to call the
+same shared loader internally (byte-for-byte reassembly of their old bodies — same `where`, same
+`select`, same `groupBy`, same currency filter, same null guard) so their five remaining single-value
+callers (assistant.ts, coach.ts, reports.ts, backfill.ts, keyword-rules.ts, etc.) are unaffected. All
+four dual-read call sites now call `getReconciliationBoundary` once.
+
+**Fresh-context hostile critic — 0 P0, 2 P1, executed and fixed, not filed.** The critic proved the
+row's own "these are the call sites" claim false by grepping every consumer: `src/app/(app)/budgets/page.tsx`
+and `src/app/api/export/route.ts` both paired `getReconciliationTxnKeep` + `getReconciliationHandoverKeys`
+sequentially in one loader — the identical shape, unnoticed because the row's background text asserted
+(without checking) that every other caller used only one function. Both converted to
+`getReconciliationBoundary`, bringing the total fixed sites to six. One P2 (an orphaned docblock
+paragraph left over a deleted line in `getTransactionDetail`) fixed alongside.
+
+**Filed, not fixed — U.33.** The critic also found `getReconciliationTxnKeep` paired with a THIRD
+sibling function, `getReconciliationHandoverDates` (unscoped by account, a distinct engine call with
+its own triplicated fetch, never touched by this slice), inside `recurring.ts` (feeding
+`collapseHandoverDuplicates` → `detectRecurring`, whose output is PERSISTED as `RecurringSeries` +
+`ScheduledTransaction` rows driving forecast and the Cash-Needed Engine) and `tax.ts`'s `getTaxExport`
+(a `Promise.all` pairing, concurrent rather than sequential, but still two independent reads backing
+one combined figure). Both are money-persisted or money-exported surfaces the critic called "arguably
+more sensitive" than the ones this slice fixed, and both need a *different* shared function
+(`getReconciliationHandoverDates` has its own signature and its own triplicated fetch) — a real,
+undecided design question rather than a mechanical swap, so filed as its own row rather than expanding
+this one's scope.
+
+**Residual, accepted in place.** `loadReconciliationBoundaryInputs` still performs three sequential
+`await`s (links → accounts → spans) rather than one atomic read, so a narrower race — a mutation
+landing between the links read and the accounts/spans reads — can still desync those from each other,
+though `keepsReconciled` and `handoverKeys` can no longer desync from EACH OTHER, which is the part
+this row exists to fix. `getAccountsView`'s own pattern is strictly better (it derives its boundary
+from data already fetched earlier in the same function rather than re-reading links at all) but
+re-deriving from an in-hand read at all six of these call sites was judged out of this row's scope.
+
+**Locked.** `tests/unit/reconciliation-boundary-shared-read.test.ts` (new) — the combined function's
+two outputs proven to agree row-by-row with what the two standalone functions independently compute
+over an identical fixture (not merely "returns a value"); the (account, day)-scoping shape locked
+alongside; the no-active-links fast path locked. The full existing suite (6,995 unit tests) proves no
+behavior changed at any of the six converted call sites.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0, eslint 0, unit
+**6,995 passed + 1 skipped / 426 files** (3 new locks), `next build` clean, e2e **350 passed, 2
+flaky-passed-on-retry** (`category-rename.spec.ts:110`, a documented pre-existing flake-class
+member; `triage-write-in.spec.ts:129`, a `SQLITE_BUSY_SNAPSHOT` contention hit — the K.10-documented
+e2e-harness class the configured retries exist to absorb, in a spec this slice does not touch). No
+`prisma/` diff — read-path refactor only.
+
