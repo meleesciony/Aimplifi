@@ -6952,3 +6952,70 @@ risk.
 change to three rendered strings + one comment; no `prisma/` diff, no schema, no engine logic
 touched outside the two locking test files. Two new `describe` blocks lock (a) and (b); (c) is
 DECISIONS + TASKS only, per the row's own instruction.
+
+## #460 — U.29: the Fixed / Guilt-free split now discloses the one released day it was already
+counting twice (2026-08-13)
+
+**Context.** Opened 2026-08-13 by U.18 while correcting `spend-class.ts`'s own docblock claim
+that a reader "sees each real purchase ONCE" on this panel — false since U.13 deliberately
+released the single handover day per reconciliation link to BOTH the predecessor and successor
+account (DECISIONS #454). U.16 (#455) threaded `handoverKeys` and `breakdownHandoverDayCopy`
+through the four surfaces that summarize a category's rows (category breakdowns, /reports,
+lifestyle-creep, new-merchant) — but `summarizeSpendClassCategories`, the engine behind /budgets'
+Fixed vs. guilt-free split, predates that wiring pass and was never touched: it read
+`keepsReconciled` (which correctly keeps both released rows) but no `handoverKeys` (so it never
+said so), the exact gap the four other families closed.
+
+**What shipped.** `summarizeSpendClassCategories` gained a sixth parameter,
+`handoverKeys: ReadonlySet<string> = new Set()` — same default as `buildCategoryBreakdowns`, the
+truth for every reader with no combined accounts — and its return type gained
+`countedOnHandoverDays: number`, incremented once per row that (a) survives `keepsReconciled`,
+(b) classifies as `fixed` or `guilt-free` (never `out-of-scope` — a transfer or excluded row on a
+handover date must not inflate a count about the Fixed/Discretionary split it never joins), and
+(c) whose `handoverKey(accountId, date)` is a released day. `budgets/page.tsx` passes the same
+`handoverKeys` it already fetches for `buildCategoryBreakdowns` two calls above — one boundary
+read, one set, both callers — and builds the disclosure via `breakdownHandoverDayCopy(count,
+false)`: `false` because this panel has no per-transaction row list, only category subtotals, so
+unlike the panel `buildCategoryBreakdowns` feeds, there is no "these rows still add up to the
+figure above" tally a reader could check by eye. `SpendClassPanel` gained a required
+`handoverNote: string | null` prop (required for the same reason `loanPaymentNotes` is — an
+optional prop reads as "nothing to disclose" at exactly the caller that forgot to compute it),
+rendered as a single sentence above the two lists when either carries a released row this month.
+
+**Nothing about the money changed.** The subtotal arithmetic (`cur[cls] += -t.amountCents`) is
+untouched — the released rows were already both counted, correctly, by U.13's boundary; this
+slice adds a side-counter and a sentence, never a filter. The failure this closes is silence, not
+a wrong figure — same shape as U.16, applied to the one family it missed.
+
+**Hostile critic pass (money-visible, per the row's own instruction).** One fresh-context
+adversarial review against the real source (not the change summary), tracing: the loop order
+(handover check runs only after both the `keepsReconciled` and `out-of-scope` `continue`s, so a
+disqualified row can never inflate the count — proven by a direct unit test seeding an unrelated
+account and an out-of-scope transfer on the same handover date, both asserting 0); the
+`statesATally: false` claim against the actual rendered component (`SpendClassRow` prints one
+`<li>` per category subtotal, never a per-transaction list — the claim holds); that
+`handoverKeys`/`keepsReconciled` are fetched once and fed into the one call this slice touches,
+not a stale parallel computation; that the summation line itself is byte-identical in the diff;
+that the new optional 6th parameter doesn't break `spend-class-link-parity.test.ts`'s existing
+5-arg positional call (`tsc --noEmit` clean, 23/23 unit tests including that file pass); and that
+the new e2e test is non-vacuous — the pre-fix component had no `handoverNote` prop or
+`spend-class-handover-note` testid at all, so the assertion on it could not have passed against
+the old code. Zero defects found across all nine checks run.
+
+**Locked.** `tests/unit/spend-class.test.ts` — four new tests: the pre-U.29 5-arg call shape still
+defaults `countedOnHandoverDays` to 0; a released handover day is counted and the subtotal is
+untouched by the marker (both rows still sum in, as they did pre-U.29); an unrelated account on
+the same date and an out-of-scope transfer on the handover date are both excluded from the count.
+`tests/e2e/handover-day-disclosure.spec.ts` — a new test reusing the file's existing
+`seedHandoverDayDuplicate` fixture (a real combined SimpleFIN→Plaid pair, one $30.00 control
+charge de-duplicated to its predecessor's copy, one $50.00 charge released to both sides) drives
+`/budgets`, asserts the Fixed groceries row prints $130.00 (30 + 50 + 50 — the double is still
+counted, exactly as before this slice), the handover note is visible with the engine's exact
+sentence, and the note does NOT claim a row-by-row tally the panel cannot show; the file's
+existing no-combined-accounts control test gained an assertion that `/budgets` shows no note
+either, closing the same `dataDerived`-gate shape U.16 established elsewhere.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0, eslint 0, unit tests
+green (spend-class suite 23/23), `next build` clean, e2e **349 passed, 1 flaky-passed-on-retry**
+(`transactions.spec.ts` CSV import — the pre-existing load-induced local flake class recorded in
+`docs/lessons/ci-e2e-timing-flake.md`, not a spec this slice touches). No `prisma/` diff.

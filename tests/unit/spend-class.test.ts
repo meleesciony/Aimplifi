@@ -23,6 +23,7 @@ import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categ
 import { PROVENANCE_LABELS } from '@/lib/engine/categorize/provenance';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { overrideKey } from '@/lib/engine/recurring/override';
+import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import type { TxnLike } from '@/lib/engine/fi/insights';
 
 function txn(
@@ -370,5 +371,62 @@ describe('summarizeSpendClassCategories', () => {
     );
     expect(fixed).toHaveLength(0);
     expect(guiltFree.map((r) => r.categoryId)).toEqual(['dining']);
+  });
+
+  // U.29: this classifier used to be handed no `handoverKeys` at all, so a
+  // purchase both connections reported on the one U.13-released handover day
+  // landed in Fixed/Discretionary with no marker — the same shape U.16 fixed
+  // on the other four families.
+  it('defaults countedOnHandoverDays to 0 when no handoverKeys arg is given (the pre-U.29 call shape)', () => {
+    const { countedOnHandoverDays } = summarizeSpendClassCategories(
+      [txn({ date: '2026-07-01', amountCents: -5_000, categoryId: 'dining' })],
+      CATEGORY_BY_ID,
+      new Set(),
+      (id) => CATEGORY_BY_ID.get(id)!.name,
+      () => true,
+    );
+    expect(countedOnHandoverDays).toBe(0);
+  });
+
+  it('counts a classified row landing on a released handover day, and leaves the subtotal untouched by the marker', () => {
+    const HANDOVER = '2026-07-15';
+    const { fixed, countedOnHandoverDays } = summarizeSpendClassCategories(
+      [
+        txn({ date: '2026-07-01', amountCents: -40_000, categoryId: 'groceries' }),
+        // The successor's copy of a charge the predecessor also reported that
+        // day — U.13 releases both, deliberately, so both survive `keepsReconciled`.
+        txn({ date: HANDOVER, amountCents: -1_000, categoryId: 'groceries', accountId: 'pred' }),
+        txn({ date: HANDOVER, amountCents: -1_000, categoryId: 'groceries', accountId: 'succ' }),
+      ],
+      CATEGORY_BY_ID,
+      new Set(),
+      (id) => CATEGORY_BY_ID.get(id)!.name,
+      () => true,
+      new Set([handoverKey('pred', HANDOVER), handoverKey('succ', HANDOVER)]),
+    );
+    // Subtotal counts both released rows, exactly as `keepsReconciled` already
+    // did pre-U.29 — the marker discloses the double, it does not remove it.
+    expect(fixed.find((r) => r.categoryId === 'groceries')!.spentCents).toBe(42_000);
+    expect(countedOnHandoverDays).toBe(2);
+  });
+
+  it('does not count a row on a handover date the boundary excludes, or an out-of-scope row on a handover date', () => {
+    const HANDOVER = '2026-07-15';
+    const { countedOnHandoverDays } = summarizeSpendClassCategories(
+      [
+        // Same date, but a DIFFERENT account than the two released keys —
+        // not a handover row for THIS reader's boundary.
+        txn({ date: HANDOVER, amountCents: -1_000, categoryId: 'groceries', accountId: 'unrelated' }),
+        // A transfer on the handover date: out-of-scope, so it never reaches
+        // the Fixed/Discretionary split and must not inflate the count either.
+        txn({ date: HANDOVER, amountCents: -1_000, categoryId: 'transfer', accountId: 'pred', isTransfer: true }),
+      ],
+      CATEGORY_BY_ID,
+      new Set(),
+      (id) => CATEGORY_BY_ID.get(id)!.name,
+      () => true,
+      new Set([handoverKey('pred', HANDOVER), handoverKey('succ', HANDOVER)]),
+    );
+    expect(countedOnHandoverDays).toBe(0);
   });
 });

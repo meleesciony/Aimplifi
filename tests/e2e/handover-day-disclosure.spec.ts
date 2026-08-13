@@ -217,6 +217,36 @@ test('U.19/U.20/U.22: the register, the /reports total, and the exported CSV dis
   expect(csv).not.toMatch(/\btwice\b/);
 });
 
+test('U.29: /budgets Fixed/guilt-free panel discloses the same released day it counts twice', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedHandoverDayDuplicate(email);
+
+  await page.goto('/budgets');
+  const panel = page.getByTestId('spend-class-panel');
+  await expect(panel).toBeVisible({ timeout: 20_000 });
+
+  // Both handover-day rows are groceries (a Fixed-guessed category, DECISIONS
+  // #397), so they land in the Fixed subtotal exactly as U.13/`keepsReconciled`
+  // already counted them pre-U.29 — the marker discloses the double, it does
+  // not remove it. Control pair ($30.00, de-duplicated to one) + two released
+  // $50.00 copies = $130.00.
+  const groceriesRow = panel.getByTestId('spend-class-row-groceries');
+  await expect(groceriesRow).toBeVisible();
+  await expect(groceriesRow).toContainText('$130.00 this month');
+
+  // THE LOCK U.29 EXISTS FOR: before this slice, the panel that shows that
+  // $130.00 said nothing about the two identical $50.00 lines inside it.
+  const note = page.getByTestId('spend-class-handover-note');
+  await expect(note).toBeVisible();
+  await expect(note).toContainText('2 rows here fall on a day one of your combined accounts was changing connections');
+  await expect(note).toContainText('once for each');
+  // This panel has no per-transaction row list — only category subtotals —
+  // so it must not claim a row-by-row tally the reader cannot see.
+  await expect(note).not.toContainText('still add up to the figure above');
+});
+
 test('a reader with no combined accounts is told nothing about handover days', async ({ page }) => {
   // The `dataDerived` gate (C.11/#407): a disclosure that fired on the rule's
   // mere existence would nag every reader about something that never touched
@@ -259,6 +289,11 @@ test('a reader with no combined accounts is told nothing about handover days', a
   await expect(page.getByTestId('txn-list')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('txn-handover-row')).toHaveCount(0);
   await expect(page.getByTestId('txn-summary-handover')).toHaveCount(0);
+
+  // U.29: /budgets' Fixed/guilt-free panel carries no note either.
+  await page.goto('/budgets');
+  await expect(page.getByTestId('spend-class-panel')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('spend-class-handover-note')).toHaveCount(0);
 
   // U.19: the column is UNCONDITIONAL (one schema for every reader) but empty,
   // and no CHANGEOVER note row is appended. This fixture's single row is neither

@@ -38,7 +38,7 @@ import { ConsciousBucketsStrip } from '@/components/finance/conscious-buckets-st
 import { BudgetingCompositionCard } from '@/components/finance/budgeting-composition-card';
 import { SpendClassPanel } from '@/components/finance/spend-class-panel';
 import { PlanFiguresForm } from '@/components/finance/plan-figures-form';
-import { buildCategoryBreakdowns } from '@/lib/engine/glass-box/category-breakdown';
+import { buildCategoryBreakdowns, breakdownHandoverDayCopy } from '@/lib/engine/glass-box/category-breakdown';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { isDemoUser } from '@/lib/demo-user';
@@ -261,13 +261,25 @@ export default async function BudgetsPage() {
   // `spendRows` itself: that array has also had `isSpendRow` run over it, which
   // drops the C.25 loan-payment exclusions the register still lists — feeding it
   // here would trade one mismatch with the destination for another.
+  // U.29: `handoverKeys` (fetched above, beside `keepsReconciled`) so this
+  // classifier folds the same U.16 marker `buildCategoryBreakdowns` does two
+  // calls above — without it, a purchase both connections reported on the
+  // one released handover day landed in Fixed/Discretionary with no marker.
   const spendClasses = summarizeSpendClassCategories(
     txns.map((t) => ({ ...t, isTransfer: false })),
     meta,
     fixedMerchants,
     (id) => categoryName(id, meta),
     keepsReconciled,
+    handoverKeys,
   );
+  // U.29: the panel has no per-transaction row list, only category subtotals —
+  // `statesATally: false`, the same choice every other rowless surface makes
+  // (see `handoverDayAnswerNote` callers).
+  const spendClassHandoverNote =
+    spendClasses.countedOnHandoverDays > 0
+      ? breakdownHandoverDayCopy(spendClasses.countedOnHandoverDays, false)
+      : null;
 
   // #377: per-category Plan amounts (budget else typical) for Fixed rows —
   // same pure helper getSpendingPlan uses for the category-designations basis.
@@ -356,6 +368,7 @@ export default async function BudgetsPage() {
             amount: formatCents(cents(e.paymentCents)),
           }),
         )}
+        handoverNote={spendClassHandoverNote}
       />
       <Card>
         <CardHeader className="pb-2">

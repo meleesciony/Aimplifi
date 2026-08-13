@@ -37,6 +37,7 @@ export function SpendClassPanel({
   guiltFree,
   month,
   loanPaymentNotes,
+  handoverNote,
 }: {
   fixed: SpendClassFixedRow[];
   guiltFree: SpendClassCategoryRow[];
@@ -52,6 +53,15 @@ export function SpendClassPanel({
    * forgot to pass it. Empty array = nothing moved, and the panel says nothing.
    */
   loanPaymentNotes: readonly string[];
+  /**
+   * U.29: `breakdownHandoverDayCopy(count, false)` from the caller, or `null`
+   * when this reader has no released handover row in either list this month
+   * (the common case). REQUIRED for the same reason `loanPaymentNotes` is —
+   * an optional prop reads as "nothing to disclose" at exactly the caller
+   * that forgot to compute it, and this panel is the one surface U.16's
+   * sweep never reached.
+   */
+  handoverNote: string | null;
 }) {
   // Deep link /budgets#spend-class (Plan "Review Fixed on Spending") — scroll after
   // soft nav; same-path hash clicks are handled by PlanRowActionLink.
@@ -88,6 +98,11 @@ export function SpendClassPanel({
           {note}
         </p>
       ))}
+      {handoverNote != null && (
+        <p className="mt-2 text-xs text-muted-foreground" data-testid="spend-class-handover-note">
+          {handoverNote}
+        </p>
+      )}
 
       <ClassList
         title="Fixed expenses"

@@ -4400,3 +4400,53 @@ endpoint successfully and went `Ready` in 2m, aliased to `www.aimplifi.app`. Git
 status for `b78504d` now reads `success` on both CI and Vercel; production `/` and
 `/dashboard` both 307 (expected, unauthenticated). No demo-visible marker needed or
 possible — this is a pure copy/comment fix with no rendered or exported string touched.
+
+## ✅ BUILT 2026-08-13 — U.29: the Fixed / Guilt-free split now discloses the one released
+day it was already counting twice (DECISIONS #460)
+
+**What shipped.** `summarizeSpendClassCategories` (`spending-plan/spend-class.ts`) — the engine
+behind /budgets' Fixed vs. guilt-free split — was the one family U.16's handover-day disclosure
+never reached (U.18 traced the gap while correcting this file's own docblock). It gained a sixth
+parameter, `handoverKeys: ReadonlySet<string> = new Set()` (same default as
+`buildCategoryBreakdowns` — the truth for every reader with no combined accounts), and its return
+type gained `countedOnHandoverDays: number`: incremented once per row that survives
+`keepsReconciled`, classifies as `fixed` or `guilt-free` (never `out-of-scope` — a transfer or
+excluded row on a handover date must not inflate a count about a split it never joins), and whose
+`handoverKey(accountId, date)` is a released day. `budgets/page.tsx` threads through the same
+`handoverKeys` it already fetches for `buildCategoryBreakdowns` two calls above (one boundary
+read feeds both), builds `breakdownHandoverDayCopy(count, false)` when the count is positive —
+`false` because this panel prints category subtotals only, never a per-transaction row list, so
+there is no "these rows still add up" tally to claim honestly — and passes it to `SpendClassPanel`
+as a new required `handoverNote: string | null` prop, rendered as one sentence above the two
+lists. The subtotal arithmetic itself is untouched: the released rows were already both counted,
+correctly, by U.13's boundary; this slice adds a side-counter and a sentence, never a filter.
+
+**Hostile critic cycle — one fresh-context pass, money-visible per the row's own instruction.**
+Traced the real source (not a summary) against nine checks: loop order (the handover check runs
+only after both the `keepsReconciled` and `out-of-scope` `continue`s, so a disqualified row can
+never inflate the count); no false doubling (one `Set.has()` per row, account+date scoped); the
+`statesATally: false` claim verified against the actual rendered `SpendClassRow` (one `<li>` per
+category subtotal, never a per-transaction list); no stale/parallel computation (one boundary
+read feeds the one call this slice touches); the summation line byte-identical in the diff; the
+new optional 6th parameter doesn't break `spend-class-link-parity.test.ts`'s existing 5-arg call;
+the new e2e test is non-vacuous (the pre-fix component had no `handoverNote` prop or
+`spend-class-handover-note` testid at all); no missed family and no regression to the four U.16
+already fixed (diff scoped to three files); integer-cents respected (no float introduced).
+**Zero defects found across all nine checks.**
+
+**Locked.** `tests/unit/spend-class.test.ts` — four new tests: the pre-U.29 5-arg call shape still
+defaults `countedOnHandoverDays` to 0; a released handover day is counted and the subtotal is
+untouched by the marker (both rows still sum in, exactly as before this slice); an unrelated
+account on the same date and an out-of-scope transfer on the handover date are both excluded from
+the count. `tests/e2e/handover-day-disclosure.spec.ts` — a new test reusing the file's existing
+`seedHandoverDayDuplicate` fixture (a real combined SimpleFIN→Plaid pair: one $30.00 control
+charge de-duplicated to its predecessor's copy, one $50.00 charge released to both sides) drives
+`/budgets`, asserts the Fixed groceries row prints $130.00 (30 + 50 + 50) and the handover note is
+visible with the engine's exact sentence, and that the note does not claim a row-by-row tally the
+panel cannot show; the file's existing no-combined-accounts control test gained an assertion that
+`/budgets` shows no note either.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0, eslint 0, unit suite
+green (spend-class 23/23 incl. 4 new), `next build` clean, e2e **349 passed, 1 flaky-passed-on-
+retry** (`transactions.spec.ts` CSV import — the pre-existing load-induced local flake class,
+unrelated to this slice). No `prisma/` diff.

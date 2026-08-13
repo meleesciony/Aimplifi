@@ -33,6 +33,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { isBudgetable } from '@/lib/engine/budgets/status';
 import { overrideKey } from '@/lib/engine/recurring/override';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
+import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 
 /** Settlement / savings / noise — never part of the fixed allocation bucket. */
 export const FIXED_PATTERN_EXCLUDE_CATEGORY_IDS = new Set([
@@ -321,9 +322,15 @@ export interface SpendClassCategoryRow {
  * own `keepsReconciled` filter keeps both here too. Unlike the four families
  * U.16 disclosed this on (category/report/lifestyle-creep/new-merchant
  * breakdowns) and unlike the sibling Fixed-vs-typical total this same page
- * builds two calls above, this classifier is handed no `handoverKeys` and
- * folds no marker into its rows — filed as U.29, not fixed here (a money-
- * visible read-path change needs its own critic pass, not a docblock slice).
+ * builds two calls above, this classifier used to be handed no `handoverKeys`
+ * and folded no marker into its output — filed as U.29 (opened by U.18),
+ * fixed here: `handoverKeys` defaults to empty (the truth for every reader
+ * with no combined accounts) and every classified row on a released day is
+ * counted, the same test `buildCategoryBreakdowns` applies. The panel has no
+ * per-transaction row list — only category subtotals — so there is no
+ * "these rows still add up" tally to state; `SpendClassPanel` passes
+ * `statesATally: false` to `breakdownHandoverDayCopy`, same as every other
+ * surface with nothing for the reader to sum by eye.
  */
 export function summarizeSpendClassCategories(
   transactions: readonly TxnLike[],
@@ -331,8 +338,12 @@ export function summarizeSpendClassCategories(
   fixedMerchants: ReadonlySet<string>,
   nameOf: (id: string) => string,
   keepsReconciled: (accountId: string, date: string) => boolean,
-): { fixed: SpendClassCategoryRow[]; guiltFree: SpendClassCategoryRow[] } {
+  // U.29: defaults to empty, which is the truth for every reader with no
+  // combined accounts — same default `buildCategoryBreakdowns` uses.
+  handoverKeys: ReadonlySet<string> = new Set<string>(),
+): { fixed: SpendClassCategoryRow[]; guiltFree: SpendClassCategoryRow[]; countedOnHandoverDays: number } {
   const byCat = new Map<string, { fixed: number; guiltFree: number }>();
+  let countedOnHandoverDays = 0;
   for (const t of transactions) {
     if (!keepsReconciled(t.accountId, t.date)) continue;
     const cls = classifySpendClass(t, meta, fixedMerchants);
@@ -341,6 +352,7 @@ export function summarizeSpendClassCategories(
     const cur = byCat.get(id) ?? { fixed: 0, guiltFree: 0 };
     cur[cls === 'fixed' ? 'fixed' : 'guiltFree'] += -t.amountCents;
     byCat.set(id, cur);
+    if (t.accountId && handoverKeys.has(handoverKey(t.accountId, t.date))) countedOnHandoverDays += 1;
   }
   const fixed: SpendClassCategoryRow[] = [];
   const guiltFree: SpendClassCategoryRow[] = [];
@@ -361,5 +373,5 @@ export function summarizeSpendClassCategories(
     b.spentCents - a.spentCents || a.name.localeCompare(b.name);
   fixed.sort(bySpendThenName);
   guiltFree.sort(bySpendThenName);
-  return { fixed, guiltFree };
+  return { fixed, guiltFree, countedOnHandoverDays };
 }

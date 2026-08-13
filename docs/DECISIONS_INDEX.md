@@ -453,3 +453,4 @@ refuses to write if it would drop any number this file already carries.
 - **#457** (Phase ?): U.23: a claim of parity is a claim about an expression, and a withhold is not the end of the obligation (2026-08-12)
 - **#458** (Phase ?): U.25/U.26: a file that leaves the app carries its own basis, and the reasons its numbers differ from the app's (2026-08-13)
 - **#459** (Phase ?): U.27: the currency family's standard has five authors, not one, and a shared phrase misparsed its own noun (2026-08-13)
+- **#460** (Phase ?): U.29: the Fixed / Guilt-free split now discloses the one released day it was already counting twice (2026-08-13)
