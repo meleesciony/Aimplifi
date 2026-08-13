@@ -1375,7 +1375,7 @@ export async function getRuleSourceTransaction(
               )
             ? 'Rules apply to your spending accounts, and this row is on another kind of account.'
             : t.account.currency !== null && t.account.currency !== 'USD'
-              ? 'Rules apply to your US dollar accounts.'
+              ? 'Rules apply to your U.S.-dollar accounts.'
               : !keepsReconciled(t.accountId, t.date)
                 ? // Worded for BOTH disowned shapes (H.8 critic P3): the successor's
                   // duplicate copy AND a superseded predecessor's own post-cutover row,

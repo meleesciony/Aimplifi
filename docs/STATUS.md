@@ -4312,3 +4312,37 @@ new, and unlike U.23's it has a real demo marker: the seed writes own-account tr
 on the demo's checking and savings accounts, so the `transfer` column, its `yes` rows and
 the transfer shape of the note are all live-visible, and the central claim is measured on
 production data against the register's outflow tile.
+
+## ✅ BUILT 2026-08-13 — U.27: the currency family's standard has five authors, not one (DECISIONS #459)
+
+**What shipped.** (a) DECISIONS #141 standardized the currency-withhold family on "not in
+U.S. dollars" (never "foreign" — crypto is a first-class withheld case), but the standard
+lived only in the string, not a shared constant every caller is routed through. Re-verified
+by grepping all of `src/` for the bare, case-sensitive `US dollar(s)`: two of the row's four
+named sites (`connection-depth-copy.ts:57`, `accounts-list.tsx:216`) were already correct —
+not drift — but `household-copy.ts:109,175`, `keyword-rules.ts:1378` and a `money.ts`
+docblock the row never named all said "US dollars"/"US dollar". Fixed to "U.S. dollars",
+with `keyword-rules.ts` taking the hyphenated adjectival form ("U.S.-dollar accounts")
+already shipped and locked in `currency-disclosure.spec.ts`. (b) `formatWithheldCurrencies`
+rendered a mixed printable+opaque currency list as "EUR and others", which parses as "EUR,
+and other ACCOUNTS" beside sentences that already talk about accounts — fixed to "EUR and
+other currencies", reaching both the shipped #141 banner and the U.23 export note (both
+locked, both updated). (c) Recorded, not fixed, per the task row's own instruction:
+`getWithheldRegisterAccountSummary` doesn't apply the R1 reconciliation keep, so a
+fully-disowned non-USD predecessor is counted as withheld-by-currency when currency isn't
+what cost it its rows — generous, never false, doubly rare, unreachable on the demo seed.
+Filed as **U.28**.
+
+**Locked as a sweep.** `tests/unit/u27-currency-copy-drift.test.ts` walks every `.ts`/`.tsx`
+file under `src/` for the informal phrase (the `source-hygiene.test.ts` shape, applied to a
+copy standard instead of a byte class) and asserts both rendered consumers carry the fixed
+phrase directly — so the next drift, wherever it lands, fails a test naming what it did.
+Fail-old proven for both locks by direct sabotage (household-copy.ts reverted → 1 red;
+currency.ts reverted → 3 red across two files), not asserted.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0 / eslint 0 /
+**6,980 passed + 1 expected fail + 1 skipped, 423 files** (+4 tests, this slice's new file)
+/ `next build` compiled in 9.1s / **347 e2e passed, 2 flaky-passed-on-retry**
+(`merchant-lens.spec.ts`, `transactions.spec.ts` CSV import — both pre-existing members of
+the recorded load-induced local flake class, in specs this slice does not touch). No
+`prisma/` diff — copy-only change to three rendered strings and two comments.

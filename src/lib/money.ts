@@ -136,7 +136,7 @@ export function parseDollarInput(s: string): Cents | null {
 }
 
 /**
- * Format integer cents as US dollars for display: 123456 → "$1,234.56",
+ * Format integer cents as U.S. dollars for display: 123456 → "$1,234.56",
  * -50 → "-$0.50". The ONLY place cents become a dollar string.
  */
 export function formatCents(amount: Cents, opts?: { signDisplay?: 'auto' | 'always' }): string {

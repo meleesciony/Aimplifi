@@ -3662,3 +3662,94 @@ authors of "US dollars" against #141's "U.S. dollars", plus `formatWithheldCurre
 "EUR and others"), U.24 (/calendar cannot carry the handover flag), then the older money
 queue: U.11 (the transaction-level sibling double-count, MEASURED at −$100.00 for one real
 −$50.00 purchase), U.10, U.12, U.8, U.2.
+
+## U.27 — the currency family's standard has five authors, not one, and a shared phrase misparsed its own noun (2026-08-13)
+
+**Picked up from the queue** (named next by both STATUS.md's and PROGRESS.md's own U.25/U.26
+entries). Opened 2026-08-12 by the U.23 rendered-claims critic (P2-6, P2-8).
+
+**Verified before writing anything (rule 0).** Ran an explorer subagent first to map every
+site, then re-verified its two most consequential claims myself before trusting them
+(`a-subagents-green-is-a-hypothesis`): a direct, case-sensitive grep of all of `src/` for
+the bare `US dollar(s)` found exactly 4 sites, not the 4 the task row named — two overlap
+(`household-copy.ts:109,175`, `keyword-rules.ts:1378`) but the row's other two,
+`connection-depth-copy.ts:57` and `accounts-list.tsx:216`, already read "U.S. dollars" with
+the correct punctuation. The 4th real site, a `money.ts` docblock, is not one the row named
+at all. Grepped `tests/` for the exact old strings first (`US dollar`, `and others`) and
+found zero locks on the informal forms — only `currency.test.ts`'s two `formatWithheldCurrencies`
+assertions and the shipped `currency-disclosure.spec.ts` e2e assertions on the CORRECT
+"U.S. dollars" phrasing, which stay untouched.
+
+**(a) Fixed the 3 rendered sites + 1 comment.** `household-copy.ts:109,175` → "U.S. dollars".
+`keyword-rules.ts:1378` → "U.S.-dollar accounts" — the hyphenated adjectival form, not the
+noun form the other three use, because that exact form is already shipped and locked
+(`currency-disclosure.spec.ts:119`: "No U.S.-dollar investment holdings yet"), and a slice
+whose whole point is stamping out a second spelling should not introduce a third.
+`money.ts:139`'s `formatCents` docblock fixed too (zero risk, no test references docblock
+prose, and it's what the next author reads before writing the next string).
+
+**(b) Fixed `formatWithheldCurrencies`'s "EUR and others" → "EUR and other currencies".**
+Every sentence this string feeds already talks about accounts ("an account in {label} is
+left out", `currency.ts:130`), so the bare "and others" read as "and other ACCOUNTS" one
+word away. The string is shared with the SHIPPED #141 banner and U.23's export note (both
+locked in `currency.test.ts`) — not a drive-by, so both were re-verified directly, not
+assumed to inherit the fix.
+
+**(c) Recorded, not fixed, per the row's own "also record."** `getWithheldRegisterAccountSummary`
+(`server/transactions.ts:1986`) models the register's basis but not the R1 reconciliation
+keep — unlike `getTransactions`, which fetches raw rows and filters them through
+`getReconciliationTxnKeep` afterward, because the keep is a per-row `(accountId, date)`
+function and can't join a Prisma `where` clause the way the rest of this function is built.
+A non-USD account that's ALSO a fully-disowned reconciliation predecessor is still counted
+as withheld-by-currency. No sentence becomes false — the export note's count only ever
+over-discloses — and the condition is doubly rare (non-USD AND a disowned predecessor) and
+unreachable on the demo seed (K.4), so no live-check angle exists either way. Filed as
+**U.28** in TASKS.md rather than left as a comment only, so the fact survives past this
+session.
+
+**Locked as a sweep, not a per-site list.** New file `tests/unit/u27-currency-copy-drift.test.ts`:
+one `describe` walks every `.ts`/`.tsx` file under `src/` for the bare, word-boundaried
+`\bUS dollars?\b` (mirrors `source-hygiene.test.ts`'s control-byte walk, applied to a copy
+standard instead of a byte class — the periods in "U.S." break the `\bUS\b` token, so it can
+never false-positive on the correct form); the other asserts `withheldBannerCopy` and
+`withheldExportNote` both render "and other currencies" directly, not just the underlying
+function. `currency.test.ts`'s two locked "EUR and others" assertions updated to the new
+phrase.
+
+**Fail-old proven by direct sabotage, not asserted.** Reverted `household-copy.ts`'s fix →
+the sweep test reddened exactly (1 file named). Restored, then reverted `currency.ts`'s fix
+→ 3 assertions reddened across the sweep file and `currency.test.ts`'s own describe block,
+including the two-consumer assertion catching that the fix genuinely reaches both the banner
+and the export note rather than one. Restored; both confirmed passing again before the full
+gate.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh`:
+
+```
+════ TYPECHECK (tsc --noEmit) ════
+
+════ LINT (eslint) ════
+
+════ UNIT TESTS (vitest) ════
+ Test Files  423 passed | 1 skipped (424)
+      Tests  6980 passed | 1 expected fail | 1 skipped (6982)
+
+════ BUILD (next build) ════
+✓ Compiled successfully in 9.1s
+
+════ E2E (playwright) ════
+347 passed (4.9m)
+  2 flaky (passed on retry): merchant-lens.spec.ts, transactions.spec.ts CSV import —
+  both pre-existing members of the recorded load-induced local flake class, in specs
+  this slice does not touch (no currency/copy code in either path)
+
+✅ VERIFY GREEN
+```
+
+tsc and eslint printed nothing between their headers — zero errors, zero warnings. No
+`prisma/` diff (confirmed against `origin/main` before push): copy-only change to three
+rendered strings and two comments, plus the new locking test file. DECISIONS #459 +
+index row; REGRESSION_LEDGER row appended; TASKS.md U.27 marked done, U.28 filed.
+
+**Next:** commit, push, read the CI gate to conclusion (rule 5), confirm Vercel READY on
+the shipped sha, and prove the fixed copy is live before reporting done.

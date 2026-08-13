@@ -88,12 +88,17 @@ export function summarizeWithheldAccounts(
 export function formatWithheldCurrencies(currencies: readonly string[]): string {
   const codes = currencies.filter((c) => /^[A-Za-z]{3,5}$/.test(c));
   // Dedupe AFTER uppercasing ('doge' and 'DOGE' are one currency) — but detect opaque
-  // tokens from the pre-dedupe count, so case-variants alone never claim "and others".
+  // tokens from the pre-dedupe count, so case-variants alone never claim "and other currencies".
   const printable = [...new Set(codes.map((c) => c.toUpperCase()))].sort();
   const hasOpaque = codes.length < currencies.length;
   if (printable.length === 0) return 'other currencies';
   const joined = printable.join(', ');
-  return hasOpaque ? `${joined} and others` : joined;
+  // "and other currencies", not the bare "and others" (U.27): the noun-less form parses as
+  // "EUR, and other ACCOUNTS" — a plausible misreading right beside sentences this same string
+  // feeds that already talk about accounts ("an account in {label} is left out"). Spelling out
+  // the noun this list is actually a list OF removes the ambiguity at the source, so every
+  // consumer inherits the fix for free.
+  return hasOpaque ? `${joined} and other currencies` : joined;
 }
 
 /** The disclosure banner's full copy — see withheldBannerCopy. */

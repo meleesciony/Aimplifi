@@ -106,7 +106,7 @@ export const HOUSEHOLD_COPY = {
   /** #135 stance at household scope (slice-8 critic F-6): a partner's non-USD
    *  shared account is withheld from the figures but never silently. */
   scopeUnsupportedCurrency: (count: number) =>
-    `${count} shared account${count === 1 ? " isn't" : "s aren't"} counted in household figures: Aimplifi handles US dollars today, so ${count === 1 ? 'it is' : 'they are'} left out rather than converted at a rate nobody agreed to.`,
+    `${count} shared account${count === 1 ? " isn't" : "s aren't"} counted in household figures: Aimplifi handles U.S. dollars today, so ${count === 1 ? 'it is' : 'they are'} left out rather than converted at a rate nobody agreed to.`,
 
   /** Same-real-account-connected-twice disclosure (slice-8 critic F-5 / T9(b)).
    *  ADVISORY like the #192 warning: the figures are NOT adjusted, because the
@@ -172,7 +172,7 @@ export const HOUSEHOLD_COPY = {
   },
 
   digestUnsupportedCurrency: (count: number) =>
-    `${count} shared account${count === 1 ? " isn't" : "s aren't"} counted above: Aimplifi handles US dollars today, so ${count === 1 ? 'it is' : 'they are'} left out of every figure here rather than converted at a rate nobody agreed to.`,
+    `${count} shared account${count === 1 ? " isn't" : "s aren't"} counted above: Aimplifi handles U.S. dollars today, so ${count === 1 ? 'it is' : 'they are'} left out of every figure here rather than converted at a rate nobody agreed to.`,
 
   digestNoMovement: (accountCount: number) =>
     `No transactions on the ${accountCount} shared spending account${accountCount === 1 ? '' : 's'} in the last 7 days. Accounts nobody shared aren't counted here.`,

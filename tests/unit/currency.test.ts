@@ -110,16 +110,16 @@ describe('formatWithheldCurrencies — user-facing label, opaque tokens never pa
   });
   it('folds an opaque token (SimpleFIN currency URL) into "others"', () => {
     expect(formatWithheldCurrencies(['https://x.test/btc'])).toBe('other currencies');
-    expect(formatWithheldCurrencies(['EUR', 'https://x.test/btc'])).toBe('EUR and others');
+    expect(formatWithheldCurrencies(['EUR', 'https://x.test/btc'])).toBe('EUR and other currencies');
   });
   it('folds feed tokens that are not display names: numeric ISO, 2-letter fragments (checker)', () => {
     expect(formatWithheldCurrencies(['840'])).toBe('other currencies'); // numeric ISO-4217
     expect(formatWithheldCurrencies(['US'])).toBe('other currencies'); // reads as a country
-    expect(formatWithheldCurrencies(['840', 'EUR'])).toBe('EUR and others');
+    expect(formatWithheldCurrencies(['840', 'EUR'])).toBe('EUR and other currencies');
   });
-  it('uppercases lowercase feed codes and dedupes case-variants WITHOUT claiming "others"', () => {
+  it('uppercases lowercase feed codes and dedupes case-variants WITHOUT claiming "and other currencies"', () => {
     expect(formatWithheldCurrencies(['doge'])).toBe('DOGE');
-    expect(formatWithheldCurrencies(['doge', 'DOGE'])).toBe('DOGE'); // one currency, no "and others"
+    expect(formatWithheldCurrencies(['doge', 'DOGE'])).toBe('DOGE'); // one currency, no suffix
     expect(formatWithheldCurrencies(['doge', 'EUR'])).toBe('DOGE, EUR'); // re-sorted after uppercasing
   });
 });

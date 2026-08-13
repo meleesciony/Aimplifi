@@ -6880,3 +6880,75 @@ conclude the money is fictional.
 explaining a marked column, in the order those columns appear; then the currency note last,
 because it alone describes rows that are NOT in the file. The rectangular padding is now derived
 from the header, so the schema and the padding cannot drift apart.
+
+## #459 — U.27: the currency family's standard has five authors, not one, and a shared phrase misparsed its own noun (2026-08-13)
+
+**Context.** Opened 2026-08-12 by the U.23 rendered-claims critic (P2-6, P2-8). DECISIONS #141
+made "not in U.S. dollars" the family's standard specifically because a withheld crypto account
+is a first-class case and not "foreign" — but the standard lives in the string, not in a shared
+constant every caller goes through, so nothing stopped another author from writing the same fact
+in the app's informal spoken form instead.
+
+**(a) Four more authors of "US dollars," not the two the row named.** `household-copy.ts:109`
+(`scopeUnsupportedCurrency`) and `:175` (`digestUnsupportedCurrency`) both said "Aimplifi handles
+US dollars today"; `keyword-rules.ts:1378`'s per-row rule-exclusion reason said "Rules apply to
+your US dollar accounts." A fourth, `money.ts:139`'s `formatCents` docblock, was a comment rather
+than rendered copy but stated the same fact in the same wrong form, so it is fixed too — a
+docblock is what the next author reads before writing the next string.
+
+The row also named `connection-depth-copy.ts:57` and `accounts-list.tsx:216`; both already read
+"U.S. dollars" with the correct punctuation, so those two are not drift — either already fixed
+between the row's filing and this session, or the original P2's grep matched loosely. Re-verified
+by grepping all of `src/` for the literal, case-sensitive `US dollar(s)` (word-boundaried so it
+cannot match "U.S. dollars" — the periods break the token): exactly the four sites above, now
+fixed. `keyword-rules.ts` took the hyphenated adjectival form ("U.S.-dollar accounts") rather
+than the noun form the other three use, because that form is already shipped and locked —
+`currency-disclosure.spec.ts:119` asserts "No U.S.-dollar investment holdings yet" — and a slice
+whose whole point is stamping out a second spelling should not introduce a third.
+
+**Locked as a sweep, not a list of sites.** `tests/unit/u27-currency-copy-drift.test.ts` walks
+every `.ts`/`.tsx` file under `src/` and fails on the bare pattern, the same shape
+`source-hygiene.test.ts` uses for control bytes — so the NEXT author who writes "US dollars"
+instead of reusing the family's copy fails a test naming exactly what they did, rather than
+waiting for a sixth critic to find it by hand. Fail-old proven directly: reverting either fixed
+site independently reddens this lock (not a mutation-tested proxy).
+
+**(b) `formatWithheldCurrencies`'s "EUR and others" parsed as "EUR, and other ACCOUNTS."** Every
+sentence this string feeds already talks about accounts ("an account in {label} is left out" —
+`currency.ts:130`), so the bare "and others" sits one word away from a plausible misreading it
+never intended. Fixed to "and other currencies," spelling out the noun the list is actually a
+list of. Not a drive-by: the string is shared by the SHIPPED #141 banner (`withheldBannerCopy`)
+and U.23's export note (`withheldExportNote`), both locked in `currency.test.ts`, both updated
+here, plus the new sweep test asserts the fix reaches both call sites directly rather than
+trusting that a shared function fix propagates. Fail-old proven: reverting the one-line change
+reddens 3 locks across `currency.test.ts` and the new file. No e2e or other test locked the old
+phrase (grepped for it repo-wide before touching the string).
+
+**(c) Recorded, not fixed — `getWithheldRegisterAccountSummary`'s count is generous, never
+false.** The row's own instruction was "also record." `getWithheldRegisterAccountSummary`
+(`server/transactions.ts:1986`) models the register's basis (`registerAccountWhere` +
+`isSplitParent: false`) but not the R1 reconciliation keep — unlike `getTransactions`, which
+fetches raw rows and filters them through `getReconciliationTxnKeep(userId)` afterward, because
+the keep is a per-row `(accountId, date)` function, not a static Prisma predicate, and cannot be
+expressed as a `where` clause the way the rest of this function is. So a non-USD account that is
+ALSO a fully-disowned reconciliation predecessor — every one of its rows dropped by R1, none of
+them destined for the export file regardless of currency — is still counted as "withheld by
+currency" here, overstating the U.23 export note's count by the number of such accounts. **Why
+recorded rather than fixed in this slice:** the fix is a query-shape change (fetch candidate
+withheld accounts' transaction dates, filter each through the same per-row keep function
+`getTransactions` already calls, then count only accounts with a surviving row) rather than a
+copy edit, which is the entire rest of this slice; and the condition it corrects requires a
+single account to be BOTH non-USD AND a reconciled predecessor with zero surviving rows — doubly
+rare, and unreachable in the demo seed (K.4: the seed writes neither a non-USD account nor a
+reconciled pair), so there is no live-check angle either way. Crucially: **no sentence becomes
+false.** The export note says "this file leaves out N accounts that aren't in U.S. dollars," and
+an over-generous N still leaves out no fewer accounts than it claims — the note undercounts risk
+in the safe direction (over-disclosure), the opposite of the U.23/U.26 family's actual failure
+mode (a disclosure understating what it excludes). Filed as **U.28** in TASKS.md for whichever
+session next touches this function, so the fact is not lost the way an inline comment alone would
+risk.
+
+**Gate.** `bash scripts/verify.sh` with `VERIFY_E2E=1` — full output in `PROGRESS.md`. Copy-only
+change to three rendered strings + one comment; no `prisma/` diff, no schema, no engine logic
+touched outside the two locking test files. Two new `describe` blocks lock (a) and (b); (c) is
+DECISIONS + TASKS only, per the row's own instruction.

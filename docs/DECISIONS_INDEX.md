@@ -452,3 +452,4 @@ refuses to write if it would drop any number this file already carries.
 - **#456** (Phase ?): U.19–U.22: the last silent surfaces of the released day, closed as one slice because they share one set (2026-08-12)
 - **#457** (Phase ?): U.23: a claim of parity is a claim about an expression, and a withhold is not the end of the obligation (2026-08-12)
 - **#458** (Phase ?): U.25/U.26: a file that leaves the app carries its own basis, and the reasons its numbers differ from the app's (2026-08-13)
+- **#459** (Phase ?): U.27: the currency family's standard has five authors, not one, and a shared phrase misparsed its own noun (2026-08-13)
