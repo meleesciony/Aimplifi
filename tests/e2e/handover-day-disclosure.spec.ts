@@ -304,6 +304,26 @@ test('U.24: /calendar discloses the released day inside its money tiles, and mar
   await expect(page.getByTestId('cal-posted-handover-day')).toHaveCount(1);
 });
 
+test('U.30: the dashboard Recent transactions card marks the released day rows too', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedHandoverDayDuplicate(email);
+
+  await page.goto('/dashboard');
+  const list = page.getByTestId('dashboard-recent-list');
+  await expect(list).toBeVisible({ timeout: 20_000 });
+
+  // Same three-row shape /reports counts: the control pair de-duplicated to
+  // one survivor, the handover day keeping both copies.
+  await expect(page.getByTestId('dashboard-recent-row')).toHaveCount(3);
+
+  // THE LOCK: before this slice, the FIRST screen a reader sees carried no
+  // reconciliation vocabulary at all — not even the account name the
+  // register at least has (`TxnView.onHandoverDay`'s own docblock).
+  await expect(page.getByTestId('dashboard-recent-handover-row')).toHaveCount(2);
+});
+
 test('a reader with no combined accounts is told nothing about handover days', async ({ page }) => {
   // The `dataDerived` gate (C.11/#407): a disclosure that fired on the rule's
   // mere existence would nag every reader about something that never touched
@@ -359,6 +379,11 @@ test('a reader with no combined accounts is told nothing about handover days', a
   await expect(page.getByTestId('calendar-list')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('cal-handover-note')).toHaveCount(0);
   await expect(page.getByTestId('cal-posted-handover-day')).toHaveCount(0);
+
+  // U.30: the dashboard's Recent transactions card shows no marker either.
+  await page.goto('/dashboard');
+  await expect(page.getByTestId('dashboard-recent-list')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('dashboard-recent-handover-row')).toHaveCount(0);
 
   // U.19: the column is UNCONDITIONAL (one schema for every reader) but empty,
   // and no CHANGEOVER note row is appended. This fixture's single row is neither

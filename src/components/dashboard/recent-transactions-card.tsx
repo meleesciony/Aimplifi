@@ -60,7 +60,22 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
                 data-needs-file={r.needsFile ? 'true' : 'false'}
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-foreground">{r.merchantName}</p>
+                  <p className="truncate font-medium text-foreground">
+                    {r.merchantName}
+                    {/* U.30 — same marker, same vocabulary, as every panel since
+                        U.16/U.20/U.24: a fact about the row's DATE, not a claim
+                        that it is the duplicate. This is the first screen a
+                        reader sees, and until now it carried no reconciliation
+                        vocabulary at all. */}
+                    {r.onHandoverDay && (
+                      <span
+                        className="ml-1.5 text-xs font-normal text-muted-foreground"
+                        data-testid="dashboard-recent-handover-row"
+                      >
+                        (connection changeover)
+                      </span>
+                    )}
+                  </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {r.date}
                     {' · '}

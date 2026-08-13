@@ -4525,3 +4525,43 @@ $50.00 charge released to both sides) through the browser and asserts the $100.0
 text, its DOM position above the projected line, and the day marker's exact wording — plus the
 no-combined-accounts control asserting /calendar stays silent. A bespoke production probe would
 assert only that the deployment exists, which the two gate reads above already prove more precisely.
+
+## ✅ BUILT 2026-08-13 — U.30: the FIRST screen a reader sees was also the last one saying nothing about the released day (DECISIONS #462)
+
+The residual U.24's own critic filed: the home dashboard's "Recent transactions" strip showed a
+released handover day's two identical rows with no marker — and no account name either, the one
+clue `TxnView.onHandoverDay`'s docblock names as the reader's fallback elsewhere. Unlike every
+other surface in this family (/transactions, /reports, /budgets, /trends, Ask, the CSV export,
+/calendar), this card is the first thing a reader sees after signing in.
+
+**Same pattern, sixth reuse of the marker, no new sentence.** `onHandoverDay` added REQUIRED to
+`DashboardRecentTxn` — `tsc` enumerated exactly one production builder, none in tests, matching
+#461's compiler argument. Resolved in `getDashboardRecent` by fetching `getReconciliationHandoverKeys`
+alongside the existing `getReconciliationTxnKeep` call, inside the SAME `Promise.all` (concurrent,
+which narrows rather than widens the U.31 race window against the precedent's sequential awaits).
+Keyed exactly as every prior surface: `handoverKeys.has(handoverKey(t.accountId, t.date))`. Rendered
+as the same `(connection changeover)` span used on /transactions, /reports, Ask and /calendar — no
+seventh sentence authored, because this strip carries no aggregate total of its own to qualify (a
+six-row list with an "All activity" link out, not a category or month summary).
+
+**Fresh-context hostile critic (money-visible per this row) — PASS, zero P0/P1.** One P2 accepted
+in place: the merchant name and the marker share one `truncate` `<p>`, so a long enough merchant
+name could clip the marker past the ellipsis — the identical pattern already shipped and
+critic-passed on `ask-view.tsx` (U.16), where `transaction-list.tsx` and `breakdown-panel.tsx`
+instead give the marker its own non-truncating slot. Not raised as new; worth revisiting the two
+remaining truncate-together sites together, someday.
+
+**Locked.** `tests/unit/dashboard-recent.test.ts` — a byte-for-byte match of #461's own fixture
+shape (predecessor/successor/unrelated-account trio, same cutover, same scoping controls): flags
+both released copies, not the unrelated account's row on the identical date, not a pair-account row
+off the cutover date. `tests/e2e/handover-day-disclosure.spec.ts` gains a test reusing the file's
+`seedHandoverDayDuplicate` fixture — /dashboard prints 3 rows (the control pair de-duplicated to
+one, the handover day keeping both), exactly 2 carry `dashboard-recent-handover-row`; the existing
+no-combined-accounts control test gained the matching zero-count assertion.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0, eslint 0, unit tests
+green (2 new dashboard-recent locks), `next build` clean, e2e **350 passed, 2 flaky-passed-on-
+retry** (`category-rename.spec.ts:110`, `merchant-lens.spec.ts:22` — both named members of the
+pre-existing load-induced local flake class in `docs/lessons/ci-e2e-timing-flake.md`, neither a
+spec this slice touches). No `prisma/` diff — read-path and copy only, so the live Neon database is
+untouched.

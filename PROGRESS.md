@@ -2,6 +2,38 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-13 — U.30: the dashboard's Recent transactions card discloses the released handover day (DECISIONS #462)
+
+**Picked up from the queue** (U.24's own critic residual, filed rather than fixed as P1). Of the
+seven surfaces that read a transaction reconciled across a combined-account cutover, only the home
+dashboard's "Recent transactions" strip carried zero reconciliation vocabulary — and it is the
+first screen a reader lands on. `TxnView.onHandoverDay`'s docblock names the account name as the
+reader's fallback clue when no marker exists; this card does not even print an account name.
+
+**Shipped, sixth reuse of the marker.** `onHandoverDay` REQUIRED on `DashboardRecentTxn`
+(`src/server/dashboard-recent.ts`), resolved via `getReconciliationHandoverKeys` fetched alongside
+the existing `getReconciliationTxnKeep` in the same `Promise.all`, keyed
+`handoverKeys.has(handoverKey(t.accountId, t.date))` — byte-identical shape to U.24's
+`getPostedCalendarRows`. `RecentTransactionsCard` renders the same `(connection changeover)` span
+used on /transactions, /reports, Ask and /calendar; no new note sentence needed since this strip
+carries no aggregate total to qualify.
+
+**Fresh-context hostile critic (money-visible) — 0 P0/P1, one P2 accepted in place**: the merchant
+name and the marker share one `truncate` element, so a long merchant name could in principle clip
+the marker — a pattern already shipped and critic-passed on `ask-view.tsx`, not new to this slice.
+
+**Locked.** New unit test `tests/unit/dashboard-recent.test.ts` (byte-for-byte match of U.24's
+(account, day)-scoping fixture). New e2e test in `tests/e2e/handover-day-disclosure.spec.ts`
+(/dashboard prints 3 rows, exactly 2 marked) plus the matching zero-count assertion added to the
+existing no-combined-accounts control test.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0, eslint 0, unit tests
+green, `next build` clean, e2e **350 passed, 2 flaky-passed-on-retry** (`category-rename.spec.ts:110`,
+`merchant-lens.spec.ts:22` — both named members of the pre-existing load-induced local flake class
+in `docs/lessons/ci-e2e-timing-flake.md`). No `prisma/` diff.
+
+**Next: push, read the CI gate, confirm Vercel, then record the SHIPPED-live paragraph.**
+
 ## 2026-08-12 — U.16: the panel was not silent, it was CERTIFYING — and the compiler found the surfaces the ticket did not
 
 **Picked up from the queue** (U.13's own residual, filed by its rendered-claims critic as P1-6 with executed

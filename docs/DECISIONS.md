@@ -7115,3 +7115,50 @@ the link table in one loader, the shape `transactions.ts:1336` already rejects i
 confirm/undo landing between them desyncs disclosure from figures), and **U.32** (the day tile's row
 COUNTS and the page's closing basis caption, both of which still omit the released day).
 
+## #462 — U.30: the FIRST screen a reader sees was also the last one saying nothing about the
+released day (2026-08-13)
+
+**Context.** U.24 (#461) closed /calendar, the last of six spending surfaces to disclose U.13's
+released handover day — but its own critic cycle found a seventh, filed rather than fixed: the
+home dashboard's "Recent transactions" strip. `dashboard-recent.ts` already filters through
+`keepsReconciled` (correctly keeping both copies of a released row), then hand-builds a closed
+`DashboardRecentTxn` shape with no slot for the flag, and `RecentTransactionsCard` prints merchant,
+date, category and amount only — no reconciliation vocabulary at all. `TxnView.onHandoverDay`'s own
+docblock justifies the field's existence with "the reader's only clue that two lines were one
+purchase was the account name" (query.ts); this card does not even show the account name, and
+unlike every other surface in the family it is the first thing a reader sees after signing in.
+
+**What shipped.** `onHandoverDay` added to `DashboardRecentTxn` as a REQUIRED field (the same
+compiler-enumerates-every-builder argument #461 made — `tsc` found exactly one production builder
+and no test helper constructs this shape directly), resolved in `getDashboardRecent` by fetching
+`getReconciliationHandoverKeys` alongside the existing `getReconciliationTxnKeep` call inside the
+SAME `Promise.all` (concurrent, not sequential — narrower race window against U.31 than the
+precedent's sequential awaits, not wider), and keyed the same way as every prior surface:
+`handoverKeys.has(handoverKey(t.accountId, t.date))` against the Prisma row's own `accountId`/`date`,
+never a bare date. `RecentTransactionsCard` renders the SAME `(connection changeover)` span used on
+/transactions, /reports, Ask and /calendar — the sixth reuse of that exact string, not a seventh
+authored sentence, because this card carries no aggregate total of its own to qualify (it is a
+six-row strip with an "All activity" link out, not a category or month summary) — so unlike
+/calendar or /budgets, no accompanying note sentence was needed or added.
+
+**Fresh-context hostile critic (money-visible per this row) — PASS, zero P0/P1.** One P2 accepted in
+place: the merchant name and the marker share one `truncate` `<p>`, so a sufficiently long merchant
+name could clip the marker past the ellipsis — the identical pattern already shipped and
+critic-passed on `ask-view.tsx` (U.16), where `transaction-list.tsx` and `breakdown-panel.tsx`
+instead give the marker its own non-truncating slot. Not raised as a new defect this slice
+introduced; worth revisiting the two remaining truncate-together sites together, someday.
+
+**Locked.** `tests/unit/dashboard-recent.test.ts` — a byte-for-byte match of #461's own fixture
+shape (predecessor/successor/unrelated-account trio, same cutover, same scoping controls): flags
+both released copies, not the unrelated account's row on the identical date, not a pair-account row
+off the cutover date. `tests/e2e/handover-day-disclosure.spec.ts` gains a test reusing the file's
+`seedHandoverDayDuplicate` fixture — /dashboard prints 3 rows (the control pair de-duplicated to
+one, the handover day keeping both), exactly 2 carry `dashboard-recent-handover-row`; the existing
+no-combined-accounts control test gained the matching zero-count assertion.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0, eslint 0, unit tests
+green (2 new dashboard-recent locks), `next build` clean, e2e **350 passed, 2 flaky-passed-on-
+retry** (`category-rename.spec.ts:110`, `merchant-lens.spec.ts:22` — both named members of the
+pre-existing load-induced local flake class in `docs/lessons/ci-e2e-timing-flake.md`, neither a
+spec this slice touches). No `prisma/` diff — read-path and copy only.
+
