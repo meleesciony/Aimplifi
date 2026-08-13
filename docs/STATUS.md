@@ -4565,3 +4565,23 @@ retry** (`category-rename.spec.ts:110`, `merchant-lens.spec.ts:22` — both name
 pre-existing load-induced local flake class in `docs/lessons/ci-e2e-timing-flake.md`, neither a
 spec this slice touches). No `prisma/` diff — read-path and copy only, so the live Neon database is
 untouched.
+
+**SHIPPED AND PROVEN LIVE (2026-08-13).** Commit `cf102d0` → pushed → CI run 31720492510 **FAILED on
+attempt 1**, and the failure is named rather than waved away per rule 5: both reds were
+`transactions.spec.ts:638` and `:735` (the "CSV import" / "forensicked CSV wedge" contention class
+documented since #422/K.8 — proven pre-existing across dozens of prior runs, e.g. STATUS.md:483,
+:548, :596 — and outside this push's diff, which touches only `dashboard-recent.ts`,
+`recent-transactions-card.tsx`, `handover-day-disclosure.spec.ts` and the new unit test). `gh run
+rerun 31720492510 --failed` → attempt 2 **`success`**, read to conclusion via `gh run view` (not
+inferred). Vercel commit status: `success`, "Deployment has completed", same sha
+(`gh api repos/meleesciony/Aimplifi/commits/cf102d0/status`). Production `/` and `/dashboard` both
+307 (expected unauthenticated redirect to sign-in, not a 500).
+
+**No demo-visible marker, and none is possible — declared, not skipped (the K.4 shape, same as
+U.18/U.24/U.27/U.29).** `grep AccountReconciliation prisma/seed.ts` → zero hits, unchanged from
+every prior slice in this family: the demo dataset has no combined-account pair, no cutover, and
+therefore no released handover day for `onHandoverDay` to ever be true for the demo user. What
+stands in for a live probe: CI's full `VERIFY_E2E=1` suite ran against a genuine build of this exact
+commit, including the new /dashboard e2e test, which drives a REAL seeded combined-account handover
+pair through the browser and asserts the 3-row shape and the exact marker count, plus the
+no-combined-accounts control asserting /dashboard stays silent.

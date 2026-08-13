@@ -32,7 +32,12 @@ green, `next build` clean, e2e **350 passed, 2 flaky-passed-on-retry** (`categor
 `merchant-lens.spec.ts:22` — both named members of the pre-existing load-induced local flake class
 in `docs/lessons/ci-e2e-timing-flake.md`). No `prisma/` diff.
 
-**Next: push, read the CI gate, confirm Vercel, then record the SHIPPED-live paragraph.**
+**Shipped and proven live.** Pushed as `cf102d0`. CI run 31720492510 FAILED attempt 1 on
+`transactions.spec.ts:638`/`:735` — the documented pre-existing "CSV wedge" contention class
+(STATUS.md:483/:548/:596), untouched by this push's diff. `gh run rerun --failed` → attempt 2
+`success`. Vercel: `success`, "Deployment has completed", same sha. Production `/` and `/dashboard`
+both 307 (expected unauthenticated redirect). No demo-visible marker, declared not skipped (K.4
+shape — `grep AccountReconciliation prisma/seed.ts` zero hits, unchanged).
 
 ## 2026-08-12 — U.16: the panel was not silent, it was CERTIFYING — and the compiler found the surfaces the ticket did not
 
