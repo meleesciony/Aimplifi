@@ -7095,6 +7095,19 @@ zeroed (3 red), the server flag forced false (2 red), the scoping regressed to a
 (2 red — both the scoping control AND the register-parity gate catch it), and the rendered note
 suppressed on a REBUILT server (the e2e red, since Playwright tests the last `next build`).
 
+**One critic hypothesis REFUTED with evidence rather than filed.** The copy critic flagged, as
+uninvestigated, whether a doubled released row could propagate into the PROJECTED figures via
+recurring-series detection — which would have opened a sixth silent figure and undercut the
+placement decision above (the note sits directly beneath the posted totals precisely because the
+Expected line holds no released row). Traced to source: it cannot. `server/recurring.ts` runs
+`collapseHandoverDuplicates` over the kept rows BEFORE `detectRecurring`, so the detector sees one
+occurrence per handover day and the scheduled amounts are minted from the deduplicated series;
+`applyReconciliationBoundary` re-keys those rows without re-duplicating them. Card obligations take
+their amount from the Statement row or `Account.currentBalanceCents`, and loan obligations from
+`Account.minimumPaymentCents` / `dueDayOfMonth` — neither channel reads an individual transaction
+at all. The projected half is structurally independent of transaction row COUNTS, so no queue item
+was filed for it.
+
 **Residuals filed with their evidence rather than papered over — U.30** (the home screen's Recent
 transactions card, which shows both copies with no marker and not even the account name that
 `TxnView.onHandoverDay`'s docblock calls the reader's only clue), **U.31** (two independent reads of
