@@ -70,6 +70,18 @@ extended e2e `transaction-detail.spec.ts:65` passed in 6.5s). 19 locks in
 `tests/unit/u23-export-register-parity.test.ts`, both halves proven fail-old by sabotage: the old
 where-clause reddened 5 at the exact 4-rows/−$299.00 shape, and suppressing the note reddened 4.
 
+**Gate read (rule 5) + live.** CI run **31664067318 on `adbba2f`** = **SUCCESS on attempt 1**,
+read to conclusion via `scripts/ci-status.sh` (exit 0). Vercel commit status: success,
+"Deployment has completed", on the same sha. Live: `node scripts/u23-live-deploy-check.mjs` →
+**10 PASS / 0 FAIL / 2 declared SKIP** against production. U.23 has NO demo-visible marker and
+deliberately cannot have one — the seed writes neither a split nor a non-USD account (the K.4
+situation, declared rather than papered over) — so the live script asserts the claim that IS
+reachable: the route now runs the register's own clause against the production database, and the
+exported row count **equals the count the register states, 842 = 842**, measured on real seeded
+rows. It also asserts the decision's inertness promise: the header did not move and an all-USD
+reader gets no note of any kind. Predecessors re-run, none regressed: **U.19 17/17**, **U.16
+13/13**, **U.13 6/6**.
+
 ## ✅ BUILT 2026-08-12 — U.19–U.22: the last silent surfaces of the released day, closed as one slice (DECISIONS #456)
 
 **Session note:** the building session's PowerShell window died mid-slice; this entry's work was

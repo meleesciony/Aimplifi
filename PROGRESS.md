@@ -3571,3 +3571,14 @@ also keeps U.19's live-deploy header check valid unmodified.
 
 **Next:** read the two fresh-context critics (money + rendered claims), fix, then verify.sh
 VERIFY_E2E=1 (running), docs (DECISIONS/STATUS/TASKS), ship per rule 5.
+
+**U.23 SHIPPED AND PROVEN LIVE (2026-08-12).** Commit `adbba2f` → pushed → CI gate `success`,
+run 31664067318, attempt 1, read to conclusion via scripts/ci-status.sh. Vercel: success,
+"Deployment has completed", same sha. Live: `node scripts/u23-live-deploy-check.mjs` →
+**10 PASS / 0 FAIL / 2 declared SKIP**, including the parity claim measured against production
+data (842 exported rows = 842 the register states). No demo-visible marker exists for this slice
+by construction (the seed writes no split and no non-USD account — the K.4 situation, declared).
+Predecessors re-run: U.19 17/17, U.16 13/13, U.13 6/6 — none regressed. Residuals filed with
+executed evidence as U.25 (the file names one of four reasons it is incomplete), U.26 (MEASURED:
+3 rows summing −$3,300.00 exported where the register reports $100.00 of money out) and U.27
+(currency copy drift).
