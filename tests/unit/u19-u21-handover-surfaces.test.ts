@@ -76,6 +76,8 @@ const csvRow = (over: Partial<ExportTxn> = {}): ExportTxn => ({
   amountCents: -5_000,
   status: 'POSTED',
   onHandoverDay: false,
+  excludeFromTotals: false,
+  isTransfer: false,
   ...over,
 });
 
@@ -86,30 +88,41 @@ describe('U.19 — the transactions CSV carries the changeover column and, when 
     // breaks silently, and only for some readers.
     const out = transactionsToCsv([csvRow()], NONE_WITHHELD);
     const lines = out.split('\r\n');
-    expect(lines[0]).toBe('date,account,description,merchant,category,amount,status,changeover_day');
-    // Unmarked row: the field is present and empty.
-    expect(lines[1].endsWith(',')).toBe(true);
+    expect(lines[0]).toBe(
+      'date,account,description,merchant,category,amount,status,changeover_day,' +
+        'excluded_from_totals,transfer',
+    );
+    // Unmarked row: the field is present and empty. U.26 added two more columns
+    // of the same kind, so an unmarked row now ends in three empty fields.
+    expect(lines[1].endsWith(',,,')).toBe(true);
     expect(lines[1]).not.toContain('yes');
   });
 
-  it('a reader with no combined accounts gets no note row — the file stays a plain table', () => {
+  it('a reader with no combined accounts gets no CHANGEOVER note — U.25 gave every file a basis note', () => {
     const out = transactionsToCsv([csvRow(), csvRow({ date: '2026-07-11' })], NONE_WITHHELD);
     const lines = out.split('\r\n');
-    // header + 2 rows + trailing '' from the final CRLF. Nothing else.
-    expect(lines).toHaveLength(4);
-    expect(out).not.toContain('Note:');
+    // header + 2 rows + the unconditional basis note + trailing '' from the final
+    // CRLF. This test asserted 4 lines and no 'Note:' at all until U.25, which
+    // traded U.19's byte-identical-file property for a file that says what it is;
+    // what U.19 still owns is that the CHANGEOVER note stays silent here.
+    expect(lines).toHaveLength(5);
+    expect(out).not.toContain('changeover_day fall on a day');
+    expect(lines[3].startsWith('"Note: this file lists transactions')).toBe(true);
   });
 
   it('a released row is marked yes, and the note rides the END of the file, rectangular', () => {
     const out = transactionsToCsv([csvRow(), csvRow({ date: HANDOVER, onHandoverDay: true })], NONE_WITHHELD);
     const lines = out.split('\r\n');
-    expect(lines[2].endsWith(',yes')).toBe(true);
+    // The released row's changeover field is the 8th of ten; the two U.26
+    // columns follow it, empty on a row that is neither excluded nor a transfer.
+    expect(lines[2].endsWith(',yes,,')).toBe(true);
     const note = lines[lines.length - 2];
     expect(note.startsWith('"Note: rows marked yes in changeover_day')).toBe(true);
-    // Rectangular: the prose occupies field 1 and seven empty fields follow, so
-    // a parser reading the file as a table sees one row of the declared width,
-    // never a ragged tail.
-    expect(note.endsWith(',,,,,,,')).toBe(true);
+    // Rectangular: the prose occupies field 1 and the remaining fields follow
+    // empty, so a parser reading the file as a table sees one row of the declared
+    // width, never a ragged tail. Nine commas since U.26 widened the schema — the
+    // padding is derived from the header now, so the two cannot drift apart.
+    expect(note.endsWith(',,,,,,,,,')).toBe(true);
   });
 
   it('the note says only what is true in every shape', () => {

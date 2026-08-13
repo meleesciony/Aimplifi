@@ -90,6 +90,13 @@ export async function GET(request: NextRequest) {
         amountCents: t.amountCents,
         status: t.status,
         onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)),
+        // U.26: read straight off the row, never re-derived. Both flags are
+        // stored columns that `summarizeTransactions` reads to keep a row out of
+        // the register's in/out/net tiles, so anything cleverer here would be a
+        // second opinion about which rows count — the H.8 divergence U.23 just
+        // finished removing from this same route's where-clause.
+        excludeFromTotals: t.excludeFromTotals,
+        isTransfer: t.isTransfer,
       })),
       withheld,
     );

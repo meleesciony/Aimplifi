@@ -36,6 +36,8 @@ function row(over: Partial<ExportTxn>): ExportTxn {
     amountCents: -1234,
     status: 'POSTED',
     onHandoverDay: false,
+    excludeFromTotals: false,
+    isTransfer: false,
     ...over,
   };
 }

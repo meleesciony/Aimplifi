@@ -6772,3 +6772,111 @@ drift and the shared "EUR and others" phrase.
 `tests/unit/u23-export-register-parity.test.ts`, both halves proven fail-old by sabotage (old
 clause → 5 red at the exact 4-rows/−$299.00 shape; suppressed note → 4 red), plus the existing UI
 split e2e extended to sum the exported file.
+
+## #458 — U.25/U.26: a file that leaves the app carries its own basis, and the reasons its numbers differ from the app's (2026-08-13)
+
+**Context.** U.23 made the transactions CSV export the register's exact row set, and its two
+critics immediately found what row-set parity does not buy. The money critic MEASURED, against
+a real database: one $100.00 purchase, one $1,200.00 row the reader had marked "not my
+spending", and one $2,000.00 transfer whose offsetting leg lands on a mortgage account the file
+cannot carry — **3 rows summing −$3,300.00** in the file, against the register's own
+`TxnSummary` over those same three rows reporting **$100.00 of money out** and `excludedCount: 1`
+printed on screen. The rendered-claims critic found the other half: the file's first line is its
+header, so it stated its basis nowhere, while U.23's new note named exactly ONE of the four
+reasons it is incomplete — and only for the rare reader who owns a non-USD account.
+
+**Why they are one decision.** Both answer the same question — what does a reader holding only
+this file know about it — and both are answered in the same two functions. Splitting them would
+have decided the note order twice.
+
+**U.26: the two flags become data on the row.** `summarizeTransactions` keeps a row out of the
+register's in/out/net tiles for exactly two reasons (`query.ts:415-419`): the reader's own
+`excludeFromTotals`, and `isTransfer`. Both were stored columns the file simply did not carry,
+so the one act the file exists for — summing the amount column — could not reproduce any figure
+in the app, and nothing in the file said why. `excluded_from_totals` and `transfer` are now
+columns, read straight off the Prisma row so nothing re-derives which rows count (the H.8
+divergence U.23 had just finished removing from this route's where-clause), and REQUIRED on
+`ExportTxn` on the U.19/U.23 precedent: a default would let the next export path ship the
+silence back in.
+
+**Appended, never inserted.** They read more naturally beside `amount`. They are at the end
+because a reader's saved script indexes this file by POSITION, and inserting a column mid-row
+silently re-points every one of those indexes at the wrong field. Appending can only add.
+
+**U.25: the basis note is unconditional, and it is a rule with no list in it.** Two things
+follow from the fact being true of every file. It is gated on nothing — bolting a basis clause
+onto the currency note was the cheap move and would have gated a truth about every reader behind
+owning a euro account, the exact defect `a-disclosure-gated-to-the-loudest-branch-misses-the-reachable-one`
+distilled one session earlier. And it names the register rather than enumerating the four
+omissions, because an enumeration is a promise of completeness that goes stale the next time the
+basis moves (`closing-a-gap-shrinks-the-disclosure-that-described-it`); naming the register is
+exact AND self-maintaining, since since U.23 this route and `getTransactions` share
+`registerRowWhere` and the same R1 keep, with no date window and no default filter on either
+side.
+
+**What that cost, knowingly.** U.19's "a reader with no combined accounts gets a byte-identical
+file" property is retired: every file now ends with a note. That property was a statement about
+churn; this is a statement about what the file is. Every docblock, unit expectation and
+live-check assertion that encoded the old property was updated rather than left to rot —
+including `getWithheldRegisterAccountSummary`'s (`server/transactions.ts`), which the
+rendered-claims critic caught still asserting it after the first pass had claimed the sweep was
+complete; and the U.23 live check's header assertion was re-scoped to the claim it still owns
+(no CURRENCY column was added) rather than deleted. (#456's own note-row description — "prose in
+field 1, seven empty fields" — describes the eight-column file of its day; it is ten columns and
+nine empty fields from here.)
+
+**The critic cycle, and what it changed.** Two fresh-context critics (money/data-integrity and
+rendered claims) ran against the finished slice. Neither found a defect in the columns, the
+arithmetic, the padding, the append-only position or the gate logic — the money critic scored
+financial correctness 9/10 and structural integrity 10/10 after emitting all 16 note branches
+with an adversarial account name and finding zero ragged rows. Every P1 either raised was in the
+COPY, and the two of them independently executed the same one. All are fixed above and locked:
+
+1. **The basis note asserted facts about the reader's data.** Its closing clauses — "It does not
+cover every account you hold, and it is not every transaction row Aimplifi has stored" — are
+false for a reader holding only spending accounts (measured: 2 accounts of 2, 3 rows of 3) and
+false for the production demo's own file, where all 847 stored rows export. Unconditional is
+right for a rule and wrong for a claim about a reader; the clauses are now rules ("whether or
+not you hold one").
+2. **"Left out of the spending, income and net totals it shows" was false, live, on the demo.**
+An auto-loan ACH carries `isTransfer`, `recurring/detect.ts:416` deliberately keeps it, and
+/spending-plan prints "CarMax Auto Finance $385.00/mo" inside a $3,096.72 Fixed figure — 18 rows
+this file marks `transfer,yes`. The tax export is the same shape on the excluded side. The
+sentence now names the three register tiles `summarizeTransactions` actually gates and nothing
+wider, which also removes the "net"/net-worth ambiguity.
+3. **The transfer clause promised a counterpart that need not exist.** `isTransfer` is set by
+descriptor evidence alone, so a reader who never added their car loan owns no other account for
+the money to have moved to — and was being told the matching row was out there somewhere. The
+flag is the app's judgement about a row, so the sentence says so.
+4. **"Account balances count every row either way" is false for a hand-entered row** — a manual
+entry never rewrites a provider-authoritative balance (`transactions/manual.ts:7`), and the
+register invites hand entry. Replaced with the reassurance the clause was for, without vouching
+for a figure the file cannot see.
+5. **The excluded clause was not sign-neutral and did not use the control's own words.**
+Excluding is not gated on sign and drops the row from INFLOW too, so "you told Aimplifi this was
+not your spending" is wrong about an excluded refund. The file now quotes the app's own label.
+6. Smaller: the equality clause is scoped to "those accounts" and "every page" (the Transactions
+page also renders a household member's shared rows, ungated by filters, and paginates at 100);
+"spending accounts" is glossed for the accountant who cannot open the app; the live check's
+direction regex is scoped to the note rows rather than run over the reader's own descriptors.
+
+Each is locked by a named regression test, and the whole first draft was restored as a sabotage
+proof: it reddens nine of them.
+
+**What the U.26 note may not say.** It is conditional and assembled from the flags actually
+PRESENT, so a reader who has never excluded a row is not sent down a column of blanks looking
+for a marker. It states no DIRECTION — the flagged rows carry signed amounts, so "your sum will
+be too high" is false for a reader whose excluded rows are refunds, the same inverted clause the
+U.19–U.22 critic caught executing backwards on negative-net merchants; "includes money those
+totals leave out" is true whatever the signs are and true even when they cancel. It promises no
+EQUALITY — `changeover_day` can still double a row in the same file, and a claim that two
+engines agree must be earned (`a-link-on-a-figure-asserts-two-engines-agree`). And it does not
+say "every figure": `engine/transactions/exclude.ts` records that account balances, net worth,
+cash-needed and the tax export all deliberately KEEP excluded rows, and a transfer moves a real
+balance, so the note ends by saying the balances count every row either way — a reader must not
+conclude the money is fictional.
+
+**Note order, as a rule rather than an arrangement.** The file-wide basis first; then the notes
+explaining a marked column, in the order those columns appear; then the currency note last,
+because it alone describes rows that are NOT in the file. The rectangular padding is now derived
+from the header, so the schema and the padding cannot drift apart.

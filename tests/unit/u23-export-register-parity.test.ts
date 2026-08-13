@@ -14,7 +14,12 @@
  * cases assert the file equals the register by construction (not by a hardcoded row count that
  * a second copy of the clause could satisfy while drifting); the disclosure cases assert what
  * the note may and may not say, and — the harder half — that it stays silent for every reader
- * who has nothing withheld, so their file is byte-identical to the one U.19 locked.
+ * who has nothing withheld.
+ *
+ * That silence used to be phrased as "their file is byte-identical to the one U.19 locked".
+ * U.25 retired the byte-identity deliberately (every file now ends with an unconditional note
+ * stating its basis), so the cases below assert the surviving half: a reader with nothing
+ * withheld is never told that anything was.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -121,47 +126,56 @@ const csvRow = (over: Partial<ExportTxn> = {}): ExportTxn => ({
   amountCents: -5_000,
   status: 'POSTED',
   onHandoverDay: false,
+  excludeFromTotals: false,
+  isTransfer: false,
   ...over,
 });
 
 describe('U.23 — the transactions CSV carries the withheld-currency note', () => {
-  it('a reader with nothing withheld gets the file U.19 locked, unchanged', () => {
+  it('a reader with nothing withheld gets no CURRENCY note — the basis note is not it', () => {
     const out = transactionsToCsv([csvRow()], { count: 0, currencies: [] });
     const lines = out.split('\r\n');
-    // header + 1 row + trailing '' from the final CRLF. No note row.
-    expect(lines).toHaveLength(3);
-    expect(out).not.toContain('Note:');
+    // header + 1 row + U.25's unconditional basis note + trailing ''. This asserted
+    // three lines and no 'Note:' at all until U.25; what U.23 still owns is that a
+    // reader with nothing withheld is never told anything was.
+    expect(lines).toHaveLength(4);
+    expect(out).not.toContain('leaves out');
   });
 
   it('the note is rectangular, like every other note this file emits', () => {
     const out = transactionsToCsv([csvRow()], { count: 1, currencies: ['EUR'] });
-    const note = out.split('\r\n')[2];
+    const note = out.split('\r\n')[3];
     expect(note.startsWith('"Note: this file leaves out one account')).toBe(true);
-    // The prose occupies field 1 and seven empty fields follow, so a parser reading the file
+    // The prose occupies field 1 and the rest follow empty, so a parser reading the file
     // as a table sees one row of the declared width rather than a ragged tail.
-    expect(note.endsWith(',,,,,,,')).toBe(true);
+    expect(note.endsWith(',,,,,,,,,')).toBe(true);
   });
 
   it('the header does not move — the column schema is the one U.19 made unconditional', () => {
     const out = transactionsToCsv([csvRow()], { count: 1, currencies: ['EUR'] });
     expect(out.split('\r\n')[0]).toBe(
-      'date,account,description,merchant,category,amount,status,changeover_day',
+      'date,account,description,merchant,category,amount,status,changeover_day,' +
+        'excluded_from_totals,transfer',
     );
   });
 
-  it('both notes can ride one file, in a fixed order, each rectangular', () => {
-    // A reader with a combined pair AND a euro account gets two true sentences, not one of
-    // them: neither disclosure may suppress the other (the U.21 lesson — a disclosure gated
-    // to the loudest case misses the reachable one).
-    const out = transactionsToCsv([csvRow({ onHandoverDay: true })], {
+  it('every note can ride one file, in a fixed order, each rectangular', () => {
+    // A reader with a combined pair AND a euro account AND an excluded row gets four true
+    // sentences, not one of them: no disclosure may suppress another (the U.21 lesson — a
+    // disclosure gated to the loudest case misses the reachable one).
+    const out = transactionsToCsv([csvRow({ onHandoverDay: true, excludeFromTotals: true })], {
       count: 1,
       currencies: ['EUR'],
     });
     const lines = out.split('\r\n');
-    expect(lines[2].startsWith('"Note: rows marked yes in changeover_day')).toBe(true);
-    expect(lines[3].startsWith('"Note: this file leaves out one account')).toBe(true);
-    expect(lines[2].endsWith(',,,,,,,')).toBe(true);
-    expect(lines[3].endsWith(',,,,,,,')).toBe(true);
+    // The order is the rule stated in `transactionsToCsv`: the file-wide basis first,
+    // then the notes explaining a marked column in the order those columns appear, then
+    // the one note about rows that are NOT here.
+    expect(lines[2].startsWith('"Note: this file lists transactions')).toBe(true);
+    expect(lines[3].startsWith('"Note: rows marked yes in changeover_day')).toBe(true);
+    expect(lines[4].startsWith('"Note: rows marked yes in excluded_from_totals')).toBe(true);
+    expect(lines[5].startsWith('"Note: this file leaves out one account')).toBe(true);
+    for (const i of [2, 3, 4, 5]) expect(lines[i].endsWith(',,,,,,,,,')).toBe(true);
   });
 });
 

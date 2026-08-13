@@ -199,11 +199,20 @@ test('U.19/U.20/U.22: the register, the /reports total, and the exported CSV dis
   expect(res.ok()).toBe(true);
   const csv = await res.text();
   const header = csv.split('\r\n')[0];
-  expect(header).toBe('date,account,description,merchant,category,amount,status,changeover_day');
+  expect(header).toBe(
+    'date,account,description,merchant,category,amount,status,changeover_day,' +
+      'excluded_from_totals,transfer',
+  );
   // Exactly the two released rows say yes — the de-duplicated control day
   // exports one row, unmarked, and 4 yes-rows would mean the export stopped
   // de-duplicating while 1 would mean it started dropping a real row.
-  expect(csv.split('\r\n').filter((l) => l.endsWith(',yes'))).toHaveLength(2);
+  // Read as the THIRD field from the end since U.26 appended two columns after
+  // it: `endsWith(',yes')` would now also catch a transfer, and miss a released
+  // row that is one.
+  const changeoverYes = csv
+    .split('\r\n')
+    .filter((l) => l.length > 0 && !l.startsWith('"Note:') && l.split(',').slice(-3)[0] === 'yes');
+  expect(changeoverYes).toHaveLength(2);
   expect(csv).toContain('Note: rows marked yes in changeover_day');
   expect(csv).not.toMatch(/\btwice\b/);
 });
@@ -252,11 +261,16 @@ test('a reader with no combined accounts is told nothing about handover days', a
   await expect(page.getByTestId('txn-summary-handover')).toHaveCount(0);
 
   // U.19: the column is UNCONDITIONAL (one schema for every reader) but empty,
-  // and no note row is appended.
+  // and no CHANGEOVER note row is appended. This fixture's single row is neither
+  // excluded nor a transfer, so U.26's two columns are empty here too — but its
+  // basis note (U.25) is unconditional and rides every file, which is why the
+  // assertion below names the changeover note rather than the word "Note:".
   const res = await page.request.get('/api/export?format=transactions-csv');
   expect(res.ok()).toBe(true);
   const csv = await res.text();
-  expect(csv.split('\r\n')[0].endsWith(',changeover_day')).toBe(true);
+  expect(csv.split('\r\n')[0].endsWith(',changeover_day,excluded_from_totals,transfer')).toBe(true);
   expect(csv).not.toContain(',yes');
-  expect(csv).not.toContain('Note:');
+  expect(csv).not.toContain('changeover_day fall on a day');
+  expect(csv).not.toContain('rows marked yes in excluded_from_totals');
+  expect(csv).toContain('Note: this file lists transactions');
 });

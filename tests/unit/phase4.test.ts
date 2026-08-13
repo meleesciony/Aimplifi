@@ -200,12 +200,21 @@ describe('CSV export', () => {
         amountCents: -675,
         status: 'POSTED',
         onHandoverDay: false,
+        excludeFromTotals: false,
+        isTransfer: false,
       },
     ], { count: 0, currencies: [] });
     expect(csv).toContain('"SQ *BLUE BOTTLE, ""OAK"""');
     expect(csv).toContain('-6.75');
     // U.19: `changeover_day` is UNCONDITIONAL — one schema for every reader.
-    expect(csv.startsWith('date,account,description,merchant,category,amount,status,changeover_day\r\n')).toBe(true);
+    // U.26 appended two more of the same kind; the header is asserted whole here
+    // so adding a column is never something a passing suite lets through quietly.
+    expect(
+      csv.startsWith(
+        'date,account,description,merchant,category,amount,status,changeover_day,' +
+          'excluded_from_totals,transfer\r\n',
+      ),
+    ).toBe(true);
   });
 
   it('net-worth CSV round-trips the seed trend', () => {

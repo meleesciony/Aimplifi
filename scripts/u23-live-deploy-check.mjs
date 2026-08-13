@@ -74,8 +74,14 @@ try {
   // ── The decision's own promise: the header did NOT move (U.23 chose the
   //    guard over a currency column, so the schema U.19 fixed is untouched) ───
   check(
-    'the CSV header is unchanged — U.23 added no column',
-    header === 'date,account,description,merchant,category,amount,status,changeover_day',
+    // U.23 added no column, and this asserted the U.19 header verbatim to prove it.
+    // U.26 later appended two (`excluded_from_totals`, `transfer`), so what U.23 still
+    // owns is the negative: no CURRENCY column was ever added here, because the decision
+    // was to withhold non-USD rows and disclose the withhold rather than convert them.
+    'the CSV header carries no currency column — U.23 added none, and U.26 added two others',
+    header ===
+      'date,account,description,merchant,category,amount,status,changeover_day,' +
+        'excluded_from_totals,transfer',
     header,
   );
   check('the demo CSV has data rows', dataRows.length > 1, `${dataRows.length} rows`);
@@ -109,8 +115,11 @@ try {
     '',
   );
   check(
-    'no note row of any kind on the demo file',
-    !csv.includes('"Note:'),
+    // Was "no note row of any kind". U.25 made a basis note unconditional and U.26 marks
+    // the demo's own-account transfers, so the demo file now carries two notes by design.
+    // What U.23 still owns is that neither of them is ITS note.
+    'the demo file carries only the notes U.25/U.26 make unconditional — none of them U.23\'s',
+    csv.includes('Note: this file lists transactions') && !csv.includes('this file leaves out'),
     '',
   );
   check(

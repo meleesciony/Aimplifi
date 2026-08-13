@@ -86,16 +86,28 @@ try {
   const header = lines[0] ?? '';
   check(
     'DISCRIMINATES THE BUILD: the CSV header carries the unconditional changeover_day column',
-    header === 'date,account,description,merchant,category,amount,status,changeover_day',
+    header ===
+      'date,account,description,merchant,category,amount,status,changeover_day,' +
+        'excluded_from_totals,transfer',
     header,
   );
   check('the demo CSV has data rows', lines.length > 1, `${lines.length - 1} rows`);
   // Inertness: a reader with no combined accounts gets the empty column and no note.
+  // Read `changeover_day` as the THIRD field from the end rather than by counting
+  // forward (U.26 appended two columns after it) and rather than by `endsWith`
+  // (a demo transfer row now legitimately ends in `,yes`). The trailing three
+  // fields are never quoted, so slicing from the end is safe where splitting on
+  // every comma is not.
+  const changeoverField = (l) => l.split(',').slice(-3)[0];
   check(
     'no demo row is marked yes — the column is empty for a reader with no combined pair',
-    lines.slice(1).every((l) => !l.endsWith(',yes')),
+    lines.slice(1).filter((l) => !l.startsWith('"Note:')).every((l) => changeoverField(l) !== 'yes'),
   );
-  check('no trailing note row on a demo file', !csv.includes('Note: rows marked yes'), '');
+  check(
+    'no changeover note row on a demo file',
+    !csv.includes('changeover_day fall on a day'),
+    '',
+  );
 
   // ── U.20: the register — marker and caption sentence must be ABSENT ────────
   await page.goto(`${BASE}/transactions`, { waitUntil: 'domcontentloaded' });

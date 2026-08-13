@@ -3582,3 +3582,58 @@ Predecessors re-run: U.19 17/17, U.16 13/13, U.13 6/6 — none regressed. Residu
 executed evidence as U.25 (the file names one of four reasons it is incomplete), U.26 (MEASURED:
 3 rows summing −$3,300.00 exported where the register reports $100.00 of money out) and U.27
 (currency copy drift).
+
+## U.25 + U.26 — the exported file states its basis and carries the register's two flags (2026-08-13)
+
+**Why one slice:** U.26's task row prescribes "the U.19 shape (unconditional columns + a
+conditional note), which pairs naturally with U.25's basis decision" — both are the same
+question about the same file (what does a reader who has ONLY this file know about it), and
+both land in the same two functions. Splitting them would ship the note order twice.
+
+**Verified before writing anything (rule 0):**
+- `summarizeTransactions` (engine/transactions/query.ts:409-439) skips transfers ENTIRELY
+  (416) and drops excluded rows from the money sums after counting them (415/419) — so the
+  register's inflow/outflow/net exclude both, which is the U.26 measurement's mechanism.
+- `isExcludedFromTotals` (engine/transactions/exclude.ts:44) is a plain `=== true` read of
+  `Transaction.excludeFromTotals`; its docblock records where the exclusion deliberately does
+  NOT apply — account balances, net worth, cash-needed, recurring detection, tax export. So a
+  note claiming these rows leave "every figure" would be FALSE. Copy says spending/income/net
+  totals, and says balances still count them.
+- `getTransactions` (server/transactions.ts:363) reads `registerRowWhere` + `keepsReconciled`
+  with no date window and `filter = {}` by default — the same two the export route uses since
+  U.23 — so "the rows the Transactions page lists when no filter is applied" is true BY
+  CONSTRUCTION, not by coincidence.
+- The demo seed DOES write transfers on spending accounts (seed/build.ts:320,321,326,446 —
+  checking→savings, CarMax ACH, card payments), and writes NO `excludeFromTotals: true` row.
+  So this slice has a demo-visible live marker (transfer column + the transfer-only note
+  shape) — not the K.4 situation U.23 had.
+
+**Decision (#458, to be recorded):** basis note UNCONDITIONAL in the file, two new
+unconditional columns, one conditional totals note assembled from the flags actually present.
+
+**Done in tree (before critics):**
+- `export.ts`: `ExportTxn.excludeFromTotals` + `.isTransfer` REQUIRED; header appends
+  `excluded_from_totals,transfer` (appended, never inserted — a reader's script indexes by
+  position); `BASIS_CSV_NOTE` unconditional; `excludedTransferCsvNote` conditional and
+  assembled from the flags actually present; note padding derived from the header so the
+  schema and the padding cannot drift; note order stated as a rule (basis → column notes in
+  column order → the one note about rows that are NOT here).
+- `route.ts`: both flags read straight off the Prisma row.
+- The U.19 byte-identity docblock, the U.23 file docblock, 4 unit expectations and both
+  predecessors' live-check assertions updated rather than left to rot — including
+  `u23-live-deploy-check.mjs`, whose header equality would otherwise have failed the moment
+  this deployed.
+- NEW LOCKS: `tests/unit/u25-u26-export-basis-and-flags.test.ts` 19/19 (incl. the critic's
+  measurement rebuilt on a real Prisma DB, and every row's mark asserted BY CONSTRUCTION
+  against `getTransactions`); a new e2e in `action-menu.spec.ts` that drives the exclusion
+  through the real action menu and measures the file's unmarked rows against the register's
+  own tile ($85.00 → $45.00); `scripts/u25-live-deploy-check.mjs`.
+- FOUR SABOTAGE PROOFS run and reverted: columns unmarked → 2 red; basis note suppressed →
+  10 red; note AND-gated over both flags → 5 red; direction clause + "every figure" restored
+  → 2 red.
+- tsc 0 / eslint 0 / FULL unit suite 6,973 passed (1 expected fail, 1 skipped) / the three
+  affected e2e specs 16/16 after fixing the handover control's second CSV block.
+- DECISIONS #458 + index row; REGRESSION_LEDGER row appended.
+
+**Next:** read the two fresh-context critics (money + rendered claims), fix, then verify.sh
+VERIFY_E2E=1, STATUS/TASKS, ship per rule 5.

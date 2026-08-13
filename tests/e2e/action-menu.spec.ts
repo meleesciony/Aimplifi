@@ -304,6 +304,90 @@ test.describe('O.15 slice 2 — one action menu per transaction', () => {
     await expect(page.getByTestId('txn-excluded-badge')).toHaveCount(0);
   });
 
+  test('U.26 — the exported file carries both flags, and its unmarked rows sum to the tile', async ({
+    page,
+  }) => {
+    // U.26 was MEASURED on a real database as a 33× disagreement: the file exported a
+    // reader-excluded row and a transfer with no marker of any kind, so summing the amount
+    // column — the one act the file exists for — could not land on any figure the app shows.
+    // This fixture is the same shape at hand-computed scale, and it is driven through the
+    // real action menu rather than written to the DB, so the flag under test is one the
+    // READER set.
+    await page.goto('/sign-in');
+    await page.getByTestId('auth-email').fill(email);
+    await page.getByTestId('auth-password').fill(PASSWORD);
+    await page.getByTestId('auth-submit').click();
+    await page.waitForURL('**/dashboard', { timeout: 20_000 });
+
+    /**
+     * Fields read from the END: `account`, `description`, `merchant` and `category` may be
+     * quoted and may contain commas, so counting forward past them is unsafe. `amount`,
+     * `status` and the three flag columns never are.
+     */
+    const readCsv = async () => {
+      const csv = await (await page.request.get('/api/export?format=transactions-csv')).text();
+      const rows = csv
+        .split('\r\n')
+        .slice(1)
+        .filter((l) => l.length > 0 && !l.startsWith('"Note:'))
+        .map((l) => {
+          const f = l.split(',');
+          return {
+            amountCents: Math.round(Number(f[f.length - 5]) * 100),
+            excluded: f[f.length - 2] === 'yes',
+            transfer: f[f.length - 1] === 'yes',
+            line: l,
+          };
+        });
+      const unmarkedOut = rows
+        .filter((r) => !r.excluded && !r.transfer && r.amountCents < 0)
+        .reduce((n, r) => n - r.amountCents, 0);
+      return { csv, rows, unmarkedOut };
+    };
+
+    await page.goto('/transactions');
+    await expect(page.getByTestId('summary-out')).toHaveText('$85.00');
+
+    // Before any exclusion: the fixture's transfer is the only marked row, so the note
+    // names that flag and only that flag.
+    const before = await readCsv();
+    expect(before.rows.filter((r) => r.transfer)).toHaveLength(1);
+    expect(before.rows.filter((r) => r.excluded)).toHaveLength(0);
+    expect(before.csv).toMatch(/rows marked yes in transfer/i);
+    expect(before.csv).not.toContain('rows marked yes in excluded_from_totals');
+    // $85.00, the tile above, reached from the file by respecting one column.
+    expect(before.unmarkedOut).toBe(8_500);
+
+    // Now the reader excludes a row through the menu the register actually offers.
+    await rowFor(page, 'Whole Foods').getByTestId('txn-action-trigger').click();
+    await page.getByTestId('txn-action-excludeFromTotals').click();
+    await page.waitForURL('**/transactions**');
+    await expect(page.getByTestId('summary-out')).toHaveText('$45.00');
+
+    const after = await readCsv();
+    // The excluded row is still IN the file — the marker, not absence, is the disclosure,
+    // exactly as the badge is on screen.
+    expect(after.rows).toHaveLength(before.rows.length);
+    expect(after.rows.filter((r) => r.excluded)).toHaveLength(1);
+    expect(after.rows.find((r) => r.excluded)?.amountCents).toBe(-4_000);
+    // Both flags present ⇒ the note says both, in the shape that admits it.
+    expect(after.csv).toContain('rows marked yes in excluded_from_totals');
+    expect(after.csv).toMatch(/rows marked yes in transfer/i);
+    expect(after.csv).toContain('Both kinds are left out of');
+    // And the file's own basis note rides every one of these, unconditionally.
+    expect(after.csv).toContain('Note: this file lists transactions from your spending accounts');
+    // The measurement: $45.00 on the tile, $45.00 from the column, reached by respecting
+    // the two columns this slice added. Before it, the same sum was $85.00 against a tile
+    // reading $45.00 with nothing in the file to explain the difference.
+    expect(after.unmarkedOut).toBe(4_500);
+
+    // Leave the fixture as found — the tests in this file share one seeded user.
+    await rowFor(page, 'Whole Foods').getByTestId('txn-action-trigger').click();
+    await page.getByTestId('txn-action-excludeFromTotals').click();
+    await page.waitForURL('**/transactions**');
+    await expect(page.getByTestId('summary-out')).toHaveText('$85.00');
+  });
+
   test('the reimbursement tracker: awaiting → coach line → received → matched inflow', async ({
     page,
   }) => {

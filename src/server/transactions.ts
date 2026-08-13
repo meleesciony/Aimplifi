@@ -1977,8 +1977,11 @@ export async function getWithheldAccountSummary(userId: string): Promise<Withhel
  *
  * Only accounts that actually HAVE an exportable row count: a euro account with no transactions
  * costs the file nothing, and a note claiming rows are missing when none exist is the same
- * false alarm in the other direction (the U.19 rule — a reader with nothing withheld gets a
- * byte-identical file).
+ * false alarm in the other direction. That rule used to be stated here as "the U.19 rule — a
+ * reader with nothing withheld gets a byte-identical file"; U.25 retired the byte identity
+ * (every file now carries an unconditional basis note), and what survives is the part that was
+ * always the point: a disclosure fires on the fact it describes, never on the mere existence of
+ * the rule that could produce it.
  */
 export async function getWithheldRegisterAccountSummary(
   userId: string,

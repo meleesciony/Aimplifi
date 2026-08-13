@@ -4266,3 +4266,49 @@ route serving (the register-surface K.3 live check passes 7/7 against production
 including the pair-equality sentence K.4 preserves by construction) + the CI gate
 conclusion on the shipped sha; the behavioral proof is the e2e on the throwaway depth
 accounts.
+
+## U.25 + U.26 — the exported file states its basis and carries the register's two flags (2026-08-13)
+
+**What shipped.** The transactions CSV gained two unconditional columns —
+`excluded_from_totals` and `transfer` — read straight off the Prisma row, plus an
+unconditional note stating the file's basis and a conditional note explaining whichever
+of the two flags a given file actually contains. U.26 was opened by the U.23 money critic
+and MEASURED against a real database: three rows summing −$3,300.00 in the file against
+$100.00 of money out on the register, over the very same three rows. Row-set parity was
+intact (U.23 made the route run `registerRowWhere`); what the file could not carry was
+WHY two of its rows are in no figure the app prints.
+
+**Gate (local).** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0,
+eslint 0, **6,976 unit passed** (1 expected fail, 1 skipped, 422 files), `next build`
+clean, **348 e2e passed** (5.5m).
+
+**Critic cycle — two fresh contexts, both hostile, run against the finished slice.** They
+found ZERO defects in the columns, the arithmetic, the rectangular padding, the
+append-only position or the gate logic (money critic: financial correctness 9/10,
+structural integrity 10/10 across all 16 note branches with an adversarial account name
+and a formula-injection descriptor). **All six P1s were in the copy, and both critics
+executed the same one independently.** Fixed and locked, each with a named regression
+test: the basis note asserted omissions the reader may not have; "left out of the
+spending, income and net totals it shows" is false live on the demo (an auto-loan ACH
+marked `transfer,yes` is printed by /spending-plan as "CarMax Auto Finance $385.00/mo"
+inside a $3,096.72 Fixed figure); the transfer clause promised a counterpart row that
+need not exist; "Account balances count every row either way" is false for a hand-entered
+row; the excluded clause was not sign-neutral; and the equality clause ignored the
+household member's shared list and pagination. See DECISIONS #458 and
+`docs/lessons/an-unconditional-sentence-may-only-state-a-rule.md`.
+
+**Locks.** `tests/unit/u25-u26-export-basis-and-flags.test.ts` 22/22, including the
+critic's measurement rebuilt against a real Prisma DB and every row's mark asserted BY
+CONSTRUCTION against `getTransactions`; a new e2e in `action-menu.spec.ts` that drives the
+exclusion through the real action menu and measures the file's unmarked rows against the
+register's own tile ($85.00 → $45.00). FIVE sabotage proofs run and reverted (columns
+unmarked → 2 red; basis note suppressed → 10 red; note AND-gated → 5 red; direction
+clause restored → 2 red; the whole pre-critic first draft of both notes → 9 red).
+
+**Predecessor checks updated, not left to rot.** U.19's and U.23's live-deploy scripts
+both asserted the old header verbatim and would have failed the moment this deployed;
+both are re-scoped to the claim each still owns. `scripts/u25-live-deploy-check.mjs` is
+new, and unlike U.23's it has a real demo marker: the seed writes own-account transfers
+on the demo's checking and savings accounts, so the `transfer` column, its `yes` rows and
+the transfer shape of the note are all live-visible, and the central claim is measured on
+production data against the register's outflow tile.

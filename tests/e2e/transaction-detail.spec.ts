@@ -156,8 +156,11 @@ test('one transaction, one place: the bank text, the category, and a split the r
   // a decimal string, and a float sum of those strings is exactly the arithmetic the
   // app forbids itself (rule 3). Note this proves the SPLIT is counted once; it is
   // not a claim that the column equals the app's money-out on any ledger — rows the
-  // reader excluded from totals, and transfers, are in the file unmarked (filed as
-  // U.26), and this fixture deliberately contains neither.
+  // reader excluded from totals, and transfers, are also in the file, and this
+  // fixture deliberately contains neither. Since U.26 those rows at least CARRY
+  // their reason (`excluded_from_totals` / `transfer`), and the file says what the
+  // marks mean; the ledger where that is measured against the register's own tile
+  // is action-menu.spec.ts, whose fixture has both.
   const exportedOutCents = amounts
     .map((a) => Math.round(Number(a) * 100))
     .filter((c) => c < 0)

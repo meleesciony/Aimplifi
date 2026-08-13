@@ -30,12 +30,167 @@ export interface ExportTxn {
    * let the next export path ship the silence back in.
    */
   onHandoverDay: boolean;
+  /**
+   * The reader's own "this row is not my spending" flag (O.15), and the
+   * own-account transfer flag — the two facts `summarizeTransactions` uses to
+   * decide a row contributes NOTHING to the register's in/out/net tiles
+   * (`engine/transactions/query.ts`: transfers `continue` outright, excluded
+   * rows are counted and then skipped).
+   *
+   * REQUIRED for the reason `onHandoverDay` is, and U.26 is what that reason
+   * looks like when it is ignored: measured against a real database, one
+   * $100.00 purchase, one $1,200.00 row the reader had marked not-their-spending
+   * and one $2,000.00 transfer exported as three rows summing -$3,300.00 while
+   * the register — over the very same three rows — reported $100.00 of money
+   * out and said on screen that one row was excluded. Row-set parity (U.23) was
+   * intact; what the file could not do was carry WHY two of its rows are not in
+   * any figure the app shows. A reader summing the amount column got a number 33
+   * times the app's, with nothing in the file to explain the gap.
+   */
+  excludeFromTotals: boolean;
+  isTransfer: boolean;
+}
+
+/**
+ * The file's own basis (U.25), stated UNCONDITIONALLY.
+ *
+ * U.23 gave this file a note naming ONE reason it is incomplete — the currency
+ * withhold — and that note only appears for the rare reader who owns a non-USD
+ * account. Meanwhile the file omits every loan, mortgage, brokerage and
+ * investment row (#62), split PARENT containers, and rows the reconciliation
+ * keep disowns, for EVERY reader, saying nothing. A single enumerated omission
+ * reads as the complete list.
+ *
+ * Two things follow, and they are the whole design:
+ *
+ * 1. It is unconditional, because the fact is. Bolting a basis clause onto the
+ *    currency note would gate a truth about every reader's file behind the rare
+ *    condition of owning a euro account — the exact defect
+ *    `docs/lessons/a-disclosure-gated-to-the-loudest-branch-misses-the-reachable-one.md`
+ *    distilled from U.21 one session earlier. It costs U.19's "byte-identical
+ *    file for a reader with no combined accounts" property, knowingly: that
+ *    property was a statement about churn, and this is a statement about what
+ *    the reader is holding.
+ *
+ * 2. Every clause is a RULE about the file, and none is an assertion about the
+ *    reader's own data. This is the correction both critic passes forced, each
+ *    having executed it: the first draft ended "It does not cover every account
+ *    you hold, and it is not every transaction row Aimplifi has stored", which
+ *    is FALSE for a reader holding only spending accounts in dollars with no
+ *    splits — measured at 2 accounts of 2 and 3 rows of 3, and false for the
+ *    production demo's own file, where all 847 stored rows are exported. Being
+ *    unconditional is right for a rule and wrong for a claim about a reader:
+ *    making a per-reader fact unconditional is `a-disclosure-gated-to-the-loudest-branch`
+ *    with the sign flipped, and it is `scoping-the-number-does-not-scope-the-sentence`
+ *    again — where a clause must speak for every reader, state a rule with no
+ *    count and no claim of omission in it. Hence "whether or not you hold one".
+ *
+ *    The rule is also self-maintaining. Since U.23 this route and
+ *    `getTransactions` share `registerRowWhere` and the same R1 keep, with no
+ *    date window and no default filter on either side, so the equality clause is
+ *    true by construction and stays true when that clause changes. It is scoped
+ *    to "those accounts" because the Transactions page ALSO renders a household
+ *    member's shared rows (`transactions/page.tsx:270`), ungated by filters — a
+ *    superset this file does not carry — and it names every page of it because
+ *    the register paginates at 100 while the file does not.
+ *
+ *    The account types are glossed rather than left as "spending accounts". The
+ *    reader this note is written for may be an accountant holding the file with
+ *    no way to open the app (`a-disclosure-written-for-a-page-is-false-in-an-email`),
+ *    so the one clause they can act on must not be app jargon. The gloss is the
+ *    register page's own (`transactions/page.tsx:173`).
+ */
+const BASIS_CSV_NOTE =
+  'Note: this file lists transactions from your spending accounts — checking, savings and ' +
+  'credit cards. Accounts of any other kind are not represented here, whether or not you hold ' +
+  'one. Within those accounts, it holds the same rows Aimplifi shows on its Transactions page, ' +
+  'across every page of it, and no others.';
+
+/** Sentences written lowercase-initial, joined with the later ones capitalised. */
+function joinSentences(parts: readonly string[]): string {
+  return parts
+    .map((p, i) => (i === 0 ? p : p.charAt(0).toUpperCase() + p.slice(1)))
+    .join(' ');
+}
+
+/**
+ * The note for rows that are IN this file and in none of the app's money totals
+ * (U.26), or null when the file holds no such row.
+ *
+ * Conditional, and assembled from the flags actually present, because each
+ * sentence is a claim about a set: telling a reader that "rows marked yes in
+ * excluded_from_totals are ones you told us were not your spending" when they
+ * have never excluded a row sends them looking down a column of blanks for a
+ * marker that was never there.
+ *
+ * What it deliberately does NOT say:
+ *  - No direction. The flagged rows carry signed amounts, so "your sum will be
+ *    too high" is false for a reader whose excluded rows are refunds — the same
+ *    inverted-direction clause the U.19–U.22 critic caught executing backwards
+ *    on negative-net merchants. "Includes money those totals leave out" is true
+ *    whatever the signs are, and true even when they happen to cancel.
+ *  - No promise of equality. It does not tell the reader that dropping these
+ *    rows reproduces the app's figures: `changeover_day` can still double a row,
+ *    and a claim that two engines agree is exactly what
+ *    `a-link-on-a-figure-asserts-two-engines-agree` says must be earned rather
+ *    than asserted. The file states the fact; the arithmetic stays the reader's.
+ *  - NOT that the app leaves these rows out everywhere. The first draft said
+ *    "the spending, income and net totals it shows", and the money critic
+ *    executed the counterexample on the production demo's own data: an auto-loan
+ *    ACH is flagged `isTransfer`, and `recurring/detect.ts:416` deliberately
+ *    KEEPS it (`plan.ts:631` says so out loud), so /spending-plan prints
+ *    "CarMax Auto Finance $385.00/mo" as a named line inside a $3,096.72 Fixed
+ *    figure — 18 rows this file marks `transfer,yes`. The excluded side has the
+ *    same shape: the tax export keeps a row the reader both tagged and excluded,
+ *    because the tag is the later instruction (`exclude.ts:30-32`). So the
+ *    sentence names the THREE figures whose basis is `summarizeTransactions` —
+ *    the register's own tiles, which is exactly what these two flags gate — and
+ *    nothing wider.
+ *  - Not a claim that the money is fictional, and not the reverse either. The
+ *    first draft closed with "Account balances count every row either way",
+ *    which is false for a hand-entered row: `transactions/manual.ts:7` records
+ *    that a manual entry never rewrites a provider-authoritative balance, and
+ *    the register invites hand entry. "Still real transactions" carries the same
+ *    reassurance without asserting which figure counts them.
+ *  - No claim about a COUNTERPART. `isTransfer` is set by descriptor evidence
+ *    alone (`transfers.ts:139` via the `auto-loan` merchant category), so a
+ *    reader who never added their car loan has no other account for the money to
+ *    have moved to, and the first draft told them the matching row existed
+ *    somewhere. The flag is the app's judgement about a row, so the sentence
+ *    attributes it to the app rather than asserting the fact.
+ */
+export function excludedTransferCsvNote(rows: readonly ExportTxn[]): string | null {
+  const hasExcluded = rows.some((r) => r.excludeFromTotals);
+  const hasTransfer = rows.some((r) => r.isTransfer);
+  if (!hasExcluded && !hasTransfer) return null;
+  const sentences = [
+    hasExcluded
+      ? // The control's own label (`transaction-list.tsx` badge, the action menu),
+        // and sign-neutral: excluding is not gated on sign, so "you said this was
+        // not your spending" is wrong about an excluded refund.
+        'rows marked yes in excluded_from_totals are ones you marked "Exclude from totals" in ' +
+        'Aimplifi.'
+      : null,
+    hasTransfer
+      ? 'rows marked yes in transfer are ones Aimplifi treated as moving money between accounts ' +
+        'rather than as spending or income.'
+      : null,
+    `${hasExcluded && hasTransfer ? 'Both kinds are' : 'They are'} left out of the money-in, ` +
+      'money-out and net figures on Aimplifi\'s Transactions page, so a sum of the amount column ' +
+      'here includes money those three figures leave out. The rows are still real transactions, ' +
+      'and other parts of Aimplifi may count them.',
+  ].filter((s): s is string => s !== null);
+  return `Note: ${joinSentences(sentences)}`;
 }
 
 /**
  * The trailing note (U.19), emitted only when the file actually contains
- * released rows — a reader with no combined accounts gets a byte-identical file
- * to the one this export has always produced, minus the new empty column.
+ * released rows.
+ *
+ * It used to add that a reader with no combined accounts still received a
+ * byte-identical file. That stopped being true at U.25, deliberately: every file
+ * now ends with the unconditional basis note above, because a file whose shape
+ * never changes is worth less than a file that says what it is.
  *
  * Deliberately NOT the tax export's shape. That file opens with prose rows above
  * a blank line and its own table header, which is right for a summary a preparer
@@ -67,7 +222,13 @@ export function transactionsToCsv(
   // per reader, which breaks anything automated against the file silently and
   // only for some of them. An always-present column that is empty for everyone
   // else costs one character per row and keeps the file one shape.
-  const header = 'date,account,description,merchant,category,amount,status,changeover_day';
+  // U.26 appends its two columns rather than grouping them beside `amount`,
+  // where they read more naturally: a reader's saved script indexes this file by
+  // POSITION, and inserting a column mid-row silently re-points every one of
+  // those indexes at the wrong field. Appending can only add.
+  const header =
+    'date,account,description,merchant,category,amount,status,changeover_day,' +
+    'excluded_from_totals,transfer';
   const lines = rows.map((r) =>
     [
       r.date,
@@ -78,18 +239,27 @@ export function transactionsToCsv(
       (r.amountCents / 100).toFixed(2),
       r.status,
       r.onHandoverDay ? 'yes' : '',
+      r.excludeFromTotals ? 'yes' : '',
+      r.isTransfer ? 'yes' : '',
     ].join(','),
   );
   // Rectangular: each note occupies the first field and the rest are empty, so a
   // parser reading the file as a table still sees rows of the declared width
-  // rather than a ragged tail.
-  const noteRow = (text: string) => [csvField(text), '', '', '', '', '', '', ''].join(',');
-  // Fixed order, both conditional: the handover note describes rows that ARE in
-  // the file (the marked ones, so it belongs with the column it explains), the
-  // currency note describes rows that are NOT. A reader who triggers both gets
-  // them in the same order every time.
+  // rather than a ragged tail. Derived from the header rather than hand-counted
+  // (it was a literal array of eight empty strings until U.26 added the ninth
+  // and tenth columns): the padding and the schema cannot drift apart if only
+  // one of them is a number anyone can get wrong.
+  const width = header.split(',').length;
+  const noteRow = (text: string) => [csvField(text), ...Array(width - 1).fill('')].join(',');
+  // Fixed order, and the rule behind it: the basis note first because it frames
+  // the whole file, then the notes explaining a marked column in the order those
+  // columns appear, then the currency note last because it alone describes rows
+  // that are NOT here. A reader who triggers all four gets them the same way
+  // every time.
   const notes = [
+    BASIS_CSV_NOTE,
     rows.some((r) => r.onHandoverDay) ? HANDOVER_CSV_NOTE : null,
+    excludedTransferCsvNote(rows),
     withheldExportNote(withheld),
   ].filter((n): n is string => n !== null);
   return [header, ...lines, ...notes.map(noteRow)].join('\r\n') + '\r\n';
