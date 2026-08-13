@@ -146,3 +146,48 @@ export function withheldInlineNote(summary: WithheldAccountSummary): string | nu
     `Aimplifi doesn't convert other currencies yet.`
   );
 }
+
+/**
+ * The note for a FILE the guard withheld rows from (U.23) — the transactions CSV today.
+ *
+ * Its own author rather than a reuse of `withheldBannerCopy` or `withheldInlineNote`, because
+ * what this surface owes its reader is a different fact. Both siblings say a FIGURE excludes
+ * some accounts; a reader holding either sentence over a file of rows can reasonably conclude
+ * their rows are present and merely un-summarized. Here the rows themselves are absent, and the
+ * reader's next act — sum the amount column, or keep this file as their archive — is one the
+ * app never sees. So this note says the transactions are not in the file, in those words. (The
+ * same reason U.19/U.20 gave each handover surface its own author: a sibling's clause is false
+ * the moment the surface stops printing what the sibling described.)
+ *
+ * COUNT SCOPE, the thing both U.23 critics caught independently. This note's count comes from
+ * `getWithheldRegisterAccountSummary` — the accounts THIS FILE could have carried — while the
+ * banner counts every non-USD account the reader owns, of any type. So the two legitimately
+ * disagree: a reader with a euro checking account and a yen brokerage sees "2 accounts" on
+ * screen and one account named here, and both are right about their own subject. What the note
+ * therefore may NOT do is spend that scoped count on a claim about the app: the totals sentence
+ * below states the RULE, with no number in it, and every counted clause names this file.
+ *
+ * Copy follows the same guardrails as its siblings: educational, states the assumption (no FX)
+ * inline, no shame, no promised ship date, and — the #141 rule — "not in U.S. dollars" rather
+ * than "foreign", because crypto is a first-class withheld case and isn't foreign. "Saved" names
+ * Aimplifi explicitly: in a downloaded file, an unplaced "stays saved" can read as a promise
+ * about the file the reader is holding (`a-disclosure-written-for-a-page-is-false-in-an-email`).
+ */
+export function withheldExportNote(summary: WithheldAccountSummary): string | null {
+  if (summary.count === 0) return null;
+  const one = summary.count === 1;
+  const label = formatWithheldCurrencies(summary.currencies);
+  // The codes ride a parenthetical, so the opaque case can simply omit it: "one account that
+  // isn't in U.S. dollars" is the whole of what we can honestly say about a feed token, and
+  // "(other currencies)" after it would add nothing but noise.
+  const codes = label === 'other currencies' ? '' : ` (${label})`;
+  return (
+    `Note: this file leaves out ${one ? 'one account' : `${summary.count} accounts`} that ` +
+    `${one ? "isn't" : "aren't"} in U.S. dollars${codes}. Aimplifi can't convert other ` +
+    `currencies to U.S. dollars yet, so none of ${one ? 'its' : 'their'} transactions are in ` +
+    `this file — counting those transactions in a column of dollars at a one-to-one rate would ` +
+    `be inaccurate. Accounts that aren't in U.S. dollars are left out of Aimplifi's totals for ` +
+    `the same reason. Nothing is deleted: the ${one ? 'account' : 'accounts'} and ` +
+    `${one ? 'its' : 'their'} history stay saved in Aimplifi.`
+  );
+}

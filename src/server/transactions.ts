@@ -1960,6 +1960,51 @@ export async function getWithheldAccountSummary(userId: string): Promise<Withhel
 }
 
 /**
+ * What the currency guard withholds from the REGISTER'S basis — the disclosure input for the
+ * transactions CSV (U.23), which exports that basis and nothing else.
+ *
+ * Scoped, not the page-level summary above: a set carries the scope it was built for. The
+ * dashboard's summary counts every non-USD account the user has, including a euro brokerage —
+ * and a brokerage row is not in this file for a reason that has nothing to do with currency
+ * (#62), so announcing it as withheld FROM THIS FILE would be false. That is the same defect
+ * U.16's second critic cycle found on the panels and the reason the export route reads the
+ * account-scoped handover keys rather than the unscoped dates.
+ *
+ * Built as the literal COMPLEMENT of `registerAccountWhere`'s own currency clause — the guard
+ * expression is destructured out and negated, never retyped — so a change to what the register
+ * accepts moves the withhold and its disclosure in one step. `#141` made non-disagreement the
+ * design rule for this pair; here it is structural.
+ *
+ * Only accounts that actually HAVE an exportable row count: a euro account with no transactions
+ * costs the file nothing, and a note claiming rows are missing when none exist is the same
+ * false alarm in the other direction (the U.19 rule — a reader with nothing withheld gets a
+ * byte-identical file).
+ */
+export async function getWithheldRegisterAccountSummary(
+  userId: string,
+): Promise<WithheldAccountSummary> {
+  const { OR: currencyGuard, ...basis } = registerAccountWhere(userId);
+  const rows = await prisma.account.findMany({
+    // `basis` goes in WHOLE, as one AND member, rather than spread beside sibling keys. Spread
+    // into the same literal, any key it later gains that this clause also names — a `NOT`, an
+    // `AND` — would be silently overridden by the one written here, and TypeScript permits a
+    // later property to shadow a spread without a word. The register would then narrow while
+    // this set did not, and the note would start naming accounts the file never could have
+    // carried. Removing or renaming `OR` is already caught: the destructure above stops
+    // compiling.
+    where: {
+      AND: [
+        basis,
+        { NOT: { OR: currencyGuard } },
+        { transactions: { some: { isSplitParent: false } } },
+      ],
+    },
+    select: { currency: true },
+  });
+  return summarizeWithheldAccounts(rows);
+}
+
+/**
  * Accounts whose bank has STOPPED sharing them (TASKS L.14) — the dashboard's disclosure input.
  *
  * The mirror image of the currency guard above: those rows are withheld from the figures and the

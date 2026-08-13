@@ -450,3 +450,4 @@ refuses to write if it would drop any number this file already carries.
 - **#454** (Phase ?): U.13: no side owns the handover day, because the handover happens inside it (2026-08-12)
 - **#455** (Phase ?): U.16: the panel that certifies a figure must disclose the one thing it cannot see (2026-08-12)
 - **#456** (Phase ?): U.19–U.22: the last silent surfaces of the released day, closed as one slice because they share one set (2026-08-12)
+- **#457** (Phase ?): U.23: a claim of parity is a claim about an expression, and a withhold is not the end of the obligation (2026-08-12)

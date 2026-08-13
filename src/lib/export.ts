@@ -6,6 +6,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
 import { csvField } from '@/lib/csv';
 import { type Cents, cents, formatCents } from '@/lib/money';
 import { frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
+import { withheldExportNote, type WithheldAccountSummary } from '@/lib/providers/currency';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
 
 export interface ExportTxn {
@@ -49,7 +50,18 @@ const HANDOVER_CSV_NOTE =
   'transaction, it appears once for each. Nothing has been adjusted: dropping either side’s ' +
   'records would lose transactions only one connection saw.';
 
-export function transactionsToCsv(rows: readonly ExportTxn[]): string {
+/**
+ * @param withheld The accounts the currency guard (#135) kept OUT of `rows`, scoped to this
+ *   file's own basis. REQUIRED for the same reason `ExportTxn.onHandoverDay` is: this file
+ *   leaves the app, a reader sums its amount column in a spreadsheet, and the app never sees
+ *   the figure that produces. An optional parameter defaulting to "nothing withheld" is a
+ *   silence the next export path would ship back in (U.23). Pass `{ count: 0, currencies: [] }`
+ *   to state that nothing was withheld — never to avoid finding out.
+ */
+export function transactionsToCsv(
+  rows: readonly ExportTxn[],
+  withheld: WithheldAccountSummary,
+): string {
   // U.19: the column is UNCONDITIONAL, unlike the note below it. A column that
   // appears only for readers with a combined pair is a schema that changes shape
   // per reader, which breaks anything automated against the file silently and
@@ -68,13 +80,19 @@ export function transactionsToCsv(rows: readonly ExportTxn[]): string {
       r.onHandoverDay ? 'yes' : '',
     ].join(','),
   );
-  // Rectangular: the note occupies the first field and the rest are empty, so a
-  // parser reading the file as a table still sees one row of the declared width
+  // Rectangular: each note occupies the first field and the rest are empty, so a
+  // parser reading the file as a table still sees rows of the declared width
   // rather than a ragged tail.
-  const note = rows.some((r) => r.onHandoverDay)
-    ? [[csvField(HANDOVER_CSV_NOTE), '', '', '', '', '', '', ''].join(',')]
-    : [];
-  return [header, ...lines, ...note].join('\r\n') + '\r\n';
+  const noteRow = (text: string) => [csvField(text), '', '', '', '', '', '', ''].join(',');
+  // Fixed order, both conditional: the handover note describes rows that ARE in
+  // the file (the marked ones, so it belongs with the column it explains), the
+  // currency note describes rows that are NOT. A reader who triggers both gets
+  // them in the same order every time.
+  const notes = [
+    rows.some((r) => r.onHandoverDay) ? HANDOVER_CSV_NOTE : null,
+    withheldExportNote(withheld),
+  ].filter((n): n is string => n !== null);
+  return [header, ...lines, ...notes.map(noteRow)].join('\r\n') + '\r\n';
 }
 
 export interface NetWorthExportRow {

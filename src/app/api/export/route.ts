@@ -10,7 +10,7 @@ import { getDashboardData } from '@/server/finance';
 import { netWorthReportPdf, netWorthToCsv, transactionsToCsv } from '@/lib/export';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCategoryMeta } from '@/server/category-meta';
-import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { getWithheldRegisterAccountSummary, registerRowWhere } from '@/server/transactions';
 import {
   activeSupersededPredecessorIds,
   getReconciliationHandoverKeys,
@@ -36,8 +36,17 @@ export async function GET(request: NextRequest) {
 
   if (format === 'transactions-csv') {
     const rawTxns = await prisma.transaction.findMany({
-      // Transactions = spending (bank + cards); brokerage/loan activity excluded (#62).
-      where: { account: { userId, type: { in: [...SPENDING_ACCOUNT_TYPES] } } },
+      // THE REGISTER'S OWN CLAUSE, not a copy of it (U.23). This route used to build its
+      // own — spending accounts (#62) and nothing else — while claiming below that "the
+      // exported ledger must match the in-app register", and it did not: the clause was
+      // missing `isSplitParent: false`, so every split shipped as the parent CONTAINER
+      // plus its children and a reader summing the amount column counted it twice, and it
+      // was missing the currency guard (#135), so rows the register withholds for having
+      // no exchange rate landed unlabelled in a column of dollars. Measured on the repro
+      // that opened U.23: 4 rows / -$299.00 exported against the register's 2 / -$100.00.
+      // Sharing the expression is what makes the claim true by construction — a second
+      // copy is how a reader starts disagreeing with the register (H.8).
+      where: registerRowWhere(userId),
       // Join the category as a BACKSTOP only. The name that ships is resolved
       // below through the reader's own merged meta, because a built-in category
       // they renamed (O.17) keeps the canonical `Category.name` in the DB — the
@@ -61,6 +70,13 @@ export async function GET(request: NextRequest) {
     // The reader's own vocabulary: their custom categories plus any built-in they
     // renamed. Same resolver the register, reports and Ask read.
     const categoryMeta = await getCategoryMeta(userId);
+    // What the currency guard above just kept out of this file, scoped to the file's own
+    // basis (U.23). The guard is the right call — the app does no FX and a converted figure
+    // would be invented — but a reader whose euro account simply is not here, with nothing
+    // saying so, would take this file for their complete ledger. The app already refuses
+    // that silence on screen (#141 banner, #150 inline note); a file that leaves the app
+    // entirely is the last place it should be allowed back in.
+    const withheld = await getWithheldRegisterAccountSummary(userId);
     const txns = rawTxns.filter((t) => keepsReconciled(t.accountId, t.date));
     const csv = transactionsToCsv(
       txns.map((t) => ({
@@ -75,6 +91,7 @@ export async function GET(request: NextRequest) {
         status: t.status,
         onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)),
       })),
+      withheld,
     );
     await auditLog(userId, 'export.transactions.csv', { rows: txns.length });
     return new NextResponse(csv, {

@@ -6702,3 +6702,73 @@ withholds; measured at 4 rows/−$299.00 exported for a register showing 2 rows/
 **U.24** (/calendar sums both released copies through a lean row shape that cannot carry the
 flag, so its `countedOnHandoverDays` is a structural zero — the "next row-building path
 reintroduces the silence" the TxnView docstring warns about, already shipped).
+
+## #457 — U.23: a claim of parity is a claim about an expression, and a withhold is not the end of the obligation (2026-08-12)
+
+**Context.** U.19 certified the transactions CSV as disclosing the one deliberate double it can
+contain (the released changeover day) — and the U.19–U.22 money critic then found, executed
+against a real database, that the same file shipped a larger, silent double: 4 rows summing
+−$299.00 out of a ledger the register shows as 2 rows / −$100.00. The route built its OWN
+where-clause three lines above a comment claiming "the exported ledger must match the in-app
+register". It was missing `isSplitParent: false`, so the split PARENT — the row the schema calls
+"excluded from ALL sums" — exported beside the children that carry the real amounts; and missing
+the #135 currency guard, so rows the register withholds for having no exchange rate shipped
+unlabelled in a column of dollars.
+
+**The rows: the register's own clause, not a copy of it.** `where: registerRowWhere(userId)`.
+Both defects were one expression apart, and the fix is not "add the two missing keys" but "stop
+having a second clause": a copy is how a reader starts disagreeing with the register (H.8), and
+the parity comment was true as an intention and false as code. The export's remaining filter —
+the R1 reconciliation keep — was already shared, which is exactly why it did not drift.
+
+**The currency question the task row left open — a column, or the guard?** The task filed it
+undecided: should non-USD rows export with a currency column instead of vanishing? Decided:
+**they do not export.** #135 withholds non-USD accounts from every money surface because the app
+does no FX, and a currency column would make this file the one place unconverted foreign money
+appears, contradicting the decision it would be implementing. The header therefore does not move
+— which also keeps U.19's live-deploy header check valid, unedited.
+
+**But a withhold that reaches a file must be disclosed IN the file.** #141 and #150 already
+established that this guard may not act silently on screen (banner, inline note). A file leaves
+the app entirely: the reader sums its amount column in a spreadsheet and the app never sees the
+figure that produces, so it is the last place the silence is affordable. Hence
+`withheldExportNote` — its own author, because both siblings say a FIGURE excludes some accounts,
+and a reader holding that sentence over a file of rows can conclude their rows are present and
+merely un-summarised. This one says the transactions are not in the file, in those words.
+
+**Its input is scoped to the file, and the disclosure is built as the withhold's literal
+complement.** `getWithheldRegisterAccountSummary` destructures `registerAccountWhere`'s own
+currency clause and negates it — never retypes it — and passes the rest of the basis in WHOLE as
+one `AND` member, so a key that clause later gains cannot be silently shadowed by the negation
+written beside it. Scoped to spending accounts holding an exportable row, because a set carries
+the scope it was built for: the dashboard's summary counts a euro brokerage too, and a brokerage
+row is out of this file for a reason that has nothing to do with currency (#62). An empty euro
+account produces no note at all — the U.19 byte-identity rule in the other direction.
+
+**Two critics, two fresh contexts, and they found the same P1 independently.** The note's count
+is FILE-scoped while one of its clauses claimed the APP: "an account in EUR is left out of every
+total the app shows" is false for a reader who also owns a yen brokerage, whose screens correctly
+say "2 accounts" — the disclosure family's own non-disagreement rule (#141), broken inside the
+author written to honour it, and locked in by the slice's own test. Fixed by making the totals
+sentence a RULE carrying no number ("Accounts that aren't in U.S. dollars are left out of
+Aimplifi's totals for the same reason") while every counted clause names this file;
+`regression__u23_totals_clause_states_a_rule_not_a_count` asserts the rule sentence contains no
+digit. Also executed: "stay saved" now names Aimplifi (in a downloaded file, an unplaced promise
+of persistence acquires the file as a second referent); the currency codes moved to a
+parenthetical the opaque case simply omits; one account is named once, definitely; "counting
+them" became "counting those transactions in a column of dollars".
+
+**Filed with executed evidence, not fixed here.** **U.25** — the file names one of the four
+reasons it is incomplete; a basis clause bolted onto the currency note would gate a fact true for
+every reader behind the rare condition of owning a non-USD account, which is last session's
+`a-disclosure-gated-to-the-loudest-branch` defect exactly, so where the basis belongs needs
+deciding first. **U.26** — MEASURED this session: one purchase, one reader-excluded row and one
+transfer export as 3 rows summing −$3,300.00 while the register reports $100.00 of money out for
+the same three rows, because the file carries no `excluded` and no `transfer` column; row-set
+parity is intact, so this is the column's legibility, not U.23's clause. **U.27** — currency copy
+drift and the shared "EUR and others" phrase.
+
+**Gate.** `bash scripts/verify.sh` with `VERIFY_E2E=1`; 19 new locks in
+`tests/unit/u23-export-register-parity.test.ts`, both halves proven fail-old by sabotage (old
+clause → 5 red at the exact 4-rows/−$299.00 shape; suppressed note → 4 red), plus the existing UI
+split e2e extended to sum the exported file.

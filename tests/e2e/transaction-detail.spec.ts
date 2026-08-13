@@ -132,6 +132,40 @@ test('one transaction, one place: the bank text, the category, and a split the r
   // …and the money is conserved to the cent. A split re-files spending; it never
   // creates or destroys any.
   await expect(page.getByTestId('summary-out')).toHaveText(outBefore, { timeout: 20000 });
+
+  // (3) U.23 — the SAME conservation, in the file that leaves the app. The register
+  // stopped showing the container above; until this slice the CSV still shipped it
+  // beside its children, so a reader who exported this exact ledger and summed the
+  // amount column in a spreadsheet got $212.40 of spending that never happened —
+  // and the app never sees the figure its own file produced.
+  const csv = await (await page.request.get('/api/export?format=transactions-csv')).text();
+  const amounts = csv
+    .split('\r\n')
+    .slice(1)
+    .filter((l) => l.length > 0 && !l.startsWith('"Note:'))
+    .map((l) => l.split(',')[5]);
+  expect(amounts).toContain('-12.40');
+  expect(amounts).toContain('-200.00');
+  // The container, by its amount: present in the file = every split counted twice.
+  expect(amounts).not.toContain('-212.40');
+  // The column sums to the two purchases this test entered, and not a cent more —
+  // measured against the spec's own inputs rather than the seed. The old clause
+  // summed -443.45 here, the container counted beside its own children.
+  //
+  // In integer cents: this file's amount column is the boundary where money becomes
+  // a decimal string, and a float sum of those strings is exactly the arithmetic the
+  // app forbids itself (rule 3). Note this proves the SPLIT is counted once; it is
+  // not a claim that the column equals the app's money-out on any ledger — rows the
+  // reader excluded from totals, and transfers, are in the file unmarked (filed as
+  // U.26), and this fixture deliberately contains neither.
+  const exportedOutCents = amounts
+    .map((a) => Math.round(Number(a) * 100))
+    .filter((c) => c < 0)
+    .reduce((a, b) => a + b, 0);
+  const enteredCents = [PURCHASE.amount, OTHER.amount]
+    .map((a) => Math.round(Number(a) * 100))
+    .reduce((a, b) => a + b, 0);
+  expect(exportedOutCents).toBe(-enteredCents);
 });
 
 /**

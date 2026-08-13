@@ -3534,3 +3534,40 @@ archive U.19–U.22 task rows, ship (commit/push/CI gate/deploy/live check 17-17
 same script scored 16/1 pre-deploy with exactly the discriminating CSV-header check failing —
 this slice's live check can discriminate the build (first in the family), and it did. U.16's
 proof re-run: 13/13. U.13's: 6/6. Neither predecessor regressed.
+
+## U.23 — the transactions CSV exports the register's basis (2026-08-12, this session)
+
+**Task:** TASKS U.23, filed by the U.19–U.22 money critic with executed evidence: the export
+route's own where-clause double-counted every split (parent AND children) and shipped non-USD
+rows the register withholds. Measured 4 rows / −$299.00 exported vs the register's 2 / −$100.00.
+
+**Decision (the one the task row left open — whether non-USD rows should export with a currency
+column instead of vanishing): they do NOT get a column; the file adopts the register's clause
+whole and DISCLOSES the withhold instead.** Rationale: DECISIONS #135 withholds non-USD accounts
+from every money surface because the app does no FX, and #141/#150 already built the disclosure
+family for exactly that withhold (banner + inline note). A currency column would make this file
+the ONE surface that shows unconverted foreign money, contradicting #135; and a second
+where-clause is how a reader starts disagreeing with the register (H.8). So: one author for the
+rows (`registerRowWhere`), one more author for the copy, no new column, header unchanged — which
+also keeps U.19's live-deploy header check valid unmodified.
+
+**Done in tree:**
+- `route.ts`: `where: registerRowWhere(userId)`; the stale hand-built clause and its now-unused
+  `SPENDING_ACCOUNT_TYPES` import are gone; `getWithheldRegisterAccountSummary` feeds the note.
+- `server/transactions.ts`: `getWithheldRegisterAccountSummary` — the literal complement of
+  `registerAccountWhere`'s currency clause (destructured and negated, never retyped), scoped to
+  spending accounts that actually hold an exportable row.
+- `currency.ts`: `withheldExportNote` — a fourth author, because the siblings say a FIGURE
+  excludes accounts and this surface must say the transactions are not IN THE FILE.
+- `export.ts`: second parameter REQUIRED (the U.19 `onHandoverDay` precedent); two notes can
+  ride one file, fixed order, each rectangular.
+- Fixtures updated at all 8 call sites tsc enumerated (4 test files).
+- NEW LOCKS: `tests/unit/u23-export-register-parity.test.ts` 17/17, incl. parity asserted BY
+  CONSTRUCTION against `getTransactions` and the brokerage-scope trap; `transaction-detail.spec.ts`
+  extends the existing UI split with the exported file.
+- REGRESSION_LEDGER row appended.
+- SABOTAGE PROOFS run and reverted: old where-clause → 5 red with the exact 4-rows/−$299.00
+  shape; suppressed note → 4 red.
+
+**Next:** read the two fresh-context critics (money + rendered claims), fix, then verify.sh
+VERIFY_E2E=1 (running), docs (DECISIONS/STATUS/TASKS), ship per rule 5.

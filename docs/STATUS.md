@@ -6,6 +6,70 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-12 — U.23: the exported ledger becomes the register's, and says what the currency guard kept out of it (DECISIONS #457)
+
+**Shipped.** The transactions CSV route built its OWN Prisma where-clause three lines above a
+comment claiming "the exported ledger must match the in-app register", and it did not: missing
+`isSplitParent: false`, so every split shipped as the parent CONTAINER — the row the schema calls
+"excluded from ALL sums" — beside the children carrying the real amounts, and missing the #135
+currency guard, so rows the register withholds for having no exchange rate landed unlabelled in a
+column of dollars. Measured on the repro that opened U.23: **4 rows / −$299.00 exported against
+the register's 2 / −$100.00.** Fixed by deleting the second clause rather than patching it —
+`where: registerRowWhere(userId)`, the register's own expression, so the parity claim is true by
+construction (H.8).
+
+**The open question in the task row — a currency column, or the guard? — decided: the guard.**
+#135 withholds non-USD accounts from every money surface because the app does no FX, and a
+currency column would make this file the one place unconverted foreign money appears,
+contradicting the decision it would implement. The header therefore does not move, which also
+keeps U.19's live-deploy header check valid unedited. But the withhold is disclosed IN the file:
+`withheldExportNote`, its own author, because both siblings (#141 banner, #150 inline note) say a
+FIGURE excludes accounts and a reader holding that over a file of rows can conclude their rows
+are present and merely un-summarised. Its input, `getWithheldRegisterAccountSummary`, is the
+literal complement of `registerAccountWhere`'s own currency clause — destructured and negated,
+with the rest of the basis passed WHOLE as one `AND` member so a key that clause later gains
+cannot be silently shadowed — scoped to spending accounts holding an exportable row. An empty
+euro account produces no note (the U.19 byte-identity rule, in the other direction).
+`transactionsToCsv`'s second parameter is REQUIRED, never optional-defaulting-to-silence.
+
+**Critic cycle: two fresh contexts, and they produced the SAME P1 independently.** The note's
+count is FILE-scoped while one clause claimed the APP — "an account in EUR is left out of every
+total the app shows" is false for a reader who also owns a yen brokerage, whose screens correctly
+say "2 accounts" — the family's own non-disagreement rule (#141) broken inside the author written
+to honour it, and locked in by the slice's own test. Now the totals sentence states a RULE
+carrying no number and every counted clause names this file. Also executed: "stay saved" names
+Aimplifi (in a downloaded file an unplaced promise of persistence acquires the file as a second
+referent); the currency codes moved to a parenthetical the opaque-token case omits entirely; one
+account is named once, definitely; "counting them" → "counting those transactions in a column of
+dollars"; the `AND`-wrapped where-clause (a future `NOT` on the register's basis would have been
+silently shadowed); the parity test's page-size cap asserted rather than assumed; the route test
+clears its own rate-limit key (the eleventh export would have failed as a 429 and read as a
+parity defect); the new e2e assertion moved to integer cents. Lesson distilled:
+`scoping-the-number-does-not-scope-the-sentence`.
+
+**Filed with executed evidence, not fixed here. U.25** — the file names one of the four reasons
+it is incomplete (loans/mortgages/brokerage rows, split parents and R1-disowned rows are omitted
+silently); deliberately deferred because bolting a basis clause onto the currency note would gate
+a fact true for EVERY reader behind the rare condition of owning a non-USD account, which is last
+session's `a-disclosure-gated-to-the-loudest-branch` defect exactly — where the basis belongs
+needs deciding first. **U.26 — MEASURED this session against a real Prisma DB:** one $100.00
+purchase, one $1,200.00 row the reader marked "not my spending" and one $2,000.00 transfer export
+as **3 rows summing −$3,300.00** while `TxnSummary` reports **$100.00** of money out for the same
+three rows (`excludedCount: 1` — the register knows and badges it). Row-set parity is intact, so
+this is the column's legibility, not U.23's clause: the file carries no `excluded` and no
+`transfer` column and emits no note, so the one act it exists for cannot reproduce any figure in
+the app. **U.27** — currency copy drift ("US dollars" in four other authors) and the shared
+"EUR and others" phrase.
+
+**Gate.** `bash scripts/verify.sh` with `VERIFY_E2E=1` → **✅ VERIFY GREEN** (exit 0): tsc 0 /
+eslint 0 / **6,954 passed + 1 expected fail + 1 skipped / 421 files passed + 1 skipped** / build
+clean (compiled in 13.7s, 42/42 static pages) / **346 e2e passed, 2 flaky-passed-on-retry**
+(`register-return:119`, `transactions:295` — both [mobile-380], both documented members of the
+recorded 4-worker timing-flake class, in specs this slice does not touch; the slice's own
+extended e2e `transaction-detail.spec.ts:65` passed in 6.5s). 19 locks in
+`tests/unit/u23-export-register-parity.test.ts`, both halves proven fail-old by sabotage: the old
+where-clause reddened 5 at the exact 4-rows/−$299.00 shape, and suppressing the note reddened 4.
+
 ## ✅ BUILT 2026-08-12 — U.19–U.22: the last silent surfaces of the released day, closed as one slice (DECISIONS #456)
 
 **Session note:** the building session's PowerShell window died mid-slice; this entry's work was

@@ -201,7 +201,7 @@ describe('CSV export', () => {
         status: 'POSTED',
         onHandoverDay: false,
       },
-    ]);
+    ], { count: 0, currencies: [] });
     expect(csv).toContain('"SQ *BLUE BOTTLE, ""OAK"""');
     expect(csv).toContain('-6.75');
     // U.19: `changeover_day` is UNCONDITIONAL — one schema for every reader.

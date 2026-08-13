@@ -60,6 +60,13 @@ const KEYS = new Set([handoverKey(PRED, HANDOVER), handoverKey(SUCC, HANDOVER)])
 
 // ─── U.19: the transactions CSV ──────────────────────────────────────────────
 
+/**
+ * U.19's cases are about the changeover disclosure only — this reader has no account the
+ * currency guard withholds, so the U.23 note stays silent and these files keep the exact
+ * shape U.19 locked. The U.23 locks assert the interaction from the other side.
+ */
+const NONE_WITHHELD = { count: 0, currencies: [] };
+
 const csvRow = (over: Partial<ExportTxn> = {}): ExportTxn => ({
   date: '2026-07-10',
   account: 'Checking',
@@ -77,7 +84,7 @@ describe('U.19 — the transactions CSV carries the changeover column and, when 
     // A column that appears only for readers with a combined pair is a file
     // whose shape depends on who exported it — anything automated against it
     // breaks silently, and only for some readers.
-    const out = transactionsToCsv([csvRow()]);
+    const out = transactionsToCsv([csvRow()], NONE_WITHHELD);
     const lines = out.split('\r\n');
     expect(lines[0]).toBe('date,account,description,merchant,category,amount,status,changeover_day');
     // Unmarked row: the field is present and empty.
@@ -86,7 +93,7 @@ describe('U.19 — the transactions CSV carries the changeover column and, when 
   });
 
   it('a reader with no combined accounts gets no note row — the file stays a plain table', () => {
-    const out = transactionsToCsv([csvRow(), csvRow({ date: '2026-07-11' })]);
+    const out = transactionsToCsv([csvRow(), csvRow({ date: '2026-07-11' })], NONE_WITHHELD);
     const lines = out.split('\r\n');
     // header + 2 rows + trailing '' from the final CRLF. Nothing else.
     expect(lines).toHaveLength(4);
@@ -94,7 +101,7 @@ describe('U.19 — the transactions CSV carries the changeover column and, when 
   });
 
   it('a released row is marked yes, and the note rides the END of the file, rectangular', () => {
-    const out = transactionsToCsv([csvRow(), csvRow({ date: HANDOVER, onHandoverDay: true })]);
+    const out = transactionsToCsv([csvRow(), csvRow({ date: HANDOVER, onHandoverDay: true })], NONE_WITHHELD);
     const lines = out.split('\r\n');
     expect(lines[2].endsWith(',yes')).toBe(true);
     const note = lines[lines.length - 2];
@@ -106,7 +113,7 @@ describe('U.19 — the transactions CSV carries the changeover column and, when 
   });
 
   it('the note says only what is true in every shape', () => {
-    const out = transactionsToCsv([csvRow({ date: HANDOVER, onHandoverDay: true })]);
+    const out = transactionsToCsv([csvRow({ date: HANDOVER, onHandoverDay: true })], NONE_WITHHELD);
     // regression__u16_tax_csv_said_twice: "counted twice" is false at
     // multiplicity >= 3 (a chain sharing one cutover releases the date at every
     // generation). "Once for each" is true at every multiplicity.

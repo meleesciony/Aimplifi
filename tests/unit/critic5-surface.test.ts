@@ -23,6 +23,9 @@ import type { CardObligation } from '@/lib/engine/cash-needed/types';
 import { cents, type Cents } from '@/lib/money';
 import { holidayTable, isoDate } from '@/lib/dates';
 
+/** These cases are about quoting, not disclosure: this reader has no withheld account (U.23). */
+const NONE_WITHHELD = { count: 0, currencies: [] };
+
 function row(over: Partial<ExportTxn>): ExportTxn {
   return {
     date: '2026-06-01',
@@ -39,22 +42,22 @@ function row(over: Partial<ExportTxn>): ExportTxn {
 
 describe('critic5: CSV export quoting + formula injection', () => {
   it('RFC-4180: commas/quotes/newlines are quoted and doubled', () => {
-    const csv = transactionsToCsv([row({ rawDescriptor: 'A, "B"\nC' })]);
+    const csv = transactionsToCsv([row({ rawDescriptor: 'A, "B"\nC' })], NONE_WITHHELD);
     expect(csv).toContain('"A, ""B""\nC"');
   });
 
   it('formula injection neutralized: leading = gets an apostrophe prefix (critic P2-1, fixed)', () => {
-    const csv = transactionsToCsv([row({ rawDescriptor: '=SUM(A1:A9)' })]);
+    const csv = transactionsToCsv([row({ rawDescriptor: '=SUM(A1:A9)' })], NONE_WITHHELD);
     const line = csv.split('\r\n')[1];
     expect(line).toContain(",'=SUM(A1:A9),");
     expect(line).not.toContain(',=SUM');
   });
 
   it('formula injection neutralized: leading + and @ too (critic P2-1, fixed)', () => {
-    const csv = transactionsToCsv([
-      row({ rawDescriptor: '+1-CMD|calc' }),
-      row({ rawDescriptor: '@evil()' }),
-    ]);
+    const csv = transactionsToCsv(
+      [row({ rawDescriptor: '+1-CMD|calc' }), row({ rawDescriptor: '@evil()' })],
+      NONE_WITHHELD,
+    );
     expect(csv).toContain(",'+1-CMD|calc,");
     expect(csv).toContain(",'@evil(),");
     expect(csv).not.toMatch(/,[=+@]/);
