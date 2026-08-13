@@ -2,6 +2,30 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-13 — U.32: /calendar's per-day marker was gated on money, not the fact (DECISIONS #464)
+
+**Picked up from the queue** (opened by both U.24 critics, same family as U.30/U.31). The day
+tile's flat counts have no released-day awareness, and the only per-day changeover marker was
+gated on the money-scoped `countedOnHandoverDays` — so a released day whose only duplicated rows
+were transfers/excluded/$0 doubled a count silently, with no changeover vocabulary anywhere.
+
+**Shipped.** New `handoverRowCount` (raw, type-unaware) widens the marker's gate — safe since the
+marker's claim is unconditionally true regardless of money movement. Closing basis caption gained
+an unconditional released-day clause matching its own always-shown-rule voice. Month sentence
+deliberately left money-scoped and silent on a transfer-only day — correct, not a residual.
+
+**Locked.** Unit: two existing tests extended, proving the two counts genuinely differ (3 vs 0 on
+a transfer/excluded/$0 fixture). E2E: new fixture + test (a released transfer-only day shows BOTH
+`cal-posted-nonmoney` and the marker, month sentence stays silent, caption clause present); the
+control test gained a positive assertion that the caption clause is unconditional.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: e2e **349 passed, 4
+flaky-passed-on-retry** (all documented K.10 contention-class members — `action-menu.spec.ts:391`,
+`category-rename.spec.ts:110`, `transactions.spec.ts:735`, `transactions.spec.ts:1014` — none
+touching calendar/reconciliation code). tsc 0, eslint 0, unit 6,995 passed. No `prisma/` diff.
+
+**Next: push, read the CI gate, confirm Vercel, then record the SHIPPED-live paragraph.**
+
 ## 2026-08-13 — U.31: the reconciliation link table's double-read, at six sites not two (DECISIONS #463)
 
 **Picked up from the queue** (opened by the U.24 critic; U.31 was the next small, non-money-labeled

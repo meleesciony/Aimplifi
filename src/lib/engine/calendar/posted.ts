@@ -88,6 +88,18 @@ export interface PostedCalendarDay {
    * figure applies after is a disclosure about money that did not move).
    */
   countedOnHandoverDays: number;
+  /**
+   * U.32: the RAW count of rows on this day the boundary released to both sides
+   * — transfers, reader-excluded and $0 rows included, unlike `countedOnHandoverDays`
+   * above. `count`/`transferCount`/`excludedCount` are flat totals with no
+   * released-day awareness at all, so a day whose only duplicated rows are
+   * transfers, excluded or $0 printed a doubled count with no changeover
+   * vocabulary anywhere on the page — `countedOnHandoverDays` was 0 there by
+   * design (it only counts what the money figures sum), so the per-day marker
+   * gated on it stayed silent too. This field lets that marker answer "was ANY
+   * row on this day released", independent of whether it moved a tile.
+   */
+  handoverRowCount: number;
 }
 
 /**
@@ -208,6 +220,7 @@ export function buildPostedCalendarMonth(params: {
       transferCount: dayRows.filter((r) => r.isTransfer).length,
       excludedCount: s.excludedCount,
       countedOnHandoverDays: s.countedOnHandoverDays,
+      handoverRowCount: dayRows.filter((r) => r.onHandoverDay).length,
     };
   });
   const total = summarizeTransactions(rows);

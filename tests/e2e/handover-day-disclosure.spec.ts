@@ -304,6 +304,95 @@ test('U.24: /calendar discloses the released day inside its money tiles, and mar
   await expect(page.getByTestId('cal-posted-handover-day')).toHaveCount(1);
 });
 
+/**
+ * A released handover day whose only duplicated rows are TRANSFERS — money moves no tile
+ * (transfers leave every total), so `countedOnHandoverDays` stays 0 and the money-scoped
+ * `cal-handover-note` month sentence correctly says nothing. Before U.32 the per-day marker
+ * was gated on that same money-scoped count, so this exact shape — a doubled row COUNT with
+ * zero changeover vocabulary anywhere on the page — was the defect.
+ */
+function seedHandoverDayTransferOnly(email: string) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
+    if (!user) throw new Error(`seedHandoverDayTransferOnly: user ${email} not found`);
+    const uid = user.id;
+    const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    const pred = `e2e-hot-pred-${suffix}`;
+    const succ = `e2e-hot-succ-${suffix}`;
+    const itemId = `e2e-hot-item-${suffix}`;
+
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, name, type, mask, currentBalanceCents, currency)
+       VALUES (?, ?, 'simplefin', ?, 'Savings', 'SAVINGS', NULL, 800000, 'USD')`,
+    ).run(pred, uid, `sf-hot-${suffix}`);
+    db.prepare(`INSERT INTO PlaidItem (id, userId, itemId, accessToken) VALUES (?, ?, ?, 'ct-e2e')`).run(
+      `e2e-hot-item-row-${suffix}`,
+      uid,
+      itemId,
+    );
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, plaidItemId, name, type, mask, currentBalanceCents, currency)
+       VALUES (?, ?, 'plaid', ?, ?, 'Savings', 'SAVINGS', '9911', 810000, 'USD')`,
+    ).run(succ, uid, `pl-hot-${suffix}`, itemId);
+
+    db.prepare(
+      `INSERT INTO AccountReconciliation
+         (id, userId, predecessorAccountId, successorAccountId, cutoverDate, matchSignal, confidence, confirmedByUserAt)
+       VALUES (?, ?, ?, ?, ?, 'name', 'high', CURRENT_TIMESTAMP)`,
+    ).run(`e2e-hot-link-${suffix}`, uid, pred, succ, TODAY);
+
+    // A transfer both connections reported on the released day — real, released, but moves
+    // NO tile (transfers leave every money figure) and money-scoped counts stay 0.
+    db.prepare(
+      `INSERT INTO "Transaction"
+         (id, accountId, date, amountCents, rawDescriptor, categoryId, status, isTransfer, isSplitParent)
+       VALUES (?, ?, ?, ?, ?, 'transfer', 'POSTED', 1, 0)`,
+    ).run(`e2e-hot-p-${suffix}`, pred, TODAY, -20_000, 'TRANSFER TO CHECKING');
+    db.prepare(
+      `INSERT INTO "Transaction"
+         (id, accountId, date, amountCents, rawDescriptor, categoryId, status, isTransfer, isSplitParent)
+       VALUES (?, ?, ?, ?, ?, 'transfer', 'POSTED', 1, 0)`,
+    ).run(`e2e-hot-s-${suffix}`, succ, TODAY, -20_000, 'TRANSFER TO CHECKING');
+  } finally {
+    db.close();
+  }
+}
+
+test('U.32: a released day whose only duplicates are transfers still marks the day and the caption names the rule', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedHandoverDayTransferOnly(email);
+
+  await page.goto('/calendar');
+  await expect(page.getByTestId('calendar-list')).toBeVisible({ timeout: 20_000 });
+  const dayTile = page.getByTestId('calendar-list').locator('li', { hasText: 'today' }).first();
+
+  // Money is genuinely untouched by this day — both rows are transfers, so no tile moves and
+  // `cal-posted-nonmoney` explains the resulting $0.00 net the ordinary way.
+  await expect(dayTile.getByTestId('cal-posted-nonmoney')).toContainText('2 transfers between your accounts');
+  // THE LOCK: before U.32 this marker was gated on the day's money-summed count, which is 0
+  // for an all-transfer released day — so it stayed silent here even though the day genuinely
+  // is a released handover day. It must now fire.
+  await expect(dayTile.getByTestId('cal-posted-handover-day')).toBeVisible();
+  await expect(dayTile.getByTestId('cal-posted-handover-day')).toContainText(
+    'both connections’ records are kept for this day',
+  );
+
+  // The MONTH sentence stays money-scoped and correctly silent: no money moved, so "these
+  // amounts count it once for each" would be a claim about a figure that isn't affected.
+  await expect(page.getByTestId('cal-handover-note')).toHaveCount(0);
+
+  // THE OTHER LOCK: the closing basis caption now states the rule unconditionally, the same
+  // family sentence in its own voice, regardless of whether today's month happens to hold a
+  // released day.
+  await expect(page.getByTestId('cal-basis-handover-note')).toContainText(
+    'keeps both connections’ records rather than dropping either',
+  );
+});
+
 test('U.30: the dashboard Recent transactions card marks the released day rows too', async ({
   page,
 }) => {
@@ -379,6 +468,10 @@ test('a reader with no combined accounts is told nothing about handover days', a
   await expect(page.getByTestId('calendar-list')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('cal-handover-note')).toHaveCount(0);
   await expect(page.getByTestId('cal-posted-handover-day')).toHaveCount(0);
+  // U.32: the closing basis caption's rule clause is UNCONDITIONAL — this reader has no
+  // combined accounts at all, and it still renders, exactly like every other rule the same
+  // paragraph states regardless of whether it currently applies (pending charges, due badges).
+  await expect(page.getByTestId('cal-basis-handover-note')).toBeVisible();
 
   // U.30: the dashboard's Recent transactions card shows no marker either.
   await page.goto('/dashboard');

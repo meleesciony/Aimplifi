@@ -457,3 +457,4 @@ refuses to write if it would drop any number this file already carries.
 - **#461** (Phase ?): U.24: the calendar was the last surface counting the released day in silence, and the marker it first drew stated the one thing the whole family refuses to state (2026-08-13)
 - **#462** (Phase ?): U.30: the FIRST screen a reader sees was also the last one saying nothing about the released day (2026-08-13)
 - **#463** (Phase ?): U.31: six loaders read the reconciliation link table twice, not two — the row's own scope claim was incomplete, and the critic that checked it found the rest (2026-08-13)
+- **#464** (Phase ?): U.32: /calendar's per-day marker was gated on the money it moved, not the fact it stated (2026-08-13)

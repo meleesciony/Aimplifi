@@ -363,6 +363,9 @@ describe('U.24 — the released handover day is counted in the calendar’s figu
     expect(m.totalOutCents).toBe(11_200);
     // The ordinary day is untouched — the flag is per row, not per month.
     expect(m.days.find((d) => d.date === '2026-08-01')!.countedOnHandoverDays).toBe(0);
+    // U.32: for money-visible released rows the two counts agree — the split only shows up
+    // when a released row is a transfer, excluded or $0 (see below).
+    expect(day.handoverRowCount).toBe(2);
   });
 
   it('says nothing when no row is released — the disclosure is gated on the fact', () => {
@@ -394,6 +397,11 @@ describe('U.24 — the released handover day is counted in the calendar’s figu
     expect(day.count).toBe(3);
     expect(day.transferCount).toBe(1);
     expect(day.excludedCount).toBe(1);
+    // U.32: `handoverRowCount` is NOT gated on the money figures — every one of these three
+    // released rows counts here, which is what lets the page's per-day marker fire on a day
+    // whose released rows are all transfers, excluded or $0 (where `countedOnHandoverDays`
+    // above is 0 by design and stays 0 — this is a DIFFERENT count, not a widened one).
+    expect(day.handoverRowCount).toBe(3);
   });
 
   it('counts a released INFLOW too — the doubling is a rule about a date, not a sign', () => {

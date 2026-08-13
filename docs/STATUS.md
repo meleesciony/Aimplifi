@@ -4632,3 +4632,33 @@ on the full existing e2e/unit suite (behavior-preserving refactor, no new user-v
 the six converted call sites' own tests — register, calendar, dashboard, budgets, CSV export,
 transaction detail — all ran green against a genuine build of this exact commit inside CI's full
 `VERIFY_E2E=1` gate, alongside the new unit-level equivalence proof.
+
+## ✅ BUILT 2026-08-13 — U.32: /calendar's per-day marker was gated on the money it moved, not the fact it stated (DECISIONS #464)
+
+Both U.24 critics converged on the same finding: the day tile's flat row counts ("N transactions
+in Activity →", "N transfers... / N rows you excluded") have no released-day awareness, while the
+page's ONLY per-day changeover marker was gated on `countedOnHandoverDays` — a count scoped to
+rows the MONEY figures sum from. A released day whose only duplicated rows were transfers,
+reader-excluded or $0 printed a doubled count with no changeover vocabulary anywhere on the page.
+
+**What shipped.** New `PostedCalendarDay.handoverRowCount` (the RAW released-row count, transfer/
+excluded/$0 included) widens the per-day marker's gate — safe because the marker's own claim
+("both connections' records are kept for this day") is unconditionally true regardless of whether
+the released rows moved a tile. The closing basis caption gained an unconditional released-day
+clause, matching its own established voice (every other clause states a rule, not whether it
+currently applies). The money-scoped month sentence stayed unchanged and correctly silent on a
+transfer-only day — not a residual, the right answer.
+
+**Locked.** Two existing unit tests extended proving `handoverRowCount` and `countedOnHandoverDays`
+are genuinely different counts, not one renamed (a transfer/excluded/$0 fixture lands 3/0). A new
+e2e fixture (`seedHandoverDayTransferOnly`) and test prove the day tile shows BOTH
+`cal-posted-nonmoney` and the now-widened `cal-posted-handover-day` marker together, the month
+sentence stays absent, and the caption clause is present; the existing no-combined-accounts
+control gained an assertion that the caption clause renders even there (proving it is genuinely
+unconditional).
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0, eslint 0, unit
+**6,995 passed + 1 skipped / 426 files**, `next build` clean, e2e **349 passed, 4
+flaky-passed-on-retry** (`action-menu.spec.ts:391`, `category-rename.spec.ts:110`,
+`transactions.spec.ts:735`, `transactions.spec.ts:1014` — all members of the documented K.10
+shared-SQLite contention class, none touching calendar or reconciliation code). No `prisma/` diff.

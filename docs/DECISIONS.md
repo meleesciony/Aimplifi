@@ -7225,3 +7225,60 @@ member; `triage-write-in.spec.ts:129`, a `SQLITE_BUSY_SNAPSHOT` contention hit �
 e2e-harness class the configured retries exist to absorb, in a spec this slice does not touch). No
 `prisma/` diff — read-path refactor only.
 
+## #464 — U.32: /calendar's per-day marker was gated on the money it moved, not the fact it
+stated (2026-08-13)
+
+**Context.** Opened by both U.24 critics, converging: (a) the day tile's "N transactions in
+Activity →" link and "N transfers / N rows you excluded" tally are flat counts with no
+released-day awareness, while `cal-posted-handover-day` — the page's ONLY source of changeover
+vocabulary per day — was gated on `countedOnHandoverDays`, a count scoped to rows the MONEY
+figures sum from (transfers, excluded and $0 rows excluded by design, same as the register's own
+gate). So a released day whose only duplicated rows were transfers, reader-excluded or $0 printed
+a doubled count with no changeover vocabulary anywhere on the page — not a false sentence (there
+really are two rows), but a silent doubling on a surface that had just told the reader it
+discloses this rule. (b) The closing basis caption enumerates the recorded half's counting rules
+and omitted the released-day one entirely — the same `closing-a-gap-shrinks-the-disclosure-that-
+described-it` shape U.20 fixed on the register's caption.
+
+**What shipped.** (a) A new `PostedCalendarDay.handoverRowCount` — the RAW count of released rows
+on a day, transfers/excluded/$0 included, computed the same way `transferCount` already is
+(`dayRows.filter(r => r.onHandoverDay).length`), deliberately NOT derived from
+`countedOnHandoverDays`. The per-day marker's gate widened from `countedOnHandoverDays > 0` to
+`handoverRowCount > 0`. Safe to widen because the marker's own claim ("both connections' records
+are kept for this day") is unconditionally true regardless of whether the released rows moved a
+tile — U.24's second critic cycle had already established that exact wording for this reason —
+so nothing about the wider gate makes the sentence less true, only makes it fire where it was
+silently owed. The two-sibling markers (`cal-posted-nonmoney`, explaining a $0 net; the handover
+marker, explaining a doubled count) are no longer mutually exclusive by construction, and don't
+need to be — they answer different questions and can both be true of one day. (b) The closing
+basis caption gained an unconditional clause stating the released-day keep rule, matching the
+paragraph's own established voice: every other clause there (pending charges, due badges, card
+estimates) states a RULE, not whether it currently applies to the reader — this is the first
+caption in the family without a `dataDerived` gate, and that is by design, not an oversight,
+since it sits in a policy-explainer paragraph rather than a per-instance fact.
+
+**The money-scoped month sentence (`cal-handover-note`) was deliberately left unchanged.** It
+states "these amounts count it once for each" — an inherently money claim — so widening it to
+fire on transfer-only released days would make it false about a day where no amount moved. The
+core defect this row opened with ("no changeover vocabulary anywhere on the page") is closed by
+the per-day marker and the caption; the month sentence staying silent on a transfer-only day is
+correct, not a residual.
+
+**Locked.** `tests/unit/calendar-posted.test.ts` — two existing tests extended with
+`handoverRowCount` assertions: money-visible released rows land in both counts, and a fixture of
+transfer/excluded/$0 released rows lands in `handoverRowCount` (3) while `countedOnHandoverDays`
+stays 0 — the two counts are proven genuinely different, not one renamed. `tests/e2e/handover-day-
+disclosure.spec.ts` gains a new fixture (`seedHandoverDayTransferOnly`, a released transfer pair
+on two SAVINGS accounts) and test: the day tile shows `cal-posted-nonmoney` ($0 net, 2 transfers)
+AND `cal-posted-handover-day` (the marker, now firing) together, `cal-handover-note` stays absent
+(money-scoped, correctly silent), and the caption's new clause is present. The existing
+no-combined-accounts control test gained an assertion that the caption clause is visible even
+there — proving it is genuinely unconditional, not merely untested for the negative case.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0, eslint 0, unit
+**6,995 passed + 1 skipped / 426 files**, `next build` clean, e2e **349 passed, 4
+flaky-passed-on-retry** (`action-menu.spec.ts:391`, `category-rename.spec.ts:110`,
+`transactions.spec.ts:735`, `transactions.spec.ts:1014` — all members of the documented
+K.10/`ci-e2e-timing-flake.md` shared-SQLite contention class on reload-bearing mutation specs,
+none touching calendar or reconciliation code). No `prisma/` diff.
+

@@ -597,7 +597,7 @@ export default async function CalendarPage({
                               — not counted as money in or out.
                             </li>
                           )}
-                        {day.posted.countedOnHandoverDays > 0 && (
+                        {day.posted.handoverRowCount > 0 && (
                           // U.24, the same reason U.16 pairs its panel sentence with a per-ROW
                           // marker (#455 decision 5): the month sentence above states the rule
                           // and a count, and without this the reader has no way to tell WHICH
@@ -618,11 +618,20 @@ export default async function CalendarPage({
                           // connections' records ARE kept for the day, unconditionally, which
                           // is what this marker knows.
                           //
-                          // Gated on the day's counted-in-money rows, so it cannot appear over
-                          // a day whose released rows are all transfers, reader-excluded or
-                          // $0 — those move no tile, and `cal-posted-nonmoney` (which is
-                          // mutually exclusive with this by construction) already explains
-                          // that day's zero.
+                          // U.32: gated on `handoverRowCount` (every released row, unconditional
+                          // of type), NOT `countedOnHandoverDays` (money-summed rows only) as the
+                          // first draft had it. The narrower gate meant a day whose only released
+                          // rows were transfers, reader-excluded or $0 printed a doubled COUNT —
+                          // "N transactions in Activity →" below, and `cal-posted-nonmoney`'s own
+                          // transfer/excluded tallies — with NO changeover vocabulary anywhere on
+                          // the page, because this marker (the page's only source of that
+                          // vocabulary per day) stayed silent. The marker's own claim is
+                          // unconditionally true regardless of whether the released rows moved a
+                          // tile, so nothing about widening the gate makes the sentence itself
+                          // less true — it only makes it fire where it was silently owed. No
+                          // longer mutually exclusive with `cal-posted-nonmoney`: a day can be
+                          // BOTH all-transfer/excluded (zero explained there) AND released
+                          // (doubling explained here) at once.
                           <li
                             className="text-xs text-muted-foreground"
                             data-testid="cal-posted-handover-day"
@@ -721,7 +730,20 @@ export default async function CalendarPage({
             see its transactions in Activity. Pending charges are counted and marked; they can
             still change or drop before they post. A due badge on a day that has passed is an
             unpaid amount carried forward, not money that moved — past days net their recorded
-            activity only, while days ahead net their projected events. Days ahead are
+            activity only, while days ahead net their projected events.{' '}
+            {/* U.32: this caption enumerates what the recorded half counts and, until now,
+                omitted the one rule that lists a real transaction twice — the exact
+                `closing-a-gap-shrinks-the-disclosure-that-described-it` shape U.20 fixed on the
+                register's own caption. Unconditional, matching this paragraph's own voice
+                (every other clause here — pending, due badges, estimates — states a RULE, not
+                whether it applies to the reader today), and worded as the family's unconditional
+                keep, never the double, for the same reason the day marker above is. */}
+            <span data-testid="cal-basis-handover-note">
+              A day one of your combined accounts was changing connections keeps both
+              connections&rsquo; records rather than dropping either — so a transaction either one
+              reported is listed once for each, whether or not it moves the day&rsquo;s totals.
+            </span>{' '}
+            Days ahead are
             projections: scheduled income and bills replay at their detected cadence (labeled
             scheduled, from today until they post), and card and loan amounts appear on their
             effective due dates (weekend/holiday dates roll back to the prior business day),
