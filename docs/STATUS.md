@@ -4506,3 +4506,22 @@ members of the recorded load-induced local flake class, in specs this slice does
 Independently this session: `npx tsc --noEmit` 0 errors, `npx eslint .` 0 output, `npx vitest run`
 **423 files / 6991 tests passed** (1 expected-fail, 1 skipped), `npx next build` clean. No
 `prisma/` diff — read-path and copy only, so the live Neon database is untouched.
+
+**SHIPPED AND PROVEN LIVE (2026-08-13).** Commits `c46ef6c` (slice) + `0db1041` (the hypothesis
+refutation) → pushed → CI gate **`success`**, run 31716116407, read to conclusion via
+`scripts/ci-status.sh` (exit 0). Vercel commit status: `success`, "Deployment has completed", same
+sha. Production responds correctly: `https://www.aimplifi.app/` → 307 and `/calendar` → 307, the
+expected unauthenticated redirect to sign-in, not a 500.
+
+**No demo-visible marker, and none is possible — declared, not skipped (the K.4 shape).** Re-verified
+this session rather than inherited: `grep AccountReconciliation prisma/seed.ts` → **zero hits**, so
+the demo dataset contains no combined-account pair, no cutover, and therefore no released handover
+day for this disclosure to fire on. Every string and count this slice adds sits behind
+`countedOnHandoverDays > 0`, which is unreachable for the demo user by construction. What stands in
+for a live probe: CI's full `VERIFY_E2E=1` suite ran against a genuine build of this exact commit,
+including the new /calendar e2e test, which drives a REAL seeded combined-account handover pair
+(a SimpleFIN predecessor and its Plaid successor, one $30.00 control charge de-duplicated and one
+$50.00 charge released to both sides) through the browser and asserts the $100.00 tile, the note's
+text, its DOM position above the projected line, and the day marker's exact wording — plus the
+no-combined-accounts control asserting /calendar stays silent. A bespoke production probe would
+assert only that the deployment exists, which the two gate reads above already prove more precisely.
