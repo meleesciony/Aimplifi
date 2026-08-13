@@ -24,7 +24,10 @@ flaky-passed-on-retry** (all documented K.10 contention-class members — `actio
 `category-rename.spec.ts:110`, `transactions.spec.ts:735`, `transactions.spec.ts:1014` — none
 touching calendar/reconciliation code). tsc 0, eslint 0, unit 6,995 passed. No `prisma/` diff.
 
-**Next: push, read the CI gate, confirm Vercel, then record the SHIPPED-live paragraph.**
+**Shipped and proven live.** Pushed as `7768ff9`. CI run 31732435392 `success` on first attempt.
+Vercel: `success`, "Deployment has completed", same sha. Production `/`, `/calendar` both 307.
+New e2e fixture ran inside CI's full suite against this exact commit. No demo-visible marker
+(K.4 shape, unchanged fact).
 
 ## 2026-08-13 — U.31: the reconciliation link table's double-read, at six sites not two (DECISIONS #463)
 

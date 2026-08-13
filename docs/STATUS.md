@@ -4662,3 +4662,13 @@ unconditional).
 flaky-passed-on-retry** (`action-menu.spec.ts:391`, `category-rename.spec.ts:110`,
 `transactions.spec.ts:735`, `transactions.spec.ts:1014` — all members of the documented K.10
 shared-SQLite contention class, none touching calendar or reconciliation code). No `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-13).** Commit `7768ff9` → pushed → CI run 31732435392
+**`success`** (first attempt, no rerun needed), read to conclusion via `gh run view`. Vercel
+commit status: `success`, "Deployment has completed", same sha. Production `/` and `/calendar`
+both 307 (expected unauthenticated redirect). The new e2e fixture (a genuine transfer-only
+released day, two SAVINGS accounts) ran inside CI's full `VERIFY_E2E=1` suite against this exact
+commit, proving the widened marker and the caption clause both render correctly together with
+the money-scoped month sentence staying silent — the shape a bespoke production probe could not
+usefully add to (no demo-visible marker: `grep AccountReconciliation prisma/seed.ts` — zero hits,
+same K.4 fact as every slice in this family).
