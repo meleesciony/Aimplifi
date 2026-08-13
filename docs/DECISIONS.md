@@ -7019,3 +7019,86 @@ either, closing the same `dataDerived`-gate shape U.16 established elsewhere.
 green (spend-class suite 23/23), `next build` clean, e2e **349 passed, 1 flaky-passed-on-retry**
 (`transactions.spec.ts` CSV import — the pre-existing load-induced local flake class recorded in
 `docs/lessons/ci-e2e-timing-flake.md`, not a spec this slice touches). No `prisma/` diff.
+
+## #461 — U.24: the calendar was the last surface counting the released day in silence, and the
+marker it first drew stated the one thing the whole family refuses to state (2026-08-13)
+
+**Context.** U.13 (#454) released the single handover day per reconciliation link to BOTH sides of
+a combined pair, because a handover is an instant inside a day and a business date here carries no
+time. U.16 (#455) then disclosed that release on the four surfaces summarizing a category's rows,
+U.19-U.22 (#456) on the CSV, the register totals and /reports, and U.29 (#460) on /budgets' Fixed
+vs. guilt-free split. /calendar counted it correctly throughout — `getPostedCalendarRows` reuses the
+register's where-clause AND the R1 keep, which is the K.1 gate — and said nothing, because
+`PostedTxnLike` carried no flag and `summarizeTransactions` therefore read its optional-field
+default of 0 forever. The optionality was not an oversight: `TotalableTxn.onHandoverDay`'s docblock
+named the calendar's lean row shape as its justification, so the silence was documented as a design.
+
+**What shipped.** `onHandoverDay` on `PostedTxnLike` as a REQUIRED field, and
+`countedOnHandoverDays` on both `PostedCalendarDay` and `PostedCalendarMonth`, each read off the
+SAME `summarizeTransactions` call the tiles and the month totals are summed from — so the sentence
+and the figures it qualifies can never describe different row sets (the U.16 critic finding: a count
+summed before a filter the figure applies after is a disclosure about money that did not move).
+The flag is resolved in `getPostedCalendarRows`, the layer that holds `accountId`, keeping the unit
+of the claim the (account, day) PAIR rather than the bare date — U.16's critic cycle 6 executed that
+difference and found six ordinary grocery rows marked on one released day.
+
+**Required, not optional, and the compiler was the argument.** An optional flag defaulting to "not
+released" is precisely how this surface stayed silent through three slices that each threaded the
+fact somewhere else. Making it required cost exactly one site — the unit test's `row()` helper —
+which is the measurement that settled it: `tsc` enumerated every builder and there was only one in
+production. `TotalableTxn.onHandoverDay` stays optional, now genuinely as the structural minimum
+(both production callers pass it as a required field on their own row type), and its docblock was
+corrected rather than left asserting a reason U.24 had just falsified.
+
+**Copy: the sixth author was reused, and the reasoning is the surface's claim shape.** /calendar
+lists no transaction rows — each day links OUT to Activity — so `breakdownHandoverDayCopy`'s "N rows
+here" and `handoverDayRegisterTotalsNote`'s "it is listed" are both false where this reader stands.
+It prints an in AND an out, which a doubled purchase and a doubled return move in opposite
+directions, so `handoverDayAnswerNote`'s single "this figure ... too high / too LOW" would be wrong
+about one of them. `handoverDayAmountsNote` states the counting rule and claims neither, which is
+why it exists — a seventh author would have been a seventh account of one rule.
+
+**Two fresh-context critics, different lenses, 2 P1 — and both critics found BOTH independently,
+which is the signal they were real:**
+
+1. **The day marker asserted the double as a FACT.** It read "Connection changeover — counted on
+   both connections' records", four lines under this slice's own comment saying the marker is
+   deliberately *not* a claim that any row is a duplicate. The keys are minted per link from the
+   cutover date alone (`reconcile-boundary.ts`), so a released day on which only ONE connection
+   reported anything is marked too — and on that day the flat claim is false, beside a specific
+   amount, in the direction that makes a reader distrust a figure that is correct. All six sentence
+   authors keep the doubling CONDITIONAL because whether both feeds reported a given charge is not
+   knowable from the dates (#455 decision 3), and every sibling marker in the repo is the claim-free
+   `(connection changeover)`. Corrected to state the KEEP, which is unconditionally true: "both
+   connections' records are kept for this day". The first draft of the e2e could not have caught it
+   — it asserted the testid was VISIBLE and never read its text.
+2. **"These amounts" had the wrong nearest antecedent.** The note was drafted as the first child of
+   `CardContent`, below `cal-scheduled-line` — the Expected/projected totals, built from scheduled
+   series and card dues, holding no transaction row and therefore no released one. The sentence
+   qualified the two figures it is not about. `partialPast` makes that line render on nearly every
+   day of the current month, so this was the ordinary rendering, not an edge case. Moved up into
+   `CardDescription`, directly under the posted totals and above the projected line, and locked by
+   asserting DOM ORDER rather than by eye.
+
+**Nothing about the money changed.** No filter was added and no sum was touched: both released
+copies are still counted, exactly as U.13's boundary intended and as the K.1 gate requires. The
+failure this closes is silence.
+
+**Locked.** 8 new unit tests: the released row counted per day and per month with the figures
+asserted UNCHANGED; the no-release control; transfers, reader-excluded and $0 rows excluded from the
+count while still listed; a released INFLOW (the doubling is a rule about a date, not a sign —
+U.16's critic finding 7); the posted-window clamp; and the wholly-future month. Plus 2 server-level
+tests proving the (account, day) scoping against a real reconciled pair with a THIRD account holding
+a row on the very same date, and asserting the calendar's count equals the REGISTER's for the same
+window — the K.1 gate extended to the new field. Fail-old proven by four sabotages: the engine count
+zeroed (3 red), the server flag forced false (2 red), the scoping regressed to a bare-date match
+(2 red — both the scoping control AND the register-parity gate catch it), and the rendered note
+suppressed on a REBUILT server (the e2e red, since Playwright tests the last `next build`).
+
+**Residuals filed with their evidence rather than papered over — U.30** (the home screen's Recent
+transactions card, which shows both copies with no marker and not even the account name that
+`TxnView.onHandoverDay`'s docblock calls the reader's only clue), **U.31** (two independent reads of
+the link table in one loader, the shape `transactions.ts:1336` already rejects in writing — a
+confirm/undo landing between them desyncs disclosure from figures), and **U.32** (the day tile's row
+COUNTS and the page's closing basis caption, both of which still omit the released day).
+

@@ -398,10 +398,18 @@ export interface TotalableTxn extends ExcludableTxn {
   amountCents: number;
   /**
    * U.20: whether this row sits on a day the reconciliation boundary released to
-   * both sides of a combined pair. Optional here — /calendar totals its days
-   * through this same function over a lean row shape that does not carry the
-   * flag, and an absent value counts as "not released", which is the correct
-   * answer for a row whose pair membership is unknown.
+   * both sides of a combined pair.
+   *
+   * Optional as a TYPE, but no longer because of /calendar: this docblock used to
+   * name the calendar's lean row shape as the reason, and U.24 closed that — both
+   * production callers (`getTransactions`'s `TxnView` and
+   * `buildPostedCalendarMonth`'s `PostedTxnLike`) now carry the flag as a REQUIRED
+   * field on their own row types, resolved at the server boundary that holds
+   * `accountId`. What the optionality still buys is the structural minimum this
+   * interface exists to be: a caller totalling rows that belong to no combined
+   * pair at all need not invent the field. An absent value counts as "not
+   * released" — the correct answer for a row whose pair membership is unknown, and
+   * a silence each concrete row type is required to break for itself.
    */
   onHandoverDay?: boolean;
 }

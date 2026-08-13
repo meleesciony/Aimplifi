@@ -454,3 +454,4 @@ refuses to write if it would drop any number this file already carries.
 - **#458** (Phase ?): U.25/U.26: a file that leaves the app carries its own basis, and the reasons its numbers differ from the app's (2026-08-13)
 - **#459** (Phase ?): U.27: the currency family's standard has five authors, not one, and a shared phrase misparsed its own noun (2026-08-13)
 - **#460** (Phase ?): U.29: the Fixed / Guilt-free split now discloses the one released day it was already counting twice (2026-08-13)
+- **#461** (Phase ?): U.24: the calendar was the last surface counting the released day in silence, and the marker it first drew stated the one thing the whole family refuses to state (2026-08-13)

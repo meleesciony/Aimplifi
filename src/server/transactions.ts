@@ -321,6 +321,11 @@ export interface PostedCalendarRead {
     /** PENDING rows stay in the figures (the register's summary counts them — the gate requires
      *  it) but must be NAMED wherever the surface says "posted" (critics K.1 F-1). */
     pending: boolean;
+    /** U.24: the (account, day) pairs the R1 keep above RELEASED to both sides of a combined
+     *  pair (U.13) — resolved HERE because this is the layer holding `accountId`, exactly as
+     *  the register resolves it at its own boundary (U.20). The calendar's rows are lean by
+     *  design, so the pairing cannot be re-derived downstream. */
+    onHandoverDay: boolean;
   }[];
   oldestPostedDate: string | null;
   newestPostedDate: string | null;
@@ -339,6 +344,10 @@ export async function getPostedCalendarRows(
   });
   const keepsReconciled = await getReconciliationTxnKeep(userId);
   const kept = raw.filter((t) => keepsReconciled(t.accountId, t.date));
+  // U.24: the days the keep above deliberately RELEASED to both sides (U.13). Fetched beside
+  // the keep, never derived from it: the keep answers "does this row survive", which is true
+  // of BOTH copies on a released day and of every ordinary row — it cannot tell them apart.
+  const handoverKeys = await getReconciliationHandoverKeys(userId);
   let oldestPostedDate: string | null = null;
   let newestPostedDate: string | null = null;
   for (const r of kept) {
@@ -354,6 +363,7 @@ export async function getPostedCalendarRows(
         isTransfer: r.isTransfer,
         excludeFromTotals: r.excludeFromTotals,
         pending: r.status === 'PENDING',
+        onHandoverDay: handoverKeys.has(handoverKey(r.accountId, r.date)),
       })),
     oldestPostedDate,
     newestPostedDate,

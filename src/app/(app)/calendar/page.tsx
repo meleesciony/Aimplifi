@@ -13,6 +13,7 @@ import {
   buildPostedCalendarMonth,
   postedZeroCopy,
 } from '@/lib/engine/calendar/posted';
+import { handoverDayAmountsNote } from '@/lib/engine/glass-box/category-breakdown';
 import { splitLoanCarriedScheduled } from '@/lib/engine/loans/duplicate-projection';
 import { getPostedCalendarRows } from '@/server/transactions';
 import { isDemoUser } from '@/lib/demo-user';
@@ -374,6 +375,39 @@ export default async function CalendarPage({
                 )}
               </span>
             )}
+            {posted.countedOnHandoverDays > 0 && (
+              // U.24: the released handover day (U.13) reaches this page's figures like every
+              // other spending surface, and this was the last one that counted it in silence.
+              //
+              // Placed HERE — directly under the posted totals, and deliberately ABOVE
+              // `scheduledLine` — because "these amounts" is a positional claim. Drafted one
+              // level down as the first child of CardContent, the nearest figures above it were
+              // the Expected/projected totals, which are built from scheduled series and card
+              // dues and contain no transaction row, hence no released one: the sentence would
+              // have qualified the two figures it is not about (`a-disclosure-written-for-a-
+              // page-is-false-in-an-email`, failure mode 1, and #455 decision 9's antecedent
+              // defect). `partialPast` makes that line render on nearly every day of the
+              // current month, so it is the ordinary rendering, not an edge case.
+              //
+              // `handoverDayAmountsNote`, not the panel/answer/register authors: this surface
+              // lists no transaction rows (each day links OUT to Activity for those), so
+              // `breakdownHandoverDayCopy`'s "N rows here" and the register note's "it is
+              // listed" are both false where the reader is standing. And the figures it
+              // qualifies are an in AND an out — a doubled purchase and a doubled return move
+              // those in opposite directions — so `handoverDayAnswerNote`'s single "this
+              // figure … too high / too LOW" would be wrong about one of them. The amounts
+              // author is the one that states the counting rule and claims neither
+              // (U.16 decision 2, #455).
+              //
+              // Gated on the FACT (a released row is in these totals), never on a branch that
+              // happens to render — gating on `postedLine` would repeat
+              // `a-disclosure-gated-to-the-loudest-branch-misses-the-reachable-one`. The two
+              // coincide anyway: a released row counted in the totals forces `rowCount > 0`,
+              // so the note can never render without the figures it names.
+              <span className="mt-1 block" data-testid="cal-handover-note">
+                {handoverDayAmountsNote(posted.countedOnHandoverDays)}
+              </span>
+            )}
             {scheduledLine && (
               <span className="block" data-testid="cal-scheduled-line">
                 {scheduledLine}
@@ -563,6 +597,43 @@ export default async function CalendarPage({
                               — not counted as money in or out.
                             </li>
                           )}
+                        {day.posted.countedOnHandoverDays > 0 && (
+                          // U.24, the same reason U.16 pairs its panel sentence with a per-ROW
+                          // marker (#455 decision 5): the month sentence above states the rule
+                          // and a count, and without this the reader has no way to tell WHICH
+                          // of the month's days it is about — a bucket to scan rather than a
+                          // fact. The unit here is the DAY because that is the unit this page
+                          // renders.
+                          //
+                          // It states the KEEP, never the double. Both critics, independently:
+                          // the first draft said "counted on both connections' records", which
+                          // asserts the very thing all six sentence authors state as a
+                          // CONDITION — whether both feeds reported a given charge is not
+                          // knowable from the dates (#455 decision 3), and the keys are minted
+                          // per link from the cutover alone, so a released day on which only
+                          // one connection reported anything is marked too. On that day the
+                          // flat claim is false, beside a specific amount, in the direction
+                          // that makes a reader distrust a figure that is correct. The clause
+                          // used here is the family's own, shipped in all six authors: both
+                          // connections' records ARE kept for the day, unconditionally, which
+                          // is what this marker knows.
+                          //
+                          // Gated on the day's counted-in-money rows, so it cannot appear over
+                          // a day whose released rows are all transfers, reader-excluded or
+                          // $0 — those move no tile, and `cal-posted-nonmoney` (which is
+                          // mutually exclusive with this by construction) already explains
+                          // that day's zero.
+                          <li
+                            className="text-xs text-muted-foreground"
+                            data-testid="cal-posted-handover-day"
+                          >
+                            {/* `&rsquo;`, not `&apos;`: the six sentence authors this marker
+                                stands beside all use the curly apostrophe, and a reader seeing
+                                both forms on one screen reads two voices. */}
+                            Connection changeover — both connections&rsquo; records are kept for
+                            this day.
+                          </li>
+                        )}
                         <li className="text-xs">
                           {/* The drill-down IS the register, pre-filtered to this one day — the
                               window rides the link so the rows and the figures above describe

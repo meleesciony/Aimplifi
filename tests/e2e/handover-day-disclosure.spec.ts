@@ -247,6 +247,63 @@ test('U.29: /budgets Fixed/guilt-free panel discloses the same released day it c
   await expect(note).not.toContainText('still add up to the figure above');
 });
 
+test('U.24: /calendar discloses the released day inside its money tiles, and marks which day', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedHandoverDayDuplicate(email);
+
+  await page.goto('/calendar');
+  await expect(page.getByTestId('calendar-list')).toBeVisible({ timeout: 20_000 });
+
+  // The doubling is real and still counted: TODAY's tile shows BOTH $50.00 copies as money
+  // out, exactly as the register has them. U.24 does not remove the double — the R1 keep
+  // released the day deliberately — it ends the silence around it.
+  const dayTile = page.getByTestId('calendar-list').locator('li', { hasText: 'today' }).first();
+  await expect(dayTile).toContainText('$100.00');
+
+  // THE LOCK: before this slice the page had no handover vocabulary at all — `PostedTxnLike`
+  // carried no flag, so `summarizeTransactions` read its optional-field default of 0 and the
+  // month sentence could not exist. Neither testid was in the DOM.
+  const note = page.getByTestId('cal-handover-note');
+  await expect(note).toBeVisible();
+  await expect(note).toContainText('2 transactions behind these amounts fall on a day one of your combined accounts was changing connections');
+  await expect(note).toContainText('these amounts count it once for each');
+
+  // This surface lists no transaction rows (each day links OUT to Activity), and it prints
+  // Money in, Money out AND a net — so the sentence must claim neither a row list nor a
+  // single direction. Both would be false where this reader is standing.
+  await expect(note).not.toContainText('rows here fall');
+  await expect(note).not.toContainText('is listed and counted');
+  await expect(note).not.toContainText('too LOW');
+
+  // The note qualifies the POSTED totals, so it must sit above the projected "Expected" line —
+  // "these amounts" is a positional claim, and the projected figures contain no released row.
+  // Asserted by DOM order rather than by eye (critic F-2: the first draft rendered below it).
+  const summary = page.getByTestId('cal-summary');
+  await expect(summary.getByTestId('cal-handover-note')).toBeVisible();
+  const order = await summary.evaluate((el) =>
+    Array.from(el.querySelectorAll('[data-testid]')).map((n) => n.getAttribute('data-testid')),
+  );
+  expect(order.indexOf('cal-posted-line')).toBeLessThan(order.indexOf('cal-handover-note'));
+  if (order.includes('cal-scheduled-line')) {
+    expect(order.indexOf('cal-handover-note')).toBeLessThan(order.indexOf('cal-scheduled-line'));
+  }
+
+  // ...and the reader is told WHICH day, rather than being handed a count and a month to scan.
+  const marker = dayTile.getByTestId('cal-posted-handover-day');
+  await expect(marker).toBeVisible();
+  // Its TEXT, not just its presence (critic F-1 hid from the first draft of this spec, which
+  // asserted visibility alone): the marker states the KEEP, which is unconditionally true, and
+  // never the double, which is not knowable from the dates — a released day on which only one
+  // connection reported anything is marked too.
+  await expect(marker).toContainText('both connections’ records are kept for this day');
+  await expect(marker).not.toContainText('counted on both');
+  // The control pair's day ($30.00, de-duplicated to the predecessor's single copy) is a
+  // normal day and carries no marker — the flag is per (account, day), not per month.
+  await expect(page.getByTestId('cal-posted-handover-day')).toHaveCount(1);
+});
+
 test('a reader with no combined accounts is told nothing about handover days', async ({ page }) => {
   // The `dataDerived` gate (C.11/#407): a disclosure that fired on the rule's
   // mere existence would nag every reader about something that never touched
@@ -294,6 +351,14 @@ test('a reader with no combined accounts is told nothing about handover days', a
   await page.goto('/budgets');
   await expect(page.getByTestId('spend-class-panel')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('spend-class-handover-note')).toHaveCount(0);
+
+  // U.24: /calendar shows neither the month sentence nor any day marker. This reader has a
+  // row on the very date that is a handover day for the OTHER fixture — which is the point:
+  // the flag is a fact about an (account, day) pair, and this account is in no pair at all.
+  await page.goto('/calendar');
+  await expect(page.getByTestId('calendar-list')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('cal-handover-note')).toHaveCount(0);
+  await expect(page.getByTestId('cal-posted-handover-day')).toHaveCount(0);
 
   // U.19: the column is UNCONDITIONAL (one schema for every reader) but empty,
   // and no CHANGEOVER note row is appended. This fixture's single row is neither

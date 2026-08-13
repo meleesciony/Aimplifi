@@ -149,3 +149,106 @@ describe('K.1 gate — posted calendar rows and the register are one row set', (
     expect(posted.newestPostedDate).toBe(register.newestDate);
   });
 });
+
+/**
+ * U.24 — the released handover day reaches the calendar's figures, and the flag that lets the
+ * page say so is resolved HERE, at the only layer that holds `accountId`.
+ *
+ * Two properties only the real loader can prove, and the second is the one U.16's second critic
+ * cycle found by executing it: the unit of the claim is the (account, day) PAIR. An unscoped
+ * date set marks ordinary rows on every other account the reader owns — a released day is an
+ * ordinary shopping day everywhere else — so this fixture deliberately puts a row on a THIRD
+ * account on the very same date and asserts it is not flagged.
+ */
+describe('U.24 — onHandoverDay is resolved at the server, scoped to (account, day)', () => {
+  const HO_USER = `calho-${Date.now()}-${process.pid}`;
+  const CUTOVER = '2026-07-08';
+  let predId = '';
+  let succId = '';
+  let otherId = '';
+
+  async function wipeHo() {
+    await prisma.accountReconciliation.deleteMany({ where: { userId: HO_USER } });
+    await prisma.account.deleteMany({ where: { userId: HO_USER } });
+    await prisma.user.deleteMany({ where: { id: HO_USER } });
+  }
+
+  beforeAll(async () => {
+    await wipeHo();
+    await prisma.user.create({ data: { id: HO_USER, email: `${HO_USER}@test.local` } });
+    const mk = async (ref: string, name: string) =>
+      (
+        await prisma.account.create({
+          data: {
+            userId: HO_USER,
+            provider: 'simplefin',
+            providerRef: ref,
+            name,
+            type: 'CREDIT',
+            currentBalanceCents: -120_000,
+            currency: 'USD',
+          },
+        })
+      ).id;
+    predId = await mk('ho-pred', 'Everyday Card');
+    succId = await mk('ho-succ', 'Everyday Card');
+    otherId = await mk('ho-other', 'Household Checking');
+    await prisma.accountReconciliation.create({
+      data: {
+        userId: HO_USER,
+        predecessorAccountId: predId,
+        successorAccountId: succId,
+        cutoverDate: CUTOVER,
+        matchSignal: 'name',
+        confidence: 'high',
+        confirmedByUserAt: new Date(),
+      },
+    });
+
+    // The handover day itself: one real charge both connections reported, kept on both sides.
+    await txn('ho-p', predId, CUTOVER, -5_000);
+    await txn('ho-s', succId, CUTOVER, -5_000);
+    // An ordinary shopping day on an account in NO pair, on the SAME date — the scoping control.
+    await txn('ho-other', otherId, CUTOVER, -2_500);
+    // A day inside the pair but off the cutover: only one side's copy survives the keep.
+    await txn('ho-early-p', predId, '2026-07-02', -3_000);
+  });
+  afterAll(wipeHo);
+
+  it('flags both released copies, and NOT the unrelated account’s row on the same date', async () => {
+    const posted = await getPostedCalendarRows(HO_USER, '2026-07-01', '2026-07-31');
+    const onCutover = posted.rows.filter((r) => r.date === CUTOVER);
+    // Three rows survive the keep on that date; exactly the two in the pair are flagged.
+    expect(onCutover).toHaveLength(3);
+    expect(onCutover.filter((r) => r.onHandoverDay)).toHaveLength(2);
+    expect(onCutover.filter((r) => r.onHandoverDay).map((r) => r.amountCents).sort()).toEqual([
+      -5_000, -5_000,
+    ]);
+    // The control: same date, no pair, not flagged. A bare-date set would flag this row.
+    expect(onCutover.find((r) => r.amountCents === -2_500)!.onHandoverDay).toBe(false);
+    // And a row on a pair account OFF the cutover date is not flagged either.
+    expect(posted.rows.find((r) => r.date === '2026-07-02')!.onHandoverDay).toBe(false);
+  });
+
+  it('the month’s count equals the REGISTER’s for the same window — the K.1 gate, extended', async () => {
+    const posted = await getPostedCalendarRows(HO_USER, '2026-07-01', '2026-07-31');
+    const month = buildPostedCalendarMonth({
+      month: '2026-07',
+      today: isoDate('2026-08-04'),
+      rows: posted.rows,
+      oldestPostedDate: posted.oldestPostedDate ? isoDate(posted.oldestPostedDate) : null,
+      newestPostedDate: posted.newestPostedDate ? isoDate(posted.newestPostedDate) : null,
+    });
+    const register = await getTransactions(HO_USER, { from: '2026-07-01', to: '2026-07-31' });
+    // The two surfaces must not disagree about how many rows their totals double-count, for the
+    // same reason they must not disagree about the totals themselves.
+    expect(month.countedOnHandoverDays).toBe(register.summary.countedOnHandoverDays);
+    expect(month.countedOnHandoverDays).toBe(2);
+    expect(month.days.find((d) => d.date === CUTOVER)!.countedOnHandoverDays).toBe(2);
+    // Both copies are still in the money, exactly as the register has them.
+    expect(month.totalOutCents).toBe(register.summary.outflowCents);
+    // 5,000 + 5,000 (the released pair, both counted) + 2,500 (unrelated account, same date)
+    // + 3,000 (the early row on the predecessor) = 15,500.
+    expect(month.totalOutCents).toBe(15_500);
+  });
+});

@@ -38,6 +38,28 @@ export interface PostedTxnLike {
    * window holding one must say "pending" too, so the count is carried.
    */
   pending?: boolean;
+  /**
+   * U.24: whether this row sits on an (account, day) pair the reconciliation
+   * boundary RELEASED to both sides of a combined pair (U.13). Same fact the
+   * register rides on every row since U.20, and carried here for the same reason
+   * `pending` is: the money stays in the figures — the R1 keep deliberately keeps
+   * both copies, and the K.1 gate requires this surface to agree with the
+   * register — but a surface that states a total containing one must be able to
+   * say so.
+   *
+   * REQUIRED, unlike `pending`'s optional sibling on `TotalableTxn`. An optional
+   * flag defaulting to "not released" is precisely how this surface stayed silent
+   * through U.13, U.16 and U.20: every one of those slices threaded the fact
+   * somewhere else while `buildPostedCalendarMonth` went on reading a default
+   * nobody had to answer for. Requiring it makes the compiler ask the next
+   * calendar row-builder the question rather than answering it for them.
+   *
+   * The unit is the (account, day) PAIR, never the bare date (U.16 critic cycle
+   * 6): a released day is an ordinary shopping day on every other account the
+   * reader owns. The pairing is resolved at the server boundary, which is the
+   * layer that holds `accountId` — these rows are lean by design.
+   */
+  onHandoverDay: boolean;
 }
 
 export interface PostedCalendarDay {
@@ -58,6 +80,14 @@ export interface PostedCalendarDay {
    */
   transferCount: number;
   excludedCount: number;
+  /**
+   * U.24: rows on this day the released-handover boundary kept on BOTH sides and
+   * that this day's money figures are summed from. Comes off the same
+   * `summarizeTransactions` call the figures do, so it can never count a row the
+   * tiles do not (the U.16 critic finding: a count summed before a filter the
+   * figure applies after is a disclosure about money that did not move).
+   */
+  countedOnHandoverDays: number;
 }
 
 /**
@@ -93,6 +123,15 @@ export interface PostedCalendarMonth {
   excludedCount: number;
   /** PENDING rows in the window — in the figures, named in the copy (critic F-1). */
   pendingCount: number;
+  /**
+   * U.24: rows across the whole posted window that the released-handover boundary
+   * kept on both sides AND the month totals above are summed from — the count the
+   * month-level sentence states. Read off the month's own
+   * `summarizeTransactions(rows)`, the same call `totalInCents`/`totalOutCents`
+   * come from, so the sentence and the figures it qualifies can never describe
+   * different row sets.
+   */
+  countedOnHandoverDays: number;
   /**
    * Set on the CURRENT month when the newest row we hold is older than today
    * (wiring critic F-3): the trailing blank days are not proven quiet — feeds
@@ -136,6 +175,7 @@ export function buildPostedCalendarMonth(params: {
       rowCount: 0,
       excludedCount: 0,
       pendingCount: 0,
+      countedOnHandoverDays: 0,
       edgeNote: null,
       emptyReason: null,
       floorNote: null,
@@ -167,6 +207,7 @@ export function buildPostedCalendarMonth(params: {
       pendingCount: dayRows.filter((r) => r.pending === true).length,
       transferCount: dayRows.filter((r) => r.isTransfer).length,
       excludedCount: s.excludedCount,
+      countedOnHandoverDays: s.countedOnHandoverDays,
     };
   });
   const total = summarizeTransactions(rows);
@@ -215,6 +256,7 @@ export function buildPostedCalendarMonth(params: {
     rowCount: total.count,
     excludedCount: total.excludedCount,
     pendingCount,
+    countedOnHandoverDays: total.countedOnHandoverDays,
     edgeNote,
     emptyReason,
     floorNote,

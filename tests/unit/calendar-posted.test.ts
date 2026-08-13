@@ -29,7 +29,11 @@ import { cents } from '@/lib/money';
 const TODAY = isoDate('2026-08-04');
 
 function row(over: Partial<PostedTxnLike> & Pick<PostedTxnLike, 'date' | 'amountCents'>): PostedTxnLike {
-  return { isTransfer: false, excludeFromTotals: false, ...over };
+  // `onHandoverDay: false` is the default a row must OPT OUT of, not one it inherits
+  // silently: U.24 made the field required on PostedTxnLike precisely so a new builder
+  // has to answer, and a helper that spread `undefined` here would hand every future
+  // test back the silence the field exists to break.
+  return { isTransfer: false, excludeFromTotals: false, onHandoverDay: false, ...over };
 }
 
 const BOUNDS = { oldestPostedDate: isoDate('2025-01-05'), newestPostedDate: isoDate('2026-08-03') };
@@ -330,5 +334,108 @@ describe('K.1 — build.ts: scheduled expansions start strictly after today', ()
     });
     const dues = cal.days.flatMap((d) => d.events).filter((e) => e.kind === 'card-due');
     expect(dues.map((e) => e.date)).toContain('2026-08-03');
+  });
+});
+
+describe('U.24 — the released handover day is counted in the calendar’s figures, and said out loud', () => {
+  // U.13 releases the single handover day per reconciliation link to BOTH sides, so one real
+  // purchase can post twice. The calendar has always COUNTED both (the R1 keep is applied at
+  // the server, and the K.1 gate requires this surface to agree with the register); until U.24
+  // it had no way to say so, because `PostedTxnLike` carried no flag and `summarizeTransactions`
+  // read its optional-field default of 0 forever.
+  const HANDOVER = '2026-08-03';
+
+  it('counts a released row per day and per month — and the figures are UNCHANGED by the marker', () => {
+    const rows = [
+      row({ date: HANDOVER, amountCents: -5_000, onHandoverDay: true }), // predecessor's copy
+      row({ date: HANDOVER, amountCents: -5_000, onHandoverDay: true }), // successor's copy, same charge
+      row({ date: '2026-08-01', amountCents: -1_200 }), // an ordinary day, no pair
+    ];
+    const m = buildPostedCalendarMonth({ month: '2026-08', today: TODAY, rows, ...BOUNDS });
+    const day = m.days.find((d) => d.date === HANDOVER)!;
+
+    expect(day.countedOnHandoverDays).toBe(2);
+    expect(m.countedOnHandoverDays).toBe(2);
+    // The whole point of the slice: nothing about the money moved. Both copies are still
+    // summed, exactly as they were before U.24 — the release is deliberate, and the failure
+    // this closes is silence, not a wrong figure.
+    expect(day.outCents).toBe(10_000);
+    expect(m.totalOutCents).toBe(11_200);
+    // The ordinary day is untouched — the flag is per row, not per month.
+    expect(m.days.find((d) => d.date === '2026-08-01')!.countedOnHandoverDays).toBe(0);
+  });
+
+  it('says nothing when no row is released — the disclosure is gated on the fact', () => {
+    const m = buildPostedCalendarMonth({
+      month: '2026-08',
+      today: TODAY,
+      rows: [row({ date: HANDOVER, amountCents: -5_000 }), row({ date: '2026-08-01', amountCents: -1_200 })],
+      ...BOUNDS,
+    });
+    expect(m.countedOnHandoverDays).toBe(0);
+    expect(m.days.every((d) => d.countedOnHandoverDays === 0)).toBe(true);
+  });
+
+  it('counts only rows the money figures are summed from — transfers, excluded and $0 rows are not', () => {
+    // Inherited from `summarizeTransactions`' own gates, and asserted here because the
+    // calendar's sentence is ABOUT these figures: a released row that cannot move a tile
+    // must not be disclosed as one that might (the U.16 critic finding, one surface over).
+    const rows = [
+      row({ date: HANDOVER, amountCents: -2_500, isTransfer: true, onHandoverDay: true }),
+      row({ date: HANDOVER, amountCents: -3_000, excludeFromTotals: true, onHandoverDay: true }),
+      row({ date: HANDOVER, amountCents: 0, onHandoverDay: true }), // a $0 verification hold
+    ];
+    const m = buildPostedCalendarMonth({ month: '2026-08', today: TODAY, rows, ...BOUNDS });
+    const day = m.days.find((d) => d.date === HANDOVER)!;
+
+    expect(day.countedOnHandoverDays).toBe(0);
+    expect(m.countedOnHandoverDays).toBe(0);
+    // ...while the rows are still LISTED and their non-money nature still named, as before.
+    expect(day.count).toBe(3);
+    expect(day.transferCount).toBe(1);
+    expect(day.excludedCount).toBe(1);
+  });
+
+  it('counts a released INFLOW too — the doubling is a rule about a date, not a sign', () => {
+    // U.16 critic cycle 2, finding 7: "a released day can only make a figure too high" was
+    // false, and it was in a comment. A doubled paycheck inflates Money in; a doubled return
+    // pushes spending DOWN. This page prints in, out AND net, which is exactly why its
+    // sentence claims no direction.
+    const m = buildPostedCalendarMonth({
+      month: '2026-08',
+      today: TODAY,
+      rows: [
+        row({ date: HANDOVER, amountCents: 245_000, onHandoverDay: true }),
+        row({ date: HANDOVER, amountCents: 245_000, onHandoverDay: true }),
+      ],
+      ...BOUNDS,
+    });
+    expect(m.countedOnHandoverDays).toBe(2);
+    expect(m.totalInCents).toBe(490_000);
+    expect(m.totalOutCents).toBe(0);
+  });
+
+  it('never counts a released row the posted window clamps away', () => {
+    // The month total and the count come off the SAME `summarizeTransactions(rows)` call over
+    // the SAME clamped array, so a future-dated row cannot qualify a figure it is not in.
+    const m = buildPostedCalendarMonth({
+      month: '2026-08',
+      today: TODAY, // 2026-08-04
+      rows: [row({ date: '2026-08-28', amountCents: -5_000, onHandoverDay: true })],
+      ...BOUNDS,
+    });
+    expect(m.countedOnHandoverDays).toBe(0);
+    expect(m.days).toHaveLength(0);
+  });
+
+  it('a wholly-future month discloses nothing, because it has no posted half at all', () => {
+    const m = buildPostedCalendarMonth({
+      month: '2026-09',
+      today: TODAY,
+      rows: [row({ date: '2026-09-02', amountCents: -5_000, onHandoverDay: true })],
+      ...BOUNDS,
+    });
+    expect(m.postedThrough).toBeNull();
+    expect(m.countedOnHandoverDays).toBe(0);
   });
 });

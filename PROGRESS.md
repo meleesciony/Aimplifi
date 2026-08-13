@@ -3770,3 +3770,50 @@ plus the fail-old/pass-new sabotage proofs on the new sweep test. Writing a besp
 `u27-live-deploy-check.mjs` for a slice with no reachable content to probe would be
 verification theater — asserting the deployment exists, which the gate reads above already
 prove more precisely.
+
+---
+
+## ✅ BUILT 2026-08-13 — U.24: the calendar's released day is counted out loud (DECISIONS #461)
+
+The last spending surface that counted U.13's released handover day in silence. /calendar reuses
+the register's where-clause and R1 keep (the K.1 gate), so a day both a retiring feed and its
+replacement reported has always shown BOTH copies in its tiles — one real $50.00 purchase printing
+$100.00 of money out — while the page carried no handover vocabulary at all.
+
+**The fact was dropped at a narrowing, and the narrowing was documented as a design.**
+`PostedTxnLike` is a lean row shape ("exactly what the shared summarize needs"), and
+`TotalableTxn.onHandoverDay` was OPTIONAL with a docblock naming that very shape as its
+justification — so `summarizeTransactions` read the absent value as "not released" and returned 0
+forever. Fixed by making the flag REQUIRED on the calendar's own row type (the compiler then
+enumerated every builder: exactly one in production, one test helper) and resolving it in
+`getPostedCalendarRows`, the layer that holds `accountId`, so the unit of the claim stays the
+(account, day) PAIR rather than the bare date. `countedOnHandoverDays` on the day and the month
+come off the SAME `summarizeTransactions` calls the tiles and totals are summed from.
+
+**Copy: the sixth existing author reused, not a seventh written.** This surface lists no
+transaction rows (each day links out to Activity) and prints an in AND an out, so
+`breakdownHandoverDayCopy` ("N rows here"), `handoverDayRegisterTotalsNote` ("it is listed") and
+`handoverDayAnswerNote` (one direction: "too high / too LOW") are each false here in a different
+way. `handoverDayAmountsNote` states the counting rule and claims neither.
+
+**Two fresh-context critics, 2 P1 — each found BOTH, independently.** (1) The per-day marker
+asserted the double as FACT ("counted on both connections' records") four lines under this slice's
+own comment saying it deliberately makes no such claim; the keys are minted per link from the
+cutover alone, so a released day on which only ONE connection reported is marked too, and there the
+flat claim is false beside a specific amount. Restated to the unconditionally-true keep. (2) The
+note was placed below the projected "Expected" line, whose figures are built from scheduled series
+and card dues and hold no released row — so "these amounts" qualified the two figures it is not
+about. Moved directly under the posted totals, locked by DOM ORDER. Residuals filed as U.30 (the
+home screen's Recent transactions card, still silent and without even an account name), U.31 (two
+independent reads of the link table in one loader) and U.32 (the day tile's row COUNTS and the
+closing basis caption).
+
+**Nothing about the money changed** — no filter added, no sum touched. Both copies are still
+counted, as U.13 intended and the K.1 gate requires. The failure closed is silence.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → **✅ VERIFY GREEN** (exit 0). E2E **349 passed,
+2 flaky-passed-on-retry** (`action-menu.spec.ts`, `merchant-lens.spec.ts` — both pre-existing
+members of the recorded load-induced local flake class, in specs this slice does not touch).
+Independently this session: `npx tsc --noEmit` 0 errors, `npx eslint .` 0 output, `npx vitest run`
+**423 files / 6991 tests passed** (1 expected-fail, 1 skipped), `npx next build` clean. No
+`prisma/` diff — read-path and copy only, so the live Neon database is untouched.
