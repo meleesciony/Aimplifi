@@ -3637,3 +3637,28 @@ unconditional columns, one conditional totals note assembled from the flags actu
 
 **Next:** read the two fresh-context critics (money + rendered claims), fix, then verify.sh
 VERIFY_E2E=1, STATUS/TASKS, ship per rule 5.
+
+**U.25 + U.26 SHIPPED AND PROVEN LIVE (2026-08-13).** Commit `58b19dc` → pushed → CI gate
+`success`, run 31669131578, read to conclusion via `scripts/ci-status.sh`. Vercel: success,
+"Deployment has completed", same sha. Live: `node scripts/u25-live-deploy-check.mjs` →
+**20 PASS / 0 FAIL / 2 declared SKIP**, and unlike U.23's this slice has real demo markers:
+842 exported rows, 170 of them marked `transfer,yes`, and the central claim MEASURED on
+production — the file's unmarked rows sum to **7,114,385 cents against the register's outflow
+tile of 7,114,385 cents**, with the gap the flags explain (16,199,723 over every row) real
+rather than cosmetic. Predecessors re-run: U.23 10/10, U.19 17/17, U.16 13/13, U.13 6/6 —
+none regressed, and both U.19's and U.23's header assertions were updated in this slice
+because they would otherwise have failed the moment it deployed.
+
+One live-check FAIL on the first run was diagnosed rather than assumed: "the caption still
+carries its pre-U.20 basis sentence". Probed directly against production — the sentence is
+intact ("Totals include pending charges and exclude transfers between your own accounts.
+Showing 1–100.") and paints ~3s AFTER the outflow tile, so the script's single body read
+taken at tile-paint was the defect. The check now polls; 20/20 on the re-run. U.19's copy of
+the same assertion passed throughout, which is what made the timing explanation testable
+rather than a guess.
+
+**Queue from here:** U.27 (the currency copy drift this family keeps accreting — four extra
+authors of "US dollars" against #141's "U.S. dollars", plus `formatWithheldCurrencies`'
+"EUR and others"), U.24 (/calendar cannot carry the handover flag), then the older money
+queue: U.11 (the transaction-level sibling double-count, MEASURED at −$100.00 for one real
+−$50.00 purchase), U.10, U.12, U.8, U.2.

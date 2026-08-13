@@ -202,7 +202,17 @@ try {
   );
 
   // ── Inertness: this slice changed no figure anywhere ──────────────────────
-  const regText = await page.locator('body').innerText().catch(() => '');
+  // POLLED, not read once. The outflow tile above paints roughly three seconds
+  // before this caption does, so a single body read taken the moment the tile
+  // appears reports the caption missing — measured on production, and it cost
+  // this script a red run that looked like a copy regression until the sentence
+  // was probed directly and found intact.
+  let regText = '';
+  const capDeadline = Date.now() + 20_000;
+  do {
+    regText = await page.locator('body').innerText().catch(() => '');
+    if (!regText.includes('Totals include pending charges')) await page.waitForTimeout(500);
+  } while (!regText.includes('Totals include pending charges') && Date.now() < capDeadline);
   check(
     'the caption still carries its pre-U.20 basis sentence',
     regText.includes('Totals include pending charges'),
