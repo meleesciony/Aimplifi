@@ -159,7 +159,7 @@ describe('C.26 — the chart panel prints its own clamp clause', () => {
 });
 
 describe('C.26 — the dashboard top-spending card (critic cycle 2, F3)', () => {
-  const breakdown = { totalCents: 12_000, countedOnHandoverDays: 0, byCategory: [], byGroup: [] };
+  const breakdown = { totalCents: 12_000, countedOnHandoverDays: 0, uncountedOnHandoverDays: [], byCategory: [], byGroup: [] };
 
   it('an empty table over money dated ahead says so instead of "No spending yet"', () => {
     render(
@@ -191,6 +191,7 @@ describe('C.26 — the dashboard top-spending card (critic cycle 2, F3)', () => 
             { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 12_000, countedOnHandoverDays: 0 },
           ],
           countedOnHandoverDays: 0,
+          uncountedOnHandoverDays: [],
           byGroup: [],
         }}
         breakdowns={{ groceries: { ...categoryBreakdown(HELD_BACK), rows: [], sumCents: cents(0) } }}
@@ -212,6 +213,7 @@ describe('C.26 — the dashboard top-spending card (critic cycle 2, F3)', () => 
             { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 12_000, countedOnHandoverDays: 0 },
           ],
           countedOnHandoverDays: 0,
+          uncountedOnHandoverDays: [],
           byGroup: [],
         }}
         // The page held $400 back — in some OTHER category.
@@ -259,10 +261,11 @@ describe('C.26 — /reports itself, the surface the finding is about (critic cyc
     notCountedYetCents,
     months: [{ month: '2026-06', incomeCents: 50_000, expensesCents: empty ? 0 : 12_000 }],
     breakdown: empty
-      ? { totalCents: 0, countedOnHandoverDays: 0, byCategory: [], byGroup: [] }
+      ? { totalCents: 0, countedOnHandoverDays: 0, uncountedOnHandoverDays: [], byCategory: [], byGroup: [] }
       : {
           totalCents: 12_000,
           countedOnHandoverDays: 0,
+          uncountedOnHandoverDays: [],
           byCategory: [{ categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 12_000, countedOnHandoverDays: 0 }],
           byGroup: [
             {

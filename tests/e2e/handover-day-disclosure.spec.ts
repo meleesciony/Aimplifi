@@ -166,6 +166,48 @@ test('the glass-box panel marks the handover-day rows and explains the double it
   await expect(page.getByTestId('reports-breakdown-reconciled-groceries')).toBeVisible();
 });
 
+test('U.19/U.20/U.22: the register, the /reports total, and the exported CSV disclose the same released day', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedHandoverDayDuplicate(email);
+
+  // U.22 — the figure a reader reads FIRST: the /reports page total now carries
+  // the answer-shaped note (no rows sit beside it, so the panel wording would be
+  // false), counting the SAME two rows the panel's sentence counts.
+  await page.goto('/reports');
+  const totalNote = page.getByTestId('reports-handover-total');
+  await expect(totalNote).toBeVisible({ timeout: 20_000 });
+  await expect(totalNote).toContainText('2 transactions in this figure fall');
+
+  // U.20 — the register is the surface where the two identical lines actually
+  // sit next to each other. Both marked; the control row's single survivor not.
+  await page.goto('/transactions');
+  await expect(page.getByTestId('txn-list')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('txn-handover-row')).toHaveCount(2);
+  // ...and the totals caption stops sounding exhaustive while omitting the one
+  // rule that counts a transaction more than once. The count is the SUMMED
+  // rows (both handover rows are posted purchases here, so 2).
+  await expect(page.getByTestId('txn-summary-handover')).toContainText(
+    '2 rows counted in these totals fall',
+  );
+
+  // U.19 — the file that leaves the app entirely: the released rows are marked
+  // in their own column and the note rides the end of the file. Fetched through
+  // the page's own session, same as the download button would.
+  const res = await page.request.get('/api/export?format=transactions-csv');
+  expect(res.ok()).toBe(true);
+  const csv = await res.text();
+  const header = csv.split('\r\n')[0];
+  expect(header).toBe('date,account,description,merchant,category,amount,status,changeover_day');
+  // Exactly the two released rows say yes — the de-duplicated control day
+  // exports one row, unmarked, and 4 yes-rows would mean the export stopped
+  // de-duplicating while 1 would mean it started dropping a real row.
+  expect(csv.split('\r\n').filter((l) => l.endsWith(',yes'))).toHaveLength(2);
+  expect(csv).toContain('Note: rows marked yes in changeover_day');
+  expect(csv).not.toMatch(/\btwice\b/);
+});
+
 test('a reader with no combined accounts is told nothing about handover days', async ({ page }) => {
   // The `dataDerived` gate (C.11/#407): a disclosure that fired on the rule's
   // mere existence would nag every reader about something that never touched
@@ -200,4 +242,21 @@ test('a reader with no combined accounts is told nothing about handover days', a
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId('reports-breakdown-handover-row')).toHaveCount(0);
   await expect(panel).not.toContainText('changing connections');
+  // U.22: the page total carries no note either.
+  await expect(page.getByTestId('reports-handover-total')).toHaveCount(0);
+
+  // U.20: the register shows no marker and its caption keeps the pre-U.20 text.
+  await page.goto('/transactions');
+  await expect(page.getByTestId('txn-list')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('txn-handover-row')).toHaveCount(0);
+  await expect(page.getByTestId('txn-summary-handover')).toHaveCount(0);
+
+  // U.19: the column is UNCONDITIONAL (one schema for every reader) but empty,
+  // and no note row is appended.
+  const res = await page.request.get('/api/export?format=transactions-csv');
+  expect(res.ok()).toBe(true);
+  const csv = await res.text();
+  expect(csv.split('\r\n')[0].endsWith(',changeover_day')).toBe(true);
+  expect(csv).not.toContain(',yes');
+  expect(csv).not.toContain('Note:');
 });

@@ -3463,3 +3463,67 @@ The other seven: a note asserting the trend counts "every balance the way it was
 **SHIPPED AND PROVEN LIVE (2026-08-12).** Committed `494a7ee` → pushed → **CI gate `success`, run 31620484428, attempt 1**, read to conclusion via `scripts/ci-status.sh` — the full `VERIFY_E2E=1` suite, so the new real-Prisma SIBLINGS tests passed in a real environment. Vercel production deployment `5873718071` = `success` on that exact sha (the deployment record is what ties production to this commit, since U.9's own live check deliberately cannot discriminate builds). Live proof re-run after the deploy: **U.9 18/18, U.5 12/12, U.6 13/13** — the two earlier slices' proofs still pass, so this money-core change regressed neither.
 
 **Queue from here:** U.10 (a snapshot dated today is marked counted while the chart replaces today's bucket with live balances), **U.11** (the transaction-level sibling double-count this slice measured at −$100.00 for one real −$50.00 purchase and deliberately did not fix — it needs the silent-loss-vs-visible-double decision made on evidence), U.12 (a carried-forward repeat outranking a genuine reading), U.8, U.2.
+
+---
+
+## U.19/U.20/U.21/U.22 IN PROGRESS (2026-08-12, session resumed after PowerShell window died)
+
+**Recovered state (working tree, uncommitted, 9 files / ~417 insertions):** the four U.16 residuals
+are being closed as one slice, since all four consume the same account-scoped
+`getReconciliationHandoverKeys` set.
+- U.19 (transactions CSV): DONE in tree — `changeover_day` column (unconditional), trailing
+  rectangular note row (conditional), account-scoped keys in `api/export/route.ts`.
+- U.20 (merchant_spend + register): merchant_spend engine/answer/trace DONE in tree
+  (`countedOnHandoverDays` REQUIRED on result, flag rides items, trace reads engine rows).
+  Register half NOT started: `TxnView.onHandoverDay` + `TxnSummary.countedOnHandoverDays` added
+  as REQUIRED, but `server/transactions.ts` (2 sites: ~420, ~811) does not set the row flag and
+  `transaction-list.tsx` renders neither the totals disclosure nor a per-row marker (form
+  decision still open).
+- U.21 (zero branches): engine DONE in tree — `uncountedOnHandoverDays` on SpendingBreakdown
+  filled from the same drop loop; `handoverDayNoFigureNote` third author; wired into
+  answerSpendTotal/answerSpendByCategory/answerTopCategories zero branches + /reports empty state.
+- U.22 (/reports page total): DONE in tree — `reports-handover-total` note above the breakdown.
+
+**Not done:** server/transactions.ts wiring, transaction-list.tsx UI, ALL test-fixture updates
+(tsc currently enumerates them), ALL new locks, verify, critic cycles, ship. tsc output = the
+authoritative worklist.
+
+**Resumed session progress (same day):**
+- server/transactions.ts wired (both TxnView builders set `onHandoverDay` from the account-scoped
+  key set); transaction-list.tsx renders the per-row `(connection changeover)` marker + the totals
+  caption sentence (`handoverDayRegisterTotalsNote`, a fourth author — the register prints THREE
+  tiles, so both sibling authors' "this figure" clauses are false there);
+  transaction-detail-view.tsx renders the marker (the row flag was already being set for it).
+- TRACE mirror for U.21 zero branches (`noFigureBasis` via the answer's own exported
+  `uncountedFor`) — the U.16 answer-path/trace-path lesson, applied before a critic found it.
+- server/reports.ts local `handoverDates` renamed `handoverKeys` (it held account-scoped keys).
+- All test fixtures updated (subagent, 13 files); two old expectations updated to the new
+  contract (phase4 CSV header, merchant_spend result shape) — their failure against the new code
+  is fail-old evidence for those two surfaces.
+- NEW LOCKS: tests/unit/u19-u21-handover-surfaces.test.ts (25 tests) + e2e third scenario in
+  handover-day-disclosure.spec.ts (register marker+caption, /reports total note, CSV yes-column +
+  note, and the no-pair control extended to all three). e2e 3/3 green on a fresh build.
+- FOUR sabotage proofs run and reverted, each reddening exactly its own locks:
+  (1) drop-loop stops recording → 7 U.21 locks red; (2) merchantSpend predicate forced false →
+  4 U.20 locks red; (3) summary count gated off → 1 register lock red; (4) CSV note suppressed →
+  2 U.19 locks red.
+- tsc 0 / eslint 0 / full unit suite green (6,926 passed after expectation updates).
+
+**Next:** two fresh-context hostile critics (money + rendered-claims), fix cycle, verify.sh
+VERIFY_E2E=1, docs (DECISIONS/STATUS/TASKS), ship per rule 5.
+
+**Critic cycle (2 fresh contexts, 2 P1 + 8 P1/P2, all executed) — fixed in place:**
+P1 money: uncounted note rescoped from zero-only to fact-gated (positive figures, group exhibit,
+traces, /reports). P1 claims: negative-net merchant branches get direction-free
+`handoverDayAmountsNote` (old direction clause executed INVERTED). Zero-gated trace mirror was
+dead code (traces attach only on headlineCents) — ungating P1 made it real. $0 hold excluded
+from merchant flag+count and register summary count. Register note enumeration → "whichever of
+these totals its amount feeds" (deposits). Note referent-free ("Spending figures leave out").
+Detail marker → Badge + on-page `handoverDayDetailNote`. FILED: U.23 (pre-existing export
+split/currency parity, executed 4 rows/−$299.00 vs register 2/−$100.00), U.24 (calendar lean
+shape can't carry the flag). One u16 lock updated to the rescoped contract (silence → uncounted
+note, with comment). Locks now 56 across both files + new regression tests. Full unit suite
+6,935 green, lint green. Lesson written:
+a-disclosure-gated-to-the-loudest-branch-misses-the-reachable-one. DECISIONS #456 + addendum,
+TASKS rows U.23/U.24 filed. verify.sh VERIFY_E2E=1 running in background → then STATUS entry,
+archive U.19–U.22 task rows, ship (commit/push/CI gate/deploy/live check 17-17 expected).

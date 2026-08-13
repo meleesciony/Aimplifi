@@ -31,6 +31,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatISODate, isoDate } from '@/lib/dates';
+import { handoverDayDetailNote } from '@/lib/engine/glass-box/category-breakdown';
 import { cents, formatCents, parseDollarInput } from '@/lib/money';
 import { TAX_CLASSES, TAX_CLASS_LABELS } from '@/lib/engine/tax/classes';
 import { TXN_NOTE_MAX_CHARS } from '@/lib/engine/tax/note';
@@ -529,6 +530,22 @@ export function TransactionDetailView({
               Transfer
             </Badge>
           )}
+          {/* U.20 — same vocabulary as the register's marker, same rule: a fact
+              about the DATE, never a claim this row is the duplicate. Rendered
+              as a Badge like its neighbors (critic cycle, P2-5), and explained
+              by the sentence below the header — this page is reachable by deep
+              link or refresh, so "the reader just came from a marked register
+              row" is an assumption about where they are standing that does not
+              hold, and the explanation has to live HERE. */}
+          {row.onHandoverDay && (
+            <Badge
+              variant="outline"
+              data-testid="detail-handover-marker"
+              className="text-[10px] text-muted-foreground"
+            >
+              Connection changeover
+            </Badge>
+          )}
           {row.excludeFromTotals && (
             <Badge
               variant="outline"
@@ -663,6 +680,19 @@ export function TransactionDetailView({
         </code>
         . A rule matches these words, not the tidied-up name above.
       </p>
+
+      {/* U.20 (critic cycle, P2-5): the badge above needs its explanation ON
+          this page — the register pairs its markers with the caption sentence,
+          the panels pair theirs with the basis copy, and a deep-linked reader
+          has seen neither. */}
+      {row.onHandoverDay && (
+        <p
+          className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground"
+          data-testid="detail-handover-note"
+        >
+          {handoverDayDetailNote()}
+        </p>
+      )}
 
       <div className="rounded-md border px-3">
         <Field label="Date">{formatISODate(isoDate(row.date), 'long')}</Field>

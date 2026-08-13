@@ -556,6 +556,11 @@ async function buildAnswer(
           today,
           meta,
           snap.loanPaymentFlowExclusions?.excludeIds,
+          // U.20: the same account-scoped set the three category intents above
+          // feed `spendingByCategory`. Without it this answer states a figure a
+          // released day can double and says nothing, which is the silence U.16
+          // removed from every other spend surface.
+          await getReconciliationHandoverKeys(userId),
         ),
         intent.timeframe,
       );

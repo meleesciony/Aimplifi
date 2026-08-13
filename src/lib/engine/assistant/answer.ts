@@ -32,7 +32,13 @@ import {
 } from '@/lib/engine/account/card-duplicate-view';
 // U.16: the no-row-list variant of the handover-day sentence. Ask states a
 // figure with nothing beneath it, so it cannot use the panel's wording.
-import { handoverDayAnswerNote } from '@/lib/engine/glass-box/category-breakdown';
+// U.21: and the variant for the branches that state no figure at all.
+import {
+  handoverDayAmountsNote,
+  handoverDayAnswerNote,
+  handoverDayUncountedNote,
+} from '@/lib/engine/glass-box/category-breakdown';
+import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import {
   currentCycleAmountSource,
   frozenCardsNote,
@@ -424,10 +430,60 @@ function categoryRemainderFact(
   };
 }
 
+/**
+ * The released-day rows a dropped category took out of the figure, scoped to the
+ * subject the answer is about (U.21).
+ *
+ * Scoped for the same reason `answerSpendByCategory` accumulates its own
+ * `handovers` rather than reading `breakdown.countedOnHandoverDays`: "No
+ * groceries spending" qualified by a count from a dropped ENTERTAINMENT category
+ * would point the reader at rows that have nothing to do with the figure they
+ * asked about. `undefined` scope = the whole breakdown, for the total answers.
+ *
+ * Exported for the TRACE builders: the drilldown under a zero answer must carry
+ * the same fact through the same predicate, or the two surfaces can disagree
+ * about whether hidden rows exist — the exact answer-path/trace-path split
+ * U.16's second critic cycle caught on merchant_spend.
+ */
+export function uncountedFor(breakdown: SpendingBreakdown, target?: SpendTarget): number {
+  const rows = breakdown.uncountedOnHandoverDays;
+  if (!target) return rows.reduce((s, u) => s + u.count, 0);
+  if (target.type === 'category')
+    return rows.filter((u) => u.categoryId === target.categoryId).reduce((s, u) => s + u.count, 0);
+  if (target.type === 'categories') {
+    const ids = new Set(target.categoryIds);
+    return rows.filter((u) => ids.has(u.categoryId)).reduce((s, u) => s + u.count, 0);
+  }
+  // Group: a dropped category is absent from `byGroup` as well as `byCategory`,
+  // which is exactly why `UncountedHandoverCategory` carries its own group.
+  return rows.filter((u) => u.group === target.group).reduce((s, u) => s + u.count, 0);
+}
+
 export function answerSpendTotal(breakdown: SpendingBreakdown, tf: Timeframe): AssistantAnswer {
   if (breakdown.totalCents <= 0) {
-    return { kind: 'spend_total', headline: `No spending recorded ${tf.label}.`, facts: [], source: REPORTS_SOURCE };
+    // U.21: this branch carried no note, justified by a comment asserting that "a
+    // released day can only make a figure too high" — the claim the U.16 critic
+    // disproved with a doubled return. This is the branch that claim was most
+    // wrong about: a doubled return is the ONLY way the release reaches here, and
+    // "No spending recorded" is a stronger statement than any figure this engine
+    // prints.
+    const uncounted = uncountedFor(breakdown);
+    return {
+      kind: 'spend_total',
+      headline: `No spending recorded ${tf.label}.`,
+      detail: uncounted > 0 ? handoverDayUncountedNote(uncounted) : undefined,
+      facts: [],
+      source: REPORTS_SOURCE,
+    };
   }
+  // Critic cycle (P1-1): the uncounted note prints beside the POSITIVE figure
+  // too, not only under "No spending recorded". A doubled return that only
+  // PARTIALLY cancels the breakdown drops its category while the rest of the
+  // figure survives — strictly more reachable than the all-dropped shape, and
+  // it UNDERSTATES the printed figure, the failure direction that costs money.
+  // The zero-only gate was this slice's own repeat of the mistake U.21 exists
+  // to fix: a disclosure confined to the branch where the defect is loudest.
+  const uncountedBeside = uncountedFor(breakdown);
   return {
     kind: 'spend_total',
     headline: `You spent ${fmt(breakdown.totalCents)} ${tf.label}.`,
@@ -441,14 +497,19 @@ export function answerSpendTotal(breakdown: SpendingBreakdown, tf: Timeframe): A
     // reader's rows, so it is gated on there being one); this names a RULE,
     // which is true for every reader and every timeframe.
     // U.16: appended, never replacing — the rule sentence above is true for
-    // every reader, and this clause is a fact about THIS reader's rows. The
-    // empty branch above deliberately carries no note: it states no figure, and
-    // a released day can only make a figure too high.
+    // every reader, and this clause is a fact about THIS reader's rows.
+    // U.21: this comment used to end "the empty branch above deliberately
+    // carries no note: it states no figure, and a released day can only make a
+    // figure too high." Both halves were wrong. A doubled return makes a figure
+    // too LOW (U.16 critic), and it is the empty branch that a doubled return
+    // produces — the branch is not the case the release cannot reach, it is the
+    // case it reaches most destructively.
     detail:
       "Purchases only — transfers and income are excluded, and anything dated after today isn't counted yet." +
       (breakdown.countedOnHandoverDays > 0
         ? ` ${handoverDayAnswerNote(breakdown.countedOnHandoverDays)}`
-        : ''),
+        : '') +
+      (uncountedBeside > 0 ? ` ${handoverDayUncountedNote(uncountedBeside)}` : ''),
     // Tagged (slice 2b): each top category is a trace group, so its figure is
     // independently tappable. traceKey/cents come from the SAME breakdown entry.
     // O.19b: the headline is the WHOLE period total, so the capped list carries
@@ -500,14 +561,24 @@ export function answerSpendByCategory(breakdown: SpendingBreakdown, target: Spen
   }
 
   if (amount <= 0) {
+    // U.21: the per-target zero branch. `handovers` above is necessarily 0 here —
+    // it is accumulated from `byCategory`, which no longer holds this category —
+    // so the count has to come from the dropped set, scoped to this same target.
+    const uncounted = uncountedFor(breakdown, target);
     return {
       kind: 'spend_by_category',
       headline: `No ${target.label} spending ${tf.label}.`,
+      detail: uncounted > 0 ? handoverDayUncountedNote(uncounted, target.label) : undefined,
       facts,
       source: REPORTS_SOURCE,
     };
   }
   const share = pctOf(amount, breakdown.totalCents);
+  // Critic cycle (P1-1), and this branch was the executed exhibit: a GROUP or
+  // umbrella figure survives while a doubled return drops one of its member
+  // categories, so "You spent $50.00 on Food & Dining" printed an understated
+  // figure with no note anywhere. Scoped to the same target as the zero branch.
+  const uncountedBeside = uncountedFor(breakdown, target);
   return {
     kind: 'spend_by_category',
     headline: `You spent ${fmt(amount)} on ${target.label} ${tf.label}.`,
@@ -516,7 +587,11 @@ export function answerSpendByCategory(breakdown: SpendingBreakdown, target: Spen
     // absence — a figure that can be counted twice must say so whether or not
     // it happens to have a percentage beside it.
     detail:
-      [share ? `That's ${share} of your ${tf.label} spending.` : null, handovers > 0 ? handoverDayAnswerNote(handovers) : null]
+      [
+        share ? `That's ${share} of your ${tf.label} spending.` : null,
+        handovers > 0 ? handoverDayAnswerNote(handovers) : null,
+        uncountedBeside > 0 ? handoverDayUncountedNote(uncountedBeside, target.label) : null,
+      ]
         .filter((x): x is string => x !== null)
         .join(' ') || undefined,
     facts,
@@ -527,8 +602,20 @@ export function answerSpendByCategory(breakdown: SpendingBreakdown, target: Spen
 export function answerTopCategories(breakdown: SpendingBreakdown, tf: Timeframe, limit: number): AssistantAnswer {
   const top = breakdown.byCategory.slice(0, limit);
   if (top.length === 0) {
-    return { kind: 'top_categories', headline: `No spending recorded ${tf.label}.`, facts: [], source: REPORTS_SOURCE };
+    // U.21: empty `byCategory` means every category was dropped, so this branch
+    // states the same "no spending" claim as `answerSpendTotal`'s and needs the
+    // same qualification.
+    const uncounted = uncountedFor(breakdown);
+    return {
+      kind: 'top_categories',
+      headline: `No spending recorded ${tf.label}.`,
+      detail: uncounted > 0 ? handoverDayUncountedNote(uncounted) : undefined,
+      facts: [],
+      source: REPORTS_SOURCE,
+    };
   }
+  // Critic cycle (P1-1): same rescope as the other two positive branches.
+  const uncountedBeside = uncountedFor(breakdown);
   return {
     kind: 'top_categories',
     headline: `Your top spending ${tf.label}: ${top[0].name} at ${fmt(top[0].amountCents)}.`,
@@ -546,7 +633,8 @@ export function answerTopCategories(breakdown: SpendingBreakdown, tf: Timeframe,
       `Total ${tf.label}: ${fmt(breakdown.totalCents)}.` +
       (breakdown.countedOnHandoverDays > 0
         ? ` ${handoverDayAnswerNote(breakdown.countedOnHandoverDays)}`
-        : ''),
+        : '') +
+      (uncountedBeside > 0 ? ` ${handoverDayUncountedNote(uncountedBeside)}` : ''),
     // Tagged (slice 2b): every listed category rides in the trace as a reconciled
     // group, so each fact is independently tappable — including the non-top ones
     // the HEADLINE panel honestly hides (they don't sum to the tapped figure).
@@ -622,6 +710,18 @@ export interface AskTxnRow {
   /** O.15: reader-excluded rows leave every Ask figure via the one basis. */
   excludeFromTotals?: boolean | null;
   merchant: string;
+  /**
+   * U.21/U.20: which account posted the row, carried ONLY so a handover-day
+   * marker can be scoped to the combined pair that can actually double.
+   *
+   * Optional because hand-built fixtures do not set it, and every consumer must
+   * treat its absence as "not on a handover day" rather than guessing — a row
+   * with no account cannot be shown to belong to a released pair. U.16 learned
+   * the reverse failure on `toTrendTxns`: the field was simply missing, so
+   * /trends tested `handoverKeys.has(handoverKey(undefined, date))` and marked
+   * nothing at all, silently.
+   */
+  accountId?: string;
 }
 
 /** A raw snapshot transaction as the assistant reads it. `categoryId` and
@@ -639,6 +739,8 @@ export interface SnapshotTxnLike {
   categoryId?: string | null;
   /** O.15: present on DB rows; carried so every Ask predicate can read it. */
   excludeFromTotals?: boolean | null;
+  /** U.20: present on DB rows; the handover marker is scoped by (account, date). */
+  accountId?: string;
 }
 
 /**
@@ -665,6 +767,7 @@ export function toAskTxnRows(txns: readonly SnapshotTxnLike[]): AskTxnRow[] {
       isSplitParent: t.isSplitParent ?? false,
       excludeFromTotals: t.excludeFromTotals ?? false,
       merchant: m.canonical,
+      accountId: t.accountId,
     };
   });
 }
@@ -825,8 +928,27 @@ export interface MerchantSpendResult {
   excludedLoanPaymentCents: number;
   /** Matched rows, contribution-desc then most-recent-first. SIGNED: a purchase is
    *  positive, a refund negative, so `items` always sums to `totalCents` — which is
-   *  what the Glass-Box trace asserts at runtime. */
-  items: { date: string; merchant: string; amountCents: number }[];
+   *  what the Glass-Box trace asserts at runtime.
+   *
+   *  U.20: `onHandoverDay` rides on the ROW because the trace is a second
+   *  selector over these same rows and it is the one that prints the green
+   *  penny-match. U.16's second critic cycle found both critics reporting that
+   *  independently about the category traces: threading the answer and leaving
+   *  the trace puts the un-marked duplicate four lines under the disclosure. */
+  items: { date: string; merchant: string; amountCents: number; onHandoverDay: boolean }[];
+  /**
+   * How many COUNTED rows fall on a released handover day (U.20).
+   *
+   * REQUIRED, like `SpendingBreakdown.countedOnHandoverDays` and for the same
+   * reason: U.16 threaded that field through six surfaces by making it
+   * impossible to construct the result without answering, and this is the answer
+   * that got left out — the one Ask surface stating a spend figure with no
+   * disclosure beside it, under a trace that prints a green penny-match.
+   *
+   * Counted from `matched`, the same array `totalCents` is summed from, so the
+   * sentence and the figure cannot be selected by two different predicates.
+   */
+  countedOnHandoverDays: number;
 }
 
 /** Title-case a bare query term for the empty-result fallback ("costco" → "Costco"). */
@@ -916,6 +1038,11 @@ export function merchantSpend(
   // are one basis, and the stored-flag settlement flip must not survive on
   // this surface. A carried-elsewhere payment answers as not-spent.
   excludedFlowIds?: ReadonlySet<string>,
+  // U.20: the (account, day) pairs the boundary released to BOTH sides of a
+  // combined pair (`getReconciliationHandoverKeys`). Empty = the truth for a
+  // reader with no combined accounts, so every existing caller keeps
+  // byte-identical output.
+  handoverKeys: ReadonlySet<string> = new Set<string>(),
 ): MerchantSpendResult {
   const q = query.trim().toLowerCase();
   // `isSpendRow` carries the window itself; `<= today` and the merchant scope are ours.
@@ -981,8 +1108,24 @@ export function merchantSpend(
     }
   }
 
+  // Critic cycle (both critics, P2): `spendContributionCents(t) !== 0` — a $0
+  // verification hold on a released day was flagged and counted, so a correct
+  // figure carried a sentence telling the reader it may be wrong, about a row
+  // whose doubling moves nothing. The comment below the branch gates used to
+  // CLAIM this exclusion existed; now it does. The flag and the count share
+  // this one predicate, so the marked rows and the sentence still cannot
+  // disagree.
+  const onHandoverDay = (t: AskTxnRow): boolean =>
+    t.accountId !== undefined &&
+    spendContributionCents(t) !== 0 &&
+    handoverKeys.has(handoverKey(t.accountId, t.date));
   const items = matched
-    .map((t) => ({ date: t.date, merchant: t.merchant, amountCents: spendContributionCents(t) }))
+    .map((t) => ({
+      date: t.date,
+      merchant: t.merchant,
+      amountCents: spendContributionCents(t),
+      onHandoverDay: onHandoverDay(t),
+    }))
     .sort((a, b) => b.amountCents - a.amountCents || (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
   return {
@@ -999,6 +1142,12 @@ export function merchantSpend(
     excludedLoanPaymentCount: excludedLoanRows,
     excludedLoanPaymentCents: excludedLoanCents,
     items,
+    // U.20: over `matched` — the same array every figure above is derived from,
+    // and via the same predicate `items` is flagged with, so the count and the
+    // marked rows cannot disagree. A row with no `accountId` answers false
+    // rather than guessing: it cannot be shown to belong to a released pair, and
+    // this app's rule is that an unprovable claim about money is not made.
+    countedOnHandoverDays: matched.reduce((n, t) => (onHandoverDay(t) ? n + 1 : n), 0),
   };
 }
 
@@ -1038,6 +1187,33 @@ function excludedLoanClause(res: MerchantSpendResult): string {
 }
 
 export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): AssistantAnswer {
+  /**
+   * U.20: appended to every branch that prints money summed from `matched`, and
+   * to no other.
+   *
+   * `handoverDayAnswerNote` rather than the panel author, even though this answer
+   * DOES list rows: the panel sentence reassures about a penny-match the reader
+   * can see, and this list is capped at five with no tally printed beneath it.
+   * A sentence promising a tally that is not on screen is the exact clause U.16's
+   * second critic cycle had to re-gate.
+   *
+   * The three `count === 0` branches need no note — `countedOnHandoverDays` is
+   * summed from `matched`, which is empty there. A $0 verification hold never
+   * reaches the count at all: the engine's own predicate excludes zero
+   * contributions (critic cycle — this comment used to claim that exclusion
+   * while the predicate lacked it).
+   *
+   * Critic cycle (claims critic P1-1): the NEGATIVE-NET branches get
+   * `handoverDayAmountsNote`, not this author. Its direction clause was
+   * executed INVERTED there: two copies of one $50.00 return rendered
+   * "$100.00 came back in refunds" — too HIGH — under "returns make this
+   * figure too LOW". Those branches print gross amounts a doubling can only
+   * inflate, plus an exceedance net a doubled purchase deflates, so the
+   * amounts author states the counting rule and no direction.
+   */
+  const handoverNote = res.countedOnHandoverDays > 0 ? ` ${handoverDayAnswerNote(res.countedOnHandoverDays)}` : '';
+  const handoverAmountsNote =
+    res.countedOnHandoverDays > 0 ? ` ${handoverDayAmountsNote(res.countedOnHandoverDays)}` : '';
   const rowFacts: AssistantFact[] = res.items
     .slice(0, 5)
     .map((i) => ({ label: `${i.merchant} · ${humanDate(i.date)}`, value: fmt(i.amountCents) }));
@@ -1119,7 +1295,7 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
     return {
       kind: 'merchant_spend',
       headline: `No purchases at ${res.merchant} ${tf.label}.`,
-      detail: `${fmt(res.refundCents)} came back in refunds.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}`,
+      detail: `${fmt(res.refundCents)} came back in refunds.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}${handoverAmountsNote}`,
       facts: rowFacts,
       source: ACTIVITY_SOURCE,
     };
@@ -1136,7 +1312,7 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
     // of a NEGATIVE net. Tapping "$30.00" to open a panel headed "-$30.00" is a
     // reconciliation the reader cannot follow, which is the same contract read
     // one level up: never offer a tap we cannot honor.
-    const bothFigures = `${fmt(res.purchaseCents)} spent, ${fmt(res.refundCents)} returned.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}`;
+    const bothFigures = `${fmt(res.purchaseCents)} spent, ${fmt(res.refundCents)} returned.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}${handoverAmountsNote}`;
     return {
       kind: 'merchant_spend',
       headline:
@@ -1155,8 +1331,8 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
   // headline is now a NET number and the listed rows are the purchases.
   const detail =
     res.refundCount > 0
-      ? `Across ${res.purchaseCount} ${noun} totalling ${fmt(res.purchaseCents)}, less ${fmt(res.refundCents)} returned.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}`
-      : `Across ${res.purchaseCount} ${noun}.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}`;
+      ? `Across ${res.purchaseCount} ${noun} totalling ${fmt(res.purchaseCents)}, less ${fmt(res.refundCents)} returned.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}${handoverNote}`
+      : `Across ${res.purchaseCount} ${noun}.${pendingClause(res)}${excludedAggregateClause(res)}${excludedLoanClause(res)}${handoverNote}`;
   return {
     kind: 'merchant_spend',
     headline: `You spent ${fmt(res.totalCents)} at ${res.merchant} ${tf.label}.`,

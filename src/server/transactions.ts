@@ -62,6 +62,7 @@ import {
   type ReconciliationLinkLike,
   applyReconciliationBoundary,
   effectiveReconciliationLinks,
+  handoverKey,
   reconciliationTxnKeepFilter,
 } from '@/lib/engine/account/reconcile-boundary';
 import {
@@ -72,6 +73,7 @@ import {
 import {
   activeSupersededPredecessorIds,
   getActiveReconciliations,
+  getReconciliationHandoverKeys,
   getReconciliationTxnKeep,
   isAccountLive,
 } from '@/server/reconciliation';
@@ -386,6 +388,13 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   const keepsReconciled = await getReconciliationTxnKeep(userId);
   const txns = rawTxns.filter((t) => keepsReconciled(t.accountId, t.date));
 
+  // U.20: the (account, day) pairs the keep above deliberately RELEASED to both
+  // sides of a combined pair (U.13) — the register is the surface that lists the
+  // two identical rows, so it is the one place the flag must ride every row.
+  // Account-scoped, same as every panel since U.16's second critic cycle: an
+  // unscoped date set would mark ordinary rows on accounts in no pair at all.
+  const handoverKeys = await getReconciliationHandoverKeys(userId);
+
   // How many transactions share each merchant — drives the "apply to N" count
   // on the register's "Always" action (DECISIONS #42).
   const merchantCounts = new Map<string, number>();
@@ -433,6 +442,10 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     // overwrite the answer.
     descriptorOrigin: rowOrigin({ providerRef: t.providerRef, accountProvider: t.account.provider }),
     isTransfer: t.isTransfer,
+    // U.20: kept next to the keep-filter above that created the possibility —
+    // a row survives the filter AND sits on a released day only when the
+    // boundary kept both sides' copies on purpose.
+    onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)),
     note: t.note,
     taxClass: t.taxClass,
     // O.15: stored flags, verbatim — the badge and the menu render from these.
@@ -777,6 +790,11 @@ export async function getTransactionDetail(
   const keepsReconciled = await getReconciliationTxnKeep(userId);
   if (!keepsReconciled(t.accountId, t.date)) return null;
 
+  // U.20: same released-day flag the register rows carry, from the same
+  // account-scoped set — a detail page reached from a marked row must not
+  // silently drop the one fact that explains its twin.
+  const handoverKeys = await getReconciliationHandoverKeys(userId);
+
   // The suggestion ladder only ever fires on an UNFILED row — `suggestionForRow`
   // returns null on its first line otherwise — so a filed row was loading four
   // per-user datasets, including the reader's entire correction history, purely to
@@ -824,6 +842,7 @@ export async function getTransactionDetail(
     // overwrite the answer.
     descriptorOrigin: rowOrigin({ providerRef: t.providerRef, accountProvider: t.account.provider }),
     isTransfer: t.isTransfer,
+    onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)),
     note: t.note,
     taxClass: t.taxClass,
     // O.15: stored flags, verbatim — the badge and the menu render from these.

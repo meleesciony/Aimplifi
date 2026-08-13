@@ -11,7 +11,12 @@ import { useRouter } from 'next/navigation';
 import { useId, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
-import { reportsNotCountedYetCopy, windowLabelSoFar } from '@/lib/engine/glass-box/category-breakdown';
+import {
+  handoverDayAnswerNote,
+  handoverDayUncountedNote,
+  reportsNotCountedYetCopy,
+  windowLabelSoFar,
+} from '@/lib/engine/glass-box/category-breakdown';
 import { MonthFlowPanel } from '@/components/finance/month-flow-panel';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { CATEGORY_LINK_CLASS } from '@/lib/engine/transactions/links';
@@ -125,6 +130,10 @@ export function ReportsView({
   const top = data.breakdown.byCategory.slice(0, TOP_CATEGORY_ROWS);
   const rest = data.breakdown.byCategory.slice(TOP_CATEGORY_ROWS);
   const restCents = rest.reduce((s, c) => s + c.amountCents, 0);
+  // U.21: released-day rows in categories this page dropped (net <= 0). Summed
+  // here rather than read as a length — the array is one entry per CATEGORY and
+  // the sentence counts TRANSACTIONS.
+  const uncountedHandoverRows = data.breakdown.uncountedOnHandoverDays.reduce((s, u) => s + u.count, 0);
   const [showRest, setShowRest] = useState(false);
   const tailId = useId();
   const panelsId = useId();
@@ -547,6 +556,34 @@ export function ReportsView({
         {currencyNote ? (
           <p className="mb-2 text-xs text-muted-foreground" data-testid="reports-currency-note">
             {currencyNote}
+          </p>
+        ) : null}
+        {/* U.22: the figure a reader reads FIRST. Until now the only handover
+            disclosure on this page was behind a per-category tap, so the total
+            above — the number the eye lands on, and the one the month's other
+            surfaces are compared against — carried none. Same argument C.26 used
+            to hang `reportsNotCountedYetCopy` on the page total rather than only
+            on the panels, and the field has been on this payload since U.16.
+
+            The ANSWER wording, not the panel's: no transaction rows sit beside
+            this total and no penny-match is printed under it, so the panel
+            sentence's "N rows here" and its tally clause would both be false. */}
+        {data.breakdown.countedOnHandoverDays > 0 ? (
+          <p className="mb-2 text-xs text-muted-foreground" data-testid="reports-handover-total">
+            {handoverDayAnswerNote(data.breakdown.countedOnHandoverDays)}
+          </p>
+        ) : null}
+        {/* U.21 on this page, rescoped in the critic cycle: rendered whether or
+            not the table is empty. "No spending this month yet." is the same
+            affirmative claim Ask's zero branches make — but a doubled return
+            that drops ONE category while others survive leaves this page
+            printing a positive total that silently lost a category, which is
+            the more reachable shape (money critic P1-1). The counted note
+            above cannot cover either case: it is summed from the SURVIVING
+            categories. */}
+        {uncountedHandoverRows > 0 ? (
+          <p className="mb-2 text-xs text-muted-foreground" data-testid="reports-handover-none">
+            {handoverDayUncountedNote(uncountedHandoverRows)}
           </p>
         ) : null}
         {top.length === 0 ? (

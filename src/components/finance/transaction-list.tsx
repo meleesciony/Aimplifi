@@ -30,6 +30,7 @@ import {
   CUSTOM_CATEGORY_GROUPS,
   filterCategoryOptions,
 } from '@/lib/engine/categorize/assign';
+import { handoverDayRegisterTotalsNote } from '@/lib/engine/glass-box/category-breakdown';
 import { TAX_CLASSES, TAX_CLASS_LABELS, taxClassLabel } from '@/lib/engine/tax/classes';
 import { TXN_NOTE_MAX_CHARS } from '@/lib/engine/tax/note';
 import { createCustomCategory } from '@/server/custom-category-actions';
@@ -562,6 +563,16 @@ export function TransactionList({
         {/* Branches on the SUMMARY (set-scoped, critic P2-1), never the page
             slice: an excluded row on page 3 moves page 1's totals too. */}
         {summary.excludedCount > 0 ? ' and the rows marked “Excluded from totals”.' : '.'}
+        {/* U.20: this caption enumerates what moves the tiles above, and until
+            now it omitted the one rule that counts a real transaction more than
+            once — an exhaustive-sounding sentence that was not exhaustive. Gated
+            on the SUMMARY's count (rows the tiles are summed from), not on
+            marked rows in the list: a released-day transfer is marked below but
+            moves no total, and a sentence about the totals counts only what the
+            totals count. */}
+        {summary.countedOnHandoverDays > 0 && (
+          <span data-testid="txn-summary-handover"> {handoverDayRegisterTotalsNote(summary.countedOnHandoverDays)}</span>
+        )}
         {pageInfo.total > pageInfo.pageSize && (
           <> Showing {pageInfo.fromIndex}–{pageInfo.toIndex}.</>
         )}
@@ -759,6 +770,19 @@ export function TransactionList({
                           <Badge variant="outline" className="shrink-0 text-[10px]">
                             Pending
                           </Badge>
+                        )}
+                        {/* U.20 — same marker, same vocabulary, as every panel
+                            since U.16: a fact about the row's DATE, not a claim
+                            that it is the duplicate. The register is where the
+                            two identical lines actually sit next to each other,
+                            and until now its only clue was the account name. */}
+                        {t.onHandoverDay && (
+                          <span
+                            className="shrink-0 text-xs text-muted-foreground"
+                            data-testid="txn-handover-row"
+                          >
+                            (connection changeover)
+                          </span>
                         )}
                         {/* O.15 — the register's honesty about a row the totals no
                             longer show. Always-visible (not hover-only — the 380px

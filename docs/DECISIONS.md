@@ -6592,3 +6592,113 @@ The ONE real production user shows a completely different shape. The current mon
 Two shipped sentences were also corrected rather than left inconsistent with the rule this slice wrote down: the tax CSV still said "both … counted twice" (false at multiplicity ≥ 3, in the artifact that reaches a preparer), and `combineSuccessFlash`'s PARTIAL branch still promised "count once" eight lines below the success branch U.13 had already requalified — the branch a reader reaches when something has already gone wrong.
 
 **Residuals, filed with their evidence rather than papered over — U.19** (the transactions CSV ships the double silently while the tax CSV discloses it), **U.20** (Ask's `merchant_spend` answer, and the register's in/out/net totals under a basis line that enumerates what moves them and omits this), **U.21** (a doubled return holding a category at $0.00, after which the zero branches state an affirmative falsehood), **U.22** (/reports' page-level total). And the one this slice deliberately leaves open: the register (`transaction-list.tsx`) still contains no reconciliation vocabulary at all, so a reader scrolling their activity list sees both rows with only the account name to tell them apart. That is a different surface with a different question (a list of events, not a certified total) and it needs its own decision about whether a per-row marker there helps or just adds noise to every row of a busy day.
+
+## #456 — U.19–U.22: the last silent surfaces of the released day, closed as one slice because they share one set (2026-08-12)
+
+**Context.** U.16 (#455) ended with four residuals, each a surface that counts the released
+handover day and says nothing: the transactions CSV (U.19), Ask's `merchant_spend` and the
+register's own totals (U.20), the zero branches a doubled RETURN can produce (U.21), and
+/reports' page-level total (U.22). All four consume the same account-scoped
+`getReconciliationHandoverKeys` set, so they were built and critic-gated together; the previous
+session's window died mid-slice and this one resumed from the working tree plus PROGRESS.md.
+
+**U.19 — a CSV discloses in a column, not a paragraph.** The tax export opens with prose rows
+because a preparer reads it top to bottom; this file's first line IS its header and the reader's
+first act is to sort or pivot it, which a leading prose block breaks. So: a `changeover_day`
+column that is UNCONDITIONAL (a schema that changes shape per reader breaks automation silently,
+and only for some readers — an always-empty column costs one character per row), `yes` on
+released rows only, and a trailing note row emitted only when the file actually contains one,
+kept RECTANGULAR (prose in field 1, seven empty fields) so a table parser sees a row of the
+declared width rather than a ragged tail. The note reuses U.13's cause-free clause and U.16's
+"once for each" multiplicity rule.
+
+**U.20 — the register is the surface where the two identical lines are actually adjacent.** The
+per-row marker is the panels' own `(connection changeover)` — same vocabulary, same rule: a fact
+about the row's DATE, never a claim that this row is the duplicate. The totals caption gets a
+FOURTH sentence author, `handoverDayRegisterTotalsNote`, because both siblings' implicit claims
+are false here: the register prints THREE tiles (a doubled purchase and a doubled return move
+different ones), so "this figure … too high/too LOW" cannot be said; the sentence names the
+tiles instead ("in Money out when they are purchases, in Money in when they are returns"). Its
+count is `TxnSummary.countedOnHandoverDays`, counted AFTER the transfer and excluded-row gates —
+exactly the rows the tiles are summed from — while the row marker stays a date fact on every
+listed row of the pair; the sentence therefore says "rows counted in these totals", which is the
+antecedent lesson from #455's `statesATally` finding applied prospectively. `merchant_spend` gets
+`countedOnHandoverDays` REQUIRED on its result (U.16's make-the-compiler-enumerate move), counted
+from `matched` — the array every figure is summed from — via the same predicate that flags
+`items[].onHandoverDay`, so the trace, a second selector by construction, reads the flags off the
+engine's own rows instead of re-deriving them. A row with no `accountId` answers FALSE: an
+unprovable claim about money is not made, and the row stays counted in the figure either way.
+The detail page renders the marker too — a page reached from a marked row must not drop the one
+fact that explains its twin.
+
+**U.21 — a claim about a figure that does not exist cannot reuse a sentence written about one
+that does.** `SpendingBreakdown.uncountedOnHandoverDays` records the categories the net<=0 drop
+removed that still hold released rows — filled inside the SAME loop that drops them, never by a
+second derivation — and deliberately carries NO amount: its net is <=0 by construction, and a
+money field on a "what the figure is missing" record is an invitation to add it back into a
+total. The record carries its own `group` because a dropped category is absent from `byGroup`
+too, so Ask's group target would otherwise have nothing to resolve against. The third sentence
+author, `handoverDayNoFigureNote`, states the full causal chain (release → a doubled return
+subtracts once for each → the category lands at <=0 → the figure drops it) and claims only that
+the figure MAY be hiding spending — an ordinary refunded purchase produces the same zero, and
+asserting the doubling would be the fabrication `buildTaxExport` refuses. Scoping is the
+answer's: `uncountedFor(breakdown, target?)`, exported so the TRACE mirrors the note through the
+identical predicate under the identical gates (`noFigureBasis`) — the answer-path/trace-path
+split from #455, closed before a critic had to find it this time.
+
+**U.22** rides the same plumbing: the /reports page total (the figure a reader reads FIRST) gets
+`handoverDayAnswerNote` — the ANSWER author, because no rows sit beside that total and no
+penny-match is printed under it — and the empty state gets the no-figure note, since "No
+spending this month yet." is the same affirmative claim Ask's zero branches make.
+
+Also: `server/reports.ts`'s local `handoverDates` renamed `handoverKeys` — it has held
+account-scoped keys since #455's cycle 2, and a name that says "dates" invites the next reader
+to treat it as the unscoped set.
+
+**#456 critic cycle — two fresh contexts, 2 P1 + 8 P1/P2, every finding executed. The two P1s
+interlocked, and fixing one resurrected the other's dead code:**
+
+1. **P1 (money): the disclosure regime shipped with its most reachable shape missing.** The
+   uncounted note was gated to the ZERO branches, and the critic executed the miss: dining
+   $50.00 surviving plus groceries dropped by a doubled released return rendered "You spent
+   $50.00 on Food & Dining this month." — an UNDERSTATED figure, the direction this repo names
+   as the one that costs money — with no note anywhere, while the engine's own
+   `uncountedOnHandoverDays` held the fact. A partial cancellation is strictly more reachable
+   than one that empties the whole breakdown. The note now prints wherever the scoped uncounted
+   set is non-empty — zero and positive figures alike, in the three answers, the three traces,
+   and /reports.
+2. **P1 (claims): `handoverDayAnswerNote`'s direction clause was INVERTED on the merchant
+   negative-net branches.** Executed: two copies of one $50.00 return rendered "$100.00 came
+   back in refunds" — too HIGH — under "returns make this figure too LOW". Those branches print
+   gross magnitudes a doubling can only inflate, plus an exceedance net a doubled purchase
+   deflates; no single direction claim covers them, so their new author
+   (`handoverDayAmountsNote`) states the counting rule and no direction — the register's
+   fourth-author resolution, applied where it had been skipped.
+3. **The U.21 trace mirror was dead code narrating a screen the app never renders.** Traces
+   attach only where an answer states a figure (`headlineCents`), and every zero branch sets
+   none — so the zero-gated `noFigureBasis` never fired, and its docstring described a drawer
+   that could not exist. Fixing P1 above is what made the mirror REAL: ungated, the reachable
+   case is precisely the positive figure over a partially-cancelled breakdown.
+4. **A $0 verification hold fired money-direction disclosures beside figures it cannot move**
+   (both critics, independently) — and the engine comment CLAIMED the exclusion existed while
+   the predicate lacked it. Zero contributions are now excluded from the merchant flag+count
+   (one predicate, so the marks and the sentence still cannot disagree) and from the register
+   summary's count.
+5. **The register note's tile enumeration missed doubled DEPOSITS** — the register is the one
+   surface that counts income, and "in Money out when they are purchases, in Money in when they
+   are returns" read as exhaustive while a doubled paycheck was neither. Replaced with
+   "in whichever of these totals its amount feeds", exhaustive by construction.
+6. **"This figure" had no referent** under Ask's "No spending recorded" (and a wrong one beside
+   the rescoped positive totals) → the note is now referent-free ("Spending figures leave out
+   any category that lands there"). And **the detail-page marker stood unexplained** for a
+   deep-linked reader → it is a Badge among its neighbors now, with its own on-page sentence
+   (`handoverDayDetailNote`), since "the reader just came from the register" is a standing
+   assumption a bookmark breaks.
+
+**Filed rather than fixed, with the critics' executed evidence: U.23** (pre-existing, found on
+the surface U.19 certifies: the transactions CSV export builds its own where-clause, so it
+double-counts every split — parent AND children — and ships non-USD rows the register
+withholds; measured at 4 rows/−$299.00 exported for a register showing 2 rows/−$100.00) and
+**U.24** (/calendar sums both released copies through a lean row shape that cannot carry the
+flag, so its `countedOnHandoverDays` is a structural zero — the "next row-building path
+reintroduces the silence" the TxnView docstring warns about, already shipped).

@@ -220,7 +220,7 @@ describe('every filter the register can apply, the register shows', () => {
 });
 
 describe('the empty state names the merchant zero', () => {
-  const summary = { count: 0, inflowCents: cents(0), outflowCents: cents(0), netCents: cents(0), excludedCount: 0 };
+  const summary = { count: 0, inflowCents: cents(0), outflowCents: cents(0), netCents: cents(0), excludedCount: 0, countedOnHandoverDays: 0 };
   const pageInfo = { page: 1, pageSize: 50, pageCount: 1, total: 0, fromIndex: 0, toIndex: 0 };
 
   it('states the string being matched and links back to the whole register', () => {
@@ -287,7 +287,7 @@ describe('the account select tells the truth about a filter its options do not h
 });
 
 describe('the empty state names the account zero', () => {
-  const summary = { count: 0, inflowCents: cents(0), outflowCents: cents(0), netCents: cents(0), excludedCount: 0 };
+  const summary = { count: 0, inflowCents: cents(0), outflowCents: cents(0), netCents: cents(0), excludedCount: 0, countedOnHandoverDays: 0 };
   const pageInfo = { page: 1, pageSize: 50, pageCount: 1, total: 0, fromIndex: 0, toIndex: 0 };
 
   it("a mortgage filter states the account, the register's basis, and the page that actually holds it", () => {

@@ -199,11 +199,13 @@ describe('CSV export', () => {
         category: 'Dining Out',
         amountCents: -675,
         status: 'POSTED',
+        onHandoverDay: false,
       },
     ]);
     expect(csv).toContain('"SQ *BLUE BOTTLE, ""OAK"""');
     expect(csv).toContain('-6.75');
-    expect(csv.startsWith('date,account,description,merchant,category,amount,status\r\n')).toBe(true);
+    // U.19: `changeover_day` is UNCONDITIONAL — one schema for every reader.
+    expect(csv.startsWith('date,account,description,merchant,category,amount,status,changeover_day\r\n')).toBe(true);
   });
 
   it('net-worth CSV round-trips the seed trend', () => {

@@ -6,6 +6,69 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-12 — U.19–U.22: the last silent surfaces of the released day, closed as one slice (DECISIONS #456)
+
+**Session note:** the building session's PowerShell window died mid-slice; this entry's work was
+recovered from the uncommitted tree plus PROGRESS.md and completed in a fresh session — the
+checkpoint discipline (LOOP_ENGINEERING rule 8) is what made that a resume instead of a restart.
+
+**Shipped.** U.16's four residuals as one slice, since all four consume the same account-scoped
+`getReconciliationHandoverKeys` set. **U.19:** the transactions CSV gets an UNCONDITIONAL
+`changeover_day` column (one schema for every reader), `yes` on released rows, and a trailing
+rectangular note row only when the file holds one — a column-and-note, not the tax export's
+prose block, because this file's first line is its header and the reader's first act is to sort
+it. **U.20:** the register — the surface where the two identical lines actually sit adjacent —
+gets the panels' own `(connection changeover)` per-row marker, a totals-caption sentence from a
+fourth author (`handoverDayRegisterTotalsNote`: the register prints THREE tiles and counts
+income, so no sibling's direction clause survives there), `TxnSummary.countedOnHandoverDays`
+counted after the transfer/excluded/zero gates, and the detail page gets the marker as a Badge
+plus its own explanatory sentence (deep links break "came from the register"). Ask's
+`merchant_spend` gets REQUIRED `countedOnHandoverDays` off the same predicate that flags its
+items, the note on every money branch, and the trace reads the engine's own rows. **U.21:**
+`SpendingBreakdown.uncountedOnHandoverDays` records the categories the net<=0 drop removed that
+still hold released rows — filled inside the same loop that drops them, carrying group but
+deliberately NO amount — and `handoverDayUncountedNote` prints wherever that set is non-empty,
+scoped to the answer's target. **U.22:** the /reports page total carries the answer note; the
+empty state and the positive table carry the uncounted note.
+
+**Critic cycle: two fresh contexts, 2 P1 + 8 P1/P2, every finding executed.** (1) P1 money: the
+uncounted note was gated to the ZERO branches — the critic rendered "You spent $50.00 on
+Food & Dining this month." over a breakdown whose groceries a doubled released return had
+silently dropped: a positive, UNDERSTATED figure, the direction that costs money, disclosed
+nowhere. Now fact-gated (set non-empty), not branch-gated. (2) P1 claims: the answer note's
+direction clause was INVERTED on the merchant negative-net branches — two copies of one $50.00
+return rendered "$100.00 came back in refunds" (too HIGH) under "returns make this figure too
+LOW"; those branches now use `handoverDayAmountsNote`, which states the counting rule and no
+direction. (3) The zero-gated trace mirror was DEAD CODE — traces attach only where an answer
+states `headlineCents`, and zero branches state none; ungating (1) is what made it real. (4) A
+$0 verification hold was flagged and counted while an engine comment claimed it was excluded —
+now excluded, in the one predicate both the marks and the count read. (5) The register note's
+tile enumeration missed doubled DEPOSITS → "in whichever of these totals its amount feeds".
+(6) "This figure" had no referent under "No spending recorded" → the note is referent-free.
+Lesson distilled: `a-disclosure-gated-to-the-loudest-branch-misses-the-reachable-one`.
+
+**Filed with executed evidence, not fixed here: U.23** — pre-existing, on the surface U.19
+certifies: the export route's own where-clause double-counts every split (parent AND children)
+and ships non-USD rows the register withholds; measured 4 rows/−$299.00 exported vs the
+register's 2 rows/−$100.00. **U.24** — /calendar sums both released copies through a lean row
+shape that cannot carry the flag; its summary count is a structural zero and no calendar surface
+speaks any handover vocabulary.
+
+**Gate.** `bash scripts/verify.sh` with `VERIFY_E2E=1` → **✅ VERIFY GREEN** (exit 0): tsc 0 /
+eslint 0 / **6,935 passed + 1 expected fail + 1 skipped / 421 files** / build clean / **346 e2e
+passed, 2 flaky-passed-on-retry** (`budget-targets`, `transactions` CSV *import* — files this
+slice does not touch, the recorded load-flake class). 56 locks across the two handover test
+files; four sabotage proofs each reddened exactly their own locks and were reverted (drop-loop,
+merchant predicate, summary count, CSV note); the two updated legacy expectations (phase4 CSV
+header, merchant result shape) failed against the new code before updating, which is fail-old
+evidence for those surfaces. No `prisma/` diff — read-path and copy only.
+
+**Live check with a DISCRIMINATING half this time:** `scripts/u19-live-deploy-check.mjs` — the
+CSV header is the one demo-visible string that differs between builds, so unlike U.5/U.9/U.13/
+U.16 this script can actually catch a stale deploy. Run against production PRE-deploy: **16
+PASS / 1 FAIL / 4 declared SKIP**, the single failure being exactly the discriminating header
+check (old header captured verbatim) — its own fail-old proof. Post-deploy target: 17/17.
+
 ## ✅ BUILT 2026-08-12 — U.16: the drilldown stops certifying the handover-day double, on every surface that counts it (DECISIONS #455)
 
 **The defect.** U.13 (#454) deliberately releases the one handover day between a retired feed and the live one that replaced it to BOTH sides — a measured decision, since either whole-day award silently lost real money — and priced it as "9 rows / $374.40 of VISIBLE duplication". Nothing made it visible. Every spending surface counted those rows in silence, and the glass-box panel actively certified them: two identical lines listed together with "matched to the penny" printed underneath, on the one screen a suspicious reader opens to AUDIT a figure. `BREAKDOWN_BASIS` stayed literally true throughout — both rows are counted and the panel does list both — which is precisely why silence could not stand.

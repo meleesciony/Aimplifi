@@ -35,13 +35,14 @@ import {
 import { isIncomeFlowRow, monthlyFlows, type MonthlyFlow, type TxnLike } from '@/lib/engine/fi/insights';
 import type { CategoryMeta } from '@/lib/engine/categorize/categories';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
-import { breakdownHandoverDayCopy } from '@/lib/engine/glass-box/category-breakdown';
+import { breakdownHandoverDayCopy, handoverDayUncountedNote } from '@/lib/engine/glass-box/category-breakdown';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
 import {
   largestPurchases,
   merchantSpend,
   toAskTxnRows,
+  uncountedFor,
   type MerchantSpendResult,
 } from './answer';
 import type { AssistantIntent, SpendTarget, Timeframe } from './intent';
@@ -270,6 +271,31 @@ function handoverBasis(rows: readonly TraceRow[], headlineCents: number): string
   return [breakdownHandoverDayCopy(n, sumRows(rows) === headlineCents && rows.length > 1)];
 }
 
+/**
+ * The dropped-released-rows disclosure for a TRACE (U.21, rescoped in the
+ * critic cycle), mirrored from the ANSWER through the answer's own exported
+ * predicate so the two surfaces cannot tell different stories.
+ *
+ * `handoverBasis` above counts the CITED rows, and a dropped category's rows
+ * are exactly what a trace does not cite — so without this, a trace whose
+ * breakdown silently lost a category to a doubled return certified its figure
+ * ("✓ N transactions add up to …") with no hint that spending may be missing
+ * from it.
+ *
+ * UNGATED on the figure's sign, and honestly: a trace only exists where the
+ * answer states a figure (`traceAnswer` runs on `headlineCents !== undefined`,
+ * and the zero branches set none), so the reachable case is precisely the
+ * POSITIVE figure over a partially-cancelled breakdown — the money critic's
+ * P1-1 exhibit. The first draft gated this on the ZERO conditions, which made
+ * it dead code narrating a drawer the app never renders (claims critic, P2-2).
+ * Self-gating: empty uncounted set → no sentence, for every reader without the
+ * shape.
+ */
+function uncountedBasis(breakdown: SpendingBreakdown, target?: SpendTarget): string[] {
+  const n = uncountedFor(breakdown, target);
+  return n > 0 ? [handoverDayUncountedNote(n, target?.label)] : [];
+}
+
 const sumRows = (rows: readonly TraceRow[]) => rows.reduce((s, r) => s + r.contributionCents, 0);
 const groupReconciles = (g: TraceGroup) => sumRows(g.rows) === g.amountCents;
 
@@ -318,7 +344,15 @@ export function traceSpendTotal(
     'spend_total',
     breakdown.totalCents,
     rows,
-    [NET_SPEND_BASIS, DROPPED_CATEGORY_BASIS, ...handoverBasis(rows, breakdown.totalCents)],
+    [
+      NET_SPEND_BASIS,
+      DROPPED_CATEGORY_BASIS,
+      ...handoverBasis(rows, breakdown.totalCents),
+      // U.21 (rescoped): whenever the breakdown dropped released rows — which
+      // in a rendered trace means beside a POSITIVE figure, the only kind that
+      // gets one.
+      ...uncountedBasis(breakdown),
+    ],
     groups,
   );
 }
@@ -355,7 +389,15 @@ export function traceSpendByCategory(
     'spend_by_category',
     amount,
     rows,
-    [NET_SPEND_BASIS, DROPPED_CATEGORY_BASIS, ...handoverBasis(rows, amount)],
+    [
+      NET_SPEND_BASIS,
+      DROPPED_CATEGORY_BASIS,
+      ...handoverBasis(rows, amount),
+      // U.21 (rescoped): same target scope as the answer — a note counted from
+      // another category's dropped rows would point the reader at rows that
+      // have nothing to do with what they asked.
+      ...uncountedBasis(breakdown, target),
+    ],
     groups.length > 1 ? groups : undefined,
   );
 }
@@ -380,7 +422,13 @@ export function traceTopCategories(
     'top_categories',
     top[0]?.amountCents ?? 0,
     rows,
-    [NET_SPEND_BASIS, DROPPED_CATEGORY_BASIS, ...handoverBasis(rows, top[0]?.amountCents ?? 0)],
+    [
+      NET_SPEND_BASIS,
+      DROPPED_CATEGORY_BASIS,
+      ...handoverBasis(rows, top[0]?.amountCents ?? 0),
+      // U.21 (rescoped): breakdown-wide, matching the answer's detail scope.
+      ...uncountedBasis(breakdown),
+    ],
     groups,
   );
 }
@@ -389,10 +437,20 @@ export function traceTopCategories(
  *  list every counted row, purchases AND refunds (the latter with a negative
  *  contribution since O.7), so they are the rows, verbatim. */
 export function traceMerchantSpend(res: MerchantSpendResult): RowSumTrace {
+  // U.20: the flag comes off the engine's own rows rather than being re-derived
+  // here from a handover set. `merchantSpend` already decided which rows the
+  // figure counts and which of them sit on a released day; a second selector in
+  // the trace is exactly the divergence the glass box exists to rule out.
+  const rows = res.items.map((i) => ({
+    date: i.date,
+    merchant: i.merchant,
+    contributionCents: i.amountCents,
+    onHandoverDay: i.onHandoverDay,
+  }));
   return assemble(
     'merchant_spend',
     res.totalCents,
-    res.items.map((i) => ({ date: i.date, merchant: i.merchant, contributionCents: i.amountCents })),
+    rows,
     [
       // O.7: this line moved with the basis. It used to read "from posted
       // transactions. Returns are not subtracted here" — both clauses are now
@@ -408,6 +466,10 @@ export function traceMerchantSpend(res: MerchantSpendResult): RowSumTrace {
       // detector to pair, so it stays unflagged and IS counted. See NET_SPEND_BASIS.
       'Spending at this merchant only — transfers and income are excluded, and refunds count against the total. Charges still pending are included, the same way your reports and budgets count them.',
       'Anything dated after today is left out, so this is money already gone.',
+      // U.20: the panel wording, not the answer's — a trace lists the rows, they
+      // are "here", and the reader is looking at the tally the clause names.
+      // `res.totalCents` is the same headline `assemble` reconciles against.
+      ...handoverBasis(rows, res.totalCents),
     ],
   );
 }
@@ -550,7 +612,15 @@ function traceForKind(intent: AssistantIntent, input: TraceInput): AnswerTrace {
       );
     case 'merchant_spend':
       return traceMerchantSpend(
-        merchantSpend(toAskTxnRows(txns), intent.timeframe, intent.merchant, input.today, meta, excludedFlowIds),
+        merchantSpend(
+          toAskTxnRows(txns),
+          intent.timeframe,
+          intent.merchant,
+          input.today,
+          meta,
+          excludedFlowIds,
+          input.handoverKeys,
+        ),
       );
     case 'income':
       // TraceTxn extends TxnLike (compile-time assert below) — no cast needed.

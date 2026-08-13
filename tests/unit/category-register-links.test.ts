@@ -151,6 +151,7 @@ const asTxnViews = (rows: Row[]): TxnView[] =>
       status: r.status ?? 'POSTED',
       descriptorOrigin: 'bank',
       isTransfer: r.isTransfer ?? false,
+      onHandoverDay: false,
       note: null,
       taxClass: null,
       // Every row here carries a real category and none is flagged, so the O.2

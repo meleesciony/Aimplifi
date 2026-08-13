@@ -143,7 +143,11 @@ export async function getReports(
   const provider = getProvider();
   const today = provider.today(userId);
   const ym = today.slice(0, 7);
-  const [snap, meta, linkableCategoryIds, handoverDates] = await Promise.all([
+  // Named `handoverKeys`, not `handoverDates` (U.20 rename): the set holds
+  // ACCOUNT-scoped (account, date) keys since U.16's second critic cycle, and a
+  // variable that says "dates" invites the next reader to treat it as the
+  // unscoped set — the exact confusion that cycle existed to fix.
+  const [snap, meta, linkableCategoryIds, handoverKeys] = await Promise.all([
     provider.getFinanceSnapshot(userId),
     getCategoryMeta(userId),
     // The register's own option list — the fence deciding which figures may
@@ -151,7 +155,8 @@ export async function getReports(
     // `categoryHrefs`); /reports' page no longer fetches it, while /trends and
     // /budgets still call `getLinkableCategoryIds` directly for their own.
     getLinkableCategoryIds(userId),
-    // U.16: the days the boundary released to BOTH sides of a combined pair.
+    // U.16: the (account, day) keys the boundary released to BOTH sides of a
+    // combined pair.
     // Fetched ONCE in the assembler, like `excludedFlowIds` below, and handed to
     // both builders — the category panels and the chart's month panels are two
     // surfaces on one page, and a fact fetched twice is a fact that can differ
@@ -183,7 +188,7 @@ export async function getReports(
     .sort((a, b) => (a.month < b.month ? -1 : 1))
     .slice(-months);
 
-  const breakdown = spendingByCategory(snap.transactions, window, meta, excludedFlowIds, handoverDates);
+  const breakdown = spendingByCategory(snap.transactions, window, meta, excludedFlowIds, handoverKeys);
   // Named once and handed to BOTH builders: two panels that disagree about a
   // payee's name on the same page would be a defect nobody could explain, and
   // building the array twice is what would let them.
@@ -203,7 +208,7 @@ export async function getReports(
     new Map(breakdown.byCategory.map((c) => [c.categoryId, c.amountCents])),
     meta,
     excludedFlowIds,
-    handoverDates,
+    handoverKeys,
   );
   // `series` is the array the chart renders, so the headlines here are the
   // figures the reader will actually see — `reconciles` is checked against the
@@ -215,7 +220,7 @@ export async function getReports(
   // O.20b: `series` still ships as `months` (tiny — six headline objects), so
   // the opt-out skips only the ROW assembly, which is the whole measured cost.
   const monthFlows = includeMonthFlows
-    ? buildMonthFlowBreakdowns(named, series, excludedFlowIds, today, handoverDates)
+    ? buildMonthFlowBreakdowns(named, series, excludedFlowIds, today, handoverKeys)
     : {};
   // One href per category figure, from the window that figure was summed over.
   const linkable = new Set(linkableCategoryIds);

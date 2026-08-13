@@ -179,6 +179,7 @@ describe('the register: the one place an excluded row STAYS', () => {
     status: 'POSTED',
     descriptorOrigin: 'bank',
     isTransfer: false,
+    onHandoverDay: false,
     note: null,
     taxClass: null,
     excludeFromTotals: false,

@@ -123,6 +123,7 @@ const asTxnViews = (rows: Row[]): TxnView[] =>
       status: r.status ?? 'POSTED',
       descriptorOrigin: 'bank',
       isTransfer: false,
+      onHandoverDay: false,
       note: null,
       taxClass: null,
       needsReview: false,

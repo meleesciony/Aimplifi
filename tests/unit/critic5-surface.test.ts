@@ -32,6 +32,7 @@ function row(over: Partial<ExportTxn>): ExportTxn {
     category: 'Groceries',
     amountCents: -1234,
     status: 'POSTED',
+    onHandoverDay: false,
     ...over,
   };
 }

@@ -40,6 +40,18 @@ export interface TxnView {
   descriptorOrigin: RowOrigin;
   isTransfer: boolean;
   /**
+   * U.20: whether this row sits on a day the boundary released to BOTH sides of
+   * the combined pair it belongs to, so a transaction both connections reported
+   * is listed here twice.
+   *
+   * REQUIRED. The register is the surface that lists the two identical rows, and
+   * until now it carried no reconciliation vocabulary at all — `transaction-list`
+   * had zero occurrences of reconcil/combined/cutover, so the reader's only clue
+   * that two lines were one purchase was the account name. A default of false
+   * would let the next row-building path reintroduce exactly that silence.
+   */
+  onHandoverDay: boolean;
+  /**
    * The reader's own memo, verbatim, or null. REQUIRED rather than optional: a row
    * shape that can silently omit it would let a surface render "no note" for a row
    * that has one, and the note exists precisely so a charge is not a mystery.
@@ -253,6 +265,17 @@ export function scopedDateBounds(
 
 export interface TxnSummary {
   count: number;
+  /**
+   * U.20: how many of the rows these figures are summed from fall on a day the
+   * boundary released to both sides of a combined pair.
+   *
+   * The caption above these totals enumerates what moves them ("Totals include
+   * pending charges and exclude transfers…"), which reads as the COMPLETE rule
+   * and omitted the one rule that counts a real transaction more than once. An
+   * exhaustive-sounding sentence that is not exhaustive is the defect
+   * `closing-a-gap-shrinks-the-disclosure-that-described-it` names.
+   */
+  countedOnHandoverDays: number;
   /** Sum of positive, non-transfer amounts. */
   inflowCents: Cents;
   /** Sum of magnitudes of negative, non-transfer amounts (positive number). */
@@ -373,23 +396,41 @@ export function paginate<T>(rows: readonly T[], page: number, pageSize: number):
 export interface TotalableTxn extends ExcludableTxn {
   isTransfer: boolean;
   amountCents: number;
+  /**
+   * U.20: whether this row sits on a day the reconciliation boundary released to
+   * both sides of a combined pair. Optional here — /calendar totals its days
+   * through this same function over a lean row shape that does not carry the
+   * flag, and an absent value counts as "not released", which is the correct
+   * answer for a row whose pair membership is unknown.
+   */
+  onHandoverDay?: boolean;
 }
 
 export function summarizeTransactions(rows: readonly TotalableTxn[]): TxnSummary {
   let inflow = 0;
   let outflow = 0;
   let excluded = 0;
+  let handovers = 0;
   for (const t of rows) {
     if (isExcludedFromTotals(t)) excluded += 1;
     if (t.isTransfer) continue; // transfers are neither income nor expense
     // O.15: excluded rows stay LISTED (and counted as rows) but leave the
     // money figures, the same direction as every other total in the app.
     if (isExcludedFromTotals(t)) continue;
+    // U.20: counted AFTER the two gates above and before the sums, so it counts
+    // exactly the rows the money figures are summed from. A released row the
+    // reader has excluded from totals cannot move those figures, so claiming it
+    // might would be a disclosure about money that did not move. The `!== 0`
+    // gate is the same rule one case over (critic cycle): a $0 verification
+    // hold passes both gates and is summed — adding zero — so without it the
+    // caption warned about a row whose doubling cannot move any tile.
+    if (t.onHandoverDay === true && t.amountCents !== 0) handovers += 1;
     if (t.amountCents > 0) inflow += t.amountCents;
     else if (t.amountCents < 0) outflow += -t.amountCents;
   }
   return {
     count: rows.length,
+    countedOnHandoverDays: handovers,
     inflowCents: cents(inflow),
     outflowCents: cents(outflow),
     netCents: cents(inflow - outflow),

@@ -305,7 +305,16 @@ describe('U.16 — the figure and its disclosure are scoped to each other', () =
     expect(b.totalCents).toBe(2_000);
     expect(b.byCategory.map((c) => c.categoryId)).toEqual(['dining']);
     expect(b.countedOnHandoverDays).toBe(0);
-    expect(answerSpendTotal(b, { label: 'this month' } as never).detail).not.toContain('changing connections');
+    // U.21 rescope (the U.19–U.22 critic cycle): the COUNTED note ("N
+    // transactions in this figure") must still not fire — no released row is IN
+    // this figure, which is what this regression always guarded — but the
+    // figure is no longer silent either: the dropped category's released rows
+    // now surface through the UNCOUNTED note, because this exact shape (a $20
+    // total that silently lost a category to a doubled return) was the money
+    // critic's P1-1 exhibit one slice later.
+    const detail = answerSpendTotal(b, { label: 'this month' } as never).detail ?? '';
+    expect(detail).not.toContain('in this figure');
+    expect(detail).toContain('Spending figures leave out');
   });
 
   it('regression__u16_top_categories_qualifies_the_total_it_prints', () => {

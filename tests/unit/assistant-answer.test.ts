@@ -99,6 +99,7 @@ describe('answerAccountBalance', () => {
 const BREAKDOWN: SpendingBreakdown = {
   totalCents: 50000,
   countedOnHandoverDays: 0,
+  uncountedOnHandoverDays: [],
   byCategory: [
     { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 30000, countedOnHandoverDays: 0 },
     { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 20000, countedOnHandoverDays: 0 },
@@ -134,6 +135,7 @@ describe('answerSpend*', () => {
     const UTIL_BREAKDOWN = {
       totalCents: 40000,
       countedOnHandoverDays: 0,
+      uncountedOnHandoverDays: [],
       byCategory: [
         { categoryId: 'electricity', name: 'Electricity', group: 'Bills & Utilities', amountCents: 12000, countedOnHandoverDays: 0 },
         { categoryId: 'water', name: 'Water & Sewer', group: 'Bills & Utilities', amountCents: 6000, countedOnHandoverDays: 0 },
@@ -594,6 +596,7 @@ describe('O.19b — capped category lists state their remainder', () => {
   const WIDE: SpendingBreakdown = {
     totalCents: 150000, // = Σ byCategory, the engine identity (reports.ts:101)
     countedOnHandoverDays: 0,
+    uncountedOnHandoverDays: [],
     byCategory: [
       { categoryId: 'rent', name: 'Rent', group: 'Housing', amountCents: 50000, countedOnHandoverDays: 0 },
       { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 40000, countedOnHandoverDays: 0 },
@@ -644,6 +647,7 @@ describe('O.19b — capped category lists state their remainder', () => {
     const grouped: SpendingBreakdown = {
       totalCents: 150000,
       countedOnHandoverDays: 0,
+      uncountedOnHandoverDays: [],
       byCategory: WIDE.byCategory,
       byGroup: [
         {

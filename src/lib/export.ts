@@ -16,10 +16,46 @@ export interface ExportTxn {
   category: string | null;
   amountCents: number;
   status: string;
+  /**
+   * Whether this row sits on a day the reconciliation boundary released to BOTH
+   * sides of a combined pair (U.19), so a transaction both connections reported
+   * is in this file twice.
+   *
+   * REQUIRED, not optional-defaulting-false. `server/reconciliation.ts` states
+   * that the disclosure exists for "a surface that reports totals a reader will
+   * act on — the tax export above all, whose file leaves the app entirely", and
+   * this file leaves just as completely: a reader sums the amount column in a
+   * spreadsheet and the app never sees the figure it produced. A default would
+   * let the next export path ship the silence back in.
+   */
+  onHandoverDay: boolean;
 }
 
+/**
+ * The trailing note (U.19), emitted only when the file actually contains
+ * released rows — a reader with no combined accounts gets a byte-identical file
+ * to the one this export has always produced, minus the new empty column.
+ *
+ * Deliberately NOT the tax export's shape. That file opens with prose rows above
+ * a blank line and its own table header, which is right for a summary a preparer
+ * reads top to bottom, and wrong here: this file's first line IS its header, and
+ * the thing a reader does with it — sort, filter, pivot, sum a column — is
+ * exactly what a leading prose block breaks.
+ */
+const HANDOVER_CSV_NOTE =
+  'Note: rows marked yes in changeover_day fall on a day one of your combined accounts was ' +
+  'changing connections. Both connections’ records are kept for that day, because neither can ' +
+  'be shown to have covered the whole of it — so if more than one of them reported the same ' +
+  'transaction, it appears once for each. Nothing has been adjusted: dropping either side’s ' +
+  'records would lose transactions only one connection saw.';
+
 export function transactionsToCsv(rows: readonly ExportTxn[]): string {
-  const header = 'date,account,description,merchant,category,amount,status';
+  // U.19: the column is UNCONDITIONAL, unlike the note below it. A column that
+  // appears only for readers with a combined pair is a schema that changes shape
+  // per reader, which breaks anything automated against the file silently and
+  // only for some of them. An always-present column that is empty for everyone
+  // else costs one character per row and keeps the file one shape.
+  const header = 'date,account,description,merchant,category,amount,status,changeover_day';
   const lines = rows.map((r) =>
     [
       r.date,
@@ -29,9 +65,16 @@ export function transactionsToCsv(rows: readonly ExportTxn[]): string {
       csvField(r.category ?? ''),
       (r.amountCents / 100).toFixed(2),
       r.status,
+      r.onHandoverDay ? 'yes' : '',
     ].join(','),
   );
-  return [header, ...lines].join('\r\n') + '\r\n';
+  // Rectangular: the note occupies the first field and the rest are empty, so a
+  // parser reading the file as a table still sees one row of the declared width
+  // rather than a ragged tail.
+  const note = rows.some((r) => r.onHandoverDay)
+    ? [[csvField(HANDOVER_CSV_NOTE), '', '', '', '', '', '', ''].join(',')]
+    : [];
+  return [header, ...lines, ...note].join('\r\n') + '\r\n';
 }
 
 export interface NetWorthExportRow {

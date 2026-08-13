@@ -91,6 +91,7 @@ function view(id: string, merchantName: string): TxnView {
     status: 'POSTED',
     descriptorOrigin: 'bank',
     isTransfer: false,
+    onHandoverDay: false,
     note: null,
     taxClass: null,
     needsReview: false,

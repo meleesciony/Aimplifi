@@ -52,6 +52,26 @@ export interface GroupSpend {
   amountCents: number;
   categories: CategorySpend[];
 }
+
+/**
+ * A category the figure DROPPED (net <= 0) that still holds released-day rows
+ * (U.21).
+ *
+ * Deliberately carries no amount. Its net is <= 0 by construction — the reason
+ * it is here — and a money field on a "what the figure is missing" record is an
+ * invitation to add it back into a total, which would be a second, wrong answer
+ * to the question `totalCents` already answers. The disclosure needs to know
+ * that released rows exist and where; it never needs their sum.
+ *
+ * `group` rides along because the consumer that needs it most cannot recover it:
+ * a dropped category is absent from `byGroup` too, so Ask's group branch has
+ * nothing to resolve `categoryId` against.
+ */
+export interface UncountedHandoverCategory {
+  categoryId: string;
+  group: string;
+  count: number;
+}
 export interface SpendingBreakdown {
   totalCents: number;
   byCategory: CategorySpend[]; // sorted desc
@@ -74,6 +94,24 @@ export interface SpendingBreakdown {
    * Zero for every reader with no combined accounts.
    */
   countedOnHandoverDays: number;
+  /**
+   * The released-day rows this figure DROPPED, per category (U.21).
+   *
+   * `countedOnHandoverDays` above is summed from the SURVIVING categories, which
+   * is what makes it correct for every figure that exists — and structurally
+   * blind to the one case where the figure does not. A return both connections
+   * reported subtracts twice, so a category whose real net was positive can be
+   * driven to <= 0 and dropped entirely; the reader is then told "No spending
+   * recorded", which is a stronger claim than any number this engine prints, and
+   * the double is the reason it is false.
+   *
+   * Only categories that actually hold released rows appear here, so an empty
+   * array is the truth for every reader with no combined accounts AND for every
+   * reader whose dropped categories are ordinary refunds. A consumer must not
+   * read `length` as "the figure is wrong" — it is "the figure cannot see these
+   * rows", which is exactly what the zero branches need to say.
+   */
+  uncountedOnHandoverDays: readonly UncountedHandoverCategory[];
 }
 
 /**
@@ -224,9 +262,11 @@ export function spendingByCategory(
   // a user with no custom categories gets byte-identical output.
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403), threaded to isSpendRow
-  // U.16: the days the boundary released to BOTH sides of a combined pair
-  // (`getReconciliationHandoverDates`). Empty = the truth for a reader with no
-  // combined accounts, so every existing caller keeps byte-identical output.
+  // U.16: the (account, day) pairs the boundary released to BOTH sides of a
+  // combined pair (`getReconciliationHandoverKeys` — account-scoped, NOT the
+  // unscoped `getReconciliationHandoverDates` the tax export uses, which would
+  // mark every account's rows on that date). Empty = the truth for a reader with
+  // no combined accounts, so every existing caller keeps byte-identical output.
   handoverKeys: ReadonlySet<string> = new Set<string>(),
 ): SpendingBreakdown {
   // Validated ONCE here rather than per row: a malformed `asOf` compared as a
@@ -248,8 +288,23 @@ export function spendingByCategory(
   }
 
   const byCategory: CategorySpend[] = [];
+  // U.21: filled by the SAME drop this loop performs, so it cannot describe a
+  // different set than the one `byCategory` excluded. Computing it in a second
+  // pass over `totals` would be a second derivation of "which categories were
+  // dropped", and this repo has paid for that shape before.
+  const uncountedOnHandoverDays: UncountedHandoverCategory[] = [];
   for (const [id, amountCents] of totals) {
-    if (amountCents <= 0) continue; // net refund / zero → drop
+    if (amountCents <= 0) {
+      // net refund / zero → drop
+      const dropped = handoverByCategory.get(id) ?? 0;
+      if (dropped > 0)
+        uncountedOnHandoverDays.push({
+          categoryId: id,
+          group: meta.get(id)?.group ?? 'Other',
+          count: dropped,
+        });
+      continue;
+    }
     const cat = meta.get(id);
     byCategory.push({
       categoryId: id,
@@ -285,5 +340,5 @@ export function spendingByCategory(
   // qualifies now come off the same array, which is the only way they cannot
   // disagree.
   const countedOnHandoverDays = byCategory.reduce((s, c) => s + c.countedOnHandoverDays, 0);
-  return { totalCents, byCategory, byGroup, countedOnHandoverDays };
+  return { totalCents, byCategory, byGroup, countedOnHandoverDays, uncountedOnHandoverDays };
 }

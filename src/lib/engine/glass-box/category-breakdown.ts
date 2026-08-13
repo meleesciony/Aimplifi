@@ -324,6 +324,155 @@ export function handoverDayAnswerNote(count: number): string {
 }
 
 /**
+ * The handover-day sentence for the register's totals strip (U.20) — the fourth
+ * surface shape, and a fourth author for the same reason the second and third
+ * exist: each sibling carries an implicit claim about what is on screen, and
+ * every one of those claims is false on the register.
+ *
+ *  - Not `breakdownHandoverDayCopy`: its direction clause names "this figure",
+ *    singular, and the register prints THREE (Money in / Money out / Net). A
+ *    duplicated purchase and a duplicated return also move DIFFERENT tiles here,
+ *    so "too high / too LOW" about one figure would be wrong about two of them.
+ *  - Not `handoverDayAnswerNote`: "in this figure" fails the same way, and the
+ *    register DOES list the rows — the answer author exists precisely for
+ *    surfaces that cannot show them.
+ *
+ * The count is the rows the money tiles are actually summed from
+ * (`TxnSummary.countedOnHandoverDays` — after the transfer and excluded-row
+ * gates), NOT the rows the list marks: a released-day transfer is marked in the
+ * list (the marker is a fact about its date) but moves no total, and a sentence
+ * about the totals must count only what the totals count.
+ *
+ * The destination clause names no tile (critic cycle: P2-4). The first draft
+ * enumerated "in Money out when they are purchases, in Money in when they are
+ * returns" — and the register is the one surface that also counts INCOME, so a
+ * paycheck both feeds reported doubled Money in while being neither. An
+ * enumeration that reads as exhaustive and is not is the exact defect the
+ * caption this rides on was amended to fix. "Whichever of these totals its
+ * amount feeds" is exhaustive by construction.
+ */
+export function handoverDayRegisterTotalsNote(count: number): string {
+  const subject =
+    count === 1 ? '1 row counted in these totals falls' : `${count} rows counted in these totals fall`;
+  return (
+    `${subject} on a day one of your combined accounts was changing connections. Both ` +
+    `connections’ records are kept for that day, because neither can be shown to have covered ` +
+    `the whole of it — so if more than one of them reported the same transaction, it is listed ` +
+    `and counted once for each, in whichever of these totals its amount feeds. Nothing has ` +
+    `been adjusted — dropping either side’s records would lose transactions only one ` +
+    `connection saw.`
+  );
+}
+
+/**
+ * The handover-day sentence for the merchant answer's NEGATIVE-NET branches
+ * (critic cycle: both critics, independently) — "No purchases at X" with a
+ * refunds figure, and "Refunds exceeded purchases by $Y".
+ *
+ * `handoverDayAnswerNote`'s direction clause is INVERTED here, executed: two
+ * copies of one $50.00 return rendered "$100.00 came back in refunds" — a
+ * figure the doubling made too HIGH — under a clause saying returns make "this
+ * figure too LOW". The figures these branches print are gross magnitudes
+ * (spent / returned), which a doubled row can only inflate, while the
+ * exceedance headline is a net a doubled purchase DEFLATES — one direction
+ * claim cannot cover them, so this author makes none. Same resolution as the
+ * register's fourth author: when the surface prints figures a doubling moves
+ * in different directions, the sentence states the counting rule and stops.
+ */
+export function handoverDayAmountsNote(count: number): string {
+  const subject =
+    count === 1 ? '1 transaction behind these amounts falls' : `${count} transactions behind these amounts fall`;
+  return (
+    `${subject} on a day one of your combined accounts was changing connections. Both ` +
+    `connections’ records are kept for that day, because neither can be shown to have covered ` +
+    `the whole of it — so if more than one of them reported the same transaction, these ` +
+    `amounts count it once for each. Nothing has been adjusted — dropping either side’s ` +
+    `records would lose transactions only one connection saw.`
+  );
+}
+
+/**
+ * The handover-day sentence for the transaction DETAIL page (critic cycle:
+ * P2-5) — one transaction, no count, no figure.
+ *
+ * The register pairs its markers with the caption sentence and the panels pair
+ * theirs with the basis copy; the detail page is reachable by deep link or
+ * refresh, where "the register row this page was reached from" is an assumption
+ * about where the reader is standing that does not hold. So the marker's
+ * explanation must live ON this page, scoped to the one row it shows: this row
+ * is dated on a released day and MAY have a twin — never that it does.
+ */
+export function handoverDayDetailNote(): string {
+  return (
+    'This transaction is dated on a day one of your combined accounts was changing ' +
+    'connections. Both connections’ records are kept for that day, because neither can be ' +
+    'shown to have covered the whole of it — so if both reported this transaction, it appears ' +
+    'once for each in your activity and totals. Nothing has been adjusted — dropping either ' +
+    'side’s records would lose transactions only one connection saw.'
+  );
+}
+
+/**
+ * The handover-day sentence for released rows a spending figure DROPPED (U.21,
+ * rescoped in the critic cycle) — the rows `uncountedOnHandoverDays` records: a
+ * doubled return drives a category's net to <= 0, `spendingByCategory` drops
+ * it, and whatever figure the page then states — "No spending recorded" OR a
+ * positive total summed from the surviving categories — cannot show these rows.
+ *
+ * The first draft confined this to the ZERO branches, and the money critic
+ * executed the miss: dining $50.00 surviving plus groceries dropped by a
+ * doubled return rendered "You spent $50.00 on Food & Dining this month." with
+ * no note, while the engine's own record held the dropped rows. A doubled
+ * return that only PARTIALLY cancels a breakdown is strictly more reachable
+ * than one that empties it, and it understates a printed figure — the failure
+ * direction this repo names as the one that costs money. So this sentence now
+ * prints wherever the scoped uncounted set is non-empty, beside zero and
+ * positive figures alike.
+ *
+ * That rescope is why the wording is REFERENT-FREE (claims critic, P2-1): the
+ * first draft said "This figure leaves out…", which had no referent under
+ * Ask's "No spending recorded" (no figure is printed there) and a wrong one
+ * beside a positive total. "Spending figures leave out any category that lands
+ * there" is true in every standing this sentence can occupy.
+ *
+ * A third author rather than a parameter on the two above: both siblings open
+ * by locating the rows INSIDE the figure ("N rows here", "N transactions in
+ * this figure"), and these rows are precisely what the figure does not contain.
+ *
+ * The causal chain is stated in full because no other surface states it, and
+ * every link is a rule this engine actually applies:
+ *
+ *  1. The release keeps both connections' rows for the day (U.13) — same clause
+ *     as its siblings, the only claim about the CAUSE that survives a dragged
+ *     cutover and a dormant feed (U.17).
+ *  2. A duplicated RETURN subtracts once for each copy. The only direction that
+ *     can DROP a category: doubling a purchase raises a net.
+ *  3. `spendingByCategory` drops any category whose net lands <= 0, so the
+ *     category leaves every spending figure — which is why nothing on screen
+ *     can show the reader these rows, and why the count is carried here.
+ *
+ * It claims only that spending MAY be hidden, never that it is. A category can
+ * net to zero for entirely ordinary reasons — a refunded purchase is the common
+ * case — and the app cannot tell which happened. Asserting the doubling would
+ * be the fabrication `buildTaxExport` refuses when it declines to guess from
+ * the rows.
+ */
+export function handoverDayUncountedNote(count: number, label?: string): string {
+  const scope = label ? ` in ${label}` : '';
+  const subject =
+    count === 1 ? `1 transaction${scope} falls` : `${count} transactions${scope} fall`;
+  return (
+    `${subject} on a day one of your combined accounts was changing connections. Both ` +
+    `connections’ records are kept for that day, because neither can be shown to have covered ` +
+    `the whole of it — so if more than one of them reported the same return, it is subtracted ` +
+    `once for each, which can pull a category to zero or below. Spending figures leave out any ` +
+    `category that lands there, so there may be spending they are not showing. Nothing has ` +
+    `been adjusted — dropping either side’s records would lose transactions only one ` +
+    `connection saw.`
+  );
+}
+
+/**
  * The PAGE-level statement of what a stop-at-today window held back (C.26
  * critic cycle 1, P1-5).
  *

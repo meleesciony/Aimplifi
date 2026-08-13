@@ -38,6 +38,7 @@ const LAST_MONTH: Timeframe = { fromYm: '2026-05', toYm: '2026-05', label: 'last
 const BREAKDOWN: SpendingBreakdown = {
   totalCents: 50000,
   countedOnHandoverDays: 0,
+  uncountedOnHandoverDays: [],
   byCategory: [
     { categoryId: 'groceries', name: 'Groceries', group: 'Food & Dining', amountCents: 30000, countedOnHandoverDays: 0 },
     { categoryId: 'dining', name: 'Dining Out', group: 'Food & Dining', amountCents: 20000, countedOnHandoverDays: 0 },
@@ -67,7 +68,8 @@ const MERCHANT: MerchantSpendResult = {
   excludedAggregateCount: 0,
   excludedLoanPaymentCount: 0,
   excludedLoanPaymentCents: 0,
-  items: [{ date: '2026-06-10', merchant: 'Costco', amountCents: 15844 }],
+  countedOnHandoverDays: 0,
+  items: [{ date: '2026-06-10', merchant: 'Costco', amountCents: 15844, onHandoverDay: false }],
 };
 
 const LARGEST: LargestTxn[] = [
@@ -99,7 +101,7 @@ describe('headlineCents — the trace drift guard is non-vacuous', () => {
 
 describe('headlineCents — absent when there is no figure to reconcile', () => {
   it('empty spend_total omits it', () => {
-    expect(answerSpendTotal({ totalCents: 0, countedOnHandoverDays: 0, byCategory: [], byGroup: [] }, THIS_MONTH).headlineCents).toBeUndefined();
+    expect(answerSpendTotal({ totalCents: 0, countedOnHandoverDays: 0, uncountedOnHandoverDays: [], byCategory: [], byGroup: [] }, THIS_MONTH).headlineCents).toBeUndefined();
   });
   it('empty income omits it', () => {
     expect(answerIncome(0, THIS_MONTH).headlineCents).toBeUndefined();
@@ -109,7 +111,7 @@ describe('headlineCents — absent when there is no figure to reconcile', () => 
   });
   it('empty merchant_spend omits it', () => {
     expect(answerMerchantSpend(
-        { merchant: 'Costco', totalCents: 0, count: 0, purchaseCount: 0, purchaseCents: 0, refundCount: 0, refundCents: 0, pendingPurchaseCents: 0, pendingRefundCents: 0, excludedAggregateCount: 0, excludedLoanPaymentCount: 0, excludedLoanPaymentCents: 0, items: [] },
+        { merchant: 'Costco', totalCents: 0, count: 0, purchaseCount: 0, purchaseCents: 0, refundCount: 0, refundCents: 0, pendingPurchaseCents: 0, pendingRefundCents: 0, excludedAggregateCount: 0, excludedLoanPaymentCount: 0, excludedLoanPaymentCents: 0, countedOnHandoverDays: 0, items: [] },
         THIS_MONTH,
       ).headlineCents).toBeUndefined();
   });
