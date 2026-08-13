@@ -309,11 +309,21 @@ export interface SpendClassCategoryRow {
  * destination adds up to it (the O.5/O.6 link invariant). The register applies
  * the shared R1 reconciliation ownership rule (`getReconciliationTxnKeep`, see
  * server/transactions.ts) before it classifies anything, so a reader who has
- * confirmed a provider migration sees each real purchase ONCE there. This panel
- * summed the raw month query, counting the predecessor's copy of every
- * post-cutover purchase a second time — the heading promised money the
- * destination could not show. Taking the predicate rather than pre-filtered rows
- * keeps the two surfaces on one rule instead of two copies of it.
+ * confirmed a provider migration sees each real purchase ONCE there — this
+ * panel summed the raw month query, counting the predecessor's copy of every
+ * post-cutover purchase a second time, and the heading promised money the
+ * destination could not show. Taking the predicate rather than pre-filtered
+ * rows keeps the two surfaces on one rule instead of two copies of it.
+ *
+ * U.18: "ONCE" above is no longer unqualified — U.13 deliberately RELEASES the
+ * one handover day per link to both sides (a visible double, not a silent
+ * loss), so the register itself shows two rows that day and this function's
+ * own `keepsReconciled` filter keeps both here too. Unlike the four families
+ * U.16 disclosed this on (category/report/lifestyle-creep/new-merchant
+ * breakdowns) and unlike the sibling Fixed-vs-typical total this same page
+ * builds two calls above, this classifier is handed no `handoverKeys` and
+ * folds no marker into its rows — filed as U.29, not fixed here (a money-
+ * visible read-path change needs its own critic pass, not a docblock slice).
  */
 export function summarizeSpendClassCategories(
   transactions: readonly TxnLike[],

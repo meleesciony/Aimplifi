@@ -80,9 +80,21 @@
  *    groups by MERCHANT, so one merchant yields exactly one series and therefore at
  *    most one row (its `accountId` is `last.accountId`, one account by construction);
  *    and the full replace deletes every detected row for the USER, not per account,
- *    so no stale sibling survives a refresh to collide with a re-keyed one. In
- *    addition `refreshRecurringForUser` now excludes superseded predecessors
- *    outright, so after any refresh there is no predecessor row left to re-key.
+ *    so no stale sibling survives a refresh to collide with a re-keyed one.
+ *
+ *    U.18: the sentence this replaces claimed `refreshRecurringForUser` "excludes
+ *    superseded predecessors outright" — checked against `server/recurring.ts` and
+ *    that claim is false. Its query has no account-level supersession filter at
+ *    all: every spending account's rows are read, predecessor and successor alike,
+ *    and years of genuine pre-migration predecessor history still flows through
+ *    detection exactly like any other account's rows (as it must — that history is
+ *    real spend, not a duplicate). What the function actually applies, post-query,
+ *    is the same two rules every other R1 reader applies: `keepsReconciled` drops
+ *    an overlap-window row once the successor covers it, and (U.13)
+ *    `collapseHandoverDuplicates` folds the one released handover day back to a
+ *    single row per component so cadence detection sees a 0-day gap, not a
+ *    duplicate. The merchant-grouping guarantee two sentences up is what makes
+ *    this safe — there is no separate account-level exclusion behind it.
  *
  * Defensive inertness (never drop money on bad input): a link is IGNORED — both
  * sides count fully, exactly today's behavior — when either side is absent from

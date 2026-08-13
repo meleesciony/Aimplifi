@@ -4360,3 +4360,30 @@ could assert beyond deployment health. The correctness claim rests on the CI e2e
 which ran the FULL suite (incl. `currency-disclosure.spec.ts`'s locks on the correct
 family phrasing) against a genuine build of this exact commit, plus the unit-level
 fail-old/pass-new sabotage proofs above.
+
+## ✅ BUILT 2026-08-13 — U.18: two docblocks corrected, one false claim traced to a genuine gap (filed U.29)
+
+**What shipped.** Pure docblock corrections, zero runtime diff, no `prisma/` change. (a) The
+row named three files carrying a stale "counted once" claim; only one actually did.
+`budgets/page.tsx` was already correct — U.16 had already qualified it with the handover-day
+exception. `providers/transfer-refresh.ts` carries no such claim at all (grepped for
+"once"/"migrat", zero hits — the row's premise about this file was stale, likely from an
+earlier refactor). The one real false claim was `spend-class.ts`'s own docblock, which still
+asserted "sees each real purchase ONCE there" after U.13 deliberately released the one
+handover day per link to both sides. Corrected, and while tracing it: `summarizeSpendClassCategories`
+is handed `keepsReconciled` only — no `handoverKeys`, unlike the four families U.16 disclosed
+this on and unlike the Fixed-vs-typical total the SAME calling function builds two calls
+above it — so the Fixed/Guilt-free panel on /budgets can still double a handover-day purchase
+today, with no marker. Filed as **U.29** (money-visible, needs its own critic pass) rather
+than fixed inside a docs-only row's budget.
+
+(b) `reconcile-boundary.ts` claimed `refreshRecurringForUser` "excludes superseded
+predecessors outright." Read `server/recurring.ts` directly: the query has no account-level
+supersession filter — predecessor history flows through detection like any other account's
+rows, correctly, since pre-migration history is real spend. The actual mechanism is the
+ordinary `keepsReconciled` + (U.13) `collapseHandoverDuplicates`, same as every other R1
+reader. Docblock corrected to describe that; the unsupported sentence removed.
+
+No test locked either string (grepped `tests/`). Gate: `bash scripts/verify.sh` — tsc and
+eslint printed nothing between their headers (zero errors), 423 files / 6980 unit tests
+passed (1 expected fail, 1 skipped, both pre-existing), build clean, all 42 routes generated.
