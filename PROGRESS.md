@@ -25,6 +25,12 @@ K.10 class, untouched by this diff). Built CSS: `.text-brand-500` /
 `.text-positive-500` resolve to `var(--color-emerald-500)`;
 `.text-warning-500` to `var(--color-amber-500)`. No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `d3cc8a8`. CI run 31842635038
+`success` on first attempt. Vercel: `success`, "Deployment has
+completed", same sha. Production `/`, `/accounts`, `/ask` 307;
+`/sign-in` 200 with live `text-brand-500` (3) and zero
+`text-emerald-500`.
+
 ## 2026-08-14 — U.37: genuineness outranks U.9's tier order (DECISIONS #470)
 
 **Picked up from the queue** (U.12 critic residual). U.12 only compared

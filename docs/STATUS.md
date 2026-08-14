@@ -4990,8 +4990,11 @@ diff). Built CSS utilities resolve `.text-brand-500` /
 `.text-warning-500` to `var(--color-amber-500)`. No `prisma/` diff.
 Mechanical / not money — no hostile-critic pass required.
 
-**No demo-visible marker, and none is possible — declared, not skipped
-(the K.4 shape).** Pixels are byte-identical to the previous hues, so
-no new string appears on a demo page. What stands in for a live check:
-the compiled CSS chunk carries the semantic class names, and CI's full
-`VERIFY_E2E=1` suite runs against a genuine build of this commit.
+**SHIPPED AND PROVEN LIVE (2026-08-14).** Commit `d3cc8a8` → pushed → CI gate
+**`success`**, run 31842635038, first attempt, no rerun (`gh run view`
+conclusion `success` on sha `d3cc8a8de8e50d3ddb7017411522ca048b0ce26b`).
+Vercel commit status: `success`, "Deployment has completed", same sha.
+Production `/`, `/accounts`, `/ask` all 307; `/sign-in` 200. Live
+`/sign-in` HTML contains `text-brand-500` (3) and zero `text-emerald-500`
+— the wordmark class is the discriminating marker (pixels unchanged;
+the class name is what differs). No `prisma/` diff.
