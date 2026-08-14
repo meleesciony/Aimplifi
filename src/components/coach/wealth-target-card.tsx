@@ -309,7 +309,7 @@ export function WealthTargetCard({
             onChange={(e) => setTargetCents(parseDollarInput(e.target.value))}
             aria-describedby="wealth-target-basis"
             aria-invalid={targetCents === null}
-            className="w-full max-w-[14ch] rounded-md border bg-transparent px-2 py-1 tabular-nums aria-[invalid=true]:border-amber-500"
+            className="w-full max-w-[14ch] rounded-md border bg-transparent px-2 py-1 tabular-nums aria-[invalid=true]:border-warning-500"
             data-testid="wealth-target-amount"
           />
         </CardTitle>
@@ -326,7 +326,7 @@ export function WealthTargetCard({
             <Link
               href="/settings#money-dials"
               data-testid="wealth-target-dials-link"
-              className="inline-flex min-h-11 items-center text-sm font-medium text-emerald-600 underline underline-offset-4 dark:text-emerald-400"
+              className="inline-flex min-h-11 items-center text-sm font-medium text-brand-600 underline underline-offset-4 dark:text-brand-400"
             >
               Change your assumptions
             </Link>
@@ -361,12 +361,12 @@ export function WealthTargetCard({
                 here for the same reason: the sentence above enumerates what the figure excludes,
                 and a withheld non-USD brokerage is an exclusion it does not name. */}
             {frozenPortfolioNote ? (
-              <p className="text-xs text-amber-500" data-testid="wealth-target-frozen-note">
+              <p className="text-xs text-warning-500" data-testid="wealth-target-frozen-note">
                 {frozenPortfolioNote}
               </p>
             ) : null}
             {currencyNote ? (
-              <p className="text-xs text-amber-500" data-testid="wealth-target-currency-note">
+              <p className="text-xs text-warning-500" data-testid="wealth-target-currency-note">
                 {currencyNote}
               </p>
             ) : null}
@@ -432,7 +432,7 @@ export function WealthTargetCard({
                 value={horizonYears}
                 aria-valuetext={`${horizonYears} year${horizonYears === 1 ? '' : 's'}`}
                 onChange={(e) => setChosenHorizonYears(Number(e.target.value))}
-                className="w-full accent-emerald-500"
+                className="w-full accent-brand-500"
                 data-testid="wealth-target-horizon"
               />
               <p className="text-xs text-muted-foreground" data-testid="wealth-target-horizon-basis">
@@ -475,7 +475,7 @@ export function WealthTargetCard({
                   )}
                   <Link
                     href="/settings#money-dials"
-                    className="inline-flex min-h-11 items-center text-xs font-medium text-emerald-600 underline underline-offset-4 dark:text-emerald-400"
+                    className="inline-flex min-h-11 items-center text-xs font-medium text-brand-600 underline underline-offset-4 dark:text-brand-400"
                     data-testid="wealth-target-cuts-dials-link"
                   >
                     Edit money dials (protect what you want to keep)

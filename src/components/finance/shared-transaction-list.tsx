@@ -24,7 +24,7 @@ import type { SharedTxnRow } from '@/server/household';
 
 function amountClass(t: SharedTxnRow): string {
   if (t.isTransfer) return 'text-muted-foreground';
-  return t.amountCents > 0 ? 'text-emerald-500' : 'text-foreground';
+  return t.amountCents > 0 ? 'text-positive-500' : 'text-foreground';
 }
 
 export function SharedTransactionList({
@@ -173,7 +173,7 @@ export function SharedTransactionList({
                         <Badge
                           variant="outline"
                           data-testid="shared-txn-excluded-badge"
-                          className="shrink-0 border-amber-500/60 text-[10px] text-amber-700 dark:text-amber-300"
+                          className="shrink-0 border-warning-500/60 text-[10px] text-warning-700 dark:text-warning-300"
                         >
                           Excluded from totals
                         </Badge>
@@ -249,7 +249,7 @@ export function SharedTransactionList({
                                     >
                                       {c.name}
                                       {c.id === t.categoryId && (
-                                        <Check className="size-3.5 text-emerald-500" aria-hidden />
+                                        <Check className="size-3.5 text-positive-500" aria-hidden />
                                       )}
                                     </button>
                                   ))}

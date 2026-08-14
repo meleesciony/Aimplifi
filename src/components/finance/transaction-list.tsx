@@ -77,7 +77,7 @@ function amountClass(t: TxnView): string {
   // plus the visible "Excluded" badge is the register's disclosure of that.
   if (t.excludeFromTotals) return 'text-muted-foreground';
   if (t.isTransfer) return 'text-muted-foreground';
-  return t.amountCents > 0 ? 'text-emerald-500' : 'text-foreground';
+  return t.amountCents > 0 ? 'text-positive-500' : 'text-foreground';
 }
 
 export function TransactionList({
@@ -509,7 +509,7 @@ export function TransactionList({
       <div className="grid grid-cols-3 gap-2 text-sm" data-testid="txn-summary">
         <div className="min-w-0 rounded-md border p-2">
           <div className="text-xs text-muted-foreground">Money in</div>
-          <div className="break-words tabular-nums text-emerald-500" data-testid="summary-in">
+          <div className="break-words tabular-nums text-positive-500" data-testid="summary-in">
             {formatCents(summary.inflowCents)}
           </div>
         </div>
@@ -522,7 +522,7 @@ export function TransactionList({
         <div className="min-w-0 rounded-md border p-2">
           <div className="text-xs text-muted-foreground">Net</div>
           <div
-            className={`break-words tabular-nums ${summary.netCents >= 0 ? 'text-emerald-500' : 'text-red-400'}`}
+            className={`break-words tabular-nums ${summary.netCents >= 0 ? 'text-positive-500' : 'text-red-400'}`}
             data-testid="summary-net"
           >
             {formatCents(summary.netCents, { signDisplay: 'always' })}
@@ -791,7 +791,7 @@ export function TransactionList({
                           <Badge
                             variant="outline"
                             data-testid="txn-excluded-badge"
-                            className="shrink-0 border-amber-500/60 text-[10px] text-amber-700 dark:text-amber-300"
+                            className="shrink-0 border-warning-500/60 text-[10px] text-warning-700 dark:text-warning-300"
                           >
                             Excluded from totals
                           </Badge>
@@ -895,7 +895,7 @@ export function TransactionList({
                           title="Why this category"
                           className={`shrink-0 text-[10px] ${
                             pv.tone === 'attention'
-                              ? 'border-amber-500/60 text-amber-700 dark:text-amber-300'
+                              ? 'border-warning-500/60 text-warning-700 dark:text-warning-300'
                               : 'text-muted-foreground'
                           }`}
                         >
@@ -908,7 +908,7 @@ export function TransactionList({
                             disabled={pending}
                             onClick={() => confirmGuess(t)}
                             aria-label={`Confirm the AI-suggested category ${t.categoryName} for ${t.merchantName}`}
-                            className="tap-target inline-flex shrink-0 items-center justify-center rounded border border-amber-500/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-500/10 disabled:opacity-50 dark:text-amber-300"
+                            className="tap-target inline-flex shrink-0 items-center justify-center rounded border border-warning-500/60 px-1.5 py-0.5 text-[10px] font-medium text-warning-700 hover:bg-warning-500/10 disabled:opacity-50 dark:text-warning-300"
                           >
                             Confirm
                           </button>
@@ -1167,7 +1167,7 @@ export function TransactionList({
                                       >
                                         {c.name}
                                         {c.id === t.categoryId && (
-                                          <Check className="size-3.5 text-emerald-500" aria-hidden />
+                                          <Check className="size-3.5 text-positive-500" aria-hidden />
                                         )}
                                       </button>
                                     ))}

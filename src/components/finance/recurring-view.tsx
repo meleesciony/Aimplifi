@@ -113,7 +113,7 @@ function Row({
                 data-testid="price-change-badge"
                 className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${
                   change.tone === 'favorable'
-                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    ? 'border-positive-500/40 bg-positive-500/10 text-positive-600 dark:text-positive-400'
                     : 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'
                 }`}
               >
@@ -131,7 +131,7 @@ function Row({
               </span>
             )}
             {item.possiblyUnused && (
-              <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+              <span className="shrink-0 rounded border border-warning-500/40 bg-warning-500/10 px-1.5 py-0.5 text-[10px] font-medium text-warning-600 dark:text-warning-400">
                 Worth a look?
               </span>
             )}
@@ -246,7 +246,7 @@ export function RecurringView({
         <p
           role="alert"
           data-testid="recurring-projections-stale"
-          className="rounded-md border border-amber-500/60 p-2 text-xs text-amber-700 dark:text-amber-300"
+          className="rounded-md border border-warning-500/60 p-2 text-xs text-warning-700 dark:text-warning-300"
         >
           Saved. Your forecast, calendar and spending plan could not be rebuilt just now — they will
           pick this up on your next sync.

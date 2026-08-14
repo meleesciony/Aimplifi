@@ -15,7 +15,7 @@ import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 
 export function OnboardingNudge() {
   return (
-    <Card data-testid="onboarding-nudge" className="border-emerald-500/40">
+    <Card data-testid="onboarding-nudge" className="border-brand-500/40">
       <CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <StepIndicator step={3} />

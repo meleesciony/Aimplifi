@@ -423,7 +423,7 @@ export default async function CalendarPage({
             // this page hands the reader no transfer instruction, and the sentence is read in
             // document order, immediately before the events it names.
             <div
-              className="mb-3 rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-sm"
+              className="mb-3 rounded-lg border border-warning-900/50 bg-warning-950/20 px-3 py-2 text-sm"
               data-testid={CARD_DUPLICATE_TESTID}
             >
               <p className="font-medium">{duplicates.title}</p>
@@ -450,7 +450,7 @@ export default async function CalendarPage({
             // day"), which is why the builder is called with role 'instruction' — but the page
             // itself hands out no transfer, so this is not role="alert" either.
             <div
-              className="mb-3 rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-sm"
+              className="mb-3 rounded-lg border border-warning-900/50 bg-warning-950/20 px-3 py-2 text-sm"
               data-testid={FROZEN_CALENDAR_TESTID}
             >
               <p className="font-medium">{frozen.title}</p>
@@ -556,10 +556,10 @@ export default async function CalendarPage({
                             data-testid="cal-posted-in"
                           >
                             <span className="flex items-center gap-1.5">
-                              <ArrowDownLeft className="size-3.5 text-emerald-500" aria-hidden />
+                              <ArrowDownLeft className="size-3.5 text-positive-500" aria-hidden />
                               Money in
                             </span>
-                            <span className="tabular-nums text-emerald-500">
+                            <span className="tabular-nums text-positive-500">
                               {formatCents(day.posted.inCents, { signDisplay: 'always' })}
                             </span>
                           </li>
@@ -669,7 +669,7 @@ export default async function CalendarPage({
                           ) : e.kind === 'loan-due' ? (
                             <Landmark className="size-3.5 text-muted-foreground" aria-hidden />
                           ) : e.amountCents >= 0 ? (
-                            <ArrowDownLeft className="size-3.5 text-emerald-500" aria-hidden />
+                            <ArrowDownLeft className="size-3.5 text-positive-500" aria-hidden />
                           ) : (
                             <ArrowUpRight className="size-3.5 text-muted-foreground" aria-hidden />
                           )}
@@ -689,7 +689,7 @@ export default async function CalendarPage({
                             </Badge>
                           )}
                         </span>
-                        <span className={`tabular-nums ${e.amountCents >= 0 ? 'text-emerald-500' : ''}`}>
+                        <span className={`tabular-nums ${e.amountCents >= 0 ? 'text-positive-500' : ''}`}>
                           {formatCents(cents(e.amountCents), { signDisplay: 'always' })}
                         </span>
                       </li>

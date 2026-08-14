@@ -426,7 +426,7 @@ export default async function BudgetsPage() {
                       </Link>
                     )}
                     {row.isDial && (
-                      <span className="ml-1 text-xs text-emerald-500" title="A money dial — spend here proudly">
+                      <span className="ml-1 text-xs text-positive-500" title="A money dial — spend here proudly">
                         ◉ dial
                       </span>
                     )}
@@ -482,11 +482,11 @@ export default async function BudgetsPage() {
                       aria-label={`${row.name} budget used`}
                     >
                       <div
-                        className={`h-1.5 rounded-full ${row.over ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                        className={`h-1.5 rounded-full ${row.over ? 'bg-warning-500' : 'bg-positive-500'}`}
                         style={{ width: `${row.pct}%` }}
                       />
                     </div>
-                    <p className={`text-xs ${row.over ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                    <p className={`text-xs ${row.over ? 'text-warning-500' : 'text-muted-foreground'}`}>
                       {row.over
                         ? `${formatCents(cents(-row.remainingCents))} over target`
                         : `${formatCents(cents(row.remainingCents))} left this month`}

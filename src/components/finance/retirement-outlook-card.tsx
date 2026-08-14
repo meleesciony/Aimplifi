@@ -39,8 +39,8 @@ import { usePanelToggleFocus } from '@/components/finance/use-panel-toggle-focus
 import type { RetirementOutlook } from '@/server/investments';
 import { CHART_POSITIVE, CHART_COMPARE } from '@/lib/ui/chart-colors';
 
-const GAIN_UP = 'text-emerald-600 dark:text-emerald-400';
-const AMBER = 'text-amber-700 dark:text-amber-400'; // darker amber clears AA contrast for small text
+const GAIN_UP = 'text-positive-600 dark:text-positive-400';
+const AMBER = 'text-warning-700 dark:text-warning-400'; // darker amber clears AA contrast for small text
 const ACCUM_BAR = CHART_POSITIVE; // emerald — saving years
 const DRAW_BAR = CHART_COMPARE; //  blue — retirement draw-down years
 

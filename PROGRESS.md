@@ -2,6 +2,29 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-14 — U.2: semantic status-color tokens (DECISIONS #471)
+
+**Picked up from the queue** (named next after U.37). Hue-named
+`emerald-*` / `amber-*` classes encoded brand chrome and status with
+the same vocabulary.
+
+**Shipped.** `brand` and `positive` alias Tailwind emerald; `warning`
+aliases amber. Every `src/` call site migrated in one slice. Shades
+unchanged. Chrome (nav, wordmark, focus, connect CTAs, accent sliders)
+→ `brand`; money/success → `positive`; every amber → `warning`.
+
+**Locked.** `tests/unit/u2-semantic-color-tokens.test.ts`: zero
+`emerald-N` / `amber-N` under `src/` except the token file.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,032
+passed + 1 expected fail + 1 skipped / 426 files + 1 skipped**,
+`next build` clean. Playwright (fresh build): **350 passed, 3
+flaky-passed-on-retry** (`category-rename.spec.ts:110`,
+`transactions.spec.ts:638`, `transactions.spec.ts:735` — documented
+K.10 class, untouched by this diff). Built CSS: `.text-brand-500` /
+`.text-positive-500` resolve to `var(--color-emerald-500)`;
+`.text-warning-500` to `var(--color-amber-500)`. No `prisma/` diff.
+
 ## 2026-08-14 — U.37: genuineness outranks U.9's tier order (DECISIONS #470)
 
 **Picked up from the queue** (U.12 critic residual). U.12 only compared

@@ -29,7 +29,7 @@ const META: Record<ConsciousBucketKey, { label: string; bar: string; text: strin
   // Fixed categories — card statement payments stay out (settlement of spend).
   fixed: { label: CONSCIOUS_BUCKET_LABELS.fixed, bar: 'bg-slate-400/80 dark:bg-slate-500/80', text: 'text-slate-600 dark:text-slate-300' },
   savings: { label: CONSCIOUS_BUCKET_LABELS.savings, bar: 'bg-sky-400/80', text: 'text-sky-600 dark:text-sky-400' },
-  guiltFree: { label: CONSCIOUS_BUCKET_LABELS.guiltFree, bar: 'bg-emerald-500/80', text: 'text-emerald-600 dark:text-emerald-400' },
+  guiltFree: { label: CONSCIOUS_BUCKET_LABELS.guiltFree, bar: 'bg-positive-500/80', text: 'text-positive-600 dark:text-positive-400' },
 };
 
 /** Kebab-case testid prefixes — three panels share this card. */
@@ -166,17 +166,17 @@ export function ConsciousBucketsStrip({
             Same author as the /spending-plan basis line and the Ask qualifier; the
             direction follows THIS surface's overspent state. */}
         {fixedShortfall && (
-          <p className="text-xs text-amber-600 dark:text-amber-400" data-testid="conscious-fixed-uncounted">
+          <p className="text-xs text-warning-600 dark:text-warning-400" data-testid="conscious-fixed-uncounted">
             {fixedShortfall}
           </p>
         )}
         {cardNotes.map((n) => (
-          <p key={n} className="text-xs text-amber-600 dark:text-amber-400" data-testid="conscious-card-note">
+          <p key={n} className="text-xs text-warning-600 dark:text-warning-400" data-testid="conscious-card-note">
             {n}
           </p>
         ))}
         {overspent && (
-          <p className="text-xs text-amber-600 dark:text-amber-400" data-testid="conscious-overspent">
+          <p className="text-xs text-warning-600 dark:text-warning-400" data-testid="conscious-overspent">
             {COACH_COPY.consciousOverspent()}
           </p>
         )}

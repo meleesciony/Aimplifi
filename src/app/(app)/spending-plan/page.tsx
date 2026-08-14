@@ -84,7 +84,7 @@ export default async function SpendingPlanPage() {
     label: r.isEstimated ? `${r.label} (estimated)` : r.label,
     action: r.action,
     cents: Math.abs(r.amountCents),
-    tone: r.id === 'income' ? 'text-emerald-500' : 'text-foreground',
+    tone: r.id === 'income' ? 'text-positive-500' : 'text-foreground',
     sign:
       r.amountCents > 0
         ? ('+' as const)
@@ -130,9 +130,9 @@ export default async function SpendingPlanPage() {
           role="img"
           aria-label="Allocation of monthly income: fixed expenses, savings, guilt-free"
         >
-          <div className="bg-amber-400/80" style={{ width: pct(p.fixedExpensesCents) }} title="Fixed expenses" />
+          <div className="bg-warning-400/80" style={{ width: pct(p.fixedExpensesCents) }} title="Fixed expenses" />
           <div className="bg-sky-400/80" style={{ width: pct(p.plannedSavingsCents) }} title="Savings" />
-          <div className="bg-emerald-500/80" style={{ width: leftWidth }} title="Guilt-free" />
+          <div className="bg-positive-500/80" style={{ width: leftWidth }} title="Guilt-free" />
         </div>
         <ul
           data-testid="spending-plan-legend"
@@ -141,7 +141,7 @@ export default async function SpendingPlanPage() {
           {(
             [
               {
-                swatch: 'bg-amber-400/80',
+                swatch: 'bg-warning-400/80',
                 label: 'Fixed expenses',
                 href: spendClassMonthRegisterHref({
                   spendClass: 'fixed',
@@ -152,7 +152,7 @@ export default async function SpendingPlanPage() {
               },
               { swatch: 'bg-sky-400/80', label: 'Savings', href: null, testId: 'plan-legend-savings' },
               {
-                swatch: 'bg-emerald-500/80',
+                swatch: 'bg-positive-500/80',
                 label: 'Guilt-free',
                 href: spendClassMonthRegisterHref({
                   spendClass: 'guilt-free',
@@ -209,7 +209,7 @@ export default async function SpendingPlanPage() {
             <dt className="font-semibold">Guilt-free to spend</dt>
             <dd
               data-testid="plan-total"
-              className={`text-base font-bold tabular-nums ${positive ? 'text-emerald-500' : 'text-red-500'}`}
+              className={`text-base font-bold tabular-nums ${positive ? 'text-positive-500' : 'text-red-500'}`}
             >
               {formatCents(cents(trace.sumCents))}
             </dd>

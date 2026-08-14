@@ -177,8 +177,8 @@ export function TransactionFilters({
             data-testid="txn-filter-unclassified"
             className={`tap-target inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm transition ${
               current.unclassified
-                ? 'border-amber-500 bg-amber-50 font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
-                : 'border-amber-500/60 bg-background text-amber-700 hover:bg-accent dark:text-amber-300'
+                ? 'border-warning-500 bg-warning-50 font-medium text-warning-800 dark:bg-warning-950/40 dark:text-warning-200'
+                : 'border-warning-500/60 bg-background text-warning-700 hover:bg-accent dark:text-warning-300'
             }`}
           >
             Needs a category

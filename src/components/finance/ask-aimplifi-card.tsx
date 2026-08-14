@@ -20,7 +20,7 @@ export function AskAimplifiCard() {
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold">
-          <Sparkles className="size-4 text-emerald-500" aria-hidden /> Ask Aimplifi
+          <Sparkles className="size-4 text-brand-500" aria-hidden /> Ask Aimplifi
         </div>
         <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       </div>

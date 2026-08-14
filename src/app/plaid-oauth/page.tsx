@@ -191,7 +191,7 @@ export default function PlaidOAuthReturnPage() {
           <button
             type="button"
             onClick={() => router.replace('/accounts')}
-            className="rounded-md border border-emerald-700/40 bg-emerald-950/30 px-3 py-1.5 text-sm font-medium text-emerald-300 hover:bg-emerald-950/50"
+            className="rounded-md border border-brand-700/40 bg-brand-950/30 px-3 py-1.5 text-sm font-medium text-brand-300 hover:bg-brand-950/50"
           >
             Back to accounts
           </button>

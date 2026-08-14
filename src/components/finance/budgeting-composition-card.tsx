@@ -94,7 +94,7 @@ export function BudgetingCompositionCard({
             </span>
           </dt>
           <dd
-            className="shrink-0 tabular-nums text-emerald-500"
+            className="shrink-0 tabular-nums text-positive-500"
             data-testid="budgeting-income"
           >
             + {formatCents(cents(plan.patternIncomeCents))}
@@ -143,7 +143,7 @@ export function BudgetingCompositionCard({
           </dt>
           <dd
             className={`shrink-0 text-base font-bold tabular-nums ${
-              positive ? 'text-emerald-500' : 'text-rose-500'
+              positive ? 'text-positive-500' : 'text-rose-500'
             }`}
             data-testid="budgeting-guilt-free"
           >

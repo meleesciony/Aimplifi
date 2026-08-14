@@ -916,7 +916,7 @@ export function TriageInbox({
     return (
       <div className="rounded-xl border border-dashed p-8 text-center" data-testid="triage-empty">
         <p className="flex items-center justify-center gap-2 text-lg font-medium">
-          <PartyPopper className="size-5 text-emerald-500" aria-hidden /> Inbox zero
+          <PartyPopper className="size-5 text-positive-500" aria-hidden /> Inbox zero
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
           Nothing needs review. High-confidence transactions are filed automatically — the Inbox tab
@@ -1102,7 +1102,7 @@ export function TriageInbox({
                 `/transactions/${encodeURIComponent(top.anchorTransactionId)}`,
                 namedPageBack('triage', null),
               )}
-              className="text-xs text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400"
+              className="text-xs text-positive-600 underline-offset-2 hover:underline dark:text-positive-400"
               data-testid="triage-open-detail"
               onClick={() => logInteraction('tap', 'open-detail')}
             >
@@ -1205,7 +1205,7 @@ export function TriageInbox({
                     `/transactions/${encodeURIComponent(r.id)}`,
                     namedPageBack('triage', null),
                   )}
-                  className="inline-flex h-8 items-center px-2 text-xs text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400"
+                  className="inline-flex h-8 items-center px-2 text-xs text-positive-600 underline-offset-2 hover:underline dark:text-positive-400"
                   data-testid="single-open-detail"
                 >
                   Details

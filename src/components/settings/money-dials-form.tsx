@@ -357,7 +357,7 @@ export function MoneyDialsForm({
             </Button>
             {/* persistent live region so the success is announced (WCAG SC 4.1.3);
                 the dials-saved node stays conditional for the e2e count assertions */}
-            <span role="status" aria-live="polite" className="text-sm text-emerald-500">
+            <span role="status" aria-live="polite" className="text-sm text-positive-500">
               {result?.ok && (
                 <span className="flex items-center gap-1" data-testid="dials-saved">
                   <CheckCircle2 className="size-4" aria-hidden />

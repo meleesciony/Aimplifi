@@ -27,7 +27,7 @@ export default async function SignInPage() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-2xl">
-            Aim<span className="text-emerald-500">plifi</span>
+            Aim<span className="text-brand-500">plifi</span>
           </CardTitle>
           <CardDescription>
             Aimplifi makes you deliberately wealthier — a financial coach with a bank feed:

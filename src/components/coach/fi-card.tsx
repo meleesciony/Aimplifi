@@ -157,7 +157,7 @@ export function FICard({
             pushed this line past the fold; a scanner who came for "when do I get my time
             back" never saw it. The rate lives one slot down, once. */}
         {monthsToFINow !== null && (
-          <p className="text-sm text-emerald-600 dark:text-emerald-400" data-testid="freedom-dividend">
+          <p className="text-sm text-positive-600 dark:text-positive-400" data-testid="freedom-dividend">
             {COACH_COPY.freedomDividend(Math.floor(monthsToFINow / 12))}
           </p>
         )}
@@ -175,7 +175,7 @@ export function FICard({
           )}
         </p>
         {frozenPortfolioNote ? (
-          <p className="text-xs text-amber-500" data-testid={FROZEN_COACH_TESTID}>
+          <p className="text-xs text-warning-500" data-testid={FROZEN_COACH_TESTID}>
             {frozenPortfolioNote}
           </p>
         ) : null}
@@ -224,7 +224,7 @@ export function FICard({
             value={sliderBps}
             aria-valuetext={`${(sliderBps / 100).toFixed(0)}% savings rate`}
             onChange={(e) => setSliderBps(Number(e.target.value))}
-            className="w-full accent-emerald-500"
+            className="w-full accent-brand-500"
             data-testid="fi-slider"
           />
           <p className="text-sm" aria-live="polite" data-testid="slider-result">

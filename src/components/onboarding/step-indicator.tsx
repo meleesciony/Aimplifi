@@ -27,7 +27,7 @@ const STEP_LABELS = [
 export function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
   return (
     <p
-      className="text-xs font-semibold uppercase tracking-wide text-emerald-500"
+      className="text-xs font-semibold uppercase tracking-wide text-brand-500"
       data-testid={`onboarding-step-${step}`}
     >
       Step {step} of 3 · {STEP_LABELS[step - 1]}

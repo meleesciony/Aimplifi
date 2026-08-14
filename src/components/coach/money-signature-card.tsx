@@ -102,7 +102,7 @@ export function MoneySignatureCard({
           )}
         </p>
         {frozenCashNote ? (
-          <p className="text-xs text-amber-500" data-testid="signature-frozen-note">
+          <p className="text-xs text-warning-500" data-testid="signature-frozen-note">
             {frozenCashNote}
           </p>
         ) : null}

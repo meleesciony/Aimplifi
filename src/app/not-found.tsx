@@ -33,7 +33,7 @@ export default function NotFound() {
       data-testid="not-found"
     >
       <p className="text-lg font-bold tracking-tight">
-        Aim<span className="text-emerald-500">plifi</span>
+        Aim<span className="text-brand-500">plifi</span>
       </p>
       <h1 className="text-2xl font-semibold">Page not found</h1>
       <p className="text-sm text-muted-foreground">

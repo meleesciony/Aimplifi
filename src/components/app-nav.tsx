@@ -108,7 +108,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
         data-testid="main-nav"
       >
         <Link href="/dashboard" className="mr-1 shrink-0 text-base font-bold tracking-tight sm:mr-2 sm:text-lg">
-          Aim<span className="text-emerald-500">plifi</span>
+          Aim<span className="text-brand-500">plifi</span>
         </Link>
 
         {/* Desktop: full labelled set */}
@@ -154,7 +154,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
           onClick={() => setMoreOpen((o) => !o)}
           className={`ml-auto flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium sm:hidden ${
             moreOpen || secondaryActive
-              ? 'bg-emerald-500/15 text-emerald-500'
+              ? 'bg-brand-500/15 text-brand-500'
               : 'bg-accent/60 text-foreground'
           }`}
         >
@@ -227,7 +227,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
                   placeholder="Search — try “subscriptions” or “budget”"
                   autoComplete="off"
                   data-testid="nav-more-search"
-                  className="h-11 w-full rounded-xl border border-border/60 bg-card pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:border-emerald-500/60"
+                  className="h-11 w-full rounded-xl border border-border/60 bg-card pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:border-brand-500/60"
                 />
               </div>
             </div>
@@ -302,7 +302,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
               data-testid={`bottom-${item.testid}`}
               onClick={closeMore}
               className={`pointer-events-auto relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] ${
-                active ? 'text-emerald-500' : 'text-muted-foreground'
+                active ? 'text-brand-500' : 'text-muted-foreground'
               }`}
             >
               <Icon className="size-5" aria-hidden />
@@ -345,13 +345,13 @@ function SheetRow({
         onClick={onNavigate}
         className={`flex min-h-14 items-start gap-3 rounded-xl border px-3 py-2.5 transition ${
           active
-            ? 'border-emerald-500/40 bg-emerald-500/10'
+            ? 'border-brand-500/40 bg-brand-500/10'
             : 'border-border/60 bg-card hover:border-foreground/20 hover:bg-accent/50'
         }`}
       >
         <span
           className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg ${
-            active ? 'bg-emerald-500/20 text-emerald-500' : 'bg-muted text-foreground'
+            active ? 'bg-brand-500/20 text-brand-500' : 'bg-muted text-foreground'
           }`}
         >
           <Icon className="size-4" aria-hidden />
@@ -361,7 +361,7 @@ function SheetRow({
         <span className="min-w-0 flex-1">
           <span
             className={`block text-sm font-medium leading-tight ${
-              active ? 'text-emerald-500' : 'text-foreground'
+              active ? 'text-brand-500' : 'text-foreground'
             }`}
           >
             {item.label}

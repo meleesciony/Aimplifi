@@ -421,7 +421,7 @@ export default async function SettingsPage() {
                   data-testid={`activation-status-${row.key}`}
                   className={
                     row.status === 'live'
-                      ? 'shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-300'
+                      ? 'shrink-0 rounded-full bg-brand-500/15 px-2 py-0.5 text-xs font-medium text-brand-700 dark:text-brand-300'
                       : 'shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground'
                   }
                 >

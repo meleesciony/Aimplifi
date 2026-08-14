@@ -59,7 +59,7 @@ export function PlanSlideNotice({
 
   return (
     <div
-      className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+      className="rounded-xl border border-warning-200 bg-warning-50/80 p-3 text-xs text-warning-950 dark:border-warning-900 dark:bg-warning-950/40 dark:text-warning-100"
       data-testid="plan-slide"
       role="status"
     >
@@ -69,7 +69,7 @@ export function PlanSlideNotice({
           <li key={l}>{l}</li>
         ))}
       </ul>
-      <p className="mt-2 text-muted-foreground dark:text-amber-200/80">
+      <p className="mt-2 text-muted-foreground dark:text-warning-200/80">
         Guilt-free still uses your locked intention. Clear a lock below to follow categories
         again.
       </p>

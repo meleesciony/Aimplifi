@@ -35,7 +35,7 @@ export function CashFlowRadarCard({
   const STATUS = {
     ok: {
       chip: 'Clear',
-      chipCls: 'border-emerald-900/50 bg-emerald-950/40 text-emerald-300',
+      chipCls: 'border-positive-900/50 bg-positive-950/40 text-positive-300',
       desc: `Your committed cash flow stays above $0 for the next ${radar.horizonDays} days.`,
     },
     watch: {
@@ -45,7 +45,7 @@ export function CashFlowRadarCard({
     },
     alert: {
       chip: 'Heads-up',
-      chipCls: 'border-amber-900/50 bg-amber-950/40 text-amber-300',
+      chipCls: 'border-warning-900/50 bg-warning-950/40 text-warning-300',
       desc: dip
         ? // NOT "the smallest move" (L.23 money critic P1-2, executed): the amount is
           // the worst dip over the whole horizon while the date is the FIRST short
@@ -90,7 +90,7 @@ export function CashFlowRadarCard({
             silent "Clear" is the expensive direction. In the header so the reader meets
             it before the cover-transfer imperative below (the placement rule). */}
         {undatable.length > 0 && (
-          <p className="text-xs text-amber-500" data-testid="radar-undatable-note">
+          <p className="text-xs text-warning-500" data-testid="radar-undatable-note">
             Not included: {undatable.length} card{undatable.length === 1 ? '' : 's'} — no
             statement or due date yet, so {undatable.length === 1 ? 'its' : 'their'} balance
             isn&apos;t in any figure on this card.

@@ -138,7 +138,7 @@ function NetWorthCard({ data }: { data: AccountsView }) {
               deltaCents === null
                 ? 'text-muted-foreground'
                 : deltaCents >= 0
-                  ? 'text-emerald-500'
+                  ? 'text-positive-500'
                   : 'text-red-400'
             }`}
             data-testid="accounts-net-worth-delta"
@@ -391,7 +391,7 @@ export function AccountsList({
       )}
 
       {success && (
-        <p role="status" className="rounded-md border border-emerald-900/50 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300" data-testid="manual-success">
+        <p role="status" className="rounded-md border border-positive-900/50 bg-positive-950/40 px-3 py-2 text-sm text-positive-300" data-testid="manual-success">
           {success}
         </p>
       )}
@@ -703,7 +703,7 @@ function DuplicateAccountsWarning({
         data-testid={side === 'a' ? DUPLICATE_SIDE_A_TESTID : DUPLICATE_SIDE_B_TESTID}
         role="group"
         aria-label={`Row ${view.n}: ${view.name} (${view.providerMask})`}
-        className="mt-2 min-w-0 rounded-md border border-amber-900/40 px-2 py-1.5"
+        className="mt-2 min-w-0 rounded-md border border-warning-900/40 px-2 py-1.5"
       >
         <div className="min-w-0 break-words text-sm font-medium">{view.name}</div>
         <div className="break-words text-xs text-muted-foreground">{view.providerMask}</div>
@@ -750,10 +750,10 @@ function DuplicateAccountsWarning({
               aria-label={action.ariaLabel}
               disabled={pending}
               onClick={() => confirm.arm(`${pairKey}:${side}`)}
-              className="tap-target max-w-full whitespace-normal rounded-md border border-amber-900/40 px-2 py-1 text-right text-xs text-amber-100 hover:bg-amber-900/30 disabled:opacity-50"
+              className="tap-target max-w-full whitespace-normal rounded-md border border-warning-900/40 px-2 py-1 text-right text-xs text-warning-100 hover:bg-warning-900/30 disabled:opacity-50"
             >
               <span className="block">{action.label}</span>
-              <span className="block text-amber-300/70">{action.subLabel}</span>
+              <span className="block text-warning-300/70">{action.subLabel}</span>
             </button>
           </div>
         )}
@@ -763,7 +763,7 @@ function DuplicateAccountsWarning({
   return (
     <Card
       data-testid="duplicate-accounts-warning"
-      className="border-amber-900/50 bg-amber-950/30"
+      className="border-warning-900/50 bg-warning-950/30"
       // NO `role="alert"` since O.19 (both critics, independently). This card is now born inside
       // a collapsed <details>, so it mounts already hidden — and a live region whose content was
       // never visible does not announce, nor is it reliably re-announced when expanding merely
@@ -773,7 +773,7 @@ function DuplicateAccountsWarning({
       // exactly where a sighted reader does.
     >
       <CardHeader className="pb-2">
-        <CardDescription className="text-amber-300">Possible duplicate accounts</CardDescription>
+        <CardDescription className="text-warning-300">Possible duplicate accounts</CardDescription>
         <CardTitle className="text-base">One account may be counted twice</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -794,14 +794,14 @@ function DuplicateAccountsWarning({
               <li
                 key={pairKey}
                 data-testid="duplicate-pair"
-                className="rounded-md border border-amber-900/40 px-3 py-2"
+                className="rounded-md border border-warning-900/40 px-3 py-2"
               >
                 <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
                   <p className="min-w-0 flex-1 break-words text-xs text-muted-foreground">
                     {p.reasons.join(' · ')}
                   </p>
                   <span
-                    className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-xs ${p.confidence === 'high' ? 'bg-amber-900/60 text-amber-100' : 'bg-amber-900/30 text-amber-200'}`}
+                    className={`ml-auto shrink-0 rounded px-1.5 py-0.5 text-xs ${p.confidence === 'high' ? 'bg-warning-900/60 text-warning-100' : 'bg-warning-900/30 text-warning-200'}`}
                   >
                     {p.confidence === 'high' ? 'likely' : 'possible'}
                   </span>
@@ -814,7 +814,7 @@ function DuplicateAccountsWarning({
                 </p>
                 {view.impact && (
                   <p
-                    className="mt-1 break-words text-xs text-amber-200"
+                    className="mt-1 break-words text-xs text-warning-200"
                     data-testid={DUPLICATE_PAIR_IMPACT_TESTID}
                   >
                     {view.impact}
@@ -830,7 +830,7 @@ function DuplicateAccountsWarning({
                       aria-label={`Dismiss — ${p.a.name} and ${p.b.name} are not duplicates`}
                       disabled={pending}
                       onClick={() => onDismiss(p.a.id, p.b.id)}
-                      className="tap-target rounded-md border border-amber-900/40 px-2 py-1 text-xs text-amber-200 hover:bg-amber-900/30 disabled:opacity-50"
+                      className="tap-target rounded-md border border-warning-900/40 px-2 py-1 text-xs text-warning-200 hover:bg-warning-900/30 disabled:opacity-50"
                     >
                       Not a duplicate — dismiss
                     </button>
@@ -901,9 +901,9 @@ function ReconciliationAmbiguitiesCard({
 }) {
   if (ambiguities.length === 0) return null;
   return (
-    <Card data-testid={RECONCILE_AMBIGUITIES_TESTID} className="border-amber-900/50 bg-amber-950/30">
+    <Card data-testid={RECONCILE_AMBIGUITIES_TESTID} className="border-warning-900/50 bg-warning-950/30">
       <CardHeader className="pb-2">
-        <CardDescription className="text-amber-300">Same account, new connection?</CardDescription>
+        <CardDescription className="text-warning-300">Same account, new connection?</CardDescription>
         <CardTitle className="text-base">It matches more than one account</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
@@ -915,7 +915,7 @@ function ReconciliationAmbiguitiesCard({
               <li
                 key={g.predecessor.id}
                 data-testid={RECONCILE_AMBIGUITY_TESTID}
-                className="rounded-md border border-amber-900/40 px-3 py-2"
+                className="rounded-md border border-warning-900/40 px-3 py-2"
               >
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="font-medium">{view.predecessor.name}</span>
@@ -1067,10 +1067,10 @@ function ContinuedAccountsCard({
   return (
     <Card
       data-testid={CONTINUED_CARD_TESTID}
-      className="border-emerald-900/40 bg-emerald-950/20"
+      className="border-positive-900/40 bg-positive-950/20"
     >
       <CardHeader className="pb-2">
-        <CardDescription className="text-emerald-300">Combined accounts</CardDescription>
+        <CardDescription className="text-positive-300">Combined accounts</CardDescription>
         {/* U.13: "Counted once per date" was an unqualified claim about EVERY figure these
             accounts touch, and it became false for transactions on the one handover day the
             boundary now releases to both sides. Balances are untouched (F3 still keeps exactly
@@ -1085,7 +1085,7 @@ function ContinuedAccountsCard({
             <li
               key={a.successorId}
               data-testid={CONTINUED_ACCOUNT_TESTID}
-              className="rounded-md border border-emerald-900/40 px-3 py-2"
+              className="rounded-md border border-positive-900/40 px-3 py-2"
             >
               <div className="flex flex-wrap items-center gap-x-2">
                 <span className="min-w-0 break-words font-medium">{a.name}</span>
@@ -1094,7 +1094,7 @@ function ContinuedAccountsCard({
               {a.combinesLine && (
                 <p
                   data-testid={CONTINUED_COMBINES_TESTID}
-                  className="mt-1 text-xs text-emerald-300"
+                  className="mt-1 text-xs text-positive-300"
                 >
                   {a.combinesLine}
                 </p>
@@ -1102,7 +1102,7 @@ function ContinuedAccountsCard({
               {a.chainedLine && (
                 <p
                   data-testid={CONTINUED_CHAINED_TESTID}
-                  className="mt-1 text-xs text-amber-300"
+                  className="mt-1 text-xs text-warning-300"
                 >
                   {a.chainedLine}
                 </p>
@@ -1123,7 +1123,7 @@ function ContinuedAccountsCard({
                     {s.auditLine !== null && (
                       <span
                         data-testid={CONTINUED_AUDIT_TESTID}
-                        className="order-last w-full min-w-0 rounded-md border border-amber-700/40 bg-amber-950/20 px-2 py-1 text-xs break-words text-amber-700 dark:text-amber-400"
+                        className="order-last w-full min-w-0 rounded-md border border-warning-700/40 bg-warning-950/20 px-2 py-1 text-xs break-words text-warning-700 dark:text-warning-400"
                       >
                         {s.auditLine}
                       </span>
@@ -1475,7 +1475,7 @@ function LinkedRow({
                   account.freshness.level === 'very_stale' ||
                   account.freshness.level === 'not_shared' ||
                   account.freshness.level === 'disconnected'
-                    ? 'text-amber-500'
+                    ? 'text-warning-500'
                     : 'text-muted-foreground'
                 }`}
               >
@@ -1519,7 +1519,7 @@ function LinkedRow({
       {droppedNote && (
         <p
           data-testid={FEED_DROPPED_ROW_TESTID}
-          className="break-words px-3 pb-2 text-xs text-amber-500"
+          className="break-words px-3 pb-2 text-xs text-warning-500"
         >
           {droppedNote}
         </p>

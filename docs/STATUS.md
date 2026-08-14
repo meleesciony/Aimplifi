@@ -4964,3 +4964,34 @@ K.4 shape).** The demo seed writes no `AccountReconciliation` rows, so no
 combined pair can render this ranking. What stands in for a live check:
 CI's full `VERIFY_E2E=1` suite ran against a genuine build of this exact
 commit.
+
+## ✅ BUILT 2026-08-14 — U.2: semantic status-color tokens (DECISIONS #471)
+
+Hue-named `emerald-*` / `amber-*` classes encoded brand chrome and
+status with the same vocabulary. Chart hexes were already unified;
+the class layer was not.
+
+**What shipped.** Three `@theme` scales in `globals.css`: `brand` and
+`positive` alias Tailwind emerald; `warning` aliases amber. Every
+`src/` call site moved in one slice. Shades unchanged. Chrome →
+`brand`; money/success → `positive`; every amber → `warning`.
+
+**Locked.** `tests/unit/u2-semantic-color-tokens.test.ts`: zero
+`emerald-N` / `amber-N` under `src/` except the token file.
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN** (e2e skipped;
+Playwright then run against this same `next build`): tsc 0, eslint 0,
+unit **7,032 passed + 1 expected fail + 1 skipped / 426 files + 1
+skipped**, `next build` clean, e2e **350 passed, 3 flaky-passed-on-retry**
+(`category-rename.spec.ts:110`, `transactions.spec.ts:638`,
+`transactions.spec.ts:735` — documented K.10 class, untouched by this
+diff). Built CSS utilities resolve `.text-brand-500` /
+`.text-positive-500` to `var(--color-emerald-500)` and
+`.text-warning-500` to `var(--color-amber-500)`. No `prisma/` diff.
+Mechanical / not money — no hostile-critic pass required.
+
+**No demo-visible marker, and none is possible — declared, not skipped
+(the K.4 shape).** Pixels are byte-identical to the previous hues, so
+no new string appears on a demo page. What stands in for a live check:
+the compiled CSS chunk carries the semantic class names, and CI's full
+`VERIFY_E2E=1` suite runs against a genuine build of this commit.

@@ -265,7 +265,7 @@ export default async function CoachPage() {
                     </Badge>
                   </div>
                   {i === 0 && (
-                    <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400" data-testid="biggest-lever">
+                    <p className="text-xs font-medium text-positive-600 dark:text-positive-400" data-testid="biggest-lever">
                       {COACH_COPY.biggestLever()}
                     </p>
                   )}
@@ -351,7 +351,7 @@ export default async function CoachPage() {
                 nextStep: 'accounts-route',
               });
               return note ? (
-                <p className="mt-1 text-xs text-amber-500" data-testid={FROZEN_RUNWAY_TESTID}>
+                <p className="mt-1 text-xs text-warning-500" data-testid={FROZEN_RUNWAY_TESTID}>
                   {note}
                 </p>
               ) : null;
@@ -379,7 +379,7 @@ export default async function CoachPage() {
             <ul className="space-y-2" data-testid="value-receipts-lines">
               {receiptLines(receipts).map((line) => (
                 <li key={line} className="flex items-start gap-2">
-                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-500" aria-hidden />
+                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-positive-500" aria-hidden />
                   <span>{line}</span>
                 </li>
               ))}
@@ -411,7 +411,7 @@ export default async function CoachPage() {
             const testId =
               r.role === 'watch' ? 'review-creep' : r.role === 'action' ? 'review-next-action' : 'review-improvement';
             const Icon = r.role === 'watch' ? Eye : r.role === 'action' ? CheckCircle2 : TrendingUp;
-            const tone = r.role === 'watch' ? 'text-amber-500' : 'text-emerald-500';
+            const tone = r.role === 'watch' ? 'text-warning-500' : 'text-positive-500';
             return (
               <p key={r.id} className="flex items-start gap-2" data-testid={testId}>
                 <Icon className={`mt-0.5 size-4 shrink-0 ${tone}`} aria-hidden />

@@ -145,7 +145,7 @@ export function AccountDetailPanel({
                   <span>
                     {formatISODate(isoDate(h.date), 'long')}
                     {h.carriedForward && (
-                      <span className="ml-1 text-amber-600 dark:text-amber-400" data-testid="account-detail-carried">
+                      <span className="ml-1 text-warning-600 dark:text-warning-400" data-testid="account-detail-carried">
                         · carried forward
                       </span>
                     )}
@@ -162,7 +162,7 @@ export function AccountDetailPanel({
                       </span>
                     )}
                     {h.accountType !== null && h.rowIsLiability !== isLiability && (
-                      <span className="ml-1 text-amber-600 dark:text-amber-400" data-testid="account-detail-reclassified">
+                      <span className="ml-1 text-warning-600 dark:text-warning-400" data-testid="account-detail-reclassified">
                         {/* The separator is real content, not an `ml-1` margin: two
                             adjacent markers otherwise read out as one run-on token
                             ("carried forwardrecorded as checking"). `accountTypeLabel`
@@ -192,7 +192,7 @@ export function AccountDetailPanel({
               ))}
           </ul>
           {carriedCount > 0 && (
-            <p className="mt-1 text-xs text-amber-500" data-testid="account-detail-carried-note">
+            <p className="mt-1 text-xs text-warning-500" data-testid="account-detail-carried-note">
               {carriedCount === 1 ? 'One row repeats' : `${carriedCount} rows repeat`} the last
               balance your bank sent, on {formatISODate(isoDate(dropped as string), 'long')} —
               nothing has been read from this account since.
@@ -214,7 +214,7 @@ export function AccountDetailPanel({
           )}
           {reclassifiedRead.length > 0 && (
             <p
-              className="mt-1 text-xs text-amber-600 dark:text-amber-400"
+              className="mt-1 text-xs text-warning-600 dark:text-warning-400"
               data-testid="account-detail-reclassified-note"
             >
               {/* What the APP did, never what was true in the world. A feed that

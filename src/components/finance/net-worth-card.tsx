@@ -68,7 +68,7 @@ export function NetWorthCard({
               deltaCents === null
                 ? 'text-muted-foreground'
                 : deltaCents >= 0
-                  ? 'text-emerald-500'
+                  ? 'text-positive-500'
                   : 'text-red-400'
             }`}
             data-testid="net-worth-delta"
@@ -81,7 +81,7 @@ export function NetWorthCard({
           <p
             className={`mt-1 inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] ${
               runwayBand === 'below'
-                ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                ? 'bg-warning-500/15 text-warning-600 dark:text-warning-400'
                 : 'bg-muted text-muted-foreground'
             }`}
             data-testid="room-for-error"

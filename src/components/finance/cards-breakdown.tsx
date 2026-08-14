@@ -153,7 +153,7 @@ export function CardsBreakdown({
       </div>
 
       {scenario === 'MINIMUM' && result.minimumPathInterestCents !== null && (
-        <p className="text-sm text-amber-500" data-testid="minimum-interest">
+        <p className="text-sm text-warning-500" data-testid="minimum-interest">
           {minimumInterestNote(
             result.minimumPathInterestCents,
             result.minimumPathInterestCardsCount,
@@ -267,7 +267,7 @@ export function CardsBreakdown({
         return (
           <>
             {allClearFrozen && (
-              <p className="text-xs text-amber-500" data-testid={FROZEN_ALL_CLEAR_TESTID}>
+              <p className="text-xs text-warning-500" data-testid={FROZEN_ALL_CLEAR_TESTID}>
                 {allClearFrozen}
               </p>
             )}
@@ -279,7 +279,7 @@ export function CardsBreakdown({
                 // Announced like the /accounts warning it mirrors: without this a screen-reader
                 // user meets the payment instruction with no signal that it is qualified.
                 role="alert"
-                className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-sm"
+                className="rounded-lg border border-warning-900/50 bg-warning-950/20 px-3 py-2 text-sm"
                 data-testid={CARD_DUPLICATE_TESTID}
               >
                 <p className="font-medium">{duplicates.title}</p>
@@ -304,7 +304,7 @@ export function CardsBreakdown({
             )}
             {firstAction && (
               <p
-                className="rounded-lg border border-emerald-900/50 bg-emerald-950/30 px-3 py-2 text-sm"
+                className="rounded-lg border border-positive-900/50 bg-positive-950/30 px-3 py-2 text-sm"
                 data-testid="do-this-first"
               >
                 {accountOwnerLabel[firstAction.cardId] ? (
@@ -351,7 +351,7 @@ export function CardsBreakdown({
             {firstAction?.frozenSince != null && (
               <p
                 role="alert"
-                className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-xs text-muted-foreground"
+                className="rounded-lg border border-warning-900/50 bg-warning-950/20 px-3 py-2 text-xs text-muted-foreground"
                 data-testid={FROZEN_FIRST_ACTION_TESTID}
               >
                 {frozenCardsNote(
@@ -432,7 +432,7 @@ export function CardsBreakdown({
                       </span>
                     </div>
                     {card.userActionCents === 0 && card.autopayCents > 0 && (
-                      <p className="text-xs text-emerald-500">
+                      <p className="text-xs text-positive-500">
                         {owner
                           ? HOUSEHOLD_COPY.cardsPartnerAutopayCovered(owner)
                           : 'Autopay handles it — just keep the cash in place.'}
@@ -490,7 +490,7 @@ export function CardsBreakdown({
                         discloses nothing further, and a stale figure misleads whoever reads it. */}
                     {card.frozenSince != null && (
                       <p
-                        className="mt-2 text-xs text-amber-500"
+                        className="mt-2 text-xs text-warning-500"
                         data-testid={`${FROZEN_CARD_TESTID}-${card.cardId}`}
                       >
                         {frozenCardsNote(
@@ -521,7 +521,7 @@ export function CardsBreakdown({
               // owe nothing" and "we can't tell you when this is due" — the second is
               // the truth, and hiding the card entirely told the first.
               <div
-                className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-sm"
+                className="rounded-lg border border-warning-900/50 bg-warning-950/20 px-3 py-2 text-sm"
                 data-testid="cards-unknown-due"
               >
                 <p className="font-medium">No due date yet</p>
@@ -561,7 +561,7 @@ export function CardsBreakdown({
                             sentence points at nothing and does not repeat it. */}
                         {c.frozenSince != null && (
                           <span
-                            className="text-amber-500"
+                            className="text-warning-500"
                             data-testid={`${FROZEN_CARD_TESTID}-${c.cardId}`}
                           >
                             {' '}

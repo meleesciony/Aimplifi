@@ -62,7 +62,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
           {formatCents(cents(f.endingBalanceCents))}
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
-          <span className={deltaCents >= 0 ? 'text-emerald-500' : 'text-rose-500'}>
+          <span className={deltaCents >= 0 ? 'text-positive-500' : 'text-rose-500'}>
             {formatCents(cents(deltaCents), { signDisplay: 'always' })}
           </span>{' '}
           from {formatCents(cents(f.startingBalanceCents))} in {data.accountName} today
@@ -71,7 +71,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
             is the number the sentence is about. Nothing else on this page qualifies it: unlike the
             dashboard, /forecast renders no assumptions block and no radar card. */}
         {data.frozenNote && (
-          <p className="mt-2 text-xs text-amber-500" data-testid="forecast-frozen-note">
+          <p className="mt-2 text-xs text-warning-500" data-testid="forecast-frozen-note">
             {data.frozenNote}
           </p>
         )}
@@ -245,7 +245,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
                   <div className="text-xs text-muted-foreground">{formatISODate(isoDate(e.date))}</div>
                 </div>
                 <span
-                  className={`shrink-0 tabular-nums ${e.amountCents >= 0 ? 'text-emerald-500' : 'text-foreground'}`}
+                  className={`shrink-0 tabular-nums ${e.amountCents >= 0 ? 'text-positive-500' : 'text-foreground'}`}
                 >
                   {formatCents(cents(e.amountCents), { signDisplay: 'always' })}
                 </span>

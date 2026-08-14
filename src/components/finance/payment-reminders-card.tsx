@@ -27,7 +27,7 @@ import type { PaymentReminder, ReminderUrgency } from '@/lib/engine/reminders/se
 
 const URGENCY: Record<ReminderUrgency, { label: string; cls: string }> = {
   today: { label: 'Today', cls: 'border-red-900/50 bg-red-950/40 text-red-300' },
-  soon: { label: 'Soon', cls: 'border-amber-900/50 bg-amber-950/40 text-amber-300' },
+  soon: { label: 'Soon', cls: 'border-warning-900/50 bg-warning-950/40 text-warning-300' },
   upcoming: { label: 'Upcoming', cls: 'border-border bg-accent text-muted-foreground' },
 };
 
@@ -172,7 +172,7 @@ export function PaymentRemindersCard({
               // same sentence twice in a row before the reader reaches either list. The hero keeps
               // the announcement because it qualifies a money figure and a transfer instruction;
               // this one is read in document order, where its own rows are.
-              className="mx-4 mb-2 rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-sm"
+              className="mx-4 mb-2 rounded-lg border border-warning-900/50 bg-warning-950/20 px-3 py-2 text-sm"
               data-testid={CARD_DUPLICATE_TESTID}
             >
               <p className="font-medium">{duplicates.title}</p>
@@ -216,7 +216,7 @@ export function PaymentRemindersCard({
                         SAME painted label the row above uses, so the two cannot disagree. */}
                     {r.frozenSince != null && (
                       <p
-                        className="mt-0.5 text-xs text-amber-500"
+                        className="mt-0.5 text-xs text-warning-500"
                         data-testid={`${FROZEN_CARD_TESTID}-${r.accountId}`}
                       >
                         {/* A LOAN goes stale differently from a card and gets its own sentence

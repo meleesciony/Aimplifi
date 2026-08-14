@@ -100,7 +100,7 @@ function MoverRow({
     );
   const tone =
     m.direction === 'down'
-      ? 'text-emerald-600 dark:text-emerald-400'
+      ? 'text-positive-600 dark:text-positive-400'
       : m.direction === 'new'
         ? 'text-sky-600 dark:text-sky-400'
         : 'text-rose-600 dark:text-rose-400';
@@ -132,7 +132,7 @@ function MoverRow({
               {m.name}
             </Link>
           )}
-          {isDial && <Gauge className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />}
+          {isDial && <Gauge className="size-3.5 shrink-0 text-positive-600 dark:text-positive-400" aria-hidden />}
         </div>
         {/* Not `truncate`: this line now holds a LINK, and truncation clips from
             the end — the O.5 critic already found ~45px of an inbox link clipped
@@ -157,7 +157,7 @@ function MoverRow({
           )}
         </div>
         {isDial && (
-          <div className="text-xs text-emerald-600 dark:text-emerald-400" data-testid="dial-tag">
+          <div className="text-xs text-positive-600 dark:text-positive-400" data-testid="dial-tag">
             {COACH_COPY.dialTag(m.name)}
           </div>
         )}
@@ -281,7 +281,7 @@ export function TrendsView({
                   className={
                     paceDelta!.relation === 'more'
                       ? 'text-rose-600 dark:text-rose-400'
-                      : 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-positive-600 dark:text-positive-400'
                   }
                 >
                   {money(paceDelta!.absCents)} {paceDelta!.relation}

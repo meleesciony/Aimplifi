@@ -98,7 +98,7 @@ export function ConnectSimplefin({
       <div className="space-y-1" data-testid="simplefin-connected">
         <div className="flex flex-wrap items-center gap-2">
           <span
-            className={`text-xs ${stale ? 'text-amber-300' : 'text-muted-foreground'}`}
+            className={`text-xs ${stale ? 'text-warning-300' : 'text-muted-foreground'}`}
             data-testid="simplefin-sync-status"
           >
             Bank sync connected · {freshnessMessage(health)}
@@ -118,7 +118,7 @@ export function ConnectSimplefin({
           {connectionDepthSentence(historyDepth)}
         </div>
         {error && <p role="alert" className="text-xs text-red-400">{error}</p>}
-        <p className="text-[11px] text-amber-300/80" data-testid="simplefin-type-notice">
+        <p className="text-[11px] text-warning-300/80" data-testid="simplefin-type-notice">
           Account types are guessed from the bank’s name — double-check that any cards or loans
           appear under <b>Liabilities</b> so your net worth is right.
         </p>
@@ -134,7 +134,7 @@ export function ConnectSimplefin({
         // first-time setup over frozen data. The date is when DATA stopped, not when the
         // connection was removed: nothing records the removal moment (the row that would is
         // the thing that was deleted), so the copy claims only what the data shows.
-        <p className="text-xs text-amber-300" data-testid="simplefin-disconnected-notice" role="status">
+        <p className="text-xs text-warning-300" data-testid="simplefin-disconnected-notice" role="status">
           Your SimpleFIN connection was removed. {orphaned.count === 1 ? 'The account' : `${orphaned.count} accounts`} linked
           through it stopped updating
           {orphaned.lastDataAt ? ` — no new transactions since ${formatISODate(isoDate(orphaned.lastDataAt), 'long')}` : ''}.
@@ -155,7 +155,7 @@ export function ConnectSimplefin({
         data-testid="simplefin-connect-btn"
         disabled={pending}
         onClick={() => { setOpen(!open); setError(null); }}
-        className="rounded-md border border-emerald-700/40 bg-emerald-950/30 px-3 py-1.5 text-sm font-medium text-emerald-300 hover:bg-emerald-950/50 disabled:opacity-50"
+        className="rounded-md border border-brand-700/40 bg-brand-950/30 px-3 py-1.5 text-sm font-medium text-brand-300 hover:bg-brand-950/50 disabled:opacity-50"
       >
         {orphaned ? 'Reconnect your bank (SimpleFIN)' : '+ Connect a bank (SimpleFIN)'}
       </button>

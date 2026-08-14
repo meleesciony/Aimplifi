@@ -108,7 +108,7 @@ export function CashNeededCard({
         totalStated,
       );
       return (
-        <Card data-testid="cash-needed-card" className="border-amber-900/40">
+        <Card data-testid="cash-needed-card" className="border-warning-900/40">
           <CardHeader>
             <CardTitle>Cards: due dates missing</CardTitle>
             <CardDescription data-testid="cash-needed-unknown">
@@ -213,7 +213,7 @@ export function CashNeededCard({
   );
 
   return (
-    <Card data-testid="cash-needed-card" className="border-emerald-900/40">
+    <Card data-testid="cash-needed-card" className="border-positive-900/40">
       <CardHeader className="pb-2">
         <CardDescription>Cash needed for cards this cycle</CardDescription>
         <GlassBoxNumber
@@ -261,7 +261,7 @@ export function CashNeededCard({
           // The mixed case: a real total for the datable cards, plus at least one
           // balance-carrying card we cannot date. Without this line the figure
           // reads as complete.
-          <p className="text-xs text-amber-500" data-testid="cash-needed-unknown-note">
+          <p className="text-xs text-warning-500" data-testid="cash-needed-unknown-note">
             Not included:{' '}
             {unknownWithBalance.map((c) => painted(c.cardId, ownedName(c))).join(', ')} — no statement or
             due date yet, so {unknownWithBalance.length === 1 ? 'its' : 'their'}{' '}
@@ -433,7 +433,7 @@ function DuplicateDisclosure({ view }: { view: CardDuplicateView }) {
   return (
     <div
       role="alert"
-      className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-sm"
+      className="rounded-lg border border-warning-900/50 bg-warning-950/20 px-3 py-2 text-sm"
       data-testid={CARD_DUPLICATE_TESTID}
     >
       <p className="font-medium">{view.title}</p>

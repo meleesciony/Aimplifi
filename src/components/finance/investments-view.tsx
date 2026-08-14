@@ -20,7 +20,7 @@ import { RetirementOutlookCard } from '@/components/finance/retirement-outlook-c
 import type { WithheldAccountSummary } from '@/lib/providers/currency';
 import type { InvestmentsView as InvestmentsData, RetirementOutlook } from '@/server/investments';
 
-const GAIN_UP = 'text-emerald-600 dark:text-emerald-400';
+const GAIN_UP = 'text-positive-600 dark:text-positive-400';
 const GAIN_DOWN = 'text-rose-600 dark:text-rose-400';
 
 const tone = (n: number) => (n >= 0 ? GAIN_UP : GAIN_DOWN);

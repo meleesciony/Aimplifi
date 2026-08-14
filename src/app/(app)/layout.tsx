@@ -13,7 +13,7 @@ async function ReviewBadge({ userId }: { userId: string }) {
   if (count === 0) return null;
   return (
     <span
-      className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-800 px-1 text-[10px] font-semibold text-white"
+      className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-800 px-1 text-[10px] font-semibold text-white"
       data-testid="review-badge"
     >
       {count}
@@ -76,7 +76,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
       {isDemo && (
         <p className="mb-3 flex items-center gap-2 text-xs text-muted-foreground" data-testid="demo-banner">
-          <span className="inline-block size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden />
+          <span className="inline-block size-1.5 shrink-0 rounded-full bg-brand-500" aria-hidden />
           Demo dataset · fictional accounts · as of {formatISODate(isoDate(today), 'long')}
         </p>
       )}

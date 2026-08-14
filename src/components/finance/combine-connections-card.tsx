@@ -85,7 +85,7 @@ export function CombineConnectionsCard({
   const label = (itemId: string) => connectionLabel(institutionOf.get(itemId) ?? null, ordinals.get(itemId));
 
   return (
-    <Card data-testid="combine-connections-card" className="border-amber-900/50">
+    <Card data-testid="combine-connections-card" className="border-warning-900/50">
       <CardHeader>
         <CardTitle className="text-base">{combineCardTitle(proposals.length + explained.length)}</CardTitle>
       </CardHeader>
@@ -131,7 +131,7 @@ export function CombineConnectionsCard({
                     </p>
                     <p className="text-muted-foreground">{combineReversibilityNote(dropLabel)}</p>
                     {depthNote !== null && (
-                      <p className="text-amber-300/90" data-testid="combine-depth-note">
+                      <p className="text-warning-300/90" data-testid="combine-depth-note">
                         {depthNote}
                       </p>
                     )}

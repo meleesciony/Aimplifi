@@ -7620,3 +7620,26 @@ genuine still latest-cutover; covering echo loses to closed genuine;
 terminal echo loses to closed genuine; equal-cutover genuine ancestor
 outranks echo mid; CREDIT common-pair −$5,000.00; lone covering echo
 kept. Pre-U.37 the common pair returned pred / $4,000.00.
+
+## #471 — U.2: semantic status-color tokens replace hue-named classes (2026-08-14)
+
+**Context.** ~172 `emerald-*` / `amber-*` Tailwind classes across 51 files
+encoded two roles by raw hue: brand chrome (nav, logo, focus rings) and
+status (positive money, warnings). Chart hexes were already unified
+(`chart-colors.ts`); the class vocabulary was not. A partial rename
+would split the palette, so every call site moves in one slice.
+
+**Decision: three scales, same pixels.** `brand` and `positive` alias
+Tailwind emerald; `warning` aliases amber. Defined in `globals.css`
+`@theme` so a later palette change cannot leave a stray hue class
+painting the old color. Shades are not re-judged — `emerald-600` became
+`positive-600`, `amber-700` became `warning-700`. Role split: chrome
+(nav / wordmark / focus / connect CTAs / accent sliders) → `brand`;
+evaluative money and success → `positive`; every amber → `warning`.
+
+**Not in scope.** Rose/red money-out classes (already a third hue with
+one job). The PWA `themeColor` hex `#10b981` (same pixel, not a class).
+
+**Locked.** `tests/unit/u2-semantic-color-tokens.test.ts`: no
+`emerald-N` / `amber-N` literal under `src/` except the token file;
+token file aliases brand/positive → emerald and warning → amber.

@@ -72,7 +72,7 @@ export function LifestyleCreepChart({ creep }: { creep: CreepResult }) {
               style={{ height: '56px', alignItems: 'flex-end' }}
             >
               <span
-                className={`block w-full rounded-sm ${isOpen ? 'bg-amber-500' : 'bg-amber-500/70'}`}
+                className={`block w-full rounded-sm ${isOpen ? 'bg-warning-500' : 'bg-warning-500/70'}`}
                 style={{ height: `${Math.max(4, Math.round((m.amountCents / max) * 52))}px` }}
                 aria-hidden
               />

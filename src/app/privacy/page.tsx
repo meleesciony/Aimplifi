@@ -22,7 +22,7 @@ function Block({ block }: { block: PolicyBlock }) {
     return <p className="text-sm leading-relaxed text-muted-foreground">{block}</p>;
   }
   return (
-    <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground marker:text-emerald-500">
+    <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-muted-foreground marker:text-brand-500">
       {block.list.map((item, i) => (
         <li key={i}>{item}</li>
       ))}
@@ -38,7 +38,7 @@ export default function PrivacyPage() {
           href="/sign-in"
           className="text-sm font-semibold tracking-tight text-foreground hover:opacity-80"
         >
-          Aim<span className="text-emerald-500">plifi</span>
+          Aim<span className="text-brand-500">plifi</span>
         </Link>
         <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
           {PRIVACY_POLICY.title}

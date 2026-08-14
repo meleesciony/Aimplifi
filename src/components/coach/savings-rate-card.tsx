@@ -75,12 +75,12 @@ export function SavingsRateCard({
             : COACH_COPY.savingsRateHeadline(currentRateBps, monthLabel)}
         </p>
         {savedGapCents > 0 && (
-          <p className="text-xs text-emerald-600 dark:text-emerald-400" data-testid="invisible-wealth">
+          <p className="text-xs text-positive-600 dark:text-positive-400" data-testid="invisible-wealth">
             {COACH_COPY.invisibleWealth(cents(savedGapCents), monthLabel)}
           </p>
         )}
         {streak.streakMonths >= 2 && streak.latestRateBps !== null && (
-          <p className="text-xs text-emerald-600 dark:text-emerald-400" data-testid="savings-rate-streak">
+          <p className="text-xs text-positive-600 dark:text-positive-400" data-testid="savings-rate-streak">
             {COACH_COPY.savingsStreak(streak.streakMonths, streak.latestRateBps)}
           </p>
         )}

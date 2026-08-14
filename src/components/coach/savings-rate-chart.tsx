@@ -88,7 +88,7 @@ export function SavingsRateChart({
                   style={{ height: '72px', alignItems: 'flex-end' }}
                 >
                   <span
-                    className={`block w-full rounded-sm ${v >= 0 ? 'bg-emerald-500/80' : 'bg-red-500/70'}`}
+                    className={`block w-full rounded-sm ${v >= 0 ? 'bg-positive-500/80' : 'bg-red-500/70'}`}
                     style={{ height: `${h}px` }}
                     aria-hidden
                   />

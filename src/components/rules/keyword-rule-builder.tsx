@@ -468,7 +468,7 @@ export function KeywordRuleBuilder({
                 a store number or a transaction id — and the rule will cover the next one too.
               </p>
               {prefill.excludedReason && (
-                <p className="text-xs text-amber-700 dark:text-amber-300" data-testid="kw-prefill-excluded">
+                <p className="text-xs text-warning-700 dark:text-warning-300" data-testid="kw-prefill-excluded">
                   {prefill.excludedReason} The count below will not include it.
                 </p>
               )}
@@ -502,7 +502,7 @@ export function KeywordRuleBuilder({
                           }
                           className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-xs ${
                             i === 0 && volatileHint.has(t)
-                              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                              ? 'bg-warning-500/15 text-warning-700 dark:text-warning-300'
                               : 'bg-accent'
                           }`}
                         >
@@ -767,7 +767,7 @@ export function KeywordRuleBuilder({
           )}
           {done && (
             <div className="space-y-1">
-              <p role="status" className="text-sm text-emerald-400" data-testid="kw-done">
+              <p role="status" className="text-sm text-positive-400" data-testid="kw-done">
                 {done}
               </p>
               {undoable.length > 0 && (
@@ -832,7 +832,7 @@ export function KeywordRuleBuilder({
                     {preview.inflowCount} money in · {preview.outflowCount} money out
                   </p>
                   {preview.signMismatchCount !== null && preview.signMismatchCount > 0 && (
-                    <p className="text-xs text-amber-400" data-testid="kw-sign-warning">
+                    <p className="text-xs text-warning-400" data-testid="kw-sign-warning">
                       {preview.signMismatchCount} of them are money OUT, and this is an income category.
                       Those will be left alone — filing money out as income would remove it from your
                       spending totals entirely. The rule will skip them in future too.

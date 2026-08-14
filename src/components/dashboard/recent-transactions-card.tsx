@@ -20,7 +20,7 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
             Recent transactions
           </div>
           {needsFileCount > 0 ? (
-            <p className="mt-1 text-sm text-amber-700 dark:text-amber-400" data-testid="dashboard-needs-file">
+            <p className="mt-1 text-sm text-warning-700 dark:text-warning-400" data-testid="dashboard-needs-file">
               <Link href="/triage" className="underline underline-offset-2 hover:text-foreground">
                 {needsFileCount === 1
                   ? '1 merchant needs filing'
@@ -54,7 +54,7 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
                   namedPageBack('dashboard', null),
                 )}
                 className={`flex items-center justify-between gap-3 py-2.5 text-sm transition hover:bg-muted/40 ${
-                  r.needsFile ? 'bg-amber-50/80 dark:bg-amber-950/30' : ''
+                  r.needsFile ? 'bg-warning-50/80 dark:bg-warning-950/30' : ''
                 }`}
                 data-testid="dashboard-recent-row"
                 data-needs-file={r.needsFile ? 'true' : 'false'}
@@ -80,7 +80,7 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
                     {r.date}
                     {' · '}
                     {r.needsFile ? (
-                      <span className="font-medium text-amber-700 dark:text-amber-400">Needs category</span>
+                      <span className="font-medium text-warning-700 dark:text-warning-400">Needs category</span>
                     ) : (
                       r.categoryName
                     )}
@@ -88,7 +88,7 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
                 </div>
                 <span
                   className={`shrink-0 tabular-nums ${
-                    r.amountCents < 0 ? 'text-foreground' : 'text-emerald-600 dark:text-emerald-400'
+                    r.amountCents < 0 ? 'text-foreground' : 'text-positive-600 dark:text-positive-400'
                   }`}
                 >
                   {formatCents(cents(r.amountCents))}

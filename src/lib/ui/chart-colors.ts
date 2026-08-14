@@ -7,13 +7,13 @@
  * forecast, and net-worth line used 500-series hues (#10b981 / #f43f5e) —
  * the same semantic ("money in" / "money out") rendered two different colors
  * depending on the page. Values are Tailwind 500-series hues anchored on the
- * brand emerald (#10b981, which is also the PWA themeColor in app/layout.tsx).
+ * brand-500 hex (#10b981, which is also the PWA themeColor in app/layout.tsx).
  *
  * These are decorative fills/strokes, not text — WCAG text-contrast rules
  * (axe gate) do not apply to them; every chart also carries text labels.
  */
 
-/** Brand emerald — money in, growth, on-track. (Tailwind emerald-500.) */
+/** Brand / positive — money in, growth, on-track. (theme brand-500 / positive-500.) */
 export const CHART_POSITIVE = '#10b981';
 
 /** Money out, dips, shortfall. (Tailwind rose-500.) */
@@ -28,9 +28,9 @@ export const CHART_COMPARE = '#3b82f6';
  * breakdown matches the line charts.
  */
 export const CHART_SERIES = [
-  '#10b981', // emerald-500 (brand)
+  '#10b981', // brand-500
   '#3b82f6', // blue-500
-  '#f59e0b', // amber-500
+  '#f59e0b', // warning-500
   '#a855f7', // purple-500
   '#ec4899', // pink-500
   '#14b8a6', // teal-500

@@ -40,7 +40,7 @@ export function CsvImportGuides({ institutions }: { institutions: string[] }) {
                 <li key={i}>{s}</li>
               ))}
             </ol>
-            {g.note && <p className="text-xs text-amber-700 dark:text-amber-300">{g.note}</p>}
+            {g.note && <p className="text-xs text-warning-700 dark:text-warning-300">{g.note}</p>}
           </CardContent>
         </Card>
       ))}

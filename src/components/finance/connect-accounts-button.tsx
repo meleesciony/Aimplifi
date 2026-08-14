@@ -168,7 +168,7 @@ export function ConnectAccountsButton({ deepenHistory = false }: ConnectAccounts
         data-testid={deepenHistory ? 'deepen-history-btn' : 'connect-bank-btn'}
         disabled={busy}
         onClick={handleClick}
-        className="rounded-md border border-emerald-700/40 bg-emerald-950/30 px-3 py-1.5 text-sm font-medium text-emerald-300 hover:bg-emerald-950/50 disabled:opacity-50"
+        className="rounded-md border border-brand-700/40 bg-brand-950/30 px-3 py-1.5 text-sm font-medium text-brand-300 hover:bg-brand-950/50 disabled:opacity-50"
       >
         {busy
           ? 'Connecting…'
@@ -195,7 +195,7 @@ export function ConnectAccountsButton({ deepenHistory = false }: ConnectAccounts
         // guesses which is which), still stops being applied — so this says what is carried,
         // not that everything is. Never the unqualified "your categories and notes stay": a
         // fresh-context critic once executed the combine and disproved that promise.
-        <p data-testid="deepen-history-caveat" className="text-[11px] text-amber-300/80">
+        <p data-testid="deepen-history-caveat" className="text-[11px] text-warning-300/80">
           One caveat worth reading first: when you combine, each account starts reading from the
           new connection’s copy of its transactions. Categories, notes, tax classes and splits
           you set by hand on the older copies are carried across automatically to the matching
@@ -207,7 +207,7 @@ export function ConnectAccountsButton({ deepenHistory = false }: ConnectAccounts
         </p>
       )}
       {sandbox && (
-        <p data-testid="plaid-sandbox-notice" className="text-[11px] text-amber-300/80">
+        <p data-testid="plaid-sandbox-notice" className="text-[11px] text-warning-300/80">
           Plaid is running in <b>sandbox (test) mode</b>: real banks, real logins, and real phone
           numbers won’t work inside the Plaid window — its own screens reject them. Use Plaid’s
           documented sandbox test credentials (e.g. user <span className="font-mono">user_good</span> /

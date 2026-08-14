@@ -108,7 +108,7 @@ export function SpendingInsightsCard({ trends }: { trends: SpendingTrends }) {
           <span
             className={`flex shrink-0 items-center gap-1 font-medium tabular-nums ${
               top.direction === 'down'
-                ? 'text-emerald-600 dark:text-emerald-400'
+                ? 'text-positive-600 dark:text-positive-400'
                 : top.direction === 'new'
                   ? 'text-sky-600 dark:text-sky-400'
                   : 'text-rose-600 dark:text-rose-400'

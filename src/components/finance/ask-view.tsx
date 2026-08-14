@@ -251,7 +251,7 @@ export function AskView({
     <div className="space-y-4">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-          <Sparkles className="size-5 text-emerald-500" aria-hidden /> Ask Aimplifi
+          <Sparkles className="size-5 text-brand-500" aria-hidden /> Ask Aimplifi
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Ask about your money in plain language. Every answer is computed from your own accounts and
@@ -347,10 +347,10 @@ export function AskView({
             {(correctionState === 'saved' || correctionState === 'savedStale') && (
               <div
                 data-testid="ask-correction-saved"
-                className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-600/30 bg-emerald-500/5 px-3 py-2 text-sm"
+                className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-positive-600/30 bg-positive-500/5 px-3 py-2 text-sm"
               >
                 <span className="flex items-center gap-1.5">
-                  <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                  <Check className="size-4 text-positive-600 dark:text-positive-400" aria-hidden />
                   {correctionState === 'saved'
                     ? 'Category updated — this answer now reflects it.'
                     : 'Category updated, but this answer couldn’t be refreshed — ask again to see the new numbers.'}
@@ -430,7 +430,7 @@ export function AskView({
                           className="mt-2 space-y-3 rounded-xl border bg-muted/30 p-3"
                         >
                           <p className="flex items-center gap-1.5 text-sm font-medium">
-                            <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                            <Check className="size-4 text-positive-600 dark:text-positive-400" aria-hidden />
                             <span data-testid="ask-fact-reconciled">
                               {fv.rows.length === 1 ? '1 transaction adds' : `${fv.rows.length} transactions add`} up
                               to {fmtCents(fv.amountCents)}
@@ -450,7 +450,7 @@ export function AskView({
               <Link
                 href={answer.source.href}
                 data-testid="ask-source"
-                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-positive-600 hover:underline dark:text-positive-400"
               >
                 {answer.source.label} <ArrowRight className="size-3.5" aria-hidden />
               </Link>
@@ -472,7 +472,7 @@ export function AskView({
                 {saveState === 'saved' && (
                   <Link
                     href={savedHref}
-                    className="text-sm font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+                    className="text-sm font-medium text-positive-600 hover:underline dark:text-positive-400"
                   >
                     {savedLinkLabel}
                   </Link>
@@ -712,7 +712,7 @@ function TracePanel({
               Open{' '}
               <Link
                 href={source.href}
-                className="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+                className="font-medium text-positive-600 hover:underline dark:text-positive-400"
               >
                 {source.label.toLowerCase()}
               </Link>{' '}
@@ -739,7 +739,7 @@ function TracePanel({
       className="mt-3 space-y-3 rounded-xl border bg-muted/30 p-3"
     >
       <p className="flex items-center gap-1.5 text-sm font-medium">
-        <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+        <Check className="size-4 text-positive-600 dark:text-positive-400" aria-hidden />
         <span data-testid="ask-trace-reconciled">
           {rowCount === 1 ? '1 transaction adds' : `${rowCount} transactions add`} up to{' '}
           {fmtCents(trace.sumCents)}
@@ -843,7 +843,7 @@ function DerivationPanel({ trace, source }: { trace: DerivationTrace; source?: A
               Open{' '}
               <Link
                 href={source.href}
-                className="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+                className="font-medium text-positive-600 hover:underline dark:text-positive-400"
               >
                 {source.label.toLowerCase()}
               </Link>{' '}
@@ -885,7 +885,7 @@ function NetWorthDerivation({ trace }: { trace: DerivationTrace & { intentKind: 
   return (
     <>
       <p className="flex items-center gap-1.5 text-sm font-medium">
-        <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+        <Check className="size-4 text-positive-600 dark:text-positive-400" aria-hidden />
         <span data-testid="ask-deriv-reconciled">What you own minus what you owe</span>
       </p>
       <div data-testid="ask-deriv-assets">
@@ -930,7 +930,7 @@ function CashNeededDerivation({ trace }: { trace: DerivationTrace & { intentKind
   return (
     <>
       <p className="flex items-center gap-1.5 text-sm font-medium">
-        <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+        <Check className="size-4 text-positive-600 dark:text-positive-400" aria-hidden />
         <span data-testid="ask-deriv-reconciled">
           {trace.rows.length === 1 ? '1 card payment adds' : `${trace.rows.length} card payments add`} up to{' '}
           {fmtCents(trace.sumCents)}
@@ -953,7 +953,7 @@ function SavingsRateDerivation({ trace }: { trace: DerivationTrace & { intentKin
   return (
     <>
       <p className="flex items-center gap-1.5 text-sm font-medium">
-        <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+        <Check className="size-4 text-positive-600 dark:text-positive-400" aria-hidden />
         <span data-testid="ask-deriv-reconciled">What you kept of your income, as a share of it</span>
       </p>
       <DerivationLines rows={trace.rows} />

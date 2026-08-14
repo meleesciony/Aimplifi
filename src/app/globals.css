@@ -138,6 +138,43 @@ html {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* U.2 — semantic scales. Values ARE Tailwind emerald (brand + positive)
+     and amber (warning), aliased so a rename cannot drift from the shipped
+     pixels. Call sites use these names; never emerald-* or amber-*. */
+  --color-brand-50: var(--color-emerald-50);
+  --color-brand-100: var(--color-emerald-100);
+  --color-brand-200: var(--color-emerald-200);
+  --color-brand-300: var(--color-emerald-300);
+  --color-brand-400: var(--color-emerald-400);
+  --color-brand-500: var(--color-emerald-500);
+  --color-brand-600: var(--color-emerald-600);
+  --color-brand-700: var(--color-emerald-700);
+  --color-brand-800: var(--color-emerald-800);
+  --color-brand-900: var(--color-emerald-900);
+  --color-brand-950: var(--color-emerald-950);
+  --color-positive-50: var(--color-emerald-50);
+  --color-positive-100: var(--color-emerald-100);
+  --color-positive-200: var(--color-emerald-200);
+  --color-positive-300: var(--color-emerald-300);
+  --color-positive-400: var(--color-emerald-400);
+  --color-positive-500: var(--color-emerald-500);
+  --color-positive-600: var(--color-emerald-600);
+  --color-positive-700: var(--color-emerald-700);
+  --color-positive-800: var(--color-emerald-800);
+  --color-positive-900: var(--color-emerald-900);
+  --color-positive-950: var(--color-emerald-950);
+  --color-warning-50: var(--color-amber-50);
+  --color-warning-100: var(--color-amber-100);
+  --color-warning-200: var(--color-amber-200);
+  --color-warning-300: var(--color-amber-300);
+  --color-warning-400: var(--color-amber-400);
+  --color-warning-500: var(--color-amber-500);
+  --color-warning-600: var(--color-amber-600);
+  --color-warning-700: var(--color-amber-700);
+  --color-warning-800: var(--color-amber-800);
+  --color-warning-900: var(--color-amber-900);
+  --color-warning-950: var(--color-amber-950);
 }
 
 :root {

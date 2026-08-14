@@ -102,7 +102,7 @@ export function DebtFreedomPlanner({ debts, today }: { debts: DebtInput[]; today
             value={extraCents}
             aria-valuetext={`${formatCents(cents(extraCents))} per month`}
             onChange={(e) => setExtraCents(Number(e.target.value))}
-            className="w-full accent-emerald-500"
+            className="w-full accent-brand-500"
             data-testid="debt-extra-slider"
           />
         </div>

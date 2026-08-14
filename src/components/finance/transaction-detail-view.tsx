@@ -550,7 +550,7 @@ export function TransactionDetailView({
             <Badge
               variant="outline"
               data-testid="detail-excluded-badge"
-              className="border-amber-500/60 text-[10px] text-amber-700 dark:text-amber-300"
+              className="border-warning-500/60 text-[10px] text-warning-700 dark:text-warning-300"
             >
               Excluded from totals
             </Badge>
@@ -641,7 +641,7 @@ export function TransactionDetailView({
           </div>
         </div>
         <div
-          className={`mt-1 text-2xl tabular-nums ${row.amountCents > 0 ? 'text-emerald-500' : ''}`}
+          className={`mt-1 text-2xl tabular-nums ${row.amountCents > 0 ? 'text-positive-500' : ''}`}
           data-testid="detail-amount"
         >
           {formatCents(cents(row.amountCents), { signDisplay: 'always' })}
@@ -737,7 +737,7 @@ export function TransactionDetailView({
           <Badge
             variant="outline"
             className={`text-[10px] ${
-              pv.tone === 'attention' ? 'border-amber-500/60 text-amber-700 dark:text-amber-300' : ''
+              pv.tone === 'attention' ? 'border-warning-500/60 text-warning-700 dark:text-warning-300' : ''
             }`}
           >
             {pv.label}
@@ -754,7 +754,7 @@ export function TransactionDetailView({
           {row.taxClass !== null && (
             <>
               {' '}
-              <span data-testid="detail-status-tax-caution" className="text-amber-700 dark:text-amber-300">
+              <span data-testid="detail-status-tax-caution" className="text-warning-700 dark:text-warning-300">
                 {STATUS_PENDING_TAX_CAUTION}
               </span>
             </>
@@ -779,7 +779,7 @@ export function TransactionDetailView({
       {unconfirmed && !error && (
         <p
           role="alert"
-          className="rounded-md border border-amber-500/60 p-2 text-sm text-amber-700 dark:text-amber-300"
+          className="rounded-md border border-warning-500/60 p-2 text-sm text-warning-700 dark:text-warning-300"
           data-testid="detail-unconfirmed"
         >
           That took longer than expected, so we could not confirm it. This page has been reloaded —
@@ -1155,7 +1155,7 @@ export function TransactionDetailView({
                 splittable at all, so this is the moment the reader has to be told. */}
             {row.taxClass && (
               <p
-                className="rounded-md border border-amber-500/60 p-2 text-xs text-amber-700 dark:text-amber-300"
+                className="rounded-md border border-warning-500/60 p-2 text-xs text-warning-700 dark:text-warning-300"
                 data-testid="detail-split-tax-warning"
               >
                 This transaction is tagged for tax. Splitting it takes the whole{' '}
@@ -1364,7 +1364,7 @@ export function TransactionDetailView({
         {projectionsStale && (
           <p
             role="alert"
-            className="rounded-md border border-amber-500/60 p-2 text-xs text-amber-700 dark:text-amber-300"
+            className="rounded-md border border-warning-500/60 p-2 text-xs text-warning-700 dark:text-warning-300"
             data-testid="detail-recurring-stale"
           >
             Saved. Your forecast, calendar and spending plan could not be rebuilt just now — they will

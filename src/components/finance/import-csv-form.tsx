@@ -66,7 +66,7 @@ export function ImportCsvForm({ accounts }: { accounts: { id: string; name: stri
 
         {result && (
           <div className="mt-4 space-y-2 border-t pt-4 text-sm" data-testid="import-result">
-            <p className={result.ok ? 'text-emerald-500' : 'text-red-400'}>
+            <p className={result.ok ? 'text-positive-500' : 'text-red-400'}>
               {result.ok && <CheckCircle2 className="mr-1 inline size-4" aria-hidden />}
               Imported {result.imported} transaction{result.imported === 1 ? '' : 's'}
               {result.duplicates > 0
@@ -75,7 +75,7 @@ export function ImportCsvForm({ accounts }: { accounts: { id: string; name: stri
               {result.skipped > 0 ? `, skipped ${result.skipped}` : ''}.
             </p>
             {result.repeatedRows > 0 && (
-              <p className="text-amber-700 dark:text-amber-300" data-testid="import-repeat-warning">
+              <p className="text-warning-700 dark:text-warning-300" data-testid="import-repeat-warning">
                 The file contains {result.repeatedRows} identical row
                 {result.repeatedRows === 1 ? '' : 's'} — this usually means two
                 overlapping exports were pasted together. The imported one
