@@ -582,3 +582,142 @@ describe('U.35 — reports / trends / coach take handover keys off the snapshot'
     }
   });
 });
+
+/**
+ * U.36 — the composed Ask intents U.34's critic filed rather than fixed.
+ *
+ * `safe_to_spend` / `debt_free_by_date` / `savings_goal_by_date` / `retire_at_age`
+ * fetched the composer boundary (unused — those cases only call
+ * `getSpendingPlan` / `getCoachData`) and then the plan fetched its own.
+ * `savings_rate` fetched the composer boundary and then `getCoachData` (U.35:
+ * that inner fetch is a snapshot that already carries the keys).
+ *
+ * Waste, not a desync: each artifact is internally consistent. The composer
+ * still fetches the snapshot (#466: composed answers reuse the shipped
+ * read-paths). It no longer fetches a boundary it does not use.
+ *
+ * Fail-old: safe_to_spend issued 4 (composer snap + composer boundary + plan
+ * snap + plan boundary); savings_rate issued 3 (composer snap + composer
+ * boundary + coach snap); retire_at_age issued 5 (those four plus coach).
+ * Direct spend_total stays at 2 — the U.34 lock, unchanged.
+ */
+describe('U.36 — composed Ask intents skip the unused composer boundary', () => {
+  const U36 = `${USER}-u36-reads`;
+  let cardId = '';
+
+  beforeAll(async () => {
+    await prisma.accountReconciliation.deleteMany({ where: { userId: U36 } });
+    await prisma.account.deleteMany({ where: { userId: U36 } });
+    await prisma.user.deleteMany({ where: { id: U36 } });
+    await prisma.user.create({ data: { id: U36, email: `${U36}@test.local` } });
+    const mkCard = async (ref: string) =>
+      (
+        await prisma.account.create({
+          data: {
+            userId: U36,
+            provider: 'simplefin',
+            providerRef: ref,
+            name: 'Everyday Card',
+            type: 'CREDIT',
+            currentBalanceCents: -50_000,
+            currency: 'USD',
+          },
+        })
+      ).id;
+    const predCardId = await mkCard('u36-reads-pred');
+    cardId = await mkCard('u36-reads-card');
+    await prisma.accountReconciliation.create({
+      data: {
+        userId: U36,
+        predecessorAccountId: predCardId,
+        successorAccountId: cardId,
+        cutoverDate: '2026-06-04',
+        matchSignal: 'name',
+        confidence: 'high',
+        confirmedByUserAt: new Date(),
+      },
+    });
+    await prisma.transaction.create({
+      data: {
+        id: `u36-reads-spend-${process.pid}`,
+        accountId: cardId,
+        date: '2026-06-08',
+        amountCents: -4_200,
+        rawDescriptor: 'CORNER STORE',
+        categoryId: 'groceries',
+        status: 'POSTED',
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.accountReconciliation.deleteMany({ where: { userId: U36 } });
+    await prisma.account.deleteMany({ where: { userId: U36 } });
+    await prisma.user.deleteMany({ where: { id: U36 } });
+  });
+
+  it('askAssistant safe_to_spend reads accountReconciliation exactly three times (composer snap + plan snap + plan boundary)', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: U36 } } as never);
+    const spy = vi.spyOn(prisma.accountReconciliation, 'findMany');
+    try {
+      const answer = await askAssistant('how much can I safely spend this month?');
+      expect(answer.kind).toBe('safe_to_spend');
+      expect(answer.headline.length).toBeGreaterThan(0);
+      expect(spy).toHaveBeenCalledTimes(3);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('askAssistant savings_rate reads accountReconciliation exactly twice (composer snap + coach snap)', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: U36 } } as never);
+    const spy = vi.spyOn(prisma.accountReconciliation, 'findMany');
+    try {
+      const answer = await askAssistant("what's my savings rate?");
+      expect(answer.kind).toBe('savings_rate');
+      expect(answer.headline.length).toBeGreaterThan(0);
+      expect(spy).toHaveBeenCalledTimes(2);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('askAssistant retire_at_age reads accountReconciliation exactly four times (composer snap + coach snap + plan snap + plan boundary)', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: U36 } } as never);
+    const spy = vi.spyOn(prisma.accountReconciliation, 'findMany');
+    try {
+      const answer = await askAssistant('can I retire at 65?');
+      expect(answer.kind).toBe('retire_at_age');
+      expect(answer.headline.length).toBeGreaterThan(0);
+      expect(spy).toHaveBeenCalledTimes(4);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('askAssistant debt_free_by_date reads accountReconciliation exactly four times (composer snap + debts snap + plan snap + plan boundary)', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: U36 } } as never);
+    const spy = vi.spyOn(prisma.accountReconciliation, 'findMany');
+    try {
+      const answer = await askAssistant('can I be debt-free by December 2027?');
+      expect(answer.kind).toBe('debt_free_by_date');
+      expect(answer.headline.length).toBeGreaterThan(0);
+      expect(spy).toHaveBeenCalledTimes(4);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('askAssistant savings_goal_by_date reads accountReconciliation exactly three times (composer snap + plan snap + plan boundary)', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: U36 } } as never);
+    const spy = vi.spyOn(prisma.accountReconciliation, 'findMany');
+    try {
+      const answer = await askAssistant('can I save $15000 by December 2027?');
+      expect(answer.kind).toBe('savings_goal_by_date');
+      expect(answer.headline.length).toBeGreaterThan(0);
+      expect(spy).toHaveBeenCalledTimes(3);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});

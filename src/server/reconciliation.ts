@@ -458,8 +458,9 @@ export async function activeAccountIdentityMap(userId: string): Promise<Map<stri
  * triage). U.35 consumed the last three `getReconciliationHandoverKeys` callers
  * (reports/trends/coach): those pages already hold a snapshot that applied the
  * keep, so the keys now travel on that snapshot instead of a second fetch.
- * `assistant.ts` takes the boundary: it needed keys AND the terminal map for
- * one answer, which is the desync shape.
+ * `assistant.ts` takes the boundary for intents that use the views (U.34);
+ * U.36 skips that fetch for intents that only delegate to a loader which
+ * already has its own.
  */
 async function loadReconciliationBoundaryInputs(userId: string): Promise<{
   accounts: readonly { id: string; type: string; currency: string | null; currentBalanceCents: number }[];
@@ -520,9 +521,11 @@ async function loadReconciliationBoundaryInputs(userId: string): Promise<{
  * `getReconciliationHandoverKeys` wrapper: U.35 consumed its last three callers
  * (the snapshot now carries the keys), and an exported function with no caller
  * is a claim about this file that stops being true the moment someone reads it
- * (U.33 critic F-2). `assistant.ts` and `getSpendingPlan` take the boundary:
- * each combined two views into one artifact (an answer + its trace; a plan
- * whose guilt-free figure is income minus expenses). There is deliberately no
+ * (U.33 critic F-2). `assistant.ts` (direct intents) and `getSpendingPlan` take
+ * the boundary: each combined two views into one artifact (an answer + its
+ * trace; a plan whose guilt-free figure is income minus expenses). Delegate
+ * Ask intents skip the composer fetch (U.36) and pay only the loader's. There
+ * is deliberately no
  * `handoverDates` wrapper either: U.33 consumed the only two callers it ever had.
  *
  * All four views are pure computations over arrays already in memory, so a caller destructuring

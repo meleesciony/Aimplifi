@@ -80,6 +80,26 @@ import { loanPaymentBasisFacts, loanPaymentBasisSentence } from '@/server/loan-p
 const MONTH_TITLE = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const ymLabel = (ym: string) => `${MONTH_TITLE[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
 
+/**
+ * U.36: these intents only delegate to a loader that fetches its own boundary
+ * (`getSpendingPlan`) or, for `savings_rate`, a snapshot that already carries
+ * the keys (`getCoachData`). The composer views are unused — fetching them
+ * here is a second snapshot of the same table, paid and discarded. Waste, not
+ * a desync: each artifact stays internally consistent. Every other kind still
+ * fetches eagerly (#466): a per-intent "does this spend case need keys?"
+ * check is how a second spend case reintroduces the window.
+ */
+const DELEGATES_OWN_BOUNDARY: ReadonlySet<AssistantIntent['kind']> = new Set([
+  'safe_to_spend',
+  'debt_free_by_date',
+  'savings_goal_by_date',
+  'retire_at_age',
+  'savings_rate',
+]);
+
+const EMPTY_HANDOVER_KEYS: ReadonlySet<string> = new Set();
+const EMPTY_TERMINAL_OF: ReadonlyMap<string, string> = new Map();
+
 /** Defensive bound on the question placed in a prompt / parsed (cheap DoS guard). */
 const MAX_QUESTION_LEN = 500;
 /** Per-user budget on the outbound LLM classifier (cost-amplification guard). */
@@ -285,9 +305,15 @@ async function composeAnswer(
   // could resolve against two snapshots of the same table. Required on
   // `buildAnswer`, not optional: a fallback fetch is how the second read
   // survives unnoticed (U.33).
+  // U.36: skip the composer boundary for intents that only delegate — those
+  // loaders fetch their own, and the composer views are unused. Direct
+  // intents still fetch in parallel with the snapshot.
+  const skipComposerBoundary = DELEGATES_OWN_BOUNDARY.has(intent.kind);
   const [snap, { handoverKeys, terminalOf }] = await Promise.all([
     getProvider().getFinanceSnapshot(userId),
-    getReconciliationBoundary(userId),
+    skipComposerBoundary
+      ? Promise.resolve({ handoverKeys: EMPTY_HANDOVER_KEYS, terminalOf: EMPTY_TERMINAL_OF })
+      : getReconciliationBoundary(userId),
   ]);
 
   const built = await buildAnswer(intent, snap, userId, today, meta, handoverKeys, terminalOf);

@@ -7439,10 +7439,12 @@ that compared the boundary against the standalone function is replaced by a valu
 assertion (predecessor → successor, size 1) — comparing against a wrapper of the
 same two lines would be f(x) vs f(x) (U.33 critic F-3).
 
-**What was traded.** `composeAnswer` now fetches the boundary for every intent,
+**What was traded.** `composeAnswer` fetched the boundary for every intent,
 including `net_worth` which never needed a view. Same eager stance U.33 accepted
 for the four views: a handful of links is noise, and a per-intent fetch is how a
-second spend case reintroduces the desync. `account_balance` now folds through
+second spend case reintroduces the desync. **#468 (U.36) narrows this:** the five
+intents that only delegate no longer fetch the composer boundary; every intent
+that uses a view still does. `account_balance` now folds through
 `boundary.terminalOf` (effectiveness over the boundary's currency-filtered accounts)
 instead of `terminalSuccessorMap(snapshotAccounts, freshlyFetchedLinks)`. Effectiveness
 reads type and presence, not balance, so a boundary-zeroed predecessor does not
@@ -7459,10 +7461,10 @@ construction for Ask) were 3 and 3.
 
 **Not in scope.** Passing the boundary into `getFinanceSnapshot` so a page is one
 read total — that is a provider-shaped change, not a loader hoist. Ask intents that
-delegate to `getSpendingPlan` still pay the plan's own snapshot + boundary on top
-of the composer's; each artifact is internally consistent. Single-view wrappers
-(`getReconciliationTxnKeep`, `getReconciliationHandoverKeys`) stay for callers that
-need exactly one view.
+delegate to `getSpendingPlan` still paid the plan's own snapshot + boundary on top
+of the composer's (closed as **#468 / U.36**). Single-view wrappers
+(`getReconciliationTxnKeep`; `getReconciliationHandoverKeys` deleted in #467)
+stay for callers that need exactly one view.
 
 ## #467 — U.35: the snapshot emits the handover keys it already paid for (2026-08-14)
 
@@ -7497,8 +7499,10 @@ row to mark. Locked by comparing `getFinanceSnapshot().handoverKeys` to
 `getReconciliationBoundary().handoverKeys` on the U.31 CREDIT-pair fixture.
 
 **Not in scope.** Threading `terminalOf` onto the snapshot so
-`getSpendingPlan` / `askAssistant` can drop their extra boundary fetch
-(U.36). Household merge does not carry the keys — `/reports` `/trends`
+`getSpendingPlan` can drop its extra boundary fetch (still open). The
+Ask half of that residual closed as **#468 / U.36** by skipping the
+unused composer fetch, not by putting `terminalOf` on the snapshot.
+Household merge does not carry the keys — `/reports` `/trends`
 `/coach` are personal loaders.
 
 **Locked by a COUNT**, on a fixture with a real ACTIVE link and a
@@ -7507,3 +7511,43 @@ and `countedOnHandoverDays > 0` — the figure lock without the count
 would still pass if keys were dropped; both rows are kept). Each of
 `getReports`, `getSpendingTrends`, `getCoachData` issues exactly one
 `accountReconciliation.findMany`. Pre-U.35 those were 2.
+
+## #468 — U.36: composed Ask intents skip the unused composer boundary (2026-08-14)
+
+**Context.** U.34's critic filed five Ask intents that pay the reconciliation
+link table twice for one answer: `composeAnswer` fetched the boundary (U.34's
+eager-every-intent stance), then `getSpendingPlan` fetched its own, or
+`getCoachData` fetched a snapshot that already carries the keys (U.35). The
+composer views are unused on those paths. Waste, not a desync — each artifact
+is internally consistent.
+
+**Decision: skip the composer boundary for the five named delegates. Do not
+thread the boundary into the loaders, and do not emit `terminalOf` on the
+snapshot.** Threading would be an optional parameter that falls back to its
+own fetch (the U.33 shape that lets a second read survive) or a required
+argument every page caller does not have. Emitting `terminalOf` on the
+snapshot would re-litigate #466's `account_balance` fold, which uses the
+boundary's currency-filtered accounts, not the snapshot's. The skip is the
+named defect and nothing else.
+
+The skip set is those five kinds, not "every intent that does not read a
+view." #466's eager fetch stays for every kind that uses `handoverKeys` or
+`terminalOf` (and for `net_worth` / `unknown` / `cash_needed`, which use the
+snapshot). A per-intent "does this spend case need keys?" inversion is how a
+second spend case reintroduces the window. Empty views are passed into
+`buildAnswer` as the required arguments so the signature cannot grow an
+optional fallback; today no skipped case reads them.
+
+**Not in scope.** Skipping the unused composer *snapshot* for the four
+plan-delegates (#466: composed answers reuse the shipped read-paths).
+`debt_payoff` / `subscriptions` / `forecast` still pay an unused composer
+boundary — they never paid it *twice* (their loaders are snapshot-only).
+Threading `terminalOf` onto the snapshot so `getSpendingPlan` can drop its
+extra fetch remains a provider-shaped change.
+
+**Locked by a COUNT**, on a fixture with a real ACTIVE link.
+`tests/unit/reconciliation-boundary-shared-read.test.ts` (U.36 block):
+`safe_to_spend` 3, `savings_rate` 2, `retire_at_age` 4, `debt_free_by_date` 4,
+`savings_goal_by_date` 3. Pre-U.36 those were 4 / 3 / 5 / 5 / 4. U.34's
+`spend_total` lock stays at 2. Each test asserts `kind` so a mis-route cannot
+satisfy another kind's count.

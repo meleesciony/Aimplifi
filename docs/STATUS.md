@@ -4796,7 +4796,7 @@ the U.31 CREDIT-pair fixture.
 **Hostile critic (fresh context, read-only): PASS — 0 P0, 0 P1, 6 P2.**
 P2-4 (vacuous disclosure lock) fixed in-slice. Accepted: spending-only spans
 (these pages list no brokerage/loan rows); `/budgets` is the U.34-accepted
-snapshot+boundary shape; Ask's two-read window is U.36; household merge
+snapshot+boundary shape; Ask's two-read window closed as U.36; household merge
 keeping viewer keys is unreachable on personal loaders; empty-keys comments
 are pre-existing.
 
@@ -4820,3 +4820,34 @@ K.4 shape).** `grep AccountReconciliation prisma/seed.ts` is still 0. This
 slice adds no rendered surface — it is a read-path consolidation whose claim
 is a query count. What stands in for a live check: CI's full `VERIFY_E2E=1`
 suite ran against a genuine build of this exact commit.
+
+## ✅ BUILT 2026-08-14 — U.36: composed Ask intents skip the unused composer boundary (DECISIONS #468)
+
+U.34's critic filed five Ask intents that paid the link table twice for one
+answer: the composer fetched a boundary it never used, then the spending plan
+or coach fetched its own. Waste, not a desync — each artifact was already
+internally consistent.
+
+**What shipped.** `composeAnswer` skips `getReconciliationBoundary` for
+`safe_to_spend` / `debt_free_by_date` / `savings_goal_by_date` / `retire_at_age`
+/ `savings_rate`. Empty required views are passed into `buildAnswer` so the
+signature cannot grow an optional fallback. Direct intents still fetch in
+parallel with the snapshot (#466). Did not thread the boundary into the
+loaders and did not emit `terminalOf` on the snapshot.
+
+**Locked by a COUNT** on a fixture with a real ACTIVE link. Five Ask
+questions, each asserting `kind` plus `findMany` count: 3 / 2 / 4 / 4 / 3.
+Pre-U.36 those were 4 / 3 / 5 / 5 / 4. U.34's `spend_total` lock stays at 2.
+
+**Hostile critic (fresh context, read-only): PASS — 0 P0, 0 P1, 6 P2.**
+Accepted: three more only-delegate kinds still pay an unused composer
+boundary but never paid it twice (`debt_payoff` / `subscriptions` /
+`forecast`); counts are aggregate not skip-specific; companion lock is
+`headline.length > 0`; empty required args are a future hazard not a live
+bug; unused composer snapshot for the four plan-delegates is the #466
+reuse-read-paths stance. P2-5 (#466 present tense) fixed in-slice.
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN** (e2e skipped;
+Playwright then run against this same `next build`): tsc 0, eslint 0, unit
+**7,012 passed + 1 expected fail + 1 skipped / 425 files + 1 skipped**,
+build clean, e2e **353 passed** (no flake). No `prisma/` diff.

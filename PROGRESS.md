@@ -2,6 +2,31 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-14 — U.36: composed Ask intents skip the unused composer boundary (DECISIONS #468)
+
+**Picked up from the queue** (U.34 critic residual). Five Ask intents fetched
+the composer boundary (unused) then `getSpendingPlan` / `getCoachData`
+fetched their own.
+
+**Shipped.** Skip the composer `getReconciliationBoundary` for
+`safe_to_spend` / `debt_free_by_date` / `savings_goal_by_date` /
+`retire_at_age` / `savings_rate`. Empty required views passed into
+`buildAnswer`. Direct intents still fetch eagerly (#466). Did not thread
+into loaders or emit `terminalOf` on the snapshot.
+
+**Locked.** `tests/unit/reconciliation-boundary-shared-read.test.ts` U.36
+block: spyOn counts 3 / 2 / 4 / 4 / 3 with `kind` asserted. U.34
+`spend_total` stays at 2.
+
+**Critic (read-only, fresh context): PASS — 0 P0, 0 P1, 6 P2.** P2-5
+(#466 present tense) fixed in-slice. Remaining P2s accepted: unused
+boundary on three snapshot-only delegates; aggregate counts; weak
+headline companion; empty-args future hazard; unused composer snapshot.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,012 passed
++ 1 expected fail + 1 skipped / 425 files + 1 skipped**, `next build`
+clean. Playwright (fresh build): **353 passed**. No `prisma/` diff.
+
 ## 2026-08-14 — U.35: the snapshot emits the handover keys it already paid for (DECISIONS #467)
 
 **Picked up from the queue** (U.34 critic residual). `/reports`, `/trends`, and
