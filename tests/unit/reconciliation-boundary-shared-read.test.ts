@@ -20,10 +20,12 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import { isoDate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
+import { auth } from '@/auth';
+import { askAssistant } from '@/server/assistant';
 import { refreshRecurringForUser } from '@/server/recurring';
+import { getSpendingPlan } from '@/server/spending-plan';
 import { getTaxExport } from '@/server/tax';
 import {
-  activeTerminalSuccessorMap,
   getReconciliationBoundary,
   getReconciliationHandoverKeys,
   getReconciliationTxnKeep,
@@ -203,14 +205,15 @@ describe('U.33 — handoverDates and terminalOf agree with their standalone func
     expect(handoverDates.has('2026-07-02')).toBe(false);
   });
 
-  it('the combined terminal map agrees with the standalone activeTerminalSuccessorMap', async () => {
-    const standalone = await activeTerminalSuccessorMap(USER);
+  it('the terminal map is the predecessor → live successor, and only that', async () => {
+    // U.34: `activeTerminalSuccessorMap` is deleted (zero production callers after
+    // this slice). Comparing the boundary against a wrapper that ran the same two
+    // lines would be f(x) vs f(x) — U.33 critic F-3. Assert the values themselves.
     const { terminalOf } = await getReconciliationBoundary(USER);
-    expect([...terminalOf.entries()].sort()).toEqual([...standalone.entries()].sort());
-    // The fixture's own shape: the predecessor resolves to the live successor, and an
-    // account in no pair is absent (not mapped to itself).
     expect(terminalOf.get(predId)).toBe(succId);
+    expect(terminalOf.has(succId)).toBe(false);
     expect(terminalOf.has(otherId)).toBe(false);
+    expect(terminalOf.size).toBe(1);
   });
 
   it('dates and keys are DIFFERENT sets, not one output renamed', async () => {
@@ -346,6 +349,108 @@ describe('U.33 — one read of the link table per assembled artifact', () => {
     try {
       await refreshRecurringForUser(RUSER, isoDate('2026-06-10'));
       expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+/**
+ * U.34 — the two loaders U.33 filed rather than fixed.
+ *
+ * `getSpendingPlan` read `activeTerminalSuccessorMap` for the income median's
+ * account scope, then `countedExpenseSeriesForPlan` read it again for expenses —
+ * one rendered plan, two snapshots of one table, with a detectRecurring pass
+ * between them. `askAssistant` fetched handover keys in four spend cases, the
+ * links again for account_balance, and the keys a fifth time for the Glass-Box
+ * trace, so a spend_total's disclosure and the tick behind it could disagree.
+ *
+ * Equivalence is already proven for `terminalOf` / `handoverKeys` above. These
+ * lock the COUNT, on a fixture with a real ACTIVE link (U.33 critic F-4: the
+ * no-links fast path reads once however you ask). Fail-old: the pre-U.34 plan
+ * issued 3 link-table reads (snapshot + two terminal maps); a spend_total Ask
+ * issued 3 (snapshot + buildAnswer keys + composer-trace keys).
+ *
+ * The snapshot's own read is a different artifact and stays. The claim is that
+ * each loader adds exactly ONE more.
+ */
+describe('U.34 — one extra link-table read per rendered plan / Ask answer', () => {
+  const U34 = `${USER}-u34-reads`;
+  let cardId = '';
+
+  beforeAll(async () => {
+    await prisma.accountReconciliation.deleteMany({ where: { userId: U34 } });
+    await prisma.account.deleteMany({ where: { userId: U34 } });
+    await prisma.user.deleteMany({ where: { id: U34 } });
+    await prisma.user.create({ data: { id: U34, email: `${U34}@test.local` } });
+    const mkCard = async (ref: string) =>
+      (
+        await prisma.account.create({
+          data: {
+            userId: U34,
+            provider: 'simplefin',
+            providerRef: ref,
+            name: 'Everyday Card',
+            type: 'CREDIT',
+            currentBalanceCents: -50_000,
+            currency: 'USD',
+          },
+        })
+      ).id;
+    const predCardId = await mkCard('u34-reads-pred');
+    cardId = await mkCard('u34-reads-card');
+    await prisma.accountReconciliation.create({
+      data: {
+        userId: U34,
+        predecessorAccountId: predCardId,
+        successorAccountId: cardId,
+        cutoverDate: '2026-06-04',
+        matchSignal: 'name',
+        confidence: 'high',
+        confirmedByUserAt: new Date(),
+      },
+    });
+    // A posted spend in the demo-pinned month so getSpendingPlan and a
+    // spend_total Ask both assemble a real figure, not an empty short-circuit.
+    await prisma.transaction.create({
+      data: {
+        id: `u34-reads-spend-${process.pid}`,
+        accountId: cardId,
+        date: '2026-06-08',
+        amountCents: -4_200,
+        rawDescriptor: 'CORNER STORE',
+        categoryId: 'groceries',
+        status: 'POSTED',
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.accountReconciliation.deleteMany({ where: { userId: U34 } });
+    await prisma.account.deleteMany({ where: { userId: U34 } });
+    await prisma.user.deleteMany({ where: { id: U34 } });
+  });
+
+  it('getSpendingPlan reads accountReconciliation exactly twice (snapshot + boundary)', async () => {
+    const spy = vi.spyOn(prisma.accountReconciliation, 'findMany');
+    try {
+      const plan = await getSpendingPlan(U34);
+      // A count over a plan that produced nothing proves nothing.
+      expect(typeof plan.leftToSpendCents).toBe('number');
+      expect(spy).toHaveBeenCalledTimes(2);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('askAssistant spend_total reads accountReconciliation exactly twice (snapshot + boundary)', async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: U34 } } as never);
+    const spy = vi.spyOn(prisma.accountReconciliation, 'findMany');
+    try {
+      const answer = await askAssistant('how much did I spend this month');
+      expect(answer.kind).toBe('spend_total');
+      expect(answer.headlineCents).toBe(4_200);
+      expect(spy).toHaveBeenCalledTimes(2);
     } finally {
       spy.mockRestore();
     }

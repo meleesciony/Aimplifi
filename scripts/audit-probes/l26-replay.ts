@@ -15,7 +15,7 @@ import { prisma } from '@/lib/db';
 import { type RecurringTxn, detectRecurring, toScheduledTransactions } from '@/lib/engine/recurring/detect';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
 import { confirmedPauseState } from '@/lib/engine/income/pause';
-import { activeTerminalSuccessorMap, getReconciliationTxnKeep } from '@/server/reconciliation';
+import { getReconciliationBoundary } from '@/server/reconciliation';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
 
@@ -35,17 +35,16 @@ async function main() {
   });
   console.log(`txns fed to detection (pre-keep): ${txns.length}`);
 
-  const keepsReconciled = await getReconciliationTxnKeep(OWNER);
+  const { keepsReconciled, terminalOf } = await getReconciliationBoundary(OWNER);
   const kept = txns.filter((t) => keepsReconciled(t.accountId, t.date));
   console.log(`txns after the reconciliation keep rule: ${kept.length} (dropped ${txns.length - kept.length})`);
 
   const series = detectRecurring(kept as RecurringTxn[], today, await getRecurringOverrides(OWNER));
   console.log(`detectRecurring -> ${series.length} series`);
 
-  const [user, accounts, terminalOf] = await Promise.all([
+  const [user, accounts] = await Promise.all([
     prisma.user.findUnique({ where: { id: OWNER }, select: { paymentAccountId: true } }),
     prisma.account.findMany({ where: { userId: OWNER }, select: { id: true, type: true } }),
-    activeTerminalSuccessorMap(OWNER),
   ]);
   const superseded = new Set(terminalOf.keys());
   const cashAccountIds = new Set(

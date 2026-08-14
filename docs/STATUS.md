@@ -4728,3 +4728,34 @@ genuine build of this exact commit, and the behavior-preservation evidence is st
 could be — the fresh-context critic diffed every persisted `RecurringSeries` and `ScheduledTransaction`
 field plus the whole tax export between HEAD and this change on a mid-stream-cutover fixture and found
 them byte-identical, twice.
+
+## ✅ BUILT 2026-08-14 — U.34: one link-table snapshot per rendered plan and per Ask answer (DECISIONS #466)
+
+U.33 consolidated the persisted artifacts and left two rendered leftovers. `getSpendingPlan`
+read the terminal map twice for one plan (income, then expenses, with `detectRecurring` between
+them). `askAssistant` fetched handover keys in four spend cases, the links again for
+account_balance, and the keys a fifth time for the Glass-Box trace — so a spend_total's
+disclosure and the tick behind it could resolve against two snapshots of the same table.
+
+**What shipped.** One `getReconciliationBoundary` per loader. `terminalOf` is a required
+argument of `countedExpenseSeriesForPlan`; `handoverKeys` + `terminalOf` are required
+arguments of `buildAnswer`. The snapshot's own link-table read stays (a different artifact).
+`activeTerminalSuccessorMap` is deleted — U.34 consumed its last two production callers.
+
+**Locked by a COUNT** on a fixture with a real ACTIVE link and a June grocery (`headlineCents
+=== 4200`). `getSpendingPlan` and `askAssistant('how much did I spend this month')` each
+issue exactly two `accountReconciliation.findMany` calls (snapshot + boundary). Pre-U.34
+those were 3 and 3.
+
+**Hostile critic (fresh context, read-only): PASS — 0 P0, 0 P1, 4 P2 accepted.** P2s: plan
+lock asserts `typeof leftToSpendCents === 'number'` (Ask half is the real figure lock);
+no dedicated `account_balance` count; fixture spend is off the cutover so disclosure/tick
+agreement is unexercised; stale comments in `scripts/h7-live-deploy-check.mjs`. Residuals
+filed as **U.35** (reports/trends/coach still pair snapshot + keys) and **U.36** (composed
+Ask intents pay the boundary twice).
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN** (e2e skipped by a PowerShell env
+inheritance miss; Playwright then run against this same `next build`): tsc 0, eslint 0,
+unit **7,003 passed + 1 expected fail + 1 skipped / 426 files**, build clean, e2e **352
+passed, 1 flaky-passed-on-retry** (`transactions.spec.ts:610` — documented CSV-wedge /
+K.10 class, spec untouched). No `prisma/` diff.

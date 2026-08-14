@@ -7407,3 +7407,59 @@ data, the largest ever measured here, holds 19 — and the alternative (threadin
 into four engine functions) would put a second author on the effectiveness rule to save a fraction of
 a millisecond. Recorded in the docblock with the numbers and the trigger for revisiting it.
 *Filed:* P2-5 became U.34, widened by the critic's measurement from one site to two.
+
+## #466 — U.34: one link-table snapshot per rendered plan and per Ask answer (2026-08-14)
+
+**Context.** U.33 consolidated the reconciliation link table to one read per persisted
+artifact (`refreshRecurringForUser`, `getTaxExport`) and filed the two RENDERED leftovers
+as U.34. `getSpendingPlan` read `activeTerminalSuccessorMap` for the income median's
+account scope, then `countedExpenseSeriesForPlan` read it again for expenses — one plan,
+two snapshots, with a `detectRecurring` pass between them, and the guilt-free figure is
+the difference of the two. `assistant.ts` fetched handover keys in four spend cases, the
+links again for `account_balance`, and the keys a fifth time for the Glass-Box trace, so
+a `spend_total`'s disclosure and the tick behind it could resolve against two snapshots
+of the same table.
+
+**Decision: hoist the existing four-view boundary, pass the views down as REQUIRED
+parameters. Do not add a fifth view or a second helper.** U.33 already returns
+`terminalOf` and `handoverKeys`. `getSpendingPlan` fetches the boundary once (in
+parallel with the snapshot) and hands `terminalOf` to `countedExpenseSeriesForPlan` as
+a required argument. `composeAnswer` fetches the boundary once (in parallel with the
+snapshot) and hands `handoverKeys` + `terminalOf` to `buildAnswer` as required
+arguments; the trace attach uses the same `handoverKeys`. An optional parameter that
+falls back to its own fetch is how the second read survives a consolidation unnoticed
+(U.33). The snapshot's own link-table read is a different artifact and stays — the
+claim is that each loader adds exactly one more.
+
+**`activeTerminalSuccessorMap` is deleted.** U.34 consumed its last two production
+callers. An exported function with no caller is a claim about this file that stops
+being true the moment someone reads it (U.33 critic F-2). The two L.26 audit probes
+that imported it now take `terminalOf` off the boundary. The U.33 equivalence test
+that compared the boundary against the standalone function is replaced by a value
+assertion (predecessor → successor, size 1) — comparing against a wrapper of the
+same two lines would be f(x) vs f(x) (U.33 critic F-3).
+
+**What was traded.** `composeAnswer` now fetches the boundary for every intent,
+including `net_worth` which never needed a view. Same eager stance U.33 accepted
+for the four views: a handful of links is noise, and a per-intent fetch is how a
+second spend case reintroduces the desync. `account_balance` now folds through
+`boundary.terminalOf` (effectiveness over the boundary's currency-filtered accounts)
+instead of `terminalSuccessorMap(snapshotAccounts, freshlyFetchedLinks)`. Effectiveness
+reads type and presence, not balance, so a boundary-zeroed predecessor does not
+change the map; the win is that the fold and every spend disclosure share one
+snapshot of the links.
+
+**Locked by a COUNT, on a fixture with a real ACTIVE link.**
+`tests/unit/reconciliation-boundary-shared-read.test.ts` (U.34 block):
+`getSpendingPlan` reads `accountReconciliation` exactly twice (snapshot + boundary)
+and returns a numeric `leftToSpendCents`; `askAssistant('how much did I spend this
+month')` reads exactly twice and returns `headlineCents === 4200` for the fixture's
+June grocery. The pre-U.34 counts (U.33 critic measurement for the plan; call-site
+construction for Ask) were 3 and 3.
+
+**Not in scope.** Passing the boundary into `getFinanceSnapshot` so a page is one
+read total — that is a provider-shaped change, not a loader hoist. Ask intents that
+delegate to `getSpendingPlan` still pay the plan's own snapshot + boundary on top
+of the composer's; each artifact is internally consistent. Single-view wrappers
+(`getReconciliationTxnKeep`, `getReconciliationHandoverKeys`) stay for callers that
+need exactly one view.

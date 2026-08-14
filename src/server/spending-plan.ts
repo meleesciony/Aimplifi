@@ -74,7 +74,7 @@ import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance
 import { getCategoryMeta } from '@/server/category-meta';
 import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
-import { activeTerminalSuccessorMap } from '@/server/reconciliation';
+import { getReconciliationBoundary } from '@/server/reconciliation';
 import { getProvider } from '@/lib/providers/demo';
 import { formatISODate, isoDate, type ISODate } from '@/lib/dates';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
@@ -148,7 +148,17 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const provider = getProvider();
   const today = provider.today(userId);
   const ym = today.slice(0, 7);
-  const snap = await provider.getFinanceSnapshot(userId);
+  // U.34: one snapshot of the link table for the whole plan. Income scope and
+  // `countedExpenseSeriesForPlan` both need `terminalOf`; fetching it twice left
+  // a window where a confirm/undo landing between them scoped income against one
+  // set of links and expenses against another, and the guilt-free figure is the
+  // difference of the two. The snapshot still reads the table for its own
+  // boundary (pre-existing; a different artifact). Required, not optional —
+  // U.33: a fallback fetch is how the second read survives unnoticed.
+  const [snap, { terminalOf }] = await Promise.all([
+    provider.getFinanceSnapshot(userId),
+    getReconciliationBoundary(userId),
+  ]);
 
   // Income pattern (owner 2026-08-01): money that lands in the MAIN bank account
   // you spend from — the payment account when set. Other cash (second checking,
@@ -183,9 +193,8 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   // scope, so the "median of up to 3 complete months" was a median of one — $10,681.30,
   // where the median of his real three (May $30,937.91 / Jun $21,117.48 / Jul $31,408.61)
   // is $30,937.91. Under-reporting income by 3x moves every figure this plan derives.
-  const incomeTerminalOf = await activeTerminalSuccessorMap(userId);
   const incomeTxns = snap.transactions.filter((t) =>
-    incomeAccountIds.has(incomeTerminalOf.get(t.accountId) ?? t.accountId),
+    incomeAccountIds.has(terminalOf.get(t.accountId) ?? t.accountId),
   );
   // Prefer paycheck/bonus/side-gig leaves per month; fall back to broad income
   // minus interest/investment/mobile-deposit (DECISIONS #370).
@@ -245,6 +254,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     snap,
     isoDate(today),
     loanPaymentMerchants,
+    terminalOf,
   );
   // THE EXACTNESS INVARIANT (critic cycle 1 F1): a merchant's rows leave the
   // rollup / median basis ONLY when its series actually made the union. The
@@ -639,6 +649,7 @@ async function countedExpenseSeriesForPlan(
   snap: FinanceSnapshot,
   today: ISODate,
   loanPaymentMerchants: ReadonlySet<string>,
+  terminalOf: ReadonlyMap<string, string>,
 ): Promise<PlanScheduledItem[]> {
   const spendingIds = new Set(
     snap.accounts
@@ -662,10 +673,7 @@ async function countedExpenseSeriesForPlan(
       ? { loanPayment: loanPaymentMerchants.has(normalizeMerchant(t.rawDescriptor).canonical) }
       : null),
   }));
-  const [overrides, terminalOf] = await Promise.all([
-    getRecurringOverrides(userId),
-    activeTerminalSuccessorMap(userId),
-  ]);
+  const overrides = await getRecurringOverrides(userId);
   const series = detectRecurring(txns, today, overrides);
   const superseded = new Set(terminalOf.keys());
   const cashAccountIds = new Set(

@@ -408,37 +408,10 @@ export async function activeSupersededPredecessorIds(userIds: readonly string[])
 }
 
 /**
- * Superseded predecessor id → the LIVE account that carries its money now, on the
- * exact same effectiveness basis as `activeSupersededPredecessorIds` above (its
- * key set is identical, so a caller needing both reads one query pair, not two).
- *
- * Exists because excluding a predecessor is only half a boundary (L.26): a row
- * DERIVED from the predecessor's history — a detected recurring series, whose
- * account is the account of its most recent kept charge — is not a ghost to drop
- * but a live obligation to re-key, exactly as `applyReconciliationBoundary` re-keys
- * a predecessor's scheduled rows onto its terminal successor (F6). Dropped instead,
- * it becomes an uncounted bill: see refreshRecurringForUser.
- */
-export async function activeTerminalSuccessorMap(userId: string): Promise<Map<string, string>> {
-  const [links, accounts] = await Promise.all([
-    prisma.accountReconciliation.findMany({
-      where: { userId, undoneAt: null },
-      select: { predecessorAccountId: true, successorAccountId: true, cutoverDate: true },
-    }),
-    prisma.account.findMany({
-      where: { userId },
-      select: { id: true, type: true, currency: true, currentBalanceCents: true },
-    }),
-  ]);
-  if (links.length === 0) return new Map();
-  return terminalSuccessorMap(accounts.filter((a) => isSupportedCurrency(a.currency)), links);
-}
-
-/**
  * Account id → the id of the REAL account it is part of, for callers asking
  * about IDENTITY rather than about money (H.7 cycle-2 critic P1-1).
  *
- * Unlike `activeTerminalSuccessorMap` above, this does NOT filter through
+ * Unlike `getReconciliationBoundary().terminalOf`, this does NOT filter through
  * `effectiveReconciliationLinks`, and the difference is the whole point: that
  * rule fails OPEN on an ambiguous link shape because for a money surface the
  * failure is a visible double, whereas for the transfer sweep an inert link
@@ -446,6 +419,11 @@ export async function activeTerminalSuccessorMap(userId: string): Promise<Map<st
  * total. Feed-driven type/currency drift makes a confirmed link inert on an
  * ordinary sync (both providers rewrite `Account.type` unconditionally), so this
  * is not a crafted-data concern. See `accountIdentityMap` for the full argument.
+ *
+ * U.34 deleted the money-side sibling `activeTerminalSuccessorMap`: U.33's
+ * `terminalOf` view consumed its last two production callers, and an exported
+ * function with no caller is a claim about this file that stops being true the
+ * moment someone reads it (U.33 critic F-2).
  */
 export async function activeAccountIdentityMap(userId: string): Promise<Map<string, string>> {
   const links = await prisma.accountReconciliation.findMany({
@@ -476,10 +454,11 @@ export async function activeAccountIdentityMap(userId: string): Promise<Map<stri
  * in writing: a confirm/undo landing between two separate reads of the link table can desync
  * whatever each read derives from it. `getReconciliationBoundary` below is the fix for callers
  * that need BOTH outputs; `getReconciliationTxnKeep`/`getReconciliationHandoverKeys` stay as
- * single-output convenience wrappers for callers that only ever need one (assistant.ts,
- * coach.ts, reports.ts, backfill.ts, keyword-rules.ts) — a real second read there too, but not
+ * single-output convenience wrappers for callers that only ever need one (coach.ts,
+ * reports.ts, backfill.ts, keyword-rules.ts) — a real second read there too, but not
  * a DESYNC risk, since nothing downstream compares it against a second independently-fetched
- * value.
+ * value. `assistant.ts` left this list in U.34: it needed keys AND the terminal map
+ * for one answer, which is the desync shape, so it takes the boundary.
  */
 async function loadReconciliationBoundaryInputs(userId: string): Promise<{
   accounts: readonly { id: string; type: string; currency: string | null; currentBalanceCents: number }[];
@@ -535,12 +514,15 @@ async function loadReconciliationBoundaryInputs(userId: string): Promise<{
  * account scope against another, and the disagreement would be written down rather than rendered.
  *
  * Callers needing exactly one view keep their single-output wrapper — `getReconciliationTxnKeep`
- * (assistant, coach, reports, backfill, keyword-rules, triage, the transaction actions, and
- * `getTaxYears`) and `getReconciliationHandoverKeys` (the disclosure surfaces). A second read
- * there is real but is not a DESYNC risk, since nothing downstream compares it against a second
- * independently fetched value. There is deliberately no `handoverDates` wrapper: U.33 consumed
- * the only two callers it ever had, and an exported function with no caller is a claim about
- * this file that stops being true the moment someone reads it (U.33 critic F-2).
+ * (keyword-rules, triage, triage-actions, transaction-actions, transaction-flags-actions,
+ * backfill, self-audit, and `getTaxYears`) and `getReconciliationHandoverKeys` (the
+ * disclosure surfaces: reports, coach, trends). A second read there is real but is not a
+ * DESYNC risk, since nothing downstream compares it against a second independently fetched
+ * value. `assistant.ts` and `getSpendingPlan` take the boundary: each combined two views
+ * into one artifact (an answer + its trace; a plan whose guilt-free figure is income minus
+ * expenses). There is deliberately no `handoverDates` wrapper: U.33 consumed the only two
+ * callers it ever had, and an exported function with no caller is a claim about this file
+ * that stops being true the moment someone reads it (U.33 critic F-2).
  *
  * All four views are pure computations over arrays already in memory, so a caller destructuring
  * two pays no QUERY for the other two — and with no active links every one is the empty /
@@ -572,7 +554,7 @@ export async function getReconciliationBoundary(userId: string): Promise<{
     keepsReconciled: reconciliationTxnKeepFilter(accounts, links, spans),
     handoverKeys: reconciliationHandoverKeys(accounts, links, spans),
     handoverDates: reconciliationHandoverDates(accounts, links, spans),
-    // Identical to `activeTerminalSuccessorMap(userId)` despite reaching `terminalSuccessorMap`
+    // Identical to the deleted `activeTerminalSuccessorMap(userId)` despite reaching `terminalSuccessorMap`
     // through a DIFFERENTLY-ORDERED array — that function's own query carries no `orderBy`,
     // `getActiveReconciliations` sorts by `confirmedByUserAt`. Order could only matter because
     // `chainMaps` builds `succOf` with `new Map`, where a repeated predecessor key means the

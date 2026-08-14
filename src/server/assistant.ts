@@ -10,8 +10,7 @@
  * routing + answers).
  */
 import { requireUserId, rateLimitDurable } from '@/server/authz';
-import { terminalSuccessorMap } from '@/lib/engine/account/reconcile-boundary';
-import { getActiveReconciliations, getReconciliationHandoverKeys } from '@/server/reconciliation';
+import { getReconciliationBoundary } from '@/server/reconciliation';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
 import { resolvePaymentAccount, getCashNeeded } from '@/server/finance';
@@ -279,9 +278,19 @@ async function composeAnswer(
 ): Promise<AssistantAnswer> {
   // One snapshot read serves every "direct" intent; composed answers reuse the
   // shipped read-paths (which load the same snapshot) so they can't drift.
-  const snap = await getProvider().getFinanceSnapshot(userId);
+  // U.34: the link table is read ONCE for this answer. `buildAnswer` used to
+  // fetch handover keys in four spend cases and the links again for
+  // account_balance, then this composer fetched the keys a fifth time for the
+  // Glass-Box trace — so a spend_total's disclosure and the tick behind it
+  // could resolve against two snapshots of the same table. Required on
+  // `buildAnswer`, not optional: a fallback fetch is how the second read
+  // survives unnoticed (U.33).
+  const [snap, { handoverKeys, terminalOf }] = await Promise.all([
+    getProvider().getFinanceSnapshot(userId),
+    getReconciliationBoundary(userId),
+  ]);
 
-  const built = await buildAnswer(intent, snap, userId, today, meta);
+  const built = await buildAnswer(intent, snap, userId, today, meta, handoverKeys, terminalOf);
   // C.25 (#403, critic P1-C): the flow totals behind these answers exclude
   // loan payments carried elsewhere — the answer says so, in the same words
   // every view uses, or Ask would print a figure no basis sentence owns.
@@ -330,7 +339,7 @@ async function composeAnswer(
             // drilldown behind the answer's own disclosure shows two identical
             // lines under a tick and says nothing — the exact defect the
             // disclosure exists to remove, one tap away from it.
-            handoverKeys: await getReconciliationHandoverKeys(userId),
+            handoverKeys,
           }),
         }
       : answer;
@@ -448,6 +457,8 @@ async function buildAnswer(
   userId: string,
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
+  handoverKeys: ReadonlySet<string>,
+  terminalOf: ReadonlyMap<string, string>,
 ): Promise<AssistantAnswer> {
   // TASKS L.18: one normalization of the snapshot rows into the assistant's shape, so every answer
   // and trace below sees `feedDroppedAt` and none of them can quote a frozen balance as a live one.
@@ -477,7 +488,7 @@ async function buildAnswer(
       return answerAccountBalance(
         accounts,
         intent.query,
-        terminalSuccessorMap(accounts, await getActiveReconciliations(userId)),
+        terminalOf,
       );
     case 'spend_total':
       // Exact /reports parity — pass the snapshot rows straight to the same
@@ -492,7 +503,8 @@ async function buildAnswer(
           snap.loanPaymentFlowExclusions?.excludeIds,
           // U.16: this answer is a headline with no rows beneath it, so the
           // released handover day has to be nameable in the answer itself.
-          await getReconciliationHandoverKeys(userId),
+          // U.34: the set is the composer's, not a second fetch.
+          handoverKeys,
         ),
         intent.timeframe,
       );
@@ -505,7 +517,7 @@ async function buildAnswer(
           snap.loanPaymentFlowExclusions?.excludeIds,
           // U.16: this answer is a headline with no rows beneath it, so the
           // released handover day has to be nameable in the answer itself.
-          await getReconciliationHandoverKeys(userId),
+          handoverKeys,
         ),
         intent.target,
         intent.timeframe,
@@ -519,7 +531,7 @@ async function buildAnswer(
           snap.loanPaymentFlowExclusions?.excludeIds,
           // U.16: this answer is a headline with no rows beneath it, so the
           // released handover day has to be nameable in the answer itself.
-          await getReconciliationHandoverKeys(userId),
+          handoverKeys,
         ),
         intent.timeframe,
         intent.limit,
@@ -560,7 +572,7 @@ async function buildAnswer(
           // feed `spendingByCategory`. Without it this answer states a figure a
           // released day can double and says nothing, which is the silence U.16
           // removed from every other spend surface.
-          await getReconciliationHandoverKeys(userId),
+          handoverKeys,
         ),
         intent.timeframe,
       );

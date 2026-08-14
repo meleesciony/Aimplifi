@@ -453,9 +453,10 @@ refuses to write if it would drop any number this file already carries.
 - **#457** (Phase ?): U.23: a claim of parity is a claim about an expression, and a withhold is not the end of the obligation (2026-08-12)
 - **#458** (Phase ?): U.25/U.26: a file that leaves the app carries its own basis, and the reasons its numbers differ from the app's (2026-08-13)
 - **#459** (Phase ?): U.27: the currency family's standard has five authors, not one, and a shared phrase misparsed its own noun (2026-08-13)
-- **#460** (Phase ?): U.29: the Fixed / Guilt-free split now discloses the one released day it was already counting twice (2026-08-13)
-- **#461** (Phase ?): U.24: the calendar was the last surface counting the released day in silence, and the marker it first drew stated the one thing the whole family refuses to state (2026-08-13)
-- **#462** (Phase ?): U.30: the FIRST screen a reader sees was also the last one saying nothing about the released day (2026-08-13)
-- **#463** (Phase ?): U.31: six loaders read the reconciliation link table twice, not two — the row's own scope claim was incomplete, and the critic that checked it found the rest (2026-08-13)
-- **#464** (Phase ?): U.32: /calendar's per-day marker was gated on the money it moved, not the fact it stated (2026-08-13)
-- **#465** (Phase ?): U.33: the boundary's last two hand-rolled reads, and a link table read four times inside one write (2026-08-13)
+- **#460** (Phase ?): U.29: the Fixed / Guilt-free split now discloses the one released day it was already
+- **#461** (Phase ?): U.24: the calendar was the last surface counting the released day in silence, and the
+- **#462** (Phase ?): U.30: the FIRST screen a reader sees was also the last one saying nothing about the
+- **#463** (Phase ?): U.31: six loaders read the reconciliation link table twice, not two — the row's own
+- **#464** (Phase ?): U.32: /calendar's per-day marker was gated on the money it moved, not the fact it
+- **#465** (Phase ?): U.33: the boundary's last two hand-rolled reads, and a link table read four times
+- **#466** (Phase ?): U.34: one link-table snapshot per rendered plan and per Ask answer (2026-08-14)

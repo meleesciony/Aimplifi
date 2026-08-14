@@ -2,6 +2,28 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-14 — U.34: one link-table snapshot per rendered plan and per Ask answer (DECISIONS #466)
+
+**Picked up from the queue** (U.33 residual). `getSpendingPlan` read `activeTerminalSuccessorMap`
+twice for one plan (income scope, then expense scope). `askAssistant` fetched handover keys in
+four spend cases, the links again for account_balance, and the keys a fifth time for the
+Glass-Box trace.
+
+**Shipped.** One `getReconciliationBoundary` per loader, views passed as REQUIRED parameters.
+`activeTerminalSuccessorMap` deleted (zero production callers; U.33 F-2). L.26 audit probes
+updated to take `terminalOf` off the boundary.
+
+**Locked.** `tests/unit/reconciliation-boundary-shared-read.test.ts` U.34 block: spyOn count
+plan === 2, spend_total Ask === 2, both on an ACTIVE-link fixture; Ask asserts headline $42.00.
+
+**Critic (read-only, fresh context): PASS — 0 P0, 0 P1, 4 P2 accepted.** Residuals filed as
+U.35 (reports/trends/coach still pair snapshot + keys) and U.36 (composed Ask pays twice).
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,003 passed + 1 expected fail +
+1 skipped / 426 files**, `next build` clean. Playwright (fresh build): **352 passed, 1
+flaky-passed-on-retry** (`transactions.spec.ts:610`, documented CSV-wedge / K.10 class,
+untouched by this diff). No `prisma/` diff.
+
 ## 2026-08-13 — U.32: /calendar's per-day marker was gated on money, not the fact (DECISIONS #464)
 
 **Picked up from the queue** (opened by both U.24 critics, same family as U.30/U.31). The day
