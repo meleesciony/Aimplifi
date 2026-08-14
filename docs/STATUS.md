@@ -4904,3 +4904,18 @@ then three critic locks added (targeted `reconcile-boundary.test.ts`
 flaky-passed-on-retry** (`category-rename.spec.ts:110`,
 `pwa-offline.spec.ts:51`, `transactions.spec.ts:735` — documented K.10
 class, untouched by this diff). No `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-14).** Commit `7826260` → pushed → CI gate
+**`success`**, run 31833191365, first attempt, no rerun (`gh run view`
+conclusion `success` on sha `78262607defa9205a63e293e1840f2b2f352ad1c`).
+Vercel commit status: `success`, "Deployment has completed", same sha.
+Production `/`, `/accounts`, `/ask` all 307 (expected unauthenticated
+redirect to sign-in, not a 500). No `prisma/` diff, so the live Neon
+database is untouched.
+
+**No demo-visible marker, and none is possible — declared, not skipped (the
+K.4 shape).** `grep AccountReconciliation prisma/seed.ts` is still 0. This
+slice changes which snapshot wins a same-date collision when a feed is
+quiet — a ranking the demo seed cannot exercise. What stands in for a
+live check: CI's full `VERIFY_E2E=1` suite ran against a genuine build
+of this exact commit.

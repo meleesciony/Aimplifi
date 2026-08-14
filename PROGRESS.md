@@ -30,6 +30,11 @@ Playwright (fresh build): **350 passed, 3 flaky-passed-on-retry**
 `transactions.spec.ts:735` — documented K.10 class, untouched by this
 diff). No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `7826260`. CI run 31833191365 `success`
+on first attempt. Vercel: `success`, "Deployment has completed", same sha.
+Production `/`, `/accounts`, `/ask` all 307. No demo-visible marker
+(K.4 shape — seed writes no combined pairs).
+
 ## 2026-08-14 — U.36: composed Ask intents skip the unused composer boundary (DECISIONS #468)
 
 **Picked up from the queue** (U.34 critic residual). Five Ask intents fetched
