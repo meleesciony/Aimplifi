@@ -30,6 +30,11 @@ Playwright (fresh build): **351 passed, 2 flaky-passed-on-retry**
 K.10 class, untouched by this diff). Local wrapper exited 1 on a worker
 teardown hang after the suite, not a failing spec. No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `457879c`. CI run 31838082196 `success`
+on first attempt. Vercel: `success`, "Deployment has completed", same sha.
+Production `/`, `/accounts`, `/ask` all 307. No demo-visible marker
+(K.4 shape — seed writes no combined pairs).
+
 ## 2026-08-14 — U.12: a genuine reading outranks a carried-forward repeat (DECISIONS #469)
 
 **Picked up from the queue** (U.9 critic residual; named next after U.36).

@@ -4952,3 +4952,15 @@ diff). Local Playwright exited 1 on a worker teardown hang after the
 suite (`worker-7 process did not exit within 300000ms after stop`) —
 not a test failure; CI's full `VERIFY_E2E=1` is the ship gate. No
 `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-14).** Commit `457879c` → pushed → CI gate
+**`success`**, run 31838082196, first attempt, no rerun (`gh run view`
+conclusion `success` on sha `457879cea01d45078f76513b91fa829bab13369b`).
+Vercel commit status: `success`, "Deployment has completed", same sha.
+Production `/`, `/accounts`, `/ask` all 307. No `prisma/` diff.
+
+**No demo-visible marker, and none is possible — declared, not skipped (the
+K.4 shape).** The demo seed writes no `AccountReconciliation` rows, so no
+combined pair can render this ranking. What stands in for a live check:
+CI's full `VERIFY_E2E=1` suite ran against a genuine build of this exact
+commit.
