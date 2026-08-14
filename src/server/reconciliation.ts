@@ -453,12 +453,13 @@ export async function activeAccountIdentityMap(userId: string): Promise<Map<stri
  * the shape `getAccountsView` (transactions.ts:1332-1344, critic F-4) already argued against
  * in writing: a confirm/undo landing between two separate reads of the link table can desync
  * whatever each read derives from it. `getReconciliationBoundary` below is the fix for callers
- * that need BOTH outputs; `getReconciliationTxnKeep`/`getReconciliationHandoverKeys` stay as
- * single-output convenience wrappers for callers that only ever need one (coach.ts,
- * reports.ts, backfill.ts, keyword-rules.ts) — a real second read there too, but not
- * a DESYNC risk, since nothing downstream compares it against a second independently-fetched
- * value. `assistant.ts` left this list in U.34: it needed keys AND the terminal map
- * for one answer, which is the desync shape, so it takes the boundary.
+ * that need BOTH outputs; `getReconciliationTxnKeep` stays as the single-output
+ * wrapper for callers that only ever need the keep (backfill, keyword-rules,
+ * triage). U.35 consumed the last three `getReconciliationHandoverKeys` callers
+ * (reports/trends/coach): those pages already hold a snapshot that applied the
+ * keep, so the keys now travel on that snapshot instead of a second fetch.
+ * `assistant.ts` takes the boundary: it needed keys AND the terminal map for
+ * one answer, which is the desync shape.
  */
 async function loadReconciliationBoundaryInputs(userId: string): Promise<{
   accounts: readonly { id: string; type: string; currency: string | null; currentBalanceCents: number }[];
@@ -513,16 +514,16 @@ async function loadReconciliationBoundaryInputs(userId: string): Promise<{
  * landing between those awaits could collapse duplicates against one set of links while deciding
  * account scope against another, and the disagreement would be written down rather than rendered.
  *
- * Callers needing exactly one view keep their single-output wrapper — `getReconciliationTxnKeep`
- * (keyword-rules, triage, triage-actions, transaction-actions, transaction-flags-actions,
- * backfill, self-audit, and `getTaxYears`) and `getReconciliationHandoverKeys` (the
- * disclosure surfaces: reports, coach, trends). A second read there is real but is not a
- * DESYNC risk, since nothing downstream compares it against a second independently fetched
- * value. `assistant.ts` and `getSpendingPlan` take the boundary: each combined two views
- * into one artifact (an answer + its trace; a plan whose guilt-free figure is income minus
- * expenses). There is deliberately no `handoverDates` wrapper: U.33 consumed the only two
- * callers it ever had, and an exported function with no caller is a claim about this file
- * that stops being true the moment someone reads it (U.33 critic F-2).
+ * Callers needing exactly one view keep `getReconciliationTxnKeep` (keyword-rules,
+ * triage, triage-actions, transaction-actions, transaction-flags-actions,
+ * backfill, self-audit, and `getTaxYears`). There is deliberately no
+ * `getReconciliationHandoverKeys` wrapper: U.35 consumed its last three callers
+ * (the snapshot now carries the keys), and an exported function with no caller
+ * is a claim about this file that stops being true the moment someone reads it
+ * (U.33 critic F-2). `assistant.ts` and `getSpendingPlan` take the boundary:
+ * each combined two views into one artifact (an answer + its trace; a plan
+ * whose guilt-free figure is income minus expenses). There is deliberately no
+ * `handoverDates` wrapper either: U.33 consumed the only two callers it ever had.
  *
  * All four views are pure computations over arrays already in memory, so a caller destructuring
  * two pays no QUERY for the other two — and with no active links every one is the empty /
@@ -589,24 +590,7 @@ export async function getReconciliationTxnKeep(userId: string): Promise<(account
 }
 
 /**
- * The (account, released day) pairs the DISCLOSURE surfaces test each row against
- * (U.16) — account-scoped, unlike the bare-date `handoverDates` view of
- * `getReconciliationBoundary`.
- *
- * A per-row marker keyed on the date alone labels every row the reader posted that
- * day on every account they own, including accounts in no combined pair. Only the
- * pair's own two sides can double. The bare-date view is still the right one for the
- * two consumers with no account column — the tax export's file, and cadence
- * detection's collapse — and both now take it off the boundary directly.
- */
-export async function getReconciliationHandoverKeys(userId: string): Promise<ReadonlySet<string>> {
-  const { accounts, links, spans } = await loadReconciliationBoundaryInputs(userId);
-  if (links.length === 0) return new Set<string>();
-  return reconciliationHandoverKeys(accounts, links, spans);
-}
-
-/**
- * Whether a manual write (manual entry, CSV import) may target this account (slice-6
+ * Whether a manual write (manual entry, CSV import) may target this account (slice-6)
  * critics B-F2/C-4): a row hand-typed onto a superseded PREDECESSOR dated after its
  * cutover is dropped by the boundary — money the user entered that no figure reflects, a
  * silent dropped figure. Superseded predecessors are read-only history: refuse ALL manual

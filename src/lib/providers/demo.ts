@@ -166,6 +166,7 @@ export class DemoProvider implements DataProvider {
       scheduled: [...boundary.scheduled],
       balanceSnapshots: [...boundary.balanceSnapshots],
       loanPaymentFlowExclusions: loanPaymentFlowExclusionsOut,
+      handoverKeys: boundary.handoverKeys,
     };
   }
 }

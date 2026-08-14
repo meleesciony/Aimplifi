@@ -4772,3 +4772,37 @@ shape).** `grep AccountReconciliation prisma/seed.ts` is still 0. This slice add
 no rendered surface — it is a read-path consolidation whose claim is a query
 count. What stands in for a live check: CI's full `VERIFY_E2E=1` suite ran against
 a genuine build of this exact commit.
+
+## ✅ BUILT 2026-08-14 — U.35: the snapshot emits the handover keys it already paid for (DECISIONS #467)
+
+U.34's critic filed three pages that still paired the snapshot's link-table read
+with a second `getReconciliationHandoverKeys` fetch. Keep from one snapshot,
+disclosure from a later read — the same window U.31/U.34 accepted at the loader
+boundary. #466 parked passing a pre-fetched boundary *into* `getFinanceSnapshot`.
+
+**What shipped.** The inverse: `applyReconciliationBoundary` returns
+`handoverKeys` from the same `txnSpan` the keep just used. `FinanceSnapshot`
+carries them as a required field. `getReports` / `getSpendingTrends` /
+`getCoachData` read `snap.handoverKeys`. `getReconciliationHandoverKeys` is
+deleted — last three callers consumed.
+
+**Locked by a COUNT** on a fixture with a real ACTIVE link and a cutover-day
+grocery in the pinned month. Each of the three loaders issues exactly one
+`accountReconciliation.findMany`. `getReports` asserts `totalCents === 5300`
+AND `countedOnHandoverDays > 0` (a June-only figure lock would still pass if
+keys were dropped — both rows are kept). Snapshot keys === boundary keys on
+the U.31 CREDIT-pair fixture.
+
+**Hostile critic (fresh context, read-only): PASS — 0 P0, 0 P1, 6 P2.**
+P2-4 (vacuous disclosure lock) fixed in-slice. Accepted: spending-only spans
+(these pages list no brokerage/loan rows); `/budgets` is the U.34-accepted
+snapshot+boundary shape; Ask's two-read window is U.36; household merge
+keeping viewer keys is unreachable on personal loaders; empty-keys comments
+are pre-existing.
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN** (e2e skipped by
+PowerShell env inheritance; Playwright then run against this same `next
+build`): tsc 0, eslint 0, unit **7,007 passed + 1 expected fail + 1 skipped /
+425 files + 1 skipped**, build clean, e2e **352 passed, 1
+flaky-passed-on-retry** (`budget-targets.spec.ts:61` — documented K.10 class,
+spec untouched). No `prisma/` diff.

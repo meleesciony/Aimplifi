@@ -1039,9 +1039,9 @@ export function merchantSpend(
   // this surface. A carried-elsewhere payment answers as not-spent.
   excludedFlowIds?: ReadonlySet<string>,
   // U.20: the (account, day) pairs the boundary released to BOTH sides of a
-  // combined pair (`getReconciliationHandoverKeys`). Empty = the truth for a
-  // reader with no combined accounts, so every existing caller keeps
-  // byte-identical output.
+  // combined pair. Empty = the truth for a reader with no combined accounts,
+  // so every existing caller keeps byte-identical output. U.35: pages that
+  // already hold a snapshot take this set off `FinanceSnapshot.handoverKeys`.
   handoverKeys: ReadonlySet<string> = new Set<string>(),
 ): MerchantSpendResult {
   const q = query.trim().toLowerCase();

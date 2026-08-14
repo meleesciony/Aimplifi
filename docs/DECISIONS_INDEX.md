@@ -460,3 +460,4 @@ refuses to write if it would drop any number this file already carries.
 - **#464** (Phase ?): U.32: /calendar's per-day marker was gated on the money it moved, not the fact it
 - **#465** (Phase ?): U.33: the boundary's last two hand-rolled reads, and a link table read four times
 - **#466** (Phase ?): U.34: one link-table snapshot per rendered plan and per Ask answer (2026-08-14)
+- **#467** (Phase ?): U.35: the snapshot emits the handover keys it already paid for (2026-08-14)

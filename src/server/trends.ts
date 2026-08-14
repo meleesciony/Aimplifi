@@ -54,7 +54,6 @@ import { wholeMonthWindow } from '@/lib/engine/reports/reports';
 import { computeSpendingTrends, type SpendingTrends, type TrendTxn } from '@/lib/engine/trends/trends';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
-import { getReconciliationHandoverKeys } from '@/server/reconciliation';
 import {
   loanPaymentBasisFacts,
   loanPaymentRefusedCategories,
@@ -166,14 +165,14 @@ export interface SpendingTrendsData extends SpendingTrends {
 export async function getSpendingTrends(userId: string): Promise<SpendingTrendsData> {
   const provider = getProvider();
   const today = provider.today(userId);
-  const [snap, meta, handoverKeys] = await Promise.all([
+  const [snap, meta] = await Promise.all([
     provider.getFinanceSnapshot(userId),
     getCategoryMeta(userId),
-    // U.16: fetched ONCE and handed to both the movers' category panels and the
-    // new-merchant panels, so two panels on one page cannot disagree about
-    // which days a combined pair released.
-    getReconciliationHandoverKeys(userId),
   ]);
+  // U.35: off the snapshot's own link-table read, not a second fetch. Handed
+  // to both the movers' category panels and the new-merchant panels so two
+  // panels on one page cannot disagree about which days a combined pair released.
+  const handoverKeys = snap.handoverKeys;
 
   // ONE array, handed to both. The first cut built the panel rows from
   // `snap.transactions` and argued the two selections must be identical because

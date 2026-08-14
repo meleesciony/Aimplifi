@@ -37,6 +37,7 @@ const snap: FinanceSnapshot = {
   transactions: seed.transactions,
   scheduled: seed.scheduled,
   balanceSnapshots: seed.snapshots,
+  handoverKeys: new Set<string>(),
 };
 
 const { input, radar } = radarFromSnapshot(snap, TODAY, NO_RECURRING_OVERRIDES);

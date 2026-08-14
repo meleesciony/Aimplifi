@@ -2,6 +2,35 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-14 — U.35: the snapshot emits the handover keys it already paid for (DECISIONS #467)
+
+**Picked up from the queue** (U.34 critic residual). `/reports`, `/trends`, and
+`/coach` each held a snapshot that had already read the link table for the keep,
+then fetched `getReconciliationHandoverKeys` independently.
+
+**Shipped.** Inverse of the #466 parked shape: `applyReconciliationBoundary`
+returns `handoverKeys` from the same `txnSpan` as the keep; `FinanceSnapshot`
+carries them as a required field; the three loaders read `snap.handoverKeys`.
+`getReconciliationHandoverKeys` deleted (zero production callers).
+
+**Locked.** `tests/unit/reconciliation-boundary-shared-read.test.ts` U.35 block:
+spyOn count === 1 for each loader; `getReports` `totalCents === 5300` and
+`countedOnHandoverDays > 0` on an ACTIVE-link fixture with a cutover-day grocery.
+U.31 block: snapshot keys === boundary keys on the CREDIT-pair fixture.
+
+**Critic (read-only, fresh context): PASS — 0 P0, 0 P1, 6 P2.** P2-4 (count
+locks did not prove disclosure) fixed in the same slice. Remaining P2s accepted:
+spending-only spans (these pages list no brokerage/loan rows); `/budgets` is the
+U.34-accepted snapshot+boundary shape; Ask two-read window is U.36; household
+merge keeping viewer keys is unreachable (personal loaders); empty-keys comments
+are pre-existing.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,007 passed + 1
+expected fail + 1 skipped / 425 files + 1 skipped**, `next build` clean.
+Playwright (fresh build): **352 passed, 1 flaky-passed-on-retry**
+(`budget-targets.spec.ts:61`, documented K.10 class, untouched by this diff).
+No `prisma/` diff.
+
 ## 2026-08-14 — U.34: one link-table snapshot per rendered plan and per Ask answer (DECISIONS #466)
 
 **Picked up from the queue** (U.33 residual). `getSpendingPlan` read `activeTerminalSuccessorMap`

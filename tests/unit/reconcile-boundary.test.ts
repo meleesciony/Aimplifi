@@ -96,6 +96,13 @@ describe('applyReconciliationBoundary — the money core', () => {
     ]);
   });
 
+  it('U.35: the assembler emits handover keys from the same spans as the keep', () => {
+    const out = apply([LINK]);
+    // Released day is min(cutover, pred last) = 2026-06-30. Both sides of the
+    // pair, not the bystander on the same calendar day.
+    expect([...out.handoverKeys].sort()).toEqual(['pred|2026-06-30', 'succ|2026-06-30']);
+  });
+
   it('R1: no gap ever, and the ONLY doubled date is the handover day (union check)', () => {
     const out = apply([LINK]);
     const pairRows = out.transactions.filter((t) => t.accountId !== 'other');
@@ -599,6 +606,7 @@ describe('applyReconciliationBoundary — inertness (a bad link must change NOTH
     // so a demo/golden snapshot with no reconciliations is byte-identical.
     expect(out.statements).toBe(STATEMENTS);
     expect(out.scheduled).toBe(SCHEDULED);
+    expect(out.handoverKeys.size).toBe(0);
   };
 
   it('R8: no links at all → the exact input references (golden fast path)', () => {

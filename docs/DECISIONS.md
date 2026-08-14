@@ -7463,3 +7463,47 @@ delegate to `getSpendingPlan` still pay the plan's own snapshot + boundary on to
 of the composer's; each artifact is internally consistent. Single-view wrappers
 (`getReconciliationTxnKeep`, `getReconciliationHandoverKeys`) stay for callers that
 need exactly one view.
+
+## #467 — U.35: the snapshot emits the handover keys it already paid for (2026-08-14)
+
+**Context.** U.34's critic filed `/reports`, `/trends`, and `/coach`: each already
+holds a `getFinanceSnapshot` (which reads `accountReconciliation` and applies the
+keep) and then fetched `getReconciliationHandoverKeys` independently — keep from
+one snapshot, disclosure from a later read. #466 parked passing a pre-fetched
+boundary *into* the assembler as a provider-shaped change.
+
+**Decision: emit the keys *out* of the assembler, from the same links and the
+same predecessor spans the keep just used. Do not change the provider
+signature.** `applyReconciliationBoundary` returns `handoverKeys` as a required
+field (empty set on the no-links fast path). `FinanceSnapshot.handoverKeys` is
+required so a page that already holds the snapshot cannot re-fetch the keys.
+`getReports` / `getSpendingTrends` / `getCoachData` read `snap.handoverKeys`.
+`getReconciliationHandoverKeys` is deleted — U.35 consumed its last three
+callers, and an exported function with no caller is a false claim (U.33 F-2).
+
+Passing the boundary *in* would have made every snapshot caller fetch first
+(or grown an optional parameter that falls back to its own fetch — the U.33
+shape that lets a second read survive). Emitting *out* keeps the provider
+contract "give me a snapshot" and makes keep-vs-disclosure agreement true by
+construction: one `findMany`, one `txnSpan`, both views.
+
+**Span source.** The assembler's spans are the snapshot's spending-account
+transactions (the same rows the keep filters). The deleted wrapper's spans
+were a `groupBy` over every predecessor transaction regardless of account
+type. For a CHECKING/SAVINGS/CREDIT predecessor those sets are the same
+row set. An INVESTMENT/LOAN predecessor has no spending rows in the
+snapshot, so it contributes no key — and these three pages list no such
+row to mark. Locked by comparing `getFinanceSnapshot().handoverKeys` to
+`getReconciliationBoundary().handoverKeys` on the U.31 CREDIT-pair fixture.
+
+**Not in scope.** Threading `terminalOf` onto the snapshot so
+`getSpendingPlan` / `askAssistant` can drop their extra boundary fetch
+(U.36). Household merge does not carry the keys — `/reports` `/trends`
+`/coach` are personal loaders.
+
+**Locked by a COUNT**, on a fixture with a real ACTIVE link and a
+cutover-day grocery in the pinned month (`breakdown.totalCents === 5300`
+and `countedOnHandoverDays > 0` — the figure lock without the count
+would still pass if keys were dropped; both rows are kept). Each of
+`getReports`, `getSpendingTrends`, `getCoachData` issues exactly one
+`accountReconciliation.findMany`. Pre-U.35 those were 2.

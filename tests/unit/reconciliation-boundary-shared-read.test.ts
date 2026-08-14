@@ -22,12 +22,15 @@ import { isoDate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import { auth } from '@/auth';
 import { askAssistant } from '@/server/assistant';
+import { getCoachData } from '@/server/coach';
+import { getProvider } from '@/lib/providers/demo';
+import { getReports } from '@/server/reports';
 import { refreshRecurringForUser } from '@/server/recurring';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { getTaxExport } from '@/server/tax';
+import { getSpendingTrends } from '@/server/trends';
 import {
   getReconciliationBoundary,
-  getReconciliationHandoverKeys,
   getReconciliationTxnKeep,
 } from '@/server/reconciliation';
 
@@ -112,16 +115,16 @@ describe('U.31 — getReconciliationBoundary matches the two standalone reads, f
     }
   });
 
-  it('the combined handover-key set agrees with the standalone getReconciliationHandoverKeys', async () => {
-    const standalone = await getReconciliationHandoverKeys(USER);
+  it('the snapshot emits the same handover-key set the boundary does, from its own link read', async () => {
+    const snap = await getProvider().getFinanceSnapshot(USER);
     const { handoverKeys } = await getReconciliationBoundary(USER);
-    expect([...handoverKeys].sort()).toEqual([...standalone].sort());
+    expect([...snap.handoverKeys].sort()).toEqual([...handoverKeys].sort());
     // And the fixture's own (account, day)-scoping shape: both pair sides flagged on the
     // cutover, the unrelated account on the same date is not, and the off-cutover row is not.
-    expect(handoverKeys.has(handoverKey(predId, CUTOVER))).toBe(true);
-    expect(handoverKeys.has(handoverKey(succId, CUTOVER))).toBe(true);
-    expect(handoverKeys.has(handoverKey(otherId, CUTOVER))).toBe(false);
-    expect(handoverKeys.has(handoverKey(predId, '2026-07-02'))).toBe(false);
+    expect(snap.handoverKeys.has(handoverKey(predId, CUTOVER))).toBe(true);
+    expect(snap.handoverKeys.has(handoverKey(succId, CUTOVER))).toBe(true);
+    expect(snap.handoverKeys.has(handoverKey(otherId, CUTOVER))).toBe(false);
+    expect(snap.handoverKeys.has(handoverKey(predId, '2026-07-02'))).toBe(false);
   });
 
   it('with no active links, both outputs are the unconditional fast path', async () => {
@@ -451,6 +454,129 @@ describe('U.34 — one extra link-table read per rendered plan / Ask answer', ()
       expect(answer.kind).toBe('spend_total');
       expect(answer.headlineCents).toBe(4_200);
       expect(spy).toHaveBeenCalledTimes(2);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+/**
+ * U.35 — the three pages U.34's critic filed rather than fixed.
+ *
+ * `/reports`, `/trends`, and `/coach` already held a snapshot (which reads
+ * `accountReconciliation` and applies the keep) and then fetched
+ * `getReconciliationHandoverKeys` independently — keep from one snapshot,
+ * disclosure from a later read. #466 parked passing a pre-fetched boundary
+ * *into* `getFinanceSnapshot`. The shape that shipped is the inverse: the
+ * assembler already has the links and the spans, so it emits the keys, and
+ * the three loaders stop fetching them.
+ *
+ * Fail-old: each of these issued 2 link-table reads (snapshot + keys). The
+ * snapshot's own read stays. The claim is that the loader adds ZERO more.
+ */
+describe('U.35 — reports / trends / coach take handover keys off the snapshot', () => {
+  const U35 = `${USER}-u35-reads`;
+  let cardId = '';
+
+  beforeAll(async () => {
+    await prisma.accountReconciliation.deleteMany({ where: { userId: U35 } });
+    await prisma.account.deleteMany({ where: { userId: U35 } });
+    await prisma.user.deleteMany({ where: { id: U35 } });
+    await prisma.user.create({ data: { id: U35, email: `${U35}@test.local` } });
+    const mkCard = async (ref: string) =>
+      (
+        await prisma.account.create({
+          data: {
+            userId: U35,
+            provider: 'simplefin',
+            providerRef: ref,
+            name: 'Everyday Card',
+            type: 'CREDIT',
+            currentBalanceCents: -50_000,
+            currency: 'USD',
+          },
+        })
+      ).id;
+    const predCardId = await mkCard('u35-reads-pred');
+    cardId = await mkCard('u35-reads-card');
+    await prisma.accountReconciliation.create({
+      data: {
+        userId: U35,
+        predecessorAccountId: predCardId,
+        successorAccountId: cardId,
+        cutoverDate: '2026-06-04',
+        matchSignal: 'name',
+        confidence: 'high',
+        confirmedByUserAt: new Date(),
+      },
+    });
+    // Predecessor row ON the cutover (this month) so the span is
+    // non-degenerate AND the reports lock can see a counted handover-day
+    // row. A May pred (the first cut) left `countedOnHandoverDays` at 0
+    // for June — the figure lock could go green without the keys being
+    // used (U.35 critic P2-4).
+    await prisma.transaction.create({
+      data: {
+        id: `u35-reads-pred-${process.pid}`,
+        accountId: predCardId,
+        date: '2026-06-04',
+        amountCents: -1_100,
+        rawDescriptor: 'CORNER STORE',
+        categoryId: 'groceries',
+        status: 'POSTED',
+      },
+    });
+    await prisma.transaction.create({
+      data: {
+        id: `u35-reads-spend-${process.pid}`,
+        accountId: cardId,
+        date: '2026-06-08',
+        amountCents: -4_200,
+        rawDescriptor: 'CORNER STORE',
+        categoryId: 'groceries',
+        status: 'POSTED',
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.accountReconciliation.deleteMany({ where: { userId: U35 } });
+    await prisma.account.deleteMany({ where: { userId: U35 } });
+    await prisma.user.deleteMany({ where: { id: U35 } });
+  });
+
+  it('getReports reads accountReconciliation exactly once', async () => {
+    const spy = vi.spyOn(prisma.accountReconciliation, 'findMany');
+    try {
+      const out = await getReports(U35);
+      // June grocery on the successor PLUS the predecessor's cutover-day
+      // copy. If handoverKeys were dropped, totalCents would still be
+      // 5300 (both rows are kept) but countedOnHandoverDays would be 0.
+      expect(out.breakdown.totalCents).toBe(5_300);
+      expect(out.breakdown.countedOnHandoverDays).toBeGreaterThan(0);
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('getSpendingTrends reads accountReconciliation exactly once', async () => {
+    const spy = vi.spyOn(prisma.accountReconciliation, 'findMany');
+    try {
+      const out = await getSpendingTrends(U35);
+      expect(typeof out.asOfDate).toBe('string');
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('getCoachData reads accountReconciliation exactly once', async () => {
+    const spy = vi.spyOn(prisma.accountReconciliation, 'findMany');
+    try {
+      const out = await getCoachData(U35);
+      expect(out.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(spy).toHaveBeenCalledTimes(1);
     } finally {
       spy.mockRestore();
     }

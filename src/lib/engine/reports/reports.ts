@@ -263,10 +263,11 @@ export function spendingByCategory(
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
   excludedFlowIds?: ReadonlySet<string>, // C.25 (#403), threaded to isSpendRow
   // U.16: the (account, day) pairs the boundary released to BOTH sides of a
-  // combined pair (`getReconciliationHandoverKeys` — account-scoped, NOT the
-  // unscoped `getReconciliationHandoverDates` the tax export uses, which would
-  // mark every account's rows on that date). Empty = the truth for a reader with
-  // no combined accounts, so every existing caller keeps byte-identical output.
+  // combined pair (account-scoped, NOT the unscoped `handoverDates` the tax
+  // export uses, which would mark every account's rows on that date). Empty =
+  // the truth for a reader with no combined accounts, so every existing caller
+  // keeps byte-identical output. U.35: pages that already hold a snapshot take
+  // this set off `FinanceSnapshot.handoverKeys`, not a second link-table read.
   handoverKeys: ReadonlySet<string> = new Set<string>(),
 ): SpendingBreakdown {
   // Validated ONCE here rather than per row: a malformed `asOf` compared as a

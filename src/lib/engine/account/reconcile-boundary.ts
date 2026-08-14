@@ -174,6 +174,15 @@ export interface ReconciliationBoundaryResult<
   scheduled: readonly Sc[];
   /** Effective predecessors — funding-account fallbacks must not pick these. */
   supersededAccountIds: readonly string[];
+  /**
+   * U.35: the (account, released day) pairs this same call released, from the
+   * same links and the same predecessor spans the keep just used. Empty on the
+   * no-links fast path. The assembler used to apply the keep here and leave
+   * disclosure to a later `getReconciliationHandoverKeys` that re-read the
+   * table; a confirm/undo between those two reads could mark a day the keep
+   * had not released, or stay silent on a day it had.
+   */
+  handoverKeys: ReadonlySet<string>;
 }
 
 /**
@@ -658,6 +667,7 @@ export function applyReconciliationBoundary<
       statements,
       scheduled,
       supersededAccountIds: [],
+      handoverKeys: new Set<string>(),
     };
   }
 
@@ -846,5 +856,17 @@ export function applyReconciliationBoundary<
       return to === s.accountId ? s : { ...s, accountId: to };
     }),
     supersededAccountIds: links.map((l) => l.predecessorAccountId),
+    // Same author, same spans: `txnSpan` is what `keepsTxn` just consumed.
+    // Re-deriving min/max from the filtered output would move the released
+    // day whenever the keep dropped the predecessor's last row.
+    handoverKeys: reconciliationHandoverKeys(
+      input.accounts,
+      input.links,
+      [...txnSpan.entries()].map(([accountId, s]) => ({
+        accountId,
+        first: s.first,
+        last: s.last,
+      })),
+    ),
   };
 }

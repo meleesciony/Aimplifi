@@ -58,6 +58,14 @@ export interface FinanceSnapshot {
     readonly excludeIds: ReadonlySet<string>;
     readonly excluded: readonly { canonical: string; accountId: string; paymentCents: number }[];
   };
+  /**
+   * U.35: the (account, released day) pairs `applyReconciliationBoundary`
+   * derived from the same link-table rows it used for the keep. Empty set
+   * when there are no effective links (demo/golden). Required so a page that
+   * already holds this snapshot cannot re-fetch the keys and disagree with
+   * the keep it is disclosing.
+   */
+  handoverKeys: ReadonlySet<string>;
 }
 
 export interface SyncResult {

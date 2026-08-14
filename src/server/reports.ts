@@ -35,7 +35,6 @@ import {
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getLinkableCategoryIds } from '@/server/categories';
-import { getReconciliationHandoverKeys } from '@/server/reconciliation';
 import { categoryWindowRegisterHref } from '@/lib/engine/transactions/links';
 
 export interface ReportsData {
@@ -147,7 +146,7 @@ export async function getReports(
   // ACCOUNT-scoped (account, date) keys since U.16's second critic cycle, and a
   // variable that says "dates" invites the next reader to treat it as the
   // unscoped set — the exact confusion that cycle existed to fix.
-  const [snap, meta, linkableCategoryIds, handoverKeys] = await Promise.all([
+  const [snap, meta, linkableCategoryIds] = await Promise.all([
     provider.getFinanceSnapshot(userId),
     getCategoryMeta(userId),
     // The register's own option list — the fence deciding which figures may
@@ -155,14 +154,13 @@ export async function getReports(
     // `categoryHrefs`); /reports' page no longer fetches it, while /trends and
     // /budgets still call `getLinkableCategoryIds` directly for their own.
     getLinkableCategoryIds(userId),
-    // U.16: the (account, day) keys the boundary released to BOTH sides of a
-    // combined pair.
-    // Fetched ONCE in the assembler, like `excludedFlowIds` below, and handed to
-    // both builders — the category panels and the chart's month panels are two
-    // surfaces on one page, and a fact fetched twice is a fact that can differ
-    // between them.
-    getReconciliationHandoverKeys(userId),
   ]);
+  // U.35: the snapshot already derived these from the same link-table rows it
+  // used for the keep. A second `getReconciliationHandoverKeys` here was a
+  // later read of the same table — keep from one snapshot, disclosure from
+  // another. Handed to both builders so the category panels and the chart's
+  // month panels still cannot disagree with each other.
+  const handoverKeys = snap.handoverKeys;
   // C.25 (#403): the read-side exclusion, computed ONCE in the assembler.
   // One set for every sum on this page, so the bars, the category table and
   // the rows under each cannot disagree about what counts.
