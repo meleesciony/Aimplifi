@@ -4806,3 +4806,17 @@ build`): tsc 0, eslint 0, unit **7,007 passed + 1 expected fail + 1 skipped /
 425 files + 1 skipped**, build clean, e2e **352 passed, 1
 flaky-passed-on-retry** (`budget-targets.spec.ts:61` — documented K.10 class,
 spec untouched). No `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-14).** Commit `dca4b48` → pushed → CI gate
+**`success`**, run 31822001737, first attempt, no rerun (`gh run view`
+conclusion `success` on sha `dca4b4873911a0a4b598892cfc38ad784acb696a`).
+Vercel commit status: `success`, "Deployment has completed", same sha.
+Production `/`, `/reports`, `/trends`, `/coach` all 307 (expected
+unauthenticated redirect to sign-in, not a 500). No `prisma/` diff, so the
+live Neon database is untouched.
+
+**No demo-visible marker, and none is possible — declared, not skipped (the
+K.4 shape).** `grep AccountReconciliation prisma/seed.ts` is still 0. This
+slice adds no rendered surface — it is a read-path consolidation whose claim
+is a query count. What stands in for a live check: CI's full `VERIFY_E2E=1`
+suite ran against a genuine build of this exact commit.

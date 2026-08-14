@@ -31,6 +31,11 @@ Playwright (fresh build): **352 passed, 1 flaky-passed-on-retry**
 (`budget-targets.spec.ts:61`, documented K.10 class, untouched by this diff).
 No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `dca4b48`. CI run 31822001737 `success`
+on first attempt. Vercel: `success`, "Deployment has completed", same sha.
+Production `/`, `/reports`, `/trends`, `/coach` all 307. No demo-visible
+marker (K.4 shape, unchanged fact).
+
 ## 2026-08-14 — U.34: one link-table snapshot per rendered plan and per Ask answer (DECISIONS #466)
 
 **Picked up from the queue** (U.33 residual). `getSpendingPlan` read `activeTerminalSuccessorMap`
