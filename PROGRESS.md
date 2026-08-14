@@ -24,6 +24,10 @@ U.35 (reports/trends/coach still pair snapshot + keys) and U.36 (composed Ask pa
 flaky-passed-on-retry** (`transactions.spec.ts:610`, documented CSV-wedge / K.10 class,
 untouched by this diff). No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `aab0bfb`. CI run 31808886866 `success` on first
+attempt. Vercel: `success`, "Deployment has completed", same sha. Production `/`,
+`/spending-plan`, `/ask` all 307. No demo-visible marker (K.4 shape, unchanged fact).
+
 ## 2026-08-13 — U.32: /calendar's per-day marker was gated on money, not the fact (DECISIONS #464)
 
 **Picked up from the queue** (opened by both U.24 critics, same family as U.30/U.31). The day

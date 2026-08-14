@@ -4759,3 +4759,16 @@ inheritance miss; Playwright then run against this same `next build`): tsc 0, es
 unit **7,003 passed + 1 expected fail + 1 skipped / 426 files**, build clean, e2e **352
 passed, 1 flaky-passed-on-retry** (`transactions.spec.ts:610` — documented CSV-wedge /
 K.10 class, spec untouched). No `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-14).** Commit `aab0bfb` → pushed → CI gate
+**`success`**, run 31808886866, first attempt, no rerun (`gh run view` conclusion
+`success` on sha `aab0bfb9124e18b536812591902f99a939146cf8`). Vercel commit status:
+`success`, "Deployment has completed", same sha. Production `/`, `/spending-plan`,
+`/ask` all 307 (expected unauthenticated redirect to sign-in, not a 500). No
+`prisma/` diff, so the live Neon database is untouched.
+
+**No demo-visible marker, and none is possible — declared, not skipped (the K.4
+shape).** `grep AccountReconciliation prisma/seed.ts` is still 0. This slice adds
+no rendered surface — it is a read-path consolidation whose claim is a query
+count. What stands in for a live check: CI's full `VERIFY_E2E=1` suite ran against
+a genuine build of this exact commit.
