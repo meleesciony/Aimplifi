@@ -4919,3 +4919,36 @@ slice changes which snapshot wins a same-date collision when a feed is
 quiet — a ranking the demo seed cannot exercise. What stands in for a
 live check: CI's full `VERIFY_E2E=1` suite ran against a genuine build
 of this exact commit.
+
+## ✅ BUILT 2026-08-14 — U.37: genuineness outranks U.9's tier order (DECISIONS #470)
+
+U.12 only compared echoes inside the covering tier. A covering
+predecessor's monthly echo still beat the live successor's real reading,
+and a later-cutover echo still beat an earlier-cutover genuine reading
+when the terminal had no row for that date.
+
+**What shipped.** Genuineness is compared first, then U.9's tiers.
+Both-genuine and both-echo fall through, so covering still beats the
+live successor when both sides actually read. A lone observation is
+still never dropped.
+
+**Locked.** Common pair: succ / $5,000.00 (pre-fix pred / $4,000.00).
+Controls: both-genuine covering pred still wins; both-closed genuine
+still latest-cutover; lone echo kept. Cross-tier: covering echo loses
+to closed genuine; terminal echo loses to closed genuine; equal-cutover
+genuine ancestor outranks echo mid; CREDIT −$5,000.00.
+
+**Hostile critic (fresh context, read-only): PASS — 0 P0, 0 P1, 6 P2.**
+Cross-tier and CREDIT locks added in-slice. `#469` not-in-scope updated
+to point at this decision.
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN** (e2e skipped;
+Playwright then run against this same `next build`): tsc 0, eslint 0, unit
+**7,026 passed + 1 expected fail + 1 skipped / 425 files + 1 skipped**,
+then critic locks added (targeted U.37: 9 passed). Build clean, e2e
+**351 passed, 2 flaky-passed-on-retry** (`budget-targets.spec.ts:61`,
+`transactions.spec.ts:1014` — documented K.10 class, untouched by this
+diff). Local Playwright exited 1 on a worker teardown hang after the
+suite (`worker-7 process did not exit within 300000ms after stop`) —
+not a test failure; CI's full `VERIFY_E2E=1` is the ship gate. No
+`prisma/` diff.

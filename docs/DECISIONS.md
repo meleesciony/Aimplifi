@@ -7578,10 +7578,10 @@ to fetch a field it cannot use. A lone observation is still never dropped
 (U.9: never a fabricated dip). Both genuine or both repeats fall through
 to earliest cutover, so U.9 is unchanged when both sides read.
 
-**Not in scope.** Genuineness does not invert U.9's *tier* order: a
-covering predecessor still beats the live terminal even when the
-predecessor's row is an echo (the common one-pred/one-succ pair). It also
-does not apply inside the closed tier. Both leftovers filed as **U.37**.
+**Not in scope (closed as #470 / U.37).** Genuineness originally did not
+invert U.9's *tier* order. U.37 lifts genuineness above tier: a covering
+echo now loses to a genuine live successor, and a later-cutover echo
+loses to an earlier-cutover genuine reading when the terminal has no row.
 Making `AccountView.feedDroppedAt` required (it stays optional; the
 accounts-page mapper normalizes with `?? null`) is the surviving U.33
 door, accepted.
@@ -7593,3 +7593,30 @@ both-echoes fall to earliest cutover; equal-cutover genuineness outranks
 the id tiebreak; quiet ancestor loses to a genuine mid-chain reading;
 CREDIT sibling wins and the series subtracts (−$5,000.00). Pre-U.12 the
 named fixture returned s1 / $4,000.00.
+
+## #470 — U.37: genuineness outranks U.9's tier order (2026-08-14)
+
+**Context.** U.12 ranked a genuine reading above a carried-forward repeat
+only inside the covering tier. The U.12 critic executed two leftovers of
+that scope: (1) the common one-pred/one-succ pair — a covering
+predecessor's monthly echo still beat the live successor's real reading
+because the terminal is always tier 1; (2) the closed-tier inverse — when
+the terminal has no row for a historical date, latest-cutover ranking
+kept a later-cutover echo over an earlier-cutover genuine reading.
+
+**Decision: genuineness outranks tier.** A repeat is not an observation,
+so it must not win on window tightness. Both genuine or both repeats
+fall through to the existing U.9 order (covering / terminal / closed /
+depth / id), so U.9 is unchanged when both sides read. A lone
+observation is still never dropped.
+
+**Not in scope.** Making `AccountView.feedDroppedAt` required (U.12
+accepted residual).
+
+**Locked.** `tests/unit/reconcile-boundary.test.ts` U.37 block: covering
+echo pred loses to genuine succ ($5,000.00); both-genuine covering pred
+still wins; closed genuine s1 beats later-cutover echo s2; both-closed
+genuine still latest-cutover; covering echo loses to closed genuine;
+terminal echo loses to closed genuine; equal-cutover genuine ancestor
+outranks echo mid; CREDIT common-pair −$5,000.00; lone covering echo
+kept. Pre-U.37 the common pair returned pred / $4,000.00.

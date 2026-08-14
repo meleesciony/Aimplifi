@@ -463,3 +463,4 @@ refuses to write if it would drop any number this file already carries.
 - **#467** (Phase ?): U.35: the snapshot emits the handover keys it already paid for (2026-08-14)
 - **#468** (Phase ?): U.36: composed Ask intents skip the unused composer boundary (2026-08-14)
 - **#469** (Phase ?): U.12: a genuine reading outranks a carried-forward repeat (2026-08-14)
+- **#470** (Phase ?): U.37: genuineness outranks U.9's tier order (2026-08-14)

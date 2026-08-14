@@ -2,6 +2,34 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-14 — U.37: genuineness outranks U.9's tier order (DECISIONS #470)
+
+**Picked up from the queue** (U.12 critic residual). U.12 only compared
+echoes inside the covering tier, so a covering predecessor's monthly
+echo still beat the live successor's real reading, and a later-cutover
+echo still beat an earlier-cutover genuine reading when the terminal
+had no row.
+
+**Shipped.** Genuineness compared first, then existing U.9 tiers.
+Both-genuine / both-echo fall through, so U.9 is unchanged when both
+sides read. Lone observation still never dropped.
+
+**Locked.** U.37 block: common pair succ / $5,000.00; both-genuine pred
+still wins; closed-tier inverse; covering-echo vs closed-genuine;
+terminal-echo vs closed-genuine; equal-cutover ancestor; CREDIT
+−$5,000.00; lone echo kept.
+
+**Critic (read-only, fresh context): PASS — 0 P0, 0 P1, 6 P2.** P2
+locks added in-slice. `#469` not-in-scope updated.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,026 passed
++ 1 expected fail + 1 skipped / 425 files + 1 skipped**, `next build`
+clean. Extra critic locks added after that run (targeted U.37: 9 passed).
+Playwright (fresh build): **351 passed, 2 flaky-passed-on-retry**
+(`budget-targets.spec.ts:61`, `transactions.spec.ts:1014` — documented
+K.10 class, untouched by this diff). Local wrapper exited 1 on a worker
+teardown hang after the suite, not a failing spec. No `prisma/` diff.
+
 ## 2026-08-14 — U.12: a genuine reading outranks a carried-forward repeat (DECISIONS #469)
 
 **Picked up from the queue** (U.9 critic residual; named next after U.36).

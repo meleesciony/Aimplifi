@@ -34,12 +34,13 @@
  *    THAN ONE row observed the same real account on the SAME date. Exactly one
  *    survives per (supersession COMPONENT, date) — the component, not the chain,
  *    because a link's "same real account" claim is transitive and two stale rows
- *    can share one live successor (U.9). The side whose ownership window most
- *    tightly contains the date wins: still-covering sides first, and within that
- *    tier a genuine reading outranks a carried-forward repeat (U.12 — U.4 writes
- *    a monthly row for a quiet feed, so cutover-only ranking let a dead feed's
- *    echo beat another record's real observation), then earliest cutover, then
- *    the live terminal row, then closed windows (latest cutover). An EQUAL
+ *    can share one live successor (U.9). A genuine reading outranks a
+ *    carried-forward repeat regardless of tier (U.12 covering-vs-covering;
+ *    U.37 covering-echo vs live successor, and closed-tier inverse — U.4
+ *    writes a monthly row for a quiet feed). Among equally-genuine rows the
+ *    side whose ownership window most tightly contains the date wins:
+ *    still-covering sides first (earliest cutover), then the live terminal
+ *    row, then closed windows (latest cutover). An EQUAL
  *    cutover is broken by chain DEPTH, never by account id — a chain's two links may
  *    legitimately share a cutover, and the mid-chain window is then empty, so ranking
  *    by id handed the date to a row that owns nothing and moved a real figure on cuid
@@ -761,11 +762,13 @@ export function applyReconciliationBoundary<
   //
   // The winner is chosen ONLY among accounts that actually have a row on that date,
   // so a lone observation is still never dropped and the trend never gains a
-  // fabricated dip. Among the rows that do exist, it is the side whose ownership
-  // window most tightly contains the date:
-  //   0. sides still covering it (cutover >= date). Within that tier a genuine
-  //      reading outranks a carried-forward repeat (U.12), then EARLIEST cutover
-  //      — the chain's own half-open rule (A owns [..cutAB], B owns (cutAB..cutBC]);
+  // fabricated dip. Among the rows that do exist, a genuine reading outranks a
+  // carried-forward repeat first (U.12 / U.37) — a quiet feed's monthly echo is
+  // not an observation, so it must not beat a real reading just because its
+  // ownership window is tighter or its cutover is later. Among equally-genuine
+  // rows the side whose ownership window most tightly contains the date wins:
+  //   0. sides still covering it (cutover >= date), EARLIEST cutover first —
+  //      the chain's own half-open rule (A owns [..cutAB], B owns (cutAB..cutBC]);
   //   1. then the live terminal row, which owns every date past every cutover;
   //   2. then sides whose window already closed, LATEST cutover first — a dead feed
   //      that kept reporting is the last resort, never a second copy.
@@ -791,19 +794,20 @@ export function applyReconciliationBoundary<
     return compareDates(date, cut) <= 0 ? 0 : 2;
   };
   const outranksForDate = (a: string, b: string, date: ISODate): boolean => {
+    // U.37: genuineness outranks tier. U.12 only compared echoes inside the
+    // covering tier, so a covering predecessor's monthly echo still beat the
+    // live successor's real reading (terminal is always tier 1), and a later-
+    // cutover echo still beat an earlier-cutover reading once both windows
+    // had closed. A repeat is not an observation — it must not win on window
+    // tightness. Both genuine or both repeats fall through, so U.9 is
+    // unchanged when both sides read.
+    const genuineA = !isCarriedForwardSnapshot(date, droppedAtOf.get(a) ?? null);
+    const genuineB = !isCarriedForwardSnapshot(date, droppedAtOf.get(b) ?? null);
+    if (genuineA !== genuineB) return genuineA;
     const tierA = snapshotTier(a, date);
     const tierB = snapshotTier(b, date);
     if (tierA !== tierB) return tierA < tierB;
     if (tierA === 1) return a < b; // one terminal per component — defensive only
-    // U.12: within the covering tier only, a real reading beats a quiet feed's
-    // monthly echo. Closed-window ranking stays cutover-only — those rows are
-    // already the last resort. Both genuine or both repeats fall through to
-    // cutover, so U.9's earliest-window rule is unchanged when both sides read.
-    if (tierA === 0) {
-      const genuineA = !isCarriedForwardSnapshot(date, droppedAtOf.get(a) ?? null);
-      const genuineB = !isCarriedForwardSnapshot(date, droppedAtOf.get(b) ?? null);
-      if (genuineA !== genuineB) return genuineA;
-    }
     const cmp = compareDates(cutover.get(a) as ISODate, cutover.get(b) as ISODate);
     if (cmp !== 0) return tierA === 0 ? cmp < 0 : cmp > 0; // covering: earliest; closed: latest
     const depthA = depthOf.get(a) ?? 0;

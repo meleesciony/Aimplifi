@@ -1332,3 +1332,322 @@ describe('U.12 — a genuine reading outranks a carried-forward repeat', () => {
     expect(series.find((p) => p.date === '2026-01-31')!.netWorthCents).toBe(-500_000);
   });
 });
+
+/**
+ * U.37 — genuineness outranks U.9's tier order. U.12 only compared echoes
+ * inside the covering tier, so two reachable shapes still preferred a repeat:
+ *   (1) the common one-pred/one-succ pair: covering echo beats the live
+ *       successor's real reading (terminal is always tier 1);
+ *   (2) closed-tier inverse: latest-cutover echo beats an earlier-cutover
+ *       genuine reading when the terminal has no row for that historical date.
+ *
+ * Fail-old: (1) returns pred / $4,000.00; (2) returns s2 / $4,000.00.
+ */
+describe('U.37 — a genuine reading outranks an echo across tiers', () => {
+  it('U.37: a covering predecessor’s echo loses to the live successor’s real reading', () => {
+    const pred = {
+      id: 'pred',
+      name: 'Savings (quiet)',
+      type: 'SAVINGS',
+      currentBalanceCents: 400_000,
+      feedDroppedAt: '2026-01-15',
+    };
+    const succ = {
+      id: 'succ',
+      name: 'Savings',
+      type: 'SAVINGS',
+      currentBalanceCents: 500_000,
+      feedDroppedAt: null,
+    };
+    const snapshots = [
+      { accountId: 'pred', date: '2026-01-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+      { accountId: 'succ', date: '2026-01-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+    ];
+    const apply = (rows: typeof snapshots) =>
+      applyReconciliationBoundary({
+        paymentAccountId: null,
+        accounts: [pred, succ],
+        transactions: [],
+        balanceSnapshots: rows,
+        statements: [],
+        scheduled: [],
+        links: [{ predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-02-28' }],
+      });
+    const out = apply(snapshots);
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('succ');
+    expect(out.balanceSnapshots[0]!.balanceCents).toBe(500_000);
+    expect(apply([...snapshots].reverse()).balanceSnapshots[0]!.accountId).toBe('succ');
+
+    const series = netWorthSeries({
+      snapshots: out.balanceSnapshots.map((b) => ({
+        accountId: b.accountId,
+        date: b.date,
+        balanceCents: b.balanceCents,
+        accountType: 'SAVINGS' as string | null,
+      })),
+      accounts: out.accounts.map((a) => ({ ...a, name: a.id })),
+      today: '2026-07-31',
+    });
+    expect(series.find((p) => p.date === '2026-01-31')!.netWorthCents).toBe(500_000);
+  });
+
+  it('U.37 control: both genuine — the covering predecessor still beats the live successor (U.9 unchanged)', () => {
+    const pred = {
+      id: 'pred',
+      type: 'SAVINGS',
+      currentBalanceCents: 400_000,
+      feedDroppedAt: null,
+    };
+    const succ = {
+      id: 'succ',
+      type: 'SAVINGS',
+      currentBalanceCents: 500_000,
+      feedDroppedAt: null,
+    };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [pred, succ],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 'pred', date: '2026-01-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+        { accountId: 'succ', date: '2026-01-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [{ predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-02-28' }],
+    });
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('pred');
+    expect(out.balanceSnapshots[0]!.balanceCents).toBe(400_000);
+  });
+
+  it('U.37: a later-cutover echo loses to an earlier-cutover genuine reading when the terminal has no row', () => {
+    // 2026-07-31 is past both cutovers. LIVE has no snapshot (backdated combine
+    // onto a successor that did not exist that month). Pre-fix: latest cutover
+    // → s2's echo. After: s1's real reading.
+    const s1 = {
+      id: 's1',
+      type: 'SAVINGS',
+      currentBalanceCents: 500_000,
+      feedDroppedAt: null,
+    };
+    const s2 = {
+      id: 's2',
+      type: 'SAVINGS',
+      currentBalanceCents: 400_000,
+      feedDroppedAt: '2026-01-15',
+    };
+    const live = {
+      id: 'live',
+      type: 'SAVINGS',
+      currentBalanceCents: 600_000,
+      feedDroppedAt: null,
+    };
+    const snapshots = [
+      { accountId: 's1', date: '2026-07-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+      { accountId: 's2', date: '2026-07-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+    ];
+    const apply = (rows: typeof snapshots) =>
+      applyReconciliationBoundary({
+        paymentAccountId: null,
+        accounts: [s1, s2, live],
+        transactions: [],
+        balanceSnapshots: rows,
+        statements: [],
+        scheduled: [],
+        links: [
+          { predecessorAccountId: 's1', successorAccountId: 'live', cutoverDate: '2026-02-28' },
+          { predecessorAccountId: 's2', successorAccountId: 'live', cutoverDate: '2026-06-30' },
+        ],
+      });
+    const out = apply(snapshots);
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s1');
+    expect(out.balanceSnapshots[0]!.balanceCents).toBe(500_000);
+    expect(apply([...snapshots].reverse()).balanceSnapshots[0]!.accountId).toBe('s1');
+  });
+
+  it('U.37 control: both closed and genuine — latest cutover still wins (U.9 unchanged)', () => {
+    const s1 = { id: 's1', type: 'SAVINGS', currentBalanceCents: 500_000, feedDroppedAt: null };
+    const s2 = { id: 's2', type: 'SAVINGS', currentBalanceCents: 400_000, feedDroppedAt: null };
+    const live = { id: 'live', type: 'SAVINGS', currentBalanceCents: 600_000, feedDroppedAt: null };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [s1, s2, live],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 's1', date: '2026-07-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+        { accountId: 's2', date: '2026-07-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [
+        { predecessorAccountId: 's1', successorAccountId: 'live', cutoverDate: '2026-02-28' },
+        { predecessorAccountId: 's2', successorAccountId: 'live', cutoverDate: '2026-06-30' },
+      ],
+    });
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s2');
+    expect(out.balanceSnapshots[0]!.balanceCents).toBe(400_000);
+  });
+
+  it('U.37: a covering echo loses to a closed-window genuine reading (no terminal row)', () => {
+    const s1 = {
+      id: 's1',
+      type: 'SAVINGS',
+      currentBalanceCents: 400_000,
+      feedDroppedAt: '2026-01-15',
+    };
+    const s2 = {
+      id: 's2',
+      type: 'SAVINGS',
+      currentBalanceCents: 450_000,
+      feedDroppedAt: null,
+    };
+    const live = { id: 'live', type: 'SAVINGS', currentBalanceCents: 600_000, feedDroppedAt: null };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [s1, s2, live],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 's1', date: '2026-03-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+        { accountId: 's2', date: '2026-03-31', balanceCents: 450_000, accountType: 'SAVINGS' },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [
+        { predecessorAccountId: 's1', successorAccountId: 'live', cutoverDate: '2026-06-30' },
+        { predecessorAccountId: 's2', successorAccountId: 'live', cutoverDate: '2026-02-28' },
+      ],
+    });
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s2');
+    expect(out.balanceSnapshots[0]!.balanceCents).toBe(450_000);
+  });
+
+  it('U.37: a terminal echo loses to a closed-window genuine reading', () => {
+    const s1 = {
+      id: 's1',
+      type: 'SAVINGS',
+      currentBalanceCents: 500_000,
+      feedDroppedAt: null,
+    };
+    const live = {
+      id: 'live',
+      type: 'SAVINGS',
+      currentBalanceCents: 400_000,
+      feedDroppedAt: '2026-01-15',
+    };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [s1, live],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 's1', date: '2026-07-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+        { accountId: 'live', date: '2026-07-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [{ predecessorAccountId: 's1', successorAccountId: 'live', cutoverDate: '2026-02-28' }],
+    });
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s1');
+    expect(out.balanceSnapshots[0]!.balanceCents).toBe(500_000);
+  });
+
+  it('U.37: after an equal-cutover, a genuine ancestor outranks an echo mid-chain (U.9 depth would have picked the mid)', () => {
+    const up = { id: 'a-up', type: 'CHECKING', currentBalanceCents: 500_000, feedDroppedAt: null };
+    const mid = {
+      id: 'm-mid',
+      type: 'CHECKING',
+      currentBalanceCents: 400_000,
+      feedDroppedAt: '2026-01-15',
+    };
+    const term = { id: 'm-live', type: 'CHECKING', currentBalanceCents: 600_000, feedDroppedAt: null };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [up, mid, term],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 'a-up', date: '2026-08-31', balanceCents: 500_000, accountType: 'CHECKING' },
+        { accountId: 'm-mid', date: '2026-08-31', balanceCents: 400_000, accountType: 'CHECKING' },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [
+        { predecessorAccountId: 'a-up', successorAccountId: 'm-mid', cutoverDate: '2026-06-30' },
+        { predecessorAccountId: 'm-mid', successorAccountId: 'm-live', cutoverDate: '2026-06-30' },
+      ],
+    });
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('a-up');
+    expect(out.balanceSnapshots[0]!.balanceCents).toBe(500_000);
+  });
+
+  it('U.37: a genuine CREDIT predecessor’s echo loses and the series subtracts — −$5,000.00', () => {
+    const pred = {
+      id: 'pred',
+      type: 'CREDIT',
+      currentBalanceCents: 400_000,
+      feedDroppedAt: '2026-01-15',
+    };
+    const succ = {
+      id: 'succ',
+      type: 'CREDIT',
+      currentBalanceCents: 500_000,
+      feedDroppedAt: null,
+    };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [pred, succ],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 'pred', date: '2026-01-31', balanceCents: 400_000, accountType: 'CREDIT' },
+        { accountId: 'succ', date: '2026-01-31', balanceCents: 500_000, accountType: 'CREDIT' },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [{ predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-02-28' }],
+    });
+    expect(out.balanceSnapshots[0]!.accountId).toBe('succ');
+    const series = netWorthSeries({
+      snapshots: out.balanceSnapshots.map((b) => ({
+        accountId: b.accountId,
+        date: b.date,
+        balanceCents: b.balanceCents,
+        accountType: 'CREDIT' as string | null,
+      })),
+      accounts: out.accounts.map((a) => ({ ...a, name: a.id })),
+      today: '2026-07-31',
+    });
+    expect(series.find((p) => p.date === '2026-01-31')!.netWorthCents).toBe(-500_000);
+  });
+
+  it('U.37 control: a lone covering echo is still never dropped', () => {
+    const pred = {
+      id: 'pred',
+      type: 'SAVINGS',
+      currentBalanceCents: 400_000,
+      feedDroppedAt: '2026-01-15',
+    };
+    const succ = {
+      id: 'succ',
+      type: 'SAVINGS',
+      currentBalanceCents: 500_000,
+      feedDroppedAt: null,
+    };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [pred, succ],
+      transactions: [],
+      balanceSnapshots: [{ accountId: 'pred', date: '2026-01-31', balanceCents: 400_000, accountType: 'SAVINGS' }],
+      statements: [],
+      scheduled: [],
+      links: [{ predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-02-28' }],
+    });
+    expect(out.balanceSnapshots).toEqual([
+      { accountId: 'pred', date: '2026-01-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+    ]);
+  });
+});
