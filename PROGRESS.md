@@ -27,6 +27,11 @@ headline companion; empty-args future hazard; unused composer snapshot.
 + 1 expected fail + 1 skipped / 425 files + 1 skipped**, `next build`
 clean. Playwright (fresh build): **353 passed**. No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `58b0cf8`. CI run 31827303937 `success`
+on first attempt. Vercel: `success`, "Deployment has completed", same sha.
+Production `/`, `/ask`, `/spending-plan`, `/coach` all 307. No demo-visible
+marker (K.4 shape, unchanged fact).
+
 ## 2026-08-14 — U.35: the snapshot emits the handover keys it already paid for (DECISIONS #467)
 
 **Picked up from the queue** (U.34 critic residual). `/reports`, `/trends`, and
