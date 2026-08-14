@@ -6531,7 +6531,7 @@ The ONE real production user shows a completely different shape. The current mon
 
 7. **Copy: a disclosure inherits the scope of the rule it explains, and the sweep must leave the file you already opened.** The panel note was four wrong claims in one sentence (a pair that "both recorded"; a singular "another one" and "The combination" where a live account may continue several; a dangling "one of them" whose nearest antecedent was the *uncounted* balances; and an unqualified "the same ACCOUNT is not counted twice" that certifies spending, which U.11 measures as still double). The first repair then overshot into a modal — "more than one row CAN describe" — answering a question about an event with a statement of possibility. Beyond that file: the trend drilldown still said "a pair you have combined" on the surface that shows the money, the combine card promised "a date is never counted twice", and the assistant's fold note read "X and Y **was** combined". One causal correction to the record: the "both sides" clause was ALREADY false for chains when U.5 shipped — U.9 widened the rule and added the sibling shape but did not create that defect, and the first draft of the ledger row wrongly said it did.
 
-**Residuals, split out rather than papered over:** **U.11** (transactions, above) and **U.12** — the winner is ranked by cutover alone, so a quiet feed's carried-forward REPEAT can outrank another record's genuine reading for the same date; `feedDroppedAt` already travels one layer up and the ranking ignores it.
+**Residuals, split out rather than papered over:** **U.11** (transactions, above) and **U.12** — the winner is ranked by cutover alone, so a quiet feed's carried-forward REPEAT can outrank another record's genuine reading for the same date; `feedDroppedAt` already travels one layer up and the ranking ignores it. **Closed as #469 / U.12** (covering-tier genuineness). Leftovers of that scope filed as **U.37**.
 
 **Verification:** `bash scripts/verify.sh` green; the 210,120-case invariant probe (discriminating — 43,648 violations pre-fix); a sabotage proof reverting only the engine, reddening all three real-Prisma sibling locks; `tests/unit/account-detail-reconciled.test.ts` › SIBLINGS asserting the trend's own constituents through real Prisma; and `scripts/u9-live-deploy-check.mjs`, which declares outright that it CANNOT discriminate this deployment (the demo seed writes no reconciliation rows, so no combined pair can render) and asserts only the R8 golden path that must not move. No `prisma/` diff — read-path only.
 
@@ -7551,3 +7551,45 @@ extra fetch remains a provider-shaped change.
 `savings_goal_by_date` 3. Pre-U.36 those were 4 / 3 / 5 / 5 / 4. U.34's
 `spend_total` lock stays at 2. Each test asserts `kind` so a mis-route cannot
 satisfy another kind's count.
+
+## #469 — U.12: a genuine reading outranks a carried-forward repeat (2026-08-14)
+
+**Context.** U.9 ranks same-date snapshot collisions by ownership window:
+covering (earliest cutover), then the live terminal, then closed (latest
+cutover), then depth, then id. U.4 writes a monthly `BalanceSnapshot` for
+every account, including a quiet feed whose later rows repeat the last
+balance the bank actually sent. `feedDroppedAt` already travelled with the
+account one layer up; the ranker ignored it. So two stale records of one
+account could let a dead feed's echo beat another record's real reading
+for the same date (s1 dropped 2026-01-15 / cutover 2026-02-28 vs s2 live
+through June / cutover 2026-06-30, collision on 2026-01-31).
+
+**Decision: within the covering tier, a genuine reading outranks a
+carried-forward repeat. Then the existing cutover / depth / id order.**
+Genuine means `feedDroppedAt == null || date <= feedDroppedAt` — the same
+predicate the account-detail panel already used (`date > dropped`, not
+`>=`; the drop date itself is a reading). Shared as
+`isCarriedForwardSnapshot` so the marker and the ranker cannot drift.
+
+`feedDroppedAt` is REQUIRED on `BoundaryAccountWithFeed`, which is the
+snapshot-collision input. `effectiveReconciliationLinks` stays on
+`BoundaryAccountLike` — it does not rank snapshots and must not be forced
+to fetch a field it cannot use. A lone observation is still never dropped
+(U.9: never a fabricated dip). Both genuine or both repeats fall through
+to earliest cutover, so U.9 is unchanged when both sides read.
+
+**Not in scope.** Genuineness does not invert U.9's *tier* order: a
+covering predecessor still beats the live terminal even when the
+predecessor's row is an echo (the common one-pred/one-succ pair). It also
+does not apply inside the closed tier. Both leftovers filed as **U.37**.
+Making `AccountView.feedDroppedAt` required (it stays optional; the
+accounts-page mapper normalizes with `?? null`) is the surviving U.33
+door, accepted.
+
+**Locked.** `tests/unit/reconcile-boundary.test.ts` U.12 block: named
+defect s2 / $5,000.00 (order-independent, `netWorthCents === 500_000`);
+both-genuine still s1; drop-date is a reading; lone echo kept;
+both-echoes fall to earliest cutover; equal-cutover genuineness outranks
+the id tiebreak; quiet ancestor loses to a genuine mid-chain reading;
+CREDIT sibling wins and the series subtracts (−$5,000.00). Pre-U.12 the
+named fixture returned s1 / $4,000.00.

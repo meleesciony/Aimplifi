@@ -18,15 +18,16 @@ import {
   applyReconciliationBoundary,
   collapseHandoverDuplicates,
   effectiveReconciliationLinks,
+  isCarriedForwardSnapshot,
   type ReconciliationLinkLike,
 } from '@/lib/engine/account/reconcile-boundary';
 import { netWorthSeries } from '@/lib/engine/networth/series';
 
 // ─── the EDGE_CASES fixture ─────────────────────────────────────────────────
 
-const PRED = { id: 'pred', name: 'Pred', type: 'CHECKING', currentBalanceCents: 240_000, availableBalanceCents: 239_000 };
-const SUCC = { id: 'succ', name: 'Succ', type: 'CHECKING', currentBalanceCents: 250_000, availableBalanceCents: 251_000 };
-const OTHER = { id: 'other', name: 'Other', type: 'SAVINGS', currentBalanceCents: 100_000, availableBalanceCents: null };
+const PRED = { id: 'pred', name: 'Pred', type: 'CHECKING', currentBalanceCents: 240_000, availableBalanceCents: 239_000, feedDroppedAt: null };
+const SUCC = { id: 'succ', name: 'Succ', type: 'CHECKING', currentBalanceCents: 250_000, availableBalanceCents: 251_000, feedDroppedAt: null };
+const OTHER = { id: 'other', name: 'Other', type: 'SAVINGS', currentBalanceCents: 100_000, availableBalanceCents: null, feedDroppedAt: null };
 const ACCOUNTS = [PRED, SUCC, OTHER];
 
 const LINK: ReconciliationLinkLike = {
@@ -170,9 +171,9 @@ describe('applyReconciliationBoundary — the money core', () => {
   });
 
   it('chain A→B→C: B owns exactly the window (cutAB, cutBC]; payment designation follows to the terminal', () => {
-    const A = { id: 'a', type: 'CHECKING', currentBalanceCents: 10_000 };
-    const B = { id: 'b', type: 'CHECKING', currentBalanceCents: 20_000 };
-    const C = { id: 'c', type: 'CHECKING', currentBalanceCents: 30_000 };
+    const A = { id: 'a', type: 'CHECKING', currentBalanceCents: 10_000, feedDroppedAt: null };
+    const B = { id: 'b', type: 'CHECKING', currentBalanceCents: 20_000, feedDroppedAt: null };
+    const C = { id: 'c', type: 'CHECKING', currentBalanceCents: 30_000, feedDroppedAt: null };
     const out = applyReconciliationBoundary({
       paymentAccountId: 'a',
       accounts: [A, B, C],
@@ -211,9 +212,9 @@ describe('applyReconciliationBoundary — the money core', () => {
   });
 
   it('two predecessors → one successor: each predecessor claims only its own covered span', () => {
-    const P1 = { id: 'p1', type: 'CHECKING', currentBalanceCents: 1_000 };
-    const P2 = { id: 'p2', type: 'CHECKING', currentBalanceCents: 2_000 };
-    const S = { id: 's', type: 'CHECKING', currentBalanceCents: 3_000 };
+    const P1 = { id: 'p1', type: 'CHECKING', currentBalanceCents: 1_000, feedDroppedAt: null };
+    const P2 = { id: 'p2', type: 'CHECKING', currentBalanceCents: 2_000, feedDroppedAt: null };
+    const S = { id: 's', type: 'CHECKING', currentBalanceCents: 3_000, feedDroppedAt: null };
     const out = applyReconciliationBoundary({
       paymentAccountId: null,
       accounts: [P1, P2, S],
@@ -566,9 +567,9 @@ describe('applyReconciliationBoundary — the money core', () => {
   });
 
   it('F6 chain A→B→C: a predecessor’s scheduled rows follow to the TERMINAL successor', () => {
-    const A = { id: 'a', type: 'CHECKING', currentBalanceCents: 10_000 };
-    const B = { id: 'b', type: 'CHECKING', currentBalanceCents: 20_000 };
-    const C = { id: 'c', type: 'CHECKING', currentBalanceCents: 30_000 };
+    const A = { id: 'a', type: 'CHECKING', currentBalanceCents: 10_000, feedDroppedAt: null };
+    const B = { id: 'b', type: 'CHECKING', currentBalanceCents: 20_000, feedDroppedAt: null };
+    const C = { id: 'c', type: 'CHECKING', currentBalanceCents: 30_000, feedDroppedAt: null };
     const out = applyReconciliationBoundary({
       paymentAccountId: null,
       accounts: [A, B, C],
@@ -645,8 +646,8 @@ describe('applyReconciliationBoundary — inertness (a bad link must change NOTH
   });
 
   it('a cycle does not poison an unrelated valid link', () => {
-    const X = { id: 'x', type: 'CREDIT', currentBalanceCents: 40_000 };
-    const Y = { id: 'y', type: 'CREDIT', currentBalanceCents: 41_000 };
+    const X = { id: 'x', type: 'CREDIT', currentBalanceCents: 40_000, feedDroppedAt: null };
+    const Y = { id: 'y', type: 'CREDIT', currentBalanceCents: 41_000, feedDroppedAt: null };
     const out = applyReconciliationBoundary({
       paymentAccountId: null,
       accounts: [...ACCOUNTS, X, Y],
@@ -692,9 +693,9 @@ describe('effectiveReconciliationLinks — the shared effectiveness rule', () =>
 describe('slice-6 chain composition (critics A-F1/A-F4/A-F6/A-F8, B-F4)', () => {
   // Chain fixture: A (SimpleFIN, dead) → B (reconnect, dead) → C (Plaid, live).
   // Monotone cutovers: cutAB 2026-03-31 <= cutBC 2026-06-30.
-  const A = { id: 'a', type: 'CHECKING', currentBalanceCents: 100_000 };
-  const B = { id: 'b', type: 'CHECKING', currentBalanceCents: 110_000 };
-  const C = { id: 'c', type: 'CHECKING', currentBalanceCents: 120_000 };
+  const A = { id: 'a', type: 'CHECKING', currentBalanceCents: 100_000, feedDroppedAt: null };
+  const B = { id: 'b', type: 'CHECKING', currentBalanceCents: 110_000, feedDroppedAt: null };
+  const C = { id: 'c', type: 'CHECKING', currentBalanceCents: 120_000, feedDroppedAt: null };
   const CHAIN: ReconciliationLinkLike[] = [
     { predecessorAccountId: 'a', successorAccountId: 'b', cutoverDate: '2026-03-31' },
     { predecessorAccountId: 'b', successorAccountId: 'c', cutoverDate: '2026-06-30' },
@@ -791,9 +792,9 @@ describe('slice-6 chain composition (critics A-F1/A-F4/A-F6/A-F8, B-F4)', () => 
   });
 
   it('A-F6 siblings: two predecessors of ONE successor re-keying the same cycle keep one copy, order-independent', () => {
-    const S1 = { id: 'p1', type: 'CREDIT', currentBalanceCents: -50_000 };
-    const S2 = { id: 'p2', type: 'CREDIT', currentBalanceCents: -50_000 };
-    const LIVE = { id: 'live', type: 'CREDIT', currentBalanceCents: -50_000 };
+    const S1 = { id: 'p1', type: 'CREDIT', currentBalanceCents: -50_000, feedDroppedAt: null };
+    const S2 = { id: 'p2', type: 'CREDIT', currentBalanceCents: -50_000, feedDroppedAt: null };
+    const LIVE = { id: 'live', type: 'CREDIT', currentBalanceCents: -50_000, feedDroppedAt: null };
     const links: ReconciliationLinkLike[] = [
       { predecessorAccountId: 'p1', successorAccountId: 'live', cutoverDate: '2026-06-30' },
       { predecessorAccountId: 'p2', successorAccountId: 'live', cutoverDate: '2026-06-15' },
@@ -868,9 +869,9 @@ describe('slice-6 chain composition (critics A-F1/A-F4/A-F6/A-F8, B-F4)', () => 
 describe('U.9 sibling predecessors — one real account connected twice', () => {
   // The reproduction filed in STATUS.md §U.5: a single real $5,000.00 savings
   // account, connected through two dead feeds onto one live row.
-  const S1 = { id: 's1', name: 'Savings (SimpleFIN)', type: 'SAVINGS', currentBalanceCents: 500_000 };
-  const S2 = { id: 's2', name: 'Savings (Plaid old)', type: 'SAVINGS', currentBalanceCents: 500_000 };
-  const LIVE = { id: 'live', name: 'Savings', type: 'SAVINGS', currentBalanceCents: 500_000 };
+  const S1 = { id: 's1', name: 'Savings (SimpleFIN)', type: 'SAVINGS', currentBalanceCents: 500_000, feedDroppedAt: null };
+  const S2 = { id: 's2', name: 'Savings (Plaid old)', type: 'SAVINGS', currentBalanceCents: 500_000, feedDroppedAt: null };
+  const LIVE = { id: 'live', name: 'Savings', type: 'SAVINGS', currentBalanceCents: 500_000, feedDroppedAt: null };
   // Deliberately DIFFERENT cutovers: the two feeds died on different days, and the
   // rule has to pick a winner per date rather than per pair.
   const CUT_S1 = '2026-04-30';
@@ -905,8 +906,9 @@ describe('U.9 sibling predecessors — one real account connected twice', () => 
       ],
     });
     expect(out.balanceSnapshots).toHaveLength(1);
-    // The EARLIEST cutover that still covers the date is the authoritative side —
-    // the same "tightest window containing the date" rule the chain already used
+    // Both sides are genuine (feedDroppedAt null). The EARLIEST cutover that
+    // still covers the date is the authoritative side — U.12's genuineness
+    // step is a no-op here, so this is still the chain's tightest-window rule
     // (A owns [..cutAB], B owns (cutAB..cutBC], C owns the rest).
     expect(out.balanceSnapshots[0]!.accountId).toBe('s1');
 
@@ -986,7 +988,7 @@ describe('U.9 sibling predecessors — one real account connected twice', () => 
     const CUT = '2026-06-30';
     const DATE = '2026-03-31';
     for (const upId of ['a-up', 'z-up']) {
-      const accounts = [upId, 'm-mid', 'm-live'].map((id) => ({ id, type: 'CHECKING', currentBalanceCents: 0 }));
+      const accounts = [upId, 'm-mid', 'm-live'].map((id) => ({ id, type: 'CHECKING', currentBalanceCents: 0, feedDroppedAt: null }));
       const out = applyReconciliationBoundary({
         paymentAccountId: null,
         accounts,
@@ -1013,7 +1015,7 @@ describe('U.9 sibling predecessors — one real account connected twice', () => 
     // after it the newer one does. Depth breaks the tie in the opposite direction.
     const CUT = '2026-06-30';
     const DATE = '2026-08-31'; // past both
-    const accounts = ['a-up', 'm-mid', 'm-live'].map((id) => ({ id, type: 'CHECKING', currentBalanceCents: 0 }));
+    const accounts = ['a-up', 'm-mid', 'm-live'].map((id) => ({ id, type: 'CHECKING', currentBalanceCents: 0, feedDroppedAt: null }));
     const out = applyReconciliationBoundary({
       paymentAccountId: null,
       accounts,
@@ -1037,9 +1039,9 @@ describe('U.9 sibling predecessors — one real account connected twice', () => 
     // anyway, because the component key's soundness depends on out-degree <= 1: without
     // the guard `chainMaps` keeps only the LAST edge, the other successor keys its own
     // component, and both survive — the U.9 defect through a different door.
-    const p = { id: 'p', type: 'CHECKING', currentBalanceCents: 0 };
-    const x = { id: 'x', type: 'CHECKING', currentBalanceCents: 0 };
-    const y = { id: 'y', type: 'CHECKING', currentBalanceCents: 0 };
+    const p = { id: 'p', type: 'CHECKING', currentBalanceCents: 0, feedDroppedAt: null };
+    const x = { id: 'x', type: 'CHECKING', currentBalanceCents: 0, feedDroppedAt: null };
+    const y = { id: 'y', type: 'CHECKING', currentBalanceCents: 0, feedDroppedAt: null };
     const forked: ReconciliationLinkLike[] = [
       { predecessorAccountId: 'p', successorAccountId: 'x', cutoverDate: '2026-06-30' },
       { predecessorAccountId: 'p', successorAccountId: 'y', cutoverDate: '2026-06-30' },
@@ -1124,5 +1126,209 @@ describe('U.9 sibling predecessors — one real account connected twice', () => 
       ],
     });
     expect(out.transactions.reduce((s, t) => s + t.amountCents, 0)).toBe(-12_000);
+  });
+});
+
+/**
+ * U.12 — a quiet feed's monthly echo must not outrank another record's real
+ * reading for the same date. U.4 writes a BalanceSnapshot for every account
+ * every month, including one whose feed went quiet; those later rows repeat
+ * the last balance the bank actually sent. The U.9 ranker picked by cutover
+ * alone, so the earliest still-covering window won even when that window's
+ * row was a carried-forward repeat.
+ *
+ * Fail-old: on this fixture the pre-U.12 ranker returns s1 (earliest cutover)
+ * and the trend reads $4,000.00. After: s2, $5,000.00.
+ */
+describe('U.12 — a genuine reading outranks a carried-forward repeat', () => {
+  const S1 = {
+    id: 's1',
+    name: 'Savings (quiet)',
+    type: 'SAVINGS',
+    currentBalanceCents: 400_000,
+    feedDroppedAt: '2026-01-15',
+  };
+  const S2 = {
+    id: 's2',
+    name: 'Savings (live reading)',
+    type: 'SAVINGS',
+    currentBalanceCents: 500_000,
+    feedDroppedAt: null,
+  };
+  const LIVE = {
+    id: 'live',
+    name: 'Savings',
+    type: 'SAVINGS',
+    currentBalanceCents: 500_000,
+    feedDroppedAt: null,
+  };
+  const LINKS: ReconciliationLinkLike[] = [
+    { predecessorAccountId: 's1', successorAccountId: 'live', cutoverDate: '2026-02-28' },
+    { predecessorAccountId: 's2', successorAccountId: 'live', cutoverDate: '2026-06-30' },
+  ];
+  const u12Apply = (
+    accounts: { id: string; type: string; currentBalanceCents: number; feedDroppedAt: string | null; name: string }[],
+    snapshots: { accountId: string; date: string; balanceCents: number; accountType?: string }[],
+  ) =>
+    applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts,
+      transactions: [],
+      balanceSnapshots: snapshots,
+      statements: [],
+      scheduled: [],
+      links: LINKS,
+    });
+
+  it('isCarriedForwardSnapshot: the drop date itself is a reading, the next day is not', () => {
+    expect(isCarriedForwardSnapshot('2026-01-15', '2026-01-15')).toBe(false);
+    expect(isCarriedForwardSnapshot('2026-01-16', '2026-01-15')).toBe(true);
+    expect(isCarriedForwardSnapshot('2026-01-16', null)).toBe(false);
+  });
+
+  it('U.12: on a date both windows cover, the genuine reading wins — $5,000.00, not the quiet feed’s $4,000.00 echo', () => {
+    // 2026-01-31 is after s1 dropped (2026-01-15) and still inside both cutovers
+    // (s1 2026-02-28, s2 2026-06-30). Pre-fix: earliest cutover → s1's repeat.
+    const snapshots = [
+      { accountId: 's1', date: '2026-01-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+      { accountId: 's2', date: '2026-01-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+    ];
+    const out = u12Apply([S1, S2, LIVE], snapshots);
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s2');
+    expect(out.balanceSnapshots[0]!.balanceCents).toBe(500_000);
+
+    const reversed = u12Apply([S1, S2, LIVE], [...snapshots].reverse());
+    expect(reversed.balanceSnapshots[0]!.accountId).toBe('s2');
+
+    const series = netWorthSeries({
+      snapshots: out.balanceSnapshots.map((b) => ({
+        accountId: b.accountId,
+        date: b.date,
+        balanceCents: b.balanceCents,
+        accountType: 'SAVINGS' as string | null,
+      })),
+      accounts: out.accounts.map((a) => ({ ...a, name: [S1, S2, LIVE].find((x) => x.id === a.id)!.name })),
+      today: '2026-07-31',
+    });
+    const point = series.find((p) => p.date === '2026-01-31')!;
+    expect(point.netWorthCents).toBe(500_000);
+    expect(point.constituents).toHaveLength(1);
+  });
+
+  it('U.12 control: both genuine — earliest covering cutover still wins (U.9 unchanged)', () => {
+    const bothLive = [
+      { ...S1, feedDroppedAt: null },
+      S2,
+      LIVE,
+    ];
+    const out = u12Apply(bothLive, [
+      { accountId: 's1', date: '2026-01-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+      { accountId: 's2', date: '2026-01-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+    ]);
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s1');
+    expect(out.balanceSnapshots[0]!.balanceCents).toBe(400_000);
+  });
+
+  it('U.12 control: on the drop date itself s1 is still a reading, so earliest cutover wins', () => {
+    const out = u12Apply([S1, S2, LIVE], [
+      { accountId: 's1', date: '2026-01-15', balanceCents: 400_000, accountType: 'SAVINGS' },
+      { accountId: 's2', date: '2026-01-15', balanceCents: 500_000, accountType: 'SAVINGS' },
+    ]);
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s1');
+  });
+
+  it('U.12 control: a lone carried-forward observation is never dropped', () => {
+    const out = u12Apply([S1, S2, LIVE], [
+      { accountId: 's1', date: '2026-01-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+    ]);
+    expect(out.balanceSnapshots).toEqual([
+      { accountId: 's1', date: '2026-01-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+    ]);
+  });
+
+  it('U.12 control: both carried-forward — earliest covering cutover still wins', () => {
+    const bothQuiet = [
+      S1,
+      { ...S2, feedDroppedAt: '2026-01-10' },
+      LIVE,
+    ];
+    const out = u12Apply(bothQuiet, [
+      { accountId: 's1', date: '2026-01-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+      { accountId: 's2', date: '2026-01-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+    ]);
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s1');
+  });
+
+  it('U.12: equal cutovers — genuineness outranks the id tiebreak', () => {
+    // Same cutover, one quiet. Without genuineness this falls to account id and
+    // s1 wins; with it the live reading must win regardless of id order.
+    const equal: ReconciliationLinkLike[] = [
+      { predecessorAccountId: 's1', successorAccountId: 'live', cutoverDate: '2026-02-28' },
+      { predecessorAccountId: 's2', successorAccountId: 'live', cutoverDate: '2026-02-28' },
+    ];
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [S1, S2, LIVE],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 's1', date: '2026-01-31', balanceCents: 400_000, accountType: 'SAVINGS' },
+        { accountId: 's2', date: '2026-01-31', balanceCents: 500_000, accountType: 'SAVINGS' },
+      ],
+      statements: [],
+      scheduled: [],
+      links: equal,
+    });
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s2');
+  });
+
+  it('U.12: a quiet ancestor in a covering chain loses to the genuine mid-chain reading', () => {
+    const A = { id: 'a', type: 'CHECKING', currentBalanceCents: 400_000, feedDroppedAt: '2026-01-15' };
+    const B = { id: 'b', type: 'CHECKING', currentBalanceCents: 500_000, feedDroppedAt: null };
+    const C = { id: 'c', type: 'CHECKING', currentBalanceCents: 600_000, feedDroppedAt: null };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [A, B, C],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 'a', date: '2026-01-31', balanceCents: 400_000, accountType: 'CHECKING' },
+        { accountId: 'b', date: '2026-01-31', balanceCents: 500_000, accountType: 'CHECKING' },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [
+        { predecessorAccountId: 'a', successorAccountId: 'b', cutoverDate: '2026-02-28' },
+        { predecessorAccountId: 'b', successorAccountId: 'c', cutoverDate: '2026-06-30' },
+      ],
+    });
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('b');
+    expect(out.balanceSnapshots[0]!.balanceCents).toBe(500_000);
+  });
+
+  it('U.12: a genuine CREDIT sibling wins and the series subtracts — −$5,000.00, not the echo', () => {
+    const c1 = { ...S1, type: 'CREDIT', currentBalanceCents: 400_000 };
+    const c2 = { ...S2, type: 'CREDIT', currentBalanceCents: 500_000 };
+    const cLive = { ...LIVE, type: 'CREDIT', currentBalanceCents: 500_000 };
+    const out = u12Apply([c1, c2, cLive], [
+      { accountId: 's1', date: '2026-01-31', balanceCents: 400_000, accountType: 'CREDIT' },
+      { accountId: 's2', date: '2026-01-31', balanceCents: 500_000, accountType: 'CREDIT' },
+    ]);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('s2');
+    const series = netWorthSeries({
+      snapshots: out.balanceSnapshots.map((b) => ({
+        accountId: b.accountId,
+        date: b.date,
+        balanceCents: b.balanceCents,
+        accountType: 'CREDIT' as string | null,
+      })),
+      accounts: out.accounts.map((a) => ({ ...a, name: a.id })),
+      today: '2026-07-31',
+    });
+    expect(series.find((p) => p.date === '2026-01-31')!.netWorthCents).toBe(-500_000);
   });
 });

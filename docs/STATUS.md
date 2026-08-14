@@ -4865,3 +4865,42 @@ K.4 shape).** `grep AccountReconciliation prisma/seed.ts` is still 0. This
 slice adds no rendered surface — it is a read-path consolidation whose claim
 is a query count. What stands in for a live check: CI's full `VERIFY_E2E=1`
 suite ran against a genuine build of this exact commit.
+
+## ✅ BUILT 2026-08-14 — U.12: a genuine reading outranks a carried-forward repeat (DECISIONS #469)
+
+U.9 ranked same-date snapshot collisions by cutover alone. U.4 writes a
+monthly row for every account, including a quiet feed whose later rows
+repeat the last balance the bank sent. Two stale records of one account
+could let that echo beat another record's real reading for the same date.
+
+**What shipped.** Within the covering tier, a genuine reading
+(`feedDroppedAt == null || date <= feedDroppedAt`) outranks a
+carried-forward repeat; then the existing cutover / depth / id order.
+`feedDroppedAt` is required on the snapshot-collision input
+(`BoundaryAccountWithFeed`). The panel and the ranker share
+`isCarriedForwardSnapshot`. A lone observation is still never dropped.
+U.9 is unchanged when both sides are genuine.
+
+**Locked.** Named fixture: s2 / $5,000.00, order-independent,
+`netWorthCents === 500_000` (pre-fix: s1 / $4,000.00). Controls:
+both-genuine still s1; drop-date is a reading; lone echo kept;
+both-echoes fall to earliest cutover; equal-cutover; quiet ancestor in a
+chain; CREDIT sibling −$5,000.00.
+
+**Hostile critic (fresh context, read-only): PASS — 0 P0, 0 P1, 7 P2.**
+Accepted: covering predecessor still beats a genuine live successor
+(tier order unchanged); closed-tier inverse when the terminal has no
+row; `AccountView.feedDroppedAt` stays optional; dual `feedDroppedAt`
+read in `getAccountDetail`; `#453` residual text (updated in-slice);
+empty-string `feedDroppedAt` throws (loud, unreachable from the writer).
+Chain / equal-cutover / CREDIT locks added after the critic executed
+them. Leftovers filed as **U.37**.
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN** (e2e skipped;
+Playwright then run against this same `next build`): tsc 0, eslint 0, unit
+**7,018 passed + 1 expected fail + 1 skipped / 425 files + 1 skipped**,
+then three critic locks added (targeted `reconcile-boundary.test.ts`
+62 passed + 1 expected fail). Build clean, e2e **350 passed, 3
+flaky-passed-on-retry** (`category-rename.spec.ts:110`,
+`pwa-offline.spec.ts:51`, `transactions.spec.ts:735` — documented K.10
+class, untouched by this diff). No `prisma/` diff.

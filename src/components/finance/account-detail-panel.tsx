@@ -46,6 +46,7 @@ import {
   uncountedBalanceMarker,
   uncountedBalancesNote,
 } from '@/lib/engine/account/balance-history-view';
+import { isCarriedForwardSnapshot } from '@/lib/engine/account/reconcile-boundary';
 import { isLiabilityType, type AccountView } from '@/lib/engine/transactions/query';
 import type { AccountDetailView } from '@/server/transactions';
 
@@ -78,7 +79,7 @@ export function AccountDetailPanel({
   const history = [...detail.history].reverse().map((h) => ({
     ...h,
     rowIsLiability: h.accountType === null ? isLiability : isLiabilityType(h.accountType),
-    carriedForward: dropped !== null && h.date > dropped,
+    carriedForward: isCarriedForwardSnapshot(h.date, dropped),
   }));
   const carriedCount = history.filter((h) => h.carriedForward).length;
   // A row counted under a different class than the account's current one is the

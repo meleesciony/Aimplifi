@@ -35,8 +35,11 @@
  *    survives per (supersession COMPONENT, date) — the component, not the chain,
  *    because a link's "same real account" claim is transitive and two stale rows
  *    can share one live successor (U.9). The side whose ownership window most
- *    tightly contains the date wins: still-covering sides first (earliest cutover),
- *    then the live terminal row, then closed windows (latest cutover). An EQUAL
+ *    tightly contains the date wins: still-covering sides first, and within that
+ *    tier a genuine reading outranks a carried-forward repeat (U.12 — U.4 writes
+ *    a monthly row for a quiet feed, so cutover-only ranking let a dead feed's
+ *    echo beat another record's real observation), then earliest cutover, then
+ *    the live terminal row, then closed windows (latest cutover). An EQUAL
  *    cutover is broken by chain DEPTH, never by account id — a chain's two links may
  *    legitimately share a cutover, and the mid-chain window is then empty, so ranking
  *    by id handed the date to a row that owns nothing and moved a real figure on cuid
@@ -127,6 +130,29 @@ export interface BoundaryAccountLike {
   availableBalanceCents?: number | null;
 }
 
+/**
+ * Snapshot-collision input. `feedDroppedAt` is REQUIRED (null = still live) so a
+ * caller cannot omit it and silently treat a quiet feed's monthly echo as a
+ * reading (U.12 / U.33). Link-effectiveness callers stay on `BoundaryAccountLike`
+ * — they do not rank snapshots and must not be forced to fetch a field they
+ * cannot use.
+ */
+export interface BoundaryAccountWithFeed extends BoundaryAccountLike {
+  /** YYYY-MM-DD the feed was first observed to omit this account, else null. */
+  feedDroppedAt: string | null;
+}
+
+/**
+ * A snapshot dated after the feed went quiet repeats the last balance the bank
+ * actually sent (U.4 writes one row per account per month including quiet
+ * feeds). Same predicate the account-detail panel uses to mark the row
+ * "carried forward": the drop date itself is a real reading (`date > dropped`,
+ * not `>=`).
+ */
+export function isCarriedForwardSnapshot(date: string, feedDroppedAt: string | null): boolean {
+  return feedDroppedAt !== null && compareDates(isoDate(date), isoDate(feedDroppedAt)) > 0;
+}
+
 /** Any row owned by an account — scheduled rows scope by id alone. */
 export interface BoundaryAccountScopedRowLike {
   accountId: string;
@@ -142,7 +168,7 @@ export interface BoundaryDatedRowLike extends BoundaryAccountScopedRowLike {
 }
 
 export interface ReconciliationBoundaryInput<
-  A extends BoundaryAccountLike,
+  A extends BoundaryAccountWithFeed,
   T extends BoundaryDatedRowLike,
   B extends BoundaryDatedRowLike,
   S extends BoundaryStatementRowLike,
@@ -649,7 +675,7 @@ export function reconciliationHandoverDates<A extends BoundaryAccountLike>(
 }
 
 export function applyReconciliationBoundary<
-  A extends BoundaryAccountLike,
+  A extends BoundaryAccountWithFeed,
   T extends BoundaryDatedRowLike,
   B extends BoundaryDatedRowLike,
   S extends BoundaryStatementRowLike,
@@ -737,8 +763,9 @@ export function applyReconciliationBoundary<
   // so a lone observation is still never dropped and the trend never gains a
   // fabricated dip. Among the rows that do exist, it is the side whose ownership
   // window most tightly contains the date:
-  //   0. sides still covering it (cutover >= date), EARLIEST cutover first — the
-  //      chain's own half-open rule (A owns [..cutAB], B owns (cutAB..cutBC]);
+  //   0. sides still covering it (cutover >= date). Within that tier a genuine
+  //      reading outranks a carried-forward repeat (U.12), then EARLIEST cutover
+  //      — the chain's own half-open rule (A owns [..cutAB], B owns (cutAB..cutBC]);
   //   1. then the live terminal row, which owns every date past every cutover;
   //   2. then sides whose window already closed, LATEST cutover first — a dead feed
   //      that kept reporting is the last resort, never a second copy.
@@ -757,6 +784,7 @@ export function applyReconciliationBoundary<
   // true SIBLINGS, which are symmetric — there is no fact left to prefer one by.
   const depthOf = new Map<string, number>();
   for (const id of linkedIds) depthOf.set(id, downstreamsOf(id).length);
+  const droppedAtOf = new Map<string, string | null>(input.accounts.map((a) => [a.id, a.feedDroppedAt]));
   const snapshotTier = (accountId: string, date: ISODate): number => {
     const cut = cutover.get(accountId);
     if (cut === undefined) return 1; // the terminal live row — no window of its own
@@ -767,6 +795,15 @@ export function applyReconciliationBoundary<
     const tierB = snapshotTier(b, date);
     if (tierA !== tierB) return tierA < tierB;
     if (tierA === 1) return a < b; // one terminal per component — defensive only
+    // U.12: within the covering tier only, a real reading beats a quiet feed's
+    // monthly echo. Closed-window ranking stays cutover-only — those rows are
+    // already the last resort. Both genuine or both repeats fall through to
+    // cutover, so U.9's earliest-window rule is unchanged when both sides read.
+    if (tierA === 0) {
+      const genuineA = !isCarriedForwardSnapshot(date, droppedAtOf.get(a) ?? null);
+      const genuineB = !isCarriedForwardSnapshot(date, droppedAtOf.get(b) ?? null);
+      if (genuineA !== genuineB) return genuineA;
+    }
     const cmp = compareDates(cutover.get(a) as ISODate, cutover.get(b) as ISODate);
     if (cmp !== 0) return tierA === 0 ? cmp < 0 : cmp > 0; // covering: earliest; closed: latest
     const depthA = depthOf.get(a) ?? 0;

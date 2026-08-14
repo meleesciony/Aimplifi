@@ -36,7 +36,7 @@ import {
 } from '../../src/lib/engine/account/reconcile-boundary';
 
 const IDS = ['a', 'b', 'c', 'd'] as const;
-const ACCOUNTS = IDS.map((id) => ({ id, type: 'CHECKING', currentBalanceCents: 100_000 }));
+const ACCOUNTS = IDS.map((id) => ({ id, type: 'CHECKING', currentBalanceCents: 100_000, feedDroppedAt: null }));
 const DATES = ['2026-02-28', '2026-05-31'] as const;
 const CUTOVERS = ['2026-02-28', '2026-05-31'] as const;
 

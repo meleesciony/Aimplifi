@@ -133,8 +133,8 @@ function monthsSpanned(from: string, to: string): number {
  * planner's real output through the real boundary and the real series.
  */
 describe('planMonthlyBalanceSnapshots × reconciliation boundary', () => {
-  const PRED = { id: 'pred', name: 'Pred', type: 'CHECKING', currentBalanceCents: 240_000 };
-  const SUCC = { id: 'succ', name: 'Succ', type: 'CHECKING', currentBalanceCents: 250_000 };
+  const PRED = { id: 'pred', name: 'Pred', type: 'CHECKING', currentBalanceCents: 240_000, feedDroppedAt: null };
+  const SUCC = { id: 'succ', name: 'Succ', type: 'CHECKING', currentBalanceCents: 250_000, feedDroppedAt: null };
   const LINK = { predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-05-31' };
 
   function pointOn(

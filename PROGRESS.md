@@ -2,6 +2,34 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-14 — U.12: a genuine reading outranks a carried-forward repeat (DECISIONS #469)
+
+**Picked up from the queue** (U.9 critic residual; named next after U.36).
+A quiet feed's monthly echo could beat another record's real balance for
+the same date because the snapshot winner was ranked by cutover alone.
+
+**Shipped.** Covering-tier genuineness: genuine reading outranks
+carried-forward repeat, then existing cutover / depth / id.
+`BoundaryAccountWithFeed.feedDroppedAt` required. Shared
+`isCarriedForwardSnapshot` with the panel. Did not invert U.9's tier
+order (covering still beats the live terminal).
+
+**Locked.** `tests/unit/reconcile-boundary.test.ts` U.12 block: named
+defect s2 / $5,000.00; both-genuine still s1; drop-date / lone-echo /
+both-echo controls; equal-cutover; chain; CREDIT −$5,000.00.
+
+**Critic (read-only, fresh context): PASS — 0 P0, 0 P1, 7 P2.** Residuals
+filed as **U.37** (covering-pred vs genuine successor; closed-tier
+inverse).
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,018 passed
++ 1 expected fail + 1 skipped / 425 files + 1 skipped**, `next build`
+clean. Three critic locks added after that run (targeted file green).
+Playwright (fresh build): **350 passed, 3 flaky-passed-on-retry**
+(`category-rename.spec.ts:110`, `pwa-offline.spec.ts:51`,
+`transactions.spec.ts:735` — documented K.10 class, untouched by this
+diff). No `prisma/` diff.
+
 ## 2026-08-14 — U.36: composed Ask intents skip the unused composer boundary (DECISIONS #468)
 
 **Picked up from the queue** (U.34 critic residual). Five Ask intents fetched

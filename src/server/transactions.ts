@@ -1533,7 +1533,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   // depend only on accounts+snapshots+links, so the balances and trend match the dashboard exactly.
   const boundary = applyReconciliationBoundary({
     paymentAccountId: user?.paymentAccountId ?? null,
-    accounts: views,
+    accounts: views.map((v) => ({ ...v, feedDroppedAt: v.feedDroppedAt ?? null })),
     transactions: [],
     balanceSnapshots: snapshots,
     statements: [],
@@ -1847,7 +1847,15 @@ export async function getAccountDetail(userId: string, accountId: string): Promi
     // the rows a surface has and empty arrays for the rest).
     prisma.account.findMany({
       where: { userId },
-      select: { id: true, name: true, displayName: true, type: true, currency: true, currentBalanceCents: true },
+      select: {
+        id: true,
+        name: true,
+        displayName: true,
+        type: true,
+        currency: true,
+        currentBalanceCents: true,
+        feedDroppedAt: true,
+      },
     }),
     getActiveReconciliations(userId),
   ]);
