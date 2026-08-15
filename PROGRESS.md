@@ -23,6 +23,11 @@ the decision note / lock comment.
 passed + 1 expected fail + 1 skipped / 426 files + 1 skipped**,
 `next build` clean. E2e skipped (no UI). No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `f741ef4`. CI run 31886671146
+`success` on first attempt. Vercel: `success`, "Deployment has
+completed", same sha. Production `/`, `/accounts`, `/ask` 307;
+`/sign-in` 200. No figure or copy moved.
+
 ## 2026-08-15 — U.8: spending rows can open the same detail panel (DECISIONS #473)
 
 **Picked up from the queue** (named next after U.10). The detail

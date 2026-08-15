@@ -5116,3 +5116,11 @@ no UI and no figure moves — the production probe is the labeled
 simulation): tsc 0, eslint 0, unit **7,047 passed + 1 expected fail
 + 1 skipped / 426 files + 1 skipped**, `next build` clean. No
 `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-15).** Commit `f741ef4` → pushed → CI
+gate **`success`**, run 31886671146, first attempt (`gh run view`
+conclusion `success` on sha
+`f741ef41357291cb798a44ac7c19a2cf17f5535c`). Vercel commit status:
+`success`, "Deployment has completed", same sha. Production `/`,
+`/accounts`, `/ask` all 307; `/sign-in` 200. No demo-visible marker
+(no figure or copy moved). No `prisma/` diff.
