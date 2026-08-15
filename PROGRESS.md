@@ -13,6 +13,11 @@ REFUSED: same-account-twice would count once; span-dedup is the
 silent-loss direction`. Still `it.fails` on −$50.00 so a later
 span-dedup is an unexpected pass. Expect unchanged.
 
+**Shipped and proven live.** Pushed as `1ad4066`. CI run
+31890507052 `success` on first attempt. Vercel: `success`,
+"Deployment has completed", same sha. Production `/`,
+`/accounts`, `/ask` 307; `/sign-in` 200. Title-only.
+
 **Next.** U.14 (RE-OPEN): veto inert when one side lacks a mask
 column. Decided approach: do not remove candidates; make the
 offer/ambiguity guard read conflicts directly (no set-size

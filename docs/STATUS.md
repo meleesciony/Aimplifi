@@ -5178,3 +5178,9 @@ title still said `OPEN DEFECT`. Retitled to `U.11 REFUSED:
 same-account-twice would count once; span-dedup is the
 silent-loss direction`. Expect unchanged (−$50.00); still
 `it.fails` so a later span-dedup is an unexpected pass.
+
+**SHIPPED AND PROVEN LIVE (2026-08-15).** Commit `1ad4066` →
+pushed → CI gate **`success`**, run 31890507052, first attempt.
+Vercel commit status: `success`, "Deployment has completed",
+same sha. Production `/`, `/accounts`, `/ask` all 307;
+`/sign-in` 200. Title-only; no figure or copy moved.
