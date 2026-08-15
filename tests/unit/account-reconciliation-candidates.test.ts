@@ -567,3 +567,182 @@ describe('detectReconciliationCandidates — proven identity inside ambiguity (c
     expect(released.candidates[0].successor.id).toBe('y');
   });
 });
+
+describe('detectReconciliationCandidates — U.14 last-4 veto from a SimpleFIN name', () => {
+  it('does not offer Combine for a name-only pair whose name-embedded last-4s differ (E.LEE vs M.LEE)', () => {
+    const set = detectReconciliationCandidates([
+      racct({
+        id: 'sf-lee',
+        provider: 'simplefin',
+        name: 'Chase Bank E. LEE (4034)',
+        type: 'CREDIT',
+        mask: null,
+        currentBalanceCents: 100_000,
+        hasLiveConnection: false,
+      }),
+      racct({
+        id: 'pl-lee',
+        provider: 'plaid',
+        name: 'M. LEE',
+        type: 'CREDIT',
+        mask: '4927',
+        currentBalanceCents: 250_000,
+        hasLiveConnection: true,
+      }),
+    ]);
+    expect(set).toEqual({ candidates: [], ambiguous: [] });
+    expect(
+      detectDuplicateAccounts([
+        racct({
+          id: 'sf-lee',
+          provider: 'simplefin',
+          name: 'Chase Bank E. LEE (4034)',
+          type: 'CREDIT',
+          mask: null,
+          currentBalanceCents: 100_000,
+        }),
+        racct({
+          id: 'pl-lee',
+          provider: 'plaid',
+          name: 'M. LEE',
+          type: 'CREDIT',
+          mask: '4927',
+          currentBalanceCents: 250_000,
+        }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('still offers the owner Roth pair whose 3-digit SimpleFIN id does not match the Plaid last-4', () => {
+    // L.9 e2e fixture. accountNumbersConflict(396, 5351) is true; a 2+-digit advertised-number
+    // veto hid this Combine (CI run 31627590689). 396 is not a last-4.
+    const set = detectReconciliationCandidates([
+      racct({
+        id: 'sf-roth',
+        provider: 'simplefin',
+        name: 'Charles Schwab US Roth Contributory IRA ...396 (396)',
+        type: 'INVESTMENT',
+        currentBalanceCents: 500_000,
+        hasLiveConnection: false,
+      }),
+      racct({
+        id: 'plaid-roth',
+        provider: 'plaid',
+        name: 'Roth IRA Brokerage Account - ****5351',
+        type: 'INVESTMENT',
+        subtype: 'roth',
+        mask: '5351',
+        currentBalanceCents: 510_000,
+        hasLiveConnection: true,
+      }),
+    ]);
+    expect(set.ambiguous).toEqual([]);
+    expect(set.candidates).toHaveLength(1);
+    expect(set.candidates[0].predecessor.id).toBe('sf-roth');
+    expect(set.candidates[0].successor.id).toBe('plaid-roth');
+  });
+
+  it('a 4-digit conflict removes only that name-only rival — a same-last-4 sibling stays the one offer (not P0-2)', () => {
+    // The 2026-08-12 revert collapsed a withheld ambiguity into a one-click Combine by
+    // deleting a candidate from the SET. Here the deleted rival is a DIFFERENT last-4
+    // (correctly not a match); the survivor shares the last-4 and must still be offered.
+    const stale = racct({
+      id: 'stale-vent',
+      provider: 'simplefin',
+      name: 'Venture (1234)',
+      type: 'CREDIT',
+      mask: null,
+      currentBalanceCents: 50_000,
+      hasLiveConnection: false,
+    });
+    const same = racct({
+      id: 'live-same',
+      provider: 'plaid',
+      name: 'Venture',
+      type: 'CREDIT',
+      mask: '1234',
+      currentBalanceCents: 51_000,
+      hasLiveConnection: true,
+    });
+    const other = racct({
+      id: 'live-other',
+      provider: 'plaid',
+      name: 'Venture',
+      type: 'CREDIT',
+      mask: '5678',
+      currentBalanceCents: 9_000,
+      hasLiveConnection: true,
+    });
+    const set = detectReconciliationCandidates([stale, same, other]);
+    expect(set.ambiguous).toEqual([]);
+    expect(set.candidates).toHaveLength(1);
+    expect(set.candidates[0].successor.id).toBe('live-same');
+  });
+
+  it('P1-1: a 4-digit veto must not promote a name-only leftover with no last-4 into Combine', () => {
+    // Stale Venture (1234) matches live ····5678 (name vetoed) AND a mask-null
+    // live Venture (name fires — the other side is an absence). Before the offer
+    // guard, length === 1 offered the unproven row. Withhold; do not invent an
+    // ambiguity group of one.
+    const stale = racct({
+      id: 'stale-vent',
+      provider: 'simplefin',
+      name: 'Venture (1234)',
+      type: 'CREDIT',
+      mask: null,
+      currentBalanceCents: 50_000,
+      hasLiveConnection: false,
+    });
+    const other = racct({
+      id: 'live-other',
+      provider: 'plaid',
+      name: 'Venture',
+      type: 'CREDIT',
+      mask: '5678',
+      currentBalanceCents: 9_000,
+      hasLiveConnection: true,
+    });
+    const unproven = racct({
+      id: 'live-manual',
+      provider: 'manual',
+      name: 'Venture',
+      type: 'CREDIT',
+      mask: null,
+      currentBalanceCents: 8_000,
+      hasLiveConnection: true,
+    });
+    const set = detectReconciliationCandidates([stale, other, unproven]);
+    expect(set.candidates).toEqual([]);
+    expect(set.ambiguous).toEqual([]);
+  });
+
+  it('two name-only rivals with no last-4 on the stale side stay an ambiguity group (set size unchanged)', () => {
+    const stale = racct({
+      id: 'stale-wf',
+      provider: 'simplefin',
+      name: 'Wells Fargo',
+      currentBalanceCents: 48_000,
+      hasLiveConnection: false,
+    });
+    const a = racct({
+      id: 'live-a',
+      provider: 'plaid',
+      name: 'Wells Fargo Everyday',
+      mask: '1111',
+      currentBalanceCents: 50_000,
+      hasLiveConnection: true,
+    });
+    const b = racct({
+      id: 'live-b',
+      provider: 'plaid',
+      name: 'Wells Fargo Way2Save',
+      mask: '2222',
+      currentBalanceCents: 90_000,
+      hasLiveConnection: true,
+    });
+    const set = detectReconciliationCandidates([stale, a, b]);
+    expect(set.candidates).toEqual([]);
+    expect(set.ambiguous).toHaveLength(1);
+    expect(set.ambiguous[0].successors.map((s) => s.id)).toEqual(['live-a', 'live-b']);
+  });
+});

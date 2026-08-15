@@ -96,9 +96,11 @@ describe('detectDuplicateAccounts', () => {
     expect(pairs[0].reasons).toEqual(['identical balance']); // NOT the shared name (disqualified by the differing last-4)
   });
 
-  it('still flags when only ONE side has a last-4 (SimpleFIN carries none) — the veto needs BOTH masks', () => {
-    // The veto must NOT fire when one side is mask-null, or a real Plaid↔SimpleFIN duplicate
-    // (the whole reason #192 exists) would stop being detected.
+  it('still flags when only ONE side has a last-4 (SimpleFIN carries none) — an absence is not a difference', () => {
+    // The veto must NOT fire when one side has no last-4 at all (column empty AND no 4-digit
+    // embedding), or a real Plaid↔SimpleFIN duplicate (the whole reason #192 exists) would
+    // stop being detected. U.14 reads a name-embedded last-4; a name with no last-4 is still
+    // an absence.
     const pairs = detectDuplicateAccounts([
       acct({ id: 'p', provider: 'plaid', name: 'Chase', mask: '6271', currentBalanceCents: 50000 }),
       acct({ id: 's', provider: 'simplefin', name: 'Chase', mask: null, currentBalanceCents: 48000 }),
@@ -107,11 +109,70 @@ describe('detectDuplicateAccounts', () => {
     expect(pairs[0].reasons).toContain('shared name: “chase”');
   });
 
+  it('U.14 P1-2: a year-shaped MASK COLUMN is still a last-4 — it is not lookedLikeYear', () => {
+    // Mutation: `if (a.mask && !looksLikeYear(a.mask)) return a.mask` keeps every other
+    // U.14 fixture green (they use 4927/5351/1234). A real last-4 of 2021 vs a
+    // different name-embedded last-4 must stay hidden.
+    expect(
+      detectDuplicateAccounts([
+        acct({ id: 'p', provider: 'plaid', name: 'Venture', type: 'CREDIT', mask: '2021', currentBalanceCents: 10_000 }),
+        acct({ id: 's', provider: 'simplefin', name: 'Venture (4034)', type: 'CREDIT', mask: null, currentBalanceCents: 20_000 }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('U.14: a 4-digit last-4 in a SimpleFIN NAME vetoes the weak name signal (E.LEE 4034 vs M.LEE 4927)', () => {
+    // The column-only veto was inert here: SimpleFIN has no mask, so "lee" alone proposed
+    // two different cardholders. A 4-digit parenthesized group is a last-4; different
+    // last-4s + different balances → hidden. The identical-balance sibling below still
+    // surfaces (balance is not this veto).
+    expect(
+      detectDuplicateAccounts([
+        acct({ id: 'sf', provider: 'simplefin', name: 'Chase Bank E. LEE (4034)', type: 'CREDIT', mask: null, currentBalanceCents: 100000 }),
+        acct({ id: 'pl', provider: 'plaid', name: 'M. LEE', type: 'CREDIT', mask: '4927', currentBalanceCents: 250000 }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('U.14: a parenthesized YEAR is not a last-4 — a name-only genuine pair still flags (P0-1)', () => {
+    // The 2026-08-12 revert: maskFromName("Roth IRA (2021)") is "2021", and using that as a
+    // veto hid a real duplicate. looksLikeYear keeps the year an absence. Shared tokens
+    // only — balances differ so the balance signal cannot carry it.
+    const pairs = detectDuplicateAccounts([
+      acct({ id: 'm', provider: 'manual', name: 'Roth IRA (2021)', type: 'INVESTMENT', mask: null, currentBalanceCents: 4_000_000 }),
+      acct({ id: 'p', provider: 'plaid', name: 'Fidelity Roth IRA', type: 'INVESTMENT', mask: '8842', currentBalanceCents: 5_000_000 }),
+    ]);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0].reasons).toContain('shared name: “ira”, “roth”');
+    expect(pairs[0].reasons.join(' ')).not.toContain('same last-4');
+  });
+
+  it('U.14: a 2- or 3-digit SimpleFIN id is not a last-4 — the name signal still fires', () => {
+    // Schwab's "...396 (396)" vs Plaid ····5351 is the SAME account (owner-confirmed).
+    // accountNumbersConflict is true of that pair; treating 396 as a veto hid the L.9
+    // Combine. The 529 "…-01" vs a 401k is the same shape and stays a name-only
+    // candidate — U.15 shows that evidence after confirm; a 2-digit gate would
+    // reintroduce the Roth hide.
+    const roth = detectDuplicateAccounts([
+      acct({ id: 'sf', provider: 'simplefin', name: 'Charles Schwab US Roth Contributory IRA ...396 (396)', type: 'INVESTMENT', mask: null, currentBalanceCents: 500_000 }),
+      acct({ id: 'pl', provider: 'plaid', name: 'Roth IRA Brokerage Account - ****5351', type: 'INVESTMENT', mask: '5351', currentBalanceCents: 510_000 }),
+    ]);
+    expect(roth).toHaveLength(1);
+    expect(roth[0].reasons.some((r) => r.startsWith('shared name:'))).toBe(true);
+
+    const plan = detectDuplicateAccounts([
+      acct({ id: 'sf', provider: 'simplefin', name: 'Charles Schwab US Schwab 529 Plan ...-01 (01)', type: 'INVESTMENT', mask: null, currentBalanceCents: 10_000_000 }),
+      acct({ id: 'pl', provider: 'plaid', name: 'Vanguard 401k Plan', type: 'INVESTMENT', mask: '3075', currentBalanceCents: 80_000_000 }),
+    ]);
+    expect(plan).toHaveLength(1);
+    expect(plan[0].reasons).toContain('shared name: “plan”');
+  });
+
   it('SURFACES the his/wife Chase pair (SimpleFIN "Chase Bank E. LEE (4034)" vs Plaid "M. LEE" ····4927) because the balance is identical', () => {
     // Owner-confirmed 2026-07-24: this is likely ONE account (his + his wife's authorized card) seen
-    // through two connections, so the identical balance genuinely double-counts. SimpleFIN carries no
-    // mask column, and we do NOT parse the "(4034)" out of the name (that mis-reads years — critic
-    // F1/F2). The identical balance surfaces it so the owner can Combine (one account) or dismiss.
+    // through two connections, so the identical balance genuinely double-counts. U.14 does parse
+    // "(4034)" as a last-4 for the NAME-signal veto (different last-4s drop "lee"); the identical
+    // balance is a different signal and still surfaces the pair so the owner can Combine or dismiss.
     const pairs = detectDuplicateAccounts([
       acct({ id: 'sf', provider: 'simplefin', name: 'Chase Bank E. LEE (4034)', type: 'CHECKING', mask: null, currentBalanceCents: 250000 }),
       acct({ id: 'pl', provider: 'plaid', name: 'M. LEE', type: 'CHECKING', mask: '4927', currentBalanceCents: 250000 }),
@@ -396,6 +457,15 @@ describe('detectHouseholdDuplicateAccounts (slice 8 — F5 / T9(b))', () => {
       hAcct({ id: 'b', ownerId: 'u1', provider: 'simplefin', name: 'CHASE Checking', currentBalanceCents: 48_000 }),
     ]);
     expect(pairs).toHaveLength(1);
+  });
+
+  it('U.14: two partners’ different last-4s sharing a surname are not a household duplicate', () => {
+    expect(
+      detectHouseholdDuplicateAccounts([
+        hAcct({ id: 'a', ownerId: 'u1', provider: 'simplefin', name: 'Chase Bank E. LEE (4034)', type: 'CREDIT', mask: null, currentBalanceCents: 100_000 }),
+        hAcct({ id: 'b', ownerId: 'u2', provider: 'plaid', name: 'M. LEE', type: 'CREDIT', mask: '4927', currentBalanceCents: 250_000 }),
+      ]),
+    ).toEqual([]);
   });
 
   it('hard prerequisites unchanged: different type or currency never pairs', () => {

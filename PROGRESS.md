@@ -2,6 +2,36 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-15 — U.14: last-4 veto reads a 4-digit non-year name embedding (DECISIONS #476)
+
+**Picked up from the queue** (named next after the U.11 leftover).
+The column-only veto was inert for SimpleFIN. The 2026-08-12
+widening (every advertised 2+ digit group) was reverted: it hid
+the genuine Roth 396/5351 Combine and collapsed an L.9 ambiguity.
+
+**Closed — last-4 only, not advertised numbers.**
+`last4ForNameVeto` = mask column, else `maskFromName` minus
+`looksLikeYear`. Name signal only. E.LEE 4034 vs M.LEE 4927
+(different balances) hidden. Roth 396/5351 still offered. A
+2-digit plan code stays a name-only candidate (U.15 owns
+confirmed ones). Offer-guard on `accountNumbersConflict`
+rejected — that pair conflicts and is the same account.
+
+**Locked.** U.14 blocks in account-duplicates +
+account-reconciliation-candidates; e2e reconcile U.14 LEE
+absence + existing L.9 Roth offer.
+
+**Critic (2 cycles): PASS — 0 P0, 0 P1.** Cycle 1: P1-1
+unproven leftover Combine, P1-2 year-shaped mask column; both
+executed. Cycle 2: PASS; P2 `maskFromName` docblock executed.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit
+**7,059 passed + 1 expected fail + 1 skipped / 426 files + 1
+skipped**, `next build` clean. Consumer e2e on that build:
+reconcile **5/5** (incl. L.9 Roth + U.14 LEE),
+duplicate-connections **10/10**, combined-accounts **4/4**.
+No `prisma/` diff.
+
 ## 2026-08-15 — U.11 leftover: retitle the refused lock
 
 **Picked up from the queue** (named next after U.17). U.11 closed

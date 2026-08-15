@@ -285,3 +285,48 @@ test('L.9: one stale row matching two live accounts offers NEITHER — stated, w
   // notice (an ambiguous pair is never candidate-suppressed).
   await expect(page.getByTestId('duplicate-accounts-warning')).toBeVisible();
 });
+
+/** U.14: SimpleFIN name embeds a last-4 the column never carries; Plaid has a different mask. */
+function seedLeePair(email: string) {
+  const file = E2E_DB_URL.replace(/^file:/, '');
+  const db = new Database(file, { timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000 });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string } | undefined;
+    if (!user) throw new Error(`seedLeePair: user ${email} not found`);
+    const uid = user.id;
+    const suffix = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, name, type, mask, currentBalanceCents, currency)
+       VALUES (?, ?, 'simplefin', ?, 'Chase Bank E. LEE (4034)', 'CREDIT', NULL, 100000, 'USD')`,
+    ).run(`e2e-u14-pred-${suffix}`, uid, `sf-${suffix}`);
+    const itemId = `e2e-u14-item-${suffix}`;
+    db.prepare(`INSERT INTO PlaidItem (id, userId, itemId, accessToken) VALUES (?, ?, ?, 'ct-e2e')`).run(
+      `e2e-u14-itemrow-${suffix}`,
+      uid,
+      itemId,
+    );
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, plaidItemId, name, type, mask, currentBalanceCents, currency)
+       VALUES (?, ?, 'plaid', ?, ?, 'M. LEE', 'CREDIT', '4927', 250000, 'USD')`,
+    ).run(`e2e-u14-succ-${suffix}`, uid, `pl-${suffix}`, itemId);
+  } finally {
+    db.close();
+  }
+}
+
+test('U.14: a SimpleFIN name-embedded last-4 that differs from the live mask does not offer Combine', async ({
+  page,
+}) => {
+  const email = await signUpThrowaway(page);
+  seedLeePair(email);
+  await page.goto('/accounts');
+
+  // Seed landed: both cards are on the page. Cleanup is absent because the name signal is
+  // vetoed and the balances differ — no warning, no Combine, no ambiguity group.
+  await expect(page.getByTestId('account-row').filter({ hasText: 'E. LEE' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('account-row').filter({ hasText: 'M. LEE' })).toBeVisible();
+  await expect(page.getByTestId('account-cleanup')).toHaveCount(0);
+  await expect(page.getByTestId('reconcile-candidates')).toHaveCount(0);
+  await expect(page.getByTestId('reconcile-confirm')).toHaveCount(0);
+  await expect(page.getByTestId('duplicate-accounts-warning')).toHaveCount(0);
+});

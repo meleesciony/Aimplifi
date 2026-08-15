@@ -7821,3 +7821,61 @@ those payloads. This close is copy-only. The confirm form already
 names `min(cutover, last)`. CSV column `changeover_day` stays
 (U.19). `EDGE_CASES.md` §Combined-accounts still quotes the
 retired "history kept through" line (docs only).
+
+## #476 — U.14: the last-4 name-signal veto reads a 4-digit non-year embedding (2026-08-15)
+
+**Context.** `masksDiffer` disqualifies the weak NAME signal when
+two sides' last-4s differ. It read the `mask` COLUMN, which
+SimpleFIN never populates, so the veto was inert across the
+SimpleFIN→Plaid migration the feature exists for. Measured: the
+app proposed E.LEE (4034) vs M.LEE ····4927 on "lee" alone, and
+three Schwab 529 plans vs a Vanguard 401k on "plan". A 2026-08-12
+widening that used every advertised 2+ digit group was reverted
+the same session: `Roth IRA (2021)` became last-4 "2021" and hid
+a genuine pair (P0-1), and deleting one candidate collapsed an
+L.9 ambiguity into a one-click Combine (P0-2). The evidence moved
+to the U.15 advisory audit.
+
+**Decision: read a last-4 from the name, not every advertised
+number.** `last4ForNameVeto` = mask column, else `maskFromName`
+minus `looksLikeYear`. Still gates only the weak name signal.
+Identical-balance and mask matches are untouched (E.LEE/M.LEE
+with the same balance still surfaces). A 2- or 3-digit SimpleFIN
+id is an ABSENCE, not a different last-4: Schwab "...396 (396)"
+vs Plaid ····5351 is the same account (owner-confirmed, L.9 e2e)
+and `accountNumbersConflict` is true of it. Treating those
+shorter ids as a veto is the reverted hide.
+
+**Rejected.** (1) Gate Combine on `accountNumbersConflict` after
+grouping, changing no set size. That withholds the genuine Roth
+396/5351 offer — the e2e that caught the last attempt. (2) Widen
+to advertised 2+ digit groups again. Same hide. (3) Disclose
+"numbers don't match" on the Combine card. The view already
+refuses to print both numbers side by side because SimpleFIN's
+396 and Plaid's 5351 are not comparable.
+
+**Residual.** A 2-digit plan code ("…-01") vs a 401k stays a
+name-only candidate. U.15 already shows that evidence on a
+confirmed link. A 2-digit gate would reintroduce the Roth hide.
+
+**Locked.** `tests/unit/account-duplicates.test.ts` U.14: E.LEE
+4034 vs M.LEE 4927 different balances → hidden; `Roth IRA (2021)`
+vs mask 8842 name-only → still flagged; 396 vs 5351 and 529
+"…-01" vs 401k → name signal still fires; year-shaped mask
+column `2021` vs name `(4034)` stays hidden (P1-2 — do not
+`looksLikeYear` the column); household LEE pair hidden.
+`tests/unit/account-reconciliation-candidates.test.ts` U.14: no
+Combine on the LEE pair; Roth 396/5351 still offered; a 4-digit
+conflict removes only that rival (same-last-4 sibling stays the
+one offer); a name-only leftover with no last-4 is withheld, not
+promoted (P1-1); two name-only rivals with no last-4 on the stale
+side stay an ambiguity group. e2e `reconcile.spec.ts` U.14: both
+LEE rows visible, no cleanup / Combine / warning. Existing L.9
+Roth e2e unchanged.
+
+**Critic cycle 1 (executed).** P1-1: sole name-only leftover
+after a 4-digit veto (`Venture (1234)` + mask-null `Venture`) is
+withheld — `soleNameOfferIsUnprovenLeftover` (pred has last-4,
+succ does not, signal is name). P1-2: year-shaped mask column
+lock. P2-1: EDGE_CASES + identical-balance comment rewritten.
+P2-2: household LEE lock.

@@ -74,3 +74,11 @@ About forty minutes live on production, no data harmed (the defect changes what 
 is WARNED; nothing auto-writes). One revert, one rebuilt test suite — the critic's mutation testing
 showed 5 of 8 mutations to the new regex kept all 40 tests green, so the locks were nearly as weak
 as the code.
+
+## Retry (2026-08-15, DECISIONS #476)
+
+The remaining defect was real: the veto was inert when one side had no mask COLUMN. The retry
+stayed at a last-4 (4-digit, non-year name embedding) and refused every advertised 2+ digit group.
+Schwab "...396 (396)" vs Plaid ····5351 is the same account and `accountNumbersConflict` is true
+of it — that pair is why a number-conflict offer-guard is the same hide as the revert. 2-digit
+plan codes stay name-only candidates; U.15 already shows that evidence after confirm.

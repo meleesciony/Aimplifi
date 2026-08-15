@@ -116,12 +116,13 @@ function normalizeCurrency(c: string | null): string {
  * name (SimpleFIN: "U.S. Bank Loan - 2927 (2927)", "Truist Mortgage 1192 (1192)"). Conservative:
  * only a PARENTHESIZED or MASK-PREFIXED 4-digit group, never a bare 4-digit run.
  *
- * DIRECTION IS THE WHOLE POINT (critic F3, owner-reported 2026-07-24): this is used ONLY as a
- * POSITIVE, confirming signal — one side's real mask column matching the other side's name-embedded
- * number is strong evidence of the SAME account. It is NEVER used to veto. A mis-read (a
- * parenthesized YEAR like "Roth IRA (2021)") can then only ever SURFACE a dismissable pair; used as
- * a veto the same mis-read would SILENTLY HIDE a real duplicate and let a balance double-count,
- * which is why #292 removed it from the veto path. Positive = safe, negative = dangerous.
+ * DIRECTION IS THE WHOLE POINT (critic F3, owner-reported 2026-07-24): a mis-read (a
+ * parenthesized YEAR like "Roth IRA (2021)") used as a raw veto would SILENTLY HIDE a real
+ * duplicate. #292 therefore kept this helper off the general veto. U.14 / DECISIONS #476
+ * re-uses it for the NAME-SIGNAL veto only, after `looksLikeYear` strips years
+ * (`last4ForNameVeto`). Positive matching still calls it unfiltered (`matchableMask`).
+ * A 2- or 3-digit group never matches here (four digits required), so Schwab "...396 (396)"
+ * stays an absence.
  */
 export function maskFromName(name: string): string | null {
   const paren = /\((\d{4})\)/.exec(name);
@@ -134,6 +135,35 @@ export function maskFromName(name: string): string | null {
 /** The account's last-4 for POSITIVE matching: the mask column, else one embedded in the name. */
 function matchableMask(a: { mask: string | null; name: string }): string | null {
   return a.mask ?? maskFromName(a.name);
+}
+
+/**
+ * The account's last-4 for the NAME-SIGNAL veto only (U.14 / DECISIONS #476).
+ *
+ * Same sources as `matchableMask`, minus a parenthesized year. A year is a last-4 shape and
+ * a false one: `maskFromName("Roth IRA (2021)")` is "2021", and using that as a veto hid a
+ * genuine duplicate in the 2026-08-12 revert. Positive matching can still surface that pair
+ * (a mis-read there is a dismissable warning); a veto cannot. 2- and 3-digit groups never
+ * reach here — `maskFromName` reads four digits — so Schwab's "...396 (396)" is an ABSENCE,
+ * not a different last-4.
+ */
+function last4ForNameVeto(a: { mask: string | null; name: string }): string | null {
+  if (a.mask) return a.mask;
+  const embedded = maskFromName(a.name);
+  if (embedded && !looksLikeYear(embedded)) return embedded;
+  return null;
+}
+
+/**
+ * True when a sole name-only candidate is the leftover of a last-4 veto: the
+ * predecessor advertises a last-4 and the successor does not. Offering it would
+ * be a one-click Combine into an unproven row (U.14 critic P1-1). The opposite
+ * direction (pred has no last-4, succ does) is the ordinary SimpleFIN→Plaid
+ * shape, including Roth 396 vs ····5351, and must stay offered.
+ */
+function soleNameOfferIsUnprovenLeftover(c: ReconciliationCandidate): boolean {
+  if (c.provenIdentity === true || c.matchSignal !== 'name') return false;
+  return !!last4ForNameVeto(c.predecessor) && !last4ForNameVeto(c.successor);
 }
 
 /**
@@ -256,44 +286,20 @@ function duplicateSignals(
   // seen through two connections. Owner-confirmed 2026-07-24: his + spouse's Ventures (different
   // last-4, DIFFERENT balances, matched only on the name) stay hidden; his Chase E.LEE(4034) + wife's
   // M.LEE ····4927 (different last-4 but IDENTICAL balance — likely his account + her authorized card)
-  // stays SURFACED so he can Combine or dismiss it. Uses the mask COLUMN only — parsing a last-4 out
-  // of a NAME mis-reads a parenthesized year ("Roth IRA (2021)") or the x in "Amex" and would wrongly
-  // suppress a genuine duplicate (dup-veto critic F1/F2, the silent-double-count direction).
+  // stays SURFACED so he can Combine or dismiss it.
   //
-  // U.14, 2026-08-12: the mask COLUMN is why this veto never fired on the migration it exists for.
-  // SimpleFIN populates no mask, so `!!lo.mask && !!hi.mask` is false for every SimpleFIN→Plaid
-  // pair, and the weak name signal ran unchecked across exactly those rows. MEASURED on the owner's
-  // production data: it proposed three distinct Schwab 529 plans against one Vanguard 401k on the
-  // single shared token "plan", and two different cardholders' cards on "lee" — and nine such pairs
-  // had already been confirmed, each asserting an identity between accounts that are not the same.
-  // `accountNumbersConflict` reads the number a feed ADVERTISES (mask column, parenthesized, or
-  // behind a truncation prefix) and corresponds them by suffix.
-  //
-  // F1/F2's argument is respected, not overturned: they refused a name-parsed last-4 on the GENERAL
-  // veto path, where a mis-read hides a real duplicate and money silently doubles. This stays where
-  // `masksDiffer` already stood — gating the WEAK NAME signal alone. A pair that matches on mask or
-  // on an identical non-zero balance is untouched, so the owner-confirmed Chase E.LEE/M.LEE case
-  // still surfaces on the strength that justified it. Measured both directions before shipping
-  // (`scripts/audit-probes/u11k-which-veto-catches-which.mts`): 9 of 9 wrong pairs caught, and 0 of
-  // the 8 links independently judged genuine suppressed.
-  //
-  // U.14 REVERTED 2026-08-12, same session it shipped. Widening this to read the number out of the
-  // NAME was wrong twice over, and both were PROVEN rather than argued:
-  //   (a) it reintroduced exactly the direction #292/F1/F2 removed, and worse — the new parser read
-  //       TWO digits where `maskFromName` reads four, so `Roth IRA (2021)` yields "2021" and a
-  //       genuine duplicate against a real mask stopped being flagged at all. A hidden duplicate is
-  //       a silent double-count, which is the failure direction this file exists to avoid.
-  //   (b) the boolean's scope was NOT the whole story. `duplicateSignals` also feeds
-  //       `detectReconciliationCandidates`, where suppressing ONE candidate collapses a withheld
-  //       L.9 ambiguity ("it is one of these and we cannot tell which") into `list.length === 1` —
-  //       which renders a one-click Combine for the survivor. Confirming that zeroes a balance.
-  //       `tests/e2e/reconcile.spec.ts` "a Roth is never a Traditional … the right one offered"
-  //       caught it in CI (run 31627590689); the local gate skips e2e, which is why it shipped.
-  // The evidence the widening was built on is still good and still measured — it just belongs on an
-  // ADVISORY surface, not on a gate that decides what the app offers. It now lives in the U.15 link
-  // audit (`src/lib/engine/account/link-audit.ts`), where the worst case is a visible sentence next
-  // to an Undo the user already had, rather than a hidden change to what counts.
-  const masksDiffer = !!lo.mask && !!hi.mask && lo.mask !== hi.mask;
+  // U.14 (2026-08-15, DECISIONS #476): a last-4 is the mask COLUMN, or — when that column is empty —
+  // a 4-digit non-year embedding `maskFromName` already knows how to read. SimpleFIN never fills
+  // the column, so the column-only form was inert across the migration this feature exists for
+  // (E.LEE (4034) vs M.LEE ····4927 was offered on "lee" alone). A 2- or 3-digit SimpleFIN id is
+  // NOT a last-4: Schwab's "...396 (396)" vs Plaid ····5351 is the SAME account (owner-confirmed,
+  // L.9 e2e) and `accountNumbersConflict` is true of it. Treating those shorter ids as a veto
+  // hid that Combine in the 2026-08-12 revert (P0-1/P0-2). Years stay out (`looksLikeYear`) so
+  // "Roth IRA (2021)" cannot suppress a genuine pair. 2–3 digit leftovers (529 "…-01" vs a
+  // 401k) stay name-only candidates; U.15 already shows that evidence on a confirmed link.
+  const loLast4 = last4ForNameVeto(lo);
+  const hiLast4 = last4ForNameVeto(hi);
+  const masksDiffer = !!loLast4 && !!hiLast4 && loLast4 !== hiLast4;
 
   const reasons: string[] = [];
   let confidence: DuplicateConfidence | null = null;
@@ -683,7 +689,14 @@ export function detectReconciliationCandidates(
   for (const list of groups.values()) {
     const proven = list.filter((c) => c.provenIdentity === true);
     if (list.length === 1) {
-      candidates.push(list[0]);
+      const only = list[0];
+      // U.14 critic P1-1: after a 4-digit name-veto drops a rival, `length === 1` can
+      // promote a leftover that is only a name match against a side with no last-4
+      // (stale "Venture (1234)" + live mask-null "Venture"). That is the P0-2 collapse
+      // with an unproven survivor. A mask or balance match is still a Combine; a
+      // proven pair is still a Combine; Roth 396 vs ····5351 is pred-absence (3-digit
+      // is not a last-4) and stays offered.
+      if (!soleNameOfferIsUnprovenLeftover(only)) candidates.push(only);
       continue;
     }
     if (proven.length === 1) {

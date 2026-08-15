@@ -5171,6 +5171,22 @@ marker (copy is behind sign-in). No `prisma/` diff. **Docs-chain
 gate:** CI run **31889957871 on `ff9349da`** (this record) =
 **SUCCESS, first attempt**.
 
+## ✅ CLOSED 2026-08-15 — U.14: last-4 veto reads a 4-digit non-year name embedding
+
+The column-only `masksDiffer` was inert for SimpleFIN. The
+2026-08-12 widening (every advertised 2+ digit group) hid the
+genuine Roth 396/5351 Combine. Retry: `last4ForNameVeto` = mask
+column, else `maskFromName` minus `looksLikeYear`. Name signal
+only. A 2–3 digit SimpleFIN id is an absence. Sole name-only
+leftover after a 4-digit veto is withheld (critic P1-1). Residual:
+529 `…-01` vs a 401k stays a name-only candidate; U.15 owns
+confirmed ones.
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0,
+eslint 0, unit **7,059 passed + 1 expected fail + 1 skipped /
+426 files + 1 skipped**, `next build` clean. Consumer e2e **20/20**
+on that build. No `prisma/` diff.
+
 ## ✅ CLOSED 2026-08-15 — U.11 leftover: the refused lock no longer reads as pending
 
 U.11 closed 2026-08-12 as measured-and-refused. The `it.fails`
