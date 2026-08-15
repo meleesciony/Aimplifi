@@ -28,6 +28,12 @@ flaky-passed-on-retry** (`category-rename.spec.ts:110`,
 `merchant-lens.spec.ts:77`, `transactions.spec.ts:1014` —
 documented K.10 class, untouched by this diff). No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `817a7f5`. CI run 31864595352
+`success` on first attempt. Vercel: `success`, "Deployment has
+completed", same sha. Production `/`, `/accounts`, `/ask` 307;
+`/sign-in` 200. Marker is behind sign-in; CI e2e asserted it on
+this sha.
+
 ## 2026-08-14 — U.2: semantic status-color tokens (DECISIONS #471)
 
 **Picked up from the queue** (named next after U.37). Hue-named

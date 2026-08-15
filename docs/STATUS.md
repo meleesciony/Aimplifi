@@ -5033,3 +5033,13 @@ skipped; Playwright then run against this same `next build`): tsc
 flaky-passed-on-retry** (`category-rename.spec.ts:110`,
 `merchant-lens.spec.ts:77`, `transactions.spec.ts:1014` —
 documented K.10 class, untouched by this diff). No `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-15).** Commit `817a7f5` → pushed → CI
+gate **`success`**, run 31864595352, first attempt (`gh run view`
+conclusion `success` on sha
+`817a7f58c41604f49e3af2ed0621867f8ed36484`). Vercel commit status:
+`success`, "Deployment has completed", same sha. Production `/`,
+`/accounts`, `/ask` all 307; `/sign-in` 200. The discriminating
+marker (`account-detail-replaced-by-live` / "today's point is live")
+is behind sign-in; CI's full `VERIFY_E2E=1` suite ran the Auto Loan
+panel assertion against this sha. No `prisma/` diff.
