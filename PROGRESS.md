@@ -26,7 +26,15 @@ that build. `prisma/` schema diff (additive FK).
 full register on open; role line still says the mortgage
 itself has no activity feed (true of the servicer).
 
-**Next.** Commit, push, Neon `db push` on deploy, CI gate.
+**Shipped and proven live.** Pushed as `74783729`. CI run
+31904520152 `success` (12m). Vercel: Ready, aliases
+www.aimplifi.app, created with the push. Production
+`/accounts` 307; `/sign-in` 200. Copy is behind sign-in;
+CI e2e asserted the choose-payee list on this sha.
+`prisma/` additive FK — Neon `db push` ran on deploy.
+
+**Next.** Open the mortgage on Accounts and choose the
+servicer name as it appears in activity.
 
 ## 2026-08-15 — C.21: pace assumption names which zero when no bill was admitted (DECISIONS #477)
 

@@ -16,6 +16,8 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Locked.** `loan-payment-history.test.ts`; `account-detail-panel.test.tsx` H.9; `account-payment-merchant-actions.test.ts` (set/clear, ownership, type refuse, demo, case-variant, manual-no-merchantId); e2e `no-dead-ends` ask-without-charges + choose-payee lists −$100.00.
 
+**Gate read.** CI run **31904520152** on `74783729` = SUCCESS. Vercel Ready → www.aimplifi.app. Schema additive FK pushed with the deploy.
+
 ## ✅ BUILT 2026-08-12 — U.23: the exported ledger becomes the register's, and says what the currency guard kept out of it (DECISIONS #457)
 
 **Shipped.** The transactions CSV route built its OWN Prisma where-clause three lines above a
