@@ -5187,6 +5187,16 @@ eslint 0, unit **7,059 passed + 1 expected fail + 1 skipped /
 426 files + 1 skipped**, `next build` clean. Consumer e2e **20/20**
 on that build. No `prisma/` diff.
 
+**SHIPPED AND PROVEN LIVE (2026-08-15).** Commit `f98ff36c` →
+pushed → CI gate **`success`**, run 31893667276, first attempt
+(`gh run view` conclusion `success` on sha
+`f98ff36c62545cbeba844b412e63dcb13087b601`). Vercel commit
+status: `success`, "Deployment has completed", same sha
+(deployment `F4nxzwdjX68oTLa1WoXc9cBvk9bx`). Production `/`,
+`/accounts`, `/ask` all 307; `/sign-in` 200. Affordance is
+behind sign-in; CI e2e asserted the LEE withhold and the Roth
+offer on this sha. No `prisma/` diff.
+
 ## ✅ CLOSED 2026-08-15 — U.11 leftover: the refused lock no longer reads as pending
 
 U.11 closed 2026-08-12 as measured-and-refused. The `it.fails`

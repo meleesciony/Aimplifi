@@ -32,6 +32,15 @@ reconcile **5/5** (incl. L.9 Roth + U.14 LEE),
 duplicate-connections **10/10**, combined-accounts **4/4**.
 No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `f98ff36c`. CI run
+31893667276 `success` on first attempt. Vercel: `success`,
+"Deployment has completed", same sha. Production `/`,
+`/accounts`, `/ask` 307; `/sign-in` 200. Combine withhold is
+behind sign-in; CI e2e asserted it on this sha.
+
+**Next.** U.15 (b) is the owner's call (undo the nine wrong
+links). U.1 stays "eventually."
+
 ## 2026-08-15 — U.11 leftover: retitle the refused lock
 
 **Picked up from the queue** (named next after U.17). U.11 closed
