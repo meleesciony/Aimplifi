@@ -5159,3 +5159,12 @@ executed.
 eslint 0, unit **7,049 passed + 1 expected fail + 1 skipped /
 426 files + 1 skipped**, `next build` clean. Handover e2e **7/7**
 on that build. No `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-15).** Commit `d51724be` →
+pushed → CI gate **`success`**, run 31889492355, first attempt
+(`gh run view` conclusion `success` on sha
+`d51724be15ab088840e4833dd6d7af0a352e074c`). Vercel commit
+status: `success`, "Deployment has completed", same sha
+(deployment `GC4f9G57B1PVsmpHYE9umYymB7u4`). Production `/`,
+`/accounts`, `/ask` all 307; `/sign-in` 200. No demo-visible
+marker (copy is behind sign-in). No `prisma/` diff.

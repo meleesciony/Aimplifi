@@ -27,6 +27,12 @@ passed + 1 expected fail + 1 skipped / 426 files + 1 skipped**,
 `next build` clean. Playwright (that build): handover-day-disclosure
 **7/7**. No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `d51724be`. CI run
+31889492355 `success` on first attempt. Vercel: `success`,
+"Deployment has completed", same sha. Production `/`,
+`/accounts`, `/ask` 307; `/sign-in` 200. No figure or copy
+moved on the public surface.
+
 ## 2026-08-15 — U.7: the winning observation carries its own class (DECISIONS #474)
 
 **Picked up from the queue** (named next after U.8). A reconciled
