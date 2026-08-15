@@ -150,6 +150,10 @@ describe('the register resolves its ?account= axis against the reader’s own ac
       minimumPaymentCents: null,
       dueDayOfMonth: null,
       feedDroppedAt: null,
+      paymentMerchant: null,
+      payments: [],
+      paymentMerchantCandidates: [],
+      canSetPaymentMerchant: false,
     });
   });
 });

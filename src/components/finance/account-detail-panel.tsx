@@ -54,7 +54,18 @@ import {
 } from '@/lib/engine/account/balance-history-view';
 import { isCarriedForwardSnapshot } from '@/lib/engine/account/reconcile-boundary';
 import { isLiabilityType, type AccountView } from '@/lib/engine/transactions/query';
+import { merchantRegisterHref } from '@/lib/engine/transactions/links';
+import {
+  loanPaymentHistoryAskCopy,
+  loanPaymentHistoryEmptyCopy,
+  loanPaymentHistoryHeading,
+  loanPaymentHistoryNoCandidatesCopy,
+  loanPaymentHistoryRegisterLinkLabel,
+  paymentMerchantPanelState,
+} from '@/lib/engine/account/loan-payment-history';
+import { AccountPaymentMerchantPicker } from '@/components/finance/account-payment-merchant-picker';
 import type { AccountDetailView } from '@/server/transactions';
+import Link from 'next/link';
 
 export function AccountDetailPanel({
   account,
@@ -136,6 +147,12 @@ export function AccountDetailPanel({
     accountTypeLabel(account.type) === account.type
       ? 'another type'
       : accountTypeLabel(account.type).toLowerCase();
+  const paymentState = paymentMerchantPanelState({
+    accountType: account.type,
+    canSet: detail.canSetPaymentMerchant,
+    merchant: detail.paymentMerchant,
+    payments: detail.payments,
+  });
   return (
     <div
       id={`account-detail-${account.id}`}
@@ -150,6 +167,58 @@ export function AccountDetailPanel({
           {/* Capitalize the first fact; the rest read as a sentence. */}
           {loanFacts.join(' · ').replace(/^./, (c) => c.toUpperCase())}.
         </p>
+      )}
+      {paymentState.kind !== 'hidden' && (
+        <div data-testid="account-detail-payments" className="space-y-2">
+          {paymentState.kind === 'ask' && (
+            <p data-testid="account-detail-payment-ask" className="text-xs text-muted-foreground">
+              {detail.paymentMerchantCandidates.length === 0
+                ? loanPaymentHistoryNoCandidatesCopy()
+                : loanPaymentHistoryAskCopy()}
+            </p>
+          )}
+          {paymentState.kind === 'linked-empty' && (
+            <p data-testid="account-detail-payment-empty" className="text-xs text-muted-foreground">
+              {loanPaymentHistoryEmptyCopy(paymentState.canonical)}
+            </p>
+          )}
+          {paymentState.kind === 'linked' && (
+            <div data-testid="account-detail-payment-list">
+              <p className="mb-1 text-xs font-medium text-muted-foreground">
+                {loanPaymentHistoryHeading(paymentState.canonical)}
+              </p>
+              <ul className="max-h-48 divide-y overflow-y-auto rounded border">
+                {paymentState.payments.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-2 px-2 py-1 text-xs">
+                    <span>
+                      {formatISODate(isoDate(p.date), 'long')}
+                      <span className="ml-1 text-muted-foreground">· {p.accountName}</span>
+                    </span>
+                    <span className={`tabular-nums ${p.amountCents < 0 ? 'text-red-400' : ''}`}>
+                      {formatCents(cents(p.amountCents))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-xs">
+                <Link
+                  href={merchantRegisterHref(paymentState.canonical)}
+                  className="underline underline-offset-2"
+                  data-testid="account-detail-payment-register"
+                >
+                  {loanPaymentHistoryRegisterLinkLabel(paymentState.canonical)}
+                </Link>
+              </p>
+            </div>
+          )}
+          {detail.canSetPaymentMerchant && (
+            <AccountPaymentMerchantPicker
+              accountId={account.id}
+              currentCanonical={detail.paymentMerchant?.canonical ?? null}
+              candidates={detail.paymentMerchantCandidates}
+            />
+          )}
+        </div>
       )}
       {history.length > 0 ? (
         <div data-testid="account-detail-history">

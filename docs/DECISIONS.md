@@ -7940,3 +7940,36 @@ daily-rate sentence became the implied other role. Preamble is
 now "This projection does not add scheduled outflows." Residual
 P2s: rule-shaped wording; "scheduled outflows" is not a UI
 term; ledger drift (this note).
+
+## #478 — H.9: reader-chosen payee on a LOAN/MORTGAGE, register-axis payment history (2026-08-15)
+
+**Context.** A mortgage click shows recorded balances, not the
+payments that produced them. Those payments post against the
+checking account they left. The feeds send balances only for
+loan/mortgage accounts. Inferring the payee from name
+similarity would file a wrong history under a real debt.
+
+**Decision: the reader names the payee; the rows are the
+register's.** `Account.paymentMerchantId` → `Merchant`
+(`onDelete: SetNull`). Set only by `setAccountPaymentMerchant`.
+The painted name must already appear on this user's
+register-basis kept rows (`resolveRegisterPayee`); the stored
+canonical is that painted string so a case-variant POST cannot
+mint a second Merchant. History uses `merchantNameEquals` (the
+register `?merchant=` predicate), `registerRowWhere`, and
+`getReconciliationBoundary`. Transfer-flagged rows stay (they
+are the real ACH). Hand-entered rows with no `merchantId` match
+via `registerDisplayName`. LOAN + MORTGAGE only
+(`LOAN_ACCOUNT_TYPES`). Demo cannot write. Unlinked + cannot
+set = hidden (an ASK with no control is a dead end). Linked +
+zero rows names the activity-list zero.
+
+**Rejected.** (1) Auto-link from C.24
+`loanPaymentMerchantCanonicals` — safe to compute with, not to
+write with. (2) Filter `isTransfer: false` — hides the
+payments. (3) Match `merchantId` only — drops every manual
+row. (4) OTHER_LIABILITY / REAL_ESTATE in v1.
+
+**Locked.** `tests/unit/loan-payment-history.test.ts`;
+`account-detail-panel.test.tsx` H.9; `account-payment-merchant-actions.test.ts`;
+e2e `no-dead-ends.spec.ts` H.9.

@@ -2,6 +2,32 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-15 — H.9: reader-chosen payee on a loan/mortgage (DECISIONS #478)
+
+**Picked up from the queue** (owner: mortgage click shows nothing; build
+the payment history). Stash `ORPHANED V.1 start` was not applied;
+schema rewritten as H.9.
+
+**Closed — the reader names the payee; the panel lists register-axis
+activity.** `Account.paymentMerchantId` (SetNull). Never inferred.
+LOAN/MORTGAGE only. Demo fenced. Null = ASK (hidden on demo). Linked
++ zero names the activity-list zero. Rows include transfers and
+hand-entered charges with no `merchantId`.
+
+**Locked.** loan-payment-history; account-detail-panel H.9;
+account-payment-merchant-actions; e2e no-dead-ends 16/16 incl. H.9.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit
+**7,082 passed + 1 expected fail + 1 skipped / 428 files + 1
+skipped**, `next build` clean. no-dead-ends e2e **16/16** on
+that build. `prisma/` schema diff (additive FK).
+
+**Critic (self, 1 cycle):** 0 P0 / 0 P1. P2: panel loads the
+full register on open; role line still says the mortgage
+itself has no activity feed (true of the servicer).
+
+**Next.** Commit, push, Neon `db push` on deploy, CI gate.
+
 ## 2026-08-15 — C.21: pace assumption names which zero when no bill was admitted (DECISIONS #477)
 
 **Picked up from the queue** (Wave U leftovers an agent can

@@ -6,6 +6,16 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-15 — H.9: a loan/mortgage panel shows the checking-account payments the reader named (DECISIONS #478)
+
+**The report.** Clicking a mortgage on Accounts opened a balance panel with no payment history. The payments live on the checking (or savings/card) account they left; the servicer sends balances only. Mint/Simplifi show that activity on the loan.
+
+**Shipped.** `Account.paymentMerchantId` (SetNull) is set ONLY by the reader choosing a payee from their register activity — never inferred from name similarity. The panel lists those rows on the register's own merchant axis (`merchantNameEquals` + `registerRowWhere` + reconciliation keep), including transfer-flagged ACH and hand-entered rows with no `merchantId`. Null link = ASK (or hidden on the shared demo, which cannot write). Linked + zero rows names that zero; it does not say the loan is paid off. Demo fenced. LOAN/MORTGAGE only.
+
+**Schema.** Additive nullable FK. `prisma db push` runs against live Neon on deploy.
+
+**Locked.** `loan-payment-history.test.ts`; `account-detail-panel.test.tsx` H.9; `account-payment-merchant-actions.test.ts` (set/clear, ownership, type refuse, demo, case-variant, manual-no-merchantId); e2e `no-dead-ends` ask-without-charges + choose-payee lists −$100.00.
+
 ## ✅ BUILT 2026-08-12 — U.23: the exported ledger becomes the register's, and says what the currency guard kept out of it (DECISIONS #457)
 
 **Shipped.** The transactions CSV route built its OWN Prisma where-clause three lines above a

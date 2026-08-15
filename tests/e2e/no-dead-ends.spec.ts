@@ -360,6 +360,10 @@ test('a hand-added mortgage — the app’s own advertised mortgage — opens it
   await expect(panel).toContainText('money you owe');
   await expect(panel.getByTestId('account-detail-no-history')).toContainText('No balance history recorded');
   await expect(panel.getByTestId('account-detail-loan-facts')).toHaveCount(0);
+  // H.9: no activity yet, so the panel ASKS and names that zero — it does not
+  // invent a payee. The picker stays hidden until a charge exists to choose.
+  await expect(panel.getByTestId('account-detail-payment-ask')).toContainText('Add a charge there first');
+  await expect(panel.getByTestId('account-detail-payment-picker')).toHaveCount(0);
 
   // ── U.4: the same panel, once a sync has recorded a month ────────────────
   // The half above is the fail-old state and it is real: before U.4 nothing but
@@ -573,4 +577,64 @@ test('U.5: a combined account’s panel marks the balances net worth does not co
   // U.9: scoped to balances (U.11 measures the same account counted twice in spending).
   await expect(note).toContainText('no balance is counted twice');
   await expect(note).toContainText('Account cleanup');
+});
+
+test('H.9 — choosing the payee on a mortgage lists the checking-account payments', async ({ page }) => {
+  const email = `e2e-h9-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+
+  await page.goto('/accounts');
+  await expect(async () => {
+    await page.getByTestId('add-asset-btn').click({ timeout: 2000 });
+    await expect(page.getByTestId('manual-name')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await page.getByTestId('manual-name').fill('E2E H9 Checking');
+  await page.getByTestId('manual-type').selectOption('CHECKING');
+  await page.getByTestId('manual-value').fill('4000');
+  await page.getByTestId('manual-submit').click();
+  await expect(page.getByTestId('manual-account-row').filter({ hasText: 'E2E H9 Checking' })).toBeVisible({
+    timeout: 20000,
+  });
+
+  await page.goto('/transactions/new');
+  await page.getByTestId('txn-descriptor').fill('E2E Mortgage Servicer');
+  await page.getByTestId('txn-amount').fill('100.00');
+  await page.getByTestId('txn-submit').click();
+  await page.waitForURL('**/transactions', { timeout: 20000 });
+
+  await page.goto('/accounts');
+  await expect(async () => {
+    await page.getByTestId('add-liability-btn').click({ timeout: 2000 });
+    await expect(page.getByTestId('manual-name')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await page.getByTestId('manual-name').fill('E2E H9 Mortgage');
+  await page.getByTestId('manual-type').selectOption('MORTGAGE');
+  await page.getByTestId('manual-value').fill('250000');
+  await page.getByTestId('manual-submit').click();
+  const row = page.getByTestId('manual-account-row').filter({ hasText: 'E2E H9 Mortgage' });
+  await expect(row).toBeVisible({ timeout: 20000 });
+  await row.getByTestId('manual-account-open').click();
+  await page.waitForURL('**/accounts?detail=*', { timeout: 20000 });
+
+  const panel = page.getByTestId('account-detail-panel');
+  await expect(panel.getByTestId('account-detail-payment-ask')).toContainText('will not guess');
+  const select = panel.getByTestId('account-detail-payment-select');
+  const payee = await select.locator('option').nth(1).getAttribute('value');
+  expect(payee, 'a charge in activity must appear as a payee').toBeTruthy();
+  await select.selectOption(payee!);
+  await panel.getByTestId('account-detail-payment-save').click();
+
+  const list = panel.getByTestId('account-detail-payment-list');
+  await expect(list).toBeVisible({ timeout: 20000 });
+  await expect(list).toContainText('-$100.00');
+  await expect(list).toContainText('E2E H9 Checking');
+  await expect(panel.getByTestId('account-detail-payment-register')).toHaveAttribute(
+    'href',
+    `/transactions?merchant=${encodeURIComponent(payee!)}`,
+  );
 });

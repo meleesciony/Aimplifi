@@ -11,14 +11,38 @@
  * list of dated figures: balances the bank actually sent, and the last one
  * repeated monthly after the feed went quiet.
  */
-import { afterEach, describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+
+vi.mock('@/server/account-payment-merchant-actions', () => ({
+  setAccountPaymentMerchant: async () => ({ ok: true }),
+}));
 
 // This config does not enable vitest globals, so RTL's auto-cleanup does not
 // run — without this, renders accumulate and getBy* finds duplicates.
 afterEach(cleanup);
 import { AccountDetailPanel } from '@/components/finance/account-detail-panel';
 import type { AccountView } from '@/lib/engine/transactions/query';
+import type { AccountDetailView } from '@/server/transactions';
+
+const PAY_NONE = {
+  paymentMerchant: null,
+  payments: [] as AccountDetailView['payments'],
+  paymentMerchantCandidates: [] as AccountDetailView['paymentMerchantCandidates'],
+  canSetPaymentMerchant: false,
+};
+
+function d(over: Partial<AccountDetailView> & Pick<AccountDetailView, 'id'>): AccountDetailView {
+  return {
+    history: [],
+    aprBps: null,
+    minimumPaymentCents: null,
+    dueDayOfMonth: null,
+    feedDroppedAt: null,
+    ...PAY_NONE,
+    ...over,
+  };
+}
 
 const mortgage: AccountView = {
   id: 'acct-m',
@@ -34,7 +58,7 @@ describe('AccountDetailPanel', () => {
       <AccountDetailPanel
         account={mortgage}
         isLiability
-        detail={{ id: 'acct-m', history: [], aprBps: null, minimumPaymentCents: null, dueDayOfMonth: null, feedDroppedAt: null }}
+        detail={d({ id: 'acct-m' })}
       />,
     );
     const panel = screen.getByTestId('account-detail-panel');
@@ -48,6 +72,8 @@ describe('AccountDetailPanel', () => {
     );
     expect(screen.queryByTestId('account-detail-loan-facts')).toBeNull();
     expect(screen.queryByTestId('account-detail-history')).toBeNull();
+    // Unlinked + cannot set (demo / this fixture): no ASK dead-end.
+    expect(screen.queryByTestId('account-detail-payments')).toBeNull();
   });
 
   it('U.8: a checking account does not claim it is tracked instead of an activity feed', () => {
@@ -55,7 +81,7 @@ describe('AccountDetailPanel', () => {
       <AccountDetailPanel
         account={{ id: 'acct-c', name: 'Everyday Checking', type: 'CHECKING', mask: '4421', currentBalanceCents: 340000 }}
         isLiability={false}
-        detail={{ id: 'acct-c', history: [], aprBps: null, minimumPaymentCents: null, dueDayOfMonth: null, feedDroppedAt: null }}
+        detail={d({ id: 'acct-c' })}
       />,
     );
     const panel = screen.getByTestId('account-detail-panel');
@@ -69,7 +95,7 @@ describe('AccountDetailPanel', () => {
       <AccountDetailPanel
         account={{ ...mortgage, id: 'acct-l', type: 'LOAN' }}
         isLiability
-        detail={{ id: 'acct-l', history: [], aprBps: 649, minimumPaymentCents: 38500, dueDayOfMonth: 5, feedDroppedAt: null }}
+        detail={d({ id: 'acct-l', aprBps: 649, minimumPaymentCents: 38500, dueDayOfMonth: 5 })}
       />,
     );
     const facts = screen.getByTestId('account-detail-loan-facts');
@@ -93,6 +119,7 @@ describe('AccountDetailPanel', () => {
           minimumPaymentCents: null,
           dueDayOfMonth: null,
           feedDroppedAt: null,
+          ...PAY_NONE,
         }}
       />,
     );
@@ -124,6 +151,7 @@ describe('AccountDetailPanel', () => {
           minimumPaymentCents: null,
           dueDayOfMonth: null,
           feedDroppedAt: '2026-03-15',
+          ...PAY_NONE,
         }}
       />,
     );
@@ -147,6 +175,7 @@ describe('AccountDetailPanel', () => {
           minimumPaymentCents: null,
           dueDayOfMonth: null,
           feedDroppedAt: null,
+          ...PAY_NONE,
         }}
       />,
     );
@@ -166,6 +195,7 @@ describe('AccountDetailPanel', () => {
           minimumPaymentCents: null,
           dueDayOfMonth: null,
           feedDroppedAt: null,
+          ...PAY_NONE,
         }}
       />,
     );
@@ -194,6 +224,7 @@ describe('AccountDetailPanel', () => {
             minimumPaymentCents: null,
             dueDayOfMonth: null,
             feedDroppedAt: null,
+          ...PAY_NONE,
           }}
         />,
       );
@@ -234,6 +265,7 @@ describe('AccountDetailPanel', () => {
             minimumPaymentCents: null,
             dueDayOfMonth: null,
             feedDroppedAt: null,
+          ...PAY_NONE,
           }}
         />,
       );
@@ -262,6 +294,7 @@ describe('AccountDetailPanel', () => {
             minimumPaymentCents: null,
             dueDayOfMonth: null,
             feedDroppedAt: '2026-03-15',
+          ...PAY_NONE,
           }}
         />,
       );
@@ -290,6 +323,7 @@ describe('AccountDetailPanel', () => {
             minimumPaymentCents: null,
             dueDayOfMonth: null,
             feedDroppedAt: null,
+          ...PAY_NONE,
           }}
         />,
       );
@@ -318,6 +352,7 @@ describe('AccountDetailPanel', () => {
             minimumPaymentCents: null,
             dueDayOfMonth: null,
             feedDroppedAt: null,
+          ...PAY_NONE,
           }}
         />,
       );
@@ -350,6 +385,7 @@ describe('AccountDetailPanel', () => {
             minimumPaymentCents: null,
             dueDayOfMonth: null,
             feedDroppedAt: null,
+          ...PAY_NONE,
           }}
         />,
       );
@@ -369,6 +405,7 @@ describe('AccountDetailPanel', () => {
             minimumPaymentCents: null,
             dueDayOfMonth: null,
             feedDroppedAt: null,
+          ...PAY_NONE,
           }}
         />,
       );
@@ -401,7 +438,7 @@ describe('AccountDetailPanel', () => {
       <AccountDetailPanel
         account={autoLoan}
         isLiability
-        detail={{ id: 'acct-c', history, aprBps: null, minimumPaymentCents: null, dueDayOfMonth: null, feedDroppedAt }}
+        detail={d({ id: 'acct-c', history, feedDroppedAt })}
       />
     );
     const retired = { name: 'Auto Loan Retired', balanceCents: 1430000, isLiability: true };
@@ -538,6 +575,7 @@ describe('AccountDetailPanel', () => {
             minimumPaymentCents: null,
             dueDayOfMonth: null,
             feedDroppedAt: null,
+          ...PAY_NONE,
           }}
         />,
       );
@@ -572,6 +610,7 @@ describe('AccountDetailPanel', () => {
             minimumPaymentCents: null,
             dueDayOfMonth: null,
             feedDroppedAt: null,
+          ...PAY_NONE,
           }}
         />,
       );
@@ -599,12 +638,95 @@ describe('AccountDetailPanel', () => {
             minimumPaymentCents: null,
             dueDayOfMonth: null,
             feedDroppedAt: null,
+          ...PAY_NONE,
           }}
         />,
       );
       // Class instability is visible (the May CHECKING row), so the note's
       // GATE fires — but its COUNT must not include the today-row.
       expect(screen.queryByTestId('account-detail-unrecorded-class-note')).toBeNull();
+    });
+  });
+
+  describe('H.9 payment history', () => {
+    it('asks when a real reader has not chosen a payee', () => {
+      render(
+        <AccountDetailPanel
+          account={mortgage}
+          isLiability
+          detail={d({
+            id: 'acct-m',
+            canSetPaymentMerchant: true,
+            paymentMerchantCandidates: [{ id: 'm1', canonical: 'Wells Fargo Mortgage' }],
+          })}
+        />,
+      );
+      expect(screen.getByTestId('account-detail-payment-ask').textContent).toContain('will not guess');
+      expect(screen.getByTestId('account-detail-payment-select')).toBeTruthy();
+      expect(screen.queryByTestId('account-detail-payment-list')).toBeNull();
+    });
+
+    it('names the empty when linked and nothing matches — not paid off', () => {
+      render(
+        <AccountDetailPanel
+          account={mortgage}
+          isLiability
+          detail={d({
+            id: 'acct-m',
+            canSetPaymentMerchant: true,
+            paymentMerchant: { id: 'm1', canonical: 'Wells Fargo Mortgage' },
+            paymentMerchantCandidates: [{ id: 'm1', canonical: 'Wells Fargo Mortgage' }],
+          })}
+        />,
+      );
+      expect(screen.getByTestId('account-detail-payment-empty').textContent).toContain(
+        'not a claim that nothing was paid',
+      );
+      expect(screen.queryByTestId('account-detail-payment-list')).toBeNull();
+    });
+
+    it('lists register-axis payments with the register link', () => {
+      render(
+        <AccountDetailPanel
+          account={mortgage}
+          isLiability
+          detail={d({
+            id: 'acct-m',
+            canSetPaymentMerchant: true,
+            paymentMerchant: { id: 'm1', canonical: 'Wells Fargo Mortgage' },
+            paymentMerchantCandidates: [{ id: 'm1', canonical: 'Wells Fargo Mortgage' }],
+            payments: [
+              {
+                id: 't-2',
+                date: '2026-06-03',
+                accountId: 'chk',
+                accountName: 'Everyday Checking',
+                amountCents: -621_707,
+                isTransfer: true,
+                merchantName: 'Wells Fargo Mortgage',
+              },
+            ],
+          })}
+        />,
+      );
+      const list = screen.getByTestId('account-detail-payment-list');
+      expect(list.textContent).toContain('Activity from Wells Fargo Mortgage');
+      expect(list.textContent).toContain('Everyday Checking');
+      expect(list.textContent).toContain('-$6,217.07');
+      const link = screen.getByTestId('account-detail-payment-register');
+      expect(link.getAttribute('href')).toBe('/transactions?merchant=Wells%20Fargo%20Mortgage');
+      expect(link.textContent).toBe('Every Wells Fargo Mortgage in activity');
+    });
+
+    it('a checking details panel never offers a payee picker', () => {
+      render(
+        <AccountDetailPanel
+          account={{ id: 'acct-c', name: 'Everyday Checking', type: 'CHECKING', mask: '4421', currentBalanceCents: 340000 }}
+          isLiability={false}
+          detail={d({ id: 'acct-c', canSetPaymentMerchant: true })}
+        />,
+      );
+      expect(screen.queryByTestId('account-detail-payments')).toBeNull();
     });
   });
 });

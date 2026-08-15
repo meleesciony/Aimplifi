@@ -321,9 +321,20 @@ function matchesType(t: TxnView, type: FlowType): boolean {
   }
 }
 
+/**
+ * The register's merchant-axis predicate (DECISIONS #250 / H.9): case-insensitive
+ * EXACT match on the painted payee name. Trim the filter, not the display name —
+ * that is the byte contract `?merchant=` already ships. Shared so a loan panel
+ * that lists "this payee's activity" cannot drift from the register that
+ * `merchantRegisterHref` opens (a-guard-must-read-what-it-guards).
+ */
+export function merchantNameEquals(displayName: string, merchant: string): boolean {
+  const needle = merchant.trim().toLowerCase();
+  return needle !== '' && displayName.toLowerCase() === needle;
+}
+
 export function filterTransactions(rows: readonly TxnView[], filter: TxnFilter = {}): TxnView[] {
   const needle = filter.search?.trim().toLowerCase() ?? '';
-  const merchant = filter.merchant?.trim().toLowerCase() ?? '';
   const from = filter.from ? isoDate(filter.from) : null;
   const to = filter.to ? isoDate(filter.to) : null;
   const type = filter.type ?? 'all';
@@ -335,7 +346,7 @@ export function filterTransactions(rows: readonly TxnView[], filter: TxnFilter =
     if (filter.accountId && t.accountId !== filter.accountId) return false;
     if (filter.categoryId && t.categoryId !== filter.categoryId) return false;
     if (filter.spendClass && t.spendClass !== filter.spendClass) return false;
-    if (merchant && t.merchantName.toLowerCase() !== merchant) return false;
+    if (filter.merchant?.trim() && !merchantNameEquals(t.merchantName, filter.merchant)) return false;
     if (from && compareDates(isoDate(t.date), from) < 0) return false;
     if (to && compareDates(isoDate(t.date), to) > 0) return false;
     if (needle) {

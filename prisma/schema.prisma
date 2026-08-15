@@ -255,6 +255,13 @@ model Account {
   feedDroppedAt         String? // YYYY-MM-DD the connection was first observed to STOP returning this account (Plaid Link update mode lets a user untick one); null = still shared. Set only from a complete, wholly-readable /accounts/get census and cleared the moment the account comes back (TASKS L.14, src/lib/engine/account/feed-presence.ts). Adjusts NO figure — the row keeps its last balance and keeps counting, because only the user knows whether the account still exists; what this column buys is that the app stops CLAIMING the row is fresh, says out loud that it is frozen, and permits deleting it (a sync can no longer resurrect what the feed no longer sends).
   plaidItemId           String? // #256: the Plaid item (bank connection) this account belongs to. Stamped on every Plaid account upsert AND best-effort at item disconnect; null on non-Plaid rows and on rows not yet re-synced since this column shipped. Read by the synced-account delete guard: a null linkage falls back to the conservative zero-items rule (see server/account-delete.ts).
   sharedToHousehold     Boolean @default(false) // owner-consented read-only share into the owner's CURRENT household (HOUSEHOLD_ARCHITECTURE §4.1). Deliberately names no household: visibility requires BOTH this flag AND live membership, so departure ends visibility instantly. Read via `partnerSharedAccountsWhere`/`visibleAccountsWhere` (src/server/authz.ts) ONLY (4.2 slice 2).
+  // H.9: the payee whose checking/savings/card charges pay this LOAN/MORTGAGE
+  // down. Set ONLY by the reader choosing a name from their activity — never
+  // inferred from name similarity (an inferred match would file a wrong
+  // payment history under a real debt). Null = the panel ASKS rather than
+  // showing a history it cannot vouch for. onDelete SetNull so deleting a
+  // merchant can never delete an account.
+  paymentMerchantId     String?
 
   autopay      AutopayConfig?
   statements   Statement[]
@@ -262,10 +269,12 @@ model Account {
   scheduled    ScheduledTransaction[]
   snapshots    BalanceSnapshot[]
   holdings     Holding[]
+  paymentMerchant Merchant? @relation("AccountPaymentMerchant", fields: [paymentMerchantId], references: [id], onDelete: SetNull)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([paymentMerchantId])
 }
 
 /// Cross-provider account reconciliation (docs/PROVIDER_RECONCILIATION_ARCHITECTURE.md, TASKS 4.6).
@@ -454,6 +463,7 @@ model Merchant {
   patterns     MerchantPattern[]
   transactions Transaction[]
   recurring    RecurringSeries[]
+  paysDownAccounts Account[] @relation("AccountPaymentMerchant")
 }
 
 model MerchantPattern {

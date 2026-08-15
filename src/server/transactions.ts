@@ -13,6 +13,11 @@ import { summarizeRecurring } from '@/lib/engine/recurring/summary';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { type PredictionSource, describeProvenance } from '@/lib/engine/categorize/provenance';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
+import {
+  isLoanPaymentHistoryAccount,
+  selectLoanPaymentHistoryRows,
+  type LoanPaymentHistoryRow,
+} from '@/lib/engine/account/loan-payment-history';
 import { rowOrigin } from '@/lib/engine/transactions/origin';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { proposalReason } from '@/lib/engine/categorize/propose';
@@ -104,6 +109,7 @@ import {
   SPENDING_ACCOUNT_TYPES,
   countUnclassified,
   filterTransactions,
+  merchantNameEquals,
   groupAccounts,
   isLiabilityType,
   paginate,
@@ -1835,13 +1841,32 @@ export interface AccountDetailView {
   /** YYYY-MM-DD the feed stopped returning this account, or null. Rows dated
    *  after it repeat the last balance the bank actually sent — see the docblock. */
   feedDroppedAt: string | null;
+  /** H.9: reader-chosen payee for a LOAN/MORTGAGE, or null. REQUIRED so a
+   *  caller must answer it — an omitted field would look like "no payee" and
+   *  hide a link the loader dropped (U.6). */
+  paymentMerchant: { id: string; canonical: string } | null;
+  /** Register-basis rows whose painted name matches `paymentMerchant`. Empty
+   *  when unlinked OR when linked and nothing matches — the panel names which. */
+  payments: LoanPaymentHistoryRow[];
+  /** Distinct painted payee names from this user's register, for the picker.
+   *  Empty on a type that cannot set a payee. */
+  paymentMerchantCandidates: { id: string | null; canonical: string }[];
+  canSetPaymentMerchant: boolean;
 }
 
 export async function getAccountDetail(userId: string, accountId: string): Promise<AccountDetailView | null> {
   const today = businessToday(userId);
   const account = await prisma.account.findFirst({
     where: { id: accountId, userId },
-    select: { id: true, aprBps: true, minimumPaymentCents: true, dueDayOfMonth: true, feedDroppedAt: true },
+    select: {
+      id: true,
+      type: true,
+      aprBps: true,
+      minimumPaymentCents: true,
+      dueDayOfMonth: true,
+      feedDroppedAt: true,
+      paymentMerchant: { select: { id: true, canonical: true } },
+    },
   });
   if (!account) return null;
   const [history, accounts, links] = await Promise.all([
@@ -1978,6 +2003,48 @@ export async function getAccountDetail(userId: string, accountId: string): Promi
     };
   });
 
+  const emptyPayments = {
+    paymentMerchant: null as { id: string; canonical: string } | null,
+    payments: [] as LoanPaymentHistoryRow[],
+    paymentMerchantCandidates: [] as { id: string | null; canonical: string }[],
+    canSetPaymentMerchant: false,
+  };
+  if (!isLoanPaymentHistoryAccount(account.type)) {
+    return {
+      id: account.id,
+      history: rows,
+      aprBps: account.aprBps,
+      minimumPaymentCents: account.minimumPaymentCents,
+      dueDayOfMonth: account.dueDayOfMonth,
+      feedDroppedAt: account.feedDroppedAt,
+      ...emptyPayments,
+    };
+  }
+
+  const payeeRead = await loadRegisterPayeeRows(userId);
+  const seen = new Map<string, string | null>();
+  for (const t of payeeRead) {
+    const name = registerDisplayName(t);
+    if (name === '' || seen.has(name)) continue;
+    seen.set(name, t.merchant?.id ?? null);
+  }
+  const paymentMerchantCandidates = [...seen.entries()]
+    .map(([canonical, id]) => ({ id, canonical }))
+    .sort((a, b) => a.canonical.localeCompare(b.canonical));
+  const paymentMerchant = account.paymentMerchant;
+  const mappedPayees: LoanPaymentHistoryRow[] = payeeRead.map((t) => ({
+    id: t.id,
+    date: t.date,
+    accountId: t.accountId,
+    accountName: accountLabel(t.account),
+    amountCents: t.amountCents,
+    isTransfer: t.isTransfer,
+    merchantName: registerDisplayName(t),
+  }));
+  const payments = paymentMerchant
+    ? selectLoanPaymentHistoryRows(mappedPayees, paymentMerchant.canonical)
+    : [];
+
   return {
     id: account.id,
     history: rows,
@@ -1985,7 +2052,43 @@ export async function getAccountDetail(userId: string, accountId: string): Promi
     minimumPaymentCents: account.minimumPaymentCents,
     dueDayOfMonth: account.dueDayOfMonth,
     feedDroppedAt: account.feedDroppedAt,
+    paymentMerchant,
+    payments,
+    paymentMerchantCandidates,
+    canSetPaymentMerchant: !isDemoUser(userId),
   };
+}
+
+/** Register-basis kept rows with the joins payment history needs. One read
+ *  feeds both the picker candidates and the linked list so the two cannot
+ *  disagree about which names exist. */
+async function loadRegisterPayeeRows(userId: string) {
+  const raw = await prisma.transaction.findMany({
+    where: registerRowWhere(userId),
+    select: {
+      id: true,
+      date: true,
+      amountCents: true,
+      isTransfer: true,
+      rawDescriptor: true,
+      accountId: true,
+      account: { select: { name: true, displayName: true } },
+      merchant: { select: { id: true, canonical: true } },
+    },
+    orderBy: [{ date: 'desc' }, { id: 'desc' }],
+  });
+  const { keepsReconciled } = await getReconciliationBoundary(userId);
+  return raw.filter((t) => keepsReconciled(t.accountId, t.date));
+}
+
+/** The painted payee name on this user's register that matches `payee`, or
+ *  null. The set action stores THIS string (not the raw input) so a
+ *  case-variant POST cannot mint a second Merchant beside the one the
+ *  register already paints. */
+export async function resolveRegisterPayee(userId: string, payee: string): Promise<string | null> {
+  const rows = await loadRegisterPayeeRows(userId);
+  const hit = rows.find((t) => merchantNameEquals(registerDisplayName(t), payee));
+  return hit === undefined ? null : registerDisplayName(hit);
 }
 
 export async function getWithheldAccountSummary(userId: string): Promise<WithheldAccountSummary> {
