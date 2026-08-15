@@ -78,9 +78,11 @@ export function netWorthSeries(input: {
     // The ROW's own class decides its sign, never the account's current one: both
     // providers rewrite `Account.type` on every ordinary sync, so re-deriving it
     // here let a single reclassification flip the sign of history already
-    // recorded (U.6). `accountType == null` is the pre-U.6 row, the one case
-    // where there is nothing better to use than what the account is today — the
-    // exact behaviour that shipped before, kept only for rows written under it.
+    // recorded (U.6). A collision winner is still that row — do not re-sign it
+    // by the successor or drop the date (U.7, measured and refused). `accountType
+    // == null` is the pre-U.6 row, the one case where there is nothing better to
+    // use than what the account is today — the exact behaviour that shipped
+    // before, kept only for rows written under it.
     // `''` as well as null: the column is a free-text `String?` that raw SQL can
     // write (the e2e does), and an empty string is not a class — it would fall
     // through `isLiabilityType`'s set membership and silently make a credit card

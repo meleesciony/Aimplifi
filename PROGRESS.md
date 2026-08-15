@@ -2,6 +2,27 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-15 — U.7: the winning observation carries its own class (DECISIONS #474)
+
+**Picked up from the queue** (named next after U.8). A reconciled
+pair's collision winner was filed as deciding that date's sign.
+
+**Closed — measured and refused, not built.** Production: 16
+colliding dates, 0 class disagreements, all 55 snapshots NULL.
+Prefer-successor and refuse-the-date both rejected. Class rides
+with the winning row.
+
+**Locked.** U.7 block: covering CHECKING winner `+$5,000.00`;
+genuine CREDIT over CHECKING echo `−$4,800.00`; NULL+NULL stays
+liability either winner.
+
+**Critic (read-only): PASS — 0 P0, 0 P1.** Four P2s executed in
+the decision note / lock comment.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,047
+passed + 1 expected fail + 1 skipped / 426 files + 1 skipped**,
+`next build` clean. E2e skipped (no UI). No `prisma/` diff.
+
 ## 2026-08-15 — U.8: spending rows can open the same detail panel (DECISIONS #473)
 
 **Picked up from the queue** (named next after U.10). The detail
@@ -3780,7 +3801,7 @@ The other seven: a note asserting the trend counts "every balance the way it was
 
 **The `prisma/` diff is a REAL schema change this time** (U.4's was comment-only): one nullable column. `prisma db push` adding it destroys nothing, and until a sync writes new rows every existing row is NULL and reads byte-identically to pre-U.6.
 
-**Residuals filed:** U.7 (a reconciled pair's collision winner now decides that date's sign) and U.8 (the detail panel never renders for CHECKING/SAVINGS/CREDIT — the likelier reclassification targets — so their explanation rides on the drilldown marker alone).
+**Residuals filed:** U.7 (a reconciled pair's collision winner now decides that date's sign — **CLOSED 2026-08-15, #474, measured and refused**) and U.8 (the detail panel never renders for CHECKING/SAVINGS/CREDIT — **SHIPPED 2026-08-15, #473**).
 
 **SHIPPED AND PROVEN LIVE.** Committed `e60f9b1` → pushed → **CI run 31605655317 = SUCCESS, first attempt**, read to conclusion via `scripts/ci-status.sh` (the full `VERIFY_E2E=1` gate, so every new assertion passed in a real browser). Vercel deployment `aimplifi-72gcqqn12` reached production in ~5m against the usual ~1m — consistent with `prisma db push` actually adding the column to Neon. `node scripts/u6-live-deploy-check.mjs` → **13/13 PASS** (plus 4 declared SKIPs), where the same script returned **9/13 before the deploy** with exactly the four discriminating checks failing. The demo delta is byte-identical live at `+$1,667.46 vs last month-end`: the new class-change refusal does not misfire on stable classes, which was this slice's main live risk.
 

@@ -6480,7 +6480,7 @@ The ONE real production user shows a completely different shape. The current mon
 - **P1 — the exported PDF signs its account list by the current class and its trend by the recorded one**, in the one artifact handed to a lender with no way to correct itself. The trend rows are the U.6-correct half; the divergence is real and is carried into the residuals rather than papered over.
 - **P2s executed:** two adjacent markers concatenating into one token for a screen reader ("carried forwardrecorded as checking"), `text-amber-500` at `text-xs` replaced with the repo's own compliant `amber-600 dark:amber-400`, an unrecognised type rendering a raw enum at the reader, `''` treated as absence alongside null (the column is free-text that raw SQL writes — the e2e does), duplicate constituents counted as distinct accounts where the sibling checks use Sets, and the slice's own e2e rewritten rather than left to ratify the copy it asserted.
 
-**Residuals, split out rather than papered over:** **U.7** — a reconciled pair's collision winner now decides that date's sign. **U.8** — the detail panel, the only per-row explanation, never renders for CHECKING/SAVINGS/CREDIT accounts, which are the likelier reclassification targets; the drilldown marker is the mitigation and is locked for every account in the trend.
+**Residuals, split out rather than papered over:** **U.7** — a reconciled pair's collision winner now decides that date's sign (**CLOSED 2026-08-15, #474 — measured and refused**). **U.8** — the detail panel, the only per-row explanation, never renders for CHECKING/SAVINGS/CREDIT accounts, which are the likelier reclassification targets; the drilldown marker is the mitigation and is locked for every account in the trend (**SHIPPED 2026-08-15, #473**).
 
 **Verification:** `bash scripts/verify.sh` green. Five sabotage proofs, each reverted (the series sign rule reddens 2 locks; the delta refusal 2; the panel's per-row sign 1; the drilldown marker 1). The `prisma/` diff is ONE nullable column plus comments — `prisma db push` adding it destroys nothing, and until a sync writes new rows every NULL reads byte-identically to pre-U.6. Demo/golden output is unchanged by construction: seeded types never move, so every seeded sign is what it was.
 
@@ -7706,3 +7706,51 @@ kinds. A brokerage panel.
 **Locked.** `accountDetailRoleLine` both variants; checking panel
 render; destinations e2e (checking href unchanged, no Brokerage
 Details); U.8 e2e sibling open/close.
+
+## #474 — U.7: the winning observation carries its own class (2026-08-15)
+
+**Context.** The U.6 critic filed a shape: after a snapshot carries
+its own class, `keepsSnapshot` drops one side of an exact-date
+collision and the survivor's recorded class signs that date. Pre-U.6
+both sides were signed from today's type, and
+`effectiveReconciliationLinks` only requires today's types to match.
+A pair that once disagreed across the asset/liability line, then
+healed, would make the point's sign depend on who won. The row asked
+to prefer the successor's class or refuse the date.
+
+**Measured, not inferred** (`scripts/audit-probes/u7-collision-sign.mts`
+against the owner's live Neon, 2026-08-15): 27 live links, 25
+effective, 16 colliding (component, date) pairs, **0 class
+disagreements**, 0 even same-class type disagreements (CREDIT vs
+LOAN). All 55 snapshots still have NULL `accountType` — U.6
+deliberately refused the backfill, and August was already claimed
+before the column existed. NULL falls back to the account's current
+type; an effective link already requires those to match; so the
+filed shape cannot fire on any row that exists today.
+
+**Decision: refuse both prescribed fixes.** The class rides with the
+winning observation, the same way the cents do. Preferring the
+successor's class would mix the winner's cents with a class that
+row was not read under — U.6 inverted. Refusing the date would drop
+a real observation and understate that bucket (U.4: a missing
+account is not a shorter list). "Sign depends on who won" is not a
+new defect: it is the collision ranking doing the job U.9 / U.37
+already do for the magnitude. Pre-U.6 both sides signed identically
+because both used current type — that was the U.6 bug, not a
+property to restore.
+
+**Not in scope.** Stamping `accountType` onto the already-claimed
+August rows (that is the backfill U.6 deleted). A later month will
+write typed rows; if a healed cross-class collision then appears,
+the locks below say what the engine must do. No new disclosure for
+that future shape: U.5 already names the dropped counterpart's
+cents and U.6 already marks a recorded class that differs from
+today. The 0-disagreement count is tautological while every row is
+NULL — the locks, not that count, are what close the row.
+
+**Locked.** `tests/unit/reconcile-boundary.test.ts` U.7 block:
+CHECKING-recorded covering winner against CREDIT-recorded loser is
+`+$5,000.00` (prefer-successor would be `−$5,000.00`; refuse-date
+would drop the point); genuine CREDIT beating a CHECKING echo is
+`−$4,800.00`; NULL+NULL both CREDIT today stay a liability
+whichever side wins.

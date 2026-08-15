@@ -1651,3 +1651,135 @@ describe('U.37 — a genuine reading outranks an echo across tiers', () => {
     ]);
   });
 });
+
+/**
+ * U.7 — the collision winner's RECORDED class signs that date. The U.6 critic
+ * filed this as a defect: post-U.6 who wins also decides the sign, where
+ * pre-U.6 both sides were signed from today's type. Measured on the owner's
+ * corpus (scripts/audit-probes/u7-collision-sign.mts, 2026-08-15): 16 colliding
+ * (component, date) pairs, 0 class disagreements, all 55 snapshots still NULL
+ * (U.6 refused the backfill). NULL falls back to current type, and
+ * `effectiveReconciliationLinks` already requires those to match, so the shape
+ * cannot fire on any row that exists today.
+ *
+ * The prescribed fixes are refused: preferring the successor's class would
+ * mix the winning observation's cents with a class it was not read under
+ * (U.6 inverted); refusing the date would drop a real observation and
+ * understate the bucket (U.4). The class rides with the winning row, the
+ * same way the cents do. Test 1 fails both prescribed fixes; test 2 fails
+ * refuse-the-date; test 3 locks that NULL rows cannot disagree.
+ */
+describe('U.7 — the winning observation carries its own class', () => {
+  const pointOf = (
+    out: {
+      balanceSnapshots: readonly {
+        accountId: string;
+        date: string;
+        balanceCents: number;
+        accountType: string | null;
+      }[];
+      accounts: readonly { id: string; type: string; currentBalanceCents: number }[];
+    },
+    date: string,
+  ) => {
+    const series = netWorthSeries({
+      snapshots: out.balanceSnapshots.map((b) => ({
+        accountId: b.accountId,
+        date: b.date,
+        balanceCents: b.balanceCents,
+        accountType: b.accountType,
+      })),
+      accounts: out.accounts.map((a) => ({
+        id: a.id,
+        name: a.id,
+        type: a.type,
+        currentBalanceCents: a.currentBalanceCents,
+      })),
+      today: '2026-07-31',
+    });
+    return series.find((p) => p.date === date);
+  };
+
+  it('U.7: a CHECKING-recorded covering winner stays an asset against a CREDIT-recorded loser — +$5,000.00, not −$5,000.00', () => {
+    // Both CREDIT today so the link is effective. Pred recorded CHECKING on
+    // the collision date; succ recorded CREDIT. Pred covers (cutover later
+    // than the date) and both sides read, so pred wins. Prefer-successor
+    // would flip this to −$5,000.00; refuse-the-date would drop the point.
+    const pred = { id: 'pred', type: 'CREDIT', currentBalanceCents: 500_000, feedDroppedAt: null };
+    const succ = { id: 'succ', type: 'CREDIT', currentBalanceCents: 480_000, feedDroppedAt: null };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [pred, succ],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 'pred', date: '2026-04-30', balanceCents: 500_000, accountType: 'CHECKING' },
+        { accountId: 'succ', date: '2026-04-30', balanceCents: 480_000, accountType: 'CREDIT' },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [{ predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-06-30' }],
+    });
+    expect(out.balanceSnapshots).toHaveLength(1);
+    expect(out.balanceSnapshots[0]!.accountId).toBe('pred');
+    const point = pointOf(out, '2026-04-30');
+    expect(point).toBeDefined();
+    expect(point!.netWorthCents).toBe(500_000);
+    expect(point!.constituents[0]!.isLiability).toBe(false);
+  });
+
+  it('U.7: a genuine CREDIT reading still subtracts when it beats a CHECKING echo — −$4,800.00', () => {
+    const pred = { id: 'pred', type: 'CREDIT', currentBalanceCents: 500_000, feedDroppedAt: '2026-01-15' };
+    const succ = { id: 'succ', type: 'CREDIT', currentBalanceCents: 480_000, feedDroppedAt: null };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [pred, succ],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 'pred', date: '2026-04-30', balanceCents: 500_000, accountType: 'CHECKING' },
+        { accountId: 'succ', date: '2026-04-30', balanceCents: 480_000, accountType: 'CREDIT' },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [{ predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-06-30' }],
+    });
+    expect(out.balanceSnapshots[0]!.accountId).toBe('succ');
+    const point = pointOf(out, '2026-04-30');
+    expect(point!.netWorthCents).toBe(-480_000);
+    expect(point!.constituents[0]!.isLiability).toBe(true);
+  });
+
+  it('U.7: NULL+NULL collisions cannot disagree — both sides fall back to today, and the link already requires those to match', () => {
+    const pred = { id: 'pred', type: 'CREDIT', currentBalanceCents: 500_000, feedDroppedAt: null };
+    const succ = { id: 'succ', type: 'CREDIT', currentBalanceCents: 480_000, feedDroppedAt: null };
+    const covering = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [pred, succ],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 'pred', date: '2026-04-30', balanceCents: 500_000, accountType: null },
+        { accountId: 'succ', date: '2026-04-30', balanceCents: 480_000, accountType: null },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [{ predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-06-30' }],
+    });
+    expect(covering.balanceSnapshots[0]!.accountId).toBe('pred');
+    expect(pointOf(covering, '2026-04-30')!.netWorthCents).toBe(-500_000);
+
+    const quietPred = { ...pred, feedDroppedAt: '2026-01-15' };
+    const echo = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [quietPred, succ],
+      transactions: [],
+      balanceSnapshots: [
+        { accountId: 'pred', date: '2026-04-30', balanceCents: 500_000, accountType: null },
+        { accountId: 'succ', date: '2026-04-30', balanceCents: 480_000, accountType: null },
+      ],
+      statements: [],
+      scheduled: [],
+      links: [{ predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-06-30' }],
+    });
+    expect(echo.balanceSnapshots[0]!.accountId).toBe('succ');
+    expect(pointOf(echo, '2026-04-30')!.netWorthCents).toBe(-480_000);
+  });
+});

@@ -303,7 +303,7 @@ The row filed the defect on the PREDECESSOR's panel. That panel is **unreachable
 
 **Sabotage proofs (each reverted):** the pre-U.6 sign rule reddens 2 series locks; dropping the delta refusal reddens 2; repainting panel rows from the current class reddens 1; dropping the drilldown marker reddens 1.
 
-**Known residuals, split out:** **U.7** — a reconciled pair's collision winner now decides that date's sign (filed as a shape, unverified in practice). **U.8** — the detail panel never rendered for CHECKING/SAVINGS/CREDIT (**SHIPPED 2026-08-15, DECISIONS #473** — sibling Details affordance; primary click stays the register).
+**Known residuals, split out:** **U.7** — a reconciled pair's collision winner now decides that date's sign (**CLOSED 2026-08-15, DECISIONS #474 — measured and refused**: 16 colliding dates, 0 class disagreements, all 55 snapshots still NULL). **U.8** — the detail panel never rendered for CHECKING/SAVINGS/CREDIT (**SHIPPED 2026-08-15, DECISIONS #473** — sibling Details affordance; primary click stays the register).
 
 **Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,808 unit passed + 1 skipped / 415 files** / build clean. Full local `npx playwright test`: **342 passed / 1 flaky / 0 failed** (exit 0). Shipped as `e60f9b1`; **CI gate SUCCESS on run 31605655317, first attempt** — the full `VERIFY_E2E=1` suite, so the rewritten copy, the new drilldown marker and the reclassified-row assertions all passed in a real browser on the Linux runner.
 
@@ -5083,3 +5083,36 @@ marker (`account-row-detail-affordance` / "Day-to-day activity is in
 Transactions") is behind sign-in; CI's full `VERIFY_E2E=1` suite ran
 the U.8 sibling-affordance assertion against this sha. No `prisma/`
 diff.
+
+## ✅ CLOSED 2026-08-15 — U.7: the winning observation carries its own class (DECISIONS #474)
+
+The U.6 critic filed a shape, unverified in practice: after a snapshot
+carries its own class, the collision winner also decides that date's
+sign. The row asked to prefer the successor's class or refuse the date.
+
+**Measured** (`scripts/audit-probes/u7-collision-sign.mts` against live
+Neon): 16 colliding (component, date) pairs, **0 class disagreements**,
+all 55 snapshots still NULL. NULL falls back to today's type; effective
+links already require those to match; the shape cannot fire on any row
+that exists today.
+
+**Refused, not built.** Preferring the successor's class mixes the
+winner's cents with a class that row was not read under. Refusing the
+date drops a real observation and understates the bucket. The class
+rides with the winning row. Locked so either prescribed fix goes red.
+
+**Not in scope.** Backfilling August's NULL `accountType` (U.6 deleted
+that script). No `prisma/` diff. No live figure moves.
+
+**Critic (read-only): PASS — 0 P0, 0 P1.** Four P2s: tautological
+0-count while rows are NULL (locks close the row, not that count);
+no new disclosure residual for a future typed collision (accepted —
+U.5/U.6 already mark the counterpart and a class flip); probe
+`links[0].userId` / no inert-reason; describe-comment overclaim
+(tightened).
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN** (e2e skipped;
+no UI and no figure moves — the production probe is the labeled
+simulation): tsc 0, eslint 0, unit **7,047 passed + 1 expected fail
++ 1 skipped / 426 files + 1 skipped**, `next build` clean. No
+`prisma/` diff.
