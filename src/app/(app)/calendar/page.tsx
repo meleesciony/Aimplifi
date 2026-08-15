@@ -639,8 +639,7 @@ export default async function CalendarPage({
                             {/* `&rsquo;`, not `&apos;`: the six sentence authors this marker
                                 stands beside all use the curly apostrophe, and a reader seeing
                                 both forms on one screen reads two voices. */}
-                            Connection changeover — both connections&rsquo; records are kept for
-                            this day.
+                            Both connections&rsquo; records are kept for this day.
                           </li>
                         )}
                         <li className="text-xs">
@@ -739,9 +738,9 @@ export default async function CalendarPage({
                 whether it applies to the reader today), and worded as the family's unconditional
                 keep, never the double, for the same reason the day marker above is. */}
             <span data-testid="cal-basis-handover-note">
-              A day one of your combined accounts was changing connections keeps both
-              connections&rsquo; records rather than dropping either — so a transaction either one
-              reported is listed once for each, whether or not it moves the day&rsquo;s totals.
+              A day both connections&rsquo; records are kept rather than dropping either — so a
+              transaction either one reported is listed once for each, whether or not it moves
+              the day&rsquo;s totals.
             </span>{' '}
             Days ahead are
             projections: scheduled income and bills replay at their detected cadence (labeled

@@ -20,10 +20,10 @@
  *    90-day SimpleFIN window) is NEVER dropped (critic cycle-1 F2), a cutover past
  *    the predecessor's last data claims nothing extra (F4), and every date STRICTLY
  *    INSIDE the claim is owned by exactly one side — no fuzzy matching.
- *    The claim END is deliberately excluded (U.13): a handover happens partway
- *    through a day and a business date carries no time, so that one day cannot be
- *    awarded to either side without silently deleting whatever only the other side
- *    reported. Measured both ways on the owner's real corpus — predecessor-owns
+ *    The claim END is deliberately excluded (U.13): neither side can be shown
+ *    to have covered the whole of that day, and a business date carries no time,
+ *    so that one day cannot be awarded to either side without silently deleting
+ *    whatever only the other side reported. Measured both ways on the owner's real corpus — predecessor-owns
  *    lost a real $2,086.40 deposit, successor-owns would have lost $25,574.13 — so
  *    the handover day is released to BOTH. Handover days are the ONLY dates that may
  *    carry more than one copy, and on a chain sharing one cutover the multiplicity is
@@ -401,6 +401,19 @@ function chainMaps(links: readonly ReconciliationLinkLike[]): {
  * are the same date — the cutover is derived from the handover — so it avoided
  * zero duplicates and bought only a second branch and a weaker argument.
  *
+ * U.17 — a dormant predecessor (last < cutover) still releases its last-used
+ * day, not the stored cutover. Measured 2026-08-15
+ * (`scripts/audit-probes/u17-dormant-handover.mts`): 25 effective links, 16
+ * coincident, 0 dormant, 0 dragged. Both prescribed fixes are refused. Making
+ * that last-used day inclusive (fix A) reintroduces the U.13 silent loss the
+ * moment cutover is set past last (date picker or H.6 writing today), or
+ * last shrinks. A default confirm stays coincident after the feed goes
+ * unused — last and cutover do not move. Setting claimEnd to the cutover
+ * (fix B) is F4 inverted and would drop the successor's gap. One rule, no
+ * second branch. "Neither side's absence that day proves anything" still
+ * holds. Copy must not name a cause that is false for this shape
+ * ("changing connections" / "the day one connection stopped").
+ *
  * MULTIPLICITY IS NOT ALWAYS TWO — stated because the first draft of this note
  * claimed it was, and the U.13 money critic disproved it by execution:
  *  - A CHAIN whose links share one cutover (legal: the confirm action refuses only
@@ -443,8 +456,11 @@ function txnKeepRule(
       if (compareDates(cut, span.first) < 0) continue; // degenerate claim (A-F8)
       const claimEnd = compareDates(cut, span.last) < 0 ? cut : span.last;
       const d = isoDate(date);
-      // EXCLUSIVE at claimEnd (U.13): the handover happens inside that day, so it
-      // is released to both sides rather than silently awarded to either.
+      // EXCLUSIVE at claimEnd (U.13 / U.17): neither side can be shown to have
+      // covered the whole of that day, so it is released to both rather than
+      // silently awarded to either. Last-used is still the released day when
+      // last < cutover — do not read this as "the handover happened inside
+      // that day".
       if (compareDates(d, span.first) >= 0 && compareDates(d, claimEnd) < 0) return false;
     }
     return true;
@@ -615,8 +631,8 @@ export function reconciliationTxnKeepFilter<A extends BoundaryAccountLike>(
  * row the reader posted that day, on every account they own, including accounts in
  * no combined pair at all. A U.16 critic executed it: six grocery rows on the
  * handover day, only two of them from the combined pair, and the panel marked all
- * six and said "6 rows here fall on a day one of your combined accounts was
- * changing connections". Only the pair's own rows can be doubled.
+ * six and said they fell on a released day. Only the pair's own rows can be
+ * doubled.
  */
 export function handoverKey(accountId: string, date: string): string {
   // A pipe cannot occur in a cuid or an ISO date, so the join is unambiguous.
@@ -627,10 +643,11 @@ export function handoverKey(accountId: string, date: string): string {
  * The (account, released day) pairs a combined pair actually duplicates on (U.16).
  *
  * Both SIDES of each effective link are keyed at that link's own released date:
- * the released day is exactly the date on which the predecessor keeps its rows
- * (`date <= cutover`) and the successor's are no longer dropped, so both can
- * contribute a copy. A chain contributes one entry per link, per side, which is
- * also why multiplicity is not always two.
+ * `min(cutover, predecessor last)` — the first day the successor is no longer
+ * dropped. Predecessor keep is the wider `date <= cutover`; when last < cutover
+ * those are different dates and only last is released (U.17). A chain
+ * contributes one entry per link, per side, which is also why multiplicity is
+ * not always two.
  */
 export function reconciliationHandoverKeys<A extends BoundaryAccountLike>(
   accounts: readonly A[],

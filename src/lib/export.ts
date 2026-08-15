@@ -199,11 +199,10 @@ export function excludedTransferCsvNote(rows: readonly ExportTxn[]): string | nu
  * exactly what a leading prose block breaks.
  */
 const HANDOVER_CSV_NOTE =
-  'Note: rows marked yes in changeover_day fall on a day one of your combined accounts was ' +
-  'changing connections. Both connections’ records are kept for that day, because neither can ' +
-  'be shown to have covered the whole of it — so if more than one of them reported the same ' +
-  'transaction, it appears once for each. Nothing has been adjusted: dropping either side’s ' +
-  'records would lose transactions only one connection saw.';
+  'Note: rows marked yes in changeover_day fall on a day both connections’ records are kept, ' +
+  'because neither can be shown to have covered the whole of it — so if more than one of them ' +
+  'reported the same transaction, it appears once for each. Nothing has been adjusted: dropping ' +
+  'either side’s records would lose transactions only one connection saw.';
 
 /**
  * @param withheld The accounts the currency guard (#135) kept OUT of `rows`, scoped to this

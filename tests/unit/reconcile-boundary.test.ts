@@ -295,8 +295,10 @@ describe('applyReconciliationBoundary — the money core', () => {
       scheduled: [],
       links: [{ ...LINK, cutoverDate: '2026-07-15' }],
     });
-    // U.13: the claim END here is the predecessor's LAST row (07-01), not the
-    // stored cutover — the feed stopped inside that day, so it is released.
+    // U.13 / U.17: the claim END here is the predecessor's LAST row (07-01),
+    // not the stored cutover — last < cutover is the dormant shape, and that
+    // last-used day is still released. Fix A (inclusive at last) drops
+    // succ:07-01; fix B (claimEnd = cutover) drops succ:07-10.
     expect(out.transactions.map((t) => `${t.accountId}:${t.date}`)).toEqual([
       'pred:2026-06-29',
       'pred:2026-07-01',
@@ -1781,5 +1783,74 @@ describe('U.7 — the winning observation carries its own class', () => {
     });
     expect(echo.balanceSnapshots[0]!.accountId).toBe('succ');
     expect(pointOf(echo, '2026-04-30')!.netWorthCents).toBe(-480_000);
+  });
+});
+
+/**
+ * U.17 — a dormant predecessor's last-used day is still the released day.
+ * The U.13 critic filed a 16-month gap (last used 2025-03-15, cutover
+ * 2026-07-21, a $1,200.00 charge doubled on the last-used day). Re-measured
+ * 2026-08-15 (`scripts/audit-probes/u17-dormant-handover.mts`): 25 effective
+ * links, 0 dormant, 0 dragged — the filed production pair is gone. Both
+ * prescribed fixes are refused: inclusive-at-last (A) silently drops
+ * successor-only rows on that day; claimEnd=cutover (B) drops the successor's
+ * gap (F4 inverted). The release stays. Test 1 fails both fixes.
+ */
+describe('U.17 — a dormant last-used day is still released', () => {
+  it('U.17: last-used 2025-03-15 with cutover 2026-07-21 keeps both $1,200.00 copies, the unique successor row, and the gap — $1,200.00 is not dropped and the gap is not claimed', () => {
+    const pred = {
+      id: 'pred',
+      name: 'Pred',
+      type: 'CREDIT',
+      currentBalanceCents: 0,
+      feedDroppedAt: '2025-03-15',
+    };
+    const succ = {
+      id: 'succ',
+      name: 'Succ',
+      type: 'CREDIT',
+      currentBalanceCents: 0,
+      feedDroppedAt: null,
+    };
+    const out = applyReconciliationBoundary({
+      paymentAccountId: null,
+      accounts: [pred, succ],
+      transactions: [
+        { accountId: 'pred', date: '2025-03-14', amountCents: -50_000 },
+        { accountId: 'succ', date: '2025-03-14', amountCents: -50_000 },
+        { accountId: 'pred', date: '2025-03-15', amountCents: -120_000 },
+        { accountId: 'succ', date: '2025-03-15', amountCents: -120_000 },
+        { accountId: 'succ', date: '2025-03-15', amountCents: -2_500 },
+        { accountId: 'succ', date: '2025-06-01', amountCents: -8_000 },
+      ],
+      balanceSnapshots: [],
+      statements: [],
+      scheduled: [],
+      links: [
+        { predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-07-21' },
+      ],
+    });
+    const survived = out.transactions.map((t) => `${t.accountId}:${t.date}:${t.amountCents}`);
+    // Interior of the claim is still the predecessor's alone.
+    expect(survived).not.toContain('succ:2025-03-14:-50000');
+    // Fix A (do not release last-used) drops both successor rows on 2025-03-15.
+    expect(survived).toContain('succ:2025-03-15:-120000');
+    expect(survived).toContain('succ:2025-03-15:-2500');
+    // Fix B (claimEnd = cutover) drops the successor's gap.
+    expect(survived).toContain('succ:2025-06-01:-8000');
+    expect(survived).toEqual([
+      'pred:2025-03-14:-50000',
+      'pred:2025-03-15:-120000',
+      'succ:2025-03-15:-120000',
+      'succ:2025-03-15:-2500',
+      'succ:2025-06-01:-8000',
+    ]);
+    // The released day is last-used, not the stored cutover.
+    expect([...out.handoverKeys].sort()).toEqual(['pred|2025-03-15', 'succ|2025-03-15']);
+    expect(out.handoverKeys.has('pred|2026-07-21')).toBe(false);
+    // Visible double of the $1,200.00, plus the unique −$25.00, plus the gap.
+    expect(out.transactions.reduce((s, t) => s + (t.amountCents ?? 0), 0)).toBe(
+      -50_000 - 120_000 - 120_000 - 2_500 - 8_000,
+    );
   });
 });

@@ -264,10 +264,11 @@ export function breakdownNotCountedYetCopy(amount: string, noun: 'spending' | 'i
  *     twice" as a sentence that was simply false. "Once for each" is true at
  *     every multiplicity, including the ordinary two.
  *  3. It does not assert a CAUSE for the date. "That's the day one connection
- *     stopped" is false whenever the reader drags the cutover input, and false
- *     by sixteen months for a dormant feed (U.17). U.13 replaced it with
- *     "neither connection can be shown to have covered the whole of that day",
- *     which holds in every shape, and this sentence reuses exactly that clause.
+ *     stopped" AND "changing connections" are both false whenever the reader
+ *     drags the cutover past last-used, and false by sixteen months for a
+ *     dormant feed (U.17 critic P1). The locator states the RULE — both
+ *     connections' records are kept — and the reason U.13 proved holds in
+ *     every shape: neither can be shown to have covered the whole of it.
  *
  * `reconciles` is a required argument rather than a default because the clause
  * it gates is the entire reason U.16 exists: the reader opened this panel to
@@ -278,15 +279,23 @@ export function breakdownNotCountedYetCopy(amount: string, noun: 'spending' | 'i
  * card-duplicate note: the check is on this app's internal consistency, not on
  * whether the world has two charges.
  */
+/** Locator every long handover sentence shares (U.17). The RULE, never a cause. */
+export const HANDOVER_DAY_LOCATOR =
+  'on a day both connections’ records are kept, because neither can be shown to have covered the whole of it';
+
+/** Per-row marker. Same rule, no cause — a short label cannot carry the "neither" clause. */
+export const HANDOVER_DAY_ROW_MARKER = '(both connections kept)';
+
+/** Detail-page heading. Matches the marker's claim. */
+export const HANDOVER_DAY_HEADING = 'Both connections kept';
+
 export function breakdownHandoverDayCopy(count: number, statesATally: boolean): string {
   const subject = count === 1 ? '1 row here falls' : `${count} rows here fall`;
   const tally = statesATally
     ? ' The rows in this panel still add up to the figure above, and that check is about this app’s arithmetic — it cannot tell whether two lines are one transaction.'
     : '';
   return (
-    `${subject} on a day one of your combined accounts was changing connections. Both ` +
-    `connections’ records are kept for that day, because neither can be shown to have covered ` +
-    `the whole of it — so if more than one of them reported the same transaction, it is counted ` +
+    `${subject} ${HANDOVER_DAY_LOCATOR} — so if more than one of them reported the same transaction, it is counted ` +
     `once for each — which makes this figure too high when they are purchases, and ` +
     `too LOW when they are returns.${tally} Nothing has been adjusted: dropping either side’s ` +
     `records would lose transactions only one connection saw.`
@@ -314,9 +323,7 @@ export function handoverDayAnswerNote(count: number): string {
   const subject =
     count === 1 ? '1 transaction in this figure falls' : `${count} transactions in this figure fall`;
   return (
-    `${subject} on a day one of your combined accounts was changing connections. Both ` +
-    `connections’ records are kept for that day, because neither can be shown to have covered ` +
-    `the whole of it — so if more than one of them reported the same transaction, it is counted ` +
+    `${subject} ${HANDOVER_DAY_LOCATOR} — so if more than one of them reported the same transaction, it is counted ` +
     `once for each — which makes this figure too high when they are purchases, and ` +
     `too LOW when they are returns. Nothing has been adjusted — dropping either side’s records ` +
     `would lose transactions only one connection saw.`
@@ -355,9 +362,7 @@ export function handoverDayRegisterTotalsNote(count: number): string {
   const subject =
     count === 1 ? '1 row counted in these totals falls' : `${count} rows counted in these totals fall`;
   return (
-    `${subject} on a day one of your combined accounts was changing connections. Both ` +
-    `connections’ records are kept for that day, because neither can be shown to have covered ` +
-    `the whole of it — so if more than one of them reported the same transaction, it is listed ` +
+    `${subject} ${HANDOVER_DAY_LOCATOR} — so if more than one of them reported the same transaction, it is listed ` +
     `and counted once for each, in whichever of these totals its amount feeds. Nothing has ` +
     `been adjusted — dropping either side’s records would lose transactions only one ` +
     `connection saw.`
@@ -383,9 +388,7 @@ export function handoverDayAmountsNote(count: number): string {
   const subject =
     count === 1 ? '1 transaction behind these amounts falls' : `${count} transactions behind these amounts fall`;
   return (
-    `${subject} on a day one of your combined accounts was changing connections. Both ` +
-    `connections’ records are kept for that day, because neither can be shown to have covered ` +
-    `the whole of it — so if more than one of them reported the same transaction, these ` +
+    `${subject} ${HANDOVER_DAY_LOCATOR} — so if more than one of them reported the same transaction, these ` +
     `amounts count it once for each. Nothing has been adjusted — dropping either side’s ` +
     `records would lose transactions only one connection saw.`
   );
@@ -404,11 +407,9 @@ export function handoverDayAmountsNote(count: number): string {
  */
 export function handoverDayDetailNote(): string {
   return (
-    'This transaction is dated on a day one of your combined accounts was changing ' +
-    'connections. Both connections’ records are kept for that day, because neither can be ' +
-    'shown to have covered the whole of it — so if both reported this transaction, it appears ' +
-    'once for each in your activity and totals. Nothing has been adjusted — dropping either ' +
-    'side’s records would lose transactions only one connection saw.'
+    `This transaction is dated ${HANDOVER_DAY_LOCATOR} — so if both reported this transaction, it appears ` +
+    `once for each in your activity and totals. Nothing has been adjusted — dropping either ` +
+    `side’s records would lose transactions only one connection saw.`
   );
 }
 
@@ -462,9 +463,7 @@ export function handoverDayUncountedNote(count: number, label?: string): string 
   const subject =
     count === 1 ? `1 transaction${scope} falls` : `${count} transactions${scope} fall`;
   return (
-    `${subject} on a day one of your combined accounts was changing connections. Both ` +
-    `connections’ records are kept for that day, because neither can be shown to have covered ` +
-    `the whole of it — so if more than one of them reported the same return, it is subtracted ` +
+    `${subject} ${HANDOVER_DAY_LOCATOR} — so if more than one of them reported the same return, it is subtracted ` +
     `once for each, which can pull a category to zero or below. Spending figures leave out any ` +
     `category that lands there, so there may be spending they are not showing. Nothing has ` +
     `been adjusted — dropping either side’s records would lose transactions only one ` +

@@ -158,7 +158,7 @@ test('the glass-box panel marks the handover-day rows and explains the double it
   await expect(panel.getByTestId('reports-breakdown-handover-row')).toHaveCount(2);
 
   // ...and the sentence is present, in the engine's words.
-  await expect(panel).toContainText('2 rows here fall on a day one of your combined accounts was changing connections');
+  await expect(panel).toContainText('2 rows here fall on a day both connections’ records are kept');
   await expect(panel).toContainText('once for each');
 
   // The penny-match still prints — the disclosure explains it rather than
@@ -240,7 +240,7 @@ test('U.29: /budgets Fixed/guilt-free panel discloses the same released day it c
   // $130.00 said nothing about the two identical $50.00 lines inside it.
   const note = page.getByTestId('spend-class-handover-note');
   await expect(note).toBeVisible();
-  await expect(note).toContainText('2 rows here fall on a day one of your combined accounts was changing connections');
+  await expect(note).toContainText('2 rows here fall on a day both connections’ records are kept');
   await expect(note).toContainText('once for each');
   // This panel has no per-transaction row list — only category subtotals —
   // so it must not claim a row-by-row tally the reader cannot see.
@@ -267,7 +267,7 @@ test('U.24: /calendar discloses the released day inside its money tiles, and mar
   // month sentence could not exist. Neither testid was in the DOM.
   const note = page.getByTestId('cal-handover-note');
   await expect(note).toBeVisible();
-  await expect(note).toContainText('2 transactions behind these amounts fall on a day one of your combined accounts was changing connections');
+  await expect(note).toContainText('2 transactions behind these amounts fall on a day both connections’ records are kept');
   await expect(note).toContainText('these amounts count it once for each');
 
   // This surface lists no transaction rows (each day links OUT to Activity), and it prints
@@ -297,7 +297,7 @@ test('U.24: /calendar discloses the released day inside its money tiles, and mar
   // asserted visibility alone): the marker states the KEEP, which is unconditionally true, and
   // never the double, which is not knowable from the dates — a released day on which only one
   // connection reported anything is marked too.
-  await expect(marker).toContainText('both connections’ records are kept for this day');
+  await expect(marker).toContainText('Both connections’ records are kept for this day');
   await expect(marker).not.toContainText('counted on both');
   // The control pair's day ($30.00, de-duplicated to the predecessor's single copy) is a
   // normal day and carries no marker — the flag is per (account, day), not per month.
@@ -378,7 +378,7 @@ test('U.32: a released day whose only duplicates are transfers still marks the d
   // is a released handover day. It must now fire.
   await expect(dayTile.getByTestId('cal-posted-handover-day')).toBeVisible();
   await expect(dayTile.getByTestId('cal-posted-handover-day')).toContainText(
-    'both connections’ records are kept for this day',
+    'Both connections’ records are kept for this day',
   );
 
   // The MONTH sentence stays money-scoped and correctly silent: no money moved, so "these
@@ -389,7 +389,7 @@ test('U.32: a released day whose only duplicates are transfers still marks the d
   // family sentence in its own voice, regardless of whether today's month happens to hold a
   // released day.
   await expect(page.getByTestId('cal-basis-handover-note')).toContainText(
-    'keeps both connections’ records rather than dropping either',
+    'both connections’ records are kept rather than dropping either',
   );
 });
 

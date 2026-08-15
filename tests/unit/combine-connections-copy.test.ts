@@ -72,7 +72,11 @@ describe('what the card claims', () => {
     // is precisely why this lock is separate: without it the qualification can be deleted
     // and every existing copy test stays green.
     const s = combineOutcome('Chase · connection 1 of 4', 'Chase · connection 4 of 4', [CARD]);
-    expect(s).toMatch(/changeover day/i);
+    expect(s).toContain('Separately, both connections keep any day neither can be shown to have covered in full');
+    expect(s).not.toMatch(/changeover/i);
+    expect(s).not.toMatch(/last day the old connection covers/i);
+    expect(s).not.toMatch(/one day is the exception/i);
+    expect(s).not.toMatch(/combined as of/i);
     expect(s).toMatch(/appear twice/i);
   });
 

@@ -32,7 +32,10 @@
 import Link from 'next/link';
 import { useId, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import type { BreakdownRow } from '@/lib/engine/glass-box/category-breakdown';
+import {
+  HANDOVER_DAY_ROW_MARKER,
+  type BreakdownRow,
+} from '@/lib/engine/glass-box/category-breakdown';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { type Cents, formatCents } from '@/lib/money';
 import {
@@ -253,20 +256,20 @@ export function BreakdownPanel({
                     r.label
                   )}
                   {r.isPending && <span className="ml-1.5 text-xs text-muted-foreground">(pending)</span>}
-                  {/* U.16. The basis sentence below says N rows fall on a day a
-                      combined account was changing connections; without this the
+                  {/* U.16 / U.17. The basis sentence below says N rows fall on a
+                      day both connections' records are kept; without this the
                       reader has to find them among every row in the bucket, and
                       the two lines it is about are IDENTICAL by construction —
                       same date, same payee, same amount. Marking the row is a
                       fact about its date, not a claim that it is the duplicate:
-                      a handover day with only one connection reporting is marked
+                      a released day with only one connection reporting is marked
                       too, and the sentence is conditional for the same reason. */}
                   {r.onHandoverDay && (
                     <span
                       className="ml-1.5 text-xs text-muted-foreground"
                       data-testid={`${testIdPrefix}-handover-row`}
                     >
-                      (connection changeover)
+                      {HANDOVER_DAY_ROW_MARKER}
                     </span>
                   )}
                   {/* The bank's own text, when the payee name has cleaned it up.

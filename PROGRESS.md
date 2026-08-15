@@ -2,6 +2,31 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-15 — U.17: a dormant last-used day is still released (DECISIONS #475)
+
+**Picked up from the queue** (named next after U.7). A quiet
+predecessor's last-used day was filed as a false handover day.
+
+**Closed — rule measured and refused; copy executed after critic.**
+Production: 25 effective links, 16 coincident, 0 dormant, 0 dragged.
+Inclusive-at-last and claimEnd=cutover both rejected. Last-used
+stays released. Long authors locate the keep-rule, not a
+connection-change. Combined accounts prints no date. Combine's
+exception is a separate sentence.
+
+**Locked.** U.17 money: 2025-03-15 / 2026-07-21 keeps both
+−$1,200.00, unique succ −$25.00, and the gap. U.16: every long
+author contains the locator and refuses "changing connections".
+
+**Critic (4 cycles): PASS — 0 P0, 0 P1.** Cycles 1–3 each found
+copy P1s; all executed. Residual: naming the released day on
+Combine / Combined accounts needs a claimEnd payload.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,049
+passed + 1 expected fail + 1 skipped / 426 files + 1 skipped**,
+`next build` clean. Playwright (that build): handover-day-disclosure
+**7/7**. No `prisma/` diff.
+
 ## 2026-08-15 — U.7: the winning observation carries its own class (DECISIONS #474)
 
 **Picked up from the queue** (named next after U.8). A reconciled

@@ -91,7 +91,7 @@ describe('continuedAccountsView — the single-link case is unchanged in substan
 
   it('names the old account and keeps the history + balance disclosure', () => {
     expect(views[0].sources[0].identityLine).toBe(
-      "Continued from your old account Venture Rewards (SimpleFIN) — history kept through 2026-07-18; this old account's balance no longer counts on its own.",
+      "Continued from your old account Venture Rewards (SimpleFIN) — this old account's balance no longer counts on its own.",
     );
   });
 
@@ -132,10 +132,10 @@ describe('test_regression__combined_card_sources_must_be_distinguishable', () =>
   it('distinguishes the two sources by ordinal EVEN when the names are byte-identical', () => {
     const lines = allIdentityLines(views);
     expect(lines[0]).toBe(
-      "Old account 1 of 2: Venture (SimpleFIN) — history kept through 2026-07-18; this old account's balance no longer counts on its own.",
+      "Old account 1 of 2: Venture (SimpleFIN) — this old account's balance no longer counts on its own.",
     );
     expect(lines[1]).toBe(
-      "Old account 2 of 2: Venture (SimpleFIN) — history kept through 2026-07-18; this old account's balance no longer counts on its own.",
+      "Old account 2 of 2: Venture (SimpleFIN) — this old account's balance no longer counts on its own.",
     );
     expect(new Set(lines).size).toBe(2);
   });
@@ -252,8 +252,11 @@ describe('continuedAccountsView — grouping and ordering', () => {
       link({ id: 'r1', predName: 'A', cutoverDate: '2026-07-18' }),
       link({ id: 'r2', predName: 'B', cutoverDate: '2026-05-02' }),
     ]);
-    expect(views[0].sources[0].identityLine).toContain('history kept through 2026-07-18');
-    expect(views[0].sources[1].identityLine).toContain('history kept through 2026-05-02');
+    expect(views[0].sources[0].identityLine).toContain("this old account's balance no longer counts on its own");
+    expect(views[0].sources[1].identityLine).toContain("this old account's balance no longer counts on its own");
+    expect(views[0].sources[0].identityLine).not.toContain('history kept through');
+    expect(views[0].sources[0].identityLine).not.toContain('combined as of');
+    expect(views[0].sources[1].identityLine).not.toContain('2026-05-02');
   });
 
   it('renders a predecessor mask when the old row has one', () => {
@@ -291,6 +294,9 @@ describe('continuedAccountsView — copy honesty', () => {
   it('states where the balance is counted, on every source line', () => {
     for (const line of allIdentityLines(views)) {
       expect(line).toContain("this old account's balance no longer counts on its own");
+      expect(line).not.toContain('history kept through');
+      expect(line).not.toContain('history still counts');
+      expect(line).not.toContain('combined as of');
     }
   });
 });

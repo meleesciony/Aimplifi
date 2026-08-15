@@ -87,12 +87,13 @@ export function combineOutcome(keepLabel: string, dropLabel: string, accounts: C
   // The handover is placed just before the surviving connection's own history begins, so what
   // falls away is the OLD connection's copies of days the live one also has. Say that, rather
   // than the flat "nothing is deleted" the first version claimed.
-  // U.13: the split is no longer total. The changeover day itself belongs to NEITHER side
-  // exclusively — a feed stops partway through a day — so both sides keep what they reported
-  // then, and a row from that one day can show twice. An unqualified "stop being counted twice"
-  // would now be false on exactly that day, so it is qualified here rather than left to be
-  // discovered in the register.
-  return `Combining disconnects ${dropLabel} and continues ${which} on ${keepLabel}. The old account and its history stay on this page — from the day ${keepLabel} started pulling, that connection is the one counted, so the old copies of those days stop being counted twice. The changeover day itself is the exception: both connections keep what they reported that day, so something from it can appear twice.`;
+  // U.13 / U.17: the split is no longer total. A day neither side can be
+  // shown to have covered in full is released to both. This author has no
+  // claimEnd (labels only), so it must not locate that day at last-used,
+  // at a "changeover", or at "the day keep started pulling" (H.6's cutover
+  // is the day BEFORE successor-start; the overlap is not in "those days").
+  // The keep-rule stands as its own sentence.
+  return `Combining disconnects ${dropLabel} and continues ${which} on ${keepLabel}. The old account and its history stay on this page — from the day ${keepLabel} started pulling, that connection is the one counted, so the old copies of those days stop being counted twice. Separately, both connections keep any day neither can be shown to have covered in full, so something from that day can appear twice.`;
 }
 
 /** The two-step confirm. Names the irreversible half in the prompt itself. */

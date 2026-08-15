@@ -468,3 +468,4 @@ refuses to write if it would drop any number this file already carries.
 - **#472** (Phase ?): U.10: a today-dated snapshot is not the live point (2026-08-15)
 - **#473** (Phase ?): U.8: spending rows open the detail panel from a sibling (2026-08-15)
 - **#474** (Phase ?): U.7: the winning observation carries its own class (2026-08-15)
+- **#475** (Phase ?): U.17: a dormant last-used day is still released (2026-08-15)

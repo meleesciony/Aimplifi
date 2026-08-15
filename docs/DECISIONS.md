@@ -7754,3 +7754,70 @@ CHECKING-recorded covering winner against CREDIT-recorded loser is
 would drop the point); genuine CREDIT beating a CHECKING echo is
 `−$4,800.00`; NULL+NULL both CREDIT today stay a liability
 whichever side wins.
+
+## #475 — U.17: a dormant last-used day is still released (2026-08-15)
+
+**Context.** The U.13 money critic filed a shape: `claimEnd =
+min(cutover, predecessor last)`, so a feed that stayed connected
+but unused releases its last-USED day as the handover day. The
+filed example was last used 2025-03-15, cutover 2026-07-21, a
+$1,200.00 charge doubled sixteen months before the reconnect. The
+row asked to stop releasing that day, or to move claimEnd to the
+cutover. U.13 had already replaced the false cause ("the day one
+connection stopped") with "neither connection can be shown to have
+covered the whole of that day."
+
+**Measured, not inferred** (`scripts/audit-probes/u17-dormant-handover.mts`
+against the owner's live Neon, 2026-08-15): 25 effective links, **16
+coincident** (last === cutover), **0 dormant**, **0 dragged**, 9 with
+no predecessor rows (no claim). Both prescribed fixes produce $0
+change on any row that exists today. The filed 16-month pair is
+gone — every live cutover equals that predecessor's last row, which
+is how confirm defaults.
+
+**Decision: refuse both prescribed fixes.** The last-used day stays
+released, the same one-day overlap U.13 already chose. Making it
+inclusive when last < cutover (fix A) reintroduces the U.13 silent
+loss the moment a pair goes quiet — a successor-only row on that
+day has no counterpart and would vanish. Setting claimEnd to the
+cutover (fix B) is F4 inverted: the predecessor would claim a gap
+it never reported and drop the successor's backfill. One rule, no
+second branch. "Neither side's absence that day proves anything"
+still holds when the feed just went unused; the weaker "handover
+happened inside that day" rationale is not a reason to drop money.
+
+**Copy (critic cycle 1 P1, executed).** "Changing connections" /
+"changeover" located a connection change on last-used, which is
+false when the user (or H.6) sets cutover past last — reachable
+today; the date picker allows it and confirm does not refuse it.
+Every long author now locates the RULE (`HANDOVER_DAY_LOCATOR`:
+both connections' records are kept, because neither can be shown
+to have covered the whole of it). Row markers and the detail
+heading say `(both connections kept)` / `Both connections kept`.
+The Combined accounts card prints no date (the payload has no
+claim span, so cutover is not claimEnd and is not last-used);
+it keeps the standing balance clause only. Combine states the
+H.6 exclusive-ownership sentence, then a SEPARATE keep-rule
+sentence ("any day neither can be shown to have covered in
+full") so the exception is not attached to "the day keep
+started pulling". CSV column `changeover_day` is unchanged
+(U.19 header).
+No `prisma/` diff. No live figure moves.
+
+**Locked.** `tests/unit/reconcile-boundary.test.ts` U.17: last-used
+2025-03-15 / cutover 2026-07-21 keeps both −$1,200.00 copies, the
+unique successor −$25.00 on that day, and a 2025-06-01 gap row;
+handover keys are `pred|2025-03-15` / `succ|2025-03-15`, not the
+cutover. Fix A reddens the unique successor row; fix B reddens the
+gap. F4 already locks the 14-day version of the same shape.
+`tests/unit/u16-handover-disclosure.test.ts` U.17: every long
+author contains the locator and refuses "changing connections" /
+"changeover" / "stopped". Combined-accounts identity line is the
+balance clause only.
+
+**Residual (cycle 4, recorded not built).** Naming the released
+day on Combine or Combined accounts needs `claimEnd` / last on
+those payloads. This close is copy-only. The confirm form already
+names `min(cutover, last)`. CSV column `changeover_day` stays
+(U.19). `EDGE_CASES.md` §Combined-accounts still quotes the
+retired "history kept through" line (docs only).

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ListOrdered } from 'lucide-react';
+import { HANDOVER_DAY_ROW_MARKER } from '@/lib/engine/glass-box/category-breakdown';
 import { cents, formatCents } from '@/lib/money';
 import type { DashboardRecentResult } from '@/server/dashboard-recent';
 import { SURFACE_CARD_CLASS } from '@/components/finance/surface-card-styles';
@@ -72,7 +73,7 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
                         className="ml-1.5 text-xs font-normal text-muted-foreground"
                         data-testid="dashboard-recent-handover-row"
                       >
-                        (connection changeover)
+                        {HANDOVER_DAY_ROW_MARKER}
                       </span>
                     )}
                   </p>

@@ -24,10 +24,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   BREAKDOWN_BASIS,
+  HANDOVER_DAY_HEADING,
+  HANDOVER_DAY_LOCATOR,
+  HANDOVER_DAY_ROW_MARKER,
   breakdownHandoverDayCopy,
   buildCategoryBreakdowns,
   categoryPanelBasis,
+  handoverDayAmountsNote,
   handoverDayAnswerNote,
+  handoverDayDetailNote,
+  handoverDayRegisterTotalsNote,
+  handoverDayUncountedNote,
 } from '@/lib/engine/glass-box/category-breakdown';
 import { spendingByCategory, type ReportTxn, type SpendWindow } from '@/lib/engine/reports/reports';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
@@ -82,7 +89,29 @@ describe('U.16 — the copy says only what is true in every shape', () => {
     // U.13 replaced it with a clause that holds in every shape; this reuses it.
     const s = breakdownHandoverDayCopy(1, true);
     expect(s).toContain('neither can be shown to have covered the whole of it');
+    expect(s).toContain('both connections’ records are kept');
     expect(s).not.toMatch(/the day (one|your) connection stopped/i);
+    expect(s).not.toMatch(/changing connections/i);
+    expect(s).not.toMatch(/changeover/i);
+  });
+
+  it('U.17: every long author locates the RULE, never a connection-change', () => {
+    const authors = [
+      breakdownHandoverDayCopy(2, true),
+      handoverDayAnswerNote(2),
+      handoverDayRegisterTotalsNote(2),
+      handoverDayAmountsNote(2),
+      handoverDayDetailNote(),
+      handoverDayUncountedNote(2),
+    ];
+    for (const s of authors) {
+      expect(s).toContain(HANDOVER_DAY_LOCATOR);
+      expect(s).not.toMatch(/changing connections/i);
+      expect(s).not.toMatch(/changeover/i);
+      expect(s).not.toMatch(/the day (one|your) connection stopped/i);
+    }
+    expect(HANDOVER_DAY_ROW_MARKER).toBe('(both connections kept)');
+    expect(HANDOVER_DAY_HEADING).toBe('Both connections kept');
   });
 
   it('agrees with the panel it sits under: the tally clause appears only while the tally holds', () => {
@@ -184,8 +213,8 @@ describe('U.16 — the breakdown marks the rows and counts them', () => {
     // Critic finding, executed: the first draft tested `handoverDates.has(t.date)`
     // — a bare DATE match. A released day is an ordinary shopping day on every
     // other account the reader owns, so the panel marked every row posted that
-    // day and announced "6 rows here fall on a day one of your combined accounts
-    // was changing connections" when at most two of them could be doubled. The
+    // day and announced six rows on a released day when at most two of them
+    // could be doubled. The
     // marker is the affordance that lets a reader FIND the two identical lines;
     // marking four unrelated rows destroys exactly that.
     const sameDayElsewhere: ReportTxn[] = [
@@ -235,7 +264,7 @@ describe('U.16 — the panel prints the sentence exactly when it applies', () =>
   it('adds it when rows fall on a released day, after the shared basis', () => {
     const basis = categoryPanelBasis({ notCountedYetCents: cents(0), countedOnHandoverDays: 2, reconciles: true, rows: [] as never });
     expect(basis[0]).toBe(BREAKDOWN_BASIS);
-    expect(basis.some((b) => b.includes('changing connections'))).toBe(true);
+    expect(basis.some((b) => b.includes('both connections’ records are kept'))).toBe(true);
   });
 
   it('says nothing to a reader whose rows fall nowhere near one', () => {
@@ -264,7 +293,7 @@ describe('U.16 — the figure and its disclosure are scoped to each other', () =
   it('Ask qualifies the TOTAL when any counted row lands on a released day', () => {
     const b = spendingByCategory(MIXED, WINDOW, undefined, undefined, DATES);
     const a = answerSpendTotal(b, { label: 'this month' } as never);
-    expect(a.detail).toContain('changing connections');
+    expect(a.detail).toContain('both connections’ records are kept');
     // The pre-existing rule sentence is kept, never replaced.
     expect(a.detail).toContain('Purchases only');
   });
@@ -279,14 +308,14 @@ describe('U.16 — the figure and its disclosure are scoped to each other', () =
       { type: 'category', categoryId: 'dining', label: 'dining' } as never,
       { label: 'this month' } as never,
     );
-    expect(dining.detail ?? '').not.toContain('changing connections');
+    expect(dining.detail ?? '').not.toContain('both connections’ records are kept');
 
     const groceries = answerSpendByCategory(
       b,
       { type: 'category', categoryId: 'groceries', label: 'groceries' } as never,
       { label: 'this month' } as never,
     );
-    expect(groceries.detail ?? '').toContain('changing connections');
+    expect(groceries.detail ?? '').toContain('both connections’ records are kept');
   });
 
   it('regression__u16_count_excludes_categories_the_figure_drops', () => {
@@ -329,7 +358,7 @@ describe('U.16 — the figure and its disclosure are scoped to each other', () =
     const b = spendingByCategory(txns, WINDOW, undefined, undefined, DATES);
     const a = answerTopCategories(b, { label: 'this month' } as never, 3);
     expect(a.detail).toContain('Total this month:');
-    expect(a.detail).toContain('changing connections');
+    expect(a.detail).toContain('both connections’ records are kept');
     // …and stays silent for a reader with no combined accounts.
     const clean = spendingByCategory(txns, WINDOW);
     expect(answerTopCategories(clean, { label: 'this month' } as never, 3).detail).toBe('Total this month: $120.00.');

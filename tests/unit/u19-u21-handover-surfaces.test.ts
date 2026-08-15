@@ -273,7 +273,7 @@ describe('U.20 — merchantSpend counts and marks its released-day rows off ONE 
   it('the ANSWER qualifies the figure it states, in the answer wording, and only when it applies', () => {
     const marked = merchantSpend(MATCHED, TF, 'costco', TODAY, undefined, undefined, KEYS);
     const a = answerMerchantSpend(marked, TF);
-    expect(a.detail).toContain('changing connections');
+    expect(a.detail).toContain('both connections’ records are kept');
     // The answer author, never the panel's: this list is capped at five with no
     // tally printed beneath it, so "rows here" and the tally clause would both
     // be claims about things that are not on screen.
@@ -281,7 +281,7 @@ describe('U.20 — merchantSpend counts and marks its released-day rows off ONE 
     expect(a.detail ?? '').not.toContain('rows here');
 
     const clean = merchantSpend(MATCHED, TF, 'costco', TODAY);
-    expect(answerMerchantSpend(clean, TF).detail ?? '').not.toContain('changing connections');
+    expect(answerMerchantSpend(clean, TF).detail ?? '').not.toContain('both connections’ records are kept');
   });
 
   it('the TRACE marks the rows and states the panel sentence — the U.16 split, closed here', () => {
@@ -295,7 +295,7 @@ describe('U.20 — merchantSpend counts and marks its released-day rows off ONE 
     expect(t.basis.some((b) => b.includes('rows here fall'))).toBe(true);
 
     const clean = traceMerchantSpend(merchantSpend(MATCHED, TF, 'costco', TODAY));
-    expect(clean.basis.some((b) => b.includes('changing connections'))).toBe(false);
+    expect(clean.basis.some((b) => b.includes('both connections’ records are kept'))).toBe(false);
   });
 });
 
@@ -418,7 +418,7 @@ describe('U.21 — the zero branches disclose what their figure cannot see', () 
     const b = spendingByCategory(ZEROED, WINDOW, undefined, undefined, KEYS);
     const a = answerSpendTotal(b, TF);
     expect(a.headline).toBe('No spending recorded this month.');
-    expect(a.detail).toContain('changing connections');
+    expect(a.detail).toContain('both connections’ records are kept');
     expect(a.detail).toContain('2 transactions fall');
   });
 
@@ -449,14 +449,14 @@ describe('U.21 — the zero branches disclose what their figure cannot see', () 
       { type: 'group', group: CATEGORY_BY_ID.get('groceries')!.group, label: 'food & dining' },
       TF,
     );
-    expect(a.detail).toContain('changing connections');
+    expect(a.detail).toContain('both connections’ records are kept');
   });
 
   it('top_categories over an emptied breakdown makes the same claim and needs the same note', () => {
     const b = spendingByCategory(ZEROED, WINDOW, undefined, undefined, KEYS);
     const a = answerTopCategories(b, TF, 3);
     expect(a.headline).toBe('No spending recorded this month.');
-    expect(a.detail).toContain('changing connections');
+    expect(a.detail).toContain('both connections’ records are kept');
   });
 
   it('the TRACE under a zero answer tells the same story through the same predicate', () => {
@@ -468,7 +468,7 @@ describe('U.21 — the zero branches disclose what their figure cannot see', () 
     const b = spendingByCategory(ZEROED, WINDOW, undefined, undefined, KEYS);
     const total = traceSpendTotal(b, [], WINDOW, CATEGORY_BY_ID);
     expect(total.rows).toHaveLength(0);
-    expect(total.basis.some((s) => s.includes('changing connections'))).toBe(true);
+    expect(total.basis.some((s) => s.includes('both connections’ records are kept'))).toBe(true);
 
     const scoped = traceSpendByCategory(
       b,
@@ -488,7 +488,7 @@ describe('U.21 — the zero branches disclose what their figure cannot see', () 
       WINDOW,
       CATEGORY_BY_ID,
     );
-    expect(dining.basis.some((s) => s.includes('changing connections'))).toBe(false);
+    expect(dining.basis.some((s) => s.includes('both connections’ records are kept'))).toBe(false);
   });
 });
 
@@ -583,7 +583,7 @@ describe('U.21 rescope — a positive figure over a partially-cancelled breakdow
       { type: 'category', categoryId: 'dining', label: 'dining' },
       TF,
     );
-    expect(shopping.detail ?? '').not.toContain('changing connections');
+    expect(shopping.detail ?? '').not.toContain('both connections’ records are kept');
   });
 
   it('top_categories and the TRACES carry the same fact to the same standings', () => {

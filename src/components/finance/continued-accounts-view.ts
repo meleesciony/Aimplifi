@@ -131,7 +131,6 @@ interface Draft {
   view: ContinuedSourceView;
   /** What the Undo reverses, in words — appended after the face is final. */
   ariaTail: string;
-  cutoverDate: string;
   /** How many old accounts its own block folds in. */
   siblings: number;
   /** Card-wide 0-based position. The only tiebreaker that cannot be forged by a name. */
@@ -190,7 +189,6 @@ export function continuedAccountsView(
       // States a fact about the PREDECESSOR — true in every state, including chains and a
       // disconnected successor. Never claims where the balance went.
       ariaTail: `separate ${view.name} (${view.providerMask}) from ${g.name} (${g.providerMask}); that old account counts on its own again`,
-      cutoverDate: r.cutoverDate,
       siblings: 0, // set below
       i,
     });
@@ -212,7 +210,12 @@ export function continuedAccountsView(
       m > 1
         ? `Old account ${s.n} of ${m}: ${s.name} (${s.providerMask})`
         : `Continued from your old account ${s.name} (${s.providerMask})`;
-    s.identityLine = `${who} — history kept through ${d.cutoverDate}; this old account's balance no longer counts on its own.`;
+    // U.17: this module carries no claim span (see the file header). Any date
+    // printed here is the stored cutover, which is not claimEnd when last <
+    // cutover and is not last-used when cutover < last. The proveable money
+    // fact is the zeroed balance. Distinctness is the predecessor name +
+    // "Old account N of M", not a date this payload cannot interpret.
+    s.identityLine = `${who} — this old account's balance no longer counts on its own.`;
     // A bare "Undo" is honest ONLY when it is the card's single Undo; otherwise the face must name
     // its object BEFORE the tap (#296). The ordinal is included only where the block actually
     // enumerates (m > 1), so no button claims an "old account 1" the block never numbered.

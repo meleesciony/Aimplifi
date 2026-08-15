@@ -30,7 +30,10 @@ import {
   CUSTOM_CATEGORY_GROUPS,
   filterCategoryOptions,
 } from '@/lib/engine/categorize/assign';
-import { handoverDayRegisterTotalsNote } from '@/lib/engine/glass-box/category-breakdown';
+import {
+  HANDOVER_DAY_ROW_MARKER,
+  handoverDayRegisterTotalsNote,
+} from '@/lib/engine/glass-box/category-breakdown';
 import { TAX_CLASSES, TAX_CLASS_LABELS, taxClassLabel } from '@/lib/engine/tax/classes';
 import { TXN_NOTE_MAX_CHARS } from '@/lib/engine/tax/note';
 import { createCustomCategory } from '@/server/custom-category-actions';
@@ -781,7 +784,7 @@ export function TransactionList({
                             className="shrink-0 text-xs text-muted-foreground"
                             data-testid="txn-handover-row"
                           >
-                            (connection changeover)
+                            {HANDOVER_DAY_ROW_MARKER}
                           </span>
                         )}
                         {/* O.15 — the register's honesty about a row the totals no

@@ -33,6 +33,7 @@ import {
   factView,
   reconciledView,
 } from '@/lib/engine/assistant/trace-view';
+import { HANDOVER_DAY_ROW_MARKER } from '@/lib/engine/glass-box/category-breakdown';
 import { formatCents, type Cents } from '@/lib/money';
 
 /** Everything a trace row needs to offer the one-tap correction (slice 2b);
@@ -586,7 +587,7 @@ function TraceRows({ rows, correction }: { rows: readonly TraceRow[]; correction
                     the green check above certifies all of them equally. */}
                 {r.onHandoverDay && (
                   <span className="ml-1.5 text-xs" data-testid="ask-trace-handover-row">
-                    (connection changeover)
+                    {HANDOVER_DAY_ROW_MARKER}
                   </span>
                 )}
               </span>

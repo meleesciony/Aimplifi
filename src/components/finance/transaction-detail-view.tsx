@@ -31,7 +31,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatISODate, isoDate } from '@/lib/dates';
-import { handoverDayDetailNote } from '@/lib/engine/glass-box/category-breakdown';
+import {
+  HANDOVER_DAY_HEADING,
+  handoverDayDetailNote,
+} from '@/lib/engine/glass-box/category-breakdown';
 import { cents, formatCents, parseDollarInput } from '@/lib/money';
 import { TAX_CLASSES, TAX_CLASS_LABELS } from '@/lib/engine/tax/classes';
 import { TXN_NOTE_MAX_CHARS } from '@/lib/engine/tax/note';
@@ -543,7 +546,7 @@ export function TransactionDetailView({
               data-testid="detail-handover-marker"
               className="text-[10px] text-muted-foreground"
             >
-              Connection changeover
+              {HANDOVER_DAY_HEADING}
             </Badge>
           )}
           {row.excludeFromTotals && (

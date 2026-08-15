@@ -5124,3 +5124,38 @@ conclusion `success` on sha
 `success`, "Deployment has completed", same sha. Production `/`,
 `/accounts`, `/ask` all 307; `/sign-in` 200. No demo-visible marker
 (no figure or copy moved). No `prisma/` diff.
+
+## ✅ CLOSED 2026-08-15 — U.17: a dormant last-used day is still released (DECISIONS #475)
+
+The U.13 critic filed a shape: when a predecessor's last row is
+months before the cutover, the released "handover day" is the last
+day the card was used. The row asked to stop releasing that day, or
+to move the claim end to the cutover.
+
+**Measured** (`scripts/audit-probes/u17-dormant-handover.mts` against
+live Neon): 25 effective links, **16 coincident, 0 dormant, 0
+dragged**. Both prescribed fixes are $0 on today's corpus. The
+filed 16-month pair is gone.
+
+**Refused, not built.** Inclusive-at-last reintroduces U.13's silent
+loss on that day. claimEnd=cutover is F4 inverted and drops the
+successor's gap. Last-used stays released. Locked so either
+prescribed fix goes red.
+
+**Copy executed after critic.** Long authors locate the keep-rule
+(`HANDOVER_DAY_LOCATOR`), not a connection-change. Markers say
+`(both connections kept)`. Combined accounts prints no date (no
+claim span on the payload). Combine's exception is a separate
+sentence. CSV column `changeover_day` unchanged (U.19).
+
+**Residual.** Naming the released day on Combine / Combined
+accounts needs `claimEnd` on those payloads. Confirm form already
+names `min(cutover, last)`.
+
+**Critic (4 cycles): PASS — 0 P0, 0 P1.** Cycles 1–3 copy P1s all
+executed.
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0,
+eslint 0, unit **7,049 passed + 1 expected fail + 1 skipped /
+426 files + 1 skipped**, `next build` clean. Handover e2e **7/7**
+on that build. No `prisma/` diff.

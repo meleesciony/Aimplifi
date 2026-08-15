@@ -174,6 +174,9 @@ describe('test_regression__combined_card_never_claims_a_dead_account_is_live', (
     for (const line of lines(views)) {
       expect(line).toContain("this old account's balance no longer counts on its own");
       expect(line).not.toContain('counted on the live connection');
+      expect(line).not.toContain('history kept through');
+      expect(line).not.toContain('history still counts');
+      expect(line).not.toContain('combined as of');
     }
   });
 
@@ -194,15 +197,20 @@ describe('test_regression__combined_card_rows_stay_independent', () => {
     expect(new Set(views.flatMap((v) => v.sources.map((s) => s.key))).size).toBe(2);
   });
 
-  it('renders each row OWN cutover date even if two rows shared an id', () => {
+  it('renders each row OWN predecessor name even if two rows shared an id', () => {
+    // U.17: the identity line no longer prints cutover (the payload has no
+    // claim span, so any date here would be a false keep-through / effective
+    // date). Independence is the predecessor name each row carries.
     const out = lines(
       continuedAccountsView([
         link({ id: 'dup', predName: 'Alpha', succId: 'a', succName: 'A', cutoverDate: '2026-01-01' }),
         link({ id: 'dup', predName: 'Beta', succId: 'b', succName: 'B', cutoverDate: '2026-09-09' }),
       ]),
     );
-    expect(out[0]).toContain('2026-01-01');
-    expect(out[1]).toContain('2026-09-09');
+    expect(out[0]).toContain('Alpha');
+    expect(out[1]).toContain('Beta');
+    expect(out[0]).not.toContain('2026-01-01');
+    expect(out[1]).not.toContain('2026-09-09');
   });
 });
 
