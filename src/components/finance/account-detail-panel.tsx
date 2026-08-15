@@ -1,7 +1,9 @@
 /**
- * The in-place answer to clicking a LOAN / MORTGAGE / other non-register
- * account on /accounts (owner, 2026-08-11: his mortgage's row landed on an
- * empty /transactions — the U.3 slice). Renders ONLY facts the app holds: the
+ * The in-place answer on /accounts (owner, 2026-08-11: his mortgage's row
+ * landed on an empty /transactions — the U.3 slice). Primary click still
+ * opens the register for CHECKING / SAVINGS / CREDIT; U.8 adds a sibling
+ * Details affordance so those rows can open this panel too — they are the
+ * types a feed most often re-classes. Renders ONLY facts the app holds: the
  * account's role in net worth, the loan terms the feed supplied (each line
  * absent when the fact is), and the recorded balance history — the same
  * BalanceSnapshot store the page's net-worth trend is drawn from. Balances
@@ -43,6 +45,7 @@ import { cents, formatCents } from '@/lib/money';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { accountTypeLabel } from '@/lib/engine/account/type-label';
 import {
+  accountDetailRoleLine,
   replacedByLiveClassNote,
   replacedByLiveMarker,
   replacedByLiveNote,
@@ -140,9 +143,7 @@ export function AccountDetailPanel({
       className="mx-3 mb-2 space-y-2 rounded-md border bg-accent/30 p-3 text-sm"
     >
       <p className="text-muted-foreground">
-        {accountTypeLabel(account.type)} — counts toward your net worth as money you{' '}
-        {isLiability ? 'owe' : 'own'}. Day-to-day transactions come from checking, savings, and
-        card accounts, so this account is tracked by its balance instead of an activity feed.
+        {accountDetailRoleLine({ type: account.type, isLiability })}
       </p>
       {loanFacts.length > 0 && (
         <p data-testid="account-detail-loan-facts">

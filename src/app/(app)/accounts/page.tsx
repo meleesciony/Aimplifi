@@ -16,10 +16,11 @@ export default async function AccountsPage({
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
   const sp = await searchParams;
-  // `?detail=<id>` — which non-register account's in-place panel is open
-  // (the mortgage dead-end slice, 2026-08-11). Loaded ONLY when open, and
-  // scoped to the signed-in user inside getAccountDetail: a foreign or stale
-  // id resolves to null and the page renders exactly as with no param.
+  // `?detail=<id>` — which account's in-place panel is open (U.3 mortgage
+  // dead-end; U.8 spending-row sibling). Loaded ONLY when open, and scoped
+  // to the signed-in user inside getAccountDetail: a foreign or stale id
+  // resolves to null and the page renders exactly as with no param.
+  // INVESTMENT still does not render the panel (`dest.kind === 'holdings'`).
   const detailParam = Array.isArray(sp.detail) ? (sp.detail[0] ?? '') : (sp.detail ?? '');
   // Sharing is a SEPARATE query path from getAccountsView (#192/T9): partner
   // rows must never enter the duplicate detector's input set.

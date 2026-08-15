@@ -14,6 +14,8 @@
  * basis ever widens, rows start linking there again without this file
  * changing. INVESTMENT keeps its #159 special case (holdings are the useful
  * destination). Everything else opens its detail in place on /accounts.
+ * U.8 does not change these kinds: spending rows keep `register` as the
+ * primary click and open the same panel from a sibling affordance.
  */
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 

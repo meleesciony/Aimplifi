@@ -1744,9 +1744,10 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
  */
 /**
  * What the in-place detail panel on /accounts renders for ONE account (the
- * mortgage dead-end slice, owner 2026-08-11): the account types the register
- * excludes by construction (`accountRowDestination` → 'detail') open here
- * instead of a structurally-empty /transactions.
+ * mortgage dead-end slice, owner 2026-08-11; U.8 spending-row affordance):
+ * types the register excludes (`accountRowDestination` → 'detail') open here
+ * instead of a structurally-empty /transactions; CHECKING / SAVINGS / CREDIT
+ * keep the register as the row click and open the same panel from a sibling.
  *
  * Loaded only when a panel is OPEN (`/accounts?detail=<id>`). The cost this
  * avoids is the CLIENT payload — serializing every account's history into the

@@ -33,6 +33,8 @@
  * so the note is always singular.
  */
 import { cents, formatCents } from '@/lib/money';
+import { accountTypeLabel } from '@/lib/engine/account/type-label';
+import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 
 /** The balance the trend counts for a date this account's own row was dropped
  *  from — read off the reconciliation boundary's OUTPUT, never re-derived. */
@@ -160,4 +162,24 @@ export function replacedByLiveNote(): string {
  */
 export function replacedByLiveClassNote(asClass: string): string {
   return `Today's live point counts this account as ${asClass}, not as the class on this recording.`;
+}
+
+/**
+ * The panel's opening sentence (U.3 / U.8). The first clause is the
+ * account's role in net worth — true of every type. The second clause
+ * must not claim this account has no activity feed when it is one of
+ * the three types whose primary click IS the register
+ * (`SPENDING_ACCOUNT_TYPES`). A rule in the .tsx cannot be locked.
+ */
+export function accountDetailRoleLine(input: { type: string; isLiability: boolean }): string {
+  const label = accountTypeLabel(input.type);
+  const side = input.isLiability ? 'owe' : 'own';
+  const role = `${label} — counts toward your net worth as money you ${side}.`;
+  if (SPENDING_ACCOUNT_TYPES.includes(input.type)) {
+    return `${role} Day-to-day activity is in Transactions.`;
+  }
+  return (
+    `${role} Day-to-day transactions come from checking, savings, and card accounts, ` +
+    'so this account is tracked by its balance instead of an activity feed.'
+  );
 }

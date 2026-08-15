@@ -4,8 +4,10 @@
  * All-accounts net worth view (DECISIONS #39). Net worth, then assets and
  * liabilities grouped with subtotals — over LINKED accounts (bank, credit,
  * brokerage) AND user-added manual items (home, vehicle, mortgage, …). Linked
- * rows link to their transactions; manual rows are inline-editable (value) and
- * deletable. "Add asset / Add liability" create manual items.
+ * rows open their destination (register / holdings / in-place detail); spending
+ * rows also have a sibling Details control (U.8). Manual rows are
+ * inline-editable (value) and deletable. "Add asset / Add liability" create
+ * manual items.
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -268,8 +270,9 @@ export function AccountsList({
   detail = null,
 }: {
   data: AccountsView;
-  /** Server-loaded detail for the one account `/accounts?detail=` names, when
-   *  that account expands in place (`accountRowDestination` → 'detail'). */
+  /** Server-loaded detail for the one account `/accounts?detail=` names.
+   *  Rendered for every kind except holdings (U.8: spending rows open this
+   *  from a sibling; loan-class rows still expand in place). */
   detail?: AccountDetailView | null;
 }) {
   const [adding, setAdding] = useState<null | 'asset' | 'liability'>(null);
@@ -1332,7 +1335,33 @@ function RenameForm({
   );
 }
 
-/** The button that opens the box, shared by both row kinds. */
+/** U.8 — spending rows keep the register as the primary click; this sibling
+ *  opens the same detail panel loan rows expand in place. Never nested
+ *  inside the row Link (interactive-in-interactive). */
+function DetailAffordance({
+  accountId,
+  accountName,
+  open,
+}: {
+  accountId: string;
+  accountName: string;
+  open: boolean;
+}) {
+  return (
+    <Link
+      href={open ? '/accounts' : `/accounts?detail=${accountId}`}
+      scroll={false}
+      data-testid="account-row-detail-affordance"
+      aria-expanded={open}
+      aria-controls={`account-detail-${accountId}`}
+      aria-label={open ? `Hide details for ${accountName}` : `Show details for ${accountName}`}
+      className="tap-target mr-1 inline-flex shrink-0 items-center justify-center rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent"
+    >
+      {open ? 'Hide details' : 'Details'}
+    </Link>
+  );
+}
+
 function RenameButton({ account, pending, onRename }: { account: AccountView; pending: boolean; onRename: () => void }) {
   return (
     <button
@@ -1370,7 +1399,7 @@ function LinkedRow({
   canRename: boolean;
   pending: boolean;
   /** Server-loaded detail for THIS row when `/accounts?detail=` names it —
-   *  null for every other row and for rows whose click navigates away. */
+   *  null for every other row. Holdings still do not render the panel. */
   openDetail: AccountDetailView | null;
   onRename: () => void;
   onCancelRename: () => void;
@@ -1489,6 +1518,9 @@ function LinkedRow({
           </div>
         </Link>
         )}
+        {!renaming && dest.kind === 'register' && (
+          <DetailAffordance accountId={account.id} accountName={account.name} open={detailOpen} />
+        )}
         {!renaming && canRename && <RenameButton account={account} pending={pending} onRename={onRename} />}
         {!renaming &&
           deletable &&
@@ -1524,10 +1556,11 @@ function LinkedRow({
           {droppedNote}
         </p>
       )}
-      {/* `dest.kind` guard by construction: a hand-edited `?detail=` naming a
-          spending/investment account must not open a panel under a row whose
-          own link navigates away (and whose cue never promised one). */}
-      {openDetail !== null && dest.kind === 'detail' && (
+      {/* Holdings stay excluded: /investments is that row's answer, and U.8
+          named CHECKING / SAVINGS / CREDIT. Detail-kind rows still expand
+          in place; register-kind rows open via the sibling affordance
+          (or a hand-edited `?detail=`). */}
+      {openDetail !== null && dest.kind !== 'holdings' && (
         <AccountDetailPanel account={account} isLiability={isLiability} detail={openDetail} />
       )}
     </li>
@@ -1632,6 +1665,9 @@ function ManualRow({
               {isLiability ? '−' : ''}
               {formatCents(cents(account.currentBalanceCents))}
             </span>
+            {manualKind === 'register' && (
+              <DetailAffordance accountId={account.id} accountName={account.name} open={detailOpen} />
+            )}
             {canRename && <RenameButton account={account} pending={pending} onRename={onRename} />}
             <button type="button" data-testid="manual-edit" disabled={pending} onClick={onEdit} className="tap-target inline-flex items-center justify-center rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50">Edit</button>
             {!confirm.isArmed('delete') ? (
@@ -1692,9 +1728,7 @@ function ManualRow({
           )}
         </div>
       )}
-      {/* Same guard-by-construction as LinkedRow: only a detail-kind row may
-          render the panel a hand-edited `?detail=` asks for. */}
-      {openDetail !== null && manualKind === 'detail' && (
+      {openDetail !== null && (
         <AccountDetailPanel account={account} isLiability={isLiability} detail={openDetail} />
       )}
     </li>

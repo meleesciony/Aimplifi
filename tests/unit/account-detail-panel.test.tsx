@@ -40,6 +40,7 @@ describe('AccountDetailPanel', () => {
     const panel = screen.getByTestId('account-detail-panel');
     expect(panel.textContent).toContain('Mortgage — counts toward your net worth as money you owe');
     expect(panel.textContent).toContain('tracked by its balance instead of an activity feed');
+    expect(panel.textContent).not.toContain('Day-to-day activity is in Transactions');
     // The honest absence, named — never an empty box, never a promise of
     // history no writer produces.
     expect(screen.getByTestId('account-detail-no-history').textContent).toContain(
@@ -47,6 +48,20 @@ describe('AccountDetailPanel', () => {
     );
     expect(screen.queryByTestId('account-detail-loan-facts')).toBeNull();
     expect(screen.queryByTestId('account-detail-history')).toBeNull();
+  });
+
+  it('U.8: a checking account does not claim it is tracked instead of an activity feed', () => {
+    render(
+      <AccountDetailPanel
+        account={{ id: 'acct-c', name: 'Everyday Checking', type: 'CHECKING', mask: '4421', currentBalanceCents: 340000 }}
+        isLiability={false}
+        detail={{ id: 'acct-c', history: [], aprBps: null, minimumPaymentCents: null, dueDayOfMonth: null, feedDroppedAt: null }}
+      />,
+    );
+    const panel = screen.getByTestId('account-detail-panel');
+    expect(panel.textContent).toContain('Checking — counts toward your net worth as money you own');
+    expect(panel.textContent).toContain('Day-to-day activity is in Transactions');
+    expect(panel.textContent).not.toContain('instead of an activity feed');
   });
 
   it('loan facts render only the facts the feed supplied, formatted from their stored units', () => {

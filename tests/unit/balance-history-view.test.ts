@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  accountDetailRoleLine,
   replacedByLiveClassNote,
   replacedByLiveMarker,
   replacedByLiveNote,
@@ -143,5 +144,31 @@ describe('U.10 — replaced-by-live copy', () => {
       "Today's live point counts this account as loan, not as the class on this recording.",
     );
     expect(replacedByLiveClassNote('loan')).not.toContain('for that date it counts');
+  });
+});
+
+describe('U.8 — accountDetailRoleLine', () => {
+  it('a non-spending account keeps the U.3 sentence byte-identical', () => {
+    expect(accountDetailRoleLine({ type: 'MORTGAGE', isLiability: true })).toBe(
+      'Mortgage — counts toward your net worth as money you owe. ' +
+        'Day-to-day transactions come from checking, savings, and card accounts, ' +
+        'so this account is tracked by its balance instead of an activity feed.',
+    );
+  });
+
+  it('a spending account does not claim it has no activity feed', () => {
+    const checking = accountDetailRoleLine({ type: 'CHECKING', isLiability: false });
+    expect(checking).toBe(
+      'Checking — counts toward your net worth as money you own. Day-to-day activity is in Transactions.',
+    );
+    expect(checking).not.toContain('instead of an activity feed');
+    const card = accountDetailRoleLine({ type: 'CREDIT', isLiability: true });
+    expect(card).toBe(
+      'Credit card — counts toward your net worth as money you owe. Day-to-day activity is in Transactions.',
+    );
+    expect(card).not.toContain('instead of an activity feed');
+    expect(accountDetailRoleLine({ type: 'SAVINGS', isLiability: false })).toContain(
+      'Day-to-day activity is in Transactions.',
+    );
   });
 });

@@ -2,6 +2,26 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-15 — U.8: spending rows can open the same detail panel (DECISIONS #473)
+
+**Picked up from the queue** (named next after U.10). The detail
+panel never rendered for CHECKING / SAVINGS / CREDIT.
+
+**Shipped.** Sibling Details affordance. Primary click stays the
+register. Spending role line points at Transactions. Loan sentence
+byte-identical. INVESTMENT still excluded.
+
+**Locked.** Role-line unit + checking panel render + destinations
+e2e + U.8 sibling open/close e2e.
+
+**Critic (read-only): PASS — 0 P0, 0 P1.** Two P2 JSDocs executed.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,044
+passed + 1 expected fail + 1 skipped / 426 files + 1 skipped**,
+`next build` clean. Playwright (fresh build): **352 passed, 2
+flaky-passed-on-retry** (`category-rename.spec.ts:110`,
+`transactions.spec.ts:610` — K.10, untouched). No `prisma/` diff.
+
 ## 2026-08-15 — U.10: today's snapshot is not the live point (DECISIONS #472)
 
 **Picked up from the queue** (named next after U.2). A snapshot

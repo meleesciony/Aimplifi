@@ -266,6 +266,33 @@ test('/accounts — spending and investment rows keep their real destinations', 
 
   const brokerageRow = page.getByTestId('account-row').filter({ hasText: 'Brokerage' });
   expect(await brokerageRow.getAttribute('href')).toBe('/investments?account=acct-brokerage');
+  await expect(page.getByRole('link', { name: 'Show details for Brokerage' })).toHaveCount(0);
+});
+
+test('/accounts — U.8: a spending row keeps the register click and opens details from a sibling', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/accounts');
+
+  const checkingRow = page.getByTestId('account-row').filter({ hasText: 'Everyday Checking' });
+  await expect(checkingRow).toBeVisible({ timeout: 20000 });
+  // Primary click is still the register — U.3 must not come back.
+  expect(await checkingRow.getAttribute('href')).toBe('/transactions?account=acct-checking');
+
+  const details = page.getByRole('link', { name: 'Show details for Everyday Checking' });
+  await expect(details).toHaveAttribute('href', '/accounts?detail=acct-checking');
+  await details.click();
+  await page.waitForURL('**/accounts?detail=acct-checking', { timeout: 20000 });
+
+  const panel = page.getByTestId('account-detail-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('Day-to-day activity is in Transactions');
+  await expect(panel).not.toContainText('instead of an activity feed');
+  // The row link did not become a toggle.
+  expect(await checkingRow.getAttribute('href')).toBe('/transactions?account=acct-checking');
+
+  await page.getByRole('link', { name: 'Hide details for Everyday Checking' }).click();
+  await page.waitForURL('**/accounts', { timeout: 20000 });
+  await expect(page.getByTestId('account-detail-panel')).toHaveCount(0);
 });
 
 test('a stale deep link to a loan account names the account and the way out, never "these filters"', async ({ page }) => {

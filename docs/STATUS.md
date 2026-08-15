@@ -303,7 +303,7 @@ The row filed the defect on the PREDECESSOR's panel. That panel is **unreachable
 
 **Sabotage proofs (each reverted):** the pre-U.6 sign rule reddens 2 series locks; dropping the delta refusal reddens 2; repainting panel rows from the current class reddens 1; dropping the drilldown marker reddens 1.
 
-**Known residuals, split out:** **U.7** — a reconciled pair's collision winner now decides that date's sign (filed as a shape, unverified in practice). **U.8** — the detail panel never renders for CHECKING/SAVINGS/CREDIT accounts, the likelier reclassification targets, so their per-row explanation rides on the drilldown marker alone.
+**Known residuals, split out:** **U.7** — a reconciled pair's collision winner now decides that date's sign (filed as a shape, unverified in practice). **U.8** — the detail panel never rendered for CHECKING/SAVINGS/CREDIT (**SHIPPED 2026-08-15, DECISIONS #473** — sibling Details affordance; primary click stays the register).
 
 **Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,808 unit passed + 1 skipped / 415 files** / build clean. Full local `npx playwright test`: **342 passed / 1 flaky / 0 failed** (exit 0). Shipped as `e60f9b1`; **CI gate SUCCESS on run 31605655317, first attempt** — the full `VERIFY_E2E=1` suite, so the rewritten copy, the new drilldown marker and the reclassified-row assertions all passed in a real browser on the Linux runner.
 
@@ -5043,3 +5043,32 @@ conclusion `success` on sha
 marker (`account-detail-replaced-by-live` / "today's point is live")
 is behind sign-in; CI's full `VERIFY_E2E=1` suite ran the Auto Loan
 panel assertion against this sha. No `prisma/` diff.
+
+## ✅ BUILT 2026-08-15 — U.8: spending rows can open the same detail panel (DECISIONS #473)
+
+CHECKING / SAVINGS / CREDIT rows linked only to the register, so the
+per-row reclass explanation never rendered for the types a feed most
+often re-classes.
+
+**What shipped.** A sibling `Details` control (`account-row-detail-affordance`)
+opens `/accounts?detail=<id>` without stealing the register click.
+`accountRowDestination` kinds are unchanged. INVESTMENT still has no
+panel. Spending intro: "Day-to-day activity is in Transactions."
+Non-spending sentence stays byte-identical.
+
+**Not in scope.** Register-header history. Changing primary-click kinds.
+Adding the panel to a brokerage.
+
+**Critic (read-only): PASS — 0 P0, 0 P1.** Two P2 stale JSDocs executed.
+Accepted residual: extra right-side control, same pattern as Rename/Delete.
+
+**Locked.** `accountDetailRoleLine` both variants; checking panel must
+not claim "instead of an activity feed"; destinations e2e (checking
+href + no Brokerage Details); U.8 e2e sibling open/close.
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN** (e2e skipped;
+Playwright then run against this same `next build`): tsc 0, eslint 0,
+unit **7,044 passed + 1 expected fail + 1 skipped / 426 files + 1
+skipped**, `next build` clean, e2e **352 passed, 2 flaky-passed-on-retry**
+(`category-rename.spec.ts:110`, `transactions.spec.ts:610` — documented
+K.10 class, untouched by this diff). No `prisma/` diff.

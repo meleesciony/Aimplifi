@@ -7681,3 +7681,28 @@ combine; historical dates unmarked. Copy: marker / note / class
 note; note must not contain "not from this recording" or
 "Tomorrow". Panel + e2e on the demo Auto Loan. PDF heading
 `Trend`, no "recorded" / "month-end".
+
+## #473 — U.8: spending rows open the detail panel from a sibling (2026-08-15)
+
+**Context.** `accountRowDestination` sends CHECKING / SAVINGS /
+CREDIT to the register and INVESTMENT to holdings. The in-place
+panel — the only per-row explanation of a reclassified snapshot —
+rendered only for `dest.kind === 'detail'`. A feed re-classing a
+card or checking account is the likelier U.6 event, and a reader
+who opened the register saw no explanation.
+
+**Decision: sibling affordance, do not steal the click.** U.3 made
+the spending-row click the register; putting history on the
+register header answers a different question. `accountRowDestination`
+kinds stay unchanged. INVESTMENT stays excluded (`kind === 'holdings'`).
+The panel intro's second clause is type-dependent: spending accounts
+say "Day-to-day activity is in Transactions" and must not claim they
+are tracked "instead of an activity feed". The non-spending sentence
+stays byte-identical.
+
+**Not in scope.** Register-header history. Changing primary-click
+kinds. A brokerage panel.
+
+**Locked.** `accountDetailRoleLine` both variants; checking panel
+render; destinations e2e (checking href unchanged, no Brokerage
+Details); U.8 e2e sibling open/close.
