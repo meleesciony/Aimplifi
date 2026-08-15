@@ -5232,3 +5232,13 @@ eslint 0, unit **7,062 passed + 1 expected fail + 1 skipped /
 426 files + 1 skipped**, `next build` clean. Trends e2e **4/4**
 on that build (demo refused-all on both surfaces; C.2 mortgage
 still named). No `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-15).** Commit `5de9fe03` →
+pushed → CI gate **`success`**, run 31901717873, first attempt
+(`gh run view` conclusion `success` on sha
+`5de9fe033a186e57dcd3b90ad5cef5b5ca500c10`). Vercel commit
+status: `success`, "Deployment has completed", same sha
+(deployment `2LGT5sX8v2Jv3QN1CXEv7cgPQYeC`). Production `/`,
+`/accounts`, `/ask` all 307; `/sign-in` 200. Copy is behind
+sign-in; CI e2e asserted the refused-all sentence on both
+surfaces on this sha. No `prisma/` diff.

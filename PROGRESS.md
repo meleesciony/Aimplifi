@@ -22,6 +22,17 @@ daily-rate sentence. Figure unchanged. Demo seed count 2.
 skipped**, `next build` clean. Trends e2e **4/4** on that
 build. No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `5de9fe03`. CI run
+31901717873 `success` on first attempt. Vercel: `success`,
+"Deployment has completed", same sha. Production `/`,
+`/accounts`, `/ask` 307; `/sign-in` 200. Copy is behind
+sign-in; CI e2e asserted the refused-all sentence on this sha.
+
+**Next.** C.20 (pace credit vs month-total basis — money math,
+changes a test that explains itself). C.22 stays open
+(direction not established). U.15(b) is the owner's call.
+U.1 stays "eventually."
+
 ## 2026-08-15 — U.14: last-4 veto reads a 4-digit non-year name embedding (DECISIONS #476)
 
 **Picked up from the queue** (named next after the U.11 leftover).
