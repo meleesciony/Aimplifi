@@ -5072,3 +5072,14 @@ unit **7,044 passed + 1 expected fail + 1 skipped / 426 files + 1
 skipped**, `next build` clean, e2e **352 passed, 2 flaky-passed-on-retry**
 (`category-rename.spec.ts:110`, `transactions.spec.ts:610` — documented
 K.10 class, untouched by this diff). No `prisma/` diff.
+
+**SHIPPED AND PROVEN LIVE (2026-08-15).** Commit `4b79f95` → pushed → CI
+gate **`success`**, run 31881967472, first attempt (`gh run view`
+conclusion `success` on sha
+`4b79f959c6d4b6825c06225354d5e41784c6a622`). Vercel commit status:
+`success`, "Deployment has completed", same sha. Production `/`,
+`/accounts`, `/ask` all 307; `/sign-in` 200. The discriminating
+marker (`account-row-detail-affordance` / "Day-to-day activity is in
+Transactions") is behind sign-in; CI's full `VERIFY_E2E=1` suite ran
+the U.8 sibling-affordance assertion against this sha. No `prisma/`
+diff.

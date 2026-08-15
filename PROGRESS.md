@@ -22,6 +22,12 @@ passed + 1 expected fail + 1 skipped / 426 files + 1 skipped**,
 flaky-passed-on-retry** (`category-rename.spec.ts:110`,
 `transactions.spec.ts:610` — K.10, untouched). No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `4b79f95`. CI run 31881967472
+`success` on first attempt. Vercel: `success`, "Deployment has
+completed", same sha. Production `/`, `/accounts`, `/ask` 307;
+`/sign-in` 200. Affordance is behind sign-in; CI e2e asserted it
+on this sha.
+
 ## 2026-08-15 — U.10: today's snapshot is not the live point (DECISIONS #472)
 
 **Picked up from the queue** (named next after U.2). A snapshot
