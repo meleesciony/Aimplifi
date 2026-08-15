@@ -7879,3 +7879,64 @@ withheld — `soleNameOfferIsUnprovenLeftover` (pred has last-4,
 succ does not, signal is name). P1-2: year-shaped mask column
 lock. P2-1: EDGE_CASES + identical-balance comment rewritten.
 P2-2: household LEE lock.
+
+## #477 — C.21: the pace assumption names which zero when no bill was admitted (2026-08-15)
+
+**Context.** `paceAssumption` branch C fired whenever no bill
+was admitted and said nothing about bills. "The calendar held
+nothing this month" and "the calendar held bills the admission
+rule refused" rendered identically. The second reader is the one
+whose projection is least complete (an aggregate payee, a
+hand-authored label). The engine could not tell the two zeros
+apart — a copy tweak would have been a guess.
+
+**Decision: a required refused-count selects a fourth branch;
+the sentence does not print N.** `billsThisMonth` returns
+`refusedCount` (expected entries that failed `counted` or
+`aggregate`). `SpendingPace.billsRefusedCount` is REQUIRED.
+Count > 0: "This projection does not add scheduled outflows."
+plus the empty-calendar daily-rate sentence, byte-identical.
+Count = 0 keeps that daily-rate sentence alone. Income, $0,
+and C.25-excluded loan rows never enter `expected`. Critics
+refused printing N (no surface lists that set), an admission
+qualifier (false of Zelle), a causal "so", "this month", and
+"as bills" (a declined role implies the rate is the other
+role).
+
+**Rejected.** (1) Name the refused merchants. An aggregate
+"Zelle Payment" listed as a bill is a pattern, not an
+identity. (2) Mention refused bills on branches A/B. Those
+already carry coverage; a refused rival beside an admitted
+mortgage is recorded, not a second sentence. (3) Print N in
+the sentence. Demo 2 matches neither /calendar nor
+seed.scheduled.
+
+**Locked.** `trends-labels.test.ts` C.21: 1 ≡ 3; no digit / so
+/ this month / as bills / coverage; tail is `PACE_DAILY_RATE`.
+`trends-pace-bills.test.ts`: 3-refusal count 3; Zelle compose;
+mixed stays A; income/$0 count 0; demo seed count 2 composed
+through `paceAssumption`. e2e `trends.spec.ts` demo: both
+surfaces print "This projection does not add scheduled
+outflows".
+
+**Critic cycle 1 (executed).** P1-1: "N bills on this month's
+calendar" named a different set than the count. P1-2: coverage's
+"we have not spotted" is false of rows just named as present.
+
+**Critic cycle 2 (executed).** P1-1: "match to a merchant you
+have spent at" is false of an aggregate (Zelle) that matched
+and was refused as a pattern — qualifier dropped. P1-2: a
+printed N is not a set the reader can count — the engine
+count selects the branch; the sentence does not print N.
+
+**Critic cycle 3 (executed).** P1-1: causal "so" read as
+converting omitted outflows into the rate. P1-2: "this month"
+named a set /calendar will not always show. Refused branch is
+a preamble plus the empty-calendar model sentence.
+
+**Critic cycle 4 (hard cap; P1 executed in-place, no fifth
+critic).** P1-1: "as bills" assigned a declined role and the
+daily-rate sentence became the implied other role. Preamble is
+now "This projection does not add scheduled outflows." Residual
+P2s: rule-shaped wording; "scheduled outflows" is not a UI
+term; ledger drift (this note).

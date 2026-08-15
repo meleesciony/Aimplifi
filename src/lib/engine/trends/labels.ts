@@ -142,6 +142,10 @@ const PACE_BILL_COVERAGE =
   'Only bills we can match to a merchant you have spent at are counted here — ' +
   'one charged to a card, paid as a transfer, or that we have not spotted is not.';
 
+/** The model sentence when the bills term is empty — shared by both C.21 zeros. */
+const PACE_DAILY_RATE =
+  'Assumes spending continues at the current daily rate — a projection, not a prediction.';
+
 /**
  * Assumption stated beside every pace figure (dashboard + /trends).
  *
@@ -155,9 +159,18 @@ const PACE_BILL_COVERAGE =
  * Branches A and B both carry `PACE_BILL_COVERAGE`, and neither may be shortened
  * to "we counted your bills": the projection sees a strict subset of the bills
  * the app can see, and the reader is one click from the rest of them.
+ *
+ * C.21 splits the old branch C. "No bill was admitted" was one sentence for two
+ * zeros: the calendar held nothing this month, and the calendar held bills the
+ * admission rule refused (an aggregate payee, a hand-authored label). The
+ * second reader is the one whose projection is least complete, and the engine
+ * could not tell them apart until `billsRefusedCount` existed.
  */
 export function paceAssumption(
-  pace: Pick<SpendingPace, 'spentSoFarCents' | 'billsStillDueCents' | 'discretionarySoFarCents'>,
+  pace: Pick<
+    SpendingPace,
+    'spentSoFarCents' | 'billsStillDueCents' | 'discretionarySoFarCents' | 'billsRefusedCount'
+  >,
 ): string {
   const other = money(pace.discretionarySoFarCents);
   if (pace.billsStillDueCents > 0) {
@@ -173,7 +186,21 @@ export function paceAssumption(
       `is what continues at its current daily rate — a projection, not a prediction. ${PACE_BILL_COVERAGE}`
     );
   }
-  return 'Assumes spending continues at the current daily rate — a projection, not a prediction.';
+  if (pace.billsRefusedCount > 0) {
+    // C.21 cycles 1–3: the ENGINE count selects this branch; the sentence
+    // prints no N (cycle 2) and no admission why (cycle 2, Zelle). Cycle 3
+    // P1-1: a causal "so" read as converting omitted outflows into the
+    // rate — they are simply absent. P1-2: "this month" named a set
+    // /calendar will not always show (a July-1 sweep still increments
+    // June). Preamble states the empty bills term; the model sentence is
+    // byte-identical to the empty-calendar zero. "This projection" binds
+    // the demonstrative to the projected figure on both surfaces (P2-1).
+    // Cycle 4 P1-1 (hard cap, executed in-place, no fifth critic): "as bills"
+    // assigned a declined role and the next sentence became the implied other
+    // role — the conversion reading cycle 3 killed. They are simply absent.
+    return `This projection does not add scheduled outflows. ${PACE_DAILY_RATE}`;
+  }
+  return PACE_DAILY_RATE;
 }
 
 /**

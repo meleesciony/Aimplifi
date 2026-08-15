@@ -192,6 +192,14 @@ export interface SpendingPace {
   billsStillDueCents: number;
   /** Those bills by merchant, largest first — the projection's visible inputs. */
   billsStillDue: PaceBillDue[];
+  /**
+   * C.21: expected calendar entries this month that the admission rule refused
+   * (`!counted` or aggregate). REQUIRED — a silent 0 is the two-zeros defect
+   * this field exists to split: "the calendar held nothing" vs "it held bills
+   * we could not count". Income, $0, and C.25-excluded loan rows never enter
+   * `expected`, so they are not this count.
+   */
+  billsRefusedCount: number;
   /** Spent so far MINUS the bill money already counted; the rate's numerator. */
   discretionarySoFarCents: number;
   /** discretionarySoFar / elapsed days × the days left, rounded (audit P2:
@@ -538,7 +546,12 @@ function billsThisMonth(
   // all (demanding it as still due), and the credit half re-introduces the
   // stored-flag settlement flip this module exists to kill.
   excludedLoanCanonicals?: ReadonlySet<string>,
-): { stillDue: PaceBillDue[]; stillDueCents: number; creditedCents: number } {
+): {
+  stillDue: PaceBillDue[];
+  stillDueCents: number;
+  creditedCents: number;
+  refusedCount: number;
+} {
   const key = (m: string) => m.trim().toLowerCase();
   const excludedKeys =
     excludedLoanCanonicals === undefined
@@ -560,7 +573,9 @@ function billsThisMonth(
     if (prev) prev.cents += cents;
     else expected.set(k, { merchant: bill.description.trim(), cents });
   }
-  if (expected.size === 0) return { stillDue: [], stillDueCents: 0, creditedCents: 0 };
+  if (expected.size === 0) {
+    return { stillDue: [], stillDueCents: 0, creditedCents: 0, refusedCount: 0 };
+  }
 
   // ONE walk, two questions. `counted` answers the admission rule over all the
   // history the engine holds — a purchase at this merchant has landed in a spend
@@ -596,10 +611,16 @@ function billsThisMonth(
   const stillDue: PaceBillDue[] = [];
   let stillDueCents = 0;
   let creditedCents = 0;
+  let refusedCount = 0;
   for (const [k, exp] of expected) {
     // Never counted anywhere ⇒ this merchant's money is not in the basis at all
     // (see the admission rule above). Aggregate keys are not identities.
-    if (!counted.has(k) || aggregate.has(k)) continue;
+    // C.21: each such entry is a refused bill — the fact that splits
+    // "no bills on the calendar" from "we matched none of the ones on it".
+    if (!counted.has(k) || aggregate.has(k)) {
+      refusedCount += 1;
+      continue;
+    }
     const seen = Math.max(0, posted.get(k) ?? 0);
     // Credit at most what the bill itself is worth. A merchant can be both a
     // bill and a shop — $15 of Prime inside $415 of Amazon — and crediting the
@@ -613,7 +634,7 @@ function billsThisMonth(
     }
   }
   stillDue.sort((a, b) => b.amountCents - a.amountCents || (a.merchant < b.merchant ? -1 : 1));
-  return { stillDue, stillDueCents, creditedCents };
+  return { stillDue, stillDueCents, creditedCents, refusedCount };
 }
 
 /**
@@ -687,7 +708,7 @@ function computePace(
   // the day-1 lock already defines that figure; the floor also keeps the
   // divisor from vanishing at 00:00:00.
   const elapsed = Math.min(dim, Math.max(1, daysElapsed - 1 + elapsedDayFraction));
-  const { stillDue, stillDueCents, creditedCents } = billsThisMonth(
+  const { stillDue, stillDueCents, creditedCents, refusedCount } = billsThisMonth(
     scheduled,
     txns,
     today,
@@ -733,6 +754,7 @@ function computePace(
     spentSoFarCents,
     billsStillDueCents: stillDueCents,
     billsStillDue: stillDue,
+    billsRefusedCount: refusedCount,
     discretionarySoFarCents,
     projectedRemainderCents,
     projectedCents,

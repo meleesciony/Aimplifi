@@ -5210,3 +5210,25 @@ pushed → CI gate **`success`**, run 31890507052, first attempt.
 Vercel commit status: `success`, "Deployment has completed",
 same sha. Production `/`, `/accounts`, `/ask` all 307;
 `/sign-in` 200. Title-only; no figure or copy moved.
+
+## ✅ CLOSED 2026-08-15 — C.21: pace assumption names which zero when no bill was admitted (DECISIONS #477)
+
+Branch C printed one sentence for two zeros: an empty calendar,
+and a calendar whose every scheduled outflow the admission rule
+refused. The engine could not tell them apart. `billsRefusedCount`
+is now required and selects the branch; the sentence does not
+print N (no surface lists that set). Refused-all: "This projection
+does not add scheduled outflows." plus the empty-calendar
+daily-rate sentence, byte-identical. No figure moves. Demo seed
+is the refused-all case (2).
+
+**Critic: 4 cycles.** Cycles 1–3 P1s executed (wrong set name;
+"not spotted"; printed N; Zelle qualifier; causal "so"; "this
+month"). Cycle 4 (hard cap) P1 "as bills" executed in-place, no
+fifth critic. Residual P2s in #477.
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN**: tsc 0,
+eslint 0, unit **7,062 passed + 1 expected fail + 1 skipped /
+426 files + 1 skipped**, `next build` clean. Trends e2e **4/4**
+on that build (demo refused-all on both surfaces; C.2 mortgage
+still named). No `prisma/` diff.

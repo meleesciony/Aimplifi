@@ -2,6 +2,26 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-15 — C.21: pace assumption names which zero when no bill was admitted (DECISIONS #477)
+
+**Picked up from the queue** (Wave U leftovers an agent can
+close are done; U.15(b) is the owner's call; U.1 stays
+"eventually"). C.21 is the next agent-workable leftover from
+the owner's original /trends complaint.
+
+**Closed — a required count selects a fourth branch.**
+`billsRefusedCount` = expected entries that failed admission.
+The sentence does not print N. Refused-all: "This projection
+does not add scheduled outflows." plus the empty-calendar
+daily-rate sentence. Figure unchanged. Demo seed count 2.
+
+**Critic: 4 cycles; cycle-4 P1 executed in-place.**
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit
+**7,062 passed + 1 expected fail + 1 skipped / 426 files + 1
+skipped**, `next build` clean. Trends e2e **4/4** on that
+build. No `prisma/` diff.
+
 ## 2026-08-15 — U.14: last-4 veto reads a 4-digit non-year name embedding (DECISIONS #476)
 
 **Picked up from the queue** (named next after the U.11 leftover).

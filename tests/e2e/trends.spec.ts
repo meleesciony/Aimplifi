@@ -25,7 +25,7 @@ test('trends is discoverable from the dashboard insights card', async ({ page })
   await expect(card.getByTestId('dashboard-trends-pace-days')).toContainText('in the first');
   await expect(card.getByTestId('dashboard-trends-pace-days')).toContainText('day');
   await expect(card.getByTestId('dashboard-trends-pace-assumption')).toContainText(
-    'a projection, not a prediction',
+    'This projection does not add scheduled outflows'
   );
   // Neutral — the pace delta used to wear rose/emerald; muted is the lock.
   await expect(card.getByTestId('dashboard-trends-pace-days')).toHaveClass(/text-muted-foreground/);
@@ -44,7 +44,12 @@ test('trends view shows pace, movers, and largest purchases from the seed', asyn
   // Pace: a projected month-end figure with the assumption stated.
   await expect(page.getByTestId('trends-pace')).toBeVisible();
   await expect(page.getByTestId('trends-pace')).toContainText('projected by month end');
-  await expect(page.getByTestId('trends-pace')).toContainText('current daily rate');
+  // C.21: the demo's scheduled outflows are a hand-authored rent label and a
+  // savings sweep — both refused — so the assumption names that zero, not the
+  // "no bills on the calendar" sentence.
+  await expect(page.getByTestId('trends-pace')).toContainText(
+    'This projection does not add scheduled outflows'
+  );
 
   // Movers: the completed-month comparison renders.
   await expect(page.getByTestId('trends-movers')).toBeVisible();

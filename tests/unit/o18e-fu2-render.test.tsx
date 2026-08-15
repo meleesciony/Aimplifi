@@ -101,6 +101,7 @@ const trendsWithFigure: SpendingTrendsData = {
     spentSoFarCents: 150_000,
     billsStillDueCents: 0,
     billsStillDue: [],
+    billsRefusedCount: 0,
     discretionarySoFarCents: 150_000,
     projectedRemainderCents: 1_000_000,
     projectedCents: 1_150_000,

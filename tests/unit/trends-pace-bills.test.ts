@@ -20,6 +20,7 @@ import {
   type PaceBillInput,
   type TrendTxn,
 } from '@/lib/engine/trends/trends';
+import { paceAssumption } from '@/lib/engine/trends/labels';
 import { toTrendTxns } from '@/server/trends';
 
 const T = (
@@ -145,6 +146,7 @@ describe('pace projects known bills, not a uniform stream (C.2)', () => {
     expect(r.pace).toMatchObject({
       spentSoFarCents: 10000,
       billsStillDueCents: 0,
+      billsRefusedCount: 3,
       discretionarySoFarCents: 10000,
       projectedCents: 30000, // 10000 + 10000 × 20 / 10 — the pure rate, unchanged
     });
@@ -161,7 +163,40 @@ describe('pace projects known bills, not a uniform stream (C.2)', () => {
       scheduled: [bill({ description: 'Zelle Payment', amountCents: -25000 })],
     });
     expect(r.pace!.billsStillDue).toEqual([]);
+    expect(r.pace!.billsRefusedCount).toBe(1);
     expect(r.pace!.projectedCents).toBe(9000); // 3000 + 3000 × 20 / 10
+    // Cycle 2 P1-1: they HAVE spent at "Zelle Payment"; a qualifier that
+    // said "only when we can match it to a merchant you have spent at" was
+    // a lie. The refused sentence must not explain admission.
+    expect(paceAssumption(r.pace!)).toBe(
+      'This projection does not add scheduled outflows. Assumes spending continues at the current daily rate — a projection, not a prediction.',
+    );
+    expect(paceAssumption(r.pace!)).not.toContain('merchant you have spent at');
+  });
+
+  it('C.21: a refused rival does not steal the admitted-bill branch', () => {
+    // One mortgage still due (branch A) plus a hand-authored label the
+    // admission rule refuses. The refused count is recorded; the assumption
+    // still describes the bill that WAS added, not the refused-all zero.
+    const r = computeSpendingTrends({
+      txns: [
+        ...may,
+        T('2026-06-01', -28879, 'dining', { merchant: 'Cafe' }),
+        T('2026-06-02', -29000, 'groceries', { merchant: 'Market' }),
+      ],
+      today: '2026-06-02',
+      scheduled: [bill(), bill({ description: 'Rent — Peachtree Properties', amountCents: -180000 })],
+    });
+    expect(r.pace).toMatchObject({
+      billsStillDueCents: 620000,
+      billsRefusedCount: 1,
+      discretionarySoFarCents: 57879,
+    });
+    expect(r.pace!.billsStillDue).toEqual([{ merchant: MORTGAGE, amountCents: 620000 }]);
+    // C.21 critic P2-1: mixed stays branch A. A refused-first flip would
+    // print "not in this figure" on a projection that added $6,200.00.
+    expect(paceAssumption(r.pace!)).toContain('Adds $6,200.00 of bills still due');
+    expect(paceAssumption(r.pace!)).not.toContain('does not add scheduled outflows');
   });
 
   it('never projects less than the money already counted', () => {
@@ -190,6 +225,7 @@ describe('pace projects known bills, not a uniform stream (C.2)', () => {
       ],
     });
     expect(r.pace!.billsStillDue).toEqual([]);
+    expect(r.pace!.billsRefusedCount).toBe(0);
   });
 
   it('still abstains on a month with nothing counted, bills or not (C.1 holds)', () => {
@@ -320,7 +356,13 @@ describe('C.2 — the demo seed admits no bills, on purpose', () => {
       'Auto-transfer to savings',
     ]);
     expect(r.pace!.billsStillDue).toEqual([]);
+    expect(r.pace!.billsRefusedCount).toBe(2); // rent label + savings sweep; payroll is income
     expect(r.pace!.projectedCents).toBe(376074); // the pinned no-bill figure
+    // C.21 critic P2-2: compose the engine result, do not re-derive the count
+    // in the label test. The sweep is an item, not a bill.
+    expect(paceAssumption(r.pace!)).toBe(
+      'This projection does not add scheduled outflows. Assumes spending continues at the current daily rate — a projection, not a prediction.',
+    );
   });
 });
 
@@ -359,6 +401,7 @@ describe('C.2 critic — admission and basis seams', () => {
     // so the bill stays out and the projection is the pure discretionary rate.
     expect(r.pace!.billsStillDue).toEqual([]);
     expect(r.pace!.billsStillDueCents).toBe(0);
+    expect(r.pace!.billsRefusedCount).toBe(1);
     expect(r.pace!.spentSoFarCents).toBe(2000);
   });
 

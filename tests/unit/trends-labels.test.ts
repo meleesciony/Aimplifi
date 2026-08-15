@@ -85,6 +85,10 @@ describe('baselineLabel / moverWindowLabel', () => {
  * Golden SENTENCES, not `toContain` fragments: a critic swapping two figures
  * into each other's slots passes every fragment assertion (the W.10a lesson).
  */
+const COVERAGE =
+  'Only bills we can match to a merchant you have spent at are counted here — ' +
+  'one charged to a card, paid as a transfer, or that we have not spotted is not.';
+
 describe('paceAssumption', () => {
   it('describes the pure daily rate when no known bill touched the month', () => {
     expect(
@@ -92,8 +96,42 @@ describe('paceAssumption', () => {
         spentSoFarCents: 57879,
         billsStillDueCents: 0,
         discretionarySoFarCents: 57879,
+        billsRefusedCount: 0,
       }),
-    ).toBe('Assumes spending continues at the current daily rate — a projection, not a prediction.');
+    ).toBe(DAILY_RATE);
+  });
+
+  const DAILY_RATE =
+    'Assumes spending continues at the current daily rate — a projection, not a prediction.';
+  const REFUSED_ZERO =
+    'This projection does not add scheduled outflows. ' + DAILY_RATE;
+
+  it('C.21: the refused-all zero is a different sentence from the empty calendar', () => {
+    // The engine count selects the branch; the sentence does not print N
+    // (cycle 2 P1-2: no surface lists that set). 1 and 3 must be identical.
+    expect(
+      paceAssumption({
+        spentSoFarCents: 57879,
+        billsStillDueCents: 0,
+        discretionarySoFarCents: 57879,
+        billsRefusedCount: 3,
+      }),
+    ).toBe(REFUSED_ZERO);
+    expect(
+      paceAssumption({
+        spentSoFarCents: 57879,
+        billsStillDueCents: 0,
+        discretionarySoFarCents: 57879,
+        billsRefusedCount: 1,
+      }),
+    ).toBe(REFUSED_ZERO);
+    expect(REFUSED_ZERO.endsWith(DAILY_RATE)).toBe(true);
+    expect(REFUSED_ZERO).not.toMatch(/\d/);
+    expect(REFUSED_ZERO).not.toContain(' so ');
+    expect(REFUSED_ZERO).not.toContain('this month');
+    expect(REFUSED_ZERO).not.toContain('as bills');
+    expect(REFUSED_ZERO).not.toContain('we have not spotted');
+    expect(REFUSED_ZERO).not.toContain(COVERAGE);
   });
 
   it('names the bills it added, the rate it extrapolated, and what it cannot see', () => {
@@ -102,12 +140,12 @@ describe('paceAssumption', () => {
         spentSoFarCents: 57879,
         billsStillDueCents: 620000,
         discretionarySoFarCents: 57879,
+        billsRefusedCount: 0,
       }),
     ).toBe(
       'Adds $6,200.00 of bills still due, then assumes the other $578.79 ' +
         'continues at its current daily rate — a projection, not a prediction. ' +
-        'Only bills we can match to a merchant you have spent at are counted here — ' +
-        'one charged to a card, paid as a transfer, or that we have not spotted is not.',
+        COVERAGE,
     );
   });
 
@@ -120,12 +158,12 @@ describe('paceAssumption', () => {
         spentSoFarCents: 909400,
         billsStillDueCents: 0,
         discretionarySoFarCents: 289400,
+        billsRefusedCount: 0,
       }),
     ).toBe(
       "Every bill we could match to this month's charges is already counted; the other $2,894.00 " +
         'is what continues at its current daily rate — a projection, not a prediction. ' +
-        'Only bills we can match to a merchant you have spent at are counted here — ' +
-        'one charged to a card, paid as a transfer, or that we have not spotted is not.',
+        COVERAGE,
     );
   });
 
@@ -145,24 +183,45 @@ describe('paceAssumption', () => {
    * that appears unconditionally are different bugs.
    */
   it('every branch that mentions bills also states what "bills" covers', () => {
-    const coverage =
-      'Only bills we can match to a merchant you have spent at are counted here — ' +
-      'one charged to a card, paid as a transfer, or that we have not spotted is not.';
-
     // Branch A — bills still due.
     expect(
-      paceAssumption({ spentSoFarCents: 57879, billsStillDueCents: 620000, discretionarySoFarCents: 57879 }),
-    ).toContain(coverage);
+      paceAssumption({
+        spentSoFarCents: 57879,
+        billsStillDueCents: 620000,
+        discretionarySoFarCents: 57879,
+        billsRefusedCount: 0,
+      }),
+    ).toContain(COVERAGE);
     // Branch B — bills all charged. The branch the P0 was in.
     expect(
-      paceAssumption({ spentSoFarCents: 909400, billsStillDueCents: 0, discretionarySoFarCents: 289400 }),
-    ).toContain(coverage);
-    // Branch C mentions no bills, so it makes no claim to qualify. A coverage
-    // clause here would assert the app looked and found none, which is a
-    // different fact than "nothing matched" (`a-zero-is-a-claim`).
+      paceAssumption({
+        spentSoFarCents: 909400,
+        billsStillDueCents: 0,
+        discretionarySoFarCents: 289400,
+        billsRefusedCount: 0,
+      }),
+    ).toContain(COVERAGE);
+    // C.21 refused-all — names the refused zero, not a count and not the
+    // exclusion list (cycle 2: a qualifier that drops `aggregate` lies).
+    const refused = paceAssumption({
+      spentSoFarCents: 57879,
+      billsStillDueCents: 0,
+      discretionarySoFarCents: 57879,
+      billsRefusedCount: 3,
+    });
+    expect(refused).toBe(REFUSED_ZERO);
+    expect(refused).not.toContain(COVERAGE);
+    expect(refused).not.toContain('we have not spotted');
+    // True no-bills mentions no bills, so it makes no claim to qualify. A
+    // coverage clause here would assert the app looked and found none.
     expect(
-      paceAssumption({ spentSoFarCents: 57879, billsStillDueCents: 0, discretionarySoFarCents: 57879 }),
-    ).not.toContain(coverage);
+      paceAssumption({
+        spentSoFarCents: 57879,
+        billsStillDueCents: 0,
+        discretionarySoFarCents: 57879,
+        billsRefusedCount: 0,
+      }),
+    ).not.toContain(COVERAGE);
   });
 
   /**
@@ -173,9 +232,30 @@ describe('paceAssumption', () => {
    */
   it('does not enumerate exclusions — an exclusion list beside a figure claims to be whole', () => {
     const all = [
-      paceAssumption({ spentSoFarCents: 57879, billsStillDueCents: 620000, discretionarySoFarCents: 57879 }),
-      paceAssumption({ spentSoFarCents: 909400, billsStillDueCents: 0, discretionarySoFarCents: 289400 }),
-      paceAssumption({ spentSoFarCents: 57879, billsStillDueCents: 0, discretionarySoFarCents: 57879 }),
+      paceAssumption({
+        spentSoFarCents: 57879,
+        billsStillDueCents: 620000,
+        discretionarySoFarCents: 57879,
+        billsRefusedCount: 0,
+      }),
+      paceAssumption({
+        spentSoFarCents: 909400,
+        billsStillDueCents: 0,
+        discretionarySoFarCents: 289400,
+        billsRefusedCount: 0,
+      }),
+      paceAssumption({
+        spentSoFarCents: 57879,
+        billsStillDueCents: 0,
+        discretionarySoFarCents: 57879,
+        billsRefusedCount: 0,
+      }),
+      paceAssumption({
+        spentSoFarCents: 57879,
+        billsStillDueCents: 0,
+        discretionarySoFarCents: 57879,
+        billsRefusedCount: 3,
+      }),
     ].join(' ');
     expect(all).not.toContain('are not in that');
     expect(all).not.toContain('we can see');
@@ -253,6 +333,17 @@ describe('PACE_NO_SPEND_YET (C.1)', () => {
    * on both surfaces while only the helper deciding the branch was shared. The
    * decision was never the part that drifts; the words are.
    */
+  it('is the single author of the pace assumption on both surfaces', () => {
+    const files = [
+      'src/components/finance/spending-insights-card.tsx',
+      'src/components/finance/trends-view.tsx',
+    ];
+    for (const f of files) {
+      const src = readFileSync(join(process.cwd(), f), 'utf8');
+      expect(src, `${f} must render the shared composer`).toContain('paceAssumption');
+    }
+  });
+
   it('is the single author of the tie copy on both surfaces', () => {
     const files = [
       'src/components/finance/spending-insights-card.tsx',
