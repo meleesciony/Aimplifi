@@ -465,3 +465,4 @@ refuses to write if it would drop any number this file already carries.
 - **#469** (Phase ?): U.12: a genuine reading outranks a carried-forward repeat (2026-08-14)
 - **#470** (Phase ?): U.37: genuineness outranks U.9's tier order (2026-08-14)
 - **#471** (Phase ?): U.2: semantic status-color tokens replace hue-named classes (2026-08-14)
+- **#472** (Phase ?): U.10: a today-dated snapshot is not the live point (2026-08-15)

@@ -30,6 +30,7 @@ import {
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import {
   NET_WORTH_REPORT_FOOTER,
+  NET_WORTH_REPORT_TREND_HEADING,
   NET_WORTH_REPORT_USABLE_WIDTH,
   activeNetWorthReportAccounts,
   netWorthAccountLine,
@@ -339,6 +340,15 @@ describe('the net-worth report stops asserting what it never checked', () => {
     expect(NET_WORTH_REPORT_FOOTER).not.toContain('at export time');
     expect(NET_WORTH_REPORT_FOOTER).toContain('the most recent figures each source sent us');
     expect(NET_WORTH_REPORT_FOOTER).toContain('Educational, not financial advice.');
+  });
+
+  it('U.10: the trend heading claims nothing about recorded vs live', () => {
+    // The last row is today's live overwrite. "(recorded balances)" was the
+    // U.4 remainder after it stopped saying "month-end" — still false of
+    // that last row, and this file leaves the app.
+    expect(NET_WORTH_REPORT_TREND_HEADING).toBe('Trend');
+    expect(NET_WORTH_REPORT_TREND_HEADING).not.toContain('recorded');
+    expect(NET_WORTH_REPORT_TREND_HEADING).not.toContain('month-end');
   });
 
   it('a frozen row is marked on the row itself; a live row is untouched', () => {

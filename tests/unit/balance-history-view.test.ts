@@ -8,6 +8,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  replacedByLiveClassNote,
+  replacedByLiveMarker,
+  replacedByLiveNote,
   uncountedBalanceMarker,
   uncountedBalancesNote,
 } from '@/lib/engine/account/balance-history-view';
@@ -111,5 +114,34 @@ describe('uncountedBalancesNote', () => {
     // The reader is asking why THEIR balance is missing; "more than one row can
     // describe the same account" is true, vacuous, and answers a different question.
     expect(uncountedBalancesNote(1) ?? '').not.toContain('can describe');
+  });
+});
+
+describe('U.10 — replaced-by-live copy', () => {
+  it('names the live overwrite, never a combine, a discarded figure, or a tomorrow promise', () => {
+    expect(replacedByLiveMarker()).toBe("today's point is live");
+    const note = replacedByLiveNote();
+    expect(note).toBe(
+      "One balance here is dated today. Today's chart point uses the live balance, " +
+        'even when it still matches this recording.',
+    );
+    // The combine copy would be false of this row (no counterpart; the
+    // account IS in today's net worth).
+    expect(note).not.toContain('combined');
+    expect(note).not.toContain('not in your net worth');
+    expect(note).not.toContain('Account cleanup');
+    // Demo / first-sync-of-month: recorded cents equal live. "not from this
+    // recording" reads as discarded dollars. "Tomorrow" never arrives while
+    // today is pinned, and a later combine can drop the row.
+    expect(note).not.toContain('not from this recording');
+    expect(note).not.toContain('Tomorrow');
+    expect(replacedByLiveMarker()).not.toContain('not in your net worth');
+  });
+
+  it('a same-day class flip names the CURRENT class the live point uses', () => {
+    expect(replacedByLiveClassNote('loan')).toBe(
+      "Today's live point counts this account as loan, not as the class on this recording.",
+    );
+    expect(replacedByLiveClassNote('loan')).not.toContain('for that date it counts');
   });
 });

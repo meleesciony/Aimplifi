@@ -241,6 +241,14 @@ test('/accounts — a loan account expands its detail in place instead of linkin
   await expect(panel.getByTestId('account-detail-loan-facts')).toContainText('APR 6.49%');
   await expect(panel.getByTestId('account-detail-loan-facts')).toContainText('minimum payment $385.00');
   await expect(panel.getByTestId('account-detail-history')).toBeVisible();
+  // U.10: the seed's back===0 snapshot is dated asOf (= DEMO_TODAY), so the
+  // Auto Loan panel must name the live overwrite — never stay silent, and
+  // never reuse the combine note (the seed writes no reconciliations).
+  await expect(panel.getByTestId('account-detail-replaced-by-live')).toContainText("today's point is live");
+  await expect(panel.getByTestId('account-detail-replaced-by-live-note')).toContainText(
+    "Today's chart point uses the live balance",
+  );
+  await expect(panel.getByTestId('account-detail-not-counted-note')).toHaveCount(0);
 
   // The toggle closes: same row, second tap, panel gone and URL bare again.
   await loanRow.click();

@@ -272,7 +272,7 @@ The row filed the defect on the PREDECESSOR's panel. That panel is **unreachable
 
 **Sabotage proofs (each reverted):** the pre-U.5 raw read reddens 3 server locks; the direct-counterparts input reddens the chain lock; deleting the class marker from uncounted rows reddens 1; widening either note's count to all rows reddens 1 each.
 
-**Known residuals, split out rather than papered over:** **U.9** — sibling predecessors (two stale rows continued onto ONE live account, the shape `successorAccountId`'s non-uniqueness exists for) are de-duplicated against the successor but never against each other, so a single $5,000 account was reproduced counting as $10,000 on every date on or before both cutovers. Pre-existing in the Wave 4.6 boundary, not from this slice, and money-visible. **U.10** — a snapshot dated exactly today is marked counted, but `netWorthSeries` replaces today's bucket with live balances, so the panel names a figure the chart does not show for that one date. Also: opening a panel now issues reads `getAccountsView` already made on the same request (three round-trips); correctness first, but it is worth passing the loaded data down.
+**Known residuals, split out rather than papered over:** **U.9** — sibling predecessors (two stale rows continued onto ONE live account, the shape `successorAccountId`'s non-uniqueness exists for) are de-duplicated against the successor but never against each other, so a single $5,000 account was reproduced counting as $10,000 on every date on or before both cutovers. Pre-existing in the Wave 4.6 boundary, not from this slice, and money-visible. **U.10** — a snapshot dated exactly today is marked counted, but `netWorthSeries` replaces today's bucket with live balances, so the panel names a figure the chart does not show for that one date (**SHIPPED 2026-08-15, DECISIONS #472** — the panel now names the live overwrite; the cheap accounts+links re-read was left not-in-scope). Also: opening a panel now issues reads `getAccountsView` already made on the same request (three round-trips); correctness first, but it is worth passing the loaded data down.
 
 **Gate:** `bash scripts/verify.sh` GREEN — tsc 0 / eslint 0 / **6,831 unit passed + 1 skipped / 417 files** / build clean. Full local `npx playwright test`: **344 passed / 0 failed** (exit 0). Shipped as `9347c97`; **CI gate SUCCESS on run 31612606380, first attempt** — the full `VERIFY_E2E=1` suite, so the new marker, the rewritten notes and the combined-pair fixture all passed in a real browser on the Linux runner.
 
@@ -4998,3 +4998,38 @@ Production `/`, `/accounts`, `/ask` all 307; `/sign-in` 200. Live
 `/sign-in` HTML contains `text-brand-500` (3) and zero `text-emerald-500`
 — the wordmark class is the discriminating marker (pixels unchanged;
 the class name is what differs). No `prisma/` diff.
+
+## ✅ BUILT 2026-08-15 — U.10: today's snapshot is not the live point (DECISIONS #472)
+
+A BalanceSnapshot dated today was marked counted while
+`netWorthSeries` replaces that bucket with live balances so the
+latest point matches the headline.
+
+**What shipped.** `replacedByLive` (required) on each history row:
+true only for a kept row dated today. `countsInNetWorth` stays the
+boundary verdict. Combine note does not fire. Copy: "today's point
+is live" + "Today's chart point uses the live balance, even when it
+still matches this recording." Same-day A/L reclass names the
+current class the live point uses. PDF trend heading is `Trend`.
+
+**Not in scope.** Making live yield. Passing already-loaded
+accounts+links into `getAccountDetail`.
+
+**Critic (read-only, two cycles): PASS — 0 P0, 0 P1.** Cycle 1:
+3 P1 (matching-cents / tomorrow promise; PDF "recorded balances";
+same-day class flip silent), all executed. Cycle 2: residuals
+accepted (quiet-feed "live" stacked on "nothing has been read";
+CSV last row unlabeled; PDF silent that the last row is live).
+
+**Locked.** `account-detail-reconciled.test.ts` U.10: chart
+constituent `−$1,500.00` not the `$1,000.00` recording; dropped
+today-row stays combine. Copy locks refuse "not from this
+recording" / "Tomorrow". Demo Auto Loan e2e. PDF heading `Trend`.
+
+**Gate.** `bash scripts/verify.sh` → **✅ VERIFY GREEN** (e2e
+skipped; Playwright then run against this same `next build`): tsc
+0, eslint 0, unit **7,041 passed + 1 expected fail + 1 skipped /
+426 files + 1 skipped**, `next build` clean, e2e **350 passed, 3
+flaky-passed-on-retry** (`category-rename.spec.ts:110`,
+`merchant-lens.spec.ts:77`, `transactions.spec.ts:1014` —
+documented K.10 class, untouched by this diff). No `prisma/` diff.

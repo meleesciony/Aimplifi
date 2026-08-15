@@ -1808,13 +1808,23 @@ export interface AccountDetailView {
    *  same live account, which displaces this one while being no counterpart of
    *  it. The set of unnamed-but-uncounted rows is therefore wider than when this
    *  was written; the panel's note explains the class, and the row itself never
-   *  guesses. */
+   *  guesses.
+   *
+   *  `replacedByLive` (U.10) is a different reason the recorded cents are not
+   *  the figure on the chart: `netWorthSeries` overwrites today's bucket with
+   *  live balances so the latest point matches the headline. The boundary can
+   *  still KEEP the row (`countsInNetWorth` stays true — the account IS in
+   *  today's net worth). REQUIRED so a caller must answer it. True only for a
+   *  kept row dated today; a dropped today-row stays the combine mark (the
+   *  combine note would be false of a replaced-by-live row, and the live note
+   *  would be false of a dropped one). */
   history: {
     date: string;
     balanceCents: number;
     accountType: string | null;
     countsInNetWorth: boolean;
     countedInstead: CountedInsteadOf | null;
+    replacedByLive: boolean;
   }[];
   /** Loan facts, when the feed supplied them (the demo Auto Loan carries all
    *  three; a synced account may carry none). Absent facts render nothing. */
@@ -1827,6 +1837,7 @@ export interface AccountDetailView {
 }
 
 export async function getAccountDetail(userId: string, accountId: string): Promise<AccountDetailView | null> {
+  const today = businessToday(userId);
   const account = await prisma.account.findFirst({
     where: { id: accountId, userId },
     select: { id: true, aprBps: true, minimumPaymentCents: true, dueDayOfMonth: true, feedDroppedAt: true },
@@ -1946,6 +1957,10 @@ export async function getAccountDetail(userId: string, accountId: string): Promi
     return {
       ...h,
       countsInNetWorth: counts,
+      // U.10: a kept row dated today is still in net worth (the live point
+      // includes this account) but the chart does not read THIS recording.
+      // A dropped today-row is the combine case — do not also mark it live.
+      replacedByLive: counts && h.date === today,
       countedInstead:
         win === undefined || winAcct === undefined
           ? null

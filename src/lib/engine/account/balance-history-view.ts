@@ -22,6 +22,15 @@
  * sentence covering several dates would either pick a figure that is wrong for
  * the others or state none at all. The same rule U.4 applied to
  * carried-forward rows and U.6 to a row's recorded class.
+ *
+ * U.10 is a different reason a recorded row does not feed the figure the
+ * reader sees: `netWorthSeries` replaces today's snapshot bucket with live
+ * balances so the latest point matches the headline. The boundary may still
+ * KEEP that row (it is not a combine collision). The combine copy above would
+ * be false of it — there is no counterpart, and the account IS in today's
+ * net worth. `replacedByLiveMarker` / `replacedByLiveNote` name that rule.
+ * One account has at most one row per date (`@@unique([accountId, date])`),
+ * so the note is always singular.
  */
 import { cents, formatCents } from '@/lib/money';
 
@@ -108,4 +117,47 @@ export function uncountedBalancesNote(uncountedCount: number): string | null {
     `more than one of them recorded a balance — Aimplifi counts a single balance per date for a ` +
     `combined account, so no balance is counted twice. Your combined accounts are listed under Account cleanup.`
   );
+}
+
+/**
+ * The marker on a row dated today that the boundary kept. The chart's today
+ * point is live balances, not this recording — even when the cents happen
+ * to match (the seed's `back === 0` row equals `currentBalanceCents`).
+ *
+ * NOT the combine marker: that sentence names a counterpart and says the
+ * account is "not in your net worth", both false here. The account counts
+ * today; this recording is not what the chart reads.
+ */
+export function replacedByLiveMarker(): string {
+  return "today's point is live";
+}
+
+/**
+ * The note under the list. Mechanism once; the row already carries the
+ * marker. Gated on the FACT (a kept row dated today), never on whether
+ * the recorded cents currently differ from live — the overwrite always
+ * happens, and a later sync the same day is exactly when the numbers
+ * diverge. The seed's `back === 0` row equals `currentBalanceCents`,
+ * so "not from this recording" would read as discarded dollars on the
+ * path that always shows this note.
+ *
+ * No "tomorrow" clause: demo / `DEMO_TODAY` pins today, so that date's
+ * bucket is overwritten on every load, and a later combine can drop
+ * the recording even after the clock moves.
+ */
+export function replacedByLiveNote(): string {
+  return (
+    "One balance here is dated today. Today's chart point uses the live balance, " +
+    'even when it still matches this recording.'
+  );
+}
+
+/**
+ * When a today-row was recorded under a different class than the account
+ * has now: the live point signs by CURRENT type (`netWorthSeries`), so
+ * the historical "for that date it counts on the own/owe side" sentence
+ * is about the recording and would be false here.
+ */
+export function replacedByLiveClassNote(asClass: string): string {
+  return `Today's live point counts this account as ${asClass}, not as the class on this recording.`;
 }

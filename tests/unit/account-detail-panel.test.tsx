@@ -71,8 +71,8 @@ describe('AccountDetailPanel', () => {
         detail={{
           id: 'acct-m',
           history: [
-            { date: '2026-04-30', balanceCents: 41500000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null },
-            { date: '2026-05-31', balanceCents: 41230000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null },
+            { date: '2026-04-30', balanceCents: 41500000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
+            { date: '2026-05-31', balanceCents: 41230000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
           ],
           aprBps: null,
           minimumPaymentCents: null,
@@ -101,9 +101,9 @@ describe('AccountDetailPanel', () => {
         detail={{
           id: 'acct-m',
           history: [
-            { date: '2026-03-01', balanceCents: 31000000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null }, // before the drop: a real reading
-            { date: '2026-04-01', balanceCents: 31000000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null }, // after: carried forward
-            { date: '2026-05-01', balanceCents: 31000000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null },
+            { date: '2026-03-01', balanceCents: 31000000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null, replacedByLive: false }, // before the drop: a real reading
+            { date: '2026-04-01', balanceCents: 31000000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null, replacedByLive: false }, // after: carried forward
+            { date: '2026-05-01', balanceCents: 31000000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
           ],
           aprBps: null,
           minimumPaymentCents: null,
@@ -127,7 +127,7 @@ describe('AccountDetailPanel', () => {
         isLiability
         detail={{
           id: 'acct-m',
-          history: [{ date: '2026-05-01', balanceCents: 31000000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null }],
+          history: [{ date: '2026-05-01', balanceCents: 31000000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null, replacedByLive: false }],
           aprBps: null,
           minimumPaymentCents: null,
           dueDayOfMonth: null,
@@ -146,7 +146,7 @@ describe('AccountDetailPanel', () => {
         isLiability={false}
         detail={{
           id: 'acct-re',
-          history: [{ date: '2026-05-31', balanceCents: 65000000, accountType: 'REAL_ESTATE', countsInNetWorth: true, countedInstead: null }],
+          history: [{ date: '2026-05-31', balanceCents: 65000000, accountType: 'REAL_ESTATE', countsInNetWorth: true, countedInstead: null, replacedByLive: false }],
           aprBps: null,
           minimumPaymentCents: null,
           dueDayOfMonth: null,
@@ -171,9 +171,9 @@ describe('AccountDetailPanel', () => {
             id: 'acct-x',
             history: [
               // Read while the feed still called it a checking account…
-              { date: '2026-04-30', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null },
+              { date: '2026-04-30', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
               // …and after the feed reclassified it.
-              { date: '2026-05-31', balanceCents: 500000, accountType: 'CREDIT', countsInNetWorth: true, countedInstead: null },
+              { date: '2026-05-31', balanceCents: 500000, accountType: 'CREDIT', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
             ],
             aprBps: null,
             minimumPaymentCents: null,
@@ -214,7 +214,7 @@ describe('AccountDetailPanel', () => {
           isLiability
           detail={{
             id: 'acct-m',
-            history: [{ date: '2026-05-31', balanceCents: 41230000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null }],
+            history: [{ date: '2026-05-31', balanceCents: 41230000, accountType: 'MORTGAGE', countsInNetWorth: true, countedInstead: null, replacedByLive: false }],
             aprBps: null,
             minimumPaymentCents: null,
             dueDayOfMonth: null,
@@ -239,9 +239,9 @@ describe('AccountDetailPanel', () => {
           detail={{
             id: 'acct-q',
             history: [
-              { date: '2026-03-01', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null }, // a real reading
-              { date: '2026-04-01', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null }, // carried
-              { date: '2026-05-01', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null }, // carried
+              { date: '2026-03-01', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null, replacedByLive: false }, // a real reading
+              { date: '2026-04-01', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null, replacedByLive: false }, // carried
+              { date: '2026-05-01', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null, replacedByLive: false }, // carried
             ],
             aprBps: null,
             minimumPaymentCents: null,
@@ -270,7 +270,7 @@ describe('AccountDetailPanel', () => {
           isLiability={false}
           detail={{
             id: 'acct-a',
-            history: [{ date: '2026-04-30', balanceCents: 500000, accountType: 'CREDIT', countsInNetWorth: true, countedInstead: null }],
+            history: [{ date: '2026-04-30', balanceCents: 500000, accountType: 'CREDIT', countsInNetWorth: true, countedInstead: null, replacedByLive: false }],
             aprBps: null,
             minimumPaymentCents: null,
             dueDayOfMonth: null,
@@ -295,9 +295,9 @@ describe('AccountDetailPanel', () => {
           detail={{
             id: 'acct-mix',
             history: [
-              { date: '2026-03-31', balanceCents: 500000, accountType: null, countsInNetWorth: true, countedInstead: null }, // pre-U.6
-              { date: '2026-04-30', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null },
-              { date: '2026-05-31', balanceCents: 500000, accountType: 'CREDIT', countsInNetWorth: true, countedInstead: null },
+              { date: '2026-03-31', balanceCents: 500000, accountType: null, countsInNetWorth: true, countedInstead: null, replacedByLive: false }, // pre-U.6
+              { date: '2026-04-30', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
+              { date: '2026-05-31', balanceCents: 500000, accountType: 'CREDIT', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
             ],
             aprBps: null,
             minimumPaymentCents: null,
@@ -328,8 +328,8 @@ describe('AccountDetailPanel', () => {
           detail={{
             id: 'acct-m',
             history: [
-              { date: '2026-04-30', balanceCents: 41500000, accountType: null, countsInNetWorth: true, countedInstead: null },
-              { date: '2026-05-31', balanceCents: 41230000, accountType: null, countsInNetWorth: true, countedInstead: null },
+              { date: '2026-04-30', balanceCents: 41500000, accountType: null, countsInNetWorth: true, countedInstead: null, replacedByLive: false },
+              { date: '2026-05-31', balanceCents: 41230000, accountType: null, countsInNetWorth: true, countedInstead: null, replacedByLive: false },
             ],
             aprBps: null,
             minimumPaymentCents: null,
@@ -349,7 +349,7 @@ describe('AccountDetailPanel', () => {
           isLiability
           detail={{
             id: 'acct-m',
-            history: [{ date: '2026-05-31', balanceCents: 41230000, accountType: null, countsInNetWorth: true, countedInstead: null }],
+            history: [{ date: '2026-05-31', balanceCents: 41230000, accountType: null, countsInNetWorth: true, countedInstead: null, replacedByLive: false }],
             aprBps: null,
             minimumPaymentCents: null,
             dueDayOfMonth: null,
@@ -379,6 +379,7 @@ describe('AccountDetailPanel', () => {
         accountType: string | null;
         countsInNetWorth: boolean;
         countedInstead: { name: string; balanceCents: number; isLiability: boolean } | null;
+        replacedByLive: boolean;
       }[],
       feedDroppedAt: string | null = null,
     ) => (
@@ -393,8 +394,8 @@ describe('AccountDetailPanel', () => {
     it('is still shown, and names the balance the trend counted for its date instead', () => {
       render(
         combined([
-          { date: '2026-03-15', balanceCents: 1310000, accountType: 'LOAN', countsInNetWorth: false, countedInstead: retired },
-          { date: '2026-05-15', balanceCents: 1290000, accountType: 'LOAN', countsInNetWorth: true, countedInstead: null },
+          { date: '2026-03-15', balanceCents: 1310000, accountType: 'LOAN', countsInNetWorth: false, countedInstead: retired, replacedByLive: false },
+          { date: '2026-05-15', balanceCents: 1290000, accountType: 'LOAN', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
         ]),
       );
       // Never hidden: deleting it would drop a balance the bank really sent.
@@ -424,8 +425,8 @@ describe('AccountDetailPanel', () => {
     it('states only what is certain when the date’s owner is not this account’s direct counterpart', () => {
       render(
         combined([
-          { date: '2026-03-15', balanceCents: 1310000, accountType: 'LOAN', countsInNetWorth: false, countedInstead: null },
-          { date: '2026-04-15', balanceCents: 1310000, accountType: 'LOAN', countsInNetWorth: false, countedInstead: null },
+          { date: '2026-03-15', balanceCents: 1310000, accountType: 'LOAN', countsInNetWorth: false, countedInstead: null, replacedByLive: false },
+          { date: '2026-04-15', balanceCents: 1310000, accountType: 'LOAN', countsInNetWorth: false, countedInstead: null, replacedByLive: false },
         ]),
       );
       const marks = screen.getAllByTestId('account-detail-not-counted');
@@ -446,8 +447,8 @@ describe('AccountDetailPanel', () => {
       // unexplained sign flip U.6 closed. The sign is not a counting claim.
       render(
         combined([
-          { date: '2026-03-15', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: false, countedInstead: retired },
-          { date: '2026-05-15', balanceCents: 1290000, accountType: 'LOAN', countsInNetWorth: true, countedInstead: null },
+          { date: '2026-03-15', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: false, countedInstead: retired, replacedByLive: false },
+          { date: '2026-05-15', balanceCents: 1290000, accountType: 'LOAN', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
         ]),
       );
       const rows = screen.getAllByRole('listitem').map((li) => li.textContent ?? '');
@@ -468,9 +469,9 @@ describe('AccountDetailPanel', () => {
       // counting claim and may only tally counted rows.
       render(
         combined([
-          { date: '2026-02-15', balanceCents: 500000, accountType: null, countsInNetWorth: false, countedInstead: retired },
-          { date: '2026-03-15', balanceCents: 500000, accountType: null, countsInNetWorth: true, countedInstead: null },
-          { date: '2026-04-15', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: false, countedInstead: retired },
+          { date: '2026-02-15', balanceCents: 500000, accountType: null, countsInNetWorth: false, countedInstead: retired, replacedByLive: false },
+          { date: '2026-03-15', balanceCents: 500000, accountType: null, countsInNetWorth: true, countedInstead: null, replacedByLive: false },
+          { date: '2026-04-15', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: false, countedInstead: retired, replacedByLive: false },
         ]),
       );
       const note = screen.getByTestId('account-detail-unrecorded-class-note').textContent ?? '';
@@ -481,7 +482,7 @@ describe('AccountDetailPanel', () => {
     it('carried forward still marks an uncounted row — how the balance was obtained stays true of a row nothing counts', () => {
       render(
         combined(
-          [{ date: '2026-05-15', balanceCents: 1430000, accountType: 'LOAN', countsInNetWorth: false, countedInstead: retired }],
+          [{ date: '2026-05-15', balanceCents: 1430000, accountType: 'LOAN', countsInNetWorth: false, countedInstead: retired, replacedByLive: false }],
           '2026-03-01',
         ),
       );
@@ -495,11 +496,100 @@ describe('AccountDetailPanel', () => {
     it('nothing combined → not one word of any of it (the golden panel is byte-identical)', () => {
       render(
         combined([
-          { date: '2026-05-15', balanceCents: 1290000, accountType: 'LOAN', countsInNetWorth: true, countedInstead: null },
+          { date: '2026-05-15', balanceCents: 1290000, accountType: 'LOAN', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
         ]),
       );
       expect(screen.queryByTestId('account-detail-not-counted')).toBeNull();
       expect(screen.queryByTestId('account-detail-not-counted-note')).toBeNull();
+    });
+  });
+
+  // ── U.10: a kept today-row is in net worth, but the chart does not read it ─
+  describe('a kept row dated today is replaced by the live point (U.10)', () => {
+    const autoLoan = { ...mortgage, id: 'acct-u10', name: 'Auto Loan', type: 'LOAN' };
+
+    it('marks the row and explains the live overwrite — never the combine note', () => {
+      render(
+        <AccountDetailPanel
+          account={autoLoan}
+          isLiability
+          detail={{
+            id: 'acct-u10',
+            history: [
+              { date: '2026-05-15', balanceCents: 1290000, accountType: 'LOAN', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
+              { date: '2026-06-10', balanceCents: 100000, accountType: 'LOAN', countsInNetWorth: true, countedInstead: null, replacedByLive: true },
+            ],
+            aprBps: null,
+            minimumPaymentCents: null,
+            dueDayOfMonth: null,
+            feedDroppedAt: null,
+          }}
+        />,
+      );
+      const mark = screen.getByTestId('account-detail-replaced-by-live');
+      expect(mark.textContent).toContain("today's point is live");
+      const note = screen.getByTestId('account-detail-replaced-by-live-note').textContent ?? '';
+      expect(note).toContain("Today's chart point uses the live balance");
+      expect(note).toContain('even when it still matches this recording');
+      expect(note).not.toContain('combined');
+      expect(note).not.toContain('not in your net worth');
+      expect(note).not.toContain('Tomorrow');
+      expect(screen.queryByTestId('account-detail-not-counted')).toBeNull();
+      expect(screen.queryByTestId('account-detail-not-counted-note')).toBeNull();
+      expect(screen.queryByTestId('account-detail-replaced-by-live-class-note')).toBeNull();
+      // Newest first: today's row is first. The recorded $1,000.00 is still shown.
+      expect(screen.getAllByRole('listitem')[0].textContent).toContain('$1,000.00');
+    });
+
+    it('a replaced-by-live reclassification says recorded-as, never counted-as, and skips the counting note', () => {
+      // Live today uses the CURRENT class. Claiming the snapshot's recorded
+      // class is what the chart counted would be false.
+      render(
+        <AccountDetailPanel
+          account={autoLoan}
+          isLiability
+          detail={{
+            id: 'acct-u10',
+            history: [
+              { date: '2026-06-10', balanceCents: 500000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null, replacedByLive: true },
+            ],
+            aprBps: null,
+            minimumPaymentCents: null,
+            dueDayOfMonth: null,
+            feedDroppedAt: null,
+          }}
+        />,
+      );
+      const mark = screen.getByTestId('account-detail-reclassified');
+      expect(mark.textContent).toContain('recorded as checking');
+      expect(mark.textContent).not.toContain('counted as');
+      expect(screen.queryByTestId('account-detail-reclassified-note')).toBeNull();
+      const liveClass = screen.getByTestId('account-detail-replaced-by-live-class-note').textContent ?? '';
+      expect(liveClass).toContain("Today's live point counts this account as loan");
+      expect(liveClass).not.toContain('for that date it counts');
+    });
+
+    it('a replaced-by-live pre-U.6 row is not tallied by the unrecorded-class counting note', () => {
+      render(
+        <AccountDetailPanel
+          account={autoLoan}
+          isLiability
+          detail={{
+            id: 'acct-u10',
+            history: [
+              { date: '2026-05-15', balanceCents: 1290000, accountType: 'CHECKING', countsInNetWorth: true, countedInstead: null, replacedByLive: false },
+              { date: '2026-06-10', balanceCents: 500000, accountType: null, countsInNetWorth: true, countedInstead: null, replacedByLive: true },
+            ],
+            aprBps: null,
+            minimumPaymentCents: null,
+            dueDayOfMonth: null,
+            feedDroppedAt: null,
+          }}
+        />,
+      );
+      // Class instability is visible (the May CHECKING row), so the note's
+      // GATE fires — but its COUNT must not include the today-row.
+      expect(screen.queryByTestId('account-detail-unrecorded-class-note')).toBeNull();
     });
   });
 });

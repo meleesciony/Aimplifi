@@ -7643,3 +7643,41 @@ one job). The PWA `themeColor` hex `#10b981` (same pixel, not a class).
 **Locked.** `tests/unit/u2-semantic-color-tokens.test.ts`: no
 `emerald-N` / `amber-N` literal under `src/` except the token file;
 token file aliases brand/positive → emerald and warning → amber.
+
+## #472 — U.10: a today-dated snapshot is not the live point (2026-08-15)
+
+**Context.** `netWorthSeries` overwrites today's snapshot bucket with
+live `currentBalanceCents` so the latest point matches the headline.
+U.4's first sync of the month stamps that day, so a kept today-row
+was marked `countsInNetWorth` while the chart did not read it.
+Reachable after a later same-day sync changes the balance.
+
+**Decision: mark, do not yield.** Making the live point yield would
+break the locked "today matches headline" invariant and the existing
+`replaces a same-dated snapshot with the live current value` test.
+`countsInNetWorth` stays the boundary verdict (the account IS in
+today's net worth). `replacedByLive` is a required third fact: a
+kept row dated today. The combine note must not fire (no counterpart;
+the account counts). A dropped today-row stays the combine mark.
+
+Copy states the mechanism and concedes the matching-cents case
+(demo `back === 0` equals live; first sync of the month does too).
+No "tomorrow" clause: demo / `DEMO_TODAY` pins today, and a later
+combine can drop the recording after the clock moves. A same-day
+A/L reclass gets its own sentence naming the CURRENT class the
+live point uses. PDF trend heading is `Trend` — U.4's comment
+already said it should claim nothing; "(recorded balances)" was
+false of the live last row.
+
+**Not in scope.** Making live yield. Passing `getAccountsView`'s
+accounts+links into `getAccountDetail` (page `Promise.all`s them;
+React `cache()` is unused here and process-lifetime-unsafe in
+vitest). CSV last-row label. Quiet-feed "live" stacked on
+"nothing has been read".
+
+**Locked.** Server: today-row `replacedByLive` + chart constituent
+is live $1,500.00 not recorded $1,000.00; dropped today-row stays
+combine; historical dates unmarked. Copy: marker / note / class
+note; note must not contain "not from this recording" or
+"Tomorrow". Panel + e2e on the demo Auto Loan. PDF heading
+`Trend`, no "recorded" / "month-end".

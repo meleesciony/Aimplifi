@@ -43,6 +43,9 @@ import { cents, formatCents } from '@/lib/money';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { accountTypeLabel } from '@/lib/engine/account/type-label';
 import {
+  replacedByLiveClassNote,
+  replacedByLiveMarker,
+  replacedByLiveNote,
   uncountedBalanceMarker,
   uncountedBalancesNote,
 } from '@/lib/engine/account/balance-history-view';
@@ -106,19 +109,30 @@ export function AccountDetailPanel({
   // stays true of a row nothing counts.
   const counted = history.filter((h) => h.countsInNetWorth);
   const uncounted = history.filter((h) => !h.countsInNetWorth);
+  // U.10: a kept today-row still counts (the live point includes this
+  // account) but the chart does not read the recording. Separate from
+  // `uncounted` so the combine note cannot fire for it.
+  const replacedByLive = history.filter((h) => h.replacedByLive);
   // Every row that RENDERS a class marker, counted or not — the gate for the
   // pre-U.6 note below, which exists to stop unmarked older rows reading as
   // confirmed beside visible class instability. Scoping that gate to counted
   // rows would have hidden the note on exactly the panel that shows the
   // instability on a dropped row.
   const classMarked = history.filter((h) => h.accountType !== null && h.rowIsLiability !== isLiability);
-  const reclassifiedRead = classMarked.filter((h) => h.countsInNetWorth && !h.carriedForward);
+  const reclassifiedRead = classMarked.filter(
+    (h) => h.countsInNetWorth && !h.carriedForward && !h.replacedByLive,
+  );
   // Rows written before U.6 added the class column. They are signed by what the
   // account is TODAY — there is nothing better — and the note must not let the
   // sentence above it claim the trend is faithful to every recording when these
   // are present. An absolute is exactly what `netWorthPointBasis` was rewritten
   // to stop asserting; it must not come back one file over.
-  const unrecordedClass = counted.filter((h) => h.accountType === null);
+  const unrecordedClass = counted.filter((h) => h.accountType === null && !h.replacedByLive);
+  const replacedByLiveReclass = classMarked.filter((h) => h.replacedByLive);
+  const liveClassLabel =
+    accountTypeLabel(account.type) === account.type
+      ? 'another type'
+      : accountTypeLabel(account.type).toLowerCase();
   return (
     <div
       id={`account-detail-${account.id}`}
@@ -161,6 +175,18 @@ export function AccountDetailPanel({
                         · {uncountedBalanceMarker(h.countedInstead)}
                       </span>
                     )}
+                    {h.replacedByLive && (
+                      <span
+                        className="ml-1 text-muted-foreground"
+                        data-testid="account-detail-replaced-by-live"
+                      >
+                        {/* Same muted voice as the combine marker: this is a
+                            counting-source fact, not something to act on.
+                            NOT the combine copy — that names a counterpart
+                            and says the account is out of net worth. */}
+                        · {replacedByLiveMarker()}
+                      </span>
+                    )}
                     {h.accountType !== null && h.rowIsLiability !== isLiability && (
                       <span className="ml-1 text-warning-600 dark:text-warning-400" data-testid="account-detail-reclassified">
                         {/* The separator is real content, not an `ml-1` margin: two
@@ -177,7 +203,7 @@ export function AccountDetailPanel({
                             positive figure inside a liability account's history
                             with no story). So it still renders; it just stops
                             saying the trend counts a row the trend drops. */}
-                        · {h.countsInNetWorth ? 'counted' : 'recorded'} as{' '}
+                        · {h.countsInNetWorth && !h.replacedByLive ? 'counted' : 'recorded'} as{' '}
                         {accountTypeLabel(h.accountType) === h.accountType
                           ? 'another type'
                           : accountTypeLabel(h.accountType).toLowerCase()}
@@ -196,6 +222,22 @@ export function AccountDetailPanel({
               {carriedCount === 1 ? 'One row repeats' : `${carriedCount} rows repeat`} the last
               balance your bank sent, on {formatISODate(isoDate(dropped as string), 'long')} —
               nothing has been read from this account since.
+            </p>
+          )}
+          {replacedByLive.length > 0 && (
+            <p
+              className="mt-1 break-words text-xs text-muted-foreground"
+              data-testid="account-detail-replaced-by-live-note"
+            >
+              {replacedByLiveNote()}
+            </p>
+          )}
+          {replacedByLiveReclass.length > 0 && (
+            <p
+              className="mt-1 text-xs text-warning-600 dark:text-warning-400"
+              data-testid="account-detail-replaced-by-live-class-note"
+            >
+              {replacedByLiveClassNote(liveClassLabel)}
             </p>
           )}
           {uncounted.length > 0 && (

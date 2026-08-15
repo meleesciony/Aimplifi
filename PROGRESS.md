@@ -2,6 +2,32 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-15 — U.10: today's snapshot is not the live point (DECISIONS #472)
+
+**Picked up from the queue** (named next after U.2). A snapshot
+dated today was marked counted while the chart overwrites that
+bucket with live balances.
+
+**Shipped.** Mark, do not yield. `replacedByLive` on a kept
+today-row; `countsInNetWorth` stays the boundary verdict. Copy
+concedes matching cents and names a same-day class flip. PDF
+heading `Trend`.
+
+**Locked.** U.10 server block: live constituent `−$1,500.00` not
+recorded `−$1,000.00`; dropped today-row stays combine. Copy
+refuses "not from this recording" / "Tomorrow". Demo Auto Loan
+e2e. PDF heading lock.
+
+**Critic (read-only, two cycles): PASS — 0 P0, 0 P1.** Cycle 1
+3 P1 all executed.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,041
+passed + 1 expected fail + 1 skipped / 426 files + 1 skipped**,
+`next build` clean. Playwright (fresh build): **350 passed, 3
+flaky-passed-on-retry** (`category-rename.spec.ts:110`,
+`merchant-lens.spec.ts:77`, `transactions.spec.ts:1014` —
+documented K.10 class, untouched by this diff). No `prisma/` diff.
+
 ## 2026-08-14 — U.2: semantic status-color tokens (DECISIONS #471)
 
 **Picked up from the queue** (named next after U.37). Hue-named

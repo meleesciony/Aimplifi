@@ -328,6 +328,11 @@ export function activeNetWorthReportAccounts(
 export const NET_WORTH_REPORT_FOOTER =
   'Educational, not financial advice. Balances are the most recent figures each source sent us.';
 
+/** Heading over the trend rows. Claims nothing about recorded vs live —
+ *  the last row is today's live overwrite (U.10). Locked so a later
+ *  parenthetical cannot re-assert "recorded" or "month-end". */
+export const NET_WORTH_REPORT_TREND_HEADING = 'Trend';
+
 /**
  * One account row. The staleness is marked on the ROW as well as in the summary note below,
  * because a reader scanning a long list matches a figure to its caveat far more reliably when the
@@ -452,13 +457,12 @@ export async function netWorthReportPdf(params: {
     draw(frozenNote, { size: 8 });
   }
   y -= 6;
-  // NOT "(month-end)". Every row here used to be one because the seed was the
-  // only writer of snapshots; U.4 records a live account on the day its balance
-  // was read, so a heading asserting month-ends is false for every row a real
-  // user exports — and this is the one artifact that leaves the app and is
-  // handed to a third party, with no way to correct itself afterwards. Each row
-  // already carries its own date, so the heading needs to claim nothing.
-  draw('Trend (recorded balances)', { size: 12, isBold: true });
+  // NOT "(month-end)" and NOT "(recorded balances)". U.4 ended month-end
+  // shape; U.10's live overwrite means the last row is never a recording
+  // (`netWorthSeries` replaces today's bucket). This is the artifact that
+  // leaves the app. Each row already carries its date; the heading claims
+  // nothing about how a row was built.
+  draw(NET_WORTH_REPORT_TREND_HEADING, { size: 12, isBold: true });
   for (const r of params.trend.slice(-12)) {
     draw(`${r.date}   ${formatCents(cents(r.netWorthCents))}`, { size: 9 });
   }

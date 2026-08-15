@@ -111,6 +111,8 @@ describe('getAccountDetail — nothing combined (the shape every demo panel has)
     expect(detail?.history.map((h) => h.date)).toEqual([...DATES]);
     expect(detail?.history.every((h) => h.countsInNetWorth)).toBe(true);
     expect(detail?.history.every((h) => h.countedInstead === null)).toBe(true);
+    // U.10 control: none of these dates is today (2026-06-10).
+    expect(detail?.history.every((h) => h.replacedByLive === false)).toBe(true);
   });
 });
 
@@ -357,5 +359,116 @@ describe('getAccountDetail — SIBLINGS (two stale rows continued onto ONE live 
     const inTrend = await trendDatesFor(SIB, live);
     for (const d of uncountedDates(detail)) expect(inTrend).not.toContain(d);
     expect(inTrend).toContain(AFTER);
+  });
+});
+
+describe('U.10 — a snapshot dated today does not feed the live point', () => {
+  // The series always overwrites today's bucket with current balances so the
+  // latest point matches the headline. The panel used to call that recording
+  // "counted". DEMO_TODAY is pinned at 2026-06-10 (vitest.config.ts).
+  const U10 = `ad-u10-${STAMP}`;
+  const TODAY = '2026-06-10';
+  const PAST = '2026-05-15';
+  const RECORDED = 100_000; // $1,000.00 on the snapshot
+  const LIVE = 150_000; // $1,500.00 live — the chart must use this
+  let loan = '';
+  let pred = '';
+  let succ = '';
+
+  beforeAll(async () => {
+    await prisma.user.create({ data: { id: U10, email: `${U10}@test.local` } });
+    const lone = await prisma.account.create({
+      data: {
+        userId: U10, provider: 'manual', providerRef: `u10-lone-${STAMP}`, name: 'Solo Loan',
+        type: 'LOAN', currency: 'USD', currentBalanceCents: LIVE,
+      },
+    });
+    loan = lone.id;
+    await prisma.balanceSnapshot.createMany({
+      data: [
+        { accountId: loan, date: PAST, balanceCents: RECORDED, accountType: 'LOAN' },
+        { accountId: loan, date: TODAY, balanceCents: RECORDED, accountType: 'LOAN' },
+      ],
+    });
+    const p = await prisma.account.create({
+      data: {
+        userId: U10, provider: 'simplefin', providerRef: `u10-pred-${STAMP}`, name: 'Loan (old)',
+        type: 'LOAN', currency: 'USD', currentBalanceCents: RECORDED,
+      },
+    });
+    await prisma.plaidItem.create({ data: { userId: U10, itemId: `u10-item-${STAMP}`, accessToken: 'ct-u10' } });
+    const s = await prisma.account.create({
+      data: {
+        userId: U10, provider: 'plaid', providerRef: `u10-succ-${STAMP}`, plaidItemId: `u10-item-${STAMP}`,
+        name: 'Loan (live)', type: 'LOAN', currency: 'USD', currentBalanceCents: LIVE,
+      },
+    });
+    pred = p.id;
+    succ = s.id;
+    await prisma.balanceSnapshot.createMany({
+      data: [PAST, TODAY].flatMap((date) => [
+        { accountId: pred, date, balanceCents: RECORDED, accountType: 'LOAN' },
+        { accountId: succ, date, balanceCents: LIVE, accountType: 'LOAN' },
+      ]),
+    });
+    await prisma.accountReconciliation.create({
+      data: {
+        userId: U10, predecessorAccountId: pred, successorAccountId: succ,
+        cutoverDate: TODAY, matchSignal: 'mask', confidence: 'high',
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: U10 } });
+  });
+
+  it('test_regression__today-snapshot-marked-replaced-by-live-chart-uses-current-balance', async () => {
+    const detail = await getAccountDetail(U10, loan);
+    const todayRow = detail?.history.find((h) => h.date === TODAY);
+    const pastRow = detail?.history.find((h) => h.date === PAST);
+    // The panel still shows the RECORDING — hiding it would delete a real read.
+    expect(todayRow?.balanceCents).toBe(RECORDED);
+    expect(todayRow?.countsInNetWorth).toBe(true);
+    expect(todayRow?.replacedByLive).toBe(true);
+    expect(todayRow?.countedInstead).toBeNull();
+    expect(pastRow?.replacedByLive).toBe(false);
+    expect(pastRow?.countsInNetWorth).toBe(true);
+
+    const view = await getAccountsView(U10);
+    const livePoint = view.trend.find((p) => p.date === TODAY);
+    const liveConstituent = livePoint?.constituents.find((c) => c.accountId === loan);
+    // FAIL-OLD: the panel called the $1,000.00 recording counted while the
+    // chart's today point used the $1,500.00 live balance (signed: liability).
+    expect(liveConstituent?.balanceCents).toBe(-LIVE);
+    expect(liveConstituent?.balanceCents).not.toBe(-RECORDED);
+    const pastPoint = view.trend.find((p) => p.date === PAST);
+    expect(pastPoint?.constituents.find((c) => c.accountId === loan)?.balanceCents).toBe(-RECORDED);
+  });
+
+  it('a today-row the boundary DROPS stays the combine mark — not replaced-by-live', async () => {
+    // Cutover is today: the predecessor keeps on/before it, so the live
+    // successor's today recording is dropped. The reachable panel is the
+    // successor's. The combine note is the true reason; the live note would
+    // claim the account still counts via this recording's date.
+    const detail = await getAccountDetail(U10, succ);
+    const todayRow = detail?.history.find((h) => h.date === TODAY);
+    expect(todayRow?.countsInNetWorth).toBe(false);
+    expect(todayRow?.replacedByLive).toBe(false);
+    expect(todayRow?.countedInstead?.name).toBe('Loan (old)');
+    const pastRow = detail?.history.find((h) => h.date === PAST);
+    expect(pastRow?.countsInNetWorth).toBe(false);
+    expect(pastRow?.replacedByLive).toBe(false);
+  });
+
+  it('the predecessor today-row the boundary KEPT is replaced-by-live (defense in depth)', async () => {
+    // Folded out of /accounts groups, so a reader cannot open this panel.
+    // The verdict must still be honest: the boundary kept the row, the chart
+    // does not read it.
+    const detail = await getAccountDetail(U10, pred);
+    const todayRow = detail?.history.find((h) => h.date === TODAY);
+    expect(todayRow?.countsInNetWorth).toBe(true);
+    expect(todayRow?.replacedByLive).toBe(true);
+    expect(todayRow?.countedInstead).toBeNull();
   });
 });
