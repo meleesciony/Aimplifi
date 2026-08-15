@@ -6,6 +6,20 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-15 — C.20: pace credit attributes through the month total's category nets (DECISIONS #479)
+
+**The report.** The pace rate subtracted bill money summed per merchant off raw rows, while `spentSoFarCents` is the sum of surviving category nets. #391 stopped those bases from crossing (take no credit) but left a healthy-category bill inside the daily rate whenever a dropped-category bill rode next to it.
+
+**Shipped.** Still-due stays "did the charge land?" The rate credit reads the surviving nets from the same `spendingByCategory` call that produced the month total. Exclusive categories are credited before contested ones. Per-merchant caps travel across categories. Branch B copy: "already posted", not "already counted". The #391 crossing guard remains as a last resort (over-project, never clamp the rate to zero).
+
+**Locked.** `trends-pace-bills.test.ts` `test_regression__c20_*` (surviving nets $30 rate / $170.00 projected vs old-guard $330.00; partial refund credits the $70 net; exclusive-before-contested $180); P1-2 fixture now also locks still-due = 0; `trends-labels.test.ts` branch B.
+
+**Critic (self, 1 cycle):** 0 P0. P1 copy "already counted" executed in-place (now "already posted"). P2: crossing guard kept as last resort; still-due posted walk still omits `excludedFlowIds` (C.25 uses `excludedLoanCanonicals`).
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,085 passed + 1 expected fail + 1 skipped / 428 files + 1 skipped**, `next build` clean. Trends e2e **5/5** on that build. No `prisma/` diff.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-15 — H.9: a loan/mortgage panel shows the checking-account payments the reader named (DECISIONS #478)
 
 **The report.** Clicking a mortgage on Accounts opened a balance panel with no payment history. The payments live on the checking (or savings/card) account they left; the servicer sends balances only. Mint/Simplifi show that activity on the loan.

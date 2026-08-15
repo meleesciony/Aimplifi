@@ -426,15 +426,15 @@ describe('C.2 critic — admission and basis seams', () => {
   });
 
   /**
-   * P1-2. `spentSoFarCents` nets refunds by CATEGORY and drops a net-refunded
-   * category to zero; the bill credit is summed per MERCHANT and is untouched by
-   * that netting, so the two bases can cross.
+   * C.20 / P1-2. `spentSoFarCents` nets refunds by CATEGORY and drops a
+   * net-refunded category to zero. The rate credit now attributes through
+   * those same surviving nets, so FinanceCo's $100 is not subtracted from a
+   * total it is not in. Still-due is a different question: the charge landed,
+   * so the bill is not demanded again.
    *
-   * The old code absorbed the crossing with `Math.max(0, …)`, which deleted real
-   * unrelated spending from the rate — here a genuine $30 of dining would have
-   * become a $0/day rate, collapsing the rest of the month to nothing and
-   * reporting the reader as on pace to spend LESS. Taking no credit when the
-   * credit cannot be trusted errs the other way instead.
+   * #391's crossing guard (take no credit) produced the same discretionary
+   * $30 on THIS fixture; the tests below are the ones that fail on that
+   * guard and pass only when the credit shares the category basis.
    */
   it('a net-refunded category cannot delete unrelated spending from the rate', () => {
     const r = computeSpendingTrends({
@@ -442,7 +442,7 @@ describe('C.2 critic — admission and basis seams', () => {
         ...may,
         // `shopping` nets NEGATIVE: 100 + 200 − 350 = −50 → the category is
         // dropped to 0 by `spendingByCategory`, taking the bill's own charge
-        // with it, while the per-merchant credit still sees the raw $100.
+        // with it.
         T('2026-06-01', -10000, 'shopping', { merchant: 'FinanceCo' }),
         T('2026-06-02', -20000, 'shopping', { merchant: 'BigBox' }),
         T('2026-06-03', 35000, 'shopping', { merchant: 'BigBox' }),
@@ -456,8 +456,118 @@ describe('C.2 critic — admission and basis seams', () => {
     expect(r.pace!.spentSoFarCents).toBe(3000);
     // …and it must survive into the rate rather than being clamped away.
     expect(r.pace!.discretionarySoFarCents).toBe(3000);
+    // The bill posted; still-due does not re-add money the category drop
+    // already removed from spent-so-far.
+    expect(r.pace!.billsStillDueCents).toBe(0);
     // Which means the month still projects forward instead of flat-lining.
     expect(r.pace!.projectedCents).toBeGreaterThan(r.pace!.spentSoFarCents);
+  });
+
+  /**
+   * C.20. The #391 crossing guard took NO credit once any merchant raw sum
+   * exceeded the month total — so a healthy-category bill riding next to a
+   * dropped-category bill stayed inside the daily rate. Attributing through
+   * the surviving nets credits only the $80 that is actually in spent-so-far.
+   *
+   * Hand-verified: shopping −50 → drop; dining $30; electricity $80.
+   * spentSoFar = 11000. Credit = 0 + 8000. discretionary = 3000.
+   * elapsed = 10, remainder = 3000 × 20 / 10 = 6000.
+   * projected = 11000 + 0 + 6000 = 17000.
+   * Old guard: credited 10000+8000 > 11000 → discretionary 11000,
+   * remainder 22000, projected 33000.
+   */
+  it('test_regression__c20_credit_uses_surviving_category_nets', () => {
+    const r = computeSpendingTrends({
+      txns: [
+        T('2026-05-04', -10000, 'shopping', { merchant: 'FinanceCo' }),
+        T('2026-05-04', -8000, 'electricity', { merchant: 'ElectricCo' }),
+        T('2026-06-01', -10000, 'shopping', { merchant: 'FinanceCo' }),
+        T('2026-06-02', -20000, 'shopping', { merchant: 'BigBox' }),
+        T('2026-06-03', 35000, 'shopping', { merchant: 'BigBox' }),
+        T('2026-06-01', -3000, 'dining', { merchant: 'Cafe' }),
+        T('2026-06-01', -8000, 'electricity', { merchant: 'ElectricCo' }),
+      ],
+      today: '2026-06-10',
+      scheduled: [
+        bill({ description: 'FinanceCo', amountCents: -10000 }),
+        bill({ description: 'ElectricCo', amountCents: -8000 }),
+      ],
+    });
+    expect(r.pace).toMatchObject({
+      spentSoFarCents: 11000,
+      billsStillDueCents: 0,
+      discretionarySoFarCents: 3000,
+      projectedRemainderCents: 6000,
+      projectedCents: 17000,
+    });
+    expect(paceAssumption(r.pace!)).toContain('already posted');
+    expect(paceAssumption(r.pace!)).not.toContain('already counted');
+  });
+
+  /**
+   * C.20. A partially-refunded category still holds some of the bill. Credit
+   * is that surviving net, not the raw merchant post and not "take no credit".
+   *
+   * Hand-verified: shopping 100 + 50 − 80 = 70. spentSoFar = 7000.
+   * Credit = min(10000, 7000) = 7000. discretionary = 0.
+   * Old guard: 10000 > 7000 → discretionary 7000 (bill money left in the rate).
+   */
+  it('test_regression__c20_partial_category_refund_credits_the_surviving_net', () => {
+    const r = computeSpendingTrends({
+      txns: [
+        T('2026-05-04', -10000, 'shopping', { merchant: 'FinanceCo' }),
+        T('2026-06-01', -10000, 'shopping', { merchant: 'FinanceCo' }),
+        T('2026-06-02', -5000, 'shopping', { merchant: 'BigBox' }),
+        T('2026-06-03', 8000, 'shopping', { merchant: 'BigBox' }),
+      ],
+      today: '2026-06-10',
+      scheduled: [bill({ description: 'FinanceCo', amountCents: -10000 })],
+    });
+    expect(r.pace).toMatchObject({
+      spentSoFarCents: 7000,
+      billsStillDueCents: 0,
+      discretionarySoFarCents: 0,
+      projectedRemainderCents: 0,
+      projectedCents: 7000,
+    });
+  });
+
+  /**
+   * C.20. Exclusive categories are credited before contested ones, so a
+   * shop+bill merchant cannot exhaust its cap on a shared leftover and leave
+   * the other bill's surviving money in the rate.
+   *
+   * A posted $80+$80 (expected $100) across shopping+electricity; B posted
+   * $80 in shopping (expected $80). Shopping net $100 (160 raw, $60 refunded).
+   * Electricity net $80, exclusive to A.
+   * Exclusive-first: A takes 80 from electricity (cap left 20), then shopping
+   * gives A 20 + B 80. Credit = 180. discretionary = 0.
+   * Contested-first in name order (A then B): A takes 80 from shopping
+   * (cap left 20) + 20 from electricity; B takes 20 from shopping.
+   * Credit = 120 — $60 of B left in the rate.
+   */
+  it('test_regression__c20_exclusive_category_is_credited_before_contested', () => {
+    const r = computeSpendingTrends({
+      txns: [
+        T('2026-05-04', -10000, 'shopping', { merchant: 'AlphaBill' }),
+        T('2026-05-04', -10000, 'electricity', { merchant: 'BetaBill' }),
+        T('2026-06-01', -8000, 'shopping', { merchant: 'AlphaBill' }),
+        T('2026-06-01', -8000, 'shopping', { merchant: 'BetaBill' }),
+        T('2026-06-02', 6000, 'shopping', { merchant: 'BigBox' }),
+        T('2026-06-01', -8000, 'electricity', { merchant: 'AlphaBill' }),
+      ],
+      today: '2026-06-10',
+      scheduled: [
+        bill({ description: 'AlphaBill', amountCents: -10000 }),
+        bill({ description: 'BetaBill', amountCents: -8000 }),
+      ],
+    });
+    expect(r.pace).toMatchObject({
+      spentSoFarCents: 18000, // shopping 100 + electricity 80
+      billsStillDueCents: 0,
+      discretionarySoFarCents: 0,
+      projectedCents: 18000,
+    });
   });
 
   /**

@@ -79,6 +79,9 @@ export const NEW_MERCHANT_LOOKBACK_MONTHS = 6;
  */
 const NON_ACTIONABLE_GROUP = 'Transfers & Other';
 
+/** Canonical merchant key shared by bill admission, still-due, and the rate credit. */
+const merchantKey = (m: string) => m.trim().toLowerCase();
+
 export interface TrendTxn extends ReportTxn {
   /**
    * 'POSTED' | 'PENDING'. REQUIRED (O.6) rather than defaulted, because a silent
@@ -200,7 +203,7 @@ export interface SpendingPace {
    * `expected`, so they are not this count.
    */
   billsRefusedCount: number;
-  /** Spent so far MINUS the bill money already counted; the rate's numerator. */
+  /** Spent so far MINUS the bill money that sits in those surviving category nets (C.20); the rate's numerator. */
   discretionarySoFarCents: number;
   /** discretionarySoFar / elapsed days × the days left, rounded (audit P2:
    *  the divisor is the FRACTIONAL elapsed time, not the integer `daysElapsed`). */
@@ -532,12 +535,103 @@ export function billOccurrencesInMonth(bill: PaceBillInput, ym: string): number 
  * payees, so matching a bill to it would credit one gardener's charge with
  * another payee's money (`a-typed-key-is-a-pattern-not-an-identity`).
  */
+/**
+ * How much of the month total is admitted-bill money — the rate credit.
+ *
+ * `spentSoFarCents` is the sum of surviving category nets (`spendingByCategory`
+ * drops a net-refunded category to zero). A per-merchant sum of raw rows can
+ * exceed that total, which is C.20: the two questions were only stopped from
+ * crossing (#391), not made the same question.
+ *
+ * This attributes through those surviving nets — the same array that summed to
+ * `spentSoFarCents`, passed in so the guard cannot re-derive a different drop
+ * (`a-guard-must-read-what-it-guards`). Still-due stays a separate question
+ * (did this month's charge land?); a posted bill whose category was netted out
+ * is not demanded again, and it is not subtracted from a total it is not in.
+ *
+ * Exclusive categories are credited first so a shop+bill merchant that also
+ * shares a contested category cannot exhaust its cap on the contested pool and
+ * leave another bill's surviving money inside the rate. Contested leftovers
+ * then fill in name order. Per-merchant remaining caps travel across
+ * categories so a $15 bill split across two leaves cannot take $30 out of
+ * the rate (under-projecting — this surface's dangerous direction).
+ */
+function creditedThroughCategoryNet(
+  txns: readonly TrendTxn[],
+  today: string,
+  ym: string,
+  meta: ReadonlyMap<string, CategoryMeta>,
+  remainingCap: Map<string, number>,
+  survivingCategoryCents: ReadonlyMap<string, number>,
+  excludedFlowIds?: ReadonlySet<string>,
+): number {
+  const range: SpendWindow = { fromYm: ym, toYm: ym };
+  const billInCat = new Map<string, Map<string, number>>();
+  for (const t of txns) {
+    if (t.date > today) continue;
+    if (!t.merchant) continue;
+    const k = merchantKey(t.merchant);
+    if (!remainingCap.has(k)) continue;
+    if (!isRegisterSpendRow(t, range, meta, excludedFlowIds)) continue;
+    const cat = spendRowCategoryId(t);
+    if (!survivingCategoryCents.has(cat)) continue;
+    let per = billInCat.get(cat);
+    if (!per) {
+      per = new Map();
+      billInCat.set(cat, per);
+    }
+    per.set(k, (per.get(k) ?? 0) + spendContributionCents(t));
+  }
+
+  const exclusive: string[] = [];
+  const contested: string[] = [];
+  for (const cat of survivingCategoryCents.keys()) {
+    const per = billInCat.get(cat);
+    if (!per) continue;
+    let n = 0;
+    for (const raw of per.values()) {
+      if (raw > 0) n += 1;
+    }
+    if (n === 0) continue;
+    if (n === 1) exclusive.push(cat);
+    else contested.push(cat);
+  }
+  exclusive.sort();
+  contested.sort();
+
+  let credited = 0;
+  const takeFrom = (cats: readonly string[]) => {
+    for (const cat of cats) {
+      const per = billInCat.get(cat);
+      if (!per) continue;
+      let remaining = survivingCategoryCents.get(cat) ?? 0;
+      for (const k of [...per.keys()].sort()) {
+        const cap = remainingCap.get(k) ?? 0;
+        const raw = per.get(k) ?? 0;
+        if (cap <= 0 || remaining <= 0 || raw <= 0) continue;
+        const take = Math.min(raw, cap, remaining);
+        credited += take;
+        remainingCap.set(k, cap - take);
+        remaining -= take;
+      }
+    }
+  };
+  takeFrom(exclusive);
+  takeFrom(contested);
+  return credited;
+}
+
 function billsThisMonth(
   scheduled: readonly PaceBillInput[],
   txns: readonly TrendTxn[],
   today: string,
   ym: string,
   meta: ReadonlyMap<string, CategoryMeta>,
+  // C.20: surviving category nets from the SAME `spendingByCategory` call
+  // that produced `spentSoFarCents`. Required and before the optionals —
+  // an omitted map would silently take no credit and leave bill money in
+  // the rate (TS1016: required cannot follow optional).
+  survivingCategoryCents: ReadonlyMap<string, number>,
   // C.25 (#403, critic P1-1): the canonicals of loan payments carried
   // elsewhere. Their charges left `spentSoFar` via the flow exclusion, so
   // their scheduled expectations must leave BOTH halves of the bill basis —
@@ -546,17 +640,19 @@ function billsThisMonth(
   // all (demanding it as still due), and the credit half re-introduces the
   // stored-flag settlement flip this module exists to kill.
   excludedLoanCanonicals?: ReadonlySet<string>,
+  // C.20: the same flow ids `spentSoFar` already dropped, so a credited
+  // charge cannot sit outside the month total.
+  excludedFlowIds?: ReadonlySet<string>,
 ): {
   stillDue: PaceBillDue[];
   stillDueCents: number;
   creditedCents: number;
   refusedCount: number;
 } {
-  const key = (m: string) => m.trim().toLowerCase();
   const excludedKeys =
     excludedLoanCanonicals === undefined
       ? undefined
-      : new Set([...excludedLoanCanonicals].map((c) => key(c)));
+      : new Set([...excludedLoanCanonicals].map((c) => merchantKey(c)));
 
   // Expected: one entry per merchant, so two series on one name cannot be
   // compared against the same charges twice.
@@ -565,7 +661,7 @@ function billsThisMonth(
     if (bill.amountCents >= 0) continue; // income and $0 rows are not bills
     const occurrences = billOccurrencesInMonth(bill, ym);
     if (occurrences === 0) continue;
-    const k = key(bill.description);
+    const k = merchantKey(bill.description);
     if (!k) continue;
     if (excludedKeys?.has(k)) continue; // carried elsewhere — not this basis
     const prev = expected.get(k);
@@ -580,15 +676,16 @@ function billsThisMonth(
   // ONE walk, two questions. `counted` answers the admission rule over all the
   // history the engine holds — a purchase at this merchant has landed in a spend
   // total at some point, so its money is inside the basis being projected.
-  // `posted` answers "has this month's occurrence already been charged", and is
-  // therefore scoped to this month, `<= today`, and summed on the register basis
-  // (refunds net down) exactly as the month total the credit is taken out of.
+  // `posted` answers "has this month's occurrence already been charged" for
+  // still-due — scoped to this month, `<= today`, register basis (refunds net
+  // down). The rate credit is a third question and does not read this map
+  // (C.20: it attributes through the surviving category nets).
   const counted = new Set<string>();
   const posted = new Map<string, number>();
   const aggregate = new Set<string>();
   for (const t of txns) {
     if (!t.merchant) continue;
-    const k = key(t.merchant);
+    const k = merchantKey(t.merchant);
     if (!expected.has(k)) continue;
     // Aggregate-ness is learned from EVERY row, future ones included: it is a
     // fact about the merchant string rather than about money, and it only ever
@@ -610,8 +707,8 @@ function billsThisMonth(
 
   const stillDue: PaceBillDue[] = [];
   let stillDueCents = 0;
-  let creditedCents = 0;
   let refusedCount = 0;
+  const remainingCap = new Map<string, number>();
   for (const [k, exp] of expected) {
     // Never counted anywhere ⇒ this merchant's money is not in the basis at all
     // (see the admission rule above). Aggregate keys are not identities.
@@ -621,18 +718,30 @@ function billsThisMonth(
       refusedCount += 1;
       continue;
     }
+    // Still-due is "did this month's charge land?" — merchant posted, capped
+    // at the bill. A merchant can be both a bill and a shop — $15 of Prime
+    // inside $415 of Amazon — and demanding the whole $415 would invent a
+    // bill the calendar does not have. This is NOT the rate credit: a
+    // posted bill whose category was netted out of `spentSoFar` has landed
+    // (due = 0) and contributes 0 to the credit below.
     const seen = Math.max(0, posted.get(k) ?? 0);
-    // Credit at most what the bill itself is worth. A merchant can be both a
-    // bill and a shop — $15 of Prime inside $415 of Amazon — and crediting the
-    // whole $415 would delete $400 of real discretionary spending from the rate.
-    const credited = Math.min(seen, exp.cents);
-    creditedCents += credited;
-    const due = exp.cents - credited;
+    const landed = Math.min(seen, exp.cents);
+    remainingCap.set(k, exp.cents);
+    const due = exp.cents - landed;
     if (due > 0) {
       stillDueCents += due;
       stillDue.push({ merchant: exp.merchant, amountCents: due });
     }
   }
+  const creditedCents = creditedThroughCategoryNet(
+    txns,
+    today,
+    ym,
+    meta,
+    remainingCap,
+    survivingCategoryCents,
+    excludedFlowIds,
+  );
   stillDue.sort((a, b) => b.amountCents - a.amountCents || (a.merchant < b.merchant ? -1 : 1));
   return { stillDue, stillDueCents, creditedCents, refusedCount };
 }
@@ -678,8 +787,11 @@ function computePace(
   const ym = monthKey(today);
   // Only money already spent counts toward "so far": ignore any future-dated rows.
   const soFar = txns.filter((t) => t.date <= today);
-  const spentSoFarCents = spendingByCategory(soFar, { fromYm: ym, toYm: ym }, meta, excludedFlowIds)
-    .totalCents;
+  // One call, two readers: the month total AND the surviving nets the rate
+  // credit attributes through (C.20). A second `spendingByCategory` here
+  // would be a second drop, and the two could disagree.
+  const soFarBreakdown = spendingByCategory(soFar, { fromYm: ym, toYm: ym }, meta, excludedFlowIds);
+  const spentSoFarCents = soFarBreakdown.totalCents;
   const prior = addMonthsToMonthKey(ym, -(1));
   const priorMonthCents = spendingByCategory(txns, { fromYm: prior, toYm: prior }, meta, excludedFlowIds)
     .totalCents;
@@ -708,33 +820,25 @@ function computePace(
   // the day-1 lock already defines that figure; the floor also keeps the
   // divisor from vanishing at 00:00:00.
   const elapsed = Math.min(dim, Math.max(1, daysElapsed - 1 + elapsedDayFraction));
+  const survivingCategoryCents = new Map(
+    soFarBreakdown.byCategory.map((c) => [c.categoryId, c.amountCents]),
+  );
   const { stillDue, stillDueCents, creditedCents, refusedCount } = billsThisMonth(
     scheduled,
     txns,
     today,
     ym,
     meta,
+    survivingCategoryCents,
     excludedLoanCanonicals,
+    excludedFlowIds,
   );
-  // The month total nets refunds by CATEGORY and drops a net-refunded category
-  // to zero, while the credit above is summed per MERCHANT — so in a
-  // refund-heavy month the two bases can cross and the credit can exceed the
-  // bill money actually sitting inside `spentSoFarCents`.
-  //
-  // This used to be `Math.max(0, spentSoFar - credited)`, and the clamp had the
-  // wrong FAILURE DIRECTION (C.2 critic P1-2). It absorbed the crossing by
-  // deleting real, unrelated spending from the rate: one net-refunded category
-  // could take a genuine $30/day of dining to $0/day and collapse the rest of
-  // the month to nothing. Under-projecting is this surface's dangerous
-  // direction — "on pace to spend LESS than last month" is the reading that
-  // makes someone relax.
-  //
-  // A crossing is DETECTABLE rather than silent, so it is handled: when the
-  // credit cannot be trusted against this basis, take no credit at all. That
-  // leaves bill money inside the daily rate — over-projecting, which a reader
-  // can only act on by tightening — instead of deleting money that is genuinely
-  // there. The branches are identical whenever the two bases agree, which is
-  // every month without a net-refunded category.
+  // C.20: the credit is attributed through `survivingCategoryCents`, so it
+  // cannot exceed `spentSoFarCents` by construction (each category contributes
+  // at most its own surviving net). The crossing guard stays as a last resort
+  // in the same FAILURE DIRECTION #391 chose — take no credit, over-project —
+  // because clamping discretionary to zero would delete real unrelated
+  // spending, which is the reading that makes someone relax.
   const basesCrossed = creditedCents > spentSoFarCents;
   const discretionarySoFarCents = basesCrossed
     ? spentSoFarCents

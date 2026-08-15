@@ -7973,3 +7973,46 @@ row. (4) OTHER_LIABILITY / REAL_ESTATE in v1.
 **Locked.** `tests/unit/loan-payment-history.test.ts`;
 `account-detail-panel.test.tsx` H.9; `account-payment-merchant-actions.test.ts`;
 e2e `no-dead-ends.spec.ts` H.9.
+
+## #479 — C.20: pace credit attributes through the month total's category nets (2026-08-15)
+
+**Context.** `spentSoFarCents` is the sum of surviving category
+nets (`spendingByCategory` drops a net-refunded category to
+zero). The rate credit was a per-merchant sum of raw rows.
+#391 detected when they crossed and took no credit — safe
+(over-project) but still two questions. A healthy-category
+bill riding next to a dropped-category bill stayed inside the
+daily rate.
+
+**Decision: still-due and the rate credit are different
+questions.** Still-due stays "did this month's charge land?"
+(merchant posted, capped at the bill). The rate credit
+attributes through the surviving category nets from the SAME
+`spendingByCategory` call that produced `spentSoFarCents`. A
+posted bill whose category was netted out is not demanded
+again and is not subtracted from a total it is not in.
+Exclusive categories are credited before contested ones so a
+shop+bill merchant cannot exhaust its cap on a shared leftover.
+Per-merchant remaining caps travel across categories so a $15
+bill split across two leaves cannot take $30 out of the rate.
+The #391 crossing guard stays as a last resort in the same
+failure direction (take no credit, never clamp the rate to
+zero).
+
+**Copy.** Branch B said matched bills were "already counted".
+That claimed they sit in the month total. C.20 makes the
+branch reachable when a matched bill's category was dropped.
+The sentence now says they have "already posted".
+
+**Rejected.** (1) Keep the crossing guard as the fix — it
+zeroes every credit once any merchant raw sum exceeds the
+total. (2) `Math.max(0, spent − credited)` — deletes unrelated
+spending; under-projecting is this surface's dangerous
+direction. (3) Couple still-due to the reduced credit — would
+re-add a posted bill the category drop already removed.
+
+**Locked.** `tests/unit/trends-pace-bills.test.ts`
+`test_regression__c20_*` (surviving nets; partial refund;
+exclusive-before-contested); the rewritten P1-2 fixture now
+also locks still-due = 0; `trends-labels.test.ts` branch B
+"already posted".

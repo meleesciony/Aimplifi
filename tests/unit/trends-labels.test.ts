@@ -161,7 +161,7 @@ describe('paceAssumption', () => {
         billsRefusedCount: 0,
       }),
     ).toBe(
-      "Every bill we could match to this month's charges is already counted; the other $2,894.00 " +
+      "Every bill we could match to this month's charges has already posted; the other $2,894.00 " +
         'is what continues at its current daily rate — a projection, not a prediction. ' +
         COVERAGE,
     );

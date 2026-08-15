@@ -472,3 +472,4 @@ refuses to write if it would drop any number this file already carries.
 - **#476** (Phase ?): U.14: the last-4 name-signal veto reads a 4-digit non-year embedding (2026-08-15)
 - **#477** (Phase ?): C.21: the pace assumption names which zero when no bill was admitted (2026-08-15)
 - **#478** (Phase ?): H.9: reader-chosen payee on a LOAN/MORTGAGE, register-axis payment history (2026-08-15)
+- **#479** (Phase ?): C.20: pace credit attributes through the month total's category nets (2026-08-15)

@@ -181,8 +181,12 @@ export function paceAssumption(
     );
   }
   if (pace.discretionarySoFarCents < pace.spentSoFarCents) {
+    // C.20: "already counted" claimed the matched charges sit in the month
+    // total. A posted bill whose category was net-refunded has landed
+    // (still-due is 0) and is not in `spentSoFarCents`. "Already posted"
+    // is the still-due fact this branch actually knows.
     return (
-      `Every bill we could match to this month's charges is already counted; the other ${other} ` +
+      `Every bill we could match to this month's charges has already posted; the other ${other} ` +
       `is what continues at its current daily rate — a projection, not a prediction. ${PACE_BILL_COVERAGE}`
     );
   }

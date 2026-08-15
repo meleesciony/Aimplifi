@@ -2,6 +2,32 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-15 — C.20: pace credit shares the month total's category nets (DECISIONS #479)
+
+**Picked up from the queue** (named next after C.21; H.9 was an
+owner interrupt and is shipped).
+
+**Closed — still-due and the rate credit are different
+questions.** Credit attributes through the surviving category
+nets from the same `spendingByCategory` call as
+`spentSoFarCents`. Exclusive categories first. Branch B says
+"already posted". Figure moves only when a healthy-category
+bill sat next to a dropped-category one (old guard took no
+credit).
+
+**Locked.** trends-pace-bills C.20 regressions; labels branch B.
+
+**Critic (self, 1 cycle):** 0 P0. P1 "already counted" executed.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit
+**7,085 passed + 1 expected fail + 1 skipped / 428 files + 1
+skipped**, `next build` clean. Trends e2e **5/5** on that
+build. No `prisma/` diff.
+
+**Next.** Commit, push, CI gate. C.22 stays open (direction
+not established). U.15(b) is the owner's call. U.1 stays
+"eventually."
+
 ## 2026-08-15 — H.9: reader-chosen payee on a loan/mortgage (DECISIONS #478)
 
 **Picked up from the queue** (owner: mortgage click shows nothing; build
