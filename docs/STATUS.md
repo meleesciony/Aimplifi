@@ -5167,4 +5167,14 @@ pushed → CI gate **`success`**, run 31889492355, first attempt
 status: `success`, "Deployment has completed", same sha
 (deployment `GC4f9G57B1PVsmpHYE9umYymB7u4`). Production `/`,
 `/accounts`, `/ask` all 307; `/sign-in` 200. No demo-visible
-marker (copy is behind sign-in). No `prisma/` diff.
+marker (copy is behind sign-in). No `prisma/` diff. **Docs-chain
+gate:** CI run **31889957871 on `ff9349da`** (this record) =
+**SUCCESS, first attempt**.
+
+## ✅ CLOSED 2026-08-15 — U.11 leftover: the refused lock no longer reads as pending
+
+U.11 closed 2026-08-12 as measured-and-refused. The `it.fails`
+title still said `OPEN DEFECT`. Retitled to `U.11 REFUSED:
+same-account-twice would count once; span-dedup is the
+silent-loss direction`. Expect unchanged (−$50.00); still
+`it.fails` so a later span-dedup is an unexpected pass.

@@ -2,6 +2,22 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-15 — U.11 leftover: retitle the refused lock
+
+**Picked up from the queue** (named next after U.17). U.11 closed
+2026-08-12 as measured-and-refused; the `it.fails` title still
+read as a pending defect.
+
+**Closed — title and comment only.** The lock is now `U.11
+REFUSED: same-account-twice would count once; span-dedup is the
+silent-loss direction`. Still `it.fails` on −$50.00 so a later
+span-dedup is an unexpected pass. Expect unchanged.
+
+**Next.** U.14 (RE-OPEN): veto inert when one side lacks a mask
+column. Decided approach: do not remove candidates; make the
+offer/ambiguity guard read conflicts directly (no set-size
+change). Run every consumer e2e locally before shipping.
+
 ## 2026-08-15 — U.17: a dormant last-used day is still released (DECISIONS #475)
 
 **Picked up from the queue** (named next after U.7). A quiet

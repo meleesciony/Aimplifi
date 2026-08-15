@@ -1086,28 +1086,23 @@ describe('U.9 sibling predecessors — one real account connected twice', () => 
   });
 
   /**
-   * OPEN DEFECT (TASKS U.11), asserted as `it.fails` ON PURPOSE.
+   * REFUSED (TASKS U.11, 2026-08-12), still `it.fails` ON PURPOSE.
    *
-   * This states the CORRECT answer — one real $50.00 purchase reported by both dead
-   * feeds must contribute $50.00 — and declares that the engine does not yet give it
-   * (today it contributes $100.00 to every spending surface). Written this way rather
-   * than as a characterization asserting `-10_000`, because a test whose `expect` is
-   * the wrong number teaches the next reader that the wrong number is intended, and a
-   * slice's own test ratifying the defect it declined to fix is exactly how a bad
-   * claim survives (docs/lessons/hiding-a-surface-reassigns-its-claims-by-certainty).
-   * When U.11 lands, this test PASSES and vitest fails it as an unexpected pass —
-   * forcing whoever fixes it to come here and promote it to a plain `it`.
+   * This states the answer that would be right IF s1 and s2 were one real
+   * account connected twice — one $50.00 purchase counted once. Production
+   * has zero such pairs: every sibling predecessor pair agrees 0% on
+   * transactions and the account numbers differ. Span-based sibling
+   * de-duplication — the row's prescribed fix — would silently delete 100%
+   * of the losing side's rows in every instance that exists.
    *
-   * Why U.9 did not fix it too, being the same sibling blind spot: the F3 snapshot
-   * rule is fixable with a PROOF, because a snapshot is a STOCK — one account has at
-   * most one balance on a date, so a second row for that date is necessarily a
-   * duplicate. A transaction is a FLOW: two $50.00 charges on one day are ordinary,
-   * so "the twin also has this date" establishes nothing, and de-duplicating by CLAIM
-   * SPAN instead would silently delete a row only one feed ever saw — inverting this
-   * engine's stated failure direction (a visible, advisory-covered double, never a
-   * silent loss). Choosing that direction needs its own evidence and its own critic.
+   * Today's engine keeps both copies (−$100.00). That is the decided
+   * behaviour, not a pending defect. The test stays `it.fails` so a later
+   * author who "fixes" it by span-dedup gets an unexpected pass and must
+   * come here. Do not flip the expect to −10_000: that would teach a
+   * same-account-twice fixture that the double is intended there too
+   * (docs/lessons/hiding-a-surface-reassigns-its-claims-by-certainty).
    */
-  it.fails('U.11 OPEN DEFECT: sibling feeds must count the same purchase once (currently twice)', () => {
+  it.fails('U.11 REFUSED: same-account-twice would count once; span-dedup is the silent-loss direction', () => {
     const out = sibApply({
       transactions: [
         { accountId: 's1', date: '2026-02-10', amountCents: -5_000 },
