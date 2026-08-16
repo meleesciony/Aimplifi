@@ -24,9 +24,14 @@ credit).
 skipped**, `next build` clean. Trends e2e **5/5** on that
 build. No `prisma/` diff.
 
-**Next.** Commit, push, CI gate. C.22 stays open (direction
-not established). U.15(b) is the owner's call. U.1 stays
-"eventually."
+**Shipped and proven live.** Pushed as `fc932b4d`. CI run
+31915690732 `success`. Vercel: `success`, "Deployment has
+completed", same sha. Production `/`, `/accounts`, `/trends`
+307; `/sign-in` 200. Copy is behind sign-in; CI e2e asserted
+the trends pace surfaces on this sha. No `prisma/` diff.
+
+**Next.** C.22 stays open (direction not established).
+U.15(b) is the owner's call. U.1 stays "eventually."
 
 ## 2026-08-15 — H.9: reader-chosen payee on a loan/mortgage (DECISIONS #478)
 

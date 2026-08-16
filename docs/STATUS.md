@@ -18,6 +18,8 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,085 passed + 1 expected fail + 1 skipped / 428 files + 1 skipped**, `next build` clean. Trends e2e **5/5** on that build. No `prisma/` diff.
 
+**Gate read.** CI run **31915690732** on `fc932b4d` = SUCCESS. Vercel: `success`, "Deployment has completed", same sha. Production `/`, `/accounts`, `/trends` 307; `/sign-in` 200. Copy is behind sign-in; CI e2e asserted the trends pace surfaces on this sha.
+
 **Schema.** None.
 
 ## ✅ BUILT 2026-08-15 — H.9: a loan/mortgage panel shows the checking-account payments the reader named (DECISIONS #478)
