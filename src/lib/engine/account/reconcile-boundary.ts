@@ -210,6 +210,14 @@ export interface ReconciliationBoundaryResult<
    * had not released, or stay silent on a day it had.
    */
   handoverKeys: ReadonlySet<string>;
+  /**
+   * C.22: predecessor id → terminal live successor, from the SAME links
+   * and `remapToTerminal` this call used for paymentAccountId / scheduled
+   * re-key. Empty on the no-links fast path. Rides on the snapshot so a
+   * payment-account scope cannot re-fetch the map and disagree with the
+   * keep it is applying.
+   */
+  terminalOf: ReadonlyMap<string, string>;
 }
 
 /**
@@ -639,6 +647,17 @@ export function handoverKey(accountId: string, date: string): string {
   return `${accountId}|${date}`;
 }
 
+/** Dates (only) from `handoverKey` pairs — what `collapseHandoverDuplicates` reads. */
+export function handoverDatesFromKeys(keys: ReadonlySet<string> | undefined): Set<string> {
+  const dates = new Set<string>();
+  if (keys === undefined) return dates;
+  for (const k of keys) {
+    const i = k.lastIndexOf('|');
+    if (i >= 0) dates.add(k.slice(i + 1));
+  }
+  return dates;
+}
+
 /**
  * The (account, released day) pairs a combined pair actually duplicates on (U.16).
  *
@@ -712,6 +731,7 @@ export function applyReconciliationBoundary<
       scheduled,
       supersededAccountIds: [],
       handoverKeys: new Set<string>(),
+      terminalOf: new Map<string, string>(),
     };
   }
 
@@ -926,5 +946,6 @@ export function applyReconciliationBoundary<
         last: s.last,
       })),
     ),
+    terminalOf: new Map(links.map((l) => [l.predecessorAccountId, remapToTerminal(l.predecessorAccountId)])),
   };
 }

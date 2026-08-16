@@ -66,6 +66,14 @@ export interface FinanceSnapshot {
    * the keep it is disclosing.
    */
   handoverKeys: ReadonlySet<string>;
+  /**
+   * C.22: predecessor id → terminal live successor, from the same boundary
+   * call that produced `handoverKeys` and the keep. Absent/empty when there
+   * are no effective links (demo/golden) — every account id is its own
+   * terminal. Required on a live snapshot that has links, so radar/burn
+   * cannot re-fetch the map and disagree with the keep they are scoping.
+   */
+  terminalOf?: ReadonlyMap<string, string>;
 }
 
 export interface SyncResult {

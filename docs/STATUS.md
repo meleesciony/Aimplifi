@@ -6,6 +6,20 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-15 — C.22: detect each payment-account feed, then union (DECISIONS #480)
+
+**The report.** After the 2026-07-21 re-link, radar committed-merchant detection scoped POSTED rows to the live payment id (183 vs 402). The income remap concatenated both feeds into one `detectRecurring` call and took 9 series to 4. The task row prescribed merging descriptors; that is the concatenate.
+
+**Shipped.** Detection runs once per account in the payment component, then unions canonicals. Burn sums and history days use the income remap and collapse the released handover day. `terminalOf` rides on the snapshot. Demo/no-links is identity.
+
+**Locked.** `tests/unit/radar-committed.test.ts` `test_regression__c22_*`.
+
+**Critic (self, 1 cycle):** 0 P0. P1 none executed. P2: a predecessor false-positive whose canonical also appears as discretionary on the successor would understate burn — same class as any `detectRecurring` false positive, scoped to the payment component.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,090 passed + 1 expected fail + 1 skipped / 429 files + 1 skipped**, `next build` clean. Radar e2e **1/1** on that build. No `prisma/` diff. Live income-replay C.22 block **UNVERIFIED** this session (no `.env.prod.tmp`).
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-15 — C.20: pace credit attributes through the month total's category nets (DECISIONS #479)
 
 **The report.** The pace rate subtracted bill money summed per merchant off raw rows, while `spentSoFarCents` is the sum of surviving category nets. #391 stopped those bases from crossing (take no credit) but left a healthy-category bill inside the daily rate whenever a dropped-category bill rode next to it.

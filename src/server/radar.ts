@@ -18,12 +18,13 @@ import {
   type ScheduledFlow,
 } from '@/lib/engine/forecast/forecast';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
-import { detectRecurring, type RecurringTxn } from '@/lib/engine/recurring/detect';
+import { type RecurringTxn } from '@/lib/engine/recurring/detect';
 import {
   computeBurnRates,
   discretionaryDailyOutflows,
   paymentAccountHistoryDays,
 } from '@/lib/engine/radar/burn';
+import { committedMerchantCanonicals, remappedPaymentRows } from '@/lib/engine/radar/committed';
 import { splitLoanCarriedScheduled } from '@/lib/engine/loans/duplicate-projection';
 import { computeRadar, projectCardDues, type RadarInput, type RadarResult } from '@/lib/engine/radar/radar';
 import { undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
@@ -166,8 +167,11 @@ export function radarFromSnapshot(
   for (const s of snap.scheduled) {
     if (s.accountId === payment.id) excludedCanonicals.add(normalizeMerchant(s.description).canonical);
   }
+  // C.22: `terminalOf` rides on the snapshot (same author as handoverKeys).
+  // Empty ⇒ every id is its own terminal (demo/golden, byte-identical).
+  const terminalOf = snap.terminalOf ?? new Map<string, string>();
   const recurringTxns: RecurringTxn[] = snap.transactions
-    .filter((t) => t.status === 'POSTED' && !t.isSplitParent && t.accountId === payment.id)
+    .filter((t) => t.status === 'POSTED' && !t.isSplitParent)
     .map((t, i) => ({
       id: String(i),
       accountId: t.accountId,
@@ -179,16 +183,34 @@ export function radarFromSnapshot(
   // O.13f: the reader's verdicts, so a merchant he declared a bill is treated as
   // COMMITTED here (out of discretionary burn) and one he demoted stops being — the
   // same set the committed line itself is projected from.
-  for (const series of detectRecurring(recurringTxns, today, recurringOverrides)) {
-    excludedCanonicals.add(series.merchantCanonical);
+  // C.22: detect EACH payment-component account on its own, then union. The
+  // income-style concatenate (re-key then one detectRecurring) is what took
+  // the owner's 9 series to 4 — a 0-day handover gap kills a monthly series
+  // each feed had alone. Neither descriptor wins.
+  for (const canonical of committedMerchantCanonicals(
+    recurringTxns,
+    payment.id,
+    today,
+    recurringOverrides,
+    terminalOf,
+  )) {
+    excludedCanonicals.add(canonical);
   }
+  // Burn sums and history days ARE the income remap: totals, not gaps. Collapse
+  // the released handover day so one charge is not counted twice.
+  const burnRows = remappedPaymentRows(
+    snap.transactions,
+    payment.id,
+    terminalOf,
+    snap.handoverKeys ?? new Set<string>(),
+  );
   const burn = computeBurnRates(
-    discretionaryDailyOutflows(snap.transactions, {
+    discretionaryDailyOutflows(burnRows, {
       paymentAccountId: payment.id,
       excludedCanonicals,
       today,
     }),
-    paymentAccountHistoryDays(snap.transactions, payment.id, today),
+    paymentAccountHistoryDays(burnRows, payment.id, today),
   );
 
   /**

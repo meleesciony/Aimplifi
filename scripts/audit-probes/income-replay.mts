@@ -286,11 +286,13 @@ console.table(
 );
 
 // ---------------------------------------------------------------- C.22 sibling
-// radar.ts:145 scopes POSTED rows to `t.accountId === payment.id` to detect the
-// COMMITTED merchants it excludes from discretionary burn. Same defect class.
-// Measure it rather than assert it (a finding that did not execute is a hypothesis).
+// radar committed-merchant detection on the payment account. The income remap
+// concatenates two feeds into one detectRecurring call and was measured at
+// 9 → 4. C.22 detects each payment-component account on its own and unions
+// the canonicals (DECISIONS #480). Re-run this block after any change.
 {
   const { detectRecurring } = await import('../../src/lib/engine/recurring/detect');
+  const { committedMerchantCanonicals } = await import('../../src/lib/engine/radar/committed');
   const posted = await q<{
     accountId: string; date: string; amountCents: number; rawDescriptor: string; isTransfer: boolean;
   }>(
@@ -308,10 +310,23 @@ console.table(
       }));
   const asShipped = mk(false);
   const withRekey = mk(true);
+  const component = posted
+    .filter((r) => terminalOf(r.accountId) === user.paymentAccountId)
+    .map((r, i) => ({
+      id: String(i), accountId: r.accountId, date: r.date,
+      amountCents: r.amountCents, rawDescriptor: r.rawDescriptor, isTransfer: r.isTransfer,
+    }));
+  const terminalMap = new Map<string, string>();
+  for (const r of posted) {
+    const to = terminalOf(r.accountId);
+    if (to !== r.accountId) terminalMap.set(r.accountId, to);
+  }
+  const paymentId = user.paymentAccountId ?? '';
   head('C.22 SIBLING — radar.ts committed-merchant detection on the payment account');
   console.table([
     { path: 'as shipped (live id only)', rows: asShipped.length, seriesDetected: detectRecurring(asShipped, today as never, []).length },
-    { path: 'with successor re-key', rows: withRekey.length, seriesDetected: detectRecurring(withRekey, today as never, []).length },
+    { path: 'with successor re-key (rejected)', rows: withRekey.length, seriesDetected: detectRecurring(withRekey, today as never, []).length },
+    { path: 'C.22 per-account union', rows: component.length, seriesDetected: committedMerchantCanonicals(component, paymentId, today as never, [], terminalMap).size },
   ]);
 }
 

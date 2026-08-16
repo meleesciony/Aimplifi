@@ -167,6 +167,7 @@ export class DemoProvider implements DataProvider {
       balanceSnapshots: [...boundary.balanceSnapshots],
       loanPaymentFlowExclusions: loanPaymentFlowExclusionsOut,
       handoverKeys: boundary.handoverKeys,
+      terminalOf: boundary.terminalOf,
     };
   }
 }

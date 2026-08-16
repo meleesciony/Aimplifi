@@ -8016,3 +8016,34 @@ re-add a posted bill the category drop already removed.
 exclusive-before-contested); the rewritten P1-2 fixture now
 also locks still-due = 0; `trends-labels.test.ts` branch B
 "already posted".
+
+## #480 — C.22: detect each payment-account feed, then union (2026-08-15)
+
+**Context.** After the 2026-07-21 re-link, radar committed-merchant
+detection scoped POSTED rows to the live payment id (183 vs 402).
+The income fix remaps predecessor rows onto that id and SUMS.
+The same remap fed to `detectRecurring` took **9 series to 4**
+(income-replay C.22 block): one merchant under two feeds shares
+a canonical, and the old feed's irregular dates or extra amounts
+poison the new feed's clean series. A reflex income remap would
+have moved five merchants INTO discretionary burn.
+
+**Decision: detection and burn sums are different questions.**
+Detection runs `detectRecurring` once per account in the payment
+component, then unions the canonicals. Neither feed's descriptor
+wins. Burn sums and history days use the income remap
+(`remappedPaymentRows`) and collapse the released handover day
+so one charge is not counted twice. `terminalOf` rides on the
+snapshot next to `handoverKeys` (same boundary call).
+
+**Rejected.** (1) Merge the two feeds' canonicals before one
+detectRecurring — that IS the concatenate, and it is what
+destroys series. (2) Pick a winning descriptor. (3) Detect on
+the live id only — keeps the short tail for history days
+(25 days after the re-link, below the 28-day burn floor).
+
+**Locked.** `tests/unit/radar-committed.test.ts`
+`test_regression__c22_*` (union keeps Netflix; concatenate
+dies on three amounts; successor-only without links; card
+predecessor excluded; history days 14 → 106; handover day
+$50.00 not $100.00).

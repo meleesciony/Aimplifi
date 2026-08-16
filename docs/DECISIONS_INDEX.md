@@ -473,3 +473,4 @@ refuses to write if it would drop any number this file already carries.
 - **#477** (Phase ?): C.21: the pace assumption names which zero when no bill was admitted (2026-08-15)
 - **#478** (Phase ?): H.9: reader-chosen payee on a LOAN/MORTGAGE, register-axis payment history (2026-08-15)
 - **#479** (Phase ?): C.20: pace credit attributes through the month total's category nets (2026-08-15)
+- **#480** (Phase ?): C.22: detect each payment-account feed, then union (2026-08-15)

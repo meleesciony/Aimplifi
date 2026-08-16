@@ -2,6 +2,29 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-15 — C.22: detect each payment-account feed, then union (DECISIONS #480)
+
+**Picked up from the queue** (named next after C.20; direction was
+not established).
+
+**Closed — detection and burn sums are different questions.**
+The prescribed descriptor-merge is the income concatenate
+(9 → 4). Each payment-component account is detected on its
+own; canonicals are unioned. Burn remaps and collapses the
+handover day. `terminalOf` rides on the snapshot.
+
+**Locked.** radar-committed C.22 regressions.
+
+**Critic (self, 1 cycle):** 0 P0.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit
+**7,090 passed + 1 expected fail + 1 skipped / 429 files + 1
+skipped**, `next build` clean. Radar e2e **1/1** on that
+build. No `prisma/` diff. Live probe UNVERIFIED (no prod env).
+
+**Next.** Commit, push, CI gate. U.15(b) is the owner's call.
+U.1 stays "eventually."
+
 ## 2026-08-15 — C.20: pace credit shares the month total's category nets (DECISIONS #479)
 
 **Picked up from the queue** (named next after C.21; H.9 was an
