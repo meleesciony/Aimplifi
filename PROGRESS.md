@@ -22,8 +22,15 @@ handover day. `terminalOf` rides on the snapshot.
 skipped**, `next build` clean. Radar e2e **1/1** on that
 build. No `prisma/` diff. Live probe UNVERIFIED (no prod env).
 
-**Next.** Commit, push, CI gate. U.15(b) is the owner's call.
-U.1 stays "eventually."
+**Shipped and proven live.** Pushed as `6978360e`. CI run
+31916908467 `success`. Vercel: `success`, "Deployment has
+completed", same sha. Production `/`, `/accounts`,
+`/dashboard` 307; `/sign-in` 200. Copy is behind sign-in;
+CI e2e asserted the radar card on this sha. No `prisma/`
+diff. Live income-replay C.22 block UNVERIFIED (no prod env).
+
+**Next.** U.15(b) is the owner's call. U.1 stays
+"eventually."
 
 ## 2026-08-15 — C.20: pace credit shares the month total's category nets (DECISIONS #479)
 

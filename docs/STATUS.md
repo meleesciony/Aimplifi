@@ -18,6 +18,8 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Gate.** `bash scripts/verify.sh` → tsc 0, eslint 0, unit **7,090 passed + 1 expected fail + 1 skipped / 429 files + 1 skipped**, `next build` clean. Radar e2e **1/1** on that build. No `prisma/` diff. Live income-replay C.22 block **UNVERIFIED** this session (no `.env.prod.tmp`).
 
+**Gate read.** CI run **31916908467** on `6978360e` = SUCCESS. Vercel: `success`, "Deployment has completed", same sha. Production `/`, `/accounts`, `/dashboard` 307; `/sign-in` 200. Copy is behind sign-in; CI e2e asserted the radar card on this sha.
+
 **Schema.** None.
 
 ## ✅ BUILT 2026-08-15 — C.20: pace credit attributes through the month total's category nets (DECISIONS #479)
