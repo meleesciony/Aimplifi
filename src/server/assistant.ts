@@ -23,6 +23,9 @@ import { planDebtPayoff } from '@/lib/engine/debt/payoff';
 import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
 import { solveSavingsGoalByDate } from '@/lib/engine/solve/savings-goal-by-date';
 import { solveRetireAtAge } from '@/lib/engine/solve/retire-at-age';
+import { seededHorizon, solveWealthTarget } from '@/lib/engine/solve/wealth-target';
+import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
+import { wealthTargetPlanUnproven } from '@/lib/engine/fi/coach-copy';
 import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 import type { ISODate } from '@/lib/dates';
 import { asOfWindow, spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
@@ -50,6 +53,7 @@ import {
   answerMerchantSpend,
   answerNetWorth,
   answerRetireAtAge,
+  answerWealthTarget,
   answerSafeToSpend,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
@@ -94,6 +98,7 @@ const DELEGATES_OWN_BOUNDARY: ReadonlySet<AssistantIntent['kind']> = new Set([
   'debt_free_by_date',
   'savings_goal_by_date',
   'retire_at_age',
+  'wealth_target',
   'savings_rate',
 ]);
 
@@ -734,6 +739,46 @@ async function buildAnswer(
         safeToSpendCents: plan.leftToSpendCents,
       });
       return answerRetireAtAge(result, intent.label, plan.unallocatedSavingsCents);
+    }
+    case 'wealth_target': {
+      // W.4: SAME two solves the /coach card runs (open-ended pace, then required
+      // monthly at the seeded horizon) over getCoachData + getSpendingPlan. The
+      // LLM supplied only the KIND — the amount was re-derived by parseTargetAmount.
+      const [coach, plan] = await Promise.all([getCoachData(userId), getSpendingPlan(userId)]);
+      const wealthContribution = wealthContributionBasis({
+        historicalMonthlySavingsCents: coach.fi.monthlySavingsCents,
+        plannedSavingsCents: plan.plannedSavingsCents,
+        savingsTargetBps: plan.savingsTargetBps,
+      });
+      const shared = {
+        targetAmountCents: intent.targetCents,
+        currentPortfolioCents: coach.fi.portfolioCents,
+        currentMonthlyContributionCents: wealthContribution.contributionCents,
+        nominalReturnBps: coach.fi.expectedReturnBps,
+        inflationBps: coach.fi.inflationBps,
+        monthlyIncomeCents: coach.fi.monthlyIncomeCents,
+        safeToSpendCents: plan.leftToSpendCents,
+      };
+      const pace = solveWealthTarget({ ...shared, deadlineMonths: null });
+      const planUnproven = wealthTargetPlanUnproven(
+        wealthContribution.basis,
+        coach.fi.monthlySavingsCents,
+      );
+      const seed = seededHorizon(pace.monthsAtCurrentRate, pace.contributionFloored || planUnproven);
+      const required = solveWealthTarget({ ...shared, deadlineMonths: seed.years * 12 });
+      return answerWealthTarget(pace, required, {
+        horizonYears: seed.years,
+        horizonBasis: seed.seeded ? 'seeded' : 'fallback',
+        contributionBasis: wealthContribution.basis,
+        historicalMonthlySavingsCents: coach.fi.monthlySavingsCents,
+        averagedOverMonths: coach.fi.monthlySavingsMonths,
+        dialOwnership: {
+          returnIsDefault: coach.fi.returnIsDefault,
+          inflationIsDefault: coach.fi.inflationIsDefault,
+        },
+        nominalReturnBps: coach.fi.expectedReturnBps,
+        inflationBps: coach.fi.inflationBps,
+      });
     }
     case 'subscriptions':
       return answerSubscriptions((await getRecurring(userId)).summary);

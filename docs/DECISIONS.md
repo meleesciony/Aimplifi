@@ -8129,3 +8129,31 @@ pin.
 **Locked.** `tests/unit/coach-copy.test.ts`
 `test_regression__w8_every_coach_copy_key_is_scanned` (`KNOWN_UNSCANNED`
 is empty; a new key without a row fails).
+
+## #484 — W.4: route a wealth target through Ask (2026-08-17)
+
+**Context.** W.1 shipped `solveWealthTarget` and the /coach card. The
+owner's question ("if I want to save up to 10 mil … what do I need to
+do?") is the plan-in-words shape the three sibling solvers already
+have. Ask did not route it: `savings_goal_by_date` requires a date and
+uses the linear /goals model, which would demand ~$27k/mo for $10M
+over 30 years.
+
+**Decision: fourth intent `wealth_target`.** Amount is re-derived by
+`parseTargetAmount` (now reads `mil` and a spoken count + magnitude:
+"10 mil", "$10M", "ten million"). No date → compounding planner, same
+two solves the card runs (open-ended pace, then required monthly at
+`seededHorizon`). A named date stays on `savings_goal_by_date`. The
+LLM path swaps those two when the model's kind and the words disagree.
+Copy is selected from existing `COACH_COPY.wealthTarget*` strings.
+Source is `/coach`. No save action.
+
+**Rejected.** Pointing $10M at `solveSavingsGoalByDate` (W.1's reason
+for a fourth solver). A dollar-threshold that decides which solver
+wins (vocabulary + date vs no-date decides). Inventing a deadline.
+Authoring new Ask copy.
+
+**Locked.** `tests/unit/assistant-wealth-target.test.ts`
+`test_regression__w4_owner_question_routes_to_wealth_target` plus
+abstention majority (compound number-word, fraction, comparison,
+negation, unresolved year).

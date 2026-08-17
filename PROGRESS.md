@@ -2,6 +2,28 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-17 — W.4: route a wealth target through Ask (DECISIONS #484)
+
+**Picked up from the queue** (W.8 shipped; U.15(b) is the owner's
+call; U.1 stays "eventually"; O.20j/h/c stay off this model).
+
+**Closed — fourth plan-in-words intent.** `wealth_target` routes
+"save up to 10 mil" / "$10M" / "ten million" through W.1's
+compounding planner. Dated save questions stay linear. Copy
+reused. Abstentions are the majority of the new tests.
+
+**Locked.** assistant-wealth-target `test_regression__w4_*`.
+
+**Critic (self, 1 cycle):** 0 P0 / 0 P1. Engine unchanged.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0,
+eslint 0, unit **7,142 passed + 1 expected fail + 1 skipped
+/ 432 files + 1 skipped**, `next build` clean. Ask W.4 e2e
+**1/1**. No `prisma/` diff.
+
+**Next.** U.15(b) is the owner's call. U.1 stays
+"eventually." O.20j / O.20h / O.20c stay off this model.
+
 ## 2026-08-17 — W.8: every COACH_COPY key enters the guardrail scan (DECISIONS #483)
 
 **Picked up from the queue** (O.17a shipped; U.15(b) is the owner's

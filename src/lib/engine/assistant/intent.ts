@@ -13,7 +13,7 @@
  * Pure: string in, typed object out. No I/O, no `new Date()` — `today` is given.
  */
 import { addMonthsClamped, addMonthsToMonthKey, daysInMonth, isoDate, monthKey, type ISODate } from '@/lib/dates';
-import { centsFromDollarString } from '@/lib/money';
+import { centsFromDollarString, formatCents, type Cents } from '@/lib/money';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 
 /** A resolved calendar window over month keys (inclusive), with a display label. */
@@ -55,6 +55,8 @@ export type AssistantIntent =
   | { kind: 'debt_free_by_date'; targetDate: ISODate; label: string }
   | { kind: 'savings_goal_by_date'; targetDate: ISODate; targetCents: number | null; label: string }
   | { kind: 'retire_at_age'; targetAge: number; label: string }
+  /** Stated wealth target, no deadline — W.1's compounding planner via Ask (W.4). */
+  | { kind: 'wealth_target'; targetCents: number; label: string }
   | { kind: 'subscriptions' }
   | { kind: 'forecast' }
   | { kind: 'savings_rate' }
@@ -77,6 +79,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'debt_free_by_date',
   'savings_goal_by_date',
   'retire_at_age',
+  'wealth_target',
   'subscriptions',
   'forecast',
   'savings_rate',
@@ -492,10 +495,12 @@ export function parseTargetDate(qRaw: string, today: ISODate): TargetDate | null
  * amount is string-matched out of the user's text). Returns integer cents, or null when no
  * amount is clearly stated — the caller then ASKS for it rather than inventing one. A bare
  * unmarked number is NOT treated as an amount (so a year like "2028" can't become "$2,028"):
- * it must carry a "$", a magnitude suffix (k/m/grand/thousand/million/bn/billion), the word
- * "dollars"/"bucks", or thousands grouping. Integer-cents throughout (no float on money):
- * the base ≤2-decimal value parses via centsFromDollarString, then scales by an integer
- * multiplier; anything it can't parse exactly falls through to null (ask, don't guess).
+ * it must carry a "$", a magnitude suffix (k/m/mil/grand/thousand/million/bn/billion), the word
+ * "dollars"/"bucks", a spoken count + magnitude ("ten million"), or thousands grouping.
+ * Integer-cents throughout (no float on money): the base ≤2-decimal value parses via
+ * centsFromDollarString, then scales by an integer multiplier; anything it can't parse
+ * exactly falls through to null (ask, don't guess). W.4: "mil" is million; a compound
+ * number-word ("twenty five million") abstains rather than reading the last word as the count.
  */
 export function parseTargetAmount(qRaw: string): number | null {
   const q = qRaw.toLowerCase();
@@ -517,6 +522,21 @@ export function parseTargetAmount(qRaw: string): number | null {
   // let the whole match succeed WITHOUT backtracking to `\d+`, truncating "$20000" to $200 — a
   // 100x-wrong, never-stated figure (critic P0, #126). The `+` forces ungrouped numbers to `\d+`.
   const INT = String.raw`\d{1,3}(?:,\d{3})+|\d+`;
+  const NUMBER_WORD =
+    'a|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety';
+  const MAG_WORD = 'k|m|mil|bn|grand|thousand|million|billion';
+  const NON_MONEY_UNIT =
+    'steps?|miles?|mi|km|kilometers?|meters?|points?|pts?|reps?|cal(?:ories)?|words?|ft|feet|members?|users?|followers?|views?|subscribers?|hours?|hrs?|minutes?|mins?|days?|items?|units?';
+
+  // A compound spoken count ("twenty five million") would otherwise match the LAST
+  // number-word and invent a 5×-wrong target. Hyphenated "twenty-five" is the same shape.
+  if (new RegExp(`\\b(?:${NUMBER_WORD})[\\s-]+(?:${NUMBER_WORD})\\s+(?:${MAG_WORD})\\b`).test(q)) {
+    return null;
+  }
+  if (/\b(half|quarter|third)(?:\s+of)?\s+a\s+(million|mil|billion)\b/.test(q)) return null;
+  if (new RegExp(`(?:${INT}|${NUMBER_WORD})\\s+(?:${MAG_WORD})\\s+(?:${NON_MONEY_UNIT})\\b`).test(q)) {
+    return null;
+  }
 
   // 1) Magnitude form FIRST, so "$15k" isn't read as "$15" by the plain-dollar rule below.
   const MULT: Record<string, number> = {
@@ -524,11 +544,12 @@ export function parseTargetAmount(qRaw: string): number | null {
     grand: 1_000,
     thousand: 1_000,
     m: 1_000_000,
+    mil: 1_000_000,
     million: 1_000_000,
     bn: 1_000_000_000,
     billion: 1_000_000_000,
   };
-  const mag = q.match(new RegExp(`\\$?\\s?(${INT})(?:\\.(\\d{1,2}))?\\s*(k|m|bn|grand|thousand|million|billion)\\b`));
+  const mag = q.match(new RegExp(`\\$?\\s?(${INT})(?:\\.(\\d{1,2}))?\\s*(${MAG_WORD})\\b`));
   if (mag) {
     const base = toCents(`${mag[1]}${mag[2] ? `.${mag[2]}` : ''}`);
     if (base !== null) return finite(base * MULT[mag[3]]);
@@ -550,6 +571,41 @@ export function parseTargetAmount(qRaw: string): number | null {
     /\b(\d{1,3}(?:,\d{3})+)(?:\.(\d{1,2}))?\b(?!\s*(?:steps?|miles?|mi|km|kilometers?|meters?|points?|pts?|reps?|cal(?:ories)?|words?|ft|feet|members?|users?|followers?|views?|subscribers?|hours?|hrs?|minutes?|mins?|days?|items?|units?)\b)/,
   );
   if (grouped) return finite(toCents(`${grouped[1]}${grouped[2] ? `.${grouped[2]}` : ''}`));
+
+  // 5) Spoken count + magnitude ("ten million", "a million", "ten mil"). The word is a
+  // dollar count, so scale by 100 cents then the magnitude. Digits already matched above.
+  const WORD_TO_N: Record<string, number> = {
+    a: 1,
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    eleven: 11,
+    twelve: 12,
+    thirteen: 13,
+    fourteen: 14,
+    fifteen: 15,
+    sixteen: 16,
+    seventeen: 17,
+    eighteen: 18,
+    nineteen: 19,
+    twenty: 20,
+    thirty: 30,
+    forty: 40,
+    fifty: 50,
+    sixty: 60,
+    seventy: 70,
+    eighty: 80,
+    ninety: 90,
+  };
+  const wordedMag = q.match(new RegExp(`\\b(${NUMBER_WORD})\\s+(${MAG_WORD})\\b`));
+  if (wordedMag) return finite(WORD_TO_N[wordedMag[1]] * 100 * MULT[wordedMag[2]]);
 
   return null;
 }
@@ -1314,6 +1370,15 @@ function statedAmountIsPerPeriodRate(q: string): boolean {
   );
 }
 
+/** Two amounts, a floor/ceiling, or a negation — the parser must not pick one. */
+function statedAmountIsComparedOrNegated(q: string): boolean {
+  return (
+    /\b(or|vs\.?|versus|between|more than|less than|at least|at most)\b/.test(q) ||
+    /\b(not|never|except|excluding)\b/.test(q) ||
+    /n't\b/.test(q)
+  );
+}
+
 export function parseAssistantQuery(
   question: string,
   today: ISODate,
@@ -1417,6 +1482,35 @@ export function parseAssistantQuery(
   if (/\bretir(?:e|es|ed|ing|ement)\b/.test(q)) {
     const age = parseTargetAge(q);
     if (age !== null) return { kind: 'retire_at_age', targetAge: age, label: `age ${age}` };
+  }
+
+  // Wealth target with NO deadline (W.4). The dated sibling above already took
+  // "save $X by <date>" (linear /goals model). A stated amount without a date is
+  // the W.1 compounding question. A date shape we cannot window abstains rather
+  // than answering the open-ended planner under a year the user named (TASKS 2.7).
+  {
+    const amount = parseTargetAmount(q);
+    const strongGoalPhrase =
+      /\bsavings? goals?\b/.test(q) ||
+      /\bsaved? up\b/.test(q) ||
+      /\b(set|put) aside\b/.test(q) ||
+      /\b(sock|squirrel) away\b/.test(q) ||
+      /\b(down[\s-]?payment|emergency fund|nest egg|rainy[\s-]?day fund)\b/.test(q);
+    const saveVerb = /\b(save|saved|saving|accumulate|put away)\b/.test(q);
+    const reachVerb = /\b(reach|hit|get to)\b/.test(q);
+    const haveWealth = /\bhave\b/.test(q) && amount !== null && /\b(mil|million|billion)\b/.test(q);
+    const wantsGoal = strongGoalPhrase || ((saveVerb || reachVerb) && amount !== null) || haveWealth;
+    if (
+      amount !== null &&
+      wantsGoal &&
+      !statedAmountIsPerPeriodRate(q) &&
+      !statedAmountIsComparedOrNegated(q) &&
+      !unresolvedDateShape(q, today) &&
+      parseExplicitTimeframe(q, today) === null &&
+      parseTargetDate(q, today) === null
+    ) {
+      return { kind: 'wealth_target', targetCents: amount, label: formatCents(amount as Cents) };
+    }
   }
 
   // Debt payoff / debt-freedom (loans + overall debt) — BEFORE cash_needed so
@@ -1753,6 +1847,18 @@ export function validateIntent(
         return null;
       }
       return typeof o.label === 'string' ? { kind: 'retire_at_age', targetAge: o.targetAge, label: o.label } : null;
+    }
+    case 'wealth_target': {
+      if (
+        typeof o.targetCents !== 'number' ||
+        !Number.isInteger(o.targetCents) ||
+        !Number.isFinite(o.targetCents) ||
+        o.targetCents <= 0 ||
+        typeof o.label !== 'string'
+      ) {
+        return null;
+      }
+      return { kind: 'wealth_target', targetCents: o.targetCents, label: o.label };
     }
     case 'spend_total':
       return isTimeframe(o.timeframe) ? { kind: 'spend_total', timeframe: o.timeframe } : null;

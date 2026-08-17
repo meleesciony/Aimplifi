@@ -412,6 +412,23 @@ test('plans retire-at-age (inverse planning) and offers to save the age as a pla
   expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
 });
 
+test('routes a spoken wealth target to the compounding planner (W.4)', async ({ page }) => {
+  // W.1 shipped the engine and the /coach card; Ask did not route the owner's
+  // question. No save affordance — the card is the place to change the number.
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'if I want to save up to 10 mil what do I need to do?');
+
+  await expect(page.getByTestId('ask-headline')).not.toBeEmpty();
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
+  await expect(page.getByTestId('ask-answer')).toContainText('$10,000,000.00');
+  await expect(page.getByTestId('ask-save-goal')).toHaveCount(0);
+  await expect(page.getByText('I interpreted your question')).toHaveCount(0);
+
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(results.violations, JSON.stringify(results.violations.map((v) => v.id))).toEqual([]);
+});
+
 test('an off-topic question still returns a safe, non-empty answer (no crash)', async ({ page }) => {
   // Env-robust: with no LLM key this is the deterministic capabilities answer;
   // with a key the classifier routes it — either way the pipeline must not crash

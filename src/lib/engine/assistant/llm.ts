@@ -13,6 +13,7 @@
  * null with no key, exactly like categorize/llm.ts → the demo needs no key).
  */
 import type { ISODate } from '@/lib/dates';
+import { formatCents, type Cents } from '@/lib/money';
 import {
   type AssistantIntent,
   ASSISTANT_INTENT_KINDS,
@@ -20,6 +21,7 @@ import {
   largestScope,
   parseTargetAge,
   parseTargetAmount,
+  parseExplicitTimeframe,
   parseTargetDate,
   parseTimeframe,
   resolveSpendTarget,
@@ -48,6 +50,7 @@ export function buildIntentPrompt(question: string): string {
     '- debt_free_by_date: whether the user can be debt-free by a SPECIFIC date they name (e.g. "by December 2027", "in 3 years") and what extra payment it would take',
     '- savings_goal_by_date: whether the user can reach a SPECIFIC savings target by a date they name (e.g. "save $15,000 by December 2027", "set aside money for a down payment by 2028") and what monthly amount it would take',
     '- retire_at_age: whether the user can retire at a SPECIFIC age they name (e.g. "can I retire at 60?", "retire by age 67") and what monthly contribution it would take to make their money last',
+    '- wealth_target: a stated nest-egg / wealth number with NO deadline (e.g. "save up to 10 mil", "I want $10M", "what do I need to do to get to ten million") — when they would arrive at the current pace and what monthly contribution a horizon would take. If they name a date, use savings_goal_by_date instead',
     '- subscriptions: recurring subscriptions and their cost',
     '- forecast: projected cash balance / running out of money',
     '- savings_rate: percent of income saved',
@@ -152,17 +155,45 @@ export function intentFromKind(
     }
     case 'savings_goal_by_date': {
       // Both the date AND the amount are re-derived deterministically from the user's own
-      // words — the model supplied only the KIND, never a number. No parseable date → no goal
-      // to plan, so fall back to unknown rather than inventing a deadline. A missing amount
-      // stays null (the answer then asks for it).
+      // words — the model supplied only the KIND, never a number. No parseable date → if they
+      // still named an amount, that is the W.4 wealth-target question, not a deadline we invent.
+      // A missing amount stays null on the dated path (the answer then asks for it).
       const target = parseTargetDate(question, today);
-      return target ? { kind, targetDate: target.date, targetCents: parseTargetAmount(question), label: target.label } : null;
+      if (target) {
+        return { kind, targetDate: target.date, targetCents: parseTargetAmount(question), label: target.label };
+      }
+      const amount = parseTargetAmount(question);
+      return amount !== null
+        ? { kind: 'wealth_target', targetCents: amount, label: formatCents(amount as Cents) }
+        : null;
     }
     case 'retire_at_age': {
       // The age is re-derived deterministically from the user's own words — the model supplied
       // only the KIND, never the number. No stated age → keep `unknown` rather than guessing.
       const age = parseTargetAge(question);
       return age !== null ? { kind, targetAge: age, label: `age ${age}` } : null;
+    }
+    case 'wealth_target': {
+      // Amount re-derived from the user's words. A parseable deadline is the dated sibling
+      // (linear /goals model) — do not answer the compounding planner under a date they named.
+      const dated = parseTargetDate(question, today);
+      const amount = parseTargetAmount(question);
+      if (dated) {
+        return {
+          kind: 'savings_goal_by_date',
+          targetDate: dated.date,
+          targetCents: amount,
+          label: dated.label,
+        };
+      }
+      if (
+        amount === null ||
+        unresolvedDateShape(question, today) ||
+        parseExplicitTimeframe(question, today) !== null
+      ) {
+        return null;
+      }
+      return { kind, targetCents: amount, label: formatCents(amount as Cents) };
     }
     default:
       return null;

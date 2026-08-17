@@ -131,6 +131,13 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
         'What is my net worth?',
       ]);
 
+    case 'wealth_target':
+      return take([
+        'Can I save $20,000 by December 2028?',
+        "What's my savings rate?",
+        'What is my net worth?',
+      ]);
+
     case 'subscriptions':
       return take([
         'How much did I spend this month?',

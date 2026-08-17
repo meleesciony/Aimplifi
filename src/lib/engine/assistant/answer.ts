@@ -57,6 +57,8 @@ import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
 import type { DebtFreeByDateResult } from '@/lib/engine/solve/debt-free-by-date';
 import type { SavingsGoalByDateResult } from '@/lib/engine/solve/savings-goal-by-date';
 import type { RetireAtAgeResult } from '@/lib/engine/solve/retire-at-age';
+import type { WealthTargetResult } from '@/lib/engine/solve/wealth-target';
+import type { DialOwnership } from '@/lib/engine/settings/dials';
 import type { AssistantIntent, SpendTarget, Timeframe } from './intent';
 // Type-only (erased at runtime) — trace.ts imports runtime values FROM this file,
 // so a value import would cycle; a type import does not. The server attaches the
@@ -2043,6 +2045,113 @@ export function answerRetireAtAge(
   };
 }
 
+// ─── wealth target (compounding planner via Ask, W.4 / DECISIONS #484) ────────
+
+const WEALTH_TARGET_SOURCE: AssistantSource = { label: 'Open wealth target', href: '/coach' };
+
+/**
+ * Phrases the SAME two solves the /coach wealth-target card runs (open-ended pace,
+ * then required monthly at the seeded horizon). Every string is a COACH_COPY
+ * sentence the card already ships — this formatter selects, it does not invent.
+ */
+export function answerWealthTarget(
+  pace: WealthTargetResult,
+  required: WealthTargetResult,
+  ctx: {
+    horizonYears: number;
+    horizonBasis: 'seeded' | 'chosen' | 'fallback';
+    contributionBasis: 'settings-savings-pct' | 'recent-surplus';
+    historicalMonthlySavingsCents: number;
+    averagedOverMonths: number;
+    dialOwnership: DialOwnership;
+    nominalReturnBps: number;
+    inflationBps: number;
+  },
+): AssistantAnswer {
+  if (required.unreachableReason === 'target-out-of-range' || pace.unreachableReason === 'target-out-of-range') {
+    return {
+      kind: 'wealth_target',
+      headline: COACH_COPY.wealthTargetOutOfRange(),
+      facts: [],
+      source: WEALTH_TARGET_SOURCE,
+    };
+  }
+
+  const starting = COACH_COPY.wealthTargetStartingFrom(pace.currentPortfolioCents as Cents);
+  const basis = COACH_COPY.wealthTargetBasis(
+    pace.targetAmountCents as Cents,
+    pace.realReturnBps,
+    ctx.nominalReturnBps,
+    ctx.inflationBps,
+    pace.realReturnFloored,
+    ctx.dialOwnership,
+  );
+
+  if (pace.outcome === 'already-there') {
+    return {
+      kind: 'wealth_target',
+      headline: COACH_COPY.wealthTargetAlreadyThere(
+        pace.currentPortfolioCents as Cents,
+        pace.targetAmountCents as Cents,
+      ),
+      detail: `${starting} ${basis} Illustration, not advice — in today's dollars.`,
+      facts: [
+        { label: 'Target', value: fmt(pace.targetAmountCents) },
+        { label: 'Investment accounts', value: fmt(pace.currentPortfolioCents) },
+      ],
+      source: WEALTH_TARGET_SOURCE,
+    };
+  }
+
+  const headline = COACH_COPY.wealthTargetPaceLine({
+    basis: ctx.contributionBasis,
+    contributionCents: pace.currentMonthlyContributionCents as Cents,
+    contributionFloored: pace.contributionFloored,
+    historicalCents: ctx.historicalMonthlySavingsCents as Cents,
+    averagedOverMonths: ctx.averagedOverMonths,
+    arrivalMonths: pace.monthsAtCurrentRate,
+    realBps: pace.realReturnBps,
+  });
+
+  const requiredLine =
+    required.requiredMonthlyCents === null
+      ? COACH_COPY.wealthTargetDeadlineTooSoon()
+      : COACH_COPY.wealthTargetRequired(
+          required.requiredMonthlyCents as Cents,
+          ctx.horizonYears,
+          required.realReturnBps,
+          ctx.inflationBps,
+          ctx.dialOwnership,
+        );
+  const shareLine =
+    required.requiredSavingsRateBps === null || required.outcome === 'already-there'
+      ? ''
+      : required.requiredSavingsRateBps > 10000
+        ? ` ${COACH_COPY.wealthTargetRequiredExceedsIncome()}`
+        : ` ${COACH_COPY.wealthTargetRequiredShare(required.requiredSavingsRateBps, ctx.averagedOverMonths)}`;
+  const horizonLine = ` ${COACH_COPY.wealthTargetHorizonBasis(ctx.horizonBasis)}`;
+
+  const facts: AssistantFact[] = [
+    { label: 'Target', value: fmt(pace.targetAmountCents) },
+    { label: 'Investment accounts', value: fmt(pace.currentPortfolioCents) },
+    { label: 'Current monthly put-away', value: `${fmt(pace.currentMonthlyContributionCents)}/mo` },
+  ];
+  if (required.requiredMonthlyCents !== null) {
+    facts.push({
+      label: 'Monthly contribution to arrive',
+      value: `${fmt(required.requiredMonthlyCents)}/mo`,
+    });
+  }
+
+  return {
+    kind: 'wealth_target',
+    headline,
+    detail: `${starting} ${basis} ${requiredLine}${shareLine}${horizonLine} Illustration, not advice — in today's dollars.`,
+    facts,
+    source: WEALTH_TARGET_SOURCE,
+  };
+}
+
 // ─── subscriptions ──────────────────────────────────────────────────────────
 
 export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer {
@@ -2172,6 +2281,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'Can I be debt-free by December 2028?',
   'Can I save $20,000 by December 2028?',
   'Can I retire at 60?',
+  'If I want to save up to $10 million, what do I need to do?',
 ];
 
 export function answerUnknown(): AssistantAnswer {

@@ -6,6 +6,20 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-17 — W.4: route a wealth target through Ask (DECISIONS #484)
+
+**The report.** W.1 shipped the compounding planner and the /coach card. The owner's spoken question ("if I want to save up to 10 mil … what do I need to do?") did not route: `parseTargetAmount` missed `mil` and "ten million", and a dateless save+amount was not an intent.
+
+**Shipped.** New `wealth_target` intent. Amount re-derived from the user's words. No date → same two `solveWealthTarget` calls the card runs (pace, then required monthly at `seededHorizon`). A named date stays on the linear `savings_goal_by_date` solver. Copy selected from existing `COACH_COPY.wealthTarget*` strings. Source `/coach`. No save action.
+
+**Locked.** `tests/unit/assistant-wealth-target.test.ts` `test_regression__w4_owner_question_routes_to_wealth_target` plus abstention majority.
+
+**Critic (self, 1 cycle):** 0 P0 / 0 P1. Not a new money-math engine — W.1's solver is unchanged. P2: out-of-range Ask headline reuses the card's "Enter a target…" sentence (unreachable through the parser's bounds).
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit **7,142 passed + 1 expected fail + 1 skipped / 432 files + 1 skipped**, `next build` clean. Playwright `tests/e2e/ask.spec.ts` W.4 test **1/1** on that build. No `prisma/` diff.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-17 — W.8: every COACH_COPY key enters the guardrail scan (DECISIONS #483)
 
 **The report.** Seven function-valued keys sat in `KNOWN_UNSCANNED`. The shame, projection-assumption, and ticker sweeps never saw those strings. Four of the seven were already composed under `nextAction:*` labels whose prefix is `nextAction`, so the completeness check could not count them.
