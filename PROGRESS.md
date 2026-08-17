@@ -20,6 +20,12 @@ eslint 0, unit **7,121 passed + 1 expected fail + 1 skipped
 / 431 files + 1 skipped**, `next build` clean. No e2e (no
 UI). No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `3859bd59`. CI run
+**32050235581** `success` (13m50s). Vercel: `READY`, same
+sha, aliased to `www.aimplifi.app`. Production `/`,
+`/accounts`, `/dashboard` 307; `/sign-in` 200. No UI
+marker (scan-table only). No `prisma/` diff.
+
 **Next.** U.15(b) is the owner's call. U.1 stays
 "eventually." O.20j / O.20h / O.20c stay off this model.
 

@@ -18,6 +18,8 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit **7,121 passed + 1 expected fail + 1 skipped / 431 files + 1 skipped**, `next build` clean. No e2e (no UI; scan-table only). No `prisma/` diff.
 
+**Gate read.** CI run **32050235581** on `3859bd59` = SUCCESS (13m50s, full VERIFY_E2E). Vercel: `READY`, "Deployment has completed", same sha (`githubCommitSha` 3859bd5934febc2afb470deb759f2d78a42dcb4c), aliased to `www.aimplifi.app`. Production `/`, `/accounts`, `/dashboard` 307; `/sign-in` 200. No UI marker (scan-table only).
+
 **Schema.** None.
 
 ## ✅ BUILT 2026-08-16 — O.17a: money dials key by category id (DECISIONS #482)
