@@ -18,7 +18,7 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit **7,101 passed + 1 expected fail + 1 skipped / 431 files + 1 skipped**, `next build` clean. Playwright `tests/e2e/settings-dials.spec.ts` **4/4** on that build (picker check/uncheck round-trip). No `prisma/` diff.
 
-**Gate read.** Not pushed this session — local verify only.
+**Gate read.** First Actions attempt on `5b179045` cancelled at the 30m job cap during Verify (no test conclusion). Rerun of the same run **31984900659** = SUCCESS (12m29s, full VERIFY_E2E). Vercel: `success`, "Deployment has completed", same sha. Production `/`, `/accounts`, `/dashboard`, `/settings` 307; `/sign-in` 200. Picker is behind sign-in; CI e2e asserted the checkbox round-trip on this sha.
 
 **Schema.** None.
 

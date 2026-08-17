@@ -19,7 +19,16 @@ the categories.
 **Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0,
 eslint 0, unit **7,101 passed + 1 expected fail + 1 skipped
 / 431 files + 1 skipped**, `next build` clean. settings-dials
-e2e **4/4**. No `prisma/` diff. Not pushed this session.
+e2e **4/4**. No `prisma/` diff.
+
+**Shipped and proven live.** Pushed as `7fdd7d9` (O.17a) +
+`5b179045` (always-commit-push rule). First CI attempt
+cancelled at the 30m job cap; rerun of **31984900659**
+`success` (12m29s). Vercel: `success`, "Deployment has
+completed", same sha. Production `/`, `/accounts`,
+`/dashboard`, `/settings` 307; `/sign-in` 200. Picker is
+behind sign-in; CI e2e asserted it on this sha. No
+`prisma/` diff.
 
 **Next.** U.15(b) is the owner's call. U.1 stays
 "eventually." O.20j / O.20h / O.20c stay off this model.
