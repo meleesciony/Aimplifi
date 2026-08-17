@@ -18,6 +18,8 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit **7,142 passed + 1 expected fail + 1 skipped / 432 files + 1 skipped**, `next build` clean. Playwright `tests/e2e/ask.spec.ts` W.4 test **1/1** on that build. No `prisma/` diff.
 
+**Gate read.** CI run **32062765141** on `55107fd0` = SUCCESS (12m22s, full VERIFY_E2E, attempt 1). Vercel: `READY` (`dpl_CFfj62stbEUam3v8gfWSbHw99zYt` / `aimplifi-664pdzb20`), same sha (`githubCommitSha` 55107fd0525f1aa07cd9495afc51bfa088c67e5b), aliased to `www.aimplifi.app`. Production `/`, `/accounts`, `/dashboard`, `/ask` 307; `/sign-in` 200. Ask is behind sign-in; CI e2e asserted the spoken-wealth-target route on this sha. No public HTML marker.
+
 **Schema.** None.
 
 ## ✅ BUILT 2026-08-17 — W.8: every COACH_COPY key enters the guardrail scan (DECISIONS #483)

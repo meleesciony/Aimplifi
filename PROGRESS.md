@@ -21,6 +21,14 @@ eslint 0, unit **7,142 passed + 1 expected fail + 1 skipped
 / 432 files + 1 skipped**, `next build` clean. Ask W.4 e2e
 **1/1**. No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `55107fd0`. CI run
+**32062765141** `success` (12m22s, attempt 1). Vercel:
+`READY`, same sha, aliased to `www.aimplifi.app`.
+Production `/`, `/accounts`, `/dashboard`, `/ask` 307;
+`/sign-in` 200. Ask is behind sign-in; CI e2e asserted
+the route on this sha. No public HTML marker. No
+`prisma/` diff.
+
 **Next.** U.15(b) is the owner's call. U.1 stays
 "eventually." O.20j / O.20h / O.20c stay off this model.
 
