@@ -554,6 +554,22 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     isProjection: false,
   },
   { label: 'nextAction:automate', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionAutomate()), isProjection: false },
+  // W.8 — each key must appear as the label prefix so the completeness pin can shrink.
+  // The composed `nextAction:*` rows above still scan the wrapper+inner pair; these
+  // scan the inner strings (and the wrapper) on their own names.
+  { label: 'reviewNextAction', text: COACH_COPY.reviewNextAction(COACH_COPY.nextActionAutomate()), isProjection: false },
+  { label: 'reviewPersonalizedBadge', text: COACH_COPY.reviewPersonalizedBadge(), isProjection: false },
+  { label: 'nextActionCancelSub', text: COACH_COPY.nextActionCancelSub('LA Fitness', cents(3499)), isProjection: false },
+  { label: 'nextActionTransfer', text: COACH_COPY.nextActionTransfer(cents(105000), 'Tue, Jun 23', null), isProjection: false },
+  {
+    label: 'nextActionTransfer:frozen',
+    text: COACH_COPY.nextActionTransfer(cents(105000), 'Tue, Jun 23', {
+      label: 'Everyday Checking',
+      frozenSince: '2026-06-01',
+    }),
+    isProjection: false,
+  },
+  { label: 'nextActionAutomate', text: COACH_COPY.nextActionAutomate(), isProjection: false },
   { label: 'disclaimer', text: COACH_COPY.disclaimer(), isProjection: false },
   // Wave 1 principle captions
   { label: 'invisibleWealth', text: COACH_COPY.invisibleWealth(cents(235000), 'May 2026'), isProjection: false },
@@ -606,6 +622,11 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'digestIntro', text: COACH_COPY.digestIntro('June 10, 2026'), isProjection: false },
   { label: 'digestPaymentsHeader', text: COACH_COPY.digestPaymentsHeader(), isProjection: false },
   { label: 'digestNothingDue', text: COACH_COPY.digestNothingDue(), isProjection: false },
+  // W.8 — both count branches: a second string these functions produce.
+  { label: 'digestNothingDueWithUndated', text: COACH_COPY.digestNothingDueWithUndated(1), isProjection: false },
+  { label: 'digestNothingDueWithUndated:many', text: COACH_COPY.digestNothingDueWithUndated(3), isProjection: false },
+  { label: 'digestUndatedAlongsideDues', text: COACH_COPY.digestUndatedAlongsideDues(1), isProjection: false },
+  { label: 'digestUndatedAlongsideDues:many', text: COACH_COPY.digestUndatedAlongsideDues(3), isProjection: false },
   { label: 'digestOutro', text: COACH_COPY.digestOutro(), isProjection: false },
   { label: 'runway:noExpenses', text: COACH_COPY.runway(Infinity), isProjection: false },
   { label: 'reviewImprovementRunway:negative', text: COACH_COPY.reviewImprovementRunway(-2.3), isProjection: false },
@@ -1298,26 +1319,16 @@ describe('C.10 — the pace line branches on the contribution basis, and a plan 
  * everything.
  */
 describe('the guardrail scan covers every string COACH_COPY can emit', () => {
-  it('has an ALL_STRINGS row for every function-valued key', () => {
+  it('test_regression__w8_every_coach_copy_key_is_scanned', () => {
     const covered = new Set(ALL_STRINGS.map((s) => s.label.split(':')[0]));
     const emitters = Object.entries(COACH_COPY)
       .filter(([, v]) => typeof v === 'function')
       .map(([k]) => k);
     expect(emitters.length).toBeGreaterThan(0);
     const missing = emitters.filter((k) => !covered.has(k));
-    // A pre-existing gap this check FOUND, pinned rather than quietly widened into the
-    // assertion. Every one of these predates this slice; the list may only shrink, so adding a
-    // new COACH_COPY key without an ALL_STRINGS row fails here, and closing one of the seven
-    // means deleting a line that explains itself (TASKS W.8).
-    const KNOWN_UNSCANNED = [
-      'reviewNextAction',
-      'reviewPersonalizedBadge',
-      'nextActionCancelSub',
-      'nextActionTransfer',
-      'nextActionAutomate',
-      'digestNothingDueWithUndated',
-      'digestUndatedAlongsideDues',
-    ];
+    // W.8 closed the seven-key pin. The list may only shrink; a new COACH_COPY
+    // key without an ALL_STRINGS row fails here.
+    const KNOWN_UNSCANNED: string[] = [];
     const unexpected = missing.filter((k) => !KNOWN_UNSCANNED.includes(k));
     expect(unexpected, `COACH_COPY keys with no ALL_STRINGS row: ${unexpected.join(', ')}`).toEqual(
       [],

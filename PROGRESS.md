@@ -2,6 +2,27 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-17 — W.8: every COACH_COPY key enters the guardrail scan (DECISIONS #483)
+
+**Picked up from the queue** (O.17a shipped; U.15(b) is the owner's
+call; U.1 stays "eventually"; O.20j/h/c stay off this model).
+
+**Closed — register by name, empty the pin.** Seven keys now have
+`ALL_STRINGS` rows (digest singular+plural; transfer frozen+live).
+Copy unchanged; sweeps passed. `KNOWN_UNSCANNED` is `[]`.
+
+**Locked.** coach-copy `test_regression__w8_every_coach_copy_key_is_scanned`.
+
+**Critic (self, 1 cycle):** 0 P0 / 0 P1. No string changed.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0,
+eslint 0, unit **7,121 passed + 1 expected fail + 1 skipped
+/ 431 files + 1 skipped**, `next build` clean. No e2e (no
+UI). No `prisma/` diff.
+
+**Next.** U.15(b) is the owner's call. U.1 stays
+"eventually." O.20j / O.20h / O.20c stay off this model.
+
 ## 2026-08-16 — O.17a: money dials key by category id (DECISIONS #482)
 
 **Picked up from the queue** (G.2 shipped; U.15(b) is the owner's

@@ -6,6 +6,20 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-17 — W.8: every COACH_COPY key enters the guardrail scan (DECISIONS #483)
+
+**The report.** Seven function-valued keys sat in `KNOWN_UNSCANNED`. The shame, projection-assumption, and ticker sweeps never saw those strings. Four of the seven were already composed under `nextAction:*` labels whose prefix is `nextAction`, so the completeness check could not count them.
+
+**Shipped.** Named `ALL_STRINGS` rows for all seven, including both digest count branches and the frozen-funding transfer branch. `KNOWN_UNSCANNED` is empty. Copy unchanged — the sweeps passed on the existing sentences.
+
+**Locked.** `tests/unit/coach-copy.test.ts` `test_regression__w8_every_coach_copy_key_is_scanned`.
+
+**Critic (self, 1 cycle):** 0 P0 / 0 P1. No string changed, so the money-visible-copy critic the row named does not apply. P2: the composed `nextAction:*` rows remain as a second scan of the wrapper+inner pair.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit **7,121 passed + 1 expected fail + 1 skipped / 431 files + 1 skipped**, `next build` clean. No e2e (no UI; scan-table only). No `prisma/` diff.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-16 — O.17a: money dials key by category id (DECISIONS #482)
 
 **The report.** `User.moneyDials` was a free-text name list. A rename detached the marker; two categories could share a label; coach cut proposals compared those names to `categoryId` and never protected a dial.

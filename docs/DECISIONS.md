@@ -8103,3 +8103,29 @@ names on the write path.
 **Locked.** `tests/unit/o17a-money-dial-ids.test.ts`
 `test_regression__o17a_*` (id survives rename; built-in and current
 name map; ambiguous "Travel" dropped; unknown dropped; custom id/name).
+
+## #483 — W.8: every COACH_COPY key enters the guardrail scan (2026-08-17)
+
+**Context.** The completeness test found seven function-valued keys
+outside `ALL_STRINGS` (`reviewNextAction`, `reviewPersonalizedBadge`,
+`nextActionCancelSub`, `nextActionTransfer`, `nextActionAutomate`,
+`digestNothingDueWithUndated`, `digestUndatedAlongsideDues`) and pinned
+them in `KNOWN_UNSCANNED`. The shame, projection-assumption, and ticker
+sweeps never saw those strings. Four of the seven were already scanned
+as composed `nextAction:*` rows whose label prefix is `nextAction`, so
+the completeness check could not count them.
+
+**Decision: register the keys by name; empty the pin.** Representative
+args include both digest count branches and the frozen-funding transfer
+branch (second strings those functions produce). Existing composed
+`nextAction:*` rows stay — they still scan the wrapper+inner pair.
+Copy is unchanged; the sweeps passed on the existing sentences, so no
+string was rewritten.
+
+**Rejected.** Editing copy to "pass" a sweep (none failed). Dropping
+the composed rows (they scan a different string). Leaving a non-empty
+pin.
+
+**Locked.** `tests/unit/coach-copy.test.ts`
+`test_regression__w8_every_coach_copy_key_is_scanned` (`KNOWN_UNSCANNED`
+is empty; a new key without a row fails).
