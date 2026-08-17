@@ -6,7 +6,7 @@ every invariant marked ✔ below.
 
 ## Demo user
 - email `demo@pulse.finance`, hourly wage $38.00/hr (after-tax effective),
-  SWR 400 bps, expected return 700 bps, money dials: ["Travel", "Dining Out"].
+  SWR 400 bps, expected return 700 bps, money dials: ["travel", "dining"] (category ids; display as Travel and Dining Out).
 - Payment account = "Everyday Checking".
 
 ## Accounts (✔ counts)

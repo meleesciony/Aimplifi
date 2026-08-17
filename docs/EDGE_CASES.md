@@ -359,8 +359,9 @@ string-only (no float math): a percent has exactly 2-decimal resolution (1 bps =
   - Expected return 0–1500 bps (0%–15%). `0` is accepted (the FI engine's explicit
     "no growth" branch).
   - Wage 1–1,000,000 cents ($0.01–$10,000.00/hr); empty clears it (→ null).
-  - Money dials: ≤ 12 entries, each ≤ 40 chars after trim; control chars stripped,
-    case-insensitive dedupe (first casing wins).
+  - Money dials: ≤ 12 budgetable category ids (picker write path). Stored leftover
+    names resolve on read only when the match is unique; ambiguous/unknown tokens
+    are dropped. Control chars stripped; case-insensitive dedupe.
   - Payment account: must be one the user OWNS and of type CHECKING/SAVINGS.
 - **Error accumulation:** all invalid fields report at once (one round-trip), so the
   form never plays whack-a-mole.

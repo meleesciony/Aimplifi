@@ -53,7 +53,9 @@ import { buildReviewCandidates, selectReview, type ReviewRole } from '@/lib/engi
 import { DEMO_USER_ID } from '@/lib/demo-user';
 import { aiAuditSink } from '@/server/ai-audit';
 import { orderReviewViaLLM } from './money-review-llm';
-import { parseStoredDials, returnIsAppDefault } from '@/lib/engine/settings/dials';
+import { returnIsAppDefault } from '@/lib/engine/settings/dials';
+import { dialDisplayNames } from '@/lib/engine/settings/money-dial-ids';
+import { loadDialCatalog, resolvedMoneyDialIds } from '@/server/money-dials';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { formatISODate } from '@/lib/dates';
@@ -206,7 +208,10 @@ export interface CoachData {
   };
   lifeEnergy: { merchant: string; amountCents: number; hours: number; date: string }[];
   hourlyWageCents: number;
+  /** Display names for coach copy (resolved from stored ids/names). */
   moneyDials: string[];
+  /** Category ids for cut proposals — never names (O.17a). */
+  moneyDialIds: string[];
   /**
    * Trailing average monthly discretionary spend by category (DECISIONS #375) —
    * cut-proposal input for the wealth-target card. Money dials are applied at
@@ -257,7 +262,11 @@ export async function getCoachData(
   const snap = await provider.getFinanceSnapshot(userId);
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('User not found');
-  const meta = await getCategoryMeta(userId); // custom-category aware creep (DECISIONS #111)
+  const [meta, dialCatalog] = await Promise.all([
+    getCategoryMeta(userId), // custom-category aware creep (DECISIONS #111)
+    loadDialCatalog(userId),
+  ]);
+  const moneyDialIds = resolvedMoneyDialIds(user.moneyDials, dialCatalog);
   // U.35: off the snapshot above, not a later `getReconciliationHandoverKeys`.
   // This page draws two transaction panels — the savings-rate chart's month
   // flows and the lifestyle-creep bars — and both tick "matched to the penny"
@@ -593,7 +602,8 @@ export async function getCoachData(
     frozenBalances,
     lifeEnergy,
     hourlyWageCents: wage,
-    moneyDials: parseStoredDials(user.moneyDials),
+    moneyDials: dialDisplayNames(moneyDialIds, dialCatalog),
+    moneyDialIds,
     discretionaryCategorySpend: averageDiscretionaryCategorySpend(
       txns,
       isoDate(today),

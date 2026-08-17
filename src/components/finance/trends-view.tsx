@@ -220,8 +220,8 @@ export function TrendsView({
   // now read one helper (fix the data class, not the reported surface).
   const paceDelta = pace ? paceDeltaRelation(pace.deltaVsPriorCents) : null;
   const paceBills = pace ? paceBillsPhrase(pace) : null;
-  // money dials are user-configured category labels; tag a mover when its category is one
-  const dialSet = new Set(dials.map((d) => d.toLowerCase()));
+  // money dials are category ids (O.17a); leftover stored names are resolved on the page
+  const dialSet = new Set(dials);
   const linkable = new Set(linkableCategoryIds);
   // C.25 (#403, critic P1-4): a mover figure that dropped excluded loan
   // payments cannot link to a register that still counts them.
@@ -414,7 +414,7 @@ export function TrendsView({
                 m={m}
                 href={moverHref(m)}
                 monthLabel={comparedYm ? shortMonth(comparedYm) : 'that month'}
-                isDial={dialSet.has(m.name.toLowerCase())}
+                isDial={dialSet.has(m.categoryId)}
                 breakdown={breakdowns[m.categoryId]}
               />
             ))}

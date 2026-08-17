@@ -475,3 +475,4 @@ refuses to write if it would drop any number this file already carries.
 - **#479** (Phase ?): C.20: pace credit attributes through the month total's category nets (2026-08-15)
 - **#480** (Phase ?): C.22: detect each payment-account feed, then union (2026-08-15)
 - **#481** (Phase ?): G.2: audit probes compile under the verify gate (2026-08-16)
+- **#482** (Phase ?): O.17a: money dials key by category id (2026-08-16)

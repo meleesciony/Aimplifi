@@ -37,7 +37,7 @@ const SEED_DIALS: RawDials = {
   wage: '38',
   swr: '4',
   expectedReturn: '7',
-  moneyDials: 'Travel, Dining Out',
+  moneyDials: 'travel, dining',
   paymentAccountId: 'acct-checking',
   currentAge: '',
   retirementAge: '',
@@ -125,7 +125,7 @@ describe('validateDials — happy paths', () => {
       hourlyWageCents: 3800,
       swrBps: 400,
       expectedReturnBps: 700,
-      moneyDials: ['Travel', 'Dining Out'],
+      moneyDials: ['travel', 'dining'],
       paymentAccountId: 'acct-checking',
       // Empty planning fields normalize to null ("unset → use the default").
       currentAge: null,
@@ -229,16 +229,30 @@ describe('validateDials — rejections', () => {
   });
 
   it('rejects more than the max number of money dials', () => {
-    const many = Array.from({ length: DIAL_LIMITS.dials.maxCount + 1 }, (_, i) => `D${i}`).join(',');
+    const many = [
+      'travel',
+      'dining',
+      'groceries',
+      'shopping',
+      'clothing',
+      'hobbies',
+      'rent',
+      'utilities',
+      'fuel',
+      'fitness',
+      'entertainment',
+      'subscriptions',
+      'coffee',
+    ].join(',');
+    expect(many.split(',').length).toBe(DIAL_LIMITS.dials.maxCount + 1);
     const r = validateDials({ ...SEED_DIALS, moneyDials: many }, ELIGIBLE);
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.errors.moneyDials).toBeTruthy();
   });
 
-  it('rejects a money dial that is too long', () => {
-    const long = 'x'.repeat(DIAL_LIMITS.dials.maxLen + 1);
-    const r = validateDials({ ...SEED_DIALS, moneyDials: long }, ELIGIBLE);
+  it('rejects a money dial that is not a budgetable category id', () => {
+    const r = validateDials({ ...SEED_DIALS, moneyDials: 'Climbing' }, ELIGIBLE);
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.errors.moneyDials).toBeTruthy();
@@ -250,7 +264,7 @@ describe('validateDials — rejections', () => {
         wage: 'x',
         swr: '0',
         expectedReturn: '99',
-        moneyDials: 'x'.repeat(50),
+        moneyDials: 'not-a-category',
         paymentAccountId: '',
         currentAge: '5', // below the 18 minimum
         retirementAge: 'nope', // malformed
@@ -512,20 +526,12 @@ describe('parseStoredDials / encodeDials (the stored-column boundary)', () => {
 });
 
 describe('validateDials — unicode + whitespace-only edge cases', () => {
-  it('counts dial length in code points, not UTF-16 units', () => {
-    // 8 multi-code-unit emoji = 8 visible chars, well under the 40 limit
-    const eightEmoji = '😀😀😀😀😀😀😀😀';
-    const r = validateDials({ ...SEED_DIALS, moneyDials: eightEmoji }, ELIGIBLE);
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.value.moneyDials).toEqual([eightEmoji]);
-  });
-  it('rejects a dial whose code-point length exceeds the limit even if emoji', () => {
-    const tooMany = '😀'.repeat(DIAL_LIMITS.dials.maxLen + 1);
-    const r = validateDials({ ...SEED_DIALS, moneyDials: tooMany }, ELIGIBLE);
-    expect(r.ok).toBe(false);
-    if (r.ok) return;
-    expect(r.errors.moneyDials).toBeTruthy();
+  it('accepts a known category id and refuses a leftover free-text name on write', () => {
+    const ok = validateDials({ ...SEED_DIALS, moneyDials: 'hobbies' }, ELIGIBLE);
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(ok.value.moneyDials).toEqual(['hobbies']);
+    const name = validateDials({ ...SEED_DIALS, moneyDials: 'Hobbies & Sporting Goods' }, ELIGIBLE);
+    expect(name.ok).toBe(false);
   });
   it('rejects whitespace-only required rate fields (not just non-numeric)', () => {
     for (const field of ['swr', 'expectedReturn'] as const) {

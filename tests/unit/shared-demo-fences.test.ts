@@ -65,7 +65,8 @@ describe('shared-demo fences (server actions refuse before any write)', () => {
     fd.set('swr', '4');
     fd.set('expectedReturn', '7');
     fd.set('wage', '38');
-    fd.set('moneyDials', 'Travel, Dining Out');
+    fd.append('moneyDialId', 'travel');
+    fd.append('moneyDialId', 'dining');
 
     const res = await updateMoneyDials(null, fd);
 

@@ -14,7 +14,7 @@ import { isoDate } from '@/lib/dates';
 describe('discretionary cuts (#375)', () => {
   it('test_regression__money_dials_protect_named_categories_from_cut_list', () => {
     const cuts = proposeDiscretionaryCuts({
-      moneyDials: ['Golf', 'Dining Out'],
+      moneyDials: ['dining'],
       gapCents: 200_000,
       categories: [
         { categoryId: 'fitness', categoryName: 'Fitness', monthlyCents: 80_000, discretionary: true },
@@ -43,10 +43,10 @@ describe('discretionary cuts (#375)', () => {
     ).toEqual([]);
   });
 
-  it('matches dials case-insensitively and by containment', () => {
-    expect(categoryMatchesMoneyDial('Dining Out', ['dining'])).toBe(true);
-    expect(categoryMatchesMoneyDial('Fitness', ['golf'])).toBe(false);
-    expect(categoryMatchesMoneyDial('Kids Activities', ['kids activities'])).toBe(true);
+  it('matches dials by category id, not by name containment', () => {
+    expect(categoryMatchesMoneyDial('dining', ['dining'])).toBe(true);
+    expect(categoryMatchesMoneyDial('fitness', ['dining'])).toBe(false);
+    expect(categoryMatchesMoneyDial('kids-activities', ['kids-activities'])).toBe(true);
   });
 
   it('test_regression__wealth_contribution_prefers_settings_savings_pct', () => {

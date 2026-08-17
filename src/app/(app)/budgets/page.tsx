@@ -3,10 +3,11 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CATEGORIES, CATEGORY_BY_ID, categoryName, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
+import { CATEGORIES, categoryName, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
 import { isSpendRow, wholeMonthWindow } from '@/lib/engine/reports/reports';
 import { isBudgetable, netSpendByCategory, summarizeBudgets } from '@/lib/engine/budgets/status';
 import { parseStoredDials } from '@/lib/engine/settings/dials';
+import { buildDialCatalog, resolveMoneyDialIds } from '@/lib/engine/settings/money-dial-ids';
 import { cents, formatCents } from '@/lib/money';
 import { formatMonth } from '@/lib/dates';
 import { getProvider } from '@/lib/providers/demo';
@@ -151,7 +152,8 @@ export default async function BudgetsPage() {
   const linkable = new Set(linkableCategoryIds);
 
   const meta = mergeCategoryMeta(overlay.custom, overlay.renames);
-  const dials = new Set<string>(parseStoredDials(user?.moneyDials));
+  const dialCatalog = buildDialCatalog(overlay.custom, overlay.renames, hiddenCategoryIds);
+  const dialIdSet = new Set(resolveMoneyDialIds(parseStoredDials(user?.moneyDials), dialCatalog));
   const budgetByCategory = new Map(budgets.map((b) => [b.categoryId, b.monthCents]));
   // Reconciliation boundary (slice-6 critic C-3): a mid-month provider migration backfills
   // the month on the successor while the predecessor still holds the same purchases, so a
@@ -225,14 +227,7 @@ export default async function BudgetsPage() {
 
   const rows = summarizeBudgets(spendByCategory, budgetByCategory, {
     name: (id) => categoryName(id, meta),
-    // Money dials are stored as free TEXT the reader typed (User.moneyDials), and
-    // the settings field suggests built-in names ("Travel, Dining Out, Hobbies"),
-    // so a rename would silently detach the marker from the category it was set
-    // on. Match either name: the dial keeps marking the same bucket after a
-    // rename, and starts marking one whose new name the reader typed. Keying
-    // dials by id instead is the real fix and is a separate change (they are a
-    // free-text list, not a category picker) — recorded in TASKS.
-    isDial: (id) => dials.has(categoryName(id, meta)) || dials.has(CATEGORY_BY_ID.get(id)?.name ?? ''),
+    isDial: (id) => dialIdSet.has(id),
   });
 
   // Owner request 2026-07-31: every one of these rows expands to the

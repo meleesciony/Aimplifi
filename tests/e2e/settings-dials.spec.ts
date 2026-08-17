@@ -164,7 +164,9 @@ test('money dials: a real user sees defaults, validation, and persistence round-
   await expect(page.getByTestId('dials-swr')).toHaveValue('4');
   await expect(page.getByTestId('dials-return')).toHaveValue('7');
   await expect(page.getByTestId('dials-wage')).toHaveValue('');
-  await expect(page.getByTestId('dials-money-dials')).toHaveValue('');
+  await expect(page.getByTestId('dials-money-dials')).toBeVisible();
+  await expect(page.getByTestId('dials-money-dial-travel')).not.toBeChecked();
+  await expect(page.getByTestId('dials-money-dial-dining')).not.toBeChecked();
 
   // payment account: pre-selected to the seeded checking account (the stored
   // id feeds defaultValue, so it survives reloads); checking/savings are
@@ -184,12 +186,15 @@ test('money dials: a real user sees defaults, validation, and persistence round-
   await expect(page.getByTestId('dials-swr')).toHaveValue('4'); // unchanged in the DB
 
   // ── round-trip a real change through the DB (moneyDials carries no golden value) ──
-  await page.getByTestId('dials-money-dials').fill('Travel, Dining Out, Climbing');
+  await page.getByTestId('dials-money-dial-travel').check();
+  await page.getByTestId('dials-money-dial-dining').check();
   await page.getByTestId('dials-submit').click();
   await expect(page.getByTestId('dials-saved')).toBeVisible();
   await page.reload(); // re-mounts from the DB → proves persistence, not just client state
-  await expect(page.getByTestId('dials-money-dials')).toHaveValue('Travel, Dining Out, Climbing');
-  await page.getByTestId('dials-money-dials').fill('');
+  await expect(page.getByTestId('dials-money-dial-travel')).toBeChecked();
+  await expect(page.getByTestId('dials-money-dial-dining')).toBeChecked();
+  await page.getByTestId('dials-money-dial-travel').uncheck();
+  await page.getByTestId('dials-money-dial-dining').uncheck();
   await page.getByTestId('dials-submit').click();
   await expect(page.getByTestId('dials-saved')).toBeVisible();
 

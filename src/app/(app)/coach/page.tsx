@@ -166,7 +166,7 @@ export default async function CoachPage() {
         savingsTargetBps={plan.savingsTargetBps}
         historicalMonthlySavingsCents={data.fi.monthlySavingsCents}
         discretionaryCategorySpend={data.discretionaryCategorySpend}
-        moneyDials={data.moneyDials}
+        moneyDials={data.moneyDialIds}
         // Same note the FI card above already carries: a withheld non-USD investment account is
         // absent from `portfolioCents`, and the starting-balance sentence enumerates exclusions.
         currencyNote={withheldInlineNote(withheld)}

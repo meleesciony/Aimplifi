@@ -6,6 +6,22 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-16 — O.17a: money dials key by category id (DECISIONS #482)
+
+**The report.** `User.moneyDials` was a free-text name list. A rename detached the marker; two categories could share a label; coach cut proposals compared those names to `categoryId` and never protected a dial.
+
+**Shipped.** Same TEXT column. New writes store budgetable category ids (picker, cap 12). Read-time resolve: exact id wins; a leftover name maps only when unique against current or built-in name; ambiguous/unknown tokens dropped. Coach copy stays display names; cuts and gauges use ids. Hidden selected dials remain visible so they can be cleared. Demo seed `["travel","dining"]`.
+
+**Locked.** `tests/unit/o17a-money-dial-ids.test.ts` `test_regression__o17a_*`.
+
+**Critic (self, 1 cycle):** 0 P0 / 0 P1. Not a money-math engine — markers and cut-protection membership, not figures. P2: a production demo row still holding name tokens is correct until the next reseed (read path maps them).
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit **7,101 passed + 1 expected fail + 1 skipped / 431 files + 1 skipped**, `next build` clean. Playwright `tests/e2e/settings-dials.spec.ts` **4/4** on that build (picker check/uncheck round-trip). No `prisma/` diff.
+
+**Gate read.** Not pushed this session — local verify only.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-16 — G.2: audit probes compile under the verify gate (DECISIONS #481)
 
 **The report.** `tsc --noEmit` never compiled `scripts/audit-probes/**/*.mts`. That invisibility shipped the O.20g keep-object no-op and the O.20a first-draft same shape. The dedicated project's first compile then found `income-replay.mts` passing `countsInFlows` to `.filter` (index as `excludedFlowIds`).

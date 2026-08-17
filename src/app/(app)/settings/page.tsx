@@ -16,7 +16,8 @@ import { getCategoryMeta } from '@/server/category-meta';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCustomCategories } from '@/server/category-meta';
 import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
-import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/dials';
+import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
+import { loadDialCatalog, resolvedMoneyDialIds } from '@/server/money-dials';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { deletionSummary } from '@/lib/engine/account/deletion';
 import { getVapidPublicKey, pushProviderConfigured } from '@/lib/push';
@@ -49,7 +50,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/sign-in');
 
   const userId = session.user.id;
-  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy, tuning, selfAudit, learnedPhrases, taxYears, attachmentCount] =
+  const [user, accounts, txnCount, statementCount, goalCount, budgetCount, ruleCount, categoryCatalog, customCategories, accuracy, tuning, selfAudit, learnedPhrases, taxYears, attachmentCount, dialCatalog] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -93,6 +94,7 @@ export default async function SettingsPage() {
       // O.13h — named in the deletion preview because it is the only thing there
       // the reader personally uploaded.
       prisma.transactionAttachment.count({ where: { transaction: { account: { userId } } } }),
+      loadDialCatalog(userId),
     ]);
   const householdView = await getHouseholdView();
   // H.7b — computed per load (the sweep's own read + a pure replay; ~200ms on a
@@ -148,6 +150,11 @@ export default async function SettingsPage() {
     attachments: attachmentCount,
   });
 
+  const moneyDialIds = resolvedMoneyDialIds(user.moneyDials, dialCatalog);
+  const dialOptions = dialCatalog
+    .filter((e) => !e.hidden || moneyDialIds.includes(e.id))
+    .map((e) => ({ id: e.id, name: e.name, group: e.group }));
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Settings</h1>
@@ -164,7 +171,7 @@ export default async function SettingsPage() {
           hourlyWageCents: user.hourlyWageCents,
           swrBps: user.swrBps,
           expectedReturnBps: user.expectedReturnBps,
-          moneyDials: parseStoredDials(user.moneyDials),
+          moneyDials: moneyDialIds,
           paymentAccountId: user.paymentAccountId,
           currentAge: user.currentAge,
           retirementAge: user.retirementAge,
@@ -173,6 +180,7 @@ export default async function SettingsPage() {
           savingsTargetBps: user.savingsTargetBps,
         }}
         accounts={eligibleAccounts}
+        dialOptions={dialOptions}
         canWrite={!isDemoUser(userId)}
       />
       </div>

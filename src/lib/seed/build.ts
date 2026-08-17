@@ -242,7 +242,7 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
     hourlyWageCents: 3800,
     swrBps: 400,
     expectedReturnBps: 700,
-    moneyDials: JSON.stringify(['Travel', 'Dining Out']),
+    moneyDials: JSON.stringify(['travel', 'dining']),
     paymentAccountId: 'acct-checking',
   };
 

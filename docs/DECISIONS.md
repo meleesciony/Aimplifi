@@ -8074,3 +8074,32 @@ one-off `--project` check as a comment.
 **Locked.** `tests/unit/g2-probes-compile-set.test.ts`
 `test_regression__g2_*` (include glob; verify.sh invocation;
 `keep({…})` and `.filter(countsInFlows)` greps).
+
+## #482 — O.17a: money dials key by category id (2026-08-16)
+
+**Context.** `User.moneyDials` was a JSON `string[]` of free-text names.
+Settings was a textarea; /budgets and /trends matched display name or
+built-in name (O.17). A rename could still detach the marker, two
+categories could share a label, and a typed name could mark a category
+the reader never chose. Cut proposals compared those names to
+`categoryId` and therefore never protected a dial.
+
+**Decision: same TEXT column; writes store ids; names resolve on read.**
+No schema change. The picker posts `moneyDialId` checkboxes; validation
+accepts only budgetable catalog ids (cap 12). On read, an exact id
+wins; a leftover name maps only when it uniquely matches the current
+display name or the built-in name. Ambiguous or unknown tokens are
+dropped — never guessed. Coach copy still receives display names;
+discretionary cuts and the gauge markers receive ids. Hidden categories
+stay eligible so a selected hidden dial can be cleared; the picker
+shows a hidden row only when it is already selected. Demo seed stores
+`["travel","dining"]`; existing name rows keep working via the read
+path.
+
+**Rejected.** Eagerly rewriting stored names to ids (an unknown you can
+still fill beats a guess you cannot unfill). A new column. Matching
+names on the write path.
+
+**Locked.** `tests/unit/o17a-money-dial-ids.test.ts`
+`test_regression__o17a_*` (id survives rename; built-in and current
+name map; ambiguous "Travel" dropped; unknown dropped; custom id/name).

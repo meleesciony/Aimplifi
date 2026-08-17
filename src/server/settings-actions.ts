@@ -18,6 +18,7 @@ import {
   type FieldErrors,
   type RawDials,
 } from '@/lib/engine/settings/dials';
+import { loadDialCatalog } from '@/server/money-dials';
 
 export interface DialsResult {
   ok: boolean;
@@ -51,12 +52,14 @@ export async function updateMoneyDials(
     select: { id: true, type: true },
   });
   const eligible = owned.filter((a) => PAYMENT_TYPES.includes(a.type));
+  const dialCatalog = await loadDialCatalog(userId);
+  const eligibleDialIds = dialCatalog.map((e) => e.id);
 
   const raw: RawDials = {
     wage: String(formData.get('wage') ?? ''),
     swr: String(formData.get('swr') ?? ''),
     expectedReturn: String(formData.get('expectedReturn') ?? ''),
-    moneyDials: String(formData.get('moneyDials') ?? ''),
+    moneyDials: formData.getAll('moneyDialId').map(String).join(','),
     paymentAccountId: String(formData.get('paymentAccountId') ?? ''),
     currentAge: String(formData.get('currentAge') ?? ''),
     retirementAge: String(formData.get('retirementAge') ?? ''),
@@ -65,7 +68,7 @@ export async function updateMoneyDials(
     savingsTarget: String(formData.get('savingsTarget') ?? ''),
   };
 
-  const result = validateDials(raw, eligible);
+  const result = validateDials(raw, eligible, eligibleDialIds);
   if (!result.ok) return { ok: false, errors: result.errors };
 
   const {
@@ -119,6 +122,7 @@ export async function updateMoneyDials(
   revalidatePath('/investments'); // the retirement outlook reads the planning dials
   revalidatePath('/spending-plan'); // guilt-free spending reads the savings target (#295)
   revalidatePath('/budgets'); // the conscious-buckets strip re-partitions the same plan
+  revalidatePath('/trends'); // mover gauges key off the same resolved dial ids
 
   return { ok: true };
 }

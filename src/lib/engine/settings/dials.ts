@@ -4,7 +4,7 @@
  *   - hourly wage (powers the YMOYL "hours of work" / life-energy view)
  *   - safe withdrawal rate (SWR — the FI number is annual spend ÷ this rate)
  *   - expected return (used for years-to-FI, Coast FI, and opportunity-cost FV)
- *   - the personal "money dials" they spend on intentionally (display only)
+ *   - the personal "money dials" they spend on intentionally (category ids)
  *   - the checking/savings account card payments are drawn FROM (the single
  *     input the entire Cash-Needed Engine is computed against)
  *
@@ -25,7 +25,7 @@
  *     above 15% is not credible.
  *   - Wage optional; if set, $0.01–$10,000.00/hr (1–1,000,000 cents). Empty
  *     clears it (the life-energy view then hides itself; hoursOfWork → 0).
- *   - ≤ 12 money dials, each 1–40 characters (code points) after trimming.
+ *   - ≤ 12 money dials, each a budgetable category id (O.17a).
  *   - Payment account must be one the user OWNS and be CHECKING or SAVINGS —
  *     you fund a card payment from cash, never from another card/loan/brokerage.
  *
@@ -34,12 +34,14 @@
  */
 import { centsFromDollarString } from '@/lib/money';
 import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
+import { CATEGORIES } from '@/lib/engine/categorize/categories';
+import { isBudgetable } from '@/lib/engine/budgets/status';
 
 export const DIAL_LIMITS = {
   swrBps: { min: 100, max: 1000 }, // 1.00% – 10.00%
   expectedReturnBps: { min: 0, max: 1500 }, // 0.00% – 15.00%
   wageCents: { min: 1, max: 1_000_000 }, // $0.01 – $10,000.00 / hr
-  dials: { maxCount: 12, maxLen: 40 },
+  dials: { maxCount: 12 },
   // Retirement-plan ages (DECISIONS #123). Generous windows kept engine-safe by the
   // cross-field ordering check below (currentAge ≤ retirementAge < endAge ≤ 120).
   currentAge: { min: 18, max: 100 },
@@ -109,7 +111,7 @@ export interface RawDials {
   swr: string;
   /** Percent, e.g. "7" / "6.5". */
   expectedReturn: string;
-  /** Freeform list separated by newlines and/or commas. */
+  /** Category ids, separated by newlines and/or commas (picker checkboxes). */
   moneyDials: string;
   /** Account id the user picked to fund card payments. */
   paymentAccountId: string;
@@ -222,10 +224,16 @@ export function normalizeMoneyDials(s: string): string[] {
  * is the set the user OWNS that are valid payment sources (CHECKING/SAVINGS);
  * the caller (server action) supplies it from a row-ownership-scoped query, so
  * an id outside this set is both an unknown-account and a not-owned rejection.
+ *
+ * `eligibleDialIds` is the budgetable category set the picker offered (system
+ * + this user's customs). Default is the system budgetable ids so unit tests
+ * that do not model customs stay honest. A token outside the set is refused —
+ * names are not accepted on the write path (O.17a).
  */
 export function validateDials(
   raw: RawDials,
   eligibleAccounts: readonly { id: string; type: string }[],
+  eligibleDialIds: readonly string[] = CATEGORIES.filter((c) => isBudgetable(c.id)).map((c) => c.id),
 ): ValidateResult {
   const errors: FieldErrors = {};
 
@@ -265,14 +273,13 @@ export function validateDials(
     expectedReturnBps = ret;
   }
 
-  // ── money dials (optional) ──
+  // ── money dials (optional) — category ids only (O.17a) ──
+  const allowedDialIds = new Set(eligibleDialIds);
   const moneyDials = normalizeMoneyDials(raw.moneyDials);
   if (moneyDials.length > DIAL_LIMITS.dials.maxCount) {
     errors.moneyDials = `Keep it to ${DIAL_LIMITS.dials.maxCount} money dials or fewer.`;
-    // length measured in code points (matches the code-point-aware stripControl),
-    // so a multi-code-unit emoji counts as its visible characters, not its UTF-16 units.
-  } else if (moneyDials.some((d) => [...d].length > DIAL_LIMITS.dials.maxLen)) {
-    errors.moneyDials = `Keep each dial under ${DIAL_LIMITS.dials.maxLen} characters.`;
+  } else if (moneyDials.some((id) => !allowedDialIds.has(id))) {
+    errors.moneyDials = 'Pick from your spending categories.';
   }
 
   // ── payment account (required, owned, fundable type) ──
@@ -393,12 +400,12 @@ export function needsOnboarding(
 
 /**
  * Decode the stored `User.moneyDials` column (a JSON-encoded string[], or null)
- * back into a string[] — the single inverse of the encode below. SQLite has no
+ * back into a string[] — the single inverse of the encode below. Tokens may be
+ * category ids (current writes) or leftover names (pre-O.17a). Callers that
+ * mark a category pass the list through `resolveMoneyDialIds`. SQLite has no
  * Json type, so this is a plain TEXT column; wrapping JSON.parse in a try/catch
  * means a malformed or legacy value degrades to [] instead of throwing on a
- * server-rendered page. Centralized here (not copy-pasted at every read site)
- * for the same reason payment-account resolution was centralized — drifted
- * copies are where bugs hide.
+ * server-rendered page.
  */
 export function parseStoredDials(raw: string | null | undefined): string[] {
   if (!raw) return [];

@@ -446,7 +446,7 @@ directories for all three specs, including the webkit `error-context.md` showing
 
 | # | Task | Owner/Agent | Effort | Est. budget | Status |
 |---|------|-------------|--------|------------|--------|
-| O.17a | **Key money dials by category ID, not free text.** `User.moneyDials` is a typed string list matched against category NAMES (`budgets/page.tsx`, `trends/page.tsx`), and the settings field suggests built-in names ("Travel, Dining Out, Hobbies"). A rename therefore detaches the marker from the category it was set on. O.17 mitigates it by matching either the new or the built-in name, which keeps existing dials working but is not the fix: two dials can still collide, and a dial can mark a category the reader never chose. The real change is a picker over category ids with a migration for the stored strings. | Opus 4.8 | medium | 40k | **[ ] OPEN** |
+| O.17a | **Key money dials by category ID, not free text.** `User.moneyDials` is a typed string list matched against category NAMES (`budgets/page.tsx`, `trends/page.tsx`), and the settings field suggests built-in names ("Travel, Dining Out, Hobbies"). A rename therefore detaches the marker from the category it was set on. O.17 mitigates it by matching either the new or the built-in name, which keeps existing dials working but is not the fix: two dials can still collide, and a dial can mark a category the reader never chose. The real change is a picker over category ids with a migration for the stored strings. | Opus 4.8 | medium | 40k | **[x] SHIPPED** #482 |
 
 ## Wave W — Coach intelligence, wealth targets, clickable charts (owner request 2026-07-31, LIVE)
 

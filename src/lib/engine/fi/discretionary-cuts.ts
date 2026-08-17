@@ -31,22 +31,12 @@ export interface DiscretionaryCutProposal {
   coversGap: boolean;
 }
 
-/**
- * Case-insensitive dial match — same spirit as /budgets (`dials.has(name)`),
- * plus a contains check so a dial typed "dining" protects "Dining Out".
- */
+/** A category is a money dial when its id is in the resolved dial set (O.17a). */
 export function categoryMatchesMoneyDial(
-  categoryName: string,
-  moneyDials: readonly string[],
+  categoryId: string,
+  moneyDialIds: readonly string[],
 ): boolean {
-  const name = categoryName.trim().toLowerCase();
-  if (!name) return false;
-  for (const d of moneyDials) {
-    const dial = d.trim().toLowerCase();
-    if (!dial) continue;
-    if (name === dial || name.includes(dial) || dial.includes(name)) return true;
-  }
-  return false;
+  return moneyDialIds.includes(categoryId);
 }
 
 /**
@@ -70,7 +60,7 @@ export function proposeDiscretionaryCuts(input: {
       (c) =>
         c.discretionary &&
         c.monthlyCents > 0 &&
-        !categoryMatchesMoneyDial(c.categoryName, input.moneyDials),
+        !categoryMatchesMoneyDial(c.categoryId, input.moneyDials),
     )
     .slice()
     .sort((a, b) => b.monthlyCents - a.monthlyCents || a.categoryName.localeCompare(b.categoryName));

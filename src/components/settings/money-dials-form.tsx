@@ -27,6 +27,23 @@ import { updateMoneyDials, type DialsResult } from '@/server/settings-actions';
 const fieldClass =
   'h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground';
 
+function groupedDialOptions(
+  options: { id: string; name: string; group: string }[],
+): [string, { id: string; name: string; group: string }[]][] {
+  const groups: { id: string; name: string; group: string }[][] = [];
+  const index = new Map<string, number>();
+  for (const opt of options) {
+    let i = index.get(opt.group);
+    if (i === undefined) {
+      i = groups.length;
+      index.set(opt.group, i);
+      groups.push([]);
+    }
+    groups[i].push(opt);
+  }
+  return [...index.entries()].map(([group, i]) => [group, groups[i]]);
+}
+
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
@@ -39,6 +56,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 export function MoneyDialsForm({
   current,
   accounts,
+  dialOptions,
   canWrite = true,
 }: {
   current: {
@@ -54,6 +72,8 @@ export function MoneyDialsForm({
     savingsTargetBps: number | null;
   };
   accounts: { id: string; name: string }[];
+  /** Budgetable categories the reader may mark (ids already resolved). */
+  dialOptions: { id: string; name: string; group: string }[];
   /** False on the shared demo: a visitor's dials must never re-derive the
    *  coaching figures the NEXT visitor sees (same shape as FixedCostsCard's
    *  canWrite). The values stay readable via the coach cards that print them. */
@@ -224,25 +244,43 @@ export function MoneyDialsForm({
             <FieldError id="dials-error-wage" message={err('wage')} />
           </label>
 
-          {/* money dials */}
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">Your money dials (optional)</span>
-            <textarea
-              name="moneyDials"
-              rows={3}
-              defaultValue={current.moneyDials.join(', ')}
-              placeholder={'Travel, Dining Out, Hobbies'}
-              data-testid="dials-money-dials"
+          {/* money dials — category ids, not free text (O.17a) */}
+          <fieldset className="space-y-1" data-testid="dials-money-dials">
+            <legend className="text-sm font-medium">Your money dials (optional)</legend>
+            <div
+              className="max-h-56 space-y-3 overflow-y-auto rounded-md border border-input p-3"
               aria-invalid={err('moneyDials') ? true : undefined}
               aria-describedby={describedBy('moneyDials', 'dials-hint-dials')}
-              className={`py-2 ${fieldClass} h-auto`}
-            />
+            >
+              {groupedDialOptions(dialOptions).map(([group, cats]) => (
+                <div key={group}>
+                  <p className="mb-1 text-xs font-medium text-muted-foreground">{group}</p>
+                  <ul className="space-y-1">
+                    {cats.map((c) => (
+                      <li key={c.id}>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            name="moneyDialId"
+                            value={c.id}
+                            defaultChecked={current.moneyDials.includes(c.id)}
+                            data-testid={`dials-money-dial-${c.id}`}
+                            className="size-4 rounded border-input"
+                          />
+                          {c.name}
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
             <span id="dials-hint-dials" className="text-xs text-muted-foreground">
-              The few things you spend on intentionally and without guilt — separated by
-              commas or new lines. Up to 12, used to frame your spending, never to judge it.
+              The few categories you spend on intentionally and without guilt. Up to 12.
+              A rename keeps the same dial — these are the categories, not the labels.
             </span>
             <FieldError id="dials-error-moneyDials" message={err('moneyDials')} />
-          </label>
+          </fieldset>
 
           {/* savings target — the guilt-free-spending allocation (#295 / L.11C) */}
           <label className="block space-y-1">

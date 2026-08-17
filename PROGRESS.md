@@ -2,6 +2,28 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-16 — O.17a: money dials key by category id (DECISIONS #482)
+
+**Picked up from the queue** (G.2 shipped; U.15(b) is the owner's
+call; U.1 stays "eventually"; O.20j/h/c stay off this model).
+
+**Closed — same column, ids on write, names resolve on read.**
+Picker posts `moneyDialId`. Ambiguous leftover names are dropped,
+never guessed. Cuts and gauges match ids; coach copy still names
+the categories.
+
+**Locked.** o17a-money-dial-ids `test_regression__o17a_*`.
+
+**Critic (self, 1 cycle):** 0 P0 / 0 P1.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0,
+eslint 0, unit **7,101 passed + 1 expected fail + 1 skipped
+/ 431 files + 1 skipped**, `next build` clean. settings-dials
+e2e **4/4**. No `prisma/` diff. Not pushed this session.
+
+**Next.** U.15(b) is the owner's call. U.1 stays
+"eventually." O.20j / O.20h / O.20c stay off this model.
+
 ## 2026-08-16 — G.2: audit probes compile under the verify gate (DECISIONS #481)
 
 **Picked up from the queue** (C.22 shipped; U.15(b) is the
