@@ -22,8 +22,15 @@ eslint 0, unit **7,093 passed + 1 expected fail + 1 skipped
 / 430 files + 1 skipped**, `next build` clean. No e2e (no
 UI). No `prisma/` diff. Production re-runs UNVERIFIED.
 
-**Next.** Commit, push, CI gate. U.15(b) is the owner's
-call. U.1 stays "eventually."
+**Shipped and proven live.** Pushed as `feda1fdc`. CI run
+31980832609 `success` (12m11s). Vercel: `success`,
+"Deployment has completed", same sha. Production `/`,
+`/accounts`, `/dashboard` 307; `/sign-in` 200. No UI
+marker (compile-set only). No `prisma/` diff. Production
+probe re-runs UNVERIFIED (no prod env).
+
+**Next.** U.15(b) is the owner's call. U.1 stays
+"eventually."
 
 ## 2026-08-15 — C.22: detect each payment-account feed, then union (DECISIONS #480)
 

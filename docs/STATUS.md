@@ -18,6 +18,8 @@ Living document; updated at each phase boundary and critic cycle.
 
 **Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit **7,093 passed + 1 expected fail + 1 skipped / 430 files + 1 skipped**, `next build` clean. No e2e (no UI). No `prisma/` diff. Production re-runs of income-replay and c25-who-sees-the-mortgage §6 **UNVERIFIED** (no `.env.prod.tmp`).
 
+**Gate read.** CI run **31980832609** on `feda1fdc` = SUCCESS (12m11s, full VERIFY_E2E). Vercel: `success`, "Deployment has completed", same sha. Production `/`, `/accounts`, `/dashboard` 307; `/sign-in` 200. No UI marker (compile-set only).
+
 **Schema.** None.
 
 ## ✅ BUILT 2026-08-15 — C.22: detect each payment-account feed, then union (DECISIONS #480)
