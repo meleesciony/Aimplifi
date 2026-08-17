@@ -39,8 +39,7 @@ for (const raw of env.split(/\r?\n/)) {
   if (key === 'DATABASE_URL' || key === 'DATA_ENCRYPTION_KEY') process.env[key] = value;
 }
 
-const { PrismaClient } = await import('@prisma/client');
-const prisma = new PrismaClient();
+const { prisma } = await import('../../src/lib/db');
 const { getAccountsView } = await import('../../src/server/transactions');
 
 const users = await prisma.user.findMany({ select: { id: true, email: true } });

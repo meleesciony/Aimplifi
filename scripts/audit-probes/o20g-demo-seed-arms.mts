@@ -50,18 +50,16 @@ for (const t of txns) {
       fixedIncome.set(m, fixedIncome.get(m)! + t.amountCents);
       incomeRows.set(m, incomeRows.get(m)! + 1);
     } else {
-      rejected.push({ date: t.date, cents: t.amountCents, categoryId: t.categoryId ?? '(null)' });
+      rejected.push({ date: t.date, cents: t.amountCents, categoryId: '(null)' });
     }
     continue;
   }
-  const categoryId =
-    t.categoryId ??
-    categorize({
-      rawDescriptor: t.rawDescriptor,
-      amountCents: t.amountCents,
-      date: t.date,
-      accountId: t.accountId,
-    }).categoryId;
+  const categoryId = categorize({
+    rawDescriptor: t.rawDescriptor,
+    amountCents: t.amountCents,
+    date: t.date,
+    accountId: t.accountId,
+  }).categoryId;
   if (CATEGORY_BY_ID.get(categoryId)?.discretionary) discSpend.set(m, discSpend.get(m)! - t.amountCents);
 }
 

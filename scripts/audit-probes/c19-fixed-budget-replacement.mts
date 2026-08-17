@@ -47,6 +47,7 @@ import {
   type CategoryMeta,
 } from '../../src/lib/engine/categorize/categories';
 import { overrideKey } from '../../src/lib/engine/recurring/override';
+import { isoDate } from '../../src/lib/dates';
 import { normalizeMerchant } from '../../src/lib/engine/categorize/normalize';
 import { suggestedCategoryIsFixed } from '../../src/lib/engine/spending-plan/spend-class';
 import { RESERVE_KIND } from '../../src/lib/engine/spending-plan/reserves';
@@ -103,14 +104,16 @@ interface Acc {
   type: string;
   currency: string | null;
   userId: string;
+  currentBalanceCents: number;
 }
 
 async function loadAccounts(userIds: string[]): Promise<Acc[]> {
   const r = await c.query(
-    `select id, type, currency, "userId" from "Account" where "userId" = any($1::text[])`,
+    `select id, type, currency, "userId", coalesce("currentBalanceCents", 0) as "currentBalanceCents"
+     from "Account" where "userId" = any($1::text[])`,
     [userIds],
   );
-  return r.rows;
+  return r.rows.map((a) => ({ ...a, currentBalanceCents: Number(a.currentBalanceCents) }));
 }
 
 /** Snapshot boundary: active links → reconciliationTxnKeepFilter (h8 pattern). */
@@ -155,7 +158,7 @@ async function categoryMetaFor(userId: string): Promise<Map<string, CategoryMeta
     id: r.id,
     name: r.name,
     group: r.group ?? 'Transfers & Other',
-    discretionary: r.discretionary,
+    discretionary: r.discretionary ?? false,
   }));
   const renames = new Map(
     (
@@ -270,7 +273,7 @@ for (const user of users.rows) {
 
   const accs = await loadAccounts([user.id]);
   const { keep, activeLinks } = await boundaryFor(user.id, accs);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = isoDate(new Date().toISOString().slice(0, 10));
   const [txns, meta, fixedMerchants, exclusion] = await Promise.all([
     spendTxns(user.id),
     categoryMetaFor(user.id),

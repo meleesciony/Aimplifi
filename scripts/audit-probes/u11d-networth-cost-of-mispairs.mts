@@ -67,7 +67,7 @@ const snaps = (
   await c.query(`SELECT "accountId", date, "balanceCents" FROM "BalanceSnapshot"`)
 ).rows as { accountId: string; date: string; balanceCents: number }[];
 
-const netWorth = (accts: readonly Acct[]) =>
+const netWorth = (accts: readonly { type: string; currentBalanceCents: number }[]) =>
   accts.reduce(
     (t, a) => t + (LIABILITY.has(a.type) ? -Math.abs(a.currentBalanceCents) : a.currentBalanceCents),
     0,
@@ -96,7 +96,7 @@ for (const [userId, userAccounts] of byUser) {
   const ids = new Set(userAccounts.map((a) => a.id));
   const input = {
     paymentAccountId: null as string | null,
-    accounts: userAccounts,
+    accounts: userAccounts.map((a) => ({ ...a, feedDroppedAt: null })),
     transactions: txns.filter((t) => ids.has(t.accountId)),
     balanceSnapshots: snaps.filter((s) => ids.has(s.accountId)),
     statements: [] as { accountId: string; cycleEnd: string }[],
@@ -109,8 +109,8 @@ for (const [userId, userAccounts] of byUser) {
     links: userLinks.filter((l) => !(l.matchSignal === 'name' && l.confidence === 'medium')),
   });
 
-  const nwNow = netWorth(asShipped.accounts as Acct[]);
-  const nwFixed = netWorth(withoutName.accounts as Acct[]);
+  const nwNow = netWorth([...asShipped.accounts]);
+  const nwFixed = netWorth([...withoutName.accounts]);
 
   console.log(`\nuser ${userId} — ${userAccounts.length} accounts`);
   console.log(`  net worth as production computes it today : ${money(nwNow)}`);

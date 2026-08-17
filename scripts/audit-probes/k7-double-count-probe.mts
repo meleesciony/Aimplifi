@@ -40,11 +40,11 @@ async function snapshot(tag: string) {
     today,
     holidays: holidayTable(y - 1, y + 1),
   });
-  const julyRows = cal.days.flatMap((d) => d.events.map((e) => ({ date: d.date, ...e })));
+  const julyRows = cal.days.flatMap((d) => d.events.map((e) => ({ ...e, date: d.date })));
   const loanish = julyRows.filter((e) => Math.abs(e.amountCents) === 38500);
 
   const fc = await getCashFlowForecast(DEMO_USER_ID);
-  const loanEvents = fc.forecast.days.flatMap((d) => d.events.map((e) => ({ date: d.date, ...e }))).filter((e) => Math.abs(e.amountCents) === 38500);
+  const loanEvents = fc.forecast.days.flatMap((d) => d.events.map((e) => ({ ...e, date: d.date }))).filter((e) => Math.abs(e.amountCents) === 38500);
 
   console.log(`\n########## ${tag} ##########`);
   console.log(`scheduled rows on the payment account mentioning the loan amount:`);

@@ -81,7 +81,9 @@ for (const u of users.rows) {
       [links.map((l) => l.predecessorAccountId)],
     )
   ).rows;
-  const supportedAccs = accs.filter((a) => isSupportedCurrency(a.currency));
+  const supportedAccs = accs
+    .filter((a) => isSupportedCurrency(a.currency))
+    .map((a) => ({ ...a, currentBalanceCents: a.currentBalanceCents ?? 0 }));
   const keep = reconciliationTxnKeepFilter(supportedAccs, links, predSpans);
   const effective = effectiveReconciliationLinks(supportedAccs, links);
 

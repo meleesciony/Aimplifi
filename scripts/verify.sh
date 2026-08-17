@@ -6,6 +6,7 @@ fail=0
 run() { echo; echo "════ $1 ════"; shift; "$@" || fail=1; }
 
 run "TYPECHECK (tsc --noEmit)"  npx tsc --noEmit
+run "TYPECHECK PROBES (tsc --noEmit -p tsconfig.probes.json)"  npx tsc --noEmit --project tsconfig.probes.json
 run "LINT (eslint)"             npx eslint . --max-warnings=0
 run "UNIT TESTS (vitest)"       npx vitest run
 run "BUILD (next build)"        npx next build

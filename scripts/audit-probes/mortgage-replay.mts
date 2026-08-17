@@ -61,7 +61,7 @@ const money = (cents: number) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-const q = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) =>
+const q = async <T = Record<string, unknown>,>(sql: string, params: unknown[] = []) =>
   (await c.query(sql, params)).rows as T[];
 const head = (s: string) => console.log(`\n${'='.repeat(72)}\n${s}\n${'='.repeat(72)}`);
 
@@ -120,7 +120,14 @@ console.log(`accounts=${accounts.length} links=${links.length} transactions=${ro
 // The boundary the snapshot applies once before any engine sees a row.
 const boundary = applyReconciliationBoundary({
   paymentAccountId: user.paymentAccountId,
-  accounts: accounts.map((a) => ({ id: a.id, type: a.type, currency: a.currency, currentBalanceCents: a.currentBalanceCents })),
+  accounts: accounts.map((a) => ({
+    id: a.id,
+    type: a.type,
+    currency: a.currency,
+    currentBalanceCents: a.currentBalanceCents,
+    // Probe predates U.12; it never ranked by genuineness. null = still live.
+    feedDroppedAt: null,
+  })),
   transactions: rows.map((r): TxnLike & { id: string; accountId: string } => ({
     id: r.id, date: r.date, amountCents: r.amountCents, rawDescriptor: r.rawDescriptor,
     accountId: r.accountId, isTransfer: r.isTransfer, status: r.status,
@@ -145,13 +152,13 @@ const renameRows = await q<{ categoryId: string; name: string }>(
   [OWNER],
 );
 const custom: CustomCategoryInput[] = customRows.map((r) => ({
-  id: r.id, name: r.name, group: r.group ?? 'Transfers & Other', discretionary: r.discretionary,
+  id: r.id, name: r.name, group: r.group ?? 'Transfers & Other', discretionary: r.discretionary ?? false,
 }));
 const meta = mergeCategoryMeta(custom, new Map(renameRows.map((r) => [r.categoryId, r.name])));
 // #397: no more CategoryFixedOverride — the guess input is the recurring-bill
 // merchant set (stored outflow series + BILL verdicts − NOT_BILL), keyed by
 // overrideKey exactly like src/server/recurring-bill-merchants.ts.
-const seriesRows = await q<{ canonical: string }>(
+const outflowSeriesRows = await q<{ canonical: string }>(
   `select m.canonical from "RecurringSeries" rs join "Merchant" m on m.id = rs."merchantId"
     where rs."userId" = $1 and rs."typicalAmountCents" < 0`,
   [OWNER],
@@ -170,7 +177,7 @@ const recurringOverrideRows = await q<{
 const recurringOverrides = recurringOverrideRows
   .map(parseRecurringOverride)
   .filter((o): o is RecurringOverrideInput => o !== null);
-const fixedMerchants = new Set(seriesRows.map((r) => overrideKey(r.canonical)));
+const fixedMerchants = new Set(outflowSeriesRows.map((r) => overrideKey(r.canonical)));
 for (const o of recurringOverrides) {
   if (o.decision === 'BILL') fixedMerchants.add(overrideKey(o.merchantCanonical));
   else fixedMerchants.delete(overrideKey(o.merchantCanonical));

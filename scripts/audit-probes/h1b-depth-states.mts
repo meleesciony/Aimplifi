@@ -82,7 +82,9 @@ for (const u of users.rows) {
     )
   ).rows as { accountId: string; date: string }[];
 
-  const supported = accs.filter((a) => isSupportedCurrency(a.currency));
+  const supported = accs
+    .filter((a) => isSupportedCurrency(a.currency))
+    .map((a) => ({ ...a, currentBalanceCents: a.currentBalanceCents ?? 0 }));
   const keeps = reconciliationTxnKeepFilter(supported, links, spans);
   const touched = new Set(links.flatMap((l) => [l.predecessorAccountId, l.successorAccountId]));
   const ownedFloor = new Map<string, string>();

@@ -103,7 +103,10 @@ let dormantReleasedPredOnly = 0;
 for (const [userId, userAccounts] of byUser) {
   const userLinks = links.filter((l) => l.userId === userId);
   if (!userLinks.length) continue;
-  const eff = effectiveReconciliationLinks(userAccounts, userLinks);
+  const eff = effectiveReconciliationLinks(
+    userAccounts.map((a) => ({ ...a, currentBalanceCents: 0 })),
+    userLinks.map((l) => ({ ...l, cutoverDate: asDay(l.cutoverDate) })),
+  );
   if (!eff.length) continue;
   nEff += eff.length;
 

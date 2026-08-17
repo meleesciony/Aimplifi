@@ -58,7 +58,7 @@ const ids = new Set(userAccounts.map((a) => a.id));
 
 const out = applyReconciliationBoundary({
   paymentAccountId: null,
-  accounts: userAccounts,
+  accounts: userAccounts.map((a) => ({ ...a, feedDroppedAt: null })),
   links: links.filter((l) => l.userId === userId),
   transactions: txns.filter((t) => ids.has(t.accountId)),
   balanceSnapshots: snaps.filter((s) => ids.has(s.accountId)),

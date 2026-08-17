@@ -289,9 +289,11 @@ console.log('\n══ 6. The C.25 sweep, replayed over production rows (READ-ONL
     reviewPinned: false,
     status: r.status,
     currencySupported: r.currency === null || r.currency === 'USD',
+    categoryId: r.categoryId,
+    accountType: typesForPlan.get(r.accountId) ?? '',
   }));
   const before = new Set(planRows.filter((r) => r.isTransfer).map((r) => r.id));
-  const plan = planTransferUpdates(stateTxns, typesForPlan);
+  const plan = planTransferUpdates(stateTxns);
   const newlyFlagged = plan.flagIds.filter((id) => !before.has(id));
   console.log(`  rows the next sync would newly flag: ${newlyFlagged.length}`);
   const byMerchant = new Map<string, { count: number; cents: number; months: string[] }>();

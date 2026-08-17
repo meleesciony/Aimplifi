@@ -8047,3 +8047,30 @@ the live id only — keeps the short tail for history days
 dies on three amounts; successor-only without links; card
 predecessor excluded; history days 14 → 106; handover day
 $50.00 not $100.00).
+
+## #481 — G.2: audit probes compile under the verify gate (2026-08-16)
+
+**Context.** `tsc --noEmit` never compiled `scripts/audit-probes/**/*.mts`
+(`tsconfig.json` include is `**/*.ts`). That invisibility shipped two
+money-visible probe bugs (O.20g keep-object no-op; O.20a first-draft
+same shape). The row's first compile of the dedicated project then
+found the sibling: `income-replay.mts` passed `countsInFlows` to
+`.filter`, so the array index became `excludedFlowIds`.
+
+**Decision: a dedicated `tsconfig.probes.json`, not the root include.**
+Root `tsc` is the Next app. Probes are Node scripts (`node:fs`, `pg`,
+top-level await). Mixing them into the app project would couple two
+compile jobs and let a probe error look like an app error. `verify.sh`
+runs both. Stale type drift (required `currentBalanceCents` /
+`feedDroppedAt`, branded `ISODate`, `planTransferUpdates` arity) was
+triaged in place. A wrong-call site's cited output is UNVERIFIED until
+the probe is re-run against production (no `.env.prod.tmp` this
+session). `feedDroppedAt: null` on probes that never selected the
+column preserves their original "did not rank by genuineness" meaning.
+
+**Rejected.** Adding `**/*.mts` to the root include. Leaving the
+one-off `--project` check as a comment.
+
+**Locked.** `tests/unit/g2-probes-compile-set.test.ts`
+`test_regression__g2_*` (include glob; verify.sh invocation;
+`keep({…})` and `.filter(countsInFlows)` greps).

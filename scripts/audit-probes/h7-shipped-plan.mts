@@ -56,7 +56,7 @@ for (const user of users.rows) {
   ]);
   const accRows = accounts.rows.map((a) => ({
     ...a,
-    currentBalanceCents: a.currentBalanceCents === null ? null : Number(a.currentBalanceCents),
+    currentBalanceCents: a.currentBalanceCents === null ? 0 : Number(a.currentBalanceCents),
   }));
   const accById = new Map(accRows.map((a) => [a.id, a]));
   const labelOf = (id: string) => {

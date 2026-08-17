@@ -38,7 +38,7 @@ const money = (cents: number) =>
     maximumFractionDigits: 2,
   })}`;
 
-const q = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) =>
+const q = async <T = Record<string, unknown>,>(sql: string, params: unknown[] = []) =>
   (await c.query(sql, params)).rows as T[];
 
 const head = (s: string) => console.log(`\n${'='.repeat(72)}\n${s}\n${'='.repeat(72)}`);
@@ -145,7 +145,14 @@ const toTxn = (r: (typeof rows)[number]): TxnLike & { accountId: string } => ({
 const rawTxns = rows.map(toTxn);
 const boundary = applyReconciliationBoundary({
   paymentAccountId: user.paymentAccountId,
-  accounts: accounts.map((a) => ({ id: a.id, type: a.type, currency: a.currency, currentBalanceCents: a.currentBalanceCents })),
+  accounts: accounts.map((a) => ({
+    id: a.id,
+    type: a.type,
+    currency: a.currency,
+    currentBalanceCents: a.currentBalanceCents,
+    // Probe predates U.12; it never ranked by genuineness. null = still live.
+    feedDroppedAt: null,
+  })),
   transactions: rawTxns,
   balanceSnapshots: [] as Array<{ accountId: string; date: string }>,
   statements: [] as Array<{ accountId: string; cycleEnd: string }>,
@@ -172,7 +179,7 @@ console.table(
 head('CLAUSE-BY-CLAUSE: every positive row, narrowed the way the consumer narrows');
 const all = boundary.transactions as Array<TxnLike & { accountId: string }>;
 const inScope = all.filter((t) => incomeAccountIds.has(t.accountId));
-const flows = inScope.filter(countsInFlows);
+const flows = inScope.filter((t) => countsInFlows(t));
 console.table([
   { clause: 'positive rows, all accounts', n: all.length },
   { clause: '… in the income account scope', n: inScope.length },

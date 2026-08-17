@@ -18,7 +18,7 @@ import pg from 'pg';
 import { selectLoanObligations } from '../../src/lib/engine/loans/obligations';
 import { loanPaymentFlowExclusions } from '../../src/lib/engine/categorize/loan-payment-flows';
 import { monthlyFlows, type TxnLike } from '../../src/lib/engine/fi/insights';
-import { holidayTable } from '../../src/lib/dates';
+import { holidayTable, isoDate } from '../../src/lib/dates';
 
 const env = readFileSync(new URL('../../.env.prod.tmp', import.meta.url), 'utf8');
 const line = env.split(/\r?\n/).find((l) => l.startsWith('DATABASE_URL='))!;
@@ -50,7 +50,7 @@ const typeById = new Map(accounts.map((a) => [a.id, a.type]));
 const loanAccounts = accounts.filter((a) => a.type === 'LOAN' || a.type === 'MORTGAGE');
 console.log(`\n══ loan/mortgage accounts: ${loanAccounts.map((a) => `${a.name} (${a.type})`).join(', ') || '(none)'} ══`);
 
-const today = new Date().toISOString().slice(0, 10);
+const today = isoDate(new Date().toISOString().slice(0, 10));
 const year = Number(today.slice(0, 4));
 const obligations = selectLoanObligations({
   accounts: accounts.map((a) => ({ id: a.id, name: a.name, type: a.type, minimumPaymentCents: a.minimumPaymentCents, dueDayOfMonth: a.dueDayOfMonth })),

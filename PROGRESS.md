@@ -2,6 +2,29 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-16 — G.2: audit probes compile under the verify gate (DECISIONS #481)
+
+**Picked up from the queue** (C.22 shipped; U.15(b) is the
+owner's call; U.1 stays "eventually").
+
+**Closed — a dedicated compile set, not the root include.**
+`tsconfig.probes.json` + `verify.sh` probes stage. First
+compile found `income-replay` `.filter(countsInFlows)` —
+index as `excludedFlowIds`. Stale types triaged. Cited
+production output UNVERIFIED (no prod env).
+
+**Locked.** g2-probes-compile-set.
+
+**Critic (self, 1 cycle):** 0 P0.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0,
+eslint 0, unit **7,093 passed + 1 expected fail + 1 skipped
+/ 430 files + 1 skipped**, `next build` clean. No e2e (no
+UI). No `prisma/` diff. Production re-runs UNVERIFIED.
+
+**Next.** Commit, push, CI gate. U.15(b) is the owner's
+call. U.1 stays "eventually."
+
 ## 2026-08-15 — C.22: detect each payment-account feed, then union (DECISIONS #480)
 
 **Picked up from the queue** (named next after C.20; direction was

@@ -52,7 +52,7 @@ interface Acc {
   type: string;
   mask: string | null;
   currency: string | null;
-  currentBalanceCents: number | null;
+  currentBalanceCents: number;
   sharedToHousehold: boolean;
   userId: string;
 }
@@ -80,7 +80,7 @@ async function loadAccounts(userIds: string[]): Promise<Acc[]> {
   );
   return r.rows.map((a) => ({
     ...a,
-    currentBalanceCents: a.currentBalanceCents === null ? null : Number(a.currentBalanceCents),
+    currentBalanceCents: a.currentBalanceCents === null ? 0 : Number(a.currentBalanceCents),
   }));
 }
 

@@ -28,13 +28,12 @@ console.log(
   JSON.stringify(
     planTransferUpdates(
       [
-        { id: 'loanpay', accountId: 'chk', date: '2026-06-05', amountCents: -45_000, rawDescriptor: 'ONLINE PAYMENT', ...base },
-        { id: 'loanside', accountId: 'loan', date: '2026-06-06', amountCents: 45_000, rawDescriptor: 'Payment', ...base },
-        { id: 'rent', accountId: 'chk', date: '2026-06-01', amountCents: -190_000, rawDescriptor: 'ONLINE PAYMENT', ...base },
-        { id: 'electric', accountId: 'chk', date: '2026-06-12', amountCents: -22_000, rawDescriptor: 'ONLINE PAYMENT', ...base },
-        { id: 'internet', accountId: 'chk', date: '2026-06-14', amountCents: -9_500, rawDescriptor: 'ONLINE PAYMENT', ...base },
+        { id: 'loanpay', accountId: 'chk', date: '2026-06-05', amountCents: -45_000, rawDescriptor: 'ONLINE PAYMENT', accountType: TYPES.get('chk')!, categoryId: null, ...base },
+        { id: 'loanside', accountId: 'loan', date: '2026-06-06', amountCents: 45_000, rawDescriptor: 'Payment', accountType: TYPES.get('loan')!, categoryId: null, ...base },
+        { id: 'rent', accountId: 'chk', date: '2026-06-01', amountCents: -190_000, rawDescriptor: 'ONLINE PAYMENT', accountType: TYPES.get('chk')!, categoryId: null, ...base },
+        { id: 'electric', accountId: 'chk', date: '2026-06-12', amountCents: -22_000, rawDescriptor: 'ONLINE PAYMENT', accountType: TYPES.get('chk')!, categoryId: null, ...base },
+        { id: 'internet', accountId: 'chk', date: '2026-06-14', amountCents: -9_500, rawDescriptor: 'ONLINE PAYMENT', accountType: TYPES.get('chk')!, categoryId: null, ...base },
       ],
-      TYPES,
     ),
     null,
     2,
@@ -46,12 +45,11 @@ console.log(
   JSON.stringify(
     planTransferUpdates(
       [
-        { id: 'mtg-in-jun', accountId: 'mtg', date: '2026-06-18', amountCents: 621_707, rawDescriptor: 'Payment', ...base },
-        { id: 'roof-jun', accountId: 'chk', date: '2026-06-17', amountCents: -621_707, rawDescriptor: 'ABC ROOFING & SIDING', ...base },
-        { id: 'roof-aug', accountId: 'chk', date: '2026-08-04', amountCents: -621_707, rawDescriptor: 'ABC ROOFING & SIDING', ...base },
-        { id: 'roof-sep', accountId: 'chk', date: '2026-09-04', amountCents: -125_000, rawDescriptor: 'ABC ROOFING & SIDING', ...base },
+        { id: 'mtg-in-jun', accountId: 'mtg', date: '2026-06-18', amountCents: 621_707, rawDescriptor: 'Payment', accountType: TYPES.get('mtg')!, categoryId: null, ...base },
+        { id: 'roof-jun', accountId: 'chk', date: '2026-06-17', amountCents: -621_707, rawDescriptor: 'ABC ROOFING & SIDING', accountType: TYPES.get('chk')!, categoryId: null, ...base },
+        { id: 'roof-aug', accountId: 'chk', date: '2026-08-04', amountCents: -621_707, rawDescriptor: 'ABC ROOFING & SIDING', accountType: TYPES.get('chk')!, categoryId: null, ...base },
+        { id: 'roof-sep', accountId: 'chk', date: '2026-09-04', amountCents: -125_000, rawDescriptor: 'ABC ROOFING & SIDING', accountType: TYPES.get('chk')!, categoryId: null, ...base },
       ],
-      TYPES,
     ),
     null,
     2,

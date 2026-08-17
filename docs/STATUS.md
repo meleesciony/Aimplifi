@@ -6,6 +6,20 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-16 — G.2: audit probes compile under the verify gate (DECISIONS #481)
+
+**The report.** `tsc --noEmit` never compiled `scripts/audit-probes/**/*.mts`. That invisibility shipped the O.20g keep-object no-op and the O.20a first-draft same shape. The dedicated project's first compile then found `income-replay.mts` passing `countsInFlows` to `.filter` (index as `excludedFlowIds`).
+
+**Shipped.** `tsconfig.probes.json` (extends root, include only `.mts` probes). `verify.sh` runs it as its own stage. Stale type drift triaged (required `currentBalanceCents` / `feedDroppedAt`, branded `ISODate`, `planTransferUpdates` now takes types on the row). Wrong-call sites fixed; their cited production output is UNVERIFIED this session (no `.env.prod.tmp`).
+
+**Locked.** `tests/unit/g2-probes-compile-set.test.ts` `test_regression__g2_*`.
+
+**Critic (self, 1 cycle):** 0 P0 / 0 P1. P2: production re-runs of income-replay and c25-who-sees-the-mortgage §6 are still owed.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit **7,093 passed + 1 expected fail + 1 skipped / 430 files + 1 skipped**, `next build` clean. No e2e (no UI). No `prisma/` diff. Production re-runs of income-replay and c25-who-sees-the-mortgage §6 **UNVERIFIED** (no `.env.prod.tmp`).
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-15 — C.22: detect each payment-account feed, then union (DECISIONS #480)
 
 **The report.** After the 2026-07-21 re-link, radar committed-merchant detection scoped POSTED rows to the live payment id (183 vs 402). The income remap concatenated both feeds into one `detectRecurring` call and took 9 series to 4. The task row prescribed merging descriptors; that is the concatenate.
