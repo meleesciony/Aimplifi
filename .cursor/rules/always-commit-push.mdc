@@ -1,0 +1,17 @@
+---
+description: After a green verify, commit and push without asking.
+alwaysApply: true
+---
+
+# Always commit and push
+
+Owner instruction (2026-08-16): do not wait for a separate "commit and push"
+ask. When a slice is locally done (`bash scripts/verify.sh` green, ledgers
+updated), commit and push in the same turn.
+
+Then follow CLAUDE.md rule 5: start `bash scripts/ci-status.sh` after the
+push, prove the Vercel deploy reached READY, and fetch a live marker. A
+green local verify is not shipped.
+
+Do not force-push `main`. Do not skip hooks. Do not commit secrets, `.next`,
+or `test-results`.
