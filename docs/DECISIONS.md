@@ -8378,9 +8378,18 @@ spending” rather than naming wrong money. Locked. Full-canonical questions
 still answer. A synonym / autocomplete layer is a later product choice, not
 this slice.
 
+**Parser follow-through (CI).** Exact match alone is not enough if Ask never
+reaches `merchant_spend`: `\bgas\b`→fuel matched inside “Costco Gas” and the
+e2e saw “You spent $68.27 on Fuel”. Multi-word `at`/`with` objects now keep
+merchant routing unless a category synonym owns the WHOLE phrase (bare `gas`,
+`natural gas`, `uber eats` still win; single-token `Amazon`→shopping /
+`Starbucks`→coffee unchanged — DECISIONS #168).
+
 **Locked.** `tests/unit/o8-merchant-basis-parity.test.ts`
 `test_regression__o10a_costco_gas_is_not_costco` (fail-old: restore prefix ⇒
 Ask Costco Gas = 19582 under “Costco”); Costco-only locks in
 `assistant-merchant-spend.test.ts`; exact scope in
 `assistant-largest-scope.test.ts`; grounding independent recompute; e2e
-`ask.spec.ts` Costco Gas = $37.38 ≠ Costco dollars.
+`ask.spec.ts` Costco Gas = $37.38 ≠ Costco dollars;
+`test_regression__o10a_costco_gas_is_not_hijacked_by_fuel_synonym` in
+`assistant-intent.test.ts`.

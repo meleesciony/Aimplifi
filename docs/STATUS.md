@@ -16,7 +16,11 @@ Costco**; `/trends` Costco Gas = **$37.38**. Register already exact
 **Fix.** `merchantMatches` in `answer.ts` is punctuation-folded EXACT equality
 only (`merchantKey` then `c === qq`). No family product. Display name stays
 largest matched canonical — after the exact gate that *is* the queried store.
-Amazon / Amazon Prime and Uber / Uber Eats stay distinct the same way.
+Amazon / Amazon Prime and Uber / Uber Eats stay distinct the same way. Parser
+follow-through (CI e2e): multi-word `at`/`with` stores are not hijacked by a
+category synonym that matches a proper substring (`Costco Gas` ⊃ `gas`→fuel);
+whole-phrase synonyms (bare `gas`, `natural gas`, `Uber Eats`, single-token
+`Amazon`→shopping) keep DECISIONS #168 precedence.
 
 **Locked.** `o8-merchant-basis-parity.test.ts` flipped to agreement ($37.38 /
 Costco Gas) + `test_regression__o10a_costco_gas_is_not_costco` (fail-old:

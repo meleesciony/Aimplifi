@@ -261,6 +261,38 @@ describe('test_regression__ask-partial-match-hijacks (#166 audit P1)', () => {
     expect(parseAssistantQuery('can I afford a $50 dinner tonight', TODAY).kind).toBe('safe_to_spend');
   });
 
+  it('test_regression__o10a_costco_gas_is_not_hijacked_by_fuel_synonym', () => {
+    // Fail-old: resolveSpendTarget ran on the whole question and `\bgas\b`→fuel
+    // won before merchant_spend, so Ask "at Costco Gas" answered the Fuel
+    // category total ($68.27 on demo) instead of the store. Multi-word at/with
+    // stores keep merchant_spend unless a synonym owns the WHOLE phrase.
+    expect(parseAssistantQuery('How much did I spend at Costco Gas this month?', TODAY)).toMatchObject({
+      kind: 'merchant_spend',
+      merchant: 'costco gas',
+    });
+    expect(parseAssistantQuery('how much did I spend at amazon prime this month', TODAY)).toMatchObject({
+      kind: 'merchant_spend',
+      merchant: 'amazon prime',
+    });
+    // Bare / whole-phrase synonyms still win (DECISIONS #168 + #154).
+    expect(parseAssistantQuery('how much did I spend on gas this month', TODAY)).toMatchObject({
+      kind: 'spend_by_category',
+      target: { type: 'category', categoryId: 'fuel' },
+    });
+    expect(parseAssistantQuery('how much did I spend at Amazon this month', TODAY)).toMatchObject({
+      kind: 'spend_by_category',
+      target: { type: 'group', group: 'Shopping' },
+    });
+    expect(parseAssistantQuery('how much did I spend on natural gas this month', TODAY)).toMatchObject({
+      kind: 'spend_by_category',
+      target: { type: 'category', categoryId: 'natural-gas' },
+    });
+    expect(parseAssistantQuery('how much did I spend at Uber Eats this month', TODAY)).toMatchObject({
+      kind: 'spend_by_category',
+      target: { type: 'category', categoryId: 'food-delivery' },
+    });
+  });
+
   it('test_regression__spend_at_non_ascii_merchant (#226): abstains, never the all-spending total', () => {
     // Both #166 guards are ASCII-only — `extractMerchantPhrase` strips every
     // non-[a-z0-9'&.-] character, and the `on <object>` guard matches `[a-z0-9]+` —
