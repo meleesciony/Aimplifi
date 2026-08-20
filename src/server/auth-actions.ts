@@ -8,6 +8,7 @@
  */
 import { AuthError } from 'next-auth';
 import { signIn } from '@/auth';
+import { DEMO_USER_ID } from '@/lib/demo-user';
 import { hashPassword } from '@/lib/auth/password';
 import { effectiveAllowlist, isSignupAllowed } from '@/lib/auth/allowlist';
 import { normalizeEmail, validateSignup } from '@/lib/auth/validate';
@@ -180,4 +181,26 @@ export async function authenticate(prev: AuthFormState | null, formData: FormDat
 
 export async function googleSignIn(): Promise<void> {
   await signIn('google', { redirectTo: '/dashboard' });
+}
+
+/**
+ * Shared-demo sign-in (DECISIONS #489). Returns `{ ok: true }` so a client
+ * onSubmit can `window.location.assign('/dashboard')` — the #164/#166/#167
+ * mutation recipe. `redirect: false` keeps the session cookie set without a
+ * server-driven NEXT_REDIRECT, which a progressive-enhancement document POST
+ * never followed (live HTML had `action=""`, so no-JS POSTs stayed on /sign-in).
+ */
+export async function demoSignIn(): Promise<{ ok: true }> {
+  try {
+    await prisma.auditLog.create({
+      data: { userId: DEMO_USER_ID, action: 'auth.signin', meta: '{}' },
+    });
+  } catch {
+    /* audit is best-effort — never block demo entry */
+  }
+  // redirect: false sets the session cookie and returns (no NEXT_REDIRECT). If
+  // Auth.js still throws a redirect or AuthError, let it propagate — never
+  // swallow either into a false { ok: true }. Client navigates on ok.
+  await signIn('demo', { redirect: false });
+  return { ok: true };
 }

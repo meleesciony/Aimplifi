@@ -1,26 +1,18 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { SESSION_IDLE_TIMEOUT_MINUTES } from '@/auth.config';
-import { DEMO_USER_ID, auth, signIn } from '@/auth';
+import { auth } from '@/auth';
+import { DemoSignInButton } from '@/components/auth/demo-sign-in-button';
 import { EmailPasswordForm } from '@/components/auth/email-password-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { googleSignIn } from '@/server/auth-actions';
-import { prisma } from '@/lib/db';
 
 export default async function SignInPage() {
   const session = await auth();
   if (session?.user) redirect('/dashboard');
 
   const googleEnabled = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
-
-  async function demoSignIn() {
-    'use server';
-    try {
-      await prisma.auditLog.create({ data: { userId: DEMO_USER_ID, action: 'auth.signin', meta: '{}' } });
-    } catch {}
-    await signIn('demo', { redirectTo: '/dashboard' });
-  }
 
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
@@ -52,11 +44,7 @@ export default async function SignInPage() {
             <span className="h-px flex-1 bg-border" />
           </div>
 
-          <form action={demoSignIn}>
-            <Button type="submit" variant="outline" className="w-full" data-testid="demo-sign-in">
-              Explore the demo
-            </Button>
-          </form>
+          <DemoSignInButton />
           <p className="text-xs text-muted-foreground">
             The demo uses a realistic seeded dataset — fictional accounts, no sign-up. Create an account
             to track your own money; connect your banks, cards, and brokerages to get started.

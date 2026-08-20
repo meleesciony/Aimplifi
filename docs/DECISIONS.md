@@ -8312,3 +8312,38 @@ different, disclosed questions.
 `test_regression__thin_forecast_and_cycle_cash_needed_stay_different_questions`;
 intent cases in `assistant-intent.test.ts`; `answerCashFlowRadar` in
 `assistant-answer.test.ts`.
+
+## #489 — Public "Explore the demo" CTA uses the mutation-form recipe (2026-08-20)
+
+**Context.** Measured on www.aimplifi.app 2026-08-20: `/` 307s to `/sign-in`.
+The only demo CTA (`data-testid="demo-sign-in"`, copy "Explore the demo") was
+`<form action={demoSignIn}>` with an inline `'use server'` that called
+`signIn('demo', { redirectTo: '/dashboard' })`. Live HTML rendered `action=""`.
+A document POST (no `Next-Action` header) returned 200, stayed on `/sign-in`,
+and set zero auth cookies — progressive enhancement was dead. A JS server-action
+POST did 303 + session cookie + dashboard redirect, so the demo *provider* was
+fine; the form binding was not.
+
+**Root cause.** Same family as #164/#166/#167: `<form action={fn}>` is unreliable
+here (see `docs/lessons/mutation-form-recipe.md`). Every other mutation already
+moved to onSubmit + assign/reload; the public demo CTA was the leftover
+anti-pattern.
+
+**Decision.** Smallest fix, no redesign:
+1. Move `demoSignIn` to `src/server/auth-actions.ts` next to `googleSignIn` /
+   password actions. Audit-log try/catch unchanged. Call
+   `signIn('demo', { redirect: false })` and `return { ok: true }` so the client
+   owns navigation (do not swallow a thrown redirect/AuthError into a false ok).
+2. Client `DemoSignInButton`: onSubmit + own busy + `withDeadline` +
+   `window.location.assign('/dashboard')` on ok; on `ActionDeadline` also assign
+   `/dashboard` (#164: cookie usually already set).
+3. Keep copy, testid, demo user, `/dashboard` target. Do **not** set
+   `DEMO_TODAY`, touch seed, Plaid/Vercel env, middleware, SW, or Google/password
+   forms.
+
+**Locked.** `tests/unit/demo-sign-in.test.ts`
+`test_regression__demo_cta_uses_redirect_false_and_returns_ok`,
+`test_regression__demo_cta_propagates_auth_failure`,
+`test_regression__demo_cta_uses_client_onsubmit_not_form_action`. Existing e2e
+(`desktop-header`, `no-dead-ends`, and every other `demo-sign-in` click) still
+drives the same testid → `/dashboard`.
