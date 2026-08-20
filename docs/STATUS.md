@@ -107,9 +107,8 @@ joins the descriptor evidence set. Next sync `refreshTransferFlags` add-only
 flags them. Converse leak (`isTransfer=true` under spend categories) not
 cleared or re-filed.
 
-**Still open on O.20j.** Converse leak sizing / H.7b; whether `applyCategory`
-should stamp `isTransfer` immediately on a hand-file to transfer (refresh
-covers eventual consistency).
+**Still open on O.20j.** Converse leak sizing / H.7b. **Hand-file stamp closed
+in #491** (`applyCategory` + twins set `isTransfer` immediately on Transfer).
 
 **Locked.** `test_regression__o20j_filed_transfer_category_flags_without_pair_or_descriptor`
 (+ AUTOMATIC/brokerage sibling + converse-leak non-touch).
