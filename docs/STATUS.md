@@ -26,6 +26,10 @@ move. No new nav/page/bar redesign.
 
 **Locked.** `test_regression__conscious_savings_band_is_40_not_sethi_15_20`.
 
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,173 passed + 1 expected fail + 1 skipped / 436 files + 1 skipped**,
+`next build` clean.
+
 ## ✅ BUILT 2026-08-20 — Header Sign out uses mutation-form recipe (DECISIONS #492)
 
 **Trust/polish blocker.** App chrome Sign out was still
