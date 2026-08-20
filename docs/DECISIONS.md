@@ -8393,3 +8393,31 @@ Ask Costco Gas = 19582 under “Costco”); Costco-only locks in
 `ask.spec.ts` Costco Gas = $37.38 ≠ Costco dollars;
 `test_regression__o10a_costco_gas_is_not_hijacked_by_fuel_synonym` in
 `assistant-intent.test.ts`.
+
+## #491 — O.20j: hand-file to Transfer stamps `isTransfer` immediately (2026-08-20)
+
+**Context.** After #485 (flow predicate), #486 (Overdraft Transfer normalizer),
+and #487 (detector treats a persisted `transfer` leaf as evidence), STATUS
+still named the hand-file hole: `applyCategory` updated `categoryId` but never
+`isTransfer`. Register Transfer filter, triage inbox, and recurring still key
+off the flag until the next sync. Verified on current main (`018d5cb0`): the
+update at `triage-actions.ts` wrote only `categoryId` / `needsReview` /
+`confidenceBps` / `reviewPinned`. Manual entry already stamped
+(`manual.ts`: `isTransfer: explicit === 'transfer'`). Twin holes on
+`applyToAllSimilar`, `fileMerchantGroup`, merchant-scope `recategorize`, and
+`recategorizeSharedTransaction`.
+
+**Decision.** When the filed leaf is `categoryId === 'transfer'`, set
+`isTransfer: true` on that write. One direction only. Filing away from
+Transfer does **not** clear the flag — DECISIONS #428 makes H.7b the app's
+only `isTransfer: false` writer; a silent clear would invent endorsement
+product. Detector pairing, `countsInFlows`, merchant match, seed, env, and
+Plaid untouched.
+
+**Locked.** `tests/unit/apply-category-transfer-stamp.test.ts`
+`test_regression__o20j_apply_category_transfer_stamps_is_transfer`,
+`test_regression__o20j_file_off_transfer_does_not_clear_is_transfer`,
+`test_regression__o20j_apply_to_all_similar_transfer_stamps_is_transfer`,
+`test_regression__o20j_recategorize_merchant_transfer_stamps_is_transfer`,
+`test_regression__o20j_file_merchant_group_transfer_stamps_is_transfer`
+(fail-old: empty stamp helper ⇒ Transfer file leaves `isTransfer` false).

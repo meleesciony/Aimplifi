@@ -75,6 +75,26 @@ answer formatter cases.
 design (cycle vs 90-day) — copy already scopes them; no unification.
 O.20j converse leak / H.7b untouched. No Plaid/env changes.
 
+## ✅ BUILT 2026-08-20 — O.20j: hand-file to Transfer stamps `isTransfer` (DECISIONS #491)
+
+**The report.** After #485/#486/#487, owner hand-file to Transfer still left
+`isTransfer=false` until the next sync. Code-confirmed on `018d5cb0`:
+`applyCategory` wrote category fields only; manual entry already stamped.
+
+**Shipped.** Stamp `isTransfer: true` when filing `categoryId === 'transfer'`
+in `applyCategory`, `applyToAllSimilar`, `fileMerchantGroup`, merchant-scope
+`recategorize`, and `recategorizeSharedTransaction`. Filing off Transfer does
+**not** clear (H.7b / #428 remains the only `isTransfer: false` writer).
+
+**Still open on O.20j.** Converse leak sizing / H.7b.
+
+**Locked.** `test_regression__o20j_apply_category_transfer_stamps_is_transfer`
+(+ file-off-does-not-clear + three twin path locks). Fail-old proven.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,169 passed + 1 expected fail + 1 skipped / 435 files + 1 skipped**,
+`next build` clean. No e2e (server action stamp; no UI). No `prisma/` diff.
+
 ## ✅ BUILT 2026-08-20 — O.20j detector: filed transfer leaf flags `isTransfer` (DECISIONS #487)
 
 **The report.** After #485/#486, rows already filed `categoryId=transfer` with
@@ -89,9 +109,8 @@ joins the descriptor evidence set. Next sync `refreshTransferFlags` add-only
 flags them. Converse leak (`isTransfer=true` under spend categories) not
 cleared or re-filed.
 
-**Still open on O.20j.** Converse leak sizing / H.7b; whether `applyCategory`
-should stamp `isTransfer` immediately on a hand-file to transfer (refresh
-covers eventual consistency).
+**Still open on O.20j.** Converse leak sizing / H.7b. **Hand-file stamp closed
+in #491** (`applyCategory` + twins set `isTransfer` immediately on Transfer).
 
 **Locked.** `test_regression__o20j_filed_transfer_category_flags_without_pair_or_descriptor`
 (+ AUTOMATIC/brokerage sibling + converse-leak non-touch).

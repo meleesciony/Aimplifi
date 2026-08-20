@@ -27,6 +27,18 @@ function assertRuleEligible(rawDescriptor: string): void {
   }
 }
 
+/**
+ * Owner filing to the Transfer leaf stamps `isTransfer` immediately (O.20j /
+ * DECISIONS #491) so register filter, inbox, and recurring match the leaf
+ * without waiting for the next sync detector (#487). Filing AWAY from Transfer
+ * does not clear the flag — H.7b (#428) is deliberately the app's only
+ * `isTransfer: false` write path; a silent clear would invent endorsement
+ * product that does not exist.
+ */
+function stampIsTransferOnTransferLeaf(categoryId: string): { isTransfer: true } | Record<string, never> {
+  return categoryId === 'transfer' ? { isTransfer: true } : {};
+}
+
 async function ownedTransaction(userId: string, transactionId: string) {
   const txn = await prisma.transaction.findFirst({
     where: { id: transactionId, account: { userId } },
@@ -169,7 +181,13 @@ export async function applyCategory(input: {
     }
     await tx.transaction.update({
       where: { id: fresh.id },
-      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900, reviewPinned: false },
+      data: {
+        categoryId: input.categoryId,
+        needsReview: false,
+        confidenceBps: 9900,
+        reviewPinned: false,
+        ...stampIsTransferOnTransferLeaf(input.categoryId),
+      },
     });
     // Ground truth for the accuracy metric (DECISIONS #37): the user just confirmed
     // the real category for this transaction's prediction. labeledAt marks this as a
@@ -280,7 +298,13 @@ export async function applyToAllSimilar(input: {
     }
     await tx.transaction.updateMany({
       where: { id: { in: targets.map((t) => t.id) } },
-      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900, reviewPinned: false },
+      data: {
+        categoryId: input.categoryId,
+        needsReview: false,
+        confidenceBps: 9900,
+        reviewPinned: false,
+        ...stampIsTransferOnTransferLeaf(input.categoryId),
+      },
     });
     await tx.categoryPrediction.updateMany({
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
@@ -395,7 +419,13 @@ export async function fileMerchantGroup(input: {
     const updated = await tx.transaction.updateMany({
       // Compare-and-set: only rows STILL in review are filed, re-asserted in the write.
       where: { id: { in: targets.map((t) => t.id) }, needsReview: true },
-      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900, reviewPinned: false },
+      data: {
+        categoryId: input.categoryId,
+        needsReview: false,
+        confidenceBps: 9900,
+        reviewPinned: false,
+        ...stampIsTransferOnTransferLeaf(input.categoryId),
+      },
     });
     await tx.categoryPrediction.updateMany({
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
@@ -583,7 +613,13 @@ export async function recategorize(input: {
     }
     await tx.transaction.updateMany({
       where: { id: { in: targets.map((t) => t.id) } },
-      data: { categoryId: input.categoryId, needsReview: false, confidenceBps: 9900, reviewPinned: false },
+      data: {
+        categoryId: input.categoryId,
+        needsReview: false,
+        confidenceBps: 9900,
+        reviewPinned: false,
+        ...stampIsTransferOnTransferLeaf(input.categoryId),
+      },
     });
     await tx.categoryPrediction.updateMany({
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
