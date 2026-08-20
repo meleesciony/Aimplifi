@@ -6,6 +6,25 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-20 — Ask run-out uses Cash flow radar (DECISIONS #488)
+
+**Trust blocker.** Demo showed Cash needed **$1,050**, radar **$6,950 /
+−$6,943.99**, Ask **$12,495 / $3,400** for questions that looked the same.
+Verified on seed: Ask had been answering with recurring-only `/forecast`.
+
+**Fix.** New intent `cash_flow_radar` for run-out / go-negative →
+`getCashFlowRadar` + `answerCashFlowRadar` (same engine as the dashboard
+card). Thin `forecast` kept for projected-balance asks; detail now names
+card payments like `/forecast`. Cash-needed stays this-cycle (different
+question, disclosed).
+
+**Locked.** `ask-runout-radar-agreement.test.ts` regression trio + intent /
+answer formatter cases.
+
+**Still open.** Cash-needed vs radar transfer amounts remain different by
+design (cycle vs 90-day) — copy already scopes them; no unification.
+O.20j converse leak / H.7b untouched. No Plaid/env changes.
+
 ## ✅ BUILT 2026-08-20 — O.20j detector: filed transfer leaf flags `isTransfer` (DECISIONS #487)
 
 **The report.** After #485/#486, rows already filed `categoryId=transfer` with

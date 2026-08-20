@@ -85,7 +85,7 @@ describe('routing — retire_at_age vs siblings', () => {
 
   it('does not poach the forward siblings', () => {
     expect(parseAssistantQuery('when will I be debt-free?', today).kind).toBe('debt_payoff');
-    expect(parseAssistantQuery('will I run out of money in 90 days?', today).kind).toBe('forecast');
+    expect(parseAssistantQuery('will I run out of money in 90 days?', today).kind).toBe('cash_flow_radar');
     expect(parseAssistantQuery("what's my savings rate?", today).kind).toBe('savings_rate');
   });
 

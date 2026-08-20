@@ -316,7 +316,7 @@ const MAX_BARE_MERCHANT_TOKENS = 3;
 const INTENT_NOUNS = new Set([
   'income', 'paycheck', 'paychecks', 'salary', 'earnings', 'wages', 'pay',
   'refund', 'refunds', 'balance', 'balances', 'worth', 'networth',
-  'forecast', 'runway', 'debt', 'debts', 'loan', 'loans', 'payoff',
+  'forecast', 'runway', 'radar', 'debt', 'debts', 'loan', 'loans', 'payoff',
   'budget', 'plan', 'goal', 'goals', 'retirement', 'investments', 'portfolio',
   'transfer', 'transfers', 'total', 'spending', 'spend',
   // Places and abstractions a stray "at" can pick up ("…at work", "at home").

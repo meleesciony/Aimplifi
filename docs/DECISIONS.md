@@ -8282,3 +8282,33 @@ only the completeness comment was updated (flag + category leaf).
 (`insights.test.ts`) and
 `test_regression__o20j_transfer_category_unflagged_stays_out_of_month_flow_panels`
 (`month-flow-breakdown.test.ts`).
+
+## #488 — Ask "will I run out of money?" uses Cash flow radar (2026-08-20)
+
+**Context.** Live demo (www.aimplifi.app, asOf Wed Jun 10, 2026) showed three
+cash answers a reader cannot trust together: Cash needed shortfall **$1,012.33**
+on Jun 24 / transfer **$1,050**; Cash flow radar lowest **−$6,943.99** on Sep 1 /
+cover **$6,950**; Ask “Will I run out of money in the next 90 days?” ending
+**$12,495** / lowest **$3,400** on Jun 10. Verified on current main seed: same
+cents (`radarLowest: -694399`, `radarCover: 695000`, `cashRec: 105000`,
+`forecastEnd: 1249500`, `forecastLowest: 340000`).
+
+**Root cause.** Not three bugs in one engine — three engines (#72 cash-needed
+this-cycle; #172 radar 90-day committed + cards; #72/#75 Ask `forecast` →
+recurring-only `/forecast`). Ask’s run-out phrasing routed to the thin forecast
+and its fine print omitted card payments, so it *looked* like the radar question
+while printing an all-clear that contradicted the dashboard.
+
+**Decision.** Split the intent. `cash_flow_radar` (run out / go negative /
+overdraft / “cash flow radar”) → `getCashFlowRadar` + `answerCashFlowRadar`
+(same dollars as the dashboard card). `forecast` stays the recurring-only walk
+with disclosure aligned to `/forecast` (names card payments). Do **not** invent
+a fourth engine. Do **not** force cash-needed ≡ radar — cycle vs 90-day remain
+different, disclosed questions.
+
+**Locked.** `tests/unit/ask-runout-radar-agreement.test.ts`
+`test_regression__ask_runout_routes_to_cash_flow_radar_not_forecast`,
+`test_regression__ask_runout_agrees_with_radar_lowest_and_cover`,
+`test_regression__thin_forecast_and_cycle_cash_needed_stay_different_questions`;
+intent cases in `assistant-intent.test.ts`; `answerCashFlowRadar` in
+`assistant-answer.test.ts`.

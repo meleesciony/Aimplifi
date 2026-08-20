@@ -24,6 +24,7 @@ import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
 import { planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import type { Forecast } from '@/lib/engine/forecast/forecast';
+import type { RadarResult } from '@/lib/engine/radar/radar';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
 import {
   type CardDuplicatePairInput,
@@ -2199,11 +2200,14 @@ export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer 
   };
 }
 
-// ─── forecast ───────────────────────────────────────────────────────────────
+// ─── forecast (recurring-only — DECISIONS #72 / #75) ─────────────────────────
 
 export function answerForecast(forecast: Forecast, accountName: string, horizonDays: number): AssistantAnswer {
   const source: AssistantSource = { label: 'Open forecast', href: '/forecast' };
-  const detail = 'Based only on your known recurring income and bills — one-off spending isn’t projected.';
+  // Match /forecast's scope note (C.12 placement): card payments are omitted here.
+  // Run-out / go-negative questions route to cash_flow_radar (DECISIONS #488).
+  const detail =
+    'Based only on your known recurring income and bills — it doesn’t include card payments (see Cash needed or Cash flow radar) or one-off spending.';
   if (forecast.firstNegativeDate) {
     return {
       kind: 'forecast',
@@ -2226,6 +2230,69 @@ export function answerForecast(forecast: Forecast, accountName: string, horizonD
       { label: 'Money in', value: fmt(forecast.totalInflowCents) },
       { label: 'Money out', value: fmt(forecast.totalOutflowCents) },
     ],
+    source,
+  };
+}
+
+// ─── cash flow radar (committed + cards — DECISIONS #488) ───────────────────
+
+/**
+ * Same figures as the dashboard Cash flow radar card (`computeRadar` via
+ * `getCashFlowRadar`). Answers "will I run out of money?" without inventing a
+ * fourth projection — and without the recurring-only forecast that contradicted
+ * the radar on the live demo.
+ */
+export function answerCashFlowRadar(
+  radar: RadarResult,
+  paymentAccountName: string,
+): AssistantAnswer {
+  const source: AssistantSource = { label: 'Open dashboard', href: '/dashboard' };
+  const detail =
+    `Same ${radar.horizonDays}-day committed projection as Cash flow radar (scheduled income and bills, loans, and card dues — estimated future cycles labeled). ` +
+    `This-cycle card cash alone is on Cash needed; a recurring-only walk is on /forecast.`;
+
+  const lowestFact: AssistantFact = {
+    label: 'Lowest point',
+    value: `${fmt(radar.committed.lowestCents)} · ${humanDate(radar.committed.lowestDate)}`,
+  };
+
+  if (radar.status === 'alert' && radar.committed.firstNegativeDate) {
+    const facts: AssistantFact[] = [lowestFact];
+    if (radar.coverTransfer) {
+      facts.push({
+        label: 'Stay covered',
+        value: `move ${fmt(radar.coverTransfer.amountCents)} by ${humanDate(radar.coverTransfer.byDate)}`,
+      });
+      const top = radar.coverTransfer.sources[0];
+      if (top) facts.push({ label: 'From', value: top.name });
+    }
+    return {
+      kind: 'cash_flow_radar',
+      headline: `Heads up — ${paymentAccountName} is projected to dip below ${fmt(0)} around ${humanDate(radar.committed.firstNegativeDate)}.`,
+      detail,
+      facts,
+      source,
+    };
+  }
+
+  const facts: AssistantFact[] = [
+    lowestFact,
+    { label: `In ${radar.horizonDays} days`, value: fmt(radar.committed.endingCents) },
+  ];
+  if (radar.status === 'watch') {
+    return {
+      kind: 'cash_flow_radar',
+      headline: `${paymentAccountName}'s committed cash stays above ${fmt(0)} for ${radar.horizonDays} days — but heavy day-to-day spending could still dip it.`,
+      detail,
+      facts,
+      source,
+    };
+  }
+  return {
+    kind: 'cash_flow_radar',
+    headline: `${paymentAccountName}'s committed cash stays above ${fmt(0)} for the next ${radar.horizonDays} days.`,
+    detail,
+    facts,
     source,
   };
 }

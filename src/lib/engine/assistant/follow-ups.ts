@@ -152,6 +152,13 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
         'What subscriptions am I paying for?',
       ]);
 
+    case 'cash_flow_radar':
+      return take([
+        'How much do I need to pay my cards?',
+        'How much is guilt-free to spend this month?',
+        "What's my cash flow forecast?",
+      ]);
+
     case 'savings_rate':
       return take([
         'How much did I spend this month?',
