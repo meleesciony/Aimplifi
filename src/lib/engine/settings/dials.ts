@@ -332,7 +332,7 @@ export function validateDials(
   if (stRaw !== '') {
     const st = bpsFromPercentString(stRaw);
     if (st === null) {
-      errors.savingsTarget = 'Enter a percentage like 15 or 12.5.';
+      errors.savingsTarget = 'Enter a percentage like 40 or 12.5.';
     } else if (st < DIAL_LIMITS.savingsTargetBps.min || st > DIAL_LIMITS.savingsTargetBps.max) {
       errors.savingsTarget = 'Savings target must be between 0% and 90%.';
     } else {

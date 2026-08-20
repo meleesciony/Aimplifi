@@ -125,7 +125,7 @@ export function PlanFiguresForm({
             type="text"
             inputMode="decimal"
             defaultValue={bpsToPercent(savingsTargetBps)}
-            placeholder="25"
+            placeholder="40"
             className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm tabular-nums"
             data-testid="plan-savings-target"
             disabled={pending}

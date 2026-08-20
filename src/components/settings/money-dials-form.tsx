@@ -289,7 +289,7 @@ export function MoneyDialsForm({
               name="savingsTarget"
               inputMode="decimal"
               autoComplete="off"
-              placeholder="e.g. 15"
+              placeholder="e.g. 40"
               defaultValue={current.savingsTargetBps != null ? bpsToPercentInput(current.savingsTargetBps) : ''}
               data-testid="dials-savings-target"
               aria-invalid={err('savingsTarget') ? true : undefined}

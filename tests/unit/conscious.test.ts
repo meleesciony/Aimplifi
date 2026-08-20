@@ -98,13 +98,21 @@ describe('mapToConsciousBuckets — provably equal re-partition', () => {
     expect(sumCents(b)).toBe(0); // 100k fixed + 0 savings − 100k guilt-free
   });
 
-  it('every bucket carries Sethi target bands and the canonical order', () => {
+  it('every bucket carries target bands and the canonical order', () => {
     const b = mapToConsciousBuckets(plan());
     expect(b.buckets.map((x) => x.key)).toEqual(['fixed', 'savings', 'guiltFree']);
     const byKey = Object.fromEntries(b.buckets.map((x) => [x.key, x]));
     expect([byKey.fixed.targetLoBps, byKey.fixed.targetHiBps]).toEqual([5000, 6000]);
-    expect([byKey.savings.targetLoBps, byKey.savings.targetHiBps]).toEqual([1500, 2000]);
+    expect([byKey.savings.targetLoBps, byKey.savings.targetHiBps]).toEqual([4000, 4000]);
     expect([byKey.guiltFree.targetLoBps, byKey.guiltFree.targetHiBps]).toEqual([2000, 3500]);
+  });
+
+  it('test_regression__conscious_savings_band_is_40_not_sethi_15_20', () => {
+    expect(CONSCIOUS_TARGET_BPS.savings).toEqual([4000, 4000]);
+    // #493: the three bands no longer partition 100% (50–60 + 40 + 20–35 can exceed 100)
+    const loSum =
+      CONSCIOUS_TARGET_BPS.fixed[0] + CONSCIOUS_TARGET_BPS.savings[0] + CONSCIOUS_TARGET_BPS.guiltFree[0];
+    expect(loSum).toBeGreaterThan(10000);
   });
 });
 

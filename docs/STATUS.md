@@ -6,6 +6,26 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-20 — Household savings goal 40% + kids-save affordances (DECISIONS #493)
+
+**Slice.** Wire existing spending-plan / savings-rate surfaces to a **40%**
+household savings goal. No new CSP page, no pretax column, no demo seed dollars.
+
+**What changed.**
+- `CONSCIOUS_TARGET_BPS.savings` → `[4000, 4000]` (#379 superseded for savings
+  only; Fixed/guiltFree unchanged). Bands no longer partition 100%.
+- Coach dashed line 1500 → 4000 bps; caption = 40% household goal (not pretax);
+  title stays "Savings rate (after-tax)".
+- Placeholders: dials `e.g. 40`, plan figures `40`; conscious caption `40%`.
+- GoalForm + ReserveForm: Path2College / Trump / 529 named target copy +
+  placeholders — owner confirms; never seeded as realized cash.
+
+**Left unlabeled / untouched.** No pretax income field. Demo
+`savingsTargetBps` stays null. No Goal/Reserve seed rows. No HYSA transfer
+move. No new nav/page/bar redesign.
+
+**Locked.** `test_regression__conscious_savings_band_is_40_not_sethi_15_20`.
+
 ## ✅ BUILT 2026-08-20 — Header Sign out uses mutation-form recipe (DECISIONS #492)
 
 **Trust/polish blocker.** App chrome Sign out was still

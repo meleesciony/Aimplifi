@@ -77,7 +77,7 @@ export function GoalForm() {
             aria-invalid={err?.name ? true : undefined}
             aria-describedby={err?.name ? 'goal-error-name' : undefined}
             className={`w-40 ${inputCls}`}
-            placeholder="Emergency fund"
+            placeholder="Path2College"
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -89,7 +89,7 @@ export function GoalForm() {
             aria-invalid={err?.target ? true : undefined}
             aria-describedby={err?.target ? 'goal-error-target' : undefined}
             className={`w-28 ${inputCls}`}
-            placeholder="10000"
+            placeholder="8000"
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -100,13 +100,18 @@ export function GoalForm() {
             aria-invalid={err?.monthly ? true : undefined}
             aria-describedby={err?.monthly ? 'goal-error-monthly' : undefined}
             className={`w-28 ${inputCls}`}
-            placeholder="500"
+            placeholder="667"
           />
         </label>
         <Button type="submit" size="sm" disabled={busy} data-testid="goal-create">
           {busy ? 'Adding…' : 'Add goal'}
         </Button>
       </div>
+      <p className="text-xs text-muted-foreground" data-testid="kids-save-goal-hints">
+        Kids-save targets (confirm when ready — not money already saved): Path2College
+        $8,000/yr, Trump $5,000/yr, 529. Yearly ÷ 12 ≈ $667 / $417 / mo. Leave blank until
+        you mean it; createGoal needs a positive target.
+      </p>
       <FieldError id="goal-error-name" message={err?.name} />
       <FieldError id="goal-error-target" message={err?.target} />
       <FieldError id="goal-error-monthly" message={err?.monthly} />
