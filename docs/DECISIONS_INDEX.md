@@ -478,3 +478,4 @@ refuses to write if it would drop any number this file already carries.
 - **#482** (Phase ?): O.17a: money dials key by category id (2026-08-16)
 - **#483** (Phase ?): W.8: every COACH_COPY key enters the guardrail scan (2026-08-17)
 - **#484** (Phase ?): W.4: route a wealth target through Ask (2026-08-17)
+- **#485** (Phase ?): O.20j first slice: `countsInFlows` honors the transfer category leaf (2026-08-20)

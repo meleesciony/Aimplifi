@@ -69,6 +69,17 @@ const FIXTURE: MonthFlowSourceTxn[] = [
   // None of the following may appear in either panel.
   row({ id: 'pending-1', amountCents: -7700, date: '2026-06-11', status: 'PENDING' }),
   row({ id: 'transfer-1', amountCents: -50_000, date: '2026-06-05', isTransfer: true }),
+  // O.20j: filed as Transfer with the pairing flag still false — the live leak
+  // shape (76 production rows). Must leave both panels the same way a flagged
+  // transfer does; `isSpendRow` already dropped this leaf.
+  row({
+    id: 'transfer-leaf-unflagged',
+    amountCents: -1_005_127,
+    date: '2026-06-12',
+    categoryId: 'transfer',
+    isTransfer: false,
+    rawDescriptor: 'Funds Transfer to Brokerage',
+  }),
   row({ id: 'split-parent', amountCents: -6000, date: '2026-06-07', isSplitParent: true }),
   row({ id: 'excluded-1', amountCents: -3300, date: '2026-06-09', excludeFromTotals: true }),
   // One month out of the chart's window entirely.
@@ -123,10 +134,34 @@ describe('month-flow breakdowns — the populations the two could disagree about
   });
 
   it('transfers, split containers and reader-excluded rows are in neither panel', () => {
-    for (const id of ['transfer-1', 'split-parent', 'excluded-1']) {
+    for (const id of ['transfer-1', 'transfer-leaf-unflagged', 'split-parent', 'excluded-1']) {
       expect(ids(expense), id).not.toContain(id);
       expect(ids(income), id).not.toContain(id);
     }
+  });
+
+  it('test_regression__o20j_transfer_category_unflagged_stays_out_of_month_flow_panels', () => {
+    // Fail-old: before O.20j, countsInFlows admitted categoryId=transfer when
+    // isTransfer was false, so the glass-box panel (and the chart bar it tracks)
+    // listed the leak row. Deleting the category gate from countsInFlows must
+    // put transfer-leaf-unflagged back into the expense panel.
+    expect(ids(expense)).not.toContain('transfer-leaf-unflagged');
+    expect(ids(income)).not.toContain('transfer-leaf-unflagged');
+    const alone = buildMonthFlowBreakdowns(
+      [
+        row({
+          id: 'xfer-only',
+          amountCents: -1_005_127,
+          categoryId: 'transfer',
+          isTransfer: false,
+          rawDescriptor: 'Venmo payment',
+        }),
+        row({ id: 'keep', amountCents: -2_000, categoryId: 'dining' }),
+      ],
+      [{ month: MONTH, incomeCents: 0, expensesCents: 2_000 }],
+    );
+    expect(alone[`${MONTH}:expense`].rows.map((r) => r.transactionId)).toEqual(['keep']);
+    expect(alone[`${MONTH}:expense`].sumCents).toBe(2_000);
   });
 
   it('a refund is a NEGATIVE row inside spending, never a positive one inside income', () => {

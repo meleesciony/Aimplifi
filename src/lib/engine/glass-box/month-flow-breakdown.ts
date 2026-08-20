@@ -114,9 +114,11 @@ export interface MonthFlowBreakdown {
  * prints whatever the breakdown carries — a disclosure a call site has to
  * remember is one a call site can forget.
  *
- * The enumeration is COMPLETE against `countsInFlows`, whose four clauses are,
- * in order: not a transfer, POSTED only, not a split container, and not excluded
- * from totals. (C.25/#403 adds an optional fifth — a caller-supplied set of
+ * The enumeration is COMPLETE against `countsInFlows`, whose clauses are, in
+ * order: not a transfer FLAG (`isTransfer`), not the transfer CATEGORY leaf
+ * (`categoryId === 'transfer'` — O.20j; same gate `isSpendRow` already had),
+ * POSTED only, not a split container, and not excluded from totals.
+ * (C.25/#403 adds an optional further clause — a caller-supplied set of
  * loan-payment row ids carried elsewhere — which this builder threads through
  * untouched: an excluded row never enters the enumeration either.) What
  * follows those clauses is the flow SPLIT, and it was got wrong twice before
