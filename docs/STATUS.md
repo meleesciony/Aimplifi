@@ -91,7 +91,9 @@ in `applyCategory`, `applyToAllSimilar`, `fileMerchantGroup`, merchant-scope
 **Locked.** `test_regression__o20j_apply_category_transfer_stamps_is_transfer`
 (+ file-off-does-not-clear + three twin path locks). Fail-old proven.
 
-**Gate.** See this session's verify output in the PR / turn contract.
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,169 passed + 1 expected fail + 1 skipped / 435 files + 1 skipped**,
+`next build` clean. No e2e (server action stamp; no UI). No `prisma/` diff.
 
 ## ✅ BUILT 2026-08-20 — O.20j detector: filed transfer leaf flags `isTransfer` (DECISIONS #487)
 

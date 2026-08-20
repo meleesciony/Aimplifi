@@ -16,6 +16,10 @@ clear — #428 keeps H.7b as the only clear path.
 **Locked.** `apply-category-transfer-stamp.test.ts` five regressions; fail-old
 proven (empty stamp helper ⇒ flag stays false).
 
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,169 passed + 1 expected fail + 1 skipped / 435 files + 1 skipped**,
+`next build` clean. Draft PR only — do not merge.
+
 **Still open.** O.20j converse leak sizing / H.7b.
 
 ## 2026-08-20 — Ask run-out ≡ Cash flow radar (DECISIONS #488)
