@@ -6,7 +6,7 @@
  */
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/auth', () => ({ signIn: vi.fn() }));
+vi.mock('@/auth', () => ({ signIn: vi.fn(), signOut: vi.fn() }));
 // next-auth's index pulls `next/server`, which vitest's node resolver can't load
 // (fine in the Next build). We only need AuthError to exist for the import.
 vi.mock('next-auth', () => ({ AuthError: class AuthError extends Error {} }));

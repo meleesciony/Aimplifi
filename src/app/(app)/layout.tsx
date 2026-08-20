@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
-import { DEMO_USER_ID, auth, signOut } from '@/auth';
+import { DEMO_USER_ID, auth } from '@/auth';
 import { AppNav } from '@/components/app-nav';
 import { AutoSync } from '@/components/auto-sync';
-import { Button } from '@/components/ui/button';
+import { SignOutButton } from '@/components/auth/sign-out-button';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
@@ -46,11 +46,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       select: { userId: true },
     })) !== null;
 
-  async function doSignOut() {
-    'use server';
-    await signOut({ redirectTo: '/sign-in' });
-  }
-
   return (
     <div className="pb-bottom-nav mx-auto max-w-5xl px-4 sm:px-6">
       <AutoSync enabled={hasSimplefin} plaid={hasPlaid} />
@@ -68,11 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           Sign-out shrink-0: never share width with the 13 desktop text links (#188). */}
       <header className="-mx-4 flex items-center justify-between gap-3 border-b bg-background px-4 py-3 sm:sticky sm:top-0 sm:z-30 sm:items-start sm:-mx-6 sm:bg-background/80 sm:px-6 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-background/60">
         <AppNav reviewBadge={<ReviewBadge userId={session.user.id} />} />
-        <form action={doSignOut} className="shrink-0 sm:pt-0.5" data-testid="sign-out-form">
-          <Button variant="ghost" size="sm" type="submit">
-            Sign out
-          </Button>
-        </form>
+        <SignOutButton />
       </header>
       {isDemo && (
         <p className="mb-3 flex items-center gap-2 text-xs text-muted-foreground" data-testid="demo-banner">
