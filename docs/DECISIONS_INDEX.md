@@ -480,3 +480,4 @@ refuses to write if it would drop any number this file already carries.
 - **#484** (Phase ?): W.4: route a wealth target through Ask (2026-08-17)
 - **#485** (Phase ?): O.20j first slice: `countsInFlows` honors the transfer category leaf (2026-08-20)
 - **#486** (Phase ?): O.20j R6: Overdraft Transfer from Brokerage is a transfer, not a fee (2026-08-20)
+- **#487** (Phase ?): O.20j converse leak: measured and partitioned; no predicate override (2026-08-20)

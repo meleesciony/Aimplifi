@@ -8239,3 +8239,48 @@ only the completeness comment was updated (flag + category leaf).
 (`insights.test.ts`) and
 `test_regression__o20j_transfer_category_unflagged_stays_out_of_month_flow_panels`
 (`month-flow-breakdown.test.ts`).
+
+## #487 — O.20j converse leak: measured and partitioned; no predicate override (2026-08-20)
+
+**Context.** After #485/#486, the remaining O.20j OPEN named in TASKS was the
+**converse leak**: `isTransfer=true` under real spend categories vanishes from
+both `countsInFlows` and `isSpendRow` identically, so basis-gap probes cannot
+surface the undercount. The hunch to verify: a surgical rule like "never treat
+`isTransfer` as spend-exclude when `categoryId` is a real spend category."
+
+**Verified from code (not a product invention).**
+1. `refreshTransferFlags` **overturnIds** write `isTransfer: true` and **keep**
+   the competing spend category (`transfer-refresh.ts`). Filing to
+   `categoryId='transfer'` is only the `fileIds` (needsReview) path.
+2. Therefore a flagged row under groceries/rent/entertainment can be a
+   **genuine** evidenced transfer (H.7 coherent pair / descriptor) that the
+   sweep correctly withheld from spend while leaving the old leaf in place.
+3. H.7b (`planTransferFlagRepair`, DECISIONS #428) already partitions today's
+   corpus: clear = rule declines + settled substantive scope; endorsed = rule
+   re-justifies. Clearing is owner-triggered, previewed, undoable — the only
+   `isTransfer: false` write path. Live clearable size when H.7b shipped:
+   **53 rows / $29,848.84** (STATUS residual 1).
+
+**Decision — measure only; do not change predicates.** A one-predicate
+"spend category overrides flag" rule would restore **endorsed** overturn
+cents into every spend total (double-count real account moves). That
+contradicts overturn design and H.7b. False-positive dollars return when the
+owner runs the existing /settings repair — not via a silent basis rewrite.
+
+**Shipped this slice.** Pure `measureConverseTransferLeak` + fixture locks on
+the #446 category shape (entertainment 5 / rent 4 / subscriptions 3 /
+transport 3 / fuel·internet·lawn-garden·home-services·auto-maintenance 1 each)
+partitioned into clearable vs endorsed. Fixture dollars are integers for the
+shape lock; they are **not** a live re-probe. No `countsInFlows` /
+`isSpendRow` change.
+
+**Owner-gated.** Running H.7b repair on the live corpus (authorises rewriting
+figures already seen). Live converse-leak dollar re-probe if the owner wants
+fresh counts beyond the H.7b 53 / $29,848.84 clearable measurement. Detector
+root cause for remaining unflagged `transfer`-category rows stays a later
+O.20j remainder (and draft PR #5's filed-leaf detector work is independent).
+
+**Locked.** `tests/unit/o20j-converse-leak.test.ts` —
+`test_regression__o20j_converse_leak_dual_exclusion_on_documented_category_shape`,
+`test_regression__o20j_converse_leak_h7b_partitions_clearable_vs_endorsed`,
+`test_regression__o20j_converse_leak_spend_category_override_would_restore_endorsed`.
