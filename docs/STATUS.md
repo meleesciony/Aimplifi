@@ -75,6 +75,24 @@ answer formatter cases.
 design (cycle vs 90-day) — copy already scopes them; no unification.
 O.20j converse leak / H.7b untouched. No Plaid/env changes.
 
+## ✅ BUILT 2026-08-20 — O.20j: hand-file to Transfer stamps `isTransfer` (DECISIONS #491)
+
+**The report.** After #485/#486/#487, owner hand-file to Transfer still left
+`isTransfer=false` until the next sync. Code-confirmed on `018d5cb0`:
+`applyCategory` wrote category fields only; manual entry already stamped.
+
+**Shipped.** Stamp `isTransfer: true` when filing `categoryId === 'transfer'`
+in `applyCategory`, `applyToAllSimilar`, `fileMerchantGroup`, merchant-scope
+`recategorize`, and `recategorizeSharedTransaction`. Filing off Transfer does
+**not** clear (H.7b / #428 remains the only `isTransfer: false` writer).
+
+**Still open on O.20j.** Converse leak sizing / H.7b.
+
+**Locked.** `test_regression__o20j_apply_category_transfer_stamps_is_transfer`
+(+ file-off-does-not-clear + three twin path locks). Fail-old proven.
+
+**Gate.** See this session's verify output in the PR / turn contract.
+
 ## ✅ BUILT 2026-08-20 — O.20j detector: filed transfer leaf flags `isTransfer` (DECISIONS #487)
 
 **The report.** After #485/#486, rows already filed `categoryId=transfer` with

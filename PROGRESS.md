@@ -2,6 +2,22 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-20 — O.20j: applyCategory stamps isTransfer on Transfer (DECISIONS #491)
+
+**Picked up.** User-facing leftover of the O.20j wave: hand-file to Transfer
+did not stamp `isTransfer`. Out of scope: H.7b, U.15, login flake, Plaid,
+converse-leak flip, demo CTA, O.10a, O.20c, sign-out, graph, secrets, merge.
+
+**Closed.** `applyCategory` + twins (`applyToAllSimilar`, `fileMerchantGroup`,
+merchant `recategorize`, household `recategorizeSharedTransaction`) set
+`isTransfer: true` when `categoryId === 'transfer'`. Filing away does not
+clear — #428 keeps H.7b as the only clear path.
+
+**Locked.** `apply-category-transfer-stamp.test.ts` five regressions; fail-old
+proven (empty stamp helper ⇒ flag stays false).
+
+**Still open.** O.20j converse leak sizing / H.7b.
+
 ## 2026-08-20 — Ask run-out ≡ Cash flow radar (DECISIONS #488)
 
 **Picked up.** Owner trust blocker: live demo Ask / radar / cash-needed

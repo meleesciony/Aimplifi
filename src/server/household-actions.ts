@@ -534,6 +534,9 @@ export async function recategorizeSharedTransaction(input: {
         needsReview: false,
         confidenceBps: 9900,
         reviewPinned: false,
+        // O.20j / DECISIONS #491: same stamp as applyCategory. Filing away from
+        // Transfer does not clear — H.7b (#428) is the only isTransfer:false writer.
+        ...(input.categoryId === 'transfer' ? { isTransfer: true as const } : {}),
       },
     });
     return { correction, accountId: fresh.accountId, ownerUserId: fresh.account.userId };

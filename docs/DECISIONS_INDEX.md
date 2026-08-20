@@ -484,3 +484,4 @@ refuses to write if it would drop any number this file already carries.
 - **#488** (Phase ?): Ask "will I run out of money?" uses Cash flow radar (2026-08-20)
 - **#489** (Phase ?): Public "Explore the demo" CTA uses the mutation-form recipe (2026-08-20)
 - **#490** (Phase ?): O.10a: Ask merchant match is exact store identity (2026-08-20)
+- **#491** (Phase ?): O.20j: hand-file to Transfer stamps `isTransfer` immediately (2026-08-20)
