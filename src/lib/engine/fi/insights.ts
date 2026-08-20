@@ -69,9 +69,21 @@ export interface TxnLike {
  * once by the snapshot assembler, handed in by surfaces that sum flows.
  * Omitted = the exact pre-C.25 behaviour, so an unwired caller and the demo
  * golden are unchanged by construction.
+ *
+ * O.20j (DECISIONS #446): also refuse `categoryId === 'transfer'`. `isSpendRow`
+ * already drops that leaf; `countsInFlows` historically keyed only off the
+ * `isTransfer` boolean, so rows filed as Transfer with `isTransfer: false`
+ * (76 measured on the production corpus) inflated `/reports` chart bars,
+ * `/coach` savings rate + Money Review, Ask income/expense answers, and the
+ * glass-box month-flow panel. The converse leak (`isTransfer: true` under a
+ * real spend category) is NOT in scope here — both predicates already agree
+ * on the flag, and flipping it needs a product decision (H.7b / detector).
  */
 export function countsInFlows(t: TxnLike, excludedFlowIds?: ReadonlySet<string>): boolean {
   if (typeof t.id === 'string' && excludedFlowIds?.has(t.id)) return false;
+  // Match `isSpendRow`'s transfer-leaf gate (reports.ts): a filed Transfer is
+  // not income or spend even when the pairing detector left `isTransfer` false.
+  if (t.categoryId === 'transfer') return false;
   return !t.isTransfer && t.status === 'POSTED' && !t.isSplitParent && !isExcludedFromTotals(t);
 }
 

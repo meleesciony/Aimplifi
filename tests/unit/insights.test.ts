@@ -10,9 +10,12 @@ import {
   detectLifestyleCreep,
   findOpportunities,
   hoursOfWork,
+  countsInFlows,
+  isIncomeFlowRow,
   monthlyFlows,
   monthsOfRunway,
 } from '@/lib/engine/fi/insights';
+import { isSpendRow } from '@/lib/engine/reports/reports';
 import { generateMoneyReview } from '@/lib/engine/fi/coach-copy';
 import { CATEGORIES } from '@/lib/engine/categorize/categories';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
@@ -64,6 +67,70 @@ describe('monthly savings rate from seed data (3 hand-verified months)', () => {
       { date: '2026-03-15', amountCents: -50000, rawDescriptor: 'TRANSFER TO SAVINGS', accountId: 'a', isTransfer: true, status: 'POSTED' },
     ]);
     expect(withTransfer[0].savingsRateBps).toBe(3000); // still exactly 30.00%
+  });
+
+  it('test_regression__o20j_transfer_category_unflagged_does_not_count_in_flows', () => {
+    // O.20j / DECISIONS #446: live corpus had 76 rows with categoryId=transfer
+    // and isTransfer=false. isSpendRow already dropped the leaf; countsInFlows
+    // did not, so /reports chart bars, /coach savings rate + Money Review, and
+    // Ask income/expense answers all moved. Lock the shared predicate AND the
+    // monthlyFlows surface those pages read.
+    const base = [
+      {
+        date: '2026-07-01',
+        amountCents: 600_000,
+        rawDescriptor: 'PAYROLL',
+        accountId: 'a',
+        isTransfer: false,
+        status: 'POSTED',
+        categoryId: 'paycheck',
+      },
+      {
+        date: '2026-07-05',
+        amountCents: -40_000,
+        rawDescriptor: 'KROGER',
+        accountId: 'a',
+        isTransfer: false,
+        status: 'POSTED',
+        categoryId: 'groceries',
+      },
+    ] as const;
+    const leakOut = {
+      date: '2026-07-06',
+      amountCents: -1_005_127, // $10,051.27 — measured single-month ceiling in TASKS
+      rawDescriptor: 'Funds Transfer to Brokerage',
+      accountId: 'a',
+      isTransfer: false,
+      status: 'POSTED',
+      categoryId: 'transfer',
+    };
+    const leakIn = {
+      date: '2026-07-07',
+      amountCents: 779_297, // counterpart-shaped inflow also filed as Transfer
+      rawDescriptor: 'Overdraft Transfer from Brokerage -7383',
+      accountId: 'a',
+      isTransfer: false,
+      status: 'POSTED',
+      categoryId: 'transfer',
+    };
+
+    expect(countsInFlows(leakOut)).toBe(false);
+    expect(countsInFlows(leakIn)).toBe(false);
+    expect(isIncomeFlowRow(leakIn)).toBe(false);
+    // Parity with the spend card: the same leaf is already refused there.
+    expect(
+      isSpendRow(leakOut, { fromYm: '2026-07', toYm: '2026-07' }),
+    ).toBe(false);
+
+    const without = monthlyFlows([...base]);
+    const withLeak = monthlyFlows([...base, leakOut, leakIn]);
+    expect(withLeak).toEqual(without);
+    expect(withLeak[0].incomeCents).toBe(600_000);
+    expect(withLeak[0].expensesCents).toBe(40_000);
+    // Fail-old shape: if the category gate is deleted, expenses jump by the
+    // outflow and the inflow nets spend down — income stays put (transfer is
+    // not an Income-group leaf), so the savings rate moves.
+    expect(withLeak[0].savingsRateBps).toBe(without[0].savingsRateBps);
   });
 });
 

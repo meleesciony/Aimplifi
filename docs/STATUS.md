@@ -6,6 +6,40 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-20 — O.20j first slice: transfer category leaf leaves `countsInFlows` (DECISIONS #485)
+
+**The report.** O.20a/#446 measured that `countsInFlows` admitted rows filed
+`categoryId === 'transfer'` when `isTransfer` was false (76 live rows vs 132
+correct), while `isSpendRow` already dropped that leaf — so /reports chart bars,
+/coach savings rate + Money Review, Ask income/expense, and the glass-box
+month-flow panel disagreed with the spending card on the same money.
+
+**Shipped (narrow).** One clause in `countsInFlows`: refuse
+`t.categoryId === 'transfer'`. Callers already share that predicate, so the
+named surfaces move together. Glass-box completeness comment updated; reader
+`MONTH_FLOW_BASIS` copy already named transfers.
+
+**Not shipped (still open on O.20j).** Converse leak (`isTransfer=true` under
+real spend categories — both predicates already agree; needs sizing + product
+decision / H.7b). Detector root cause for the 76 unflagged rows. R6: the
+$7,792.97 Overdraft Transfer filed to Fees & Charges (not `transfer`) is
+outside a category-leaf gate.
+
+**Locked.** `test_regression__o20j_transfer_category_unflagged_does_not_count_in_flows`
+(+ `isSpendRow` parity + `monthlyFlows` byte-identical with/without the leak
+rows); `test_regression__o20j_transfer_category_unflagged_stays_out_of_month_flow_panels`.
+
+**Critic.** Money-visible predicate change; self-check against #446 inventory —
+lifestyle creep unaffected; converse leak deliberately not flipped. Fresh-context
+Fable critic still owed on the remaining O.20j work before claiming the whole
+row closed.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,144 passed + 1 expected fail + 1 skipped / 432 files + 1 skipped**,
+`next build` clean. No e2e (predicate-only; no UI). No `prisma/` diff.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-17 — W.4: route a wealth target through Ask (DECISIONS #484)
 
 **The report.** W.1 shipped the compounding planner and the /coach card. The owner's spoken question ("if I want to save up to 10 mil … what do I need to do?") did not route: `parseTargetAmount` missed `mil` and "ten million", and a dateless save+amount was not an intent.

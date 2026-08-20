@@ -8157,3 +8157,46 @@ Authoring new Ask copy.
 `test_regression__w4_owner_question_routes_to_wealth_target` plus
 abstention majority (compound number-word, fraction, comparison,
 negation, unresolved year).
+
+## #485 — O.20j first slice: `countsInFlows` honors the transfer category leaf (2026-08-20)
+
+**Context.** DECISIONS #446 / TASKS O.20j measured the live trust leak: rows
+filed `categoryId === 'transfer'` with `isTransfer === false` (76 vs 132
+correctly flagged) freely entered every `countsInFlows` surface — `/reports`
+chart bars, `/coach` savings rate + Money Review, Ask income/expense answers,
+and `glass-box/month-flow-breakdown.ts` — while `isSpendRow` already dropped
+`id === 'transfer'`. Owner scoped a narrow first slice: close that predicate
+gap; do not silently "fix" the converse leak (`isTransfer=true` under real
+spend categories) or chase detector root-cause / H.7b in the same commit.
+
+**Inventory (callers of `countsInFlows`, before the change).** Direct:
+`monthlyFlows` / `isIncomeFlowRow` (insights.ts) → coach + Ask + spending-plan
+income pattern / fixed-category-amounts / discretionary-spend; glass-box
+`buildMonthFlowBreakdowns`. `isSpendRow` already had the category gate
+(reports → spendingByCategory, budgets, Ask spend answers, category
+breakdown). `classifySpendClass` already excludes the transfer leaf via
+`FIXED_PATTERN_EXCLUDE_CATEGORY_IDS` (not via `countsInFlows`). Lifestyle
+creep is unaffected (a transfer leaf is never income nor discretionary —
+confirmed in #446).
+
+**Decision.** One new clause in `countsInFlows`: refuse when
+`t.categoryId === 'transfer'`, matching `isSpendRow`. No shared-predicate
+extraction, no detector write, no flag flip on `isTransfer=true` spend rows.
+`MONTH_FLOW_BASIS` reader copy already says "transfers … are all left out";
+only the completeness comment was updated (flag + category leaf).
+
+**Deliberately NOT fixed here (still open on O.20j):**
+1. **Converse leak** — `isTransfer=true` under entertainment/rent/etc. Both
+   predicates already agree on the flag; flipping it under-counts today and
+   needs a sized measurement + product decision (H.7b repair tap is the
+   owner-facing remedy path).
+2. **R6 / Fees & Charges miscategorization** — the $7,792.97 "Overdraft
+   Transfer from Brokerage" row with `isTransfer=false` filed outside
+   `transfer` is not touched by a category-leaf gate.
+3. **Why the pairing detector misses 76 rows** — detector / re-link root
+   cause remains a later slice.
+
+**Locked.** `test_regression__o20j_transfer_category_unflagged_does_not_count_in_flows`
+(`insights.test.ts`) and
+`test_regression__o20j_transfer_category_unflagged_stays_out_of_month_flow_panels`
+(`month-flow-breakdown.test.ts`).
