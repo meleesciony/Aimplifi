@@ -17,6 +17,7 @@ import { resolvePaymentAccount, getCashNeeded } from '@/server/finance';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { getRecurring } from '@/server/recurring';
 import { getCashFlowForecast } from '@/server/forecast';
+import { getCashFlowRadar } from '@/server/radar';
 import { getCoachData } from '@/server/coach';
 import { loadDebtAccounts } from '@/server/debt';
 import { planDebtPayoff } from '@/lib/engine/debt/payoff';
@@ -44,6 +45,7 @@ import { lookupVocab } from '@/server/vocab';
 import type { VocabMatch } from '@/lib/engine/vocab/vocab';
 import {
   answerAccountBalance,
+  answerCashFlowRadar,
   answerCashNeeded,
   answerDebtFreeByDate,
   answerDebtPayoff,
@@ -786,7 +788,14 @@ async function buildAnswer(
       const { forecast, accountName, horizonDays } = await getCashFlowForecast(userId);
       return answerForecast(forecast, accountName, horizonDays);
     }
+    case 'cash_flow_radar': {
+      // DECISIONS #488: same getCashFlowRadar the dashboard card uses — never
+      // the recurring-only forecast for "will I run out of money?".
+      const { radar, paymentAccountName } = await getCashFlowRadar(userId);
+      return answerCashFlowRadar(radar, paymentAccountName);
+    }
     case 'unknown':
+      return answerUnknown();
     default:
       return answerUnknown();
   }

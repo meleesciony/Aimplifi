@@ -58,6 +58,9 @@ export type AssistantIntent =
   /** Stated wealth target, no deadline — W.1's compounding planner via Ask (W.4). */
   | { kind: 'wealth_target'; targetCents: number; label: string }
   | { kind: 'subscriptions' }
+  /** 90-day committed + card dues — same engine as dashboard Cash flow radar (DECISIONS #488). */
+  | { kind: 'cash_flow_radar' }
+  /** Recurring-only balance walk — same engine as /forecast (DECISIONS #72 / #75). */
   | { kind: 'forecast' }
   | { kind: 'savings_rate' }
   | { kind: 'unknown'; question: string };
@@ -81,6 +84,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'retire_at_age',
   'wealth_target',
   'subscriptions',
+  'cash_flow_radar',
   'forecast',
   'savings_rate',
   'unknown',
@@ -1400,11 +1404,21 @@ export function parseAssistantQuery(
     return { kind: 'subscriptions' };
   }
 
-  // Forecast / will I run out
+  // Cash flow radar / will I run out (DECISIONS #488). Same engine as the
+  // dashboard radar (committed scheduled + loans + card dues). Must NOT share
+  // forecast's recurring-only walk — that printed an all-clear $12,495 on the
+  // demo while radar projected Everyday Checking below $0 (trust blocker 2026-08-20).
   if (
-    /\b(forecast|cash[\s-]?flow|run(ning)? out of (money|cash)|go(ing)? negative|negative balance|overdraf|next (30|60|90) days|in (30|60|90) days)\b/.test(
+    /\b(run(ning)? out of (money|cash)|go(ing)? negative|negative balance|overdraf|cash[\s-]?flow radar)\b/.test(
       q,
-    ) ||
+    )
+  ) {
+    return { kind: 'cash_flow_radar' };
+  }
+
+  // Forecast — recurring income/bills only (DECISIONS #72); complement to this-cycle cash-needed.
+  if (
+    /\b(forecast|cash[\s-]?flow|next (30|60|90) days|in (30|60|90) days)\b/.test(q) ||
     /\b(lowest|projected) balance\b/.test(q)
   ) {
     return { kind: 'forecast' };
@@ -1814,6 +1828,7 @@ export function validateIntent(
     case 'cash_needed':
     case 'debt_payoff':
     case 'subscriptions':
+    case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':
       return { kind: o.kind };

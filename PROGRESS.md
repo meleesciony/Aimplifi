@@ -2,6 +2,26 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-20 — Ask run-out ≡ Cash flow radar (DECISIONS #488)
+
+**Picked up.** Owner trust blocker: live demo Ask / radar / cash-needed
+disagreed on Everyday Checking. Out of scope: H.7b, U.15, login, Plaid,
+converse-leak flip, graph engineering, secrets, merge.
+
+**Closed.** Split Ask intent so “will I run out / go negative” uses
+`getCashFlowRadar` (same dollars as the dashboard card). Recurring-only
+forecast kept for projected-balance asks with card-payment disclosure.
+Verified seed cents: radar −694399 / cover 695000; forecast end 1249500;
+cash-needed rec 105000.
+
+**Locked.** `ask-runout-radar-agreement.test.ts` three regressions.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0,
+unit **7,158 passed + 1 expected fail + 1 skipped / 433 files + 1
+skipped**, `next build` clean. Draft PR only — do not merge.
+
+**Next.** Owner review of draft PR. O.20j converse leak / H.7b still open.
+
 ## 2026-08-17 — W.4: route a wealth target through Ask (DECISIONS #484)
 
 **Picked up from the queue** (W.8 shipped; U.15(b) is the owner's

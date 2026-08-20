@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   answerAccountBalance,
+  answerCashFlowRadar,
   answerCashNeeded,
   answerForecast,
   answerIncome,
@@ -558,6 +559,72 @@ describe('answerForecast', () => {
     expect(answerForecast(fc({ firstNegativeDate: '2026-08-01' }), 'Everyday Checking', 90).headline).toBe(
       'Heads up — Everyday Checking is projected to dip below $0.00 around Aug 1, 2026.',
     );
+  });
+  it('discloses card payments are omitted (align with /forecast)', () => {
+    expect(answerForecast(fc({}), 'Everyday Checking', 90).detail).toMatch(/card payments/i);
+  });
+});
+
+describe('answerCashFlowRadar', () => {
+  const baseRadar = {
+    today: '2026-06-10' as const,
+    horizonDays: 90,
+    status: 'alert' as const,
+    committed: {
+      firstNegativeDate: '2026-06-24' as const,
+      lowestDate: '2026-09-01' as const,
+      lowestCents: -694_399,
+      endingCents: -500_000,
+    },
+    daysUntilFirstNegative: 14,
+    pushWorthy: false,
+    collidingCards: [],
+    dipEvents: [],
+    coverTransfer: {
+      amountCents: 695_000 as import('@/lib/money').Cents,
+      byDate: '2026-06-23' as const,
+      worstDipDate: '2026-09-01' as const,
+      firstShortCents: 608_000 as import('@/lib/money').Cents,
+      worstDipEvents: [],
+      sources: [{ id: 'acct-savings', name: 'High-Yield Savings', balanceCents: 1_850_000, sufficient: true }],
+    },
+    burn: null,
+    includesEstimatedDues: true,
+    undatableCards: [],
+    assumptions: [],
+  };
+
+  it('alert prints radar lowest and cover — not a recurring-only all-clear', () => {
+    const a = answerCashFlowRadar(baseRadar as never, 'Everyday Checking');
+    expect(a.kind).toBe('cash_flow_radar');
+    expect(a.headline).toBe(
+      'Heads up — Everyday Checking is projected to dip below $0.00 around Jun 24, 2026.',
+    );
+    expect(a.facts.find((f) => f.label === 'Lowest point')?.value).toBe('-$6,943.99 · Sep 1, 2026');
+    expect(a.facts.find((f) => f.label === 'Stay covered')?.value).toBe(
+      'move $6,950.00 by Jun 23, 2026',
+    );
+    expect(a.facts.find((f) => f.label === 'From')?.value).toBe('High-Yield Savings');
+    expect(a.detail).toMatch(/Cash flow radar/);
+  });
+
+  it('ok status stays above zero without a cover fact', () => {
+    const a = answerCashFlowRadar(
+      {
+        ...baseRadar,
+        status: 'ok',
+        committed: {
+          firstNegativeDate: null,
+          lowestDate: '2026-06-10',
+          lowestCents: 340_000,
+          endingCents: 1_249_500,
+        },
+        coverTransfer: null,
+      } as never,
+      'Everyday Checking',
+    );
+    expect(a.headline).toContain('stays above $0.00');
+    expect(a.facts.find((f) => f.label === 'Stay covered')).toBeUndefined();
   });
 });
 

@@ -29,10 +29,13 @@ describe('parseAssistantQuery — routing', () => {
     ['what subscriptions am I paying for?', 'subscriptions'],
     ['list my recurring payments', 'subscriptions'],
     ['how much do I spend on recurring charges', 'subscriptions'],
-    // forecast
-    ['will I run out of money in the next 90 days?', 'forecast'],
+    // cash flow radar / run-out (DECISIONS #488) — before thin forecast
+    ['will I run out of money in the next 90 days?', 'cash_flow_radar'],
+    ['am I going to go negative', 'cash_flow_radar'],
+    ['cash flow radar', 'cash_flow_radar'],
+    // forecast (recurring-only)
     ["what's my cash flow forecast", 'forecast'],
-    ['am I going to go negative', 'forecast'],
+    ['projected balance in 90 days', 'forecast'],
     // cash needed
     ['how much do I need to pay my cards?', 'cash_needed'],
     ['what do I owe on my credit cards', 'cash_needed'],

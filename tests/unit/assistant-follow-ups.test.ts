@@ -26,6 +26,7 @@ function sampleIntent(kind: (typeof ASSISTANT_INTENT_KINDS)[number]): AssistantI
     case 'debt_payoff':
     case 'subscriptions':
     case 'forecast':
+    case 'cash_flow_radar':
     case 'savings_rate':
       return { kind };
     case 'account_balance':

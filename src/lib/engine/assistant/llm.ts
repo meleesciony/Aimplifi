@@ -52,7 +52,8 @@ export function buildIntentPrompt(question: string): string {
     '- retire_at_age: whether the user can retire at a SPECIFIC age they name (e.g. "can I retire at 60?", "retire by age 67") and what monthly contribution it would take to make their money last',
     '- wealth_target: a stated nest-egg / wealth number with NO deadline (e.g. "save up to 10 mil", "I want $10M", "what do I need to do to get to ten million") — when they would arrive at the current pace and what monthly contribution a horizon would take. If they name a date, use savings_goal_by_date instead',
     '- subscriptions: recurring subscriptions and their cost',
-    '- forecast: projected cash balance / running out of money',
+    '- cash_flow_radar: will the payment account run out of money / go negative / overdraft in the next 90 days (committed flows + card dues — same as Cash flow radar)',
+    '- forecast: projected cash balance from recurring income and bills only (NOT card payments; use cash_flow_radar for running out of money)',
     '- savings_rate: percent of income saved',
     '- none: the question is NOT about the user\'s own personal finances (off-topic, chit-chat, advice, or unanswerable from their accounts) — use this rather than forcing a fit',
     `Question: ${question}`,
@@ -106,6 +107,7 @@ export function intentFromKind(
     case 'cash_needed':
     case 'debt_payoff':
     case 'subscriptions':
+    case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':
       return { kind };
