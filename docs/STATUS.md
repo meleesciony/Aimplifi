@@ -28,6 +28,10 @@ existing recipes (Google off in prod).
 **Locked.** `sign-out.test.ts` regression trio. Existing e2e
 (`auth.spec` / `desktop-header`) still drive `sign-out-form` → `/sign-in`.
 
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,172 passed + 1 expected fail + 1 skipped / 436 files + 1 skipped**,
+`next build` clean.
+
 ## ✅ BUILT 2026-08-20 — O.10a: Ask merchant match is exact (DECISIONS #490)
 
 **Trust blocker.** Ask named the wrong merchant and summed the wrong money.

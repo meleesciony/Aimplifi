@@ -18,7 +18,9 @@ Google/password/import-csv (different products / already scoped).
 
 **Locked.** `sign-out.test.ts` three regressions.
 
-**Gate.** `bash scripts/verify.sh` — counts filled after the gate this session.
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,172 passed + 1 expected fail + 1 skipped / 436 files + 1 skipped**,
+`next build` clean. Draft PR only — do not merge.
 
 **Still open.** None for this class in signed-in chrome.
 
