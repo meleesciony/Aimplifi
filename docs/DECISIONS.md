@@ -8421,3 +8421,38 @@ Plaid untouched.
 `test_regression__o20j_recategorize_merchant_transfer_stamps_is_transfer`,
 `test_regression__o20j_file_merchant_group_transfer_stamps_is_transfer`
 (fail-old: empty stamp helper ⇒ Transfer file leaves `isTransfer` false).
+
+## #492 — Header Sign out uses the mutation-form recipe (2026-08-20)
+
+**Context.** After #489 moved the public "Explore the demo" CTA onto the
+`#164/#166/#167` mutation recipe, the always-on signed-in chrome still had one
+leftover of the same class: `src/app/(app)/layout.tsx` rendered
+`<form action={doSignOut}>` with an inline `'use server'` that called
+`signOut({ redirectTo: '/sign-in' })`. Live progressive enhancement for that
+pattern is dead (`action=""`); a real click can succeed on the server while the
+client does not navigate.
+
+**Root cause.** Same family as #164/#166/#167/#489 — see
+`docs/lessons/mutation-form-recipe.md`. Sign out was the last always-on
+user-facing leftover in the app header. Settings delete-data and
+sign-out-everywhere remain intentional native `<form action>` so their
+server-side `signOut({ redirectTo })` is unchanged; Google is off in prod;
+password/forgot/reset/import-csv are different surfaces already scoped.
+
+**Decision.** Smallest fix, no redesign:
+1. Move `doSignOut` to `src/server/auth-actions.ts` next to `demoSignIn`. Call
+   `signOut({ redirect: false })` and `return { ok: true }` so the client owns
+   navigation (do not swallow a thrown error into a false ok).
+2. Client `SignOutButton`: onSubmit + own busy + `withDeadline` +
+   `window.location.assign('/sign-in')` on ok; on `ActionDeadline` also assign
+   `/sign-in` (#164: cookie usually already cleared).
+3. Keep `data-testid="sign-out-form"`, "Sign out" copy, ghost/sm button,
+   shrink-0 header placement. Do **not** redesign nav, touch demo CTA,
+   password/Google forms, seed, env, Plaid, or middleware.
+
+**Locked.** `tests/unit/sign-out.test.ts`
+`test_regression__sign_out_uses_redirect_false_and_returns_ok`,
+`test_regression__sign_out_propagates_auth_failure`,
+`test_regression__sign_out_uses_client_onsubmit_not_form_action`. Existing e2e
+(`auth.spec` Sign out, `desktop-header`) still drives the same testid →
+`/sign-in` and drops the session.

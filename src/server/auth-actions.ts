@@ -7,7 +7,7 @@
  * AuthError on bad credentials (caught → friendly message).
  */
 import { AuthError } from 'next-auth';
-import { signIn } from '@/auth';
+import { signIn, signOut } from '@/auth';
 import { DEMO_USER_ID } from '@/lib/demo-user';
 import { hashPassword } from '@/lib/auth/password';
 import { effectiveAllowlist, isSignupAllowed } from '@/lib/auth/allowlist';
@@ -202,5 +202,17 @@ export async function demoSignIn(): Promise<{ ok: true }> {
   // Auth.js still throws a redirect or AuthError, let it propagate — never
   // swallow either into a false { ok: true }. Client navigates on ok.
   await signIn('demo', { redirect: false });
+  return { ok: true };
+}
+
+/**
+ * Header Sign out (DECISIONS #492). Same #164/#166/#167 / #489 recipe as
+ * demoSignIn: `redirect: false` clears the session cookie without a
+ * server-driven NEXT_REDIRECT, and returns `{ ok: true }` so the client can
+ * `window.location.assign('/sign-in')`. The prior layout inline
+ * `<form action={doSignOut}>` rendered live as `action=""`.
+ */
+export async function doSignOut(): Promise<{ ok: true }> {
+  await signOut({ redirect: false });
   return { ok: true };
 }

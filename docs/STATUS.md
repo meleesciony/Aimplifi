@@ -6,6 +6,32 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-20 — Header Sign out uses mutation-form recipe (DECISIONS #492)
+
+**Trust/polish blocker.** App chrome Sign out was still
+`<form action={doSignOut}>` with an inline `'use server'` that called
+`signOut({ redirectTo: '/sign-in' })`. Same leftover class as the pre-#489
+demo CTA: live HTML renders `action=""`, so a document POST can clear the
+session while the client never navigates.
+
+**Fix.** `doSignOut` in `auth-actions.ts` with `redirect: false` → `{ ok:
+true }`; client `SignOutButton` uses onSubmit + withDeadline +
+`window.location.assign('/sign-in')` (ActionDeadline also assigns). Keeps
+`data-testid="sign-out-form"`, "Sign out" copy, ghost/sm, shrink-0 header
+placement. No nav redesign.
+
+**Left alone (intentional).** Settings delete-data and sign-out-everywhere
+stay native `<form action>` so their server `signOut({ redirectTo })` is
+unchanged. Google / password / forgot / reset / import-csv stay on their
+existing recipes (Google off in prod).
+
+**Locked.** `sign-out.test.ts` regression trio. Existing e2e
+(`auth.spec` / `desktop-header`) still drive `sign-out-form` → `/sign-in`.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,172 passed + 1 expected fail + 1 skipped / 436 files + 1 skipped**,
+`next build` clean.
+
 ## ✅ BUILT 2026-08-20 — O.10a: Ask merchant match is exact (DECISIONS #490)
 
 **Trust blocker.** Ask named the wrong merchant and summed the wrong money.
