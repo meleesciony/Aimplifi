@@ -25,9 +25,9 @@ restore prefix ⇒ $195.82); `assistant-merchant-spend` Costco-only under
 $37.38 and not Costco dollars.
 
 **Hostile critic (money-visible Ask):** PASS — 0 P0/P1. One accepted residual
-(P2): truncated short forms (“Blue Bottle”, “ATM”) abstain with “No spending”
-instead of prefix-reaching “Blue Bottle Coffee” / “ATM Withdrawal”. Locked as
-honest empty (never wrong sibling dollars); full-canonical e2e still pins the
+(P2): truncated short forms (“Blue Bottle”, “ATM”, “Truist”) abstain with “No
+spending” instead of prefix-reaching the full canonical. Locked as honest
+empty (never wrong sibling dollars); full-canonical e2e/unit still pin the
 reachable figures. No schema / seed / env change.
 
 **Still open.** O.10b (pair window), O.10c (top-5 refund truncation), O.10d
