@@ -27,6 +27,10 @@ misses other unflagged `transfer`-category rows.
 **Locked.** `test_regression__o20j_r6_overdraft_transfer_from_brokerage_is_not_fees_spend`
 (+ normalize sibling + unpaired overturn).
 
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,147 passed + 1 expected fail + 1 skipped / 432 files + 1 skipped**,
+`next build` clean. No e2e (engine/predicate; no UI). No `prisma/` diff.
+
 ## ✅ BUILT 2026-08-20 — O.20j first slice: transfer category leaf leaves `countsInFlows` (DECISIONS #485)
 
 **The report.** O.20a/#446 measured that `countsInFlows` admitted rows filed
