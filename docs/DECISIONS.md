@@ -8158,6 +8158,46 @@ Authoring new Ask copy.
 abstention majority (compound number-word, fraction, comparison,
 negation, unresolved year).
 
+## #486 — O.20j R6: Overdraft Transfer from Brokerage is a transfer, not a fee (2026-08-20)
+
+**Context.** After #485, the transfer-leaf gate still left the live
+$7,792.97 "Overdraft Transfer from Brokerage -7383" row in spend: it was
+filed to Fees & Charges (`fees`) with `isTransfer=false`. Seven same-
+descriptor siblings on 2026-07-06 were `isTransfer=true` (pair-matched).
+Owner scoped this remainder: that family must not appear as fee/spend;
+do not size the converse leak or chase the broader 76-row detector miss.
+
+**Verified root cause (code, not a live dollar re-probe).**
+1. GENERIC `\bOVERDRAFT\b` → `fees` (`normalize.ts`) matches both
+   `OVERDRAFT FEE` and `Overdraft Transfer from Brokerage…`.
+2. No KNOWN_MERCHANTS / `TRANSFER_DESCRIPTOR` rule claimed the transfer
+   phrase first, so `normalizeMerchant` returned `fees` at 8500 bps and
+   `categorize` auto-filed it (no transfer short-circuit).
+3. `detectTransfers` marks this family only via pair matching (exact
+   opposite cents, ±3 days). There is no amount ceiling — the unpaired
+   largest leg simply never entered `evidenced`. Sibling flags were
+   almost certainly pair-overturns that left category=`fees`.
+
+**Decision.** Add KNOWN_MERCHANTS
+`/\bOVERDRAFT\s+TRANSFER\b/i` → Account Transfer / `transfer` with the
+other transfer patterns, ahead of the fees keyword. Detector and
+`categorize` both consume the normalizer, so descriptor evidence alone
+flags unpaired legs; new ingest files `categoryId=transfer`. Settled
+existing `fees` rows get `overturnIds` on the next
+`refreshTransferFlags` (H.7 keeps the competing category; spend gates
+already drop `isTransfer`). Real `OVERDRAFT FEE` unchanged.
+
+**Deliberately NOT fixed:** converse leak; why other unflagged
+`transfer`-category rows miss pairing; any production backfill beyond
+the normal sync refresh path.
+
+**Locked.** `test_regression__o20j_r6_overdraft_transfer_from_brokerage_is_not_fees_spend`
+(`insights.test.ts`),
+`test_regression__o20j_r6_overdraft_transfer_beats_fees_keyword`
+(`normalize.test.ts`),
+`test_regression__o20j_r6_unpaired_overdraft_transfer_descriptor_overturns_fees`
+(`transfer-pair-filing.test.ts`).
+
 ## #485 — O.20j first slice: `countsInFlows` honors the transfer category leaf (2026-08-20)
 
 **Context.** DECISIONS #446 / TASKS O.20j measured the live trust leak: rows
@@ -8185,14 +8225,13 @@ extraction, no detector write, no flag flip on `isTransfer=true` spend rows.
 `MONTH_FLOW_BASIS` reader copy already says "transfers … are all left out";
 only the completeness comment was updated (flag + category leaf).
 
-**Deliberately NOT fixed here (still open on O.20j):**
+**Deliberately NOT fixed here (remainder tracked on O.20j):**
 1. **Converse leak** — `isTransfer=true` under entertainment/rent/etc. Both
    predicates already agree on the flag; flipping it under-counts today and
    needs a sized measurement + product decision (H.7b repair tap is the
    owner-facing remedy path).
-2. **R6 / Fees & Charges miscategorization** — the $7,792.97 "Overdraft
-   Transfer from Brokerage" row with `isTransfer=false` filed outside
-   `transfer` is not touched by a category-leaf gate.
+2. **R6 / Fees & Charges miscategorization** — closed in **#486** (normalizer
+   claims OVERDRAFT TRANSFER before the fees keyword).
 3. **Why the pairing detector misses 76 rows** — detector / re-link root
    cause remains a later slice.
 

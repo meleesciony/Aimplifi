@@ -18,6 +18,8 @@ import {
 import { isSpendRow } from '@/lib/engine/reports/reports';
 import { generateMoneyReview } from '@/lib/engine/fi/coach-copy';
 import { CATEGORIES } from '@/lib/engine/categorize/categories';
+import { categorize } from '@/lib/engine/categorize/pipeline';
+import { detectTransfers } from '@/lib/engine/categorize/transfers';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
 import { cents } from '@/lib/money';
@@ -30,6 +32,19 @@ const series = detectRecurring(
   isoDate('2026-06-10'),
   NO_RECURRING_OVERRIDES,
 );
+
+function txn(over: {
+  rawDescriptor: string;
+  amountCents: number;
+  isTransfer?: boolean;
+}): Parameters<typeof categorize>[0] {
+  return {
+    date: '2026-07-06',
+    accountId: 'checking',
+    isTransfer: false,
+    ...over,
+  };
+}
 
 describe('monthly savings rate from seed data (3 hand-verified months)', () => {
   // Hand math: income is payroll (+$2,450 biweekly Fridays anchored 2026-06-12)
@@ -131,6 +146,83 @@ describe('monthly savings rate from seed data (3 hand-verified months)', () => {
     // outflow and the inflow nets spend down — income stays put (transfer is
     // not an Income-group leaf), so the savings rate moves.
     expect(withLeak[0].savingsRateBps).toBe(without[0].savingsRateBps);
+  });
+
+  it('test_regression__o20j_r6_overdraft_transfer_from_brokerage_is_not_fees_spend', () => {
+    // O.20j R6 / DECISIONS #486: eight live "Overdraft Transfer from Brokerage
+    // -7383" rows on 2026-07-06; seven were pair-flagged isTransfer, the
+    // largest ($7,792.97) was not and sat in Fees & Charges — so the #485
+    // transfer-leaf gate still counted it as spend. Root cause: GENERIC
+    // `\bOVERDRAFT\b` → fees beat any transfer rule. Lock the category path
+    // AND the shared spend predicates on the documented descriptor/amount.
+    const DESCRIPTOR = 'Overdraft Transfer from Brokerage -7383';
+    const AMOUNT = -779_297; // $7,792.97
+
+    const filed = categorize(
+      txn({ rawDescriptor: DESCRIPTOR, amountCents: AMOUNT, isTransfer: false }),
+    );
+    expect(filed.categoryId).toBe('transfer');
+    expect(filed.source).toBe('transfer');
+    expect(filed.needsReview).toBe(false);
+
+    // Real bank fee must still auto-file to Fees & Charges.
+    const realFee = categorize(
+      txn({ rawDescriptor: 'OVERDRAFT FEE', amountCents: -3_500, isTransfer: false }),
+    );
+    expect(realFee.categoryId).toBe('fees');
+
+    // Descriptor evidence alone (no opposite leg) detects the transfer —
+    // the live miss was the unpaired largest amount.
+    expect(
+      detectTransfers([
+        {
+          id: 'large',
+          accountId: 'checking',
+          date: '2026-07-06',
+          amountCents: AMOUNT,
+          rawDescriptor: DESCRIPTOR,
+          isSplitParent: false,
+        },
+      ]),
+    ).toEqual(new Set(['large']));
+
+    const row = {
+      id: 'large',
+      date: '2026-07-06',
+      amountCents: AMOUNT,
+      rawDescriptor: DESCRIPTOR,
+      accountId: 'checking',
+      isTransfer: false,
+      status: 'POSTED' as const,
+      categoryId: filed.categoryId,
+    };
+    expect(countsInFlows(row)).toBe(false);
+    expect(isSpendRow(row, { fromYm: '2026-07', toYm: '2026-07' })).toBe(false);
+
+    const base = [
+      {
+        date: '2026-07-01',
+        amountCents: 600_000,
+        rawDescriptor: 'PAYROLL',
+        accountId: 'a',
+        isTransfer: false,
+        status: 'POSTED',
+        categoryId: 'paycheck',
+      },
+      {
+        date: '2026-07-05',
+        amountCents: -40_000,
+        rawDescriptor: 'KROGER',
+        accountId: 'a',
+        isTransfer: false,
+        status: 'POSTED',
+        categoryId: 'groceries',
+      },
+    ] as const;
+    const without = monthlyFlows([...base]);
+    const withLeak = monthlyFlows([...base, row]);
+    expect(withLeak).toEqual(without);
+    expect(withLeak[0].expensesCents).toBe(40_000);
   });
 });
 

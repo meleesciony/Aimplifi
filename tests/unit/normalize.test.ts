@@ -164,6 +164,16 @@ describe('generic keyword categorization for real-world merchants (DECISIONS #63
     });
   }
 
+  it('test_regression__o20j_r6_overdraft_transfer_beats_fees_keyword', () => {
+    // KNOWN_MERCHANTS (Account Transfer is an aggregate canonical — same as
+    // ONLINE TRANSFER). Must not reach GENERIC `\bOVERDRAFT\b` → fees.
+    const m = normalizeMerchant('Overdraft Transfer from Brokerage -7383');
+    expect(m.categoryId).toBe('transfer');
+    expect(m.canonical).toBe('Account Transfer');
+    expect(m.confidenceBps).toBeGreaterThanOrEqual(7000);
+    expect(normalizeMerchant('OVERDRAFT FEE').categoryId).toBe('fees');
+  });
+
   it('a descriptor with no known merchant AND no keyword stays uncategorized', () => {
     const m = normalizeMerchant('ACME WIDGETS LLC 7781');
     expect(m.categoryId).toBe('uncategorized');

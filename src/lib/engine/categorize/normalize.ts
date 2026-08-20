@@ -273,6 +273,12 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   // Transfers — the SAME anchored pattern transfer detection uses (one source
   // of truth; substring matching here once erased real spending — critic F4)
   { pattern: /^ONLINE TRANSFER/i, canonical: 'Account Transfer', categoryId: 'transfer' },
+  // O.20j R6 / DECISIONS #486: brokerage overdraft *coverage* is a transfer,
+  // not a bank fee. Must beat GENERIC `\bOVERDRAFT\b` → fees (OVERDRAFT FEE
+  // still files as fees). Descriptor evidence alone flags unpaired legs — the
+  // live $7,792.97 "Overdraft Transfer from Brokerage -7383" had no opposite
+  // amount so pair detection never rescued it.
+  { pattern: /\bOVERDRAFT\s+TRANSFER\b/i, canonical: 'Account Transfer', categoryId: 'transfer' },
   { pattern: TRANSFER_DESCRIPTOR, canonical: 'Card Payment', categoryId: 'transfer' },
   // Issuer card-payment ACH forms (#163): 'CHASE CREDIT CRD AUTOPAY PPD',
   // 'CAPITAL ONE CRCARDPMT', 'DISCOVER E-PAYMENT', 'BARCLAYCARD … CREDITCARD
@@ -520,6 +526,8 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   // TAXRFD/CASTTAXRFD: the smashed refund token state tax boards send (#163).
   { pattern: /\b(IRS TREAS 310|TAX ?REF(UND)?|\w*TAXRFD)\b/i, categoryId: 'tax-refund' },
   { pattern: /\b(PENSION|ANNUITY PAYMENT)\b/i, categoryId: 'income' },
+  // Bare OVERDRAFT → fees. "OVERDRAFT TRANSFER …" is claimed earlier in
+  // KNOWN_MERCHANTS (O.20j R6) so brokerage coverage never reaches this rule.
   { pattern: /\b(OVERDRAFT|NSF FEE|INSUFFICIENT FUNDS|RETURNED ITEM FEE|LATE FEE|SERVICE CHARGE|MONTHLY (MAINTENANCE|SERVICE) FEE|MAINTENANCE FEE|ANNUAL FEE|FOREIGN TRANSACTION FEE|ATM FEE|WIRE FEE|FINANCE CHARGE|INTEREST CHARGE)\b/i, categoryId: 'fees' },
   // Financial / giving. (The tax-refund rule above catches 'IRS TREAS 310' /
   // 'TAX REF' first, so this taxes rule only sees payments TO tax authorities.)

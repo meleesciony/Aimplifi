@@ -6,6 +6,31 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-20 — O.20j R6: Overdraft Transfer ≠ Fees & Charges (DECISIONS #486)
+
+**The report.** After #485, a transfer-leaf gate still left the live $7,792.97
+"Overdraft Transfer from Brokerage -7383" row in spend: it was filed to
+`fees` with `isTransfer=false` (seven same-descriptor siblings were
+pair-flagged). Code-confirmed root cause: GENERIC `\bOVERDRAFT\b` → `fees`
+matched before any transfer rule; pair detection needs an equal/opposite
+leg the largest amount lacked. No amount ceiling in the detector.
+
+**Shipped.** KNOWN_MERCHANTS `\bOVERDRAFT\s+TRANSFER\b` → Account Transfer /
+`transfer` ahead of the fees keyword. New ingest short-circuits to
+`source: 'transfer'`; unpaired settled fees rows get descriptor
+`overturnIds` on the next transfer refresh (H.7 keeps category; spend
+gates use `isTransfer`). `OVERDRAFT FEE` unchanged.
+
+**Still open on O.20j.** Converse leak sizing / H.7b; why pairing still
+misses other unflagged `transfer`-category rows.
+
+**Locked.** `test_regression__o20j_r6_overdraft_transfer_from_brokerage_is_not_fees_spend`
+(+ normalize sibling + unpaired overturn).
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,147 passed + 1 expected fail + 1 skipped / 432 files + 1 skipped**,
+`next build` clean. No e2e (engine/predicate; no UI). No `prisma/` diff.
+
 ## ✅ BUILT 2026-08-20 — O.20j first slice: transfer category leaf leaves `countsInFlows` (DECISIONS #485)
 
 **The report.** O.20a/#446 measured that `countsInFlows` admitted rows filed
@@ -21,9 +46,8 @@ named surfaces move together. Glass-box completeness comment updated; reader
 
 **Not shipped (still open on O.20j).** Converse leak (`isTransfer=true` under
 real spend categories — both predicates already agree; needs sizing + product
-decision / H.7b). Detector root cause for the 76 unflagged rows. R6: the
-$7,792.97 Overdraft Transfer filed to Fees & Charges (not `transfer`) is
-outside a category-leaf gate.
+decision / H.7b). Detector root cause for the 76 unflagged rows. **R6 closed
+in #486** (Overdraft Transfer → transfer, not Fees).
 
 **Locked.** `test_regression__o20j_transfer_category_unflagged_does_not_count_in_flows`
 (+ `isSpendRow` parity + `monthlyFlows` byte-identical with/without the leak
