@@ -8198,6 +8198,46 @@ the normal sync refresh path.
 `test_regression__o20j_r6_unpaired_overdraft_transfer_descriptor_overturns_fees`
 (`transfer-pair-filing.test.ts`).
 
+## #487 — O.20j: filed transfer category is detector evidence (2026-08-20)
+
+**Context.** After #485 (flow predicate) and #486 (Overdraft Transfer
+normalizer), TASKS O.20j still named the detector root cause for the 76 live
+rows filed `categoryId=transfer` with `isTransfer=false` (Venmo payments,
+"AUTOMATIC PAYMENT" card autopay, brokerage sweeps) against 132 correctly
+flagged. New siblings can keep arriving unflagged. Owner scoped this slice to
+that family only — not converse-leak sizing, not H.7b, not applyCategory.
+
+**Verified root cause (code, not a live dollar re-probe).**
+1. `detectTransferParts` evidenced a row only when `normalizeMerchant` returned
+   `transfer`/`auto-loan`, OR when an equal/opposite amount existed on another
+   account within ±3 days (`matchTransferPairs`).
+2. Confirmed against the named families: Venmo → `uncategorized` aggregate;
+   `AUTOMATIC PAYMENT - THANK YOU` → `uncategorized` (TRANSFER_DESCRIPTOR
+   matches `AUTOPAY PAYMENT`, not AUTOMATIC); `Funds Transfer to Brokerage` →
+   `uncategorized`. Without a unique opposite leg they never entered
+   `evidenced`, so `planTransferUpdates` never planned `flagIds`.
+3. R6's unpaired largest overdraft leg was the same shape for pair-required
+   detection; #486 fixed that family via the normalizer. The remaining 76 are
+   the filed-leaf / non-matching-descriptor residual.
+4. How they got `categoryId=transfer` without the flag is out of this slice's
+   write (manual filing and similar paths set category without `isTransfer`);
+   the detector must still honor the already-filed leaf.
+
+**Decision.** Optional `TransferTxn.categoryId`; when it is `'transfer'`, add
+the row to the same `descriptorIds` evidence set the normalizer path uses
+(pair-leg sharing unchanged). One direction only: never clears `isTransfer` on
+a spend category (converse leak deliberately untouched). Next
+`refreshTransferFlags` add-only-flags the unflagged filed rows.
+
+**Deliberately NOT fixed:** converse leak magnitude / H.7b owner repair;
+`applyCategory` still does not stamp `isTransfer` on a hand-file to transfer
+(sync refresh covers it; immediate stamp is a separate product choice).
+
+**Locked.** `test_regression__o20j_filed_transfer_category_flags_without_pair_or_descriptor`,
+`test_regression__o20j_automatic_payment_and_brokerage_sweep_filed_transfer_flag`,
+`test_regression__o20j_converse_leak_spend_category_not_touched_by_filed_leaf_rule`
+(`transfer-pair-filing.test.ts`).
+
 ## #485 — O.20j first slice: `countsInFlows` honors the transfer category leaf (2026-08-20)
 
 **Context.** DECISIONS #446 / TASKS O.20j measured the live trust leak: rows

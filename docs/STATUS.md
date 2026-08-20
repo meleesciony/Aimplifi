@@ -6,6 +6,29 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-20 — O.20j detector: filed transfer leaf flags `isTransfer` (DECISIONS #487)
+
+**The report.** After #485/#486, rows already filed `categoryId=transfer` with
+`isTransfer=false` (Venmo, AUTOMATIC PAYMENT, brokerage sweeps — the R5
+family) still missed the flag. Code-confirmed: `detectTransfers` only took
+normalizer-transfer descriptors or ±3-day opposite-amount pairs; those
+descriptors normalize to `uncategorized` and often have no unique opposite
+leg (same pair-required shape as R6's unpaired largest).
+
+**Shipped.** Optional `TransferTxn.categoryId`; a persisted `transfer` leaf
+joins the descriptor evidence set. Next sync `refreshTransferFlags` add-only
+flags them. Converse leak (`isTransfer=true` under spend categories) not
+cleared or re-filed.
+
+**Still open on O.20j.** Converse leak sizing / H.7b; whether `applyCategory`
+should stamp `isTransfer` immediately on a hand-file to transfer (refresh
+covers eventual consistency).
+
+**Locked.** `test_regression__o20j_filed_transfer_category_flags_without_pair_or_descriptor`
+(+ AUTOMATIC/brokerage sibling + converse-leak non-touch).
+
+**Gate.** `bash scripts/verify.sh` — record after green this session.
+
 ## ✅ BUILT 2026-08-20 — O.20j R6: Overdraft Transfer ≠ Fees & Charges (DECISIONS #486)
 
 **The report.** After #485, a transfer-leaf gate still left the live $7,792.97
@@ -21,8 +44,8 @@ leg the largest amount lacked. No amount ceiling in the detector.
 `overturnIds` on the next transfer refresh (H.7 keeps category; spend
 gates use `isTransfer`). `OVERDRAFT FEE` unchanged.
 
-**Still open on O.20j.** Converse leak sizing / H.7b; why pairing still
-misses other unflagged `transfer`-category rows.
+**Still open on O.20j.** Converse leak sizing / H.7b. **Detector root cause
+for unflagged transfer-category rows closed in #487.**
 
 **Locked.** `test_regression__o20j_r6_overdraft_transfer_from_brokerage_is_not_fees_spend`
 (+ normalize sibling + unpaired overturn).
@@ -46,8 +69,8 @@ named surfaces move together. Glass-box completeness comment updated; reader
 
 **Not shipped (still open on O.20j).** Converse leak (`isTransfer=true` under
 real spend categories — both predicates already agree; needs sizing + product
-decision / H.7b). Detector root cause for the 76 unflagged rows. **R6 closed
-in #486** (Overdraft Transfer → transfer, not Fees).
+decision / H.7b). **Detector root cause closed in #487.** **R6 closed in #486**
+(Overdraft Transfer → transfer, not Fees).
 
 **Locked.** `test_regression__o20j_transfer_category_unflagged_does_not_count_in_flows`
 (+ `isSpendRow` parity + `monthlyFlows` byte-identical with/without the leak
