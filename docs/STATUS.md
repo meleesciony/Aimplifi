@@ -25,6 +25,12 @@ seed write, no kids-save Path2College/Trump/529 product defaults.
 `next build` clean. No e2e (copy + engine; settings/coach behind sign-in).
 No `prisma/` diff.
 
+**Gate read.** CI run **32429873260** on `fd2d3889` = SUCCESS (12m57s, full
+VERIFY_E2E, attempt 1). Vercel: `READY` (`dpl_5DqbFDN8G2Z7s4xzfjb6YTriEhiG` /
+`aimplifi-miti32sed`), same sha, aliased to `www.aimplifi.app`. Production
+`/`, `/settings`, `/dashboard`, `/coach` 307; `/sign-in` 200. The dial and
+the coach line are behind sign-in; no public HTML marker.
+
 **Schema.** None.
 
 ## ✅ BUILT 2026-08-20 — Header Sign out uses mutation-form recipe (DECISIONS #492)

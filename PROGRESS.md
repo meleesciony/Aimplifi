@@ -20,6 +20,11 @@ vehicles, not product defaults). Draft PR #12 must not merge as written.
 **7,179 passed + 1 expected fail + 1 skipped / 436 files + 1 skipped**,
 `next build` clean. No `prisma/` diff.
 
+**Shipped and proven live.** Pushed as `fd2d3889`. CI run **32429873260**
+`success` (12m57s, attempt 1). Vercel: `READY`, same sha, aliased to
+`www.aimplifi.app`. Production `/`, `/settings`, `/dashboard`, `/coach`
+307; `/sign-in` 200. Dial is behind sign-in. No `prisma/` diff.
+
 **Next.** Owner types 40 in Settings → `/settings` savings target.
 
 ## 2026-08-20 — Header Sign out mutation-form recipe (DECISIONS #492)
