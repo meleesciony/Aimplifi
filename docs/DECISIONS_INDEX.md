@@ -482,3 +482,4 @@ refuses to write if it would drop any number this file already carries.
 - **#486** (Phase ?): O.20j R6: Overdraft Transfer from Brokerage is a transfer, not a fee (2026-08-20)
 - **#487** (Phase ?): O.20j: filed transfer category is detector evidence (2026-08-20)
 - **#488** (Phase ?): Ask "will I run out of money?" uses Cash flow radar (2026-08-20)
+- **#489** (Phase ?): Public "Explore the demo" CTA uses the mutation-form recipe (2026-08-20)

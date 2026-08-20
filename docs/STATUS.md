@@ -6,6 +6,25 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-20 — Public "Explore the demo" CTA (DECISIONS #489)
+
+**Trust/polish blocker.** Live `/sign-in` HTML had `action=""` on the demo
+form; a document POST stayed on `/sign-in` with zero auth cookies. JS
+server-action path worked (303 + session cookie), so the demo provider was
+fine — the `<form action={fn}>` binding was the leftover #164/#166/#167
+anti-pattern.
+
+**Fix.** `demoSignIn` in `auth-actions.ts` with `redirect: false` → `{ ok:
+true }`; client `DemoSignInButton` uses onSubmit + withDeadline +
+`window.location.assign('/dashboard')` (ActionDeadline also assigns). Copy,
+testid, demo user unchanged. No `DEMO_TODAY`/seed/env/middleware changes.
+
+**Locked.** `demo-sign-in.test.ts` regression trio. Existing e2e demo clicks
+still use `data-testid="demo-sign-in"`.
+
+**Still open.** Google form still uses `<form action={googleSignIn}>` (out of
+scope). Live production proof awaits deploy of this PR.
+
 ## ✅ BUILT 2026-08-20 — Ask run-out uses Cash flow radar (DECISIONS #488)
 
 **Trust blocker.** Demo showed Cash needed **$1,050**, radar **$6,950 /
