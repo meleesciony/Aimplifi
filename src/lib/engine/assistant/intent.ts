@@ -813,6 +813,23 @@ export function resolveSpendTarget(
   return null;
 }
 
+/**
+ * True when a category synonym matches the merchant phrase as a WHOLE (O.10a).
+ * "gas" / "natural gas" / "uber eats" own their phrases; "costco gas" does not
+ * — `\bgas\b` is only a proper substring, so Ask must keep the store, not Fuel.
+ */
+function categorySynonymOwnsWholePhrase(phrase: string): boolean {
+  const p = phrase.normalize('NFC').toLowerCase().trim();
+  if (!p) return false;
+  for (const { re } of SYNONYMS) {
+    re.lastIndex = 0;
+    const m = re.exec(p);
+    if (!m) continue;
+    if (m.index === 0 && m[0].length === p.length) return true;
+  }
+  return false;
+}
+
 // ─── intent parsing ─────────────────────────────────────────────────────────
 
 /**
@@ -1654,6 +1671,12 @@ export function parseAssistantQuery(
       if (own) return { kind: 'spend_by_category', timeframe: parseTimeframe(q, today), target: own };
       return { kind: 'unknown', question };
     }
+    // Extract the at/with merchant BEFORE category routing (O.10a): a multi-word
+    // store name must not lose to a category synonym that matches a proper
+    // substring of it ("Costco Gas" contains `\bgas\b`→fuel; "Amazon Prime"
+    // contains `\bamazon\b`→shopping). Single-token merchants still yield to
+    // intentional synonyms (Amazon→shopping, Starbucks→coffee) — DECISIONS #168.
+    const merchant = extractSpendMerchant(q);
     const target = resolveSpendTarget(q, custom);
     const wantsRanking =
       /\b(top|most|biggest|highest|main)\b.*\bcategor/.test(q) ||
@@ -1664,13 +1687,19 @@ export function parseAssistantQuery(
       /\bbreakdown\b/.test(q);
     const timeframe = parseTimeframe(q, today);
     if (wantsRanking && !target) return { kind: 'top_categories', timeframe, limit: DEFAULT_TOP_LIMIT };
-    if (target) return { kind: 'spend_by_category', timeframe, target };
+    const merchantTakesPrecedence =
+      !!merchant &&
+      !isLicensedIdiomPhrase(merchant) &&
+      merchant.includes(' ') &&
+      !categorySynonymOwnsWholePhrase(merchant);
+    if (target && !merchantTakesPrecedence) {
+      return { kind: 'spend_by_category', timeframe, target };
+    }
     // #168: "how much did I spend AT COSTCO" — an at/with object is a MERCHANT,
     // not a category (resolveSpendTarget ran first and returned null). Route it to
     // the per-merchant total, which matches the term against the transactions'
     // own canonical merchant names. A statistical qualifier ("at/with average")
     // still isn't a merchant and abstains.
-    const merchant = extractSpendMerchant(q);
     // A licensed idiom is not a store (TASKS 2.7 critic F1/F7): "spend at the
     // moment" / "at the end of last month" extracted merchants "moment" and
     // "end of" and answered a confident-wrong "No spending at Moment…". Such

@@ -188,7 +188,7 @@ describe('merchant_spend == summed seed purchases for that merchant (#168), pinn
         t.date <= '2026-06-10' &&
         !t.isTransfer &&
         !t.isSplitParent &&
-        (c === 'costco' || c.startsWith('costco '))
+        c === 'costco' // O.10a: exact store identity — Costco Gas is a different merchant
       );
     });
     const expectedTotal = expected.reduce((s, t) => s - t.amountCents, 0);
@@ -228,8 +228,9 @@ describe('merchant_spend == summed seed purchases for that merchant (#168), pinn
     // This IS parser-reachable (no category synonym intercepts it), so it is the
     // demo figure that visibly moved: $239.38 POSTED-only → $246.13 with the
     // seeded pending $6.75 (build.ts:540). ask.spec.ts asserts the same two
-    // strings against the rendered page.
-    const res = merchantSpend(purchaseRows, THIS_MONTH, 'blue bottle', '2026-06-10');
+    // strings against the rendered page. O.10a: query the exact canonical —
+    // "blue bottle" alone no longer prefix-matches "Blue Bottle Coffee".
+    const res = merchantSpend(purchaseRows, THIS_MONTH, 'blue bottle coffee', '2026-06-10');
     expect(res.totalCents).toBe(24613);
     expect(res.pendingPurchaseCents).toBe(675);
     const a = answerMerchantSpend(res, THIS_MONTH);

@@ -6,6 +6,37 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-20 — O.10a: Ask merchant match is exact (DECISIONS #490)
+
+**Trust blocker.** Ask named the wrong merchant and summed the wrong money.
+Verified on current main + demo seed: Ask “Costco Gas” answered **$195.82 at
+Costco**; `/trends` Costco Gas = **$37.38**. Register already exact
+(`merchantNameEquals`, DECISIONS #250); Ask still prefix-matched.
+
+**Fix.** `merchantMatches` in `answer.ts` is punctuation-folded EXACT equality
+only (`merchantKey` then `c === qq`). No family product. Display name stays
+largest matched canonical — after the exact gate that *is* the queried store.
+Amazon / Amazon Prime and Uber / Uber Eats stay distinct the same way. Parser
+follow-through (CI e2e): multi-word `at`/`with` stores are not hijacked by a
+category synonym that matches a proper substring (`Costco Gas` ⊃ `gas`→fuel);
+whole-phrase synonyms (bare `gas`, `natural gas`, `Uber Eats`, single-token
+`Amazon`→shopping) keep DECISIONS #168 precedence.
+
+**Locked.** `o8-merchant-basis-parity.test.ts` flipped to agreement ($37.38 /
+Costco Gas) + `test_regression__o10a_costco_gas_is_not_costco` (fail-old:
+restore prefix ⇒ $195.82); `assistant-merchant-spend` Costco-only under
+“costco”; `assistant-largest-scope` + grounding; e2e Ask “Costco Gas” =
+$37.38 and not Costco dollars.
+
+**Hostile critic (money-visible Ask):** PASS — 0 P0/P1. One accepted residual
+(P2): truncated short forms (“Blue Bottle”, “ATM”, “Truist”) abstain with “No
+spending” instead of prefix-reaching the full canonical. Locked as honest
+empty (never wrong sibling dollars); full-canonical e2e/unit still pin the
+reachable figures. No schema / seed / env change.
+
+**Still open.** O.10b (pair window), O.10c (top-5 refund truncation), O.10d
+residuals; short-form autocomplete / synonym expansion if product wants it later.
+
 ## ✅ BUILT 2026-08-20 — Public "Explore the demo" CTA (DECISIONS #489)
 
 **Trust/polish blocker.** Live `/sign-in` HTML had `action=""` on the demo

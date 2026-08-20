@@ -71,23 +71,34 @@ test('answers typed questions grounded in the seed', async ({ page }) => {
   await expect(page.getByTestId('ask-headline')).toContainText(/You spent \$[\d,]+\.\d{2} at Costco this month\./);
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/transactions');
 
+  // O.10a: "at Costco Gas" is a different store — must NOT print Costco's dollars
+  // or the warehouse name. Demo seed /trends Costco Gas = $37.38; the pre-fix
+  // Ask path answered $195.82 at Costco (warehouse rows swept in).
+  await ask(page, 'How much did I spend at Costco Gas this month?');
+  await expect(page.getByTestId('ask-headline')).toContainText('You spent $37.38 at Costco Gas this month.');
+  await expect(page.getByTestId('ask-headline')).not.toContainText('$195.82');
+  await expect(page.getByTestId('ask-headline')).not.toContainText('at Costco this month');
+
   // O.7: Costco is refund-free and fully POSTED, so it reads the same on either
   // basis — an e2e critic proved this whole block passes under a full revert.
   // Blue Bottle is the demo merchant that actually moves, and it is reachable:
   // it holds a seeded PENDING −$6.75 (build.ts:540), so the pre-O.7 POSTED-only
   // rule answered $239.38 where the register and /reports both count $246.13.
-  // (Note "at Amazon" does NOT reach this intent — `resolveSpendTarget` runs
-  // first and the deliberate Amazon→shopping synonym routes it to a category
-  // answer, #168. The engine-level Amazon case is locked in the unit suite.)
+  // O.10a: ask the exact canonical ("Blue Bottle Coffee") — a truncated
+  // "Blue Bottle" no longer prefix-matches. (Note "at Amazon" does NOT reach
+  // this intent — `resolveSpendTarget` runs first and the deliberate
+  // Amazon→shopping synonym routes it to a category answer, #168. The
+  // engine-level Amazon case is locked in the unit suite.)
   // The figure and its pending disclosure are asserted together — counting
   // unsettled money is only honest if the answer says so.
-  await ask(page, 'How much did I spend at Blue Bottle this month?');
+  await ask(page, 'How much did I spend at Blue Bottle Coffee this month?');
   await expect(page.getByTestId('ask-headline')).toContainText('You spent $246.13 at Blue Bottle Coffee this month.');
   await expect(page.getByTestId('ask-answer')).toContainText('Includes $6.75 still pending.');
 
   // …and a pseudo-merchant is refused rather than totalled: both O.7 critics
   // independently caught "You spent $49.27 at ATM Withdrawal this month" here.
-  await ask(page, 'How much did I spend at ATM this month?');
+  // O.10a: exact canonical — "ATM" alone no longer prefix-matches.
+  await ask(page, 'How much did I spend at ATM Withdrawal this month?');
   await expect(page.getByTestId('ask-headline')).toContainText("isn't a single store");
   await expect(page.getByTestId('ask-headline')).not.toContainText('You spent');
 

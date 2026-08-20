@@ -816,7 +816,7 @@ export function largestPurchases(
   today: string,
   meta: ReadonlyMap<string, CategoryMeta> = CATEGORY_BY_ID,
   // Optional merchant scope (TASKS 2.7): same matching semantics as
-  // merchantSpend (`merchantMatches` — punctuation-folded, whole-word prefix),
+  // merchantSpend (`merchantMatches` — punctuation-folded EXACT match, O.10a),
   // so "biggest purchase at costco" and "spend at costco" can never disagree
   // about which rows are Costco's. Absent → the global ranking, byte-identical
   // to before.
@@ -978,15 +978,17 @@ function merchantKey(s: string): string {
     .replace(/\s+/g, ' ');
 }
 
-/** A transaction's canonical merchant matches the user's query when either is a
- *  whole-word prefix of the other, after punctuation/case folding: "costco"
- *  matches "Costco" and "Costco Gas"; "mcdonalds" matches "McDonald's". Token-safe
- *  — "app" never matches "Apple" (the prefix needs a trailing word boundary). */
+/** A transaction's canonical merchant matches the user's query on punctuation/
+ *  case-folded EXACT equality only (O.10a / DECISIONS #490): "costco" matches
+ *  "Costco" and "mcdonalds" matches "McDonald's", but "costco" never matches
+ *  "Costco Gas" (and the reverse never either). Same store-identity rule as
+ *  the register's `merchantNameEquals` (DECISIONS #250) — Ask must not sum a
+ *  sibling store's money under a different name. */
 function merchantMatches(canonical: string, q: string): boolean {
   const c = merchantKey(canonical);
   const qq = merchantKey(q);
   if (!c || !qq) return false;
-  return c === qq || c.startsWith(`${qq} `) || qq.startsWith(`${c} `);
+  return c === qq;
 }
 
 /**

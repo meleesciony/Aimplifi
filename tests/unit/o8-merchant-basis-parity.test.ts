@@ -1,22 +1,19 @@
 /**
- * O.8(a) — the cross-surface lock: what /trends "New this month" and Ask's
- * "how much did I spend at M this month" do and do NOT guarantee about each
- * other.
+ * O.8(a) + O.10a — the cross-surface lock: what /trends "New this month" and
+ * Ask's "how much did I spend at M this month" guarantee about each other.
  *
  * Two independent things decide whether the two figures agree:
  *   THE ROW BASIS  — which rows count as spending (posted/pending, refunds,
  *                    category, window). O.8a unified this, and it is locked here.
- *   THE MERCHANT SCOPE — which rows belong to the merchant. It is NOT unified:
- *                    this list keys on the exact canonical name, while
- *                    `merchantMatches` (answer.ts:733) takes a bidirectional
- *                    whole-word prefix, so "Costco Gas" also sweeps "Costco".
+ *   THE MERCHANT SCOPE — which rows belong to the merchant. O.10a closed the
+ *                    gap: Ask's `merchantMatches` is now punctuation-folded
+ *                    EXACT equality (same store-identity rule as /trends'
+ *                    exact canonical key and the register's `merchantNameEquals`),
+ *                    so "Costco Gas" no longer sweeps "Costco".
  *
- * The first draft of this file asserted parity using ONE merchant name, which
- * makes the two scopes trivially identical — it advertised itself as the
- * assertion the divergence could only be caught by, and could not have caught
- * the divergence that was actually live on the demo seed ($37.38 vs $195.82).
- * The critic's finding, and the reason both halves are pinned below: a lock
- * whose fixture cannot express the failure certifies nothing.
+ * The O.8a critic pinned the live demo divergence ($37.38 vs $195.82 under the
+ * name "Costco") so closing it meant changing a test that explained itself —
+ * that pin is flipped below to the agreed $37.38 / "Costco Gas".
  */
 import { describe, expect, it } from 'vitest';
 import { computeSpendingTrends, type TrendTxn } from '@/lib/engine/trends/trends';
@@ -119,44 +116,48 @@ describe('O.8a — /trends new-merchant amount equals Ask merchantSpend', () => 
 });
 
 /**
- * The half that is NOT guaranteed — pinned so it stays visible.
- *
- * These assertions describe a REAL, LIVE disagreement on the shipped demo seed,
- * not a desired state. They exist so that closing it (TASKS O.10) means changing
- * a test that explains what it is for, rather than discovering the gap a third
- * time from a reader holding two pages open.
+ * Merchant SCOPE — closed by O.10a. The O.8a critic pinned the live demo
+ * disagreement ($37.38 vs $195.82 under "Costco") so this file would have to
+ * change when Ask stopped sweeping sibling stores. Both surfaces now agree.
  */
-describe('O.8a — the merchant SCOPE is not unified, and that is where they still differ', () => {
+describe('O.8a/O.10a — merchant SCOPE agrees with /trends on exact store identity', () => {
   const seed = buildSeedData('2026-06-10');
   const trends = computeSpendingTrends({ txns: toTrendTxns(seed.transactions), today: '2026-06-10', scheduled: [] });
   const askRows = toAskTxnRows(seed.transactions);
   const askFor = (q: string) =>
     merchantSpend(askRows, { fromYm: '2026-06', toYm: '2026-06', label: 'this month' }, q, '2026-06-10');
 
-  it('agrees on a merchant with no prefix sibling (the basis IS shared)', () => {
+  it('agrees on a merchant with no sibling store (the basis IS shared)', () => {
     const card = trends.newMerchants.find((n) => n.merchant === 'Store Card Purchase');
     expect(card!.amountCents).toBe(4350); // golden literal, not a self-comparison
     expect(askFor('store card purchase').totalCents).toBe(card!.amountCents);
   });
 
-  it('DISAGREES on a prefix-family merchant — Ask sweeps in the parent name', () => {
+  it('AGREES on Costco Gas — Ask no longer sweeps the warehouse rows', () => {
     const card = trends.newMerchants.find((n) => n.merchant === 'Costco Gas');
     expect(card!.amountCents).toBe(3738); // $37.38 — rows canonically "Costco Gas"
     const ask = askFor('costco gas');
-    expect(ask.totalCents).toBe(19582); // $195.82 — "Costco" warehouse rows swept in
-    // …and it answers under the OTHER merchant's name, which is the sharper half.
-    expect(ask.merchant).toBe('Costco');
-    expect(card!.amountCents).not.toBe(ask.totalCents);
+    // Fail-old (prefix match): Ask answered 19582 and named "Costco".
+    expect(ask.totalCents).toBe(3738);
+    expect(ask.merchant).toBe('Costco Gas');
+    expect(ask.totalCents).toBe(card!.amountCents);
   });
 
-  it('the gap predates O.8a — it is name resolution, not the money rule', () => {
-    // The pre-O.8a figure for Costco Gas was settled-gross, and the seed has no
-    // pending row or refund there, so the OLD number was the same $37.38. This
-    // slice did not widen the gap; it wrongly claimed to have closed it.
+  it('test_regression__o10a_costco_gas_is_not_costco', () => {
+    // Fail-old: restore `c.startsWith(\`${qq} \`) || qq.startsWith(\`${c} \`)`
+    // in merchantMatches ⇒ Ask "costco gas" returns 19582 under "Costco".
+    const askGas = askFor('costco gas');
+    const askCostco = askFor('costco');
+    expect(askGas.totalCents).toBe(3738);
+    expect(askGas.merchant).toBe('Costco Gas');
+    expect(askGas.totalCents).not.toBe(askCostco.totalCents);
+    expect(askCostco.merchant).toBe('Costco');
+    // Hand-check: Costco Gas settled-gross on the seed equals the Ask total.
     const settledGross = seed.transactions
       .filter((t) => normalizeMerchant(t.rawDescriptor).canonical === 'Costco Gas')
       .filter((t) => t.date.startsWith('2026-06') && t.date <= '2026-06-10' && t.amountCents < 0)
       .reduce((s, t) => s + -t.amountCents, 0);
     expect(settledGross).toBe(3738);
+    expect(askGas.totalCents).toBe(settledGross);
   });
 });

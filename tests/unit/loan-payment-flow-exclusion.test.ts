@@ -459,13 +459,14 @@ describe("C.25 critic P1-2 — Ask merchant_spend is one basis with the category
   ];
 
   it("a carried-elsewhere payment answers as not spent, same as the totals", () => {
-    const excluded = merchantSpend(rows, tf, "truist", "2026-07-31", undefined, new Set(["mtg-jul"]));
+    // O.10a: exact store identity — query the full canonical, not a prefix stem.
+    const excluded = merchantSpend(rows, tf, "truist mortg olb mtgpmt", "2026-07-31", undefined, new Set(["mtg-jul"]));
     expect(excluded.totalCents).toBe(0);
     expect(excluded.purchaseCount).toBe(0);
-    const control = merchantSpend(rows, tf, "truist", "2026-07-31");
+    const control = merchantSpend(rows, tf, "truist mortg olb mtgpmt", "2026-07-31");
     expect(control.totalCents).toBe(621_707); // pre-C.25 behaviour, intact without the set
     // unrelated merchants untouched by the set
-    const groceries = merchantSpend(rows, tf, "grocery", "2026-07-31", undefined, new Set(["mtg-jul"]));
+    const groceries = merchantSpend(rows, tf, "grocery store 101", "2026-07-31", undefined, new Set(["mtg-jul"]));
     expect(groceries.totalCents).toBe(10_000);
   });
 });
@@ -490,7 +491,7 @@ describe("C.25 critic P1-C — Ask names the loan payment instead of denying it"
         excludeFromTotals: false,
       },
     ];
-    const res = merchantSpend(rows, tf, "truist", "2026-07-31", undefined, new Set(["mtg-jul"]));
+    const res = merchantSpend(rows, tf, "truist mortg olb mtgpmt", "2026-07-31", undefined, new Set(["mtg-jul"]));
     expect(res.count).toBe(0);
     expect(res.excludedLoanPaymentCount).toBe(1);
     expect(res.excludedLoanPaymentCents).toBe(621_707);
@@ -528,7 +529,7 @@ describe("O.18e-FU3 — the appended excluded-loan clause names the answer's fig
       row({ id: "mtg-jul", date: "2026-07-06", amountCents: -621_707 }),
       row({ id: "ref-jul", date: "2026-07-20", amountCents: 15_000 }),
     ];
-    const res = merchantSpend(rows, tf, "truist", "2026-07-31", undefined, new Set(["mtg-jul"]));
+    const res = merchantSpend(rows, tf, "truist mortg olb mtgpmt", "2026-07-31", undefined, new Set(["mtg-jul"]));
     expect(res.count).toBe(1); // the refund stays in the answer
     expect(res.excludedLoanPaymentCount).toBe(1);
     const answer = answerMerchantSpend(res, tf);
@@ -545,7 +546,7 @@ describe("O.18e-FU3 — the appended excluded-loan clause names the answer's fig
       row({ id: "mtg-jul", date: "2026-07-06", amountCents: -621_707 }),
       row({ id: "pur-jul", date: "2026-07-15", amountCents: -10_000 }),
     ];
-    const res = merchantSpend(rows, tf, "truist", "2026-07-31", undefined, new Set(["mtg-jun", "mtg-jul"]));
+    const res = merchantSpend(rows, tf, "truist mortg olb mtgpmt", "2026-07-31", undefined, new Set(["mtg-jun", "mtg-jul"]));
     const answer = answerMerchantSpend(res, tf);
     expect(answer.headline).toBe("You spent $100.00 at Truist Mortg Olb Mtgpmt July 2026.");
     expect(answer.detail).toContain(
