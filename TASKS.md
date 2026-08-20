@@ -51,6 +51,10 @@ the ceiling without a verified result, write findings to PROGRESS.md and stop.
 
 Status legend: `[ ]` open · `[~]` in progress · `[x]` done (verify green) · `[!]` blocked.
 
+**Done this session (2026-08-20):** household savings goal **40%** on existing
+CSP + coach savings-rate surfaces + kids-save GoalForm/ReserveForm affordances
+(DECISIONS #493). No pretax column, no demo seed dollars. See STATUS.
+
 ---
 
 ## Wave 0 — Ship what's built (this week; ops-bound, highest leverage in the repo)

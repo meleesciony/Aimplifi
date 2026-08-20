@@ -90,15 +90,20 @@ export interface ConsciousBuckets {
 }
 
 /**
- * Sethi's canonical bands, adapted to the three buckets the data honestly
- * supports. His 10% investing + 5–10% savings collapse into a single 15–20%
- * "pay yourself first" band because investing is folded into savings here.
- * Fixed stays 50–60% (B.3): Wave B widened the numerator to must-pay Fixed
- * categories, so the band is no longer scored against a flattering narrow set.
+ * Conscious-spending target bands (DECISIONS #379 Fixed/guilt-free; #493
+ * supersedes #379 for the SAVINGS number only).
+ *
+ *   fixed:     50–60%  (Sethi book — unchanged)
+ *   savings:   40%     (household goal — was Sethi 15–20%)
+ *   guiltFree: 20–35%  (Sethi book — unchanged)
+ *
+ * These three bands no longer partition 100% (50–60 + 40 + 20–35 can exceed
+ * 100). That is intentional: savings is the household goal rail, not a residual
+ * that must sum with Fixed and guilt-free to one whole.
  */
 export const CONSCIOUS_TARGET_BPS: Record<ConsciousBucketKey, readonly [number, number]> = {
   fixed: [5000, 6000], // 50–60%
-  savings: [1500, 2000], // 15–20% (10% investing + 5–10% savings, combined)
+  savings: [4000, 4000], // 40% household goal (#493; was 15–20% Sethi)
   guiltFree: [2000, 3500], // 20–35%
 };
 

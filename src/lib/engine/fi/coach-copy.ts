@@ -1025,9 +1025,9 @@ export const COACH_COPY = {
     // — the same hazard `coach/page.tsx` already documents for the frozen-balance note.
     `Those ${pct(nominalBps)} returns aren't free — the price is volatility along the way, and the average is never the experience. Staying invested through the dips is the assumption behind every projection here; inflation then takes its cut, which is why the projections on this card compound at ${pct(realReturnBps)} rather than ${pct(nominalBps)}. A fee for admission, not a fine.`,
 
-  // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade
+  // C9 · household 40% savings-rate goal on the after-tax trend (was 15% Ramsey BS4)
   fifteenPercentReference: () =>
-    `The dashed line marks 15% — a common savings-rate reference point for retirement, not a rule you're failing if you're under it.`,
+    `The dashed line marks 40% — your household savings-rate goal, not a rule you're failing if you're under it.`,
 
   // Wave 1.4 · habit mechanics — streak / personal best (educational, not a grade)
   // Audit P2: `pct1` rounds 1–4 bps to "0.0%", so a positive-streak sentence would
@@ -1088,7 +1088,7 @@ export const COACH_COPY = {
   // nowhere. A default here would let the two call sites disagree silently,
   // which is the shape L.30 was written about.
   consciousSpending: (fixedPct: number, savePct: number, funPct: number, fixedCounts: string) =>
-    `About ${fixedPct}% of your income pattern goes to Fixed costs (${fixedCounts}), ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free. A rough target is 50–60% / 15–20% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
+    `About ${fixedPct}% of your income pattern goes to Fixed costs (${fixedCounts}), ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free. A rough target is 50–60% / 40% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
 
   consciousOverspent: () =>
     `Fixed costs and savings have outpaced this month's income pattern, so guilt-free has gone negative — one month is weather, not climate. The trend is what matters.`,

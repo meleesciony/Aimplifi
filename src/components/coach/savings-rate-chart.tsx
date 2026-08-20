@@ -97,12 +97,12 @@ export function SavingsRateChart({
             );
           })}
         </div>
-        {/* 15% savings-rate reference (Ramsey BS4). Fixed scale, so it always fits;
+        {/* 40% household savings-rate goal. Fixed scale, so it always fits;
             shown only when the history has a saving month to reference against. */}
         {hasPositiveMonth && (
           <div
             className="pointer-events-none absolute inset-x-0 border-t border-dashed border-muted-foreground/40"
-            style={{ bottom: `${(1500 / max) * 72}px` }}
+            style={{ bottom: `${(4000 / max) * 72}px` }}
             aria-hidden
           />
         )}

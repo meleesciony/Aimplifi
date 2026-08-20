@@ -8456,3 +8456,30 @@ password/forgot/reset/import-csv are different surfaces already scoped.
 `test_regression__sign_out_uses_client_onsubmit_not_form_action`. Existing e2e
 (`auth.spec` Sign out, `desktop-header`) still drives the same testid →
 `/sign-in` and drops the session.
+
+## #493 — Household savings goal is 40% (supersedes #379 for SAVINGS only) (2026-08-20)
+
+**Context.** Live Conscious Spending Plan already exists (`computeSpendingPlan` +
+`mapToConsciousBuckets`). Sethi bands were Fixed 50–60% / Savings 15–20% /
+Guilt-free 20–35%. The household goal is 40% savings — not a new CSP page, not
+a pretax income column, and not a demo seed write.
+
+**Decision.**
+1. `CONSCIOUS_TARGET_BPS.savings` becomes `[4000, 4000]` (40%). Fixed stays
+   `[5000, 6000]`; guiltFree stays `[2000, 3500]`. **#379 is superseded for the
+   SAVINGS number only.** The three bands no longer partition 100%
+   (50–60 + 40 + 20–35 can exceed 100) — intentional: savings is the household
+   goal rail, not a residual that must sum with the other two.
+2. Coach savings-rate dashed line moves from 1500 → 4000 bps. Card title stays
+   "Savings rate (after-tax)". Caption names the 40% household goal and does
+   **not** say pretax. `testid="fifteen-pct-ref"` kept.
+3. Placeholders: Settings dials `e.g. 40`, plan figures `40`, dials validation
+   example `40`. `COACH_COPY.consciousSpending` middle band `40%`.
+4. Kids-save rails: GoalForm + ReserveForm affordance/copy only — Path2College
+   $8,000/yr, Trump $5,000/yr, 529. Placeholders the owner confirms. **No** seed
+   Goal/Reserve rows, **no** demo `savingsTargetBps=4000`, **no** pretax/W-2
+   column, **no** new page or bar redesign.
+
+**Locked.** `tests/unit/conscious.test.ts`
+`test_regression__conscious_savings_band_is_40_not_sethi_15_20`;
+`fifteenPercentReference` / conscious caption scans in `coach-copy.test.ts`.

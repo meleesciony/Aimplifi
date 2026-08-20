@@ -78,7 +78,7 @@ export function ReserveForm() {
             aria-invalid={err?.name ? true : undefined}
             aria-describedby={err?.name ? 'reserve-error-name' : undefined}
             className={`w-44 ${inputCls}`}
-            placeholder="Home repair"
+            placeholder="Path2College"
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -90,7 +90,7 @@ export function ReserveForm() {
             aria-invalid={err?.amount ? true : undefined}
             aria-describedby={err?.amount ? 'reserve-error-amount' : undefined}
             className={`w-28 ${inputCls}`}
-            placeholder="1200"
+            placeholder="8000"
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -113,6 +113,11 @@ export function ReserveForm() {
           {busy ? 'Adding…' : 'Add reserve'}
         </Button>
       </div>
+      <p className="text-xs text-muted-foreground" data-testid="kids-save-reserve-hints">
+        Kids-save yearly targets you can name here (confirm before saving — not cash that
+        already left): Path2College $8,000/yr, Trump $5,000/yr, 529. Prefer a savings goal
+        on /goals when the money builds a balance you keep; a reserve is for a known expense.
+      </p>
       {/* A whole-form refusal (the demo fence) is not a typo — it gets its own
           line rather than being pinned to a field the reader filled correctly. */}
       {result?.error ? (

@@ -151,7 +151,7 @@ export function ConsciousBucketsStrip({
         </ul>
         {/* L.29 (critic P2-4: a surface the first sweep did not visit). This strip
             re-partitions the SAME plan, so its savings bucket prints the same $0.00
-            the breakdown panel now explains — "$0.00 · 0% (target 15–20%)" beside a
+            the breakdown panel now explains — "$0.00 · 0% (target 40%)" beside a
             target the reader never set reads as a shortfall he is failing at, not as
             a control he has not used. No plumbing needed: the fact rides the plan. */}
         {plan.plannedSavingsCents === 0 && plan.savingsTargetBps == null && (

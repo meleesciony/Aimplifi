@@ -40,8 +40,8 @@ export function SavingsRateCard({
   monthFlows: Record<string, MonthFlowBreakdown>;
 }) {
   const recent = flows.slice(-12);
-  // The 15% aspiration line/caption belong on a chart that has something to aspire FROM —
-  // painting "aim for 15%" across an all-red bleeding history reads as a rebuke, not a
+  // The 40% goal line/caption belong on a chart that has something to aspire FROM —
+  // painting "aim for 40%" across an all-red bleeding history reads as a rebuke, not a
   // reference. Show it only once at least one month actually saved. (The old `max >= 1500`
   // guard did this incidentally via a data-driven scale; the fixed scale made it dead code.)
   const hasPositiveMonth = recent.some((f) => (f.savingsRateBps ?? 0) > 0);
