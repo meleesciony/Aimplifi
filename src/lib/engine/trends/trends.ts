@@ -256,16 +256,12 @@ export interface NewMerchant {
    * the same per-row predicate `spendingByCategory` and Ask's `merchantSpend`
    * both count on.
    *
-   * WHAT THAT DOES **NOT** PROMISE, corrected by the O.8a critic after an
-   * earlier draft of this comment claimed the two surfaces "cannot drift":
-   * sharing a row BASIS is not sharing a merchant SCOPE. This list keys on the
-   * exact canonical name; `merchantMatches` (answer.ts:733) matches a
-   * bidirectional whole-word PREFIX, so a question about "Costco Gas" also
-   * sweeps in "Costco". On the demo seed that is $37.38 here against $195.82
-   * there — a gap this module cannot close, because it is Ask's name resolution,
-   * not the money rule. It predates O.8a (the old settled-gross figure was the
-   * same $37.38) and is recorded as TASKS O.10. `o8-merchant-basis-parity.test.ts`
-   * pins BOTH halves: the basis agreeing, and the scope not.
+   * Merchant SCOPE is now shared too (O.10a / DECISIONS #490): Ask's
+   * `merchantMatches` is punctuation-folded EXACT equality — the same
+   * store-identity rule this list already used — so "Costco Gas" and "Costco"
+   * stay distinct on both surfaces. On the demo seed both answer $37.38 for
+   * Costco Gas (the old Ask prefix path answered $195.82 under the name
+   * "Costco"). `o8-merchant-basis-parity.test.ts` pins the agreement.
    *
    * It used to be settled purchases only, gross. That is a true sentence and it
    * was disclosed on the card, but it made this surface answer "how much did I

@@ -30,7 +30,7 @@ const THIS_MONTH: Timeframe = { fromYm: '2026-06', toYm: '2026-06', label: 'this
 describe('merchantSpend — aggregation', () => {
   const rows: AskTxnRow[] = [
     { date: '2026-06-05', amountCents: -10000, categoryId: 'groceries', merchant: 'Costco', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
-    { date: '2026-06-10', amountCents: -7000, categoryId: 'fuel', merchant: 'Costco Gas', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false }, // prefix-matches "costco"
+    { date: '2026-06-10', amountCents: -7000, categoryId: 'fuel', merchant: 'Costco Gas', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false }, // sibling store — must NOT match "costco" (O.10a)
     { date: '2026-06-20', amountCents: -5000, categoryId: 'groceries', merchant: 'Costco', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false }, // future (> today) excluded
     { date: '2026-06-07', amountCents: -8000, isTransfer: true, categoryId: 'groceries', merchant: 'Costco', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false }, // transfer excluded
     { date: '2026-06-08', amountCents: -3000, categoryId: 'fuel', merchant: 'Chevron', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false }, // other merchant excluded
@@ -40,14 +40,39 @@ describe('merchantSpend — aggregation', () => {
 
   it('sums only in-window, non-transfer, non-future, outflow purchases for the merchant', () => {
     const res = merchantSpend(rows, THIS_MONTH, 'costco', '2026-06-15');
-    expect(res.totalCents).toBe(17000); // 10000 + 7000
-    expect(res.count).toBe(2);
+    // O.10a: Costco Gas $70 is a different store — Costco-only = $100.00
+    expect(res.totalCents).toBe(10000);
+    expect(res.count).toBe(1);
   });
 
   it('derives the display name from the largest-contributing canonical (proper casing)', () => {
     const res = merchantSpend(rows, THIS_MONTH, 'costco', '2026-06-15');
-    // Costco ($100) > Costco Gas ($70) → "Costco", not the title-cased query
+    // Exact match leaves only Costco rows → "Costco", not the title-cased query
     expect(res.merchant).toBe('Costco');
+  });
+
+  it('does not include Costco Gas under a Costco query (O.10a)', () => {
+    const res = merchantSpend(rows, THIS_MONTH, 'costco', '2026-06-15');
+    expect(res.items.every((i) => i.merchant === 'Costco')).toBe(true);
+    expect(res.items.some((i) => i.merchant === 'Costco Gas')).toBe(false);
+    const gas = merchantSpend(rows, THIS_MONTH, 'costco gas', '2026-06-15');
+    expect(gas.totalCents).toBe(7000);
+    expect(gas.merchant).toBe('Costco Gas');
+  });
+
+  it('a truncated store name abstains rather than sweeping a sibling (O.10a short-form residual)', () => {
+    // Exact match closes the Costco Gas leak; the cost is that "blue bottle" no
+    // longer reaches "Blue Bottle Coffee". That must be "No spending", NEVER a
+    // wrong sibling's dollars (the failure direction this slice exists to kill).
+    const rows: AskTxnRow[] = [
+      { date: '2026-06-05', amountCents: -24613, categoryId: 'coffee', merchant: 'Blue Bottle Coffee', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+      { date: '2026-06-06', amountCents: -10000, categoryId: 'groceries', merchant: 'Costco', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+    ];
+    const short = merchantSpend(rows, THIS_MONTH, 'blue bottle', '2026-06-30');
+    expect(short.totalCents).toBe(0);
+    expect(short.count).toBe(0);
+    expect(answerMerchantSpend(short, THIS_MONTH).headline).toBe('No spending at Blue Bottle this month.');
+    expect(merchantSpend(rows, THIS_MONTH, 'blue bottle coffee', '2026-06-30').totalCents).toBe(24613);
   });
 
   it('returns matched items amount-desc, most-recent-first on a tie', () => {
@@ -64,15 +89,20 @@ describe('merchantSpend — aggregation', () => {
     ]);
   });
 
-  it('groups multiple Amazon canonicals under a whole-word prefix match', () => {
+  it('keeps Amazon and Amazon Prime as distinct stores (O.10a exact match)', () => {
     const amzn: AskTxnRow[] = [
       { date: '2026-06-05', amountCents: -5000, categoryId: 'shopping', merchant: 'Amazon', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
       { date: '2026-06-06', amountCents: -1500, categoryId: 'subscriptions', merchant: 'Amazon Prime', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
     ];
     const res = merchantSpend(amzn, THIS_MONTH, 'amazon', '2026-06-30');
-    expect(res.totalCents).toBe(6500);
-    expect(res.count).toBe(2);
-    expect(res.merchant).toBe('Amazon'); // larger contributor
+    expect(res.totalCents).toBe(5000);
+    expect(res.count).toBe(1);
+    expect(res.merchant).toBe('Amazon');
+    expect(merchantSpend(amzn, THIS_MONTH, 'amazon prime', '2026-06-30')).toMatchObject({
+      totalCents: 1500,
+      count: 1,
+      merchant: 'Amazon Prime',
+    });
   });
 
   it('is token-safe: "app" does not match "Apple"', () => {
@@ -150,17 +180,20 @@ describe('merchantSpend — the aggregate basis (O.7)', () => {
   });
 
   it('names the canonical with the most ACTIVITY, not the largest net', () => {
-    // Refund-heavy merchants broke the old net-based rule: Costco has $190 of
-    // activity ($120 out, $70 back) and Costco Gas only $50, so "Costco" is the
-    // store the reader means — but its NET is $50, a tie the old rule could lose,
-    // and a net-negative canonical could never be named at all. Reverting
-    // `Math.abs(...)` to `-t.amountCents` picks "Costco Gas" and fails here.
+    // Refund-heavy merchants broke the old net-based rule: two punctuation
+    // spellings of the SAME store (merchantKey folds them together) — "McDonald's"
+    // has $190 of activity ($120 out, $70 back) and "Mcdonalds" only $50 — so
+    // "McDonald's" is the store the reader means — but its NET is $50, a tie the
+    // old rule could lose, and a net-negative canonical could never be named at
+    // all. Reverting `Math.abs(...)` to `-t.amountCents` picks "Mcdonalds" and
+    // fails here. O.10a keeps sibling stores (Costco vs Costco Gas) OUT; this
+    // lock is only about naming among exact-key matches.
     const mixed: AskTxnRow[] = [
-      { date: '2026-06-02', amountCents: -12000, categoryId: 'groceries', merchant: 'Costco', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
-      { date: '2026-06-03', amountCents: 7000, categoryId: 'groceries', merchant: 'Costco', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
-      { date: '2026-06-04', amountCents: -5100, categoryId: 'fuel', merchant: 'Costco Gas', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+      { date: '2026-06-02', amountCents: -12000, categoryId: 'fast-food', merchant: "McDonald's", status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+      { date: '2026-06-03', amountCents: 7000, categoryId: 'fast-food', merchant: "McDonald's", status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
+      { date: '2026-06-04', amountCents: -5100, categoryId: 'fast-food', merchant: 'Mcdonalds', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false },
     ];
-    expect(merchantSpend(mixed, THIS_MONTH, 'costco', TODAY).merchant).toBe('Costco');
+    expect(merchantSpend(mixed, THIS_MONTH, 'mcdonalds', TODAY).merchant).toBe("McDonald's");
   });
 
   it('THE POINT: the merchant total equals the category total over the same rows', () => {
@@ -206,10 +239,10 @@ describe('answerMerchantSpend — formatting', () => {
       '2026-06-30',
     );
     const a = answerMerchantSpend(res, THIS_MONTH);
-    expect(a.headline).toBe('You spent $170.00 at Costco this month.');
-    expect(a.detail).toBe('Across 2 purchases.');
-    expect(a.facts[0]).toEqual({ label: 'Costco · Jun 5, 2026', value: '$100.00' });
-    expect(a.facts[1]).toEqual({ label: 'Costco Gas · Jun 10, 2026', value: '$70.00' });
+    // O.10a: Costco-only — the Gas row is a different store.
+    expect(a.headline).toBe('You spent $100.00 at Costco this month.');
+    expect(a.detail).toBe('Across 1 purchase.');
+    expect(a.facts).toEqual([{ label: 'Costco · Jun 5, 2026', value: '$100.00' }]);
     expect(a.source).toEqual({ label: 'See activity', href: '/transactions' });
   });
 
@@ -271,8 +304,9 @@ describe('merchantSpend — pseudo-merchants are not stores (O.7 critics, both f
     // was silently doing this job too; `isSpendRow` admits that group (correctly,
     // for a category figure), so moving the basis produced "You spent $49.27 at
     // ATM Withdrawal this month" on the demo seed. Deleting the `aggregateMerchant`
-    // filter brings that sentence straight back and fails here.
-    const res = merchantSpend(rows, THIS_MONTH, 'atm', TODAY);
+    // filter brings that sentence straight back and fails here. O.10a: the query
+    // must be the exact canonical — "atm" alone no longer prefix-matches.
+    const res = merchantSpend(rows, THIS_MONTH, 'atm withdrawal', TODAY);
     expect(res.count).toBe(0);
     expect(res.totalCents).toBe(0);
     expect(res.excludedAggregateCount).toBe(1);

@@ -8347,3 +8347,40 @@ anti-pattern.
 `test_regression__demo_cta_uses_client_onsubmit_not_form_action`. Existing e2e
 (`desktop-header`, `no-dead-ends`, and every other `demo-sign-in` click) still
 drives the same testid → `/dashboard`.
+
+## #490 — O.10a: Ask merchant match is exact store identity (2026-08-20)
+
+**Context.** Verified on current main (`dff8385`) + demo seed: Ask
+“How much did I spend at Costco Gas this month?” answered **$195.82 at Costco**
+while `/trends` “New this month” for Costco Gas printed **$37.38**. Register
+merchant filter is already exact (DECISIONS #250 / `merchantNameEquals` —
+“Costco” must not match “Costco Gas”); Ask’s `merchantMatches` still used a
+bidirectional whole-word prefix after `merchantKey` folding
+(`c === qq || c.startsWith(\`${qq} \`) || qq.startsWith(\`${c} \`)`). The
+leak for a LONGER query is `qq.startsWith(\`${c} \`)` (“costco gas” sweeps
+“Costco”); the family grouping for a SHORTER query is `c.startsWith(\`${qq} \`)`
+(“costco” sweeps “Costco Gas”). O.8a pinned both halves in
+`o8-merchant-basis-parity.test.ts` so closing the gap meant flipping a test
+that explained itself. Same family: Amazon / Amazon Prime, Uber / Uber Eats.
+
+**Decision.** Exact store identity only — same rule as the register. Change
+`merchantMatches` to `c === qq` after `merchantKey` (punctuation/case still
+fold so “mcdonalds” matches “McDonald's”). Do **not** invent a merchant-family
+product. Display name stays “largest matched canonical magnitude” — after the
+exact gate the matched set is one store’s spellings. Flip the O.8a divergence
+pin to agreement ($37.38 / “Costco Gas”). Do not touch `countsInFlows` /
+`isTransfer` / H.7b / converse leak / demo CTA / Plaid / U.15 / login / seed /
+env.
+
+**Accepted residual.** Truncated short forms (“Blue Bottle”, “ATM”) no longer
+prefix-reach “Blue Bottle Coffee” / “ATM Withdrawal”; they abstain as “No
+spending” rather than naming wrong money. Locked. Full-canonical questions
+still answer. A synonym / autocomplete layer is a later product choice, not
+this slice.
+
+**Locked.** `tests/unit/o8-merchant-basis-parity.test.ts`
+`test_regression__o10a_costco_gas_is_not_costco` (fail-old: restore prefix ⇒
+Ask Costco Gas = 19582 under “Costco”); Costco-only locks in
+`assistant-merchant-spend.test.ts`; exact scope in
+`assistant-largest-scope.test.ts`; grounding independent recompute; e2e
+`ask.spec.ts` Costco Gas = $37.38 ≠ Costco dollars.

@@ -246,10 +246,14 @@ describe('answer engine: merchant-filtered ranking', () => {
   ];
   const tf = { fromYm: '2026-07', toYm: '2026-07', label: 'this month' };
 
-  it('scopes the ranking to merchantMatches semantics (prefix-token, punctuation-folded)', () => {
+  it('scopes the ranking to merchantMatches semantics (exact, punctuation-folded)', () => {
     const top = largestPurchases(rows, tf, 5, '2026-07-14', undefined, 'costco');
-    expect(top.map((t) => t.merchant)).toEqual(['Costco', 'Costco Gas']);
+    // O.10a: Costco Gas is a different store — only the warehouse row ranks.
+    expect(top.map((t) => t.merchant)).toEqual(['Costco']);
     expect(top[0].amountCents).toBe(12000);
+    expect(largestPurchases(rows, tf, 5, '2026-07-14', undefined, 'costco gas').map((t) => t.merchant)).toEqual([
+      'Costco Gas',
+    ]);
   });
 
   it('unscoped ranking is byte-identical to before (no merchant given)', () => {
