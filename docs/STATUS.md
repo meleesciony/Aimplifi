@@ -6,6 +6,27 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-20 — Ideal savings % is the Settings dial (DECISIONS #493)
+
+**The report.** Draft PR #12 hardcoded 40% as the household savings goal
+(`CONSCIOUS_TARGET_BPS.savings = [4000,4000]`, coach dashed line 4000 bps,
+caption `40%`). Owner: that is his personal goal; he will type it in Settings.
+
+**Shipped.** Unset → Sethi 15–20% book band + Ramsey 15% chart mark (byte-
+identical to pre-#12). Set `savingsTargetBps` (including 0%) → that point
+becomes the savings band, the dashed line, and the caption. Settings hint
+names both surfaces. Placeholders stay `e.g. 15`. No pretax column, no demo
+seed write, no kids-save Path2College/Trump/529 product defaults.
+
+**Locked.** `conscious.test.ts` `test_regression__conscious_savings_band_follows_settings_not_a_hardcoded_40` + caption lock.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,179 passed + 1 expected fail + 1 skipped / 436 files + 1 skipped**,
+`next build` clean. No e2e (copy + engine; settings/coach behind sign-in).
+No `prisma/` diff.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-20 — Header Sign out uses mutation-form recipe (DECISIONS #492)
 
 **Trust/polish blocker.** App chrome Sign out was still

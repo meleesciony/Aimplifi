@@ -584,6 +584,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'dialTag', text: COACH_COPY.dialTag('Dining Out'), isProjection: false },
   { label: 'volatilityPrice', text: COACH_COPY.volatilityPrice(700, 450), isProjection: true },
   { label: 'fifteenPercentReference', text: COACH_COPY.fifteenPercentReference(), isProjection: false },
+  { label: 'savingsGoalReference', text: COACH_COPY.savingsGoalReference(4000), isProjection: false },
   { label: 'savingsStreak:3', text: COACH_COPY.savingsStreak(3, 2653), isProjection: false },
   // Audit P2: 1–4 bps renders "0.0%" via pct1 — a positive streak must name the
   // magnitude instead of printing a zero that isn't one. An exact zero stays "0.0%".
@@ -593,7 +594,8 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'savingsPersonalBest', text: COACH_COPY.savingsPersonalBest(3197, 'May 2026'), isProjection: false },
   { label: 'cushionIsAGoal', text: COACH_COPY.cushionIsAGoal(), isProjection: false },
   { label: 'assumptionsChange', text: COACH_COPY.assumptionsChange(), isProjection: false },
-  { label: 'consciousSpending', text: COACH_COPY.consciousSpending(58, 14, 28, CONSCIOUS_BUCKET_COUNTS.fixed), isProjection: false },
+  { label: 'consciousSpending', text: COACH_COPY.consciousSpending(58, 14, 28, CONSCIOUS_BUCKET_COUNTS.fixed, null), isProjection: false },
+  { label: 'consciousSpending:settings', text: COACH_COPY.consciousSpending(58, 14, 28, CONSCIOUS_BUCKET_COUNTS.fixed, 4000), isProjection: false },
   { label: 'consciousOverspent', text: COACH_COPY.consciousOverspent(), isProjection: false },
   { label: 'automationBlueprintBanner', text: COACH_COPY.automationBlueprintBanner(), isProjection: false },
   { label: 'automationSavingsStep', text: COACH_COPY.automationSavingsStep('payday', cents(50000), 'Emergency Fund'), isProjection: false },

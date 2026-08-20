@@ -12,6 +12,7 @@ import { formatISODate, formatMonth, type ISODate } from '@/lib/dates';
 import type { FrozenFunding } from '@/lib/engine/account/feed-dropped-view';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
+import { formatTargetBand, formatTargetBps } from '@/lib/engine/spending-plan/conscious';
 // The basis sentence decides WHICH claim to make from the same engine the figures come from —
 // a guard reading exactly what it guards, rather than a second rule about the dials that can
 // drift from the arithmetic (it already had, by 1,579 horizon-cases).
@@ -1025,9 +1026,15 @@ export const COACH_COPY = {
     // — the same hazard `coach/page.tsx` already documents for the frozen-balance note.
     `Those ${pct(nominalBps)} returns aren't free — the price is volatility along the way, and the average is never the experience. Staying invested through the dips is the assumption behind every projection here; inflation then takes its cut, which is why the projections on this card compound at ${pct(realReturnBps)} rather than ${pct(nominalBps)}. A fee for admission, not a fine.`,
 
-  // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade
+  // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade.
+  // A set Settings dial uses savingsGoalReference instead (DECISIONS #493).
   fifteenPercentReference: () =>
     `The dashed line marks 15% — a common savings-rate reference point for retirement, not a rule you're failing if you're under it.`,
+
+  // The reader's own Settings savings target on the same chart — never a baked-in
+  // household default. 40% is one valid dial value, not a product constant.
+  savingsGoalReference: (savingsTargetBps: number) =>
+    `The dashed line marks ${formatTargetBps(savingsTargetBps)} — the savings goal you set in Settings, not a rule you're failing if you're under it.`,
 
   // Wave 1.4 · habit mechanics — streak / personal best (educational, not a grade)
   // Audit P2: `pct1` rounds 1–4 bps to "0.0%", so a positive-streak sentence would
@@ -1087,8 +1094,16 @@ export const COACH_COPY = {
   // is in the Fixed bucket, and a declared reserve is in it and is marked
   // nowhere. A default here would let the two call sites disagree silently,
   // which is the shape L.30 was written about.
-  consciousSpending: (fixedPct: number, savePct: number, funPct: number, fixedCounts: string) =>
-    `About ${fixedPct}% of your income pattern goes to Fixed costs (${fixedCounts}), ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free. A rough target is 50–60% / 15–20% / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
+  consciousSpending: (
+    fixedPct: number,
+    savePct: number,
+    funPct: number,
+    fixedCounts: string,
+    savingsTargetBps: number | null,
+  ) =>
+    `About ${fixedPct}% of your income pattern goes to Fixed costs (${fixedCounts}), ${savePct}% to savings and investing goals, and ${funPct}% is guilt-free. A rough target is 50–60% / ${
+      savingsTargetBps == null ? '15–20%' : formatTargetBand(savingsTargetBps, savingsTargetBps)
+    } / 20–35% — a lens on where your money goes, not a rule. Investing contributions aren't tracked separately yet, so they sit with savings.`,
 
   consciousOverspent: () =>
     `Fixed costs and savings have outpaced this month's income pattern, so guilt-free has gone negative — one month is weather, not climate. The trend is what matters.`,

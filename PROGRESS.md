@@ -2,6 +2,26 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-20 — Ideal savings % is the Settings dial (DECISIONS #493)
+
+**Picked up.** Owner: continue work; hardcoded 40% on draft PR #12 is a Grok
+error. Ideal savings percent is a setting; 40% is his goal.
+
+**Closed.** `savingsDisplayBandBps` / `savingsRateReferenceBps` read
+`User.savingsTargetBps`. Book 15–20% / 15% stay when unset. Caption and
+dashed line name Settings when set. No 40% product constant.
+
+**Left alone.** Kids-save Path2College/Trump/529 placeholders (owner
+vehicles, not product defaults). Draft PR #12 must not merge as written.
+
+**Locked.** `conscious.test.ts` two #493 regressions.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,179 passed + 1 expected fail + 1 skipped / 436 files + 1 skipped**,
+`next build` clean. No `prisma/` diff.
+
+**Next.** Owner types 40 in Settings → `/settings` savings target.
+
 ## 2026-08-20 — Header Sign out mutation-form recipe (DECISIONS #492)
 
 **Picked up.** Leftover `#164/#166/#167` anti-pattern after #489 demo CTA:

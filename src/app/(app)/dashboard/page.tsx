@@ -212,6 +212,7 @@ export default async function DashboardPage({
           streak={coach.streak}
           currentRateBps={coach.currentRateBps}
           monthFlows={coach.monthFlows}
+          savingsTargetBps={coach.savingsTargetBps}
         />
         <TopSpendingCard
           breakdown={reports.breakdown}

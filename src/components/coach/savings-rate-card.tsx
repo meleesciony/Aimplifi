@@ -10,6 +10,7 @@ import { pooledSavingsRateBps } from '@/lib/engine/fi/fi';
 import type { MonthlyFlow } from '@/lib/engine/fi/insights';
 import type { MonthFlowBreakdown } from '@/lib/engine/glass-box/month-flow-breakdown';
 import { SavingsRateChart } from '@/components/coach/savings-rate-chart';
+import { savingsRateReferenceBps } from '@/lib/engine/spending-plan/conscious';
 import type { SavingsStreakResult } from '@/lib/engine/fi/savings-streak';
 import {
   formatSavingsRateBps,
@@ -27,6 +28,7 @@ export function SavingsRateCard({
   streak,
   currentRateBps,
   monthFlows,
+  savingsTargetBps,
 }: {
   flows: MonthlyFlow[];
   /**
@@ -38,13 +40,20 @@ export function SavingsRateCard({
   currentRateBps: number | null;
   /** Rows behind each bar, keyed `YYYY-MM:income` / `YYYY-MM:expense` — see `CoachData`. */
   monthFlows: Record<string, MonthFlowBreakdown>;
+  /**
+   * Settings savings-% dial. REQUIRED so the dashed line cannot silently stay
+   * on the 15% book mark after the reader set a goal (DECISIONS #493).
+   * null = unset → Ramsey 15% reference; a number (including 0) is their goal.
+   */
+  savingsTargetBps: number | null;
 }) {
   const recent = flows.slice(-12);
-  // The 15% aspiration line/caption belong on a chart that has something to aspire FROM —
-  // painting "aim for 15%" across an all-red bleeding history reads as a rebuke, not a
+  // The aspiration line/caption belong on a chart that has something to aspire FROM —
+  // painting a target across an all-red bleeding history reads as a rebuke, not a
   // reference. Show it only once at least one month actually saved. (The old `max >= 1500`
   // guard did this incidentally via a data-driven scale; the fixed scale made it dead code.)
   const hasPositiveMonth = recent.some((f) => (f.savingsRateBps ?? 0) > 0);
+  const referenceBps = savingsRateReferenceBps(savingsTargetBps);
   // POOLED, not the mean of monthly rates — averaging ratios lets a near-zero-income month
   // blow the figure up to hundreds of thousands of percent (the owner's "−855105.8%").
   const pooled = pooledSavingsRateBps(recent);
@@ -91,10 +100,17 @@ export function SavingsRateCard({
         )}
       </CardHeader>
       <CardContent>
-        <SavingsRateChart recent={recent} monthFlows={monthFlows} hasPositiveMonth={hasPositiveMonth} />
+        <SavingsRateChart
+          recent={recent}
+          monthFlows={monthFlows}
+          hasPositiveMonth={hasPositiveMonth}
+          referenceBps={referenceBps}
+        />
         {hasPositiveMonth && (
           <p className="mt-1 text-[10px] text-muted-foreground" data-testid="fifteen-pct-ref">
-            {COACH_COPY.fifteenPercentReference()}
+            {savingsTargetBps != null
+              ? COACH_COPY.savingsGoalReference(savingsTargetBps)
+              : COACH_COPY.fifteenPercentReference()}
           </p>
         )}
       </CardContent>

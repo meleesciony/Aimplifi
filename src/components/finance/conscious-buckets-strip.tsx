@@ -11,6 +11,7 @@ import { traceConsciousBuckets } from '@/lib/engine/glass-box/trace';
 import {
   CONSCIOUS_BUCKET_LABELS,
   consciousFixedCounts,
+  formatTargetBand,
   mapToConsciousBuckets,
   type ConsciousBucketKey,
 } from '@/lib/engine/spending-plan/conscious';
@@ -142,7 +143,7 @@ export function ConsciousBucketsStrip({
                 <>
                   · {pctLabel(b.shareBps)}%{' '}
                   <span className="text-[10px]">
-                    (target {b.targetLoBps / 100}–{b.targetHiBps / 100}%)
+                    (target {formatTargetBand(b.targetLoBps, b.targetHiBps)})
                   </span>
                 </>
               }
@@ -186,6 +187,7 @@ export function ConsciousBucketsStrip({
             clampPct(share('savings')),
             clampPct(share('guiltFree')),
             consciousFixedCounts(plan.reserveLines.length),
+            plan.savingsTargetBps,
           )}
         </p>
       </CardContent>

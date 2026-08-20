@@ -106,6 +106,7 @@ export default async function CoachPage() {
           streak={data.streak}
           currentRateBps={data.currentRateBps}
           monthFlows={data.monthFlows}
+          savingsTargetBps={data.savingsTargetBps}
         />
         <FICard
           fiNumberCents={data.fi.fiNumberCents}

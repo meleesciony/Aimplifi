@@ -95,12 +95,51 @@ export interface ConsciousBuckets {
  * "pay yourself first" band because investing is folded into savings here.
  * Fixed stays 50–60% (B.3): Wave B widened the numerator to must-pay Fixed
  * categories, so the band is no longer scored against a flattering narrow set.
+ *
+ * The savings band is the BOOK lens when Settings `savingsTargetBps` is unset.
+ * A set dial replaces it (DECISIONS #493). Never hardcode a household goal
+ * (40% is one reader's setting, not the product default).
  */
 export const CONSCIOUS_TARGET_BPS: Record<ConsciousBucketKey, readonly [number, number]> = {
   fixed: [5000, 6000], // 50–60%
   savings: [1500, 2000], // 15–20% (10% investing + 5–10% savings, combined)
   guiltFree: [2000, 3500], // 20–35%
 };
+
+/**
+ * Ramsey BS4 15% reference on the savings-rate chart when the reader has not
+ * set a savings target. A set Settings dial replaces this number.
+ */
+export const BOOK_SAVINGS_RATE_REFERENCE_BPS = 1500;
+
+/** Display a bps share: 4000 → "40%", 1250 → "12.5%". */
+export function formatTargetBps(bps: number): string {
+  const pct = bps / 100;
+  return Number.isInteger(pct) ? `${pct}%` : `${pct.toFixed(1)}%`;
+}
+
+/** "15–20%" or a single "40%" when the band is a point (a set Settings dial). */
+export function formatTargetBand(loBps: number, hiBps: number): string {
+  if (loBps === hiBps) return formatTargetBps(loBps);
+  return `${formatTargetBps(loBps).replace(/%$/, '')}–${formatTargetBps(hiBps)}`;
+}
+
+/**
+ * Savings display band: Settings dial when set (including explicit 0%), else
+ * the Sethi 15–20% book lens. The plan already uses the dial for cents
+ * (`plannedSavingsCents`); this is the number the lens prints next to it.
+ */
+export function savingsDisplayBandBps(
+  savingsTargetBps: number | null,
+): readonly [number, number] {
+  if (savingsTargetBps != null) return [savingsTargetBps, savingsTargetBps];
+  return CONSCIOUS_TARGET_BPS.savings;
+}
+
+/** Chart dashed-line position: Settings dial when set, else the 15% book mark. */
+export function savingsRateReferenceBps(savingsTargetBps: number | null): number {
+  return savingsTargetBps != null ? savingsTargetBps : BOOK_SAVINGS_RATE_REFERENCE_BPS;
+}
 
 /** Integer-bps share of income; guarded against divide-by-zero (returns 0). */
 function shareBps(cents: number, incomeCents: number): number {
@@ -127,13 +166,18 @@ export function mapToConsciousBuckets(plan: SpendingPlan): ConsciousBuckets {
     guiltFree: plan.leftToSpendCents,
   };
 
-  const buckets: ConsciousBucket[] = (['fixed', 'savings', 'guiltFree'] as const).map((key) => ({
-    key,
-    cents: cellsByKey[key],
-    shareBps: shareBps(cellsByKey[key], income),
-    targetLoBps: CONSCIOUS_TARGET_BPS[key][0],
-    targetHiBps: CONSCIOUS_TARGET_BPS[key][1],
-  }));
+  const savingsBand = savingsDisplayBandBps(plan.savingsTargetBps);
+  const buckets: ConsciousBucket[] = (['fixed', 'savings', 'guiltFree'] as const).map((key) => {
+    const [targetLoBps, targetHiBps] =
+      key === 'savings' ? savingsBand : CONSCIOUS_TARGET_BPS[key];
+    return {
+      key,
+      cents: cellsByKey[key],
+      shareBps: shareBps(cellsByKey[key], income),
+      targetLoBps,
+      targetHiBps,
+    };
+  });
 
   return {
     patternIncomeCents: income,

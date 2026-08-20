@@ -486,3 +486,4 @@ refuses to write if it would drop any number this file already carries.
 - **#490** (Phase ?): O.10a: Ask merchant match is exact store identity (2026-08-20)
 - **#491** (Phase ?): O.20j: hand-file to Transfer stamps `isTransfer` immediately (2026-08-20)
 - **#492** (Phase ?): Header Sign out uses the mutation-form recipe (2026-08-20)
+- **#493** (Phase ?): Ideal savings percent is the Settings dial, never a hardcoded 40% (2026-08-20)

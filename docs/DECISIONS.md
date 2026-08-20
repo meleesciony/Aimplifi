@@ -8456,3 +8456,29 @@ password/forgot/reset/import-csv are different surfaces already scoped.
 `test_regression__sign_out_uses_client_onsubmit_not_form_action`. Existing e2e
 (`auth.spec` Sign out, `desktop-header`) still drives the same testid →
 `/sign-in` and drops the session.
+
+## #493 — Ideal savings percent is the Settings dial, never a hardcoded 40% (2026-08-20)
+
+**Context.** Draft PR #12 (`cursor/spending-plan-40pct-kids-rails-8fd1`) baked
+40% into `CONSCIOUS_TARGET_BPS.savings`, the coach dashed line, and the
+conscious-spending caption as if it were the product's household goal. The
+owner's 40% is **his** target; he will type it in Settings. The dial already
+exists: `User.savingsTargetBps` (DECISIONS #295 / #307) already drives
+`plannedSavingsCents`.
+
+**Decision.**
+1. Keep Sethi's book savings band at `[1500, 2000]` (15–20%) and the Ramsey
+   15% chart mark when the dial is unset. **Do not** change the product default
+   to 40%.
+2. When `savingsTargetBps` is set (including explicit 0%), the conscious
+   savings band becomes that point, the coach dashed line moves to it, and
+   copy names Settings — never a baked-in household percent.
+3. Fixed 50–60% and guilt-free 20–35% stay book bands. Placeholders stay
+   `e.g. 15`. No pretax column. No demo seed write. Kids-save
+   Path2College/Trump/529 placeholders are **not** product defaults (those
+   are the owner's vehicles; he adds them as goals).
+4. Draft PR #12 must not merge as written.
+
+**Locked.** `tests/unit/conscious.test.ts`
+`test_regression__conscious_savings_band_follows_settings_not_a_hardcoded_40`,
+`test_regression__conscious_caption_names_settings_dial_not_a_baked_in_40`.

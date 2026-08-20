@@ -12,10 +12,14 @@ import { isoDate } from '@/lib/dates';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { computeSpendingPlan } from '@/lib/engine/spending-plan/plan';
 import {
+  BOOK_SAVINGS_RATE_REFERENCE_BPS,
   CONSCIOUS_BUCKET_COUNTS,
   consciousFixedCounts,
   CONSCIOUS_TARGET_BPS,
+  formatTargetBand,
   mapToConsciousBuckets,
+  savingsDisplayBandBps,
+  savingsRateReferenceBps,
 } from '@/lib/engine/spending-plan/conscious';
 
 const plan = (over: Partial<Parameters<typeof computeSpendingPlan>[0]> = {}) =>
@@ -106,6 +110,48 @@ describe('mapToConsciousBuckets — provably equal re-partition', () => {
     expect([byKey.savings.targetLoBps, byKey.savings.targetHiBps]).toEqual([1500, 2000]);
     expect([byKey.guiltFree.targetLoBps, byKey.guiltFree.targetHiBps]).toEqual([2000, 3500]);
   });
+
+  it('a set Settings savings dial replaces the book savings band — not a hardcoded 40%', () => {
+    const unset = Object.fromEntries(mapToConsciousBuckets(plan()).buckets.map((x) => [x.key, x]));
+    expect([unset.savings.targetLoBps, unset.savings.targetHiBps]).toEqual([1500, 2000]);
+    const set = Object.fromEntries(
+      mapToConsciousBuckets(plan({ savingsTargetBps: 4000 })).buckets.map((x) => [x.key, x]),
+    );
+    expect([set.savings.targetLoBps, set.savings.targetHiBps]).toEqual([4000, 4000]);
+    expect([set.fixed.targetLoBps, set.fixed.targetHiBps]).toEqual([5000, 6000]);
+    const zero = Object.fromEntries(
+      mapToConsciousBuckets(plan({ savingsTargetBps: 0 })).buckets.map((x) => [x.key, x]),
+    );
+    expect([zero.savings.targetLoBps, zero.savings.targetHiBps]).toEqual([0, 0]);
+  });
+});
+
+describe('DECISIONS #493 — ideal savings % is a Settings dial', () => {
+  it('test_regression__conscious_savings_band_follows_settings_not_a_hardcoded_40', () => {
+    expect(CONSCIOUS_TARGET_BPS.savings).toEqual([1500, 2000]);
+    expect(CONSCIOUS_TARGET_BPS.savings).not.toEqual([4000, 4000]);
+    expect(savingsDisplayBandBps(null)).toEqual([1500, 2000]);
+    expect(savingsDisplayBandBps(4000)).toEqual([4000, 4000]);
+    expect(savingsDisplayBandBps(0)).toEqual([0, 0]);
+    expect(savingsRateReferenceBps(null)).toBe(BOOK_SAVINGS_RATE_REFERENCE_BPS);
+    expect(savingsRateReferenceBps(null)).toBe(1500);
+    expect(savingsRateReferenceBps(4000)).toBe(4000);
+    expect(formatTargetBand(1500, 2000)).toBe('15–20%');
+    expect(formatTargetBand(4000, 4000)).toBe('40%');
+    expect(formatTargetBand(1250, 1250)).toBe('12.5%');
+  });
+
+  it('test_regression__conscious_caption_names_settings_dial_not_a_baked_in_40', () => {
+    const book = COACH_COPY.consciousSpending(58, 14, 28, CONSCIOUS_BUCKET_COUNTS.fixed, null);
+    expect(book).toMatch(/50–60% \/ 15–20% \/ 20–35%/);
+    expect(book).not.toMatch(/\/ 40% \//);
+    const set = COACH_COPY.consciousSpending(58, 14, 28, CONSCIOUS_BUCKET_COUNTS.fixed, 4000);
+    expect(set).toMatch(/50–60% \/ 40% \/ 20–35%/);
+    expect(COACH_COPY.savingsGoalReference(4000)).toMatch(/40%/);
+    expect(COACH_COPY.savingsGoalReference(4000)).toMatch(/Settings/);
+    expect(COACH_COPY.fifteenPercentReference()).toMatch(/15%/);
+    expect(COACH_COPY.fifteenPercentReference()).not.toMatch(/40%/);
+  });
 });
 
 describe('C.23/H.4 — the caption names the reserve the bucket contains', () => {
@@ -114,7 +160,7 @@ describe('C.23/H.4 — the caption names the reserve the bucket contains', () =>
     expect(consciousFixedCounts(1)).toContain('plus the reserve you declared');
     expect(consciousFixedCounts(3)).toContain('plus the 3 reserves you declared');
     // The rendered sentence carries it — the caption is the surface, not the table.
-    const text = COACH_COPY.consciousSpending(2, 0, 98, consciousFixedCounts(1));
+    const text = COACH_COPY.consciousSpending(2, 0, 98, consciousFixedCounts(1), null);
     expect(text).toContain('plus the reserve you declared');
   });
 });
@@ -127,7 +173,7 @@ describe('B.3 — Sethi band stays; Fixed copy names the widened numerator', () 
   });
 
   it('test_regression__conscious_caption_names_must_pay_fixed_not_bills_alone', () => {
-    const text = COACH_COPY.consciousSpending(58, 14, 28, CONSCIOUS_BUCKET_COUNTS.fixed);
+    const text = COACH_COPY.consciousSpending(58, 14, 28, CONSCIOUS_BUCKET_COUNTS.fixed, null);
     expect(text).toContain(CONSCIOUS_BUCKET_COUNTS.fixed);
     expect(text).toMatch(/50–60%/);
     expect(text).toMatch(/income pattern/);

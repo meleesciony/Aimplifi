@@ -39,10 +39,13 @@ export function SavingsRateChart({
   recent,
   monthFlows,
   hasPositiveMonth,
+  referenceBps,
 }: {
   recent: MonthlyFlow[];
   monthFlows: Record<string, MonthFlowBreakdown>;
   hasPositiveMonth: boolean;
+  /** Settings dial when set; else the 15% book mark. Never a baked-in household %. */
+  referenceBps: number;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -97,12 +100,13 @@ export function SavingsRateChart({
             );
           })}
         </div>
-        {/* 15% savings-rate reference (Ramsey BS4). Fixed scale, so it always fits;
-            shown only when the history has a saving month to reference against. */}
+        {/* Savings-rate reference. Settings dial when set; else Ramsey 15%.
+            Fixed scale, so it always fits; shown only when the history has a
+            saving month to reference against. */}
         {hasPositiveMonth && (
           <div
             className="pointer-events-none absolute inset-x-0 border-t border-dashed border-muted-foreground/40"
-            style={{ bottom: `${(1500 / max) * 72}px` }}
+            style={{ bottom: `${(referenceBps / max) * 72}px` }}
             aria-hidden
           />
         )}
