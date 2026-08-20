@@ -8236,7 +8236,10 @@ a spend category (converse leak deliberately untouched). Next
 **Locked.** `test_regression__o20j_filed_transfer_category_flags_without_pair_or_descriptor`,
 `test_regression__o20j_automatic_payment_and_brokerage_sweep_filed_transfer_flag`,
 `test_regression__o20j_converse_leak_spend_category_not_touched_by_filed_leaf_rule`
-(`transfer-pair-filing.test.ts`).
+(`transfer-pair-filing.test.ts`);
+`test_regression__o20j_filed_transfer_is_endorsed_by_repair_not_declined_out_of_scope`
+(`transfer-flag-repair-plan.test.ts` — H.7b repair now endorses the filed leaf
+instead of counting it as declined-out-of-scope).
 
 ## #485 — O.20j first slice: `countsInFlows` honors the transfer category leaf (2026-08-20)
 
