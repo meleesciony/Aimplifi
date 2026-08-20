@@ -27,7 +27,9 @@ covers eventual consistency).
 **Locked.** `test_regression__o20j_filed_transfer_category_flags_without_pair_or_descriptor`
 (+ AUTOMATIC/brokerage sibling + converse-leak non-touch).
 
-**Gate.** `bash scripts/verify.sh` — record after green this session.
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,150 passed + 1 expected fail + 1 skipped / 432 files + 1 skipped**,
+`next build` clean. No e2e (engine; no UI). No `prisma/` diff.
 
 ## ✅ BUILT 2026-08-20 — O.20j R6: Overdraft Transfer ≠ Fees & Charges (DECISIONS #486)
 
