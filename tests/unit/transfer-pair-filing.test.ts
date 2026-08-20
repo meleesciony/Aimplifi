@@ -194,6 +194,27 @@ describe('planTransferUpdates (pure)', () => {
       expect(plan.overturnIds.sort()).toEqual(['funding', 'landed']);
     });
 
+    it('test_regression__o20j_r6_unpaired_overdraft_transfer_descriptor_overturns_fees', () => {
+      // Live shape: settled Fees & Charges, isTransfer false, no opposite
+      // amount. After KNOWN_MERCHANTS recognizes OVERDRAFT TRANSFER, descriptor
+      // evidence alone must overturn — pair matching cannot rescue it.
+      const plan = planTransferUpdates([
+        txn({
+          id: 'large',
+          accountId: 'checking',
+          date: '2026-07-06',
+          amountCents: -779_297,
+          rawDescriptor: 'Overdraft Transfer from Brokerage -7383',
+          categoryId: 'fees',
+          needsReview: false,
+        }),
+      ]);
+      expect(plan.overturnIds).toEqual(['large']);
+      expect(plan.flagIds).toEqual([]);
+      // Competing verdict stays on file (H.7) — spend gates use isTransfer.
+      expect(plan.fileIds).toEqual([]);
+    });
+
     it('an INVESTMENT account can SEND: a brokerage withdrawal filed as income is overturned', () => {
       // The mirror of the funding case below, which puts the investment account
       // on the INFLOW side — so deleting 'INVESTMENT' from the sender set left
