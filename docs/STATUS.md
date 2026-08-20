@@ -6,6 +6,31 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-20 — O.20j converse leak sized; no predicate override (DECISIONS #487)
+
+**The report.** After #485/#486, remaining OPEN: `isTransfer=true` under real
+spend categories vanishes from both `countsInFlows` and `isSpendRow`
+(silent undercount). Verified hunch against code: a "spend category overrides
+flag" rule would re-admit **endorsed overturns** — `overturnIds` write the
+flag and keep the competing leaf. That contradicts H.7 / H.7b. False positives
+are already H.7b's clear set (live when shipped: 53 / $29,848.84).
+
+**Shipped (measure only).** `measureConverseTransferLeak` + fixture locks on
+the #446 category shape, partitioned clearable vs endorsed. No spend-basis
+predicate change. No flag clears.
+
+**Still open on O.20j.** Owner must run H.7b repair for live dollars; detector
+miss on remaining unflagged `transfer`-category rows (independent of draft
+PR #5). Fresh-context Fable critic still owed before claiming the whole row
+closed.
+
+**Locked.** `test_regression__o20j_converse_leak_*` in
+`tests/unit/o20j-converse-leak.test.ts`.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,150 passed + 1 expected fail + 1 skipped / 433 files + 1 skipped**,
+`next build` clean. No e2e (measurement-only; no UI). No `prisma/` diff.
+
 ## ✅ BUILT 2026-08-20 — O.20j R6: Overdraft Transfer ≠ Fees & Charges (DECISIONS #486)
 
 **The report.** After #485, a transfer-leaf gate still left the live $7,792.97
@@ -21,8 +46,8 @@ leg the largest amount lacked. No amount ceiling in the detector.
 `overturnIds` on the next transfer refresh (H.7 keeps category; spend
 gates use `isTransfer`). `OVERDRAFT FEE` unchanged.
 
-**Still open on O.20j.** Converse leak sizing / H.7b; why pairing still
-misses other unflagged `transfer`-category rows.
+**Still open on O.20j.** Converse leak sizing closed as measure-only in #487;
+why pairing still misses other unflagged `transfer`-category rows.
 
 **Locked.** `test_regression__o20j_r6_overdraft_transfer_from_brokerage_is_not_fees_spend`
 (+ normalize sibling + unpaired overturn).
@@ -44,10 +69,10 @@ month-flow panel disagreed with the spending card on the same money.
 named surfaces move together. Glass-box completeness comment updated; reader
 `MONTH_FLOW_BASIS` copy already named transfers.
 
-**Not shipped (still open on O.20j).** Converse leak (`isTransfer=true` under
-real spend categories — both predicates already agree; needs sizing + product
-decision / H.7b). Detector root cause for the 76 unflagged rows. **R6 closed
-in #486** (Overdraft Transfer → transfer, not Fees).
+**Not shipped (still open on O.20j).** Converse leak sized as measure-only in
+#487 (no predicate flip; H.7b remains the repair). Detector root cause for
+the 76 unflagged rows. **R6 closed in #486** (Overdraft Transfer → transfer,
+not Fees).
 
 **Locked.** `test_regression__o20j_transfer_category_unflagged_does_not_count_in_flows`
 (+ `isSpendRow` parity + `monthlyFlows` byte-identical with/without the leak
