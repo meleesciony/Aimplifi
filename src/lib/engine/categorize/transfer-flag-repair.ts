@@ -31,12 +31,13 @@
  *    settle differently (the file branch's own refusal), while a non-USD or
  *    `excludeFromTotals` row is withheld from every total by ANOTHER gate — so
  *    clearing its mark returns $0.00 and the stated dollars would be false.
- * Everything else flagged-but-declined — still awaiting review, filed AS
- * 'transfer' by the old rule, pinned, pending, non-USD, or reader-excluded —
- * is COUNTED in `declinedOutOfScopeCount` and never touched: clearing those
- * means minting review work, unfiling a recorded filing, or claiming money no
- * figure would regain — different actions with their own consequences,
- * recorded rather than smuggled in here.
+ * Everything else flagged-but-declined — still awaiting review, review-pinned,
+ * pending, non-USD, or reader-excluded — is COUNTED in
+ * `declinedOutOfScopeCount` and never touched: clearing those means minting
+ * review work or claiming money no figure would regain — different actions
+ * with their own consequences, recorded rather than smuggled in here.
+ * (Pre-O.20j #487 also counted "filed AS transfer by the old rule" here; the
+ * filed leaf is now detector evidence, so that shape is endorsed instead.)
  *
  * Clearing writes `isTransfer: false` and NOTHING else: the category is the
  * settled verdict the flag was wrongly withholding, so the repair restores the
@@ -72,9 +73,10 @@ export interface TransferFlagRepairPlan {
    * count). */
   endorsedCount: number;
   /** Flagged rows today's rule declines that this repair deliberately does NOT
-   * touch: still awaiting review, filed as 'transfer', review-pinned, pending,
-   * non-USD, or reader-excluded. Disclosed, never silently dropped ("no
-   * silent caps"). */
+   * touch: still awaiting review, review-pinned, pending, non-USD, or
+   * reader-excluded. Disclosed, never silently dropped ("no silent caps").
+   * (Filed-as-`transfer` alone is no longer in this bucket — O.20j #487 makes
+   * the leaf evidence, so those flags are endorsed.) */
   declinedOutOfScopeCount: number;
   /** Every `isTransfer: true` row seen, whatever its scope — so a surface can
    * tell "no marks exist" from "all marks check out" (a zero is a claim and

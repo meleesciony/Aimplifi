@@ -26,6 +26,17 @@ export interface TransferTxn {
   rawDescriptor: string;
   isSplitParent?: boolean;
   /**
+   * Persisted category filing, when the caller has it (O.20j). A row already
+   * filed to the `transfer` leaf is transfer-evidence even when the descriptor
+   * does not (or never did) normalize to transfer and no opposite-amount pair
+   * exists within ±3 days — the measured miss for Venmo / AUTOMATIC PAYMENT /
+   * brokerage-sweep rows that carried `categoryId=transfer` with
+   * `isTransfer=false` (76 live vs 132 correctly flagged). Absent ⇒ ignored
+   * (pair + descriptor paths unchanged). One direction only: never used to
+   * CLEAR `isTransfer` on a spend category (the converse leak).
+   */
+  categoryId?: string | null;
+  /**
    * The id of the REAL account this row sits on, when the user has confirmed
    * that two rows are the same account (H.7 cycle 2). A reconciled pair — the
    * same card arriving from two providers — makes a purchase and its own refund
@@ -133,10 +144,18 @@ function detectTransferParts<T extends TransferTxn>(
   // critic F4): a descriptor is transfer-like only if the merchant table says
   // so. The auto-loan ACH is an own-obligation payment, excluded from
   // income/expense like a transfer.
+  //
+  // O.20j (DECISIONS #487): an ALREADY-FILED `transfer` category leaf is the
+  // same evidence family. Pair matching alone missed those rows when the
+  // opposite amount / ±3-day window failed (R6's unpaired largest leg is the
+  // sibling shape); the filed leaf must flag them the same way as the 132
+  // correctly-flagged siblings. Does NOT invent descriptors and does NOT clear
+  // `isTransfer` on spend categories.
   const descriptorIds = new Set<string>();
   for (const t of transactions) {
-    const categoryId = normalizeMerchant(t.rawDescriptor).categoryId;
-    if (categoryId === 'transfer' || categoryId === 'auto-loan') descriptorIds.add(t.id);
+    const normalized = normalizeMerchant(t.rawDescriptor).categoryId;
+    if (normalized === 'transfer' || normalized === 'auto-loan') descriptorIds.add(t.id);
+    if (t.categoryId === 'transfer') descriptorIds.add(t.id);
   }
 
   // Pair matching: equal/opposite amounts, different accounts, within 3 days.

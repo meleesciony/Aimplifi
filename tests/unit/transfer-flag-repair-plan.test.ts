@@ -16,9 +16,11 @@
  *    next sweep unless genuinely new evidence arrives (locked below);
  *  - a review-pinned row is the user's to decide, never the system's (the
  *    backfill precedent) — declined or not, it is counted, not cleared;
- *  - rows outside the settled-substantive scope (still needsReview, or filed
- *    AS 'transfer' by the old rule) are DISCLOSED as a count, never silently
- *    dropped from the story ("no silent caps") and never acted on here.
+ *  - rows outside the settled-substantive scope (still needsReview, pinned,
+ *    pending, non-USD, or reader-excluded) are DISCLOSED as a count, never
+ *    silently dropped from the story ("no silent caps") and never acted on
+ *    here. (Pre-O.20j #487 also listed "filed AS transfer by the old rule"
+ *    here; the filed leaf is now evidence, so that shape is endorsed.)
  */
 import { describe, expect, it } from 'vitest';
 
@@ -186,12 +188,16 @@ describe('H.7b planner: what clears, what stays, what is only counted', () => {
     expect(plan.declinedOutOfScopeCount).toBe(1);
   });
 
-  it('counts, and never touches, a declined row the old rule FILED as transfer', () => {
+  it('test_regression__o20j_filed_transfer_is_endorsed_by_repair_not_declined_out_of_scope', () => {
+    // Pre-#487 this shape was declinedOutOfScope ("old rule filed as transfer"
+    // without descriptor/pair evidence). O.20j treats the filed leaf as
+    // evidence, so today's rule re-justifies the flag — endorsed, never cleared.
     const plan = planTransferFlagRepair([
       txn({ id: 'filed', isTransfer: true, categoryId: 'transfer' }),
     ]);
     expect(plan.clearIds).toEqual([]);
-    expect(plan.declinedOutOfScopeCount).toBe(1);
+    expect(plan.declinedOutOfScopeCount).toBe(0);
+    expect(plan.endorsedCount).toBe(1);
   });
 
   it('a filed-as-transfer row the rule still endorses is neither cleared nor counted as declined', () => {

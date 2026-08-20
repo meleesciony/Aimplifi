@@ -215,6 +215,96 @@ describe('planTransferUpdates (pure)', () => {
       expect(plan.fileIds).toEqual([]);
     });
 
+    it('test_regression__o20j_filed_transfer_category_flags_without_pair_or_descriptor', () => {
+      // Live shape (DECISIONS #446 R5 / O.20j): categoryId=transfer,
+      // isTransfer=false, descriptor that does NOT normalize to transfer
+      // (Venmo → uncategorized aggregate), no opposite-amount pair. Pairing
+      // window / amount uniqueness is exactly why these missed the 132
+      // correctly-flagged siblings — filed leaf must supply the evidence.
+      // Fixture cents are hand-picked for the lock, not a production dollar.
+      const alone = {
+        id: 'venmo-out',
+        accountId: 'checking',
+        date: '2026-06-10',
+        amountCents: -5_000,
+        rawDescriptor: 'VENMO PAYMENT 123456',
+        categoryId: 'transfer' as const,
+      };
+      expect(detectTransfers([alone]), 'detectTransfers must see the filed leaf').toEqual(
+        new Set(['venmo-out']),
+      );
+      expect(detectTransfers([{ ...alone, categoryId: undefined }]), 'without filed leaf: miss').toEqual(
+        new Set(),
+      );
+
+      const plan = planTransferUpdates([
+        txn({
+          ...alone,
+          needsReview: false,
+          isTransfer: false,
+        }),
+      ]);
+      expect(plan.flagIds).toEqual(['venmo-out']);
+      expect(plan.overturnIds).toEqual([]);
+      // Already settled on transfer — non-competing; do not re-file.
+      expect(plan.fileIds).toEqual([]);
+    });
+
+    it('test_regression__o20j_automatic_payment_and_brokerage_sweep_filed_transfer_flag', () => {
+      // The other two named R5 families: "AUTOMATIC PAYMENT" is NOT in
+      // TRANSFER_DESCRIPTOR (AUTOPAY PAYMENT is); "Funds Transfer to Brokerage"
+      // is also uncategorized by the normalizer. Both stay unflagged without
+      // the filed-leaf evidence path.
+      const plan = planTransferUpdates([
+        txn({
+          id: 'card-autopay',
+          accountId: 'card',
+          accountType: 'CREDIT',
+          amountCents: -25_000,
+          rawDescriptor: 'AUTOMATIC PAYMENT - THANK YOU',
+          categoryId: 'transfer',
+        }),
+        txn({
+          id: 'brokerage-sweep',
+          accountId: 'checking',
+          amountCents: -87_654, // unique fixture cents — no pair in this set
+          rawDescriptor: 'Funds Transfer to Brokerage',
+          categoryId: 'transfer',
+        }),
+      ]);
+      expect(plan.flagIds.sort()).toEqual(['brokerage-sweep', 'card-autopay']);
+      expect(plan.overturnIds).toEqual([]);
+      expect(plan.fileIds).toEqual([]);
+    });
+
+    it('test_regression__o20j_converse_leak_spend_category_not_touched_by_filed_leaf_rule', () => {
+      // Converse leak (still OPEN on O.20j): isTransfer=true under a real spend
+      // category must NOT be "fixed" by re-filing to transfer. This slice only
+      // ADDS flags when the category leaf is already transfer — never clears,
+      // never files a spend row from the filed-leaf rule alone.
+      const plan = planTransferUpdates([
+        txn({
+          id: 'rent-flagged',
+          rawDescriptor: 'LANDLORD LLC',
+          categoryId: 'rent',
+          isTransfer: true,
+          needsReview: false,
+          amountCents: -150_000,
+        }),
+        txn({
+          id: 'rent-unflagged',
+          rawDescriptor: 'LANDLORD LLC JUNE',
+          categoryId: 'rent',
+          isTransfer: false,
+          needsReview: false,
+          amountCents: -151_000, // unique — no pair
+        }),
+      ]);
+      expect(plan.flagIds).toEqual([]);
+      expect(plan.overturnIds).toEqual([]);
+      expect(plan.fileIds).toEqual([]);
+    });
+
     it('an INVESTMENT account can SEND: a brokerage withdrawal filed as income is overturned', () => {
       // The mirror of the funding case below, which puts the investment account
       // on the INFLOW side — so deleting 'INVESTMENT' from the sender set left
