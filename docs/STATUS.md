@@ -28,6 +28,13 @@ e2e Ask "What should I cut?" → LA Fitness $34.99, source `/coach`.
 **7,195 passed + 1 expected fail + 1 skipped / 437 files + 1 skipped**,
 `next build` clean. Ask P.1 e2e **1/1**. No `prisma/` diff.
 
+**Gate read.** CI run **32443129831** on `461d5c42` = SUCCESS (12m35s, full
+VERIFY_E2E, attempt 1). Vercel: `READY` (`dpl_pZCE9TttjSiF28ryYq3mq58PtbE7`
+/ `aimplifi-ldb4659se`), same sha, aliased to `www.aimplifi.app`.
+Production `/`, `/ask`, `/coach`, `/dashboard` 307; `/sign-in` 200. Ask
+is behind sign-in; CI e2e asserted the route on this sha. No public
+HTML marker.
+
 **Schema.** None.
 
 ## ✅ BUILT 2026-08-20 — Ideal savings % is the Settings dial (DECISIONS #493)

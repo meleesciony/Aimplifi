@@ -23,8 +23,14 @@ leak / H.7b; U.15(b); Plaid; draft PR #12.
 **7,195 passed + 1 expected fail + 1 skipped / 437 files + 1 skipped**,
 `next build` clean. Ask P.1 e2e **1/1**. No `prisma/` diff.
 
-**Next.** Ship this slice (commit / push / CI / live). P.1 remaining half
-is money-math (hostile critic). Or owner types 40 in Settings.
+**Shipped and proven live.** Pushed as `461d5c42`. CI run **32443129831**
+`success` (12m35s, attempt 1). Vercel: `READY`, same sha, aliased to
+`www.aimplifi.app`. Production `/`, `/ask`, `/coach`, `/dashboard` 307;
+`/sign-in` 200. Ask is behind sign-in; CI e2e asserted the route on this
+sha. No public HTML marker. No `prisma/` diff.
+
+**Next.** P.1 remaining half is money-math (hostile critic). Or owner
+types 40 in Settings.
 
 ## 2026-08-20 — Ideal savings % is the Settings dial (DECISIONS #493)
 
