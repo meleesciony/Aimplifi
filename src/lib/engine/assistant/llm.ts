@@ -30,6 +30,7 @@ import {
   whatToCutFromQuestion,
   fiStatusFromQuestion,
   lifestyleCreepFromQuestion,
+  runwayFromQuestion,
 } from './intent';
 
 /** The kinds the model is allowed to choose (everything except the fallback). */
@@ -58,6 +59,7 @@ export function buildIntentPrompt(question: string): string {
     '- subscriptions: recurring subscriptions and their cost (the list of what they pay, NOT which to cut)',
     '- what_to_cut: where to look for big-win cuts (unused gym, price increases, negotiable bills) — "what should I cut?", "where can I save money", "help me cut spending". Never a named store or category, never an amount or date (those are other intents). Does NOT move an FI date',
     '- lifestyle_creep: whether discretionary spending is outpacing income (Coach lifestyle-creep card) — "is my lifestyle creeping?", "lifestyle inflation", "is my spending outpacing my income". Never a named store or category, never an amount or date. Not subscription price increases (that is what_to_cut)',
+    '- runway: standing cash runway / room for error (Coach card) — "how many months of runway do I have?", "what\'s my cash buffer", "how long would my cash last", "do I have an emergency fund". Months of expenses in cash. Never an amount or date (those are savings-goal / wealth-target). Not "will I run out of money" (that is cash_flow_radar)',
     '- cash_flow_radar: will the payment account run out of money / go negative / overdraft in the next 90 days (committed flows + card dues — same as Cash flow radar)',
     '- forecast: projected cash balance from recurring income and bills only (NOT card payments; use cash_flow_radar for running out of money)',
     '- savings_rate: percent of income saved',
@@ -133,6 +135,10 @@ export function intentFromKind(
     case 'lifestyle_creep': {
       const creep = lifestyleCreepFromQuestion(question, today, custom);
       return creep?.kind === 'lifestyle_creep' ? creep : null;
+    }
+    case 'runway': {
+      const standing = runwayFromQuestion(question, today, custom);
+      return standing?.kind === 'runway' ? standing : null;
     }
     case 'account_balance':
       return { kind, query: question.toLowerCase() };

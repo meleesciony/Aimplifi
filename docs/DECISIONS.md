@@ -8597,3 +8597,38 @@ already prints the discretionary-vs-income verdict.
 `test_regression__lifestyle_creep_copy_does_not_claim_this_card_or_below`,
 `test_regression__lifestyle_creep_date_window_abstains`. e2e
 `tests/e2e/ask.spec.ts` "Is my lifestyle creeping agrees with Coach creep card".
+
+## #498 — Ask "how many months of runway?" uses the Coach room-for-error card (2026-08-21)
+
+**Context.** Owner: continue; #497 shipped. P.1 remaining half and
+W.6(b)(c)(d) are new money engines (off this lane). Highest-leverage
+unblocked item: Housel's "room for error" is the cash cushion that makes
+the long game survivable, and "how many months of runway do I have?" /
+"do I have an emergency fund?" was unknown while `/coach` already prints
+months of expenses in cash.
+
+**Decision.**
+1. New Ask intent `runway`. Parser + `intentFromKind` share
+   `runwayFromQuestion`. The answer formatter phrases the SAME
+   `getCoachData().runwayMonths` `/coach` prints via shared `runwayTitle`
+   + `COACH_COPY.runway`. Source is `/coach`. Originates no month count
+   and does not re-run `monthsOfRunway`.
+2. No new math. The three headline states match the card mapping
+   (`N months` / `no cash buffer` / `no expenses yet`) without
+   page-position claims ("this card", "below") — those are false in Ask
+   (L.15). Frozen-cash note uses the same `frozenTotalNote` the card does.
+3. An amount declines so emergency-fund / wealth-target planners can
+   match. A calendar window is `unknown` — the card is standing, not
+   ranked by a named date. A named store or category is `unknown`.
+   "Will I run out of money" stays `cash_flow_radar`. A dated or
+   amount-bearing emergency-fund goal stays those planners. A goal to
+   *fund* an emergency fund (no status language) is not this route.
+4. `runwayTitle` lives next to `monthsOfRunway` so Coach and Ask cannot
+   drift on the three title states.
+
+**Locked.** `tests/unit/assistant-runway.test.ts`
+`test_regression__runway_how_many_months_routes_to_coach`,
+`test_regression__runway_answer_agrees_with_coach_runway_card`,
+`test_regression__runway_copy_does_not_claim_this_card_or_below`,
+`test_regression__runway_date_window_abstains`. e2e
+`tests/e2e/ask.spec.ts` "How many months of runway agrees with Coach room-for-error card".

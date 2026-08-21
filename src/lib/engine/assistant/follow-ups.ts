@@ -166,6 +166,13 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
         'How much is guilt-free to spend this month?',
       ]);
 
+    case 'runway':
+      return take([
+        "What's my savings rate?",
+        'Will I run out of money in the next 90 days?',
+        'How much is guilt-free to spend this month?',
+      ]);
+
     case 'forecast':
       return take([
         'How much do I need to pay my cards?',

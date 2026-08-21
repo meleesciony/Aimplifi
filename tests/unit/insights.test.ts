@@ -14,6 +14,7 @@ import {
   isIncomeFlowRow,
   monthlyFlows,
   monthsOfRunway,
+  runwayTitle,
 } from '@/lib/engine/fi/insights';
 import { isSpendRow } from '@/lib/engine/reports/reports';
 import { generateMoneyReview } from '@/lib/engine/fi/coach-copy';
@@ -849,6 +850,12 @@ describe('creepPanelBasis (O.20d)', () => {
 describe('room for error + life energy', () => {
   it('runway: $10,000 liquid / $2,500 avg monthly expenses = 4.0 months', () => {
     expect(monthsOfRunway(cents(1_000_000), cents(250_000))).toBe(4);
+  });
+  it('runwayTitle matches the three Coach card states', () => {
+    expect(runwayTitle(4)).toBe('4 months');
+    expect(runwayTitle(4.2)).toBe('4.2 months');
+    expect(runwayTitle(-2.3)).toBe('no cash buffer');
+    expect(runwayTitle(Infinity)).toBe('no expenses yet');
   });
   it('life energy: $190 at $38.00/hr after tax = 5 hours', () => {
     expect(hoursOfWork(cents(19_000), 3800)).toBe(5);

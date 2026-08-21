@@ -32,6 +32,10 @@ describe('parseAssistantQuery — routing', () => {
     // standing lifestyle creep (Coach card)
     ['Is my lifestyle creeping?', 'lifestyle_creep'],
     ['is my spending outpacing my income', 'lifestyle_creep'],
+    // standing cash runway (Coach room-for-error card)
+    ['How many months of runway do I have?', 'runway'],
+    ["what's my cash buffer", 'runway'],
+    ['do I have an emergency fund', 'runway'],
     // subscriptions
     ['what subscriptions am I paying for?', 'subscriptions'],
     ['list my recurring payments', 'subscriptions'],

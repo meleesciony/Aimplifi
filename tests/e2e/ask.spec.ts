@@ -137,6 +137,20 @@ test('Is my lifestyle creeping agrees with Coach creep card', async ({ page }) =
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
 });
 
+test('How many months of runway agrees with Coach room-for-error card', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/coach');
+  const months = ((await page.getByTestId('runway-months').textContent()) ?? '').trim();
+  expect(months, 'Coach runway title').not.toBe('');
+
+  await page.goto('/ask');
+  await ask(page, 'How many months of runway do I have?');
+  await expect(page.getByTestId('ask-headline')).toHaveText(months);
+  await expect(page.getByTestId('ask-answer')).toContainText('Room for error');
+  await expect(page.getByTestId('ask-answer')).not.toContainText(/this card/i);
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
+});
+
 test('When can I retire agrees with Coach FI card', async ({ page }) => {
   await signIn(page);
   await page.goto('/coach');

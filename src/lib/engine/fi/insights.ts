@@ -692,6 +692,17 @@ export function monthsOfRunway(
   return Math.round((liquidCents / avgMonthlyExpensesCents) * 10) / 10;
 }
 
+/**
+ * The three title states the /coach runway card and Ask share. A negative
+ * month count is not a cover — name the absence. Non-finite is "no expenses
+ * yet", never a month count invented from zero.
+ */
+export function runwayTitle(months: number): string {
+  if (!Number.isFinite(months)) return 'no expenses yet';
+  if (months < 0) return 'no cash buffer';
+  return `${months} months`;
+}
+
 // ── Life energy (Your Money or Your Life) ────────────────────────────────────
 
 /** Hours of work a purchase costs at the user's real (after-tax) hourly wage. */

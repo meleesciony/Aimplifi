@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/card';
 import { EmptyCoach } from '@/components/onboarding/route-empty';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import { runwayTitle } from '@/lib/engine/fi/insights';
 import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
 import { formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
@@ -335,11 +336,7 @@ export default async function CoachPage() {
             <CardTitle className="text-2xl tabular-nums" data-testid="runway-months">
               {/* Audit P2: a negative runway has no month count to state as a
                   fact — the body sentence below names what negative means. */}
-              {Number.isFinite(data.runwayMonths)
-                ? data.runwayMonths < 0
-                  ? 'no cash buffer'
-                  : `${data.runwayMonths} months`
-                : 'no expenses yet'}
+              {runwayTitle(data.runwayMonths)}
             </CardTitle>
           </CardHeader>
           <CardContent>

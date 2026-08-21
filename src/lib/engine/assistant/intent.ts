@@ -75,6 +75,12 @@ export type AssistantIntent =
    * income over the engine's window, not a calendar the user named.
    */
   | { kind: 'lifestyle_creep' }
+  /**
+   * Standing cash runway / room-for-error — the SAME `getCoachData().runwayMonths`
+   * the /coach "Room for error" card prints. Months of expenses in cash, not a
+   * 90-day radar projection and not an emergency-fund savings goal.
+   */
+  | { kind: 'runway' }
   /** 90-day committed + card dues — same engine as dashboard Cash flow radar (DECISIONS #488). */
   | { kind: 'cash_flow_radar' }
   /** Recurring-only balance walk — same engine as /forecast (DECISIONS #72 / #75). */
@@ -104,6 +110,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'subscriptions',
   'what_to_cut',
   'lifestyle_creep',
+  'runway',
   'cash_flow_radar',
   'forecast',
   'savings_rate',
@@ -1524,6 +1531,54 @@ export function lifestyleCreepFromQuestion(
   return { kind: 'lifestyle_creep' };
 }
 
+/**
+ * Standing cash runway / room-for-error. Shared by the parser and
+ * `intentFromKind` so a model-chosen kind cannot answer a dated, store-scoped,
+ * or amount-bearing question with the unwindowed Coach card.
+ *
+ * Abstain (`null`) when the words do not ask this question, or when they name
+ * an amount (a different planner — emergency-fund goal / wealth target). A date
+ * window is `unknown` — the card is standing, not calendar-ranked. Radar
+ * ("run out of money") and dated/amount emergency-fund goals stay those routes.
+ */
+export function runwayFromQuestion(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): AssistantIntent | null {
+  const q = normalize(question);
+  if (!asksRunway(q)) return null;
+  if (parseTargetAmount(question) !== null) return null;
+  if (parseExplicitTimeframe(question, today) !== null) return { kind: 'unknown', question };
+  if (parseTargetDate(question, today) !== null) return { kind: 'unknown', question };
+  if (unresolvedDateShape(question, today)) return { kind: 'unknown', question };
+  if (/\b(?:at|with)\b/.test(q)) return { kind: 'unknown', question };
+  const target = resolveSpendTarget(q, custom);
+  if (target) return { kind: 'unknown', question };
+  return { kind: 'runway' };
+}
+
+function asksRunway(q: string): boolean {
+  // Radar owns "run out of money". A leftover "runway" substring must not steal it.
+  if (/\brun(ning)? out of (money|cash)\b/.test(q)) return false;
+  // Thin forecast owns a named 30/60/90-day cash-flow window.
+  if (/\b(forecast|cash[\s-]?flow|next (30|60|90) days|in (30|60|90) days)\b/.test(q)) return false;
+  if (/\b(cash[\s-]?)?runway\b/.test(q)) return true;
+  if (/\broom for error\b/.test(q)) return true;
+  if (/\bcash buffer\b/.test(q)) return true;
+  if (/\bmonths of (expenses|runway|cash|buffer)\b/.test(q)) return true;
+  if (/\bhow long (would|will|could) (my |the )?(cash|buffer|emergency fund)\b/.test(q)) return true;
+  // Emergency / rainy-day fund as STATUS (coverage), never as a goal to fund.
+  // Dated + amount forms stay savings_goal_by_date / wealth_target.
+  if (
+    /\b(emergency[\s-]?fund|rainy[\s-]?day fund)\b/.test(q) &&
+    /\b(how (many|much|long|big)|do i have|what'?s my|what is my|coverage|months|runway|buffer)\b/.test(q)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 function asksLifestyleCreep(q: string): boolean {
   // Subscription price-increase language is the cut list / no-creep streak,
   // not discretionary-vs-income.
@@ -1692,6 +1747,15 @@ export function parseAssistantQuery(
   {
     const creep = lifestyleCreepFromQuestion(question, today, custom);
     if (creep) return creep;
+  }
+
+  // Standing cash runway / room-for-error (Coach card). After radar/forecast
+  // so "run out of money" and a named 30/60/90-day window stay those routes;
+  // after dated/amount emergency-fund planners so a goal stays a goal. Before
+  // wealth_target so a no-amount status question is not unknown.
+  {
+    const standing = runwayFromQuestion(question, today, custom);
+    if (standing) return standing;
   }
 
   // Wealth target with NO deadline (W.4). The dated sibling above already took
@@ -2039,6 +2103,7 @@ export function validateIntent(
     case 'what_to_cut':
     case 'fi_status':
     case 'lifestyle_creep':
+    case 'runway':
     case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':

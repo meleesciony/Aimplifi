@@ -59,6 +59,7 @@ import {
   answerWhatToCut,
   answerFiStatus,
   answerLifestyleCreep,
+  answerRunway,
   answerSafeToSpend,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
@@ -108,6 +109,7 @@ const DELEGATES_OWN_BOUNDARY: ReadonlySet<AssistantIntent['kind']> = new Set([
   'savings_rate',
   'what_to_cut',
   'fi_status',
+  'runway',
 ]);
 
 const EMPTY_HANDOVER_KEYS: ReadonlySet<string> = new Set();
@@ -806,6 +808,17 @@ async function buildAnswer(
       // Standing creep verdict: SAME getCoachData().creep the /coach card prints.
       const coach = await getCoachData(userId);
       return answerLifestyleCreep(coach.creep);
+    }
+    case 'runway': {
+      // Standing cash runway: SAME getCoachData().runwayMonths the /coach card prints.
+      const coach = await getCoachData(userId);
+      return answerRunway({
+        runwayMonths: coach.runwayMonths,
+        frozenCashNote: frozenTotalNote(coach.frozenBalances.liquid, {
+          figureLabel: 'the cash side of this estimate',
+          nextStep: 'accounts-route',
+        }),
+      });
     }
     case 'fi_status': {
       // Standing FI date / number: SAME getCoachData().fi the /coach FI card prints.

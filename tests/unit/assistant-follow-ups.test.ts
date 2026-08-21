@@ -27,6 +27,7 @@ function sampleIntent(kind: (typeof ASSISTANT_INTENT_KINDS)[number]): AssistantI
     case 'subscriptions':
     case 'what_to_cut':
     case 'lifestyle_creep':
+    case 'runway':
     case 'forecast':
     case 'cash_flow_radar':
     case 'savings_rate':

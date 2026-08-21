@@ -54,7 +54,7 @@ import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categ
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { addMonthsClamped, compareDates, formatMonth, isoDate } from '@/lib/dates';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
-import type { CreepResult, Opportunity } from '@/lib/engine/fi/insights';
+import { runwayTitle, type CreepResult, type Opportunity } from '@/lib/engine/fi/insights';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
 import type { DebtFreeByDateResult } from '@/lib/engine/solve/debt-free-by-date';
 import type { SavingsGoalByDateResult } from '@/lib/engine/solve/savings-goal-by-date';
@@ -2349,6 +2349,31 @@ export function answerLifestyleCreep(creep: CreepResult): AssistantAnswer {
     detail: card.body,
     facts,
     source: LIFESTYLE_CREEP_SOURCE,
+  };
+}
+
+const RUNWAY_SOURCE: AssistantSource = { label: 'See on Coach', href: '/coach' };
+
+/**
+ * Phrases the SAME `getCoachData().runwayMonths` `/coach` prints via
+ * `runwayTitle` + `COACH_COPY.runway`. Originates no month count. Copy does
+ * not say "this card" or "below" — those claims are false in Ask (the L.15 lesson).
+ */
+export function answerRunway(input: {
+  runwayMonths: number;
+  frozenCashNote: string | null;
+}): AssistantAnswer {
+  const headline = runwayTitle(input.runwayMonths);
+  const detailParts: string[] = [COACH_COPY.runway(input.runwayMonths)];
+  if (input.frozenCashNote) {
+    detailParts.push(input.frozenCashNote);
+  }
+  return {
+    kind: 'runway',
+    headline,
+    detail: detailParts.join(' '),
+    facts: [{ label: 'Room for error', value: headline }],
+    source: RUNWAY_SOURCE,
   };
 }
 
