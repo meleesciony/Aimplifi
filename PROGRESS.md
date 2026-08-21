@@ -2,6 +2,38 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-21 — Ask "how many months of runway?" uses the Coach room-for-error card (DECISIONS #498)
+
+**Picked up.** Owner: continue + /remote-control. Queue empty. #497 shipped.
+P.1 remaining half and W.6(b)(c)(d) are new money engines (off this lane).
+Highest-leverage unblocked item: Housel's room-for-error is the cash
+cushion the long game needs, and "how many months of runway do I have?"
+was unknown while `/coach` already prints the months.
+
+**Closed.** `runway` intent. Parser + LLM share `runwayFromQuestion`.
+Answer phrases `getCoachData().runwayMonths` via shared `runwayTitle` +
+`COACH_COPY.runway` (same three title states as the Coach card). Copy
+does not say "this card" or "below". Named store/category is `unknown`;
+amount declines; a calendar window is `unknown`. Radar "run out of
+money" stays `cash_flow_radar`. Dated/amount emergency-fund goals stay
+those planners.
+
+**Left alone.** P.1 counterfactual; W.6(b)(c)(d); P.2 audit.
+
+**Locked.** `assistant-runway.test.ts` four regressions; e2e Ask vs
+Coach `runway-months`.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,247 passed + 1 expected fail + 1 skipped / 440 files + 1 skipped**,
+`next build` clean. Ask runway e2e **1/1**. No `prisma/` diff.
+
+**Shipped.** Branch `cursor/ask-runway-coach-card-ba65`, PR #13. CI
+conclusion not yet read this session.
+
+**Next.** P.1 remaining half is money-math (hostile critic). W.6(b)(c)(d)
+need rate data / new engines. Or P.2 audit of the stale coach-principles
+plan.
+
 ## 2026-08-21 — Ask "is my lifestyle creeping?" uses the Coach creep card (DECISIONS #497)
 
 **Picked up.** Owner: continue; previous slice (#496) was committed, not

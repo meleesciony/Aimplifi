@@ -6,6 +6,33 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-21 — Ask "how many months of runway?" uses the Coach room-for-error card (DECISIONS #498)
+
+**The report.** #497 shipped. "How many months of runway do I have?" and
+"do I have an emergency fund?" were unknown. `/coach` already prints
+months of expenses in cash via `monthsOfRunway` + `COACH_COPY.runway`.
+
+**Shipped.** Ask intent `runway` phrases `getCoachData().runwayMonths` —
+same three title states as the Coach room-for-error card (`N months` /
+`no cash buffer` / `no expenses yet`) and the same body. Copy does not
+say "this card" or "below". Named store or category is `unknown`; amount
+declines; a date window is `unknown`. "Run out of money" stays radar.
+A dated or amount-bearing emergency-fund goal stays those planners.
+
+**Still open.** P.1 counterfactual re-projection. W.6(b)(c)(d). P.2 audit.
+
+**Locked.** `assistant-runway.test.ts` four `test_regression__runway_*`.
+e2e Ask "How many months of runway do I have?" agrees with `/coach`
+`runway-months`.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,247 passed + 1 expected fail + 1 skipped / 440 files + 1 skipped**,
+`next build` clean. Ask runway e2e **1/1**. No `prisma/` diff.
+
+**Gate read.** PR #13 — CI conclusion not yet read this session.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-21 — Ask "is my lifestyle creeping?" uses the Coach creep card (DECISIONS #497)
 
 **The report.** #496 committed, not pushed. "Is my lifestyle creeping?" was
