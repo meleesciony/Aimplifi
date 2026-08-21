@@ -643,12 +643,13 @@ describe('answerUnknown', () => {
   it('offers capabilities + suggestions', () => {
     const a = answerUnknown();
     expect(a.kind).toBe('unknown');
-    expect(a.suggestions).toHaveLength(12);
+    expect(a.suggestions).toHaveLength(13);
     expect(a.suggestions).toContain('When will I be debt-free?');
     expect(a.suggestions).toContain('Can I be debt-free by December 2028?');
     expect(a.suggestions).toContain('Can I save $20,000 by December 2028?');
     expect(a.suggestions).toContain('Can I retire at 60?');
     expect(a.suggestions).toContain('If I want to save up to $10 million, what do I need to do?');
+    expect(a.suggestions).toContain('What should I cut?');
     expect(a.suggestions).toContain('How much did I spend at Costco this month?'); // #168 merchant intent
     expect(a.source).toBeUndefined();
   });

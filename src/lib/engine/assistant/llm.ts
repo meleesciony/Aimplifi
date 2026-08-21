@@ -27,6 +27,7 @@ import {
   resolveSpendTarget,
   unconsumedSpendObject,
   unresolvedDateShape,
+  whatToCutFromQuestion,
 } from './intent';
 
 /** The kinds the model is allowed to choose (everything except the fallback). */
@@ -51,7 +52,8 @@ export function buildIntentPrompt(question: string): string {
     '- savings_goal_by_date: whether the user can reach a SPECIFIC savings target by a date they name (e.g. "save $15,000 by December 2027", "set aside money for a down payment by 2028") and what monthly amount it would take',
     '- retire_at_age: whether the user can retire at a SPECIFIC age they name (e.g. "can I retire at 60?", "retire by age 67") and what monthly contribution it would take to make their money last',
     '- wealth_target: a stated nest-egg / wealth number with NO deadline (e.g. "save up to 10 mil", "I want $10M", "what do I need to do to get to ten million") — when they would arrive at the current pace and what monthly contribution a horizon would take. If they name a date, use savings_goal_by_date instead',
-    '- subscriptions: recurring subscriptions and their cost',
+    '- subscriptions: recurring subscriptions and their cost (the list of what they pay, NOT which to cut)',
+    '- what_to_cut: where to look for big-win cuts (unused gym, price increases, negotiable bills) — "what should I cut?", "where can I save money", "help me cut spending". Never a named store or category, never an amount or date (those are other intents). Does NOT move an FI date',
     '- cash_flow_radar: will the payment account run out of money / go negative / overdraft in the next 90 days (committed flows + card dues — same as Cash flow radar)',
     '- forecast: projected cash balance from recurring income and bills only (NOT card payments; use cash_flow_radar for running out of money)',
     '- savings_rate: percent of income saved',
@@ -106,11 +108,24 @@ export function intentFromKind(
     case 'safe_to_spend':
     case 'cash_needed':
     case 'debt_payoff':
-    case 'subscriptions':
     case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':
       return { kind };
+    case 'subscriptions': {
+      // A model that tagged a cut question as the roster still owes the cut
+      // route — the kind is a hint. "What subscriptions am I paying for?"
+      // stays subscriptions. A scoped cut ("on groceries") abstains rather
+      // than answering the roster.
+      const cut = whatToCutFromQuestion(question, today, custom);
+      if (cut?.kind === 'what_to_cut') return cut;
+      if (cut?.kind === 'unknown') return null;
+      return { kind };
+    }
+    case 'what_to_cut': {
+      const cut = whatToCutFromQuestion(question, today, custom);
+      return cut?.kind === 'what_to_cut' ? cut : null;
+    }
     case 'account_balance':
       return { kind, query: question.toLowerCase() };
     case 'spend_total':

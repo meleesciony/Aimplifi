@@ -56,6 +56,7 @@ import {
   answerNetWorth,
   answerRetireAtAge,
   answerWealthTarget,
+  answerWhatToCut,
   answerSafeToSpend,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
@@ -102,6 +103,7 @@ const DELEGATES_OWN_BOUNDARY: ReadonlySet<AssistantIntent['kind']> = new Set([
   'retire_at_age',
   'wealth_target',
   'savings_rate',
+  'what_to_cut',
 ]);
 
 const EMPTY_HANDOVER_KEYS: ReadonlySet<string> = new Set();
@@ -780,6 +782,20 @@ async function buildAnswer(
         },
         nominalReturnBps: coach.fi.expectedReturnBps,
         inflationBps: coach.fi.inflationBps,
+      });
+    }
+    case 'what_to_cut': {
+      // P.1: SAME findOpportunities list /coach prints. No FI re-projection.
+      const coach = await getCoachData(userId);
+      return answerWhatToCut({
+        opportunities: coach.opportunities,
+        moneyDials: coach.moneyDials,
+        expectedReturnBps: coach.fi.expectedReturnBps,
+        inflationBps: coach.fi.inflationBps,
+        dialOwnership: {
+          returnIsDefault: coach.fi.returnIsDefault,
+          inflationIsDefault: coach.fi.inflationIsDefault,
+        },
       });
     }
     case 'subscriptions':

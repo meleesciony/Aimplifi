@@ -487,3 +487,4 @@ refuses to write if it would drop any number this file already carries.
 - **#491** (Phase ?): O.20j: hand-file to Transfer stamps `isTransfer` immediately (2026-08-20)
 - **#492** (Phase ?): Header Sign out uses the mutation-form recipe (2026-08-20)
 - **#493** (Phase ?): Ideal savings percent is the Settings dial, never a hardcoded 40% (2026-08-20)
+- **#494** (Phase ?): Ask "what should I cut?" uses the Coach opportunities list (2026-08-20)

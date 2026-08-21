@@ -6,6 +6,30 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-20 — Ask "what should I cut?" (DECISIONS #494)
+
+**The report.** Owner: continue, make this the best of its kind. The named
+differentiator is cutting spending that does not buy happiness. `/coach`
+already ranked unused gym / price increases / negotiables; Ask had no route.
+
+**Shipped.** Ask intent `what_to_cut` answers from the SAME
+`findOpportunities` list Coach prints. Demo: LA Fitness $34.99/mo first.
+Empty copy matches Coach. Money dials protected with the same sentence.
+No FI-date invention. Named store/category/amount abstain; a calendar
+window (`last month` / `this month` / `in 2025`) is `unknown`.
+
+**Still open on P.1.** Counterfactual re-projection ("drop these two → FI
+moves 3 weeks") — new money engine, not this slice.
+
+**Locked.** `assistant-what-to-cut.test.ts` four `test_regression__p1_*`.
+e2e Ask "What should I cut?" → LA Fitness $34.99, source `/coach`.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,195 passed + 1 expected fail + 1 skipped / 437 files + 1 skipped**,
+`next build` clean. Ask P.1 e2e **1/1**. No `prisma/` diff.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-20 — Ideal savings % is the Settings dial (DECISIONS #493)
 
 **The report.** Draft PR #12 hardcoded 40% as the household savings goal

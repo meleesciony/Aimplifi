@@ -58,6 +58,12 @@ export type AssistantIntent =
   /** Stated wealth target, no deadline — W.1's compounding planner via Ask (W.4). */
   | { kind: 'wealth_target'; targetCents: number; label: string }
   | { kind: 'subscriptions' }
+  /**
+   * P.1 first slice — the same `findOpportunities` list /coach already shows.
+   * Global "what should I cut?" only; a named store, category, amount, or date
+   * is a different question (abstain).
+   */
+  | { kind: 'what_to_cut' }
   /** 90-day committed + card dues — same engine as dashboard Cash flow radar (DECISIONS #488). */
   | { kind: 'cash_flow_radar' }
   /** Recurring-only balance walk — same engine as /forecast (DECISIONS #72 / #75). */
@@ -84,6 +90,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'retire_at_age',
   'wealth_target',
   'subscriptions',
+  'what_to_cut',
   'cash_flow_radar',
   'forecast',
   'savings_rate',
@@ -1400,6 +1407,61 @@ function statedAmountIsComparedOrNegated(q: string): boolean {
   );
 }
 
+/**
+ * P.1 — global cut / save-money questions onto the /coach opportunities list.
+ * Shared by the parser and `intentFromKind` so a model-chosen kind cannot
+ * answer a scoped or amount-bearing question with the global list.
+ *
+ * Abstain (return null) when the words name a store, a non-subscription
+ * category, an amount, or a date — those are different questions. "What
+ * subscriptions should I cut?" is the one category exception: the word is
+ * the cut vocabulary, not a spend-by-category target.
+ */
+export function whatToCutFromQuestion(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): AssistantIntent | null {
+  const q = normalize(question);
+  if (!asksWhatToCut(q)) return null;
+  // An amount is a different planner (wealth target / dated savings goal) —
+  // decline the cut route so those matchers can take it.
+  if (parseTargetAmount(question) !== null) return null;
+  // A date window is not a different planner: the opportunities list is
+  // standing, not calendar-ranked. Unknown, never the global list and never
+  // a fall-through to spend.
+  if (parseExplicitTimeframe(question, today) !== null) return { kind: 'unknown', question };
+  if (parseTargetDate(question, today) !== null) return { kind: 'unknown', question };
+  if (unresolvedDateShape(question, today)) return { kind: 'unknown', question };
+  // A named store or (non-subscription) category is a different question —
+  // unknown, not a fall-through to spend/safe-to-spend.
+  if (/\b(?:at|with)\b/.test(q)) return { kind: 'unknown', question };
+  const target = resolveSpendTarget(q, custom);
+  if (target && !(target.type === 'category' && target.categoryId === 'subscriptions')) {
+    return { kind: 'unknown', question };
+  }
+  return { kind: 'what_to_cut' };
+}
+
+function asksWhatToCut(q: string): boolean {
+  return (
+    /\bwhat should i (cut|cancel|drop|trim)\b/.test(q) ||
+    /\bwhat can i (cut|cancel|drop|trim)\b/.test(q) ||
+    /\bwhat to (cut|cancel|drop)\b/.test(q) ||
+    /\bwhere can i (save|cut)\b/.test(q) ||
+    /\bwhere should i cut\b/.test(q) ||
+    /\bwhere should i save money\b/.test(q) ||
+    /\bwhere (am i|do i) (overspend|wasting|overpaying)\b/.test(q) ||
+    /\bhow can i (save (more )?money|spend less|cut (back|spending|costs))\b/.test(q) ||
+    /\b(cut|trim) unnecessary\b/.test(q) ||
+    /\bbiggest (savings|cut) (opportunit|lever|win)/.test(q) ||
+    /\bsavings opportunit/.test(q) ||
+    /\bwhat (bills|subscriptions|expenses) (can|should) i (cut|cancel|negotiate|drop)\b/.test(q) ||
+    /\bhelp me cut (spending|costs|expenses)\b/.test(q) ||
+    /\bwhere is my money going that i don'?t need\b/.test(q)
+  );
+}
+
 export function parseAssistantQuery(
   question: string,
   today: ISODate,
@@ -1415,6 +1477,11 @@ export function parseAssistantQuery(
   if (/\bsavings? rate\b/.test(q) || /\bhow much (of my income )?(do i|am i) sav/.test(q)) {
     return { kind: 'savings_rate' };
   }
+
+  // P.1: "what should I cut?" BEFORE subscriptions, so "what subscriptions
+  // should I cut" is the opportunities list, not the full recurring roster.
+  const cut = whatToCutFromQuestion(question, today, custom);
+  if (cut) return cut;
 
   // Subscriptions / recurring
   if (/\b(subscriptions?|recurring( (charges|bills|payments))?)\b/.test(q)) {
@@ -1857,6 +1924,7 @@ export function validateIntent(
     case 'cash_needed':
     case 'debt_payoff':
     case 'subscriptions':
+    case 'what_to_cut':
     case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':

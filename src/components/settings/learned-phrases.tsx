@@ -31,6 +31,8 @@ const KIND_LABEL: Record<string, string> = {
   retire_at_age: 'retiring at an age',
   wealth_target: 'a wealth target',
   subscriptions: 'your subscriptions',
+  what_to_cut: 'where to look for cuts',
+  cash_flow_radar: 'whether you will run out of money',
   forecast: 'your cash forecast',
   savings_rate: 'your savings rate',
 };

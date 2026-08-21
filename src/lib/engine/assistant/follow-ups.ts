@@ -145,6 +145,13 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
         'Will I run out of money in the next 90 days?',
       ]);
 
+    case 'what_to_cut':
+      return take([
+        'What subscriptions am I paying for?',
+        "What's my savings rate?",
+        'How much is guilt-free to spend this month?',
+      ]);
+
     case 'forecast':
       return take([
         'How much do I need to pay my cards?',

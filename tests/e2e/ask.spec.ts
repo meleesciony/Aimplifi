@@ -111,6 +111,16 @@ test('answers typed questions grounded in the seed', async ({ page }) => {
   await expect(page.getByTestId('ask-headline')).toContainText(/savings rate was .*%|full month of income/);
 });
 
+test('What should I cut agrees with Coach opportunities (P.1)', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'What should I cut?');
+  await expect(page.getByTestId('ask-headline')).toContainText('LA Fitness');
+  await expect(page.getByTestId('ask-headline')).toContainText('$34.99');
+  await expect(page.getByTestId('ask-headline')).not.toContainText(/FI date|years to FI|weeks sooner/i);
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
+});
+
 test('year windows and merchant-scoped largest answer honestly (TASKS 2.7)', async ({ page }) => {
   await signIn(page);
   await page.goto('/ask');

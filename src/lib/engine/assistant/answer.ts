@@ -54,6 +54,7 @@ import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categ
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { addMonthsClamped, compareDates, formatMonth, isoDate } from '@/lib/dates';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import type { Opportunity } from '@/lib/engine/fi/insights';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
 import type { DebtFreeByDateResult } from '@/lib/engine/solve/debt-free-by-date';
 import type { SavingsGoalByDateResult } from '@/lib/engine/solve/savings-goal-by-date';
@@ -2157,6 +2158,70 @@ export function answerWealthTarget(
 
 // ─── subscriptions ──────────────────────────────────────────────────────────
 
+/**
+ * P.1 first slice — phrases the SAME `findOpportunities` list /coach already
+ * prints. Originates no figure, does not re-project FI or radar, never ranks a
+ * money dial as a cut. The formatter selects; the engine already ranked.
+ */
+export function answerWhatToCut(input: {
+  opportunities: readonly Opportunity[];
+  moneyDials: readonly string[];
+  expectedReturnBps: number;
+  inflationBps: number;
+  dialOwnership: DialOwnership;
+}): AssistantAnswer {
+  const source: AssistantSource = { label: 'See on Coach', href: '/coach' };
+  const list = input.opportunities;
+  if (list.length === 0) {
+    return {
+      kind: 'what_to_cut',
+      headline:
+        'Nothing to flag right now — check back after a few more weeks of spending data.',
+      facts: [],
+      source,
+    };
+  }
+
+  const first = list[0]!;
+  const n = list.length;
+  const headline =
+    n === 1
+      ? `One place to look: ${first.merchant} at ${fmt(first.monthlyCents)}/mo.`
+      : `${n} places to look, biggest first: ${first.merchant} at ${fmt(first.monthlyCents)}/mo.`;
+
+  const facts: AssistantFact[] = list.slice(0, 5).map((o) => ({
+    label: o.merchant,
+    value: o.isEstimate ? `~${fmt(o.monthlyCents)}/mo est.` : `${fmt(o.monthlyCents)}/mo`,
+  }));
+  if (list.length > 5) {
+    const rest = list.slice(5);
+    const restMonthly = rest.reduce((a, o) => a + o.monthlyCents, 0);
+    facts.push({
+      label: `Everything else · ${rest.length} more`,
+      value: `${fmt(restMonthly)}/mo`,
+    });
+  }
+
+  const detailParts: string[] = [
+    COACH_COPY.biggestLever(),
+    COACH_COPY.opportunity(first, input.expectedReturnBps),
+  ];
+  if (input.moneyDials.length > 0) {
+    detailParts.push(COACH_COPY.moneyDials([...input.moneyDials]));
+  }
+  detailParts.push(
+    COACH_COPY.opportunityBasis(input.expectedReturnBps, input.inflationBps, input.dialOwnership),
+  );
+
+  return {
+    kind: 'what_to_cut',
+    headline,
+    detail: detailParts.join(' '),
+    facts,
+    source,
+  };
+}
+
 export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer {
   const source: AssistantSource = { label: 'See subscriptions', href: '/recurring' };
   if (summary.activeSubscriptionCount === 0) {
@@ -2351,6 +2416,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'Can I save $20,000 by December 2028?',
   'Can I retire at 60?',
   'If I want to save up to $10 million, what do I need to do?',
+  'What should I cut?',
 ];
 
 export function answerUnknown(): AssistantAnswer {
@@ -2358,7 +2424,7 @@ export function answerUnknown(): AssistantAnswer {
     kind: 'unknown',
     headline: 'I can answer questions grounded in your own accounts and transactions.',
     detail:
-      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, what you owe on your cards, subscriptions, your 90-day forecast, income, or savings rate.',
+      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, what you owe on your cards, what to cut, subscriptions, your 90-day forecast, income, or savings rate.',
     facts: [],
     suggestions: [...ASSISTANT_SUGGESTIONS],
   };

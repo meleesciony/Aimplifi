@@ -2,6 +2,30 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-20 — Ask "what should I cut?" (DECISIONS #494)
+
+**Picked up.** Owner: continue and make this the best personal finance app
+of its kind. Last slice was #493. Highest-leverage unblocked slice in
+Grok's lane: P.1 first half — standing Ask answer from engines that exist.
+
+**Closed.** `what_to_cut` intent. Parser + LLM share `whatToCutFromQuestion`.
+Answer phrases `getCoachData().opportunities` (byte-identical monthly cents
+to `/coach`). Abstentions: named store/category, amount; a calendar window
+is `unknown` (fail-old: last month used to answer the standing list). No
+FI re-projection.
+
+**Left alone.** P.1 counterfactual harness; W.6(b)(c)(d); O.20j converse
+leak / H.7b; U.15(b); Plaid; draft PR #12.
+
+**Locked.** `assistant-what-to-cut.test.ts` four regressions.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,195 passed + 1 expected fail + 1 skipped / 437 files + 1 skipped**,
+`next build` clean. Ask P.1 e2e **1/1**. No `prisma/` diff.
+
+**Next.** Ship this slice (commit / push / CI / live). P.1 remaining half
+is money-math (hostile critic). Or owner types 40 in Settings.
+
 ## 2026-08-20 — Ideal savings % is the Settings dial (DECISIONS #493)
 
 **Picked up.** Owner: continue work; hardcoded 40% on draft PR #12 is a Grok

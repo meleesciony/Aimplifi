@@ -8482,3 +8482,35 @@ exists: `User.savingsTargetBps` (DECISIONS #295 / #307) already drives
 **Locked.** `tests/unit/conscious.test.ts`
 `test_regression__conscious_savings_band_follows_settings_not_a_hardcoded_40`,
 `test_regression__conscious_caption_names_settings_dial_not_a_baked_in_40`.
+
+## #494 — Ask "what should I cut?" uses the Coach opportunities list (2026-08-20)
+
+**Context.** Owner mandate: parity is the floor; the differentiator is cutting
+spending that does not buy happiness (TASKS P.1). `/coach` already ranks
+`findOpportunities` (unused gym, price increases, insurance re-shop,
+negotiable bills). Ask had no route, so the question the owner named went to
+unknown.
+
+**Decision.**
+1. New Ask intent `what_to_cut`. Parser + `intentFromKind` share
+   `whatToCutFromQuestion`. The answer formatter phrases the SAME
+   `getCoachData().opportunities` list `/coach` prints — monthly cents,
+   estimate labels, `COACH_COPY.opportunity` / `opportunityBasis` /
+   `biggestLever` / `moneyDials`. Source is `/coach`.
+2. No FI / radar re-projection this slice. Inventing "drop Netflix → FI
+   moves 3 weeks" is the rest of P.1 and needs its own engine + critic.
+3. Abstain rather than answer the global list: a named store (`at`/`with`),
+   a non-subscription category, an amount, or a date. Amounts decline the
+   cut route (`null`) so wealth-target / dated-savings planners can match.
+   A calendar window (`last month`, `this month`, `in 2025`) is `unknown`
+   — the list is standing, not ranked by month, and must not fall through
+   to spend. "What subscriptions should I cut?" is the one category
+   exception (the word is the cut vocabulary).
+4. Empty copy is byte-identical to the coach card's empty sentence.
+
+**Locked.** `tests/unit/assistant-what-to-cut.test.ts`
+`test_regression__p1_what_should_i_cut_routes_to_opportunities`,
+`test_regression__p1_cut_answer_agrees_with_coach_opportunities`,
+`test_regression__p1_cut_does_not_invent_fi_movement`,
+`test_regression__p1_cut_with_a_date_window_abstains`. e2e
+`tests/e2e/ask.spec.ts` "What should I cut agrees with Coach opportunities".
