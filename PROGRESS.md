@@ -29,7 +29,13 @@ O.20j converse leak / H.7b; U.15(b); Plaid.
 **7,197 passed + 1 expected fail + 1 skipped / 437 files + 1 skipped**,
 `next build` clean. Ask P.1 e2e **1/1**. No `prisma/` diff.
 
-**Next.** Commit / push / CI / live.
+**Shipped and proven live.** Pushed as `e8175868`. CI run **32485233922**
+`success` (12m31s, attempt 1). Vercel: `READY`, same sha, aliased to
+`www.aimplifi.app`. Production `/`, `/ask`, `/coach`, `/dashboard` 307;
+`/sign-in` 200. No public HTML marker. No `prisma/` diff.
+
+**Next.** P.1 remaining half is money-math (hostile critic). W.6(b)(c)(d)
+need rate data / new engines. Or owner types 40 in Settings.
 
 ## 2026-08-20 — Ask "what should I cut?" (DECISIONS #494)
 

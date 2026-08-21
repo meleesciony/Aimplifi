@@ -26,6 +26,13 @@ Ask `test_regression__w6a_ask_cut_list_omits_a_money_dial_merchant`.
 `next build` clean. Ask P.1 e2e **1/1** (demo dials are travel/dining,
 not fitness). No `prisma/` diff.
 
+**Gate read.** CI run **32485233922** on `e8175868` = SUCCESS (12m31s, full
+VERIFY_E2E, attempt 1). Vercel: `READY` (`dpl_7Eko8mLo9Yd9nN7vfum4L6mWEeDD`
+/ `aimplifi-8i07aaqcl`), same sha, aliased to `www.aimplifi.app`.
+Production `/`, `/ask`, `/coach`, `/dashboard` 307; `/sign-in` 200.
+Coach and Ask are behind sign-in; CI e2e asserted Ask on this sha. No
+public HTML marker.
+
 **Schema.** None.
 
 ## ✅ BUILT 2026-08-20 — Ask "what should I cut?" (DECISIONS #494)
