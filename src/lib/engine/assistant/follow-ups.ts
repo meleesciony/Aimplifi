@@ -127,8 +127,15 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
     case 'retire_at_age':
       return take([
         'Can I retire at 60?',
+        'When can I retire?',
         "What's my savings rate?",
-        'What is my net worth?',
+      ]);
+
+    case 'fi_status':
+      return take([
+        'Can I retire at 60?',
+        "What's my savings rate?",
+        'What should I cut?',
       ]);
 
     case 'wealth_target':

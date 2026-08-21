@@ -57,6 +57,7 @@ import {
   answerRetireAtAge,
   answerWealthTarget,
   answerWhatToCut,
+  answerFiStatus,
   answerSafeToSpend,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
@@ -82,6 +83,7 @@ import {
 import { CORRECTABLE_KINDS } from '@/lib/engine/assistant/trace-view';
 import { applyCategory, undoCorrections } from '@/server/triage-actions';
 import { accountLabel } from '@/lib/engine/account/display-name';
+import { frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
 import { loanPaymentBasisFacts, loanPaymentBasisSentence } from '@/server/loan-payment-basis';
 
 const MONTH_TITLE = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -104,6 +106,7 @@ const DELEGATES_OWN_BOUNDARY: ReadonlySet<AssistantIntent['kind']> = new Set([
   'wealth_target',
   'savings_rate',
   'what_to_cut',
+  'fi_status',
 ]);
 
 const EMPTY_HANDOVER_KEYS: ReadonlySet<string> = new Set();
@@ -796,6 +799,27 @@ async function buildAnswer(
           returnIsDefault: coach.fi.returnIsDefault,
           inflationIsDefault: coach.fi.inflationIsDefault,
         },
+      });
+    }
+    case 'fi_status': {
+      // Standing FI date / number: SAME getCoachData().fi the /coach FI card prints.
+      const coach = await getCoachData(userId);
+      return answerFiStatus({
+        fiNumberCents: coach.fi.fiNumberCents,
+        annualExpensesCents: coach.fi.annualExpensesCents,
+        monthlySavingsCents: coach.fi.monthlySavingsCents,
+        monthlySavingsMonths: coach.fi.monthlySavingsMonths,
+        monthsToFI: coach.fi.monthsToFI,
+        coastIsCoast: coach.fi.coastIsCoast,
+        coastRequiredMonthlyCents: coach.fi.coastRequiredMonthlyCents,
+        coastTargetYears: coach.fi.coastTargetYears,
+        coastTargetYearsIsAppDefault: coach.fi.coastTargetYearsIsAppDefault,
+        portfolioCents: coach.fi.portfolioCents,
+        swrBps: coach.fi.swrBps,
+        frozenPortfolioNote: frozenTotalNote(coach.frozenBalances.portfolio, {
+          figureLabel: 'the portfolio these projections start from',
+          nextStep: 'accounts-route',
+        }),
       });
     }
     case 'subscriptions':

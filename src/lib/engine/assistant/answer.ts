@@ -2222,6 +2222,106 @@ export function answerWhatToCut(input: {
   };
 }
 
+// ─── standing FI date / number (Coach FI card) ──────────────────────────────
+
+const FI_STATUS_SOURCE: AssistantSource = { label: 'See on Coach', href: '/coach' };
+
+/**
+ * Phrases the SAME `getCoachData().fi` numbers the /coach FI card prints.
+ * Originates no date and does not re-run `monthsToFI`. Copy does not say
+ * "this card" or "below" — those claims are false in Ask (the L.15 lesson).
+ */
+export function answerFiStatus(input: {
+  fiNumberCents: number;
+  annualExpensesCents: number;
+  monthlySavingsCents: number;
+  monthlySavingsMonths: number;
+  monthsToFI: number | null;
+  coastIsCoast: boolean;
+  coastRequiredMonthlyCents: number | null;
+  coastTargetYears: number;
+  coastTargetYearsIsAppDefault: boolean;
+  portfolioCents: number;
+  swrBps: number;
+  frozenPortfolioNote: string | null;
+}): AssistantAnswer {
+  const headline = fiStatusHeadline(input);
+  const detailParts: string[] = [
+    COACH_COPY.fiNumber(
+      input.fiNumberCents as Cents,
+      input.swrBps,
+      input.annualExpensesCents as Cents,
+      input.monthlySavingsMonths,
+    ),
+    COACH_COPY.yourEnough(),
+  ];
+  if (input.monthsToFI !== null) {
+    detailParts.push(COACH_COPY.freedomDividend(Math.floor(input.monthsToFI / 12)));
+  }
+  detailParts.push("Same return and inflation assumptions as Coach. Illustration, not advice — in today's dollars.");
+  if (input.frozenPortfolioNote) {
+    detailParts.push(input.frozenPortfolioNote);
+  }
+
+  const yearsFact =
+    input.monthsToFI === null
+      ? input.monthlySavingsCents > 0
+        ? 'beyond 100 years'
+        : 'no date'
+      : fiYearsMonths(input.monthsToFI);
+
+  const facts: AssistantFact[] = [
+    { label: 'FI number', value: fmt(input.fiNumberCents) },
+    { label: 'Years to FI', value: yearsFact },
+    { label: 'Investment accounts', value: fmt(input.portfolioCents) },
+    { label: 'Current monthly put-away', value: `${fmt(input.monthlySavingsCents)}/mo` },
+  ];
+  if (input.coastIsCoast) {
+    facts.push({
+      label: 'Coast FI',
+      value: input.coastTargetYearsIsAppDefault
+        ? `portfolio reaches the FI number in ${input.coastTargetYears} years without adding more — ${input.coastTargetYears} years being the working lifetime Coach picked to measure against, not a date you set`
+        : `portfolio reaches the FI number in ${input.coastTargetYears} years without adding more`,
+    });
+  } else if (input.coastRequiredMonthlyCents !== null) {
+    facts.push({
+      label: 'Coast pace',
+      value: `${fmt(input.coastRequiredMonthlyCents)}/mo`,
+    });
+  }
+
+  return {
+    kind: 'fi_status',
+    headline,
+    detail: detailParts.join(' '),
+    facts,
+    source: FI_STATUS_SOURCE,
+  };
+}
+
+function fiYearsMonths(monthsToFI: number): string {
+  const years = Math.floor(monthsToFI / 12);
+  const months = monthsToFI % 12;
+  return `${years} years${months > 0 ? ` ${months} months` : ''}`;
+}
+
+function fiStatusHeadline(input: {
+  monthsToFI: number | null;
+  monthlySavingsCents: number;
+  coastIsCoast: boolean;
+}): string {
+  if (input.monthsToFI !== null) {
+    return `At your current savings rate you'd reach financial independence in about ${fiYearsMonths(input.monthsToFI)}.`;
+  }
+  if (input.monthlySavingsCents > 0) {
+    return "You are saving, but at this pace the finish line sits beyond the 100 years we're willing to project — so we won't put a date on it.";
+  }
+  if (input.coastIsCoast) {
+    return "Contributions aren't outpacing spending right now, so there's no date to project from your saving. What you've already invested is a different story — Coach shows whether you're Coast FI.";
+  }
+  return "Contributions aren't outpacing spending yet, so a projection date wouldn't be honest.";
+}
+
 export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer {
   const source: AssistantSource = { label: 'See subscriptions', href: '/recurring' };
   if (summary.activeSubscriptionCount === 0) {
@@ -2415,6 +2515,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'Can I be debt-free by December 2028?',
   'Can I save $20,000 by December 2028?',
   'Can I retire at 60?',
+  'When can I retire?',
   'If I want to save up to $10 million, what do I need to do?',
   'What should I cut?',
 ];
@@ -2424,7 +2525,7 @@ export function answerUnknown(): AssistantAnswer {
     kind: 'unknown',
     headline: 'I can answer questions grounded in your own accounts and transactions.',
     detail:
-      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, what you owe on your cards, what to cut, subscriptions, your 90-day forecast, income, or savings rate.',
+      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, what you owe on your cards, when you can retire, what to cut, subscriptions, your 90-day forecast, income, or savings rate.',
     facts: [],
     suggestions: [...ASSISTANT_SUGGESTIONS],
   };

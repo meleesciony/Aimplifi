@@ -28,6 +28,7 @@ import {
   unconsumedSpendObject,
   unresolvedDateShape,
   whatToCutFromQuestion,
+  fiStatusFromQuestion,
 } from './intent';
 
 /** The kinds the model is allowed to choose (everything except the fallback). */
@@ -51,6 +52,7 @@ export function buildIntentPrompt(question: string): string {
     '- debt_free_by_date: whether the user can be debt-free by a SPECIFIC date they name (e.g. "by December 2027", "in 3 years") and what extra payment it would take',
     '- savings_goal_by_date: whether the user can reach a SPECIFIC savings target by a date they name (e.g. "save $15,000 by December 2027", "set aside money for a down payment by 2028") and what monthly amount it would take',
     '- retire_at_age: whether the user can retire at a SPECIFIC age they name (e.g. "can I retire at 60?", "retire by age 67") and what monthly contribution it would take to make their money last',
+    '- fi_status: standing financial-independence date and FI number from the Coach FI card — "when can I retire?", "when will I be FI?", "what\'s my FI number", "am I saving enough for retirement". Never a named age (that is retire_at_age), never an amount or date',
     '- wealth_target: a stated nest-egg / wealth number with NO deadline (e.g. "save up to 10 mil", "I want $10M", "what do I need to do to get to ten million") — when they would arrive at the current pace and what monthly contribution a horizon would take. If they name a date, use savings_goal_by_date instead',
     '- subscriptions: recurring subscriptions and their cost (the list of what they pay, NOT which to cut)',
     '- what_to_cut: where to look for big-win cuts (unused gym, price increases, negotiable bills) — "what should I cut?", "where can I save money", "help me cut spending". Never a named store or category, never an amount or date (those are other intents). Does NOT move an FI date',
@@ -186,9 +188,20 @@ export function intentFromKind(
     }
     case 'retire_at_age': {
       // The age is re-derived deterministically from the user's own words — the model supplied
-      // only the KIND, never the number. No stated age → keep `unknown` rather than guessing.
+      // only the KIND, never the number. No stated age → the standing FI card if the
+      // words ask it, otherwise unknown rather than guessing an age.
       const age = parseTargetAge(question);
-      return age !== null ? { kind, targetAge: age, label: `age ${age}` } : null;
+      if (age !== null) return { kind, targetAge: age, label: `age ${age}` };
+      const standing = fiStatusFromQuestion(question, today, custom);
+      return standing?.kind === 'fi_status' ? standing : null;
+    }
+    case 'fi_status': {
+      // A named age is the inverse planner — the kind is a hint, never a licence
+      // to answer the unaged card under an age the user named.
+      const age = parseTargetAge(question);
+      if (age !== null) return { kind: 'retire_at_age', targetAge: age, label: `age ${age}` };
+      const standing = fiStatusFromQuestion(question, today, custom);
+      return standing?.kind === 'fi_status' ? standing : null;
     }
     case 'wealth_target': {
       // Amount re-derived from the user's words. A parseable deadline is the dated sibling

@@ -25,6 +25,10 @@ describe('parseAssistantQuery — routing', () => {
     // savings rate (beats the generic "savings" account match)
     ["what's my savings rate?", 'savings_rate'],
     ['how much of my income do I save', 'savings_rate'],
+    // standing FI (no age) — the Coach FI card
+    ['When can I retire?', 'fi_status'],
+    ["what's my FI number", 'fi_status'],
+    ['when will I be financially independent?', 'fi_status'],
     // subscriptions
     ['what subscriptions am I paying for?', 'subscriptions'],
     ['list my recurring payments', 'subscriptions'],

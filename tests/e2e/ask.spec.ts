@@ -121,6 +121,23 @@ test('What should I cut agrees with Coach opportunities (P.1)', async ({ page })
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
 });
 
+test('When can I retire agrees with Coach FI card', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/coach');
+  const fiNumber = (await page.getByTestId('fi-number').textContent()) ?? '';
+  const yearsLine = (await page.getByTestId('years-to-fi').textContent()) ?? '';
+  const span = yearsLine.match(/in about \d+ years(?: \d+ months)?/);
+  expect(fiNumber, 'Coach FI number').toMatch(/\$[\d,]+\.\d{2}/);
+  expect(span, 'Coach years-to-FI span').toBeTruthy();
+
+  await page.goto('/ask');
+  await ask(page, 'When can I retire?');
+  await expect(page.getByTestId('ask-headline')).toContainText(span![0]);
+  await expect(page.getByTestId('ask-answer')).toContainText(fiNumber.trim());
+  await expect(page.getByTestId('ask-answer')).not.toContainText(/this card/i);
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
+});
+
 test('year windows and merchant-scoped largest answer honestly (TASKS 2.7)', async ({ page }) => {
   await signIn(page);
   await page.goto('/ask');

@@ -6,6 +6,28 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-21 — Ask "when can I retire?" uses the Coach FI card (DECISIONS #496)
+
+**The report.** #495 shipped. "When can I retire?" with no age was unknown.
+`/coach` already prints months-to-FI and the FI number. `retire_at_age` only
+takes a named age.
+
+**Shipped.** Ask intent `fi_status` phrases `getCoachData().fi` — same cents
+and months as the Coach FI card. Four headline states match the card mapping
+without "this card" / "below". Named age stays the inverse planner; amount
+declines; a date window is `unknown`.
+
+**Still open.** P.1 counterfactual re-projection. W.6(b)(c)(d). P.2 audit.
+
+**Locked.** `assistant-fi-status.test.ts` four `test_regression__fi_status_*`.
+e2e Ask "When can I retire?" agrees with `/coach` years-to-FI span + FI number.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,215 passed + 1 expected fail + 1 skipped / 438 files + 1 skipped**,
+`next build` clean. Ask FI e2e **1/1**. No `prisma/` diff.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-21 — Coach/Ask cuts skip money dials (DECISIONS #495)
 
 **The report.** #494 phrased Coach opportunities in Ask. That list did not

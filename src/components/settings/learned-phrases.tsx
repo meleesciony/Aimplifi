@@ -29,6 +29,7 @@ const KIND_LABEL: Record<string, string> = {
   debt_free_by_date: 'being debt-free by a date',
   savings_goal_by_date: 'a savings goal by a date',
   retire_at_age: 'retiring at an age',
+  fi_status: 'when you reach financial independence',
   wealth_target: 'a wealth target',
   subscriptions: 'your subscriptions',
   what_to_cut: 'where to look for cuts',

@@ -114,8 +114,12 @@ describe('validator + LLM kind path', () => {
       targetAge: 60,
       label: 'age 60',
     });
-    // model said retire_at_age but there's no age → keep unknown, don't invent
-    expect(intentFromKind('retire_at_age', 'help me retire someday', today)).toBeNull();
+    // model said retire_at_age but there's no age — the standing FI card if
+    // the words ask it, otherwise unknown. Never invent an age.
+    expect(intentFromKind('retire_at_age', 'help me retire someday', today)).toEqual({
+      kind: 'fi_status',
+    });
+    expect(intentFromKind('retire_at_age', 'how much did I spend last month', today)).toBeNull();
   });
 });
 

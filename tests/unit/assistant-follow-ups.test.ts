@@ -58,6 +58,8 @@ function sampleIntent(kind: (typeof ASSISTANT_INTENT_KINDS)[number]): AssistantI
       };
     case 'retire_at_age':
       return { kind, targetAge: 60, label: 'age 60' };
+    case 'fi_status':
+      return { kind };
     case 'wealth_target':
       return { kind, targetCents: 1_000_000_000, label: '$10,000,000.00' };
   }

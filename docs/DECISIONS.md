@@ -8534,3 +8534,33 @@ pre-#495 ranking byte-identical. No FI/radar re-projection.
 `test_regression__w6a_opportunities_skip_money_dial_categories`;
 `tests/unit/assistant-what-to-cut.test.ts`
 `test_regression__w6a_ask_cut_list_omits_a_money_dial_merchant`.
+
+## #496 — Ask "when can I retire?" uses the Coach FI card (2026-08-21)
+
+**Context.** Owner: continue; #495 shipped. "When can I retire?" with no age
+fell through to unknown (then optional LLM). `/coach` already prints
+`monthsToFI` and the FI number. `retire_at_age` only takes a named age.
+The long-game differentiator is keeping FI visible and on track.
+
+**Decision.**
+1. New Ask intent `fi_status`. Parser + `intentFromKind` share
+   `fiStatusFromQuestion`. The answer formatter phrases the SAME
+   `getCoachData().fi` numbers `/coach` prints — FI number via
+   `COACH_COPY.fiNumber`, years/months from `monthsToFI`, freedom
+   dividend, your-enough, frozen-portfolio note. Source is `/coach`.
+2. No new projection. The four headline states match the FI card
+   mapping (`fiHeadline`) without page-position claims ("this card",
+   "below") — those are false in Ask (L.15).
+3. A named age stays `retire_at_age`. An amount declines so wealth
+   target / dated savings can match. A calendar window or `in N years`
+   is `unknown` — the FI card is standing, not ranked by a named date.
+4. A model that tags a no-age retire question as `retire_at_age` still
+   owes the standing card; a model that tags an aged question as
+   `fi_status` still owes the inverse planner.
+
+**Locked.** `tests/unit/assistant-fi-status.test.ts`
+`test_regression__fi_status_when_can_i_retire_routes_to_coach_fi`,
+`test_regression__fi_status_answer_agrees_with_coach_fi_headline_math`,
+`test_regression__fi_status_copy_does_not_claim_this_card_or_below`,
+`test_regression__fi_status_date_window_abstains`. e2e
+`tests/e2e/ask.spec.ts` "When can I retire agrees with Coach FI card".

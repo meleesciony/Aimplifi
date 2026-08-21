@@ -2,6 +2,33 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-21 — Ask "when can I retire?" uses the Coach FI card (DECISIONS #496)
+
+**Picked up.** Owner: continue; previous slice (#495) was shipped, not
+blocked. P.1 remaining half and W.6(b)(c)(d) are new money engines (off
+this lane). Highest-leverage unblocked item: the long game is FI, and
+"when can I retire?" with no age was unknown while `/coach` already
+prints the date.
+
+**Closed.** `fi_status` intent. Parser + LLM share `fiStatusFromQuestion`.
+Answer phrases `getCoachData().fi` (same cents/months as the FI card).
+Copy does not say "this card" or "below". Named age stays `retire_at_age`;
+amount declines; a calendar window / `in N years` is `unknown`.
+
+**Left alone.** P.1 counterfactual; W.6(b)(c)(d); P.2 audit; owner types
+40 in Settings.
+
+**Locked.** `assistant-fi-status.test.ts` four regressions; e2e Ask vs
+Coach FI card.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,215 passed + 1 expected fail + 1 skipped / 438 files + 1 skipped**,
+`next build` clean. Ask FI e2e **1/1**. No `prisma/` diff.
+
+**Next.** P.1 remaining half is money-math (hostile critic). W.6(b)(c)(d)
+need rate data / new engines. Or P.2 audit of the stale coach-principles
+plan.
+
 ## 2026-08-21 — Coach/Ask cuts skip money dials (DECISIONS #495)
 
 **Picked up.** Owner: continue; previous slice (#494) was shipped, not

@@ -55,6 +55,11 @@ export type AssistantIntent =
   | { kind: 'debt_free_by_date'; targetDate: ISODate; label: string }
   | { kind: 'savings_goal_by_date'; targetDate: ISODate; targetCents: number | null; label: string }
   | { kind: 'retire_at_age'; targetAge: number; label: string }
+  /**
+   * Standing FI date / number — the SAME `getCoachData().fi` the /coach FI card
+   * prints. "When can I retire?" with NO age (the aged sibling is `retire_at_age`).
+   */
+  | { kind: 'fi_status' }
   /** Stated wealth target, no deadline — W.1's compounding planner via Ask (W.4). */
   | { kind: 'wealth_target'; targetCents: number; label: string }
   | { kind: 'subscriptions' }
@@ -88,6 +93,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'debt_free_by_date',
   'savings_goal_by_date',
   'retire_at_age',
+  'fi_status',
   'wealth_target',
   'subscriptions',
   'what_to_cut',
@@ -1443,6 +1449,47 @@ export function whatToCutFromQuestion(
   return { kind: 'what_to_cut' };
 }
 
+/**
+ * Standing FI / "when can I retire?" with no age. Shared by the parser and
+ * `intentFromKind` so a model-chosen kind cannot answer a dated, aged, or
+ * amount-bearing question with the unwindowed Coach FI card.
+ *
+ * Abstain (`null`) when the words do not ask this question, or when they name
+ * an age (the inverse planner) or an amount (wealth target / dated savings).
+ * A date window is `unknown` — the FI card is standing, not calendar-ranked.
+ */
+export function fiStatusFromQuestion(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): AssistantIntent | null {
+  const q = normalize(question);
+  if (!asksFiStatus(q)) return null;
+  // A stated age is the inverse planner. Decline so `retire_at_age` can match.
+  if (parseTargetAge(question) !== null) return null;
+  // An amount is a different planner (wealth target / dated savings goal).
+  if (parseTargetAmount(question) !== null) return null;
+  // A date window is not a different planner: the FI card is standing.
+  // Unknown, never the standing date under a year the user named.
+  if (parseExplicitTimeframe(question, today) !== null) return { kind: 'unknown', question };
+  if (parseTargetDate(question, today) !== null) return { kind: 'unknown', question };
+  if (unresolvedDateShape(question, today)) return { kind: 'unknown', question };
+  if (/\b(?:at|with)\b/.test(q)) return { kind: 'unknown', question };
+  const target = resolveSpendTarget(q, custom);
+  if (target) return { kind: 'unknown', question };
+  return { kind: 'fi_status' };
+}
+
+function asksFiStatus(q: string): boolean {
+  return (
+    /\bretir(?:e|es|ed|ing|ement)\b/.test(q) ||
+    /\bfinancial(?:ly)? independen/.test(q) ||
+    /\bfi (number|date|status|goal|target)\b/.test(q) ||
+    /\b(my|the) fi\b/.test(q) ||
+    /\bbe fi\b/.test(q)
+  );
+}
+
 function asksWhatToCut(q: string): boolean {
   return (
     /\bwhat should i (cut|cancel|drop|trim)\b/.test(q) ||
@@ -1575,11 +1622,19 @@ export function parseAssistantQuery(
   // planners (a retire-at-age question carries no targetDate/amount, so those decline it) and
   // BEFORE the forward intents (cash_needed, safe_to_spend, spend, account_balance) so the
   // retirement words can't be poached. The age is the user's own number (parseTargetAge); a
-  // retirement question with no age falls through (→ unknown, then the optional LLM fallback).
+  // retirement question with no age is the standing FI card (`fi_status`), not unknown.
   // The inflection set matches parseTargetAge's first regex (retire/retires/retired/retiring/retirement).
   if (/\bretir(?:e|es|ed|ing|ement)\b/.test(q)) {
     const age = parseTargetAge(q);
     if (age !== null) return { kind: 'retire_at_age', targetAge: age, label: `age ${age}` };
+  }
+
+  // Standing FI date / number (Coach FI card). After the aged inverse planner
+  // so "retire at 60" stays that route; before wealth_target so a no-amount
+  // retirement question is not unknown.
+  {
+    const standing = fiStatusFromQuestion(question, today, custom);
+    if (standing) return standing;
   }
 
   // Wealth target with NO deadline (W.4). The dated sibling above already took
@@ -1925,6 +1980,7 @@ export function validateIntent(
     case 'debt_payoff':
     case 'subscriptions':
     case 'what_to_cut':
+    case 'fi_status':
     case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':
