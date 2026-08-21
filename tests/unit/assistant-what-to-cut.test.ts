@@ -34,7 +34,7 @@ const series = detectRecurring(
   today,
   NO_RECURRING_OVERRIDES,
 );
-const seedOpportunities = findOpportunities(series, 700, 250);
+const seedOpportunities = findOpportunities(series, 700, 250, []);
 const dials = { returnIsDefault: true, inflationIsDefault: true };
 
 function answerFrom(ops: readonly Opportunity[], moneyDials: readonly string[] = []) {
@@ -168,6 +168,14 @@ describe('answerWhatToCut — phrases the coach list, originates no figure', () 
   it('protects money dials with the same sentence /coach prints', () => {
     const a = answerFrom(seedOpportunities, ['Travel', 'Dining Out']);
     expect(a.detail).toContain(COACH_COPY.moneyDials(['Travel', 'Dining Out']));
+  });
+
+  it('test_regression__w6a_ask_cut_list_omits_a_money_dial_merchant', () => {
+    const protectedGym = findOpportunities(series, 700, 250, ['fitness']);
+    const a = answerFrom(protectedGym, ['Fitness']);
+    expect(a.headline).not.toContain('LA Fitness');
+    expect(a.facts.some((f) => f.label === 'LA Fitness')).toBe(false);
+    expect(a.detail).toContain(COACH_COPY.moneyDials(['Fitness']));
   });
 
   it('labels estimates the same way /coach does', () => {

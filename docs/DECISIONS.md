@@ -8514,3 +8514,23 @@ unknown.
 `test_regression__p1_cut_does_not_invent_fi_movement`,
 `test_regression__p1_cut_with_a_date_window_abstains`. e2e
 `tests/e2e/ask.spec.ts` "What should I cut agrees with Coach opportunities".
+
+## #495 — Coach/Ask cut list skips money-dial categories (2026-08-21)
+
+**Context.** #494 routed "what should I cut?" onto `findOpportunities`. That
+list did not read Settings money dials, so a reader who set Fitness as a
+dial could still be told to cut LA Fitness. W.6(a) already ranked
+wealth-target cuts with `categoryMatchesMoneyDial`; Coach/Ask did not.
+
+**Decision.** `findOpportunities` takes required `moneyDialIds` (resolved
+O.17a ids). A series whose `categoryId` is a dial is skipped for every
+kind — unused-sub, price-increase, insurance-reshop, negotiable-bill.
+`getCoachData` passes the same ids the wealth-target card uses. Ask
+phrases that array, so the two surfaces cannot disagree. Empty dials (or
+demo travel/dining, which are not seed opportunity categories) keep the
+pre-#495 ranking byte-identical. No FI/radar re-projection.
+
+**Locked.** `tests/unit/insights.test.ts`
+`test_regression__w6a_opportunities_skip_money_dial_categories`;
+`tests/unit/assistant-what-to-cut.test.ts`
+`test_regression__w6a_ask_cut_list_omits_a_money_dial_merchant`.

@@ -19,6 +19,7 @@ import type { RecurringSeriesResult } from '@/lib/engine/recurring/detect';
 // three transaction panels that can show it cannot state it in different words.
 import { breakdownHandoverDayCopy } from '@/lib/engine/glass-box/category-breakdown';
 import { OPPORTUNITY_HORIZON_MONTHS, opportunityValueTodayCents, savingsRateBps } from './fi';
+import { categoryMatchesMoneyDial } from './discretionary-cuts';
 
 /** The three horizons the list prints, named once (`fi.ts` owns the order). */
 const [H10, H20, H30] = OPPORTUNITY_HORIZON_MONTHS;
@@ -199,8 +200,11 @@ export interface Opportunity {
 /**
  * @param nominalReturnBps the reader's own return dial — the rate the money GROWS at.
  * @param inflationBps the reader's inflation dial — what the grown total is then deflated by.
+ * @param moneyDialIds resolved Settings money-dial category ids (O.17a). A
+ *   series in a dial is spending that buys happiness — Sethi: hunt savings
+ *   everywhere else. Empty = no dials set, same ranking as before this param.
  *
- * Both, not one blended rate: the reader is shown both operands beside the figures, and a
+ * Both rates, not one blended: the reader is shown both operands beside the figures, and a
  * single pre-blended argument would let a caller hand over a real rate and get an answer
  * deflated twice, with nothing in the types to notice.
  */
@@ -208,6 +212,7 @@ export function findOpportunities(
   series: readonly RecurringSeriesResult[],
   nominalReturnBps: number,
   inflationBps: number,
+  moneyDialIds: readonly string[],
 ): Opportunity[] {
   const out: Opportunity[] = [];
   const push = (
@@ -238,6 +243,9 @@ export function findOpportunities(
   };
 
   for (const s of series) {
+    // W.6(a) on this list, not only on wealth-target proposals: a money dial
+    // is not a cut candidate. Coach and Ask share this array.
+    if (categoryMatchesMoneyDial(s.categoryId, moneyDialIds)) continue;
     if (s.possiblyUnused) push('unused-subscription', s.merchantCanonical, s.lastAmountCents, false);
     // A pay raise (rising recurring INCOME) is not a savings opportunity — only an
     // expense whose price rose is (REC-2).

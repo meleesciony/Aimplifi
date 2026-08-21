@@ -488,3 +488,4 @@ refuses to write if it would drop any number this file already carries.
 - **#492** (Phase ?): Header Sign out uses the mutation-form recipe (2026-08-20)
 - **#493** (Phase ?): Ideal savings percent is the Settings dial, never a hardcoded 40% (2026-08-20)
 - **#494** (Phase ?): Ask "what should I cut?" uses the Coach opportunities list (2026-08-20)
+- **#495** (Phase ?): Coach/Ask cut list skips money-dial categories (2026-08-21)

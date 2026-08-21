@@ -6,6 +6,28 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-21 — Coach/Ask cuts skip money dials (DECISIONS #495)
+
+**The report.** #494 phrased Coach opportunities in Ask. That list did not
+read Settings money dials, so Fitness-as-a-dial still ranked LA Fitness as
+a cut. W.6(a) already protected dials on the wealth-target card only.
+
+**Shipped.** `findOpportunities` requires `moneyDialIds` and skips a series
+in a dial for every opportunity kind. Coach and Ask share that array.
+Demo travel/dining: ranking byte-identical. Fitness dial: gym omitted.
+
+**Still open.** P.1 counterfactual re-projection. W.6(b)(c)(d).
+
+**Locked.** `insights.test.ts` `test_regression__w6a_opportunities_skip_money_dial_categories`;
+Ask `test_regression__w6a_ask_cut_list_omits_a_money_dial_merchant`.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,197 passed + 1 expected fail + 1 skipped / 437 files + 1 skipped**,
+`next build` clean. Ask P.1 e2e **1/1** (demo dials are travel/dining,
+not fitness). No `prisma/` diff.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-20 — Ask "what should I cut?" (DECISIONS #494)
 
 **The report.** Owner: continue, make this the best of its kind. The named

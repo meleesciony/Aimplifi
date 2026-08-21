@@ -565,7 +565,7 @@ describe('W.12 — the FI card names the real rate once', () => {
  *
  * These drive the real `getCoachData` for the same reason the W.2 block does: the engine was
  * never wrong, its ARGUMENTS were, and an argument is invisible from inside the function. A
- * test calling `findOpportunities(series, rate, inflation)` directly would pass just as happily
+ * test calling `findOpportunities(series, rate, inflation, [])` directly would pass just as happily
  * with the server handing it the wrong pair.
  *
  * The model: grow the monthly amount at the reader's RETURN dial, then deflate the whole total

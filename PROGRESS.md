@@ -2,6 +2,35 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-21 — Coach/Ask cuts skip money dials (DECISIONS #495)
+
+**Picked up.** Owner: continue; previous slice (#494) was shipped, not
+blocked. W.3 reports bars already open their rows (O.20). Highest-leverage
+unblocked item in this lane: the differentiator is protecting spending that
+buys happiness. `findOpportunities` still ranked a fitness unused-sub as a
+cut even when Fitness is a money dial; Ask then phrased that list. W.6(a)
+already does this for wealth-target proposals. Same helper, same list
+Coach and Ask share. No FI re-projection. Demo dials are travel/dining, so
+seed cents stay byte-identical.
+
+**Closed.** `findOpportunities` takes required `moneyDialIds`. A series
+in a Settings money dial is skipped for every opportunity kind. Coach
+passes the same resolved ids as the wealth-target card; Ask phrases that
+array. Demo travel/dining: ranking byte-identical. Fitness dial: LA
+Fitness dropped (fail-old proven).
+
+**Left alone.** P.1 counterfactual; W.6(b)(c)(d); W.3 (already O.20);
+O.20j converse leak / H.7b; U.15(b); Plaid.
+
+**Locked.** `insights.test.ts` `test_regression__w6a_opportunities_skip_money_dial_categories`;
+`assistant-what-to-cut.test.ts` `test_regression__w6a_ask_cut_list_omits_a_money_dial_merchant`.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,197 passed + 1 expected fail + 1 skipped / 437 files + 1 skipped**,
+`next build` clean. Ask P.1 e2e **1/1**. No `prisma/` diff.
+
+**Next.** Commit / push / CI / live.
+
 ## 2026-08-20 — Ask "what should I cut?" (DECISIONS #494)
 
 **Picked up.** Owner: continue and make this the best personal finance app

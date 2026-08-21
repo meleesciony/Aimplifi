@@ -60,7 +60,7 @@ describe('REC-2: income raises are not price increases', () => {
   });
 
   it('findOpportunities flags the expense price increase but not the pay raise', () => {
-    const priceIncreaseOpps = findOpportunities(series, 700, 250).filter((o) => o.kind === 'price-increase');
+    const priceIncreaseOpps = findOpportunities(series, 700, 250, []).filter((o) => o.kind === 'price-increase');
     // exactly one — the expense; the income raise contributes none
     expect(priceIncreaseOpps.map((o) => o.merchant)).toEqual([expenseSeries!.merchantCanonical]);
     expect(priceIncreaseOpps.map((o) => o.merchant)).not.toContain(incomeSeries!.merchantCanonical);
