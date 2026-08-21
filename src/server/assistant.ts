@@ -58,6 +58,7 @@ import {
   answerWealthTarget,
   answerWhatToCut,
   answerFiStatus,
+  answerLifestyleCreep,
   answerSafeToSpend,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
@@ -800,6 +801,11 @@ async function buildAnswer(
           inflationIsDefault: coach.fi.inflationIsDefault,
         },
       });
+    }
+    case 'lifestyle_creep': {
+      // Standing creep verdict: SAME getCoachData().creep the /coach card prints.
+      const coach = await getCoachData(userId);
+      return answerLifestyleCreep(coach.creep);
     }
     case 'fi_status': {
       // Standing FI date / number: SAME getCoachData().fi the /coach FI card prints.

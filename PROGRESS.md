@@ -2,6 +2,35 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-21 — Ask "is my lifestyle creeping?" uses the Coach creep card (DECISIONS #497)
+
+**Picked up.** Owner: continue; previous slice (#496) was committed, not
+pushed (push blocked without an explicit request). P.1 remaining half and
+W.6(b)(c)(d) are new money engines (off this lane). Highest-leverage
+unblocked item: lifestyle inflation is the silent FI killer, and "is my
+lifestyle creeping?" was unknown while `/coach` already prints the verdict.
+
+**Closed.** `lifestyle_creep` intent. Parser + LLM share
+`lifestyleCreepFromQuestion`. Answer phrases `getCoachData().creep` via
+`COACH_COPY.creepCard` (same title/body as the Coach card). Copy does not
+say "this card" or "below". Named store/category is `unknown`; amount
+declines; a calendar window is `unknown`. Price-creep language stays
+`what_to_cut`. `\boutpac(?:e|ed|ing)\b` so "outpacing" does not fall
+through to `\bmy income\b`.
+
+**Left alone.** P.1 counterfactual; W.6(b)(c)(d); P.2 audit; #496 push.
+
+**Locked.** `assistant-lifestyle-creep.test.ts` four regressions; e2e Ask vs
+Coach creep card.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,229 passed + 1 expected fail + 1 skipped / 439 files + 1 skipped**,
+`next build` clean. Ask creep e2e **1/1**. No `prisma/` diff.
+
+**Next.** Push #496+#497 on explicit request. P.1 remaining half is
+money-math (hostile critic). W.6(b)(c)(d) need rate data / new engines.
+Or P.2 audit of the stale coach-principles plan.
+
 ## 2026-08-21 — Ask "when can I retire?" uses the Coach FI card (DECISIONS #496)
 
 **Picked up.** Owner: continue; previous slice (#495) was shipped, not

@@ -6,6 +6,30 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-21 — Ask "is my lifestyle creeping?" uses the Coach creep card (DECISIONS #497)
+
+**The report.** #496 committed, not pushed. "Is my lifestyle creeping?" was
+unknown. "Is my spending outpacing my income" answered this-month income.
+`/coach` already prints `COACH_COPY.creepCard` over `detectLifestyleCreep`.
+
+**Shipped.** Ask intent `lifestyle_creep` phrases `getCoachData().creep` —
+same title and body as the Coach lifestyle-creep card. Three headline
+states match the card mapping without "this card" / "below". Named store
+or category is `unknown`; amount declines; a date window is `unknown`.
+Subscription price-increase language stays `what_to_cut`.
+
+**Still open.** P.1 counterfactual re-projection. W.6(b)(c)(d). P.2 audit.
+#496 and #497 unpushed (push requires an explicit owner request in this env).
+
+**Locked.** `assistant-lifestyle-creep.test.ts` four `test_regression__lifestyle_creep_*`.
+e2e Ask "Is my lifestyle creeping?" agrees with `/coach` creep-title + verdict.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,229 passed + 1 expected fail + 1 skipped / 439 files + 1 skipped**,
+`next build` clean. Ask creep e2e **1/1**. No `prisma/` diff.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-21 — Ask "when can I retire?" uses the Coach FI card (DECISIONS #496)
 
 **The report.** #495 shipped. "When can I retire?" with no age was unknown.

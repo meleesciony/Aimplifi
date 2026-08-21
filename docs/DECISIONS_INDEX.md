@@ -490,3 +490,4 @@ refuses to write if it would drop any number this file already carries.
 - **#494** (Phase ?): Ask "what should I cut?" uses the Coach opportunities list (2026-08-20)
 - **#495** (Phase ?): Coach/Ask cut list skips money-dial categories (2026-08-21)
 - **#496** (Phase ?): Ask "when can I retire?" uses the Coach FI card (2026-08-21)
+- **#497** (Phase ?): Ask "is my lifestyle creeping?" uses the Coach lifestyle-creep card (2026-08-21)

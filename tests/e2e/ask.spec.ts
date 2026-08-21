@@ -121,6 +121,22 @@ test('What should I cut agrees with Coach opportunities (P.1)', async ({ page })
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
 });
 
+test('Is my lifestyle creeping agrees with Coach creep card', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/coach');
+  const title = ((await page.getByTestId('creep-title').textContent()) ?? '').trim();
+  const verdict = ((await page.getByTestId('creep-verdict').textContent()) ?? '').trim();
+  expect(title, 'Coach creep title').not.toBe('');
+  expect(verdict, 'Coach creep verdict').not.toBe('');
+
+  await page.goto('/ask');
+  await ask(page, 'Is my lifestyle creeping?');
+  await expect(page.getByTestId('ask-headline')).toHaveText(title);
+  await expect(page.getByTestId('ask-answer')).toContainText(verdict);
+  await expect(page.getByTestId('ask-answer')).not.toContainText(/this card/i);
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
+});
+
 test('When can I retire agrees with Coach FI card', async ({ page }) => {
   await signIn(page);
   await page.goto('/coach');

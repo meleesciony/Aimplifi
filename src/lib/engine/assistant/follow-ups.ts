@@ -159,6 +159,13 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
         'How much is guilt-free to spend this month?',
       ]);
 
+    case 'lifestyle_creep':
+      return take([
+        'What should I cut?',
+        "What's my savings rate?",
+        'How much is guilt-free to spend this month?',
+      ]);
+
     case 'forecast':
       return take([
         'How much do I need to pay my cards?',

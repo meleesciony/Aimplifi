@@ -69,6 +69,12 @@ export type AssistantIntent =
    * is a different question (abstain).
    */
   | { kind: 'what_to_cut' }
+  /**
+   * Standing lifestyle-creep verdict — the SAME `getCoachData().creep` the
+   * /coach card prints via `COACH_COPY.creepCard`. Discretionary spending vs
+   * income over the engine's window, not a calendar the user named.
+   */
+  | { kind: 'lifestyle_creep' }
   /** 90-day committed + card dues — same engine as dashboard Cash flow radar (DECISIONS #488). */
   | { kind: 'cash_flow_radar' }
   /** Recurring-only balance walk — same engine as /forecast (DECISIONS #72 / #75). */
@@ -97,6 +103,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'wealth_target',
   'subscriptions',
   'what_to_cut',
+  'lifestyle_creep',
   'cash_flow_radar',
   'forecast',
   'savings_rate',
@@ -1490,6 +1497,48 @@ function asksFiStatus(q: string): boolean {
   );
 }
 
+/**
+ * Standing lifestyle-creep verdict. Shared by the parser and `intentFromKind`
+ * so a model-chosen kind cannot answer a dated, store-scoped, or category-
+ * scoped question with the unwindowed Coach card.
+ *
+ * Abstain (`null`) when the words do not ask this question, or when they name
+ * an amount (a different planner). A date window is `unknown` — the card is
+ * standing, not calendar-ranked. A named store or category is a different
+ * question (per-category fulfillment is W.6(c), not this card).
+ */
+export function lifestyleCreepFromQuestion(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): AssistantIntent | null {
+  const q = normalize(question);
+  if (!asksLifestyleCreep(q)) return null;
+  if (parseTargetAmount(question) !== null) return null;
+  if (parseExplicitTimeframe(question, today) !== null) return { kind: 'unknown', question };
+  if (parseTargetDate(question, today) !== null) return { kind: 'unknown', question };
+  if (unresolvedDateShape(question, today)) return { kind: 'unknown', question };
+  if (/\b(?:at|with)\b/.test(q)) return { kind: 'unknown', question };
+  const target = resolveSpendTarget(q, custom);
+  if (target) return { kind: 'unknown', question };
+  return { kind: 'lifestyle_creep' };
+}
+
+function asksLifestyleCreep(q: string): boolean {
+  // Subscription price-increase language is the cut list / no-creep streak,
+  // not discretionary-vs-income.
+  if (/\b(subscription|price)[\s-]?creep\b/.test(q)) return false;
+  return (
+    /\blifestyle[\s-]?(creep|inflat|drift)/.test(q) ||
+    /\b(creeping|inflating) (my )?lifestyle\b/.test(q) ||
+    (/\bspend(?:ing)?\b/.test(q) &&
+      /\b(outpac(?:e|ed|ing)|outgrow(?:n|ing)?|growing faster than)\b/.test(q) &&
+      /\bincome\b/.test(q)) ||
+    (/\bdiscretionary spend(?:ing)?\b/.test(q) &&
+      /\b(creep|inflat|drift|outpace|going up|grown|growing)\b/.test(q))
+  );
+}
+
 function asksWhatToCut(q: string): boolean {
   return (
     /\bwhat should i (cut|cancel|drop|trim)\b/.test(q) ||
@@ -1635,6 +1684,14 @@ export function parseAssistantQuery(
   {
     const standing = fiStatusFromQuestion(question, today, custom);
     if (standing) return standing;
+  }
+
+  // Standing lifestyle-creep verdict (Coach card). After cut/FI so those
+  // questions keep their routes; before income/spend so "spending outpacing
+  // my income" is not this-month income or the spend-total sink.
+  {
+    const creep = lifestyleCreepFromQuestion(question, today, custom);
+    if (creep) return creep;
   }
 
   // Wealth target with NO deadline (W.4). The dated sibling above already took
@@ -1981,6 +2038,7 @@ export function validateIntent(
     case 'subscriptions':
     case 'what_to_cut':
     case 'fi_status':
+    case 'lifestyle_creep':
     case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':

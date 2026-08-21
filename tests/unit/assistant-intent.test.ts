@@ -29,6 +29,9 @@ describe('parseAssistantQuery — routing', () => {
     ['When can I retire?', 'fi_status'],
     ["what's my FI number", 'fi_status'],
     ['when will I be financially independent?', 'fi_status'],
+    // standing lifestyle creep (Coach card)
+    ['Is my lifestyle creeping?', 'lifestyle_creep'],
+    ['is my spending outpacing my income', 'lifestyle_creep'],
     // subscriptions
     ['what subscriptions am I paying for?', 'subscriptions'],
     ['list my recurring payments', 'subscriptions'],

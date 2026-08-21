@@ -33,6 +33,7 @@ const KIND_LABEL: Record<string, string> = {
   wealth_target: 'a wealth target',
   subscriptions: 'your subscriptions',
   what_to_cut: 'where to look for cuts',
+  lifestyle_creep: 'whether spending is outpacing income',
   cash_flow_radar: 'whether you will run out of money',
   forecast: 'your cash forecast',
   savings_rate: 'your savings rate',

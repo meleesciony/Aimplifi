@@ -54,7 +54,7 @@ import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categ
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { addMonthsClamped, compareDates, formatMonth, isoDate } from '@/lib/dates';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
-import type { Opportunity } from '@/lib/engine/fi/insights';
+import type { CreepResult, Opportunity } from '@/lib/engine/fi/insights';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
 import type { DebtFreeByDateResult } from '@/lib/engine/solve/debt-free-by-date';
 import type { SavingsGoalByDateResult } from '@/lib/engine/solve/savings-goal-by-date';
@@ -2322,6 +2322,36 @@ function fiStatusHeadline(input: {
   return "Contributions aren't outpacing spending yet, so a projection date wouldn't be honest.";
 }
 
+const LIFESTYLE_CREEP_SOURCE: AssistantSource = { label: 'See on Coach', href: '/coach' };
+
+/**
+ * Phrases the SAME `getCoachData().creep` verdict `/coach` prints via
+ * `COACH_COPY.creepCard`. Originates no growth figure. Copy does not say
+ * "this card" or "below" — those claims are false in Ask (the L.15 lesson).
+ */
+export function answerLifestyleCreep(creep: CreepResult): AssistantAnswer {
+  const card = COACH_COPY.creepCard(creep);
+  const facts: AssistantFact[] = [
+    {
+      label: 'Window',
+      value: creep.windowMonths === 1 ? 'the last month' : `the last ${creep.windowMonths} months`,
+    },
+  ];
+  if (creep.incomeMeasured && creep.spendMeasured) {
+    facts.push({
+      label: 'Spending vs income',
+      value: creep.flagged ? 'spending outpaced income' : 'tracking income',
+    });
+  }
+  return {
+    kind: 'lifestyle_creep',
+    headline: card.title,
+    detail: card.body,
+    facts,
+    source: LIFESTYLE_CREEP_SOURCE,
+  };
+}
+
 export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer {
   const source: AssistantSource = { label: 'See subscriptions', href: '/recurring' };
   if (summary.activeSubscriptionCount === 0) {
@@ -2518,6 +2548,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'When can I retire?',
   'If I want to save up to $10 million, what do I need to do?',
   'What should I cut?',
+  'Is my lifestyle creeping?',
 ];
 
 export function answerUnknown(): AssistantAnswer {
@@ -2525,7 +2556,7 @@ export function answerUnknown(): AssistantAnswer {
     kind: 'unknown',
     headline: 'I can answer questions grounded in your own accounts and transactions.',
     detail:
-      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, what you owe on your cards, when you can retire, what to cut, subscriptions, your 90-day forecast, income, or savings rate.',
+      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, what you owe on your cards, when you can retire, what to cut, whether spending is outpacing income, subscriptions, your 90-day forecast, income, or savings rate.',
     facts: [],
     suggestions: [...ASSISTANT_SUGGESTIONS],
   };

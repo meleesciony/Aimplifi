@@ -8564,3 +8564,36 @@ The long-game differentiator is keeping FI visible and on track.
 `test_regression__fi_status_copy_does_not_claim_this_card_or_below`,
 `test_regression__fi_status_date_window_abstains`. e2e
 `tests/e2e/ask.spec.ts` "When can I retire agrees with Coach FI card".
+
+## #497 — Ask "is my lifestyle creeping?" uses the Coach lifestyle-creep card (2026-08-21)
+
+**Context.** Owner: continue; #496 committed (unpushed). P.1 remaining half
+and W.6(b)(c)(d) are new money engines (off this lane). Highest-leverage
+unblocked item: Housel/Sethi lifestyle inflation is the silent FI killer,
+and "is my lifestyle creeping?" with no store was unknown while `/coach`
+already prints the discretionary-vs-income verdict.
+
+**Decision.**
+1. New Ask intent `lifestyle_creep`. Parser + `intentFromKind` share
+   `lifestyleCreepFromQuestion`. The answer formatter phrases the SAME
+   `getCoachData().creep` `/coach` prints via `COACH_COPY.creepCard` —
+   title as headline, body as detail, source `/coach`. Originates no
+   growth figure and does not re-run `detectLifestyleCreep`.
+2. No new math. The three headline states match the card mapping
+   (`Can't compare yet` / `Spending is outpacing income` / `Tracking
+   income`) without page-position claims ("this card", "below") — those
+   are false in Ask (L.15).
+3. An amount declines so other planners can match. A calendar window is
+   `unknown` — the card is standing, not ranked by a named date. A named
+   store or category is `unknown` (per-category fulfillment is W.6(c)).
+   Subscription "price creep" is not this route (`what_to_cut`).
+4. A stem regex must match inflections: `\boutpac\b` does not match
+   "outpacing", which is how `\bmy income\b` otherwise poaches the
+   comparison question.
+
+**Locked.** `tests/unit/assistant-lifestyle-creep.test.ts`
+`test_regression__lifestyle_creep_is_my_lifestyle_creeping_routes_to_coach`,
+`test_regression__lifestyle_creep_answer_agrees_with_coach_creep_card`,
+`test_regression__lifestyle_creep_copy_does_not_claim_this_card_or_below`,
+`test_regression__lifestyle_creep_date_window_abstains`. e2e
+`tests/e2e/ask.spec.ts` "Is my lifestyle creeping agrees with Coach creep card".
