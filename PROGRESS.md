@@ -27,9 +27,16 @@ Coach creep card.
 **7,229 passed + 1 expected fail + 1 skipped / 439 files + 1 skipped**,
 `next build` clean. Ask creep e2e **1/1**. No `prisma/` diff.
 
-**Next.** Push #496+#497 on explicit request. P.1 remaining half is
-money-math (hostile critic). W.6(b)(c)(d) need rate data / new engines.
-Or P.2 audit of the stale coach-principles plan.
+**Shipped and proven live.** Pushed as `4f8682db` (also carried #496
+`4a956b39`). CI run **32528630622** `success` (12m31s, attempt 1).
+Vercel: `READY` (`dpl_BvA3X2A9qs82Fkk5aKAHZS1QiJVF` /
+`aimplifi-a3vuqyjo7`), same sha, aliased to `www.aimplifi.app`.
+Production `/`, `/ask`, `/coach`, `/dashboard` 307; `/sign-in` 200.
+No public HTML marker. No `prisma/` diff.
+
+**Next.** P.1 remaining half is money-math (hostile critic). W.6(b)(c)(d)
+need rate data / new engines. Or P.2 audit of the stale coach-principles
+plan.
 
 ## 2026-08-21 — Ask "when can I retire?" uses the Coach FI card (DECISIONS #496)
 
@@ -53,6 +60,10 @@ Coach FI card.
 **Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
 **7,215 passed + 1 expected fail + 1 skipped / 438 files + 1 skipped**,
 `next build` clean. Ask FI e2e **1/1**. No `prisma/` diff.
+
+**Shipped and proven live.** Pushed with #497 as `4a956b39`. CI + Vercel
+recorded on tip `4f8682db` (run **32528630622**, Vercel
+`dpl_BvA3X2A9qs82Fkk5aKAHZS1QiJVF`).
 
 **Next.** P.1 remaining half is money-math (hostile critic). W.6(b)(c)(d)
 need rate data / new engines. Or P.2 audit of the stale coach-principles

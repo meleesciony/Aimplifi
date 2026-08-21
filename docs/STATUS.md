@@ -19,7 +19,6 @@ or category is `unknown`; amount declines; a date window is `unknown`.
 Subscription price-increase language stays `what_to_cut`.
 
 **Still open.** P.1 counterfactual re-projection. W.6(b)(c)(d). P.2 audit.
-#496 and #497 unpushed (push requires an explicit owner request in this env).
 
 **Locked.** `assistant-lifestyle-creep.test.ts` four `test_regression__lifestyle_creep_*`.
 e2e Ask "Is my lifestyle creeping?" agrees with `/coach` creep-title + verdict.
@@ -27,6 +26,14 @@ e2e Ask "Is my lifestyle creeping?" agrees with `/coach` creep-title + verdict.
 **Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
 **7,229 passed + 1 expected fail + 1 skipped / 439 files + 1 skipped**,
 `next build` clean. Ask creep e2e **1/1**. No `prisma/` diff.
+
+**Gate read.** CI run **32528630622** on `4f8682db` = SUCCESS (12m31s, full
+VERIFY_E2E, attempt 1). Vercel: `READY` (`dpl_BvA3X2A9qs82Fkk5aKAHZS1QiJVF`
+/ `aimplifi-a3vuqyjo7`), same sha (`vercel ls --meta githubCommitSha=`),
+aliased to `www.aimplifi.app`. Production `/`, `/ask`, `/coach`,
+`/dashboard` 307; `/sign-in` 200. Coach and Ask are behind sign-in; CI
+e2e asserted Ask on this sha. No public HTML marker. Push also carried
+#496 (`4a956b39`).
 
 **Schema.** None.
 
@@ -49,6 +56,9 @@ e2e Ask "When can I retire?" agrees with `/coach` years-to-FI span + FI number.
 **Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
 **7,215 passed + 1 expected fail + 1 skipped / 438 files + 1 skipped**,
 `next build` clean. Ask FI e2e **1/1**. No `prisma/` diff.
+
+**Gate read.** Pushed with #497 as `4a956b39`. CI + Vercel recorded on the
+tip sha `4f8682db` (run **32528630622**, Vercel `dpl_BvA3X2A9qs82Fkk5aKAHZS1QiJVF`).
 
 **Schema.** None.
 
