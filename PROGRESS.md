@@ -27,12 +27,14 @@ Coach `runway-months`.
 **7,247 passed + 1 expected fail + 1 skipped / 440 files + 1 skipped**,
 `next build` clean. Ask runway e2e **1/1**. No `prisma/` diff.
 
-**Shipped.** Branch `cursor/ask-runway-coach-card-ba65`, PR #13. CI
-conclusion not yet read this session.
+**Shipped.** Branch `cursor/ask-runway-coach-card-ba65`, PR #13.
+GitHub Actions `verify` SUCCESS on `a68689eb` (push **32535935837**
+12m45s; PR **32535938709** 12m55s). Vercel Preview failed in 1s with
+an empty preview URL — not a product-build failure (UNVERIFIED
+rejection text). Production is unchanged until merge to `main`.
 
-**Next.** P.1 remaining half is money-math (hostile critic). W.6(b)(c)(d)
-need rate data / new engines. Or P.2 audit of the stale coach-principles
-plan.
+**Next.** Merge PR #13 when the owner wants it on www. Then P.1
+remaining half (money-math / hostile critic), W.6(b)(c)(d), or P.2.
 
 ## 2026-08-21 — Ask "is my lifestyle creeping?" uses the Coach creep card (DECISIONS #497)
 

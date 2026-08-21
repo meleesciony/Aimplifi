@@ -29,7 +29,15 @@ e2e Ask "How many months of runway do I have?" agrees with `/coach`
 **7,247 passed + 1 expected fail + 1 skipped / 440 files + 1 skipped**,
 `next build` clean. Ask runway e2e **1/1**. No `prisma/` diff.
 
-**Gate read.** PR #13 — CI conclusion not yet read this session.
+**Gate read.** GitHub Actions `verify` on `a68689eb` = SUCCESS twice
+(push run **32535935837** 12m45s; pull_request run **32535938709**
+12m55s; both attempt 1, full `VERIFY_E2E`). Vercel **Preview**
+`dpl_Gq2iKDRXGUyxtMRV8GgJ4BjMqvu8` failed in **1 second** with an
+empty `previewUrl` — that is not a Next.js compile (local + CI
+`next build` both clean; no `prisma/` diff). Exact Vercel rejection
+text is UNVERIFIED here (dashboard inspect needs a Vercel login).
+Production on `www.aimplifi.app` is unchanged until this PR merges
+to `main`.
 
 **Schema.** None.
 
