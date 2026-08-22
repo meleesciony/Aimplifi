@@ -33,6 +33,7 @@ import {
   runwayFromQuestion,
   consciousSpendingFromQuestion,
   stayWealthyFromQuestion,
+  memoryDividendFromQuestion,
 } from './intent';
 
 /** The kinds the model is allowed to choose (everything except the fallback). */
@@ -64,6 +65,7 @@ export function buildIntentPrompt(question: string): string {
     '- runway: standing cash runway / room for error (Coach card) — "how many months of runway do I have?", "what\'s my cash buffer", "how long would my cash last", "do I have an emergency fund". Months of expenses in cash. Never an amount or date (those are savings-goal / wealth-target). Not "will I run out of money" (that is cash_flow_radar)',
     '- conscious_spending: this-month Fixed / Savings & investing / Guilt-free split (the Spending page bucket strip) — "how are my spending buckets?", "conscious spending", "how is my money split". Never a named store or category, never an amount. "This month" is the strip\'s own window; any other date is not this intent. Not "how much is guilt-free to spend" (that is safe_to_spend)',
     '- stay_wealthy: composed Coach staying-wealthy row (cards clearing in full + cash cushion + spending tracking income) — "am I staying wealthy?", "how are my survival signals?", "getting wealthy vs staying wealthy". Never a named store or category, never an amount or date. Not "how many months of runway" (that is runway), not "is my lifestyle creeping" (that is lifestyle_creep)',
+    '- memory_dividend: Perkins/Housel who-notices reflection on the Coach life-energy list — "what\'s a memory dividend?", "who notices what I buy?", "meant to impress". Never a named store or category, never an amount or date. Not "biggest purchase" (that is largest_purchases), not "what should I cut" (that is what_to_cut)',
     '- cash_flow_radar: will the payment account run out of money / go negative / overdraft in the next 90 days (committed flows + card dues — same as Cash flow radar)',
     '- forecast: projected cash balance from recurring income and bills only (NOT card payments; use cash_flow_radar for running out of money)',
     '- savings_rate: percent of income saved',
@@ -151,6 +153,10 @@ export function intentFromKind(
     case 'stay_wealthy': {
       const staying = stayWealthyFromQuestion(question, today, custom);
       return staying?.kind === 'stay_wealthy' ? staying : null;
+    }
+    case 'memory_dividend': {
+      const reflection = memoryDividendFromQuestion(question, today, custom);
+      return reflection?.kind === 'memory_dividend' ? reflection : null;
     }
     case 'account_balance':
       return { kind, query: question.toLowerCase() };

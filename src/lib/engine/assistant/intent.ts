@@ -92,6 +92,12 @@ export type AssistantIntent =
    * (those stay lifestyle_creep / runway / cash_needed).
    */
   | { kind: 'stay_wealthy' }
+  /**
+   * P2.2 memory-dividend / who-notices reflection — the SAME
+   * `composeMemoryDividend` `/coach` life-energy card uses. Not a named
+   * purchase (that is largest_purchases) and not a cut ranking.
+   */
+  | { kind: 'memory_dividend' }
   /** 90-day committed + card dues — same engine as dashboard Cash flow radar (DECISIONS #488). */
   | { kind: 'cash_flow_radar' }
   /** Recurring-only balance walk — same engine as /forecast (DECISIONS #72 / #75). */
@@ -124,6 +130,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'runway',
   'conscious_spending',
   'stay_wealthy',
+  'memory_dividend',
   'cash_flow_radar',
   'forecast',
   'savings_rate',
@@ -1598,10 +1605,44 @@ export function stayWealthyFromQuestion(
   return { kind: 'stay_wealthy' };
 }
 
+/**
+ * P2.2 memory-dividend reflection. Shared by the parser and `intentFromKind`
+ * so a model-chosen kind cannot answer a dated, store-scoped, or
+ * amount-bearing question with the Coach life-energy line.
+ *
+ * Requires memory-dividend / who-notices language. "Biggest purchase" stays
+ * `largest_purchases`. An amount declines. A date / store / category is
+ * `unknown`.
+ */
+export function memoryDividendFromQuestion(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): AssistantIntent | null {
+  const q = normalize(question);
+  if (!asksMemoryDividend(q)) return null;
+  if (parseTargetAmount(question) !== null) return null;
+  if (parseExplicitTimeframe(question, today) !== null) return { kind: 'unknown', question };
+  if (parseTargetDate(question, today) !== null) return { kind: 'unknown', question };
+  if (unresolvedDateShape(question, today)) return { kind: 'unknown', question };
+  if (/\b(?:at|with)\b/.test(q)) return { kind: 'unknown', question };
+  const target = resolveSpendTarget(q, custom);
+  if (target) return { kind: 'unknown', question };
+  return { kind: 'memory_dividend' };
+}
+
 function asksStayWealthy(q: string): boolean {
   if (/\bstay(?:ing)? wealthy\b/.test(q)) return true;
   if (/\bsurvival signals?\b/.test(q)) return true;
   if (/\bgetting wealthy\b/.test(q) && /\bstay(?:ing)?\b/.test(q)) return true;
+  return false;
+}
+
+function asksMemoryDividend(q: string): boolean {
+  if (/\bmemory dividends?\b/.test(q)) return true;
+  if (/\bwho notices\b/.test(q)) return true;
+  if (/\bmeant to impress\b/.test(q)) return true;
+  if (/\bno(?:body| one) notices\b/.test(q)) return true;
   return false;
 }
 
@@ -1861,6 +1902,15 @@ export function parseAssistantQuery(
   {
     const staying = stayWealthyFromQuestion(question, today, custom);
     if (staying) return staying;
+  }
+
+  // P2.2 memory-dividend / who-notices (Coach life-energy line). After
+  // largest_purchases / what_to_cut so "biggest purchase" and cut rankings
+  // stay theirs. Before wealth_target so a no-amount status question is
+  // not unknown.
+  {
+    const reflection = memoryDividendFromQuestion(question, today, custom);
+    if (reflection) return reflection;
   }
 
   // Wealth target with NO deadline (W.4). The dated sibling above already took
@@ -2211,6 +2261,7 @@ export function validateIntent(
     case 'runway':
     case 'conscious_spending':
     case 'stay_wealthy':
+    case 'memory_dividend':
     case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':

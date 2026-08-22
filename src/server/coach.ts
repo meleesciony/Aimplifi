@@ -54,6 +54,10 @@ import { DEMO_USER_ID } from '@/lib/demo-user';
 import { aiAuditSink } from '@/server/ai-audit';
 import { orderReviewViaLLM } from './money-review-llm';
 import { returnIsAppDefault } from '@/lib/engine/settings/dials';
+import {
+  composeMemoryDividend,
+  type MemoryDividendRow,
+} from '@/lib/engine/fi/memory-dividend';
 import { dialDisplayNames } from '@/lib/engine/settings/money-dial-ids';
 import { loadDialCatalog, resolvedMoneyDialIds } from '@/server/money-dials';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
@@ -206,8 +210,19 @@ export interface CoachData {
     portfolio: { label: string; frozenSince: string }[];
     liquid: { label: string; frozenSince: string }[];
   };
-  lifeEnergy: { merchant: string; amountCents: number; hours: number; date: string }[];
+  lifeEnergy: {
+    merchant: string;
+    amountCents: number;
+    hours: number;
+    date: string;
+    categoryId: string | null;
+  }[];
   hourlyWageCents: number;
+  /**
+   * P2.2 memory-dividend row — same compose Ask phrases. The card
+   * renders `line` only when `show` is true.
+   */
+  memoryDividend: MemoryDividendRow;
   /** Display names for coach copy (resolved from stored ids/names). */
   moneyDials: string[];
   /** Category ids for cut proposals — never names (O.17a). */
@@ -454,7 +469,13 @@ export async function getCoachData(
       amountCents: t.amountCents,
       hours: hoursOfWork(cents(t.amountCents), wage),
       date: t.date,
+      categoryId: t.categoryId ?? null,
     }));
+  const memoryDividendRow = composeMemoryDividend({
+    items: lifeEnergy,
+    moneyDialIds,
+    meta,
+  });
 
   // the Money Review's "one next action" prefers the live cash-needed remedy
   // (single shared assembly path — cycle-1 H1)
@@ -607,6 +628,7 @@ export async function getCoachData(
     frozenBalances,
     lifeEnergy,
     hourlyWageCents: wage,
+    memoryDividend: memoryDividendRow,
     moneyDials: dialDisplayNames(moneyDialIds, dialCatalog),
     moneyDialIds,
     discretionaryCategorySpend: averageDiscretionaryCategorySpend(

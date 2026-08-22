@@ -36,6 +36,8 @@ const KIND_LABEL: Record<string, string> = {
   lifestyle_creep: 'whether spending is outpacing income',
   runway: 'your cash runway',
   conscious_spending: 'your conscious-spending buckets',
+  stay_wealthy: 'whether you are staying wealthy',
+  memory_dividend: 'the who-notices reflection on big purchases',
   cash_flow_radar: 'whether you will run out of money',
   forecast: 'your cash forecast',
   savings_rate: 'your savings rate',

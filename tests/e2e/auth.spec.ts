@@ -124,6 +124,7 @@ test('first manual account → dashboard explains its sparse cards (no bare $0.0
   await expect(page.getByTestId('opportunities-basis')).toHaveCount(0);
   await expect(page.getByTestId('life-energy-empty')).toBeVisible();
   await expect(page.getByTestId('life-energy-list')).toHaveCount(0);
+  await expect(page.getByTestId('life-energy-memory-dividend')).toHaveCount(0);
 });
 
 test('password viewer toggles visibility without losing typed text', async ({ page }) => {

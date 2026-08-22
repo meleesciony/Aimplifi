@@ -373,7 +373,11 @@ export default async function CoachPage() {
 
       <AutomationBlueprintCard steps={data.blueprint} />
 
-      <LifeEnergyCard items={data.lifeEnergy} hourlyWageCents={data.hourlyWageCents} />
+      <LifeEnergyCard
+        items={data.lifeEnergy}
+        hourlyWageCents={data.hourlyWageCents}
+        memoryDividend={data.memoryDividend.show ? data.memoryDividend.line : null}
+      />
 
       {/* What Aimplifi caught (TASKS 1.3) — the cumulative value-receipts tally.
           Honest by construction: counts + per-kind totals of what was surfaced,

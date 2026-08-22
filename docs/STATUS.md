@@ -6,6 +6,29 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-22 — P2.2 memory-dividend line on life-energy (DECISIONS #501)
+
+**The report.** #500 shipped. Plan P2.2 was a who-notices reflection
+for big discretionary buys outside money dials. `/coach` already
+listed the five largest purchases as hours of work.
+
+**Shipped.** `composeMemoryDividend` over listed category ids +
+Settings dials + taxonomy `discretionary`. Card shows the line only
+when a listed buy is discretionary and not a dial. Ask
+`memory_dividend` phrases the same row (reflect / not-applicable /
+empty). Copy does not say "this card" / "below".
+
+**Still open.** P.1 counterfactual re-projection. W.6(b)(c)(d).
+P1.3 Rich Life. P1.4/P1.5. P1.1 dialTag.
+
+**Locked.** `memory-dividend.test.ts` + `assistant-memory-dividend.test.ts`
+`test_regression__memory_dividend_*`. e2e Ask vs Coach line; empty
+account has no line.
+
+**Gate.** UNVERIFIED until `bash scripts/verify.sh` this session.
+
+**Schema.** None.
+
 ## ✅ BUILT 2026-08-21 — P1.2 staying-wealthy row composes three Coach signals (DECISIONS #500)
 
 **The report.** #499 shipped. Plan P1.2 was a compact stay-wealthy row.

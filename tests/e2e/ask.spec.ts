@@ -173,6 +173,24 @@ test('Am I staying wealthy agrees with Coach staying-wealthy row', async ({ page
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
 });
 
+test('Who notices what I buy agrees with Coach life-energy reflection', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/coach');
+  const shown = page.getByTestId('life-energy-memory-dividend');
+  const coachLine =
+    (await shown.count()) > 0 ? ((await shown.textContent()) ?? '').trim() : null;
+
+  await page.goto('/ask');
+  await ask(page, 'Who notices what I buy?');
+  if (coachLine) {
+    await expect(page.getByTestId('ask-headline')).toHaveText(coachLine);
+  } else {
+    await expect(page.getByTestId('ask-headline')).not.toHaveText('');
+  }
+  await expect(page.getByTestId('ask-answer')).not.toContainText(/this card/i);
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
+});
+
 test('How are my spending buckets agrees with Spending strip', async ({ page }) => {
   await signIn(page);
   await page.goto('/budgets');

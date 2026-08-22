@@ -179,6 +179,16 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await page.getByTestId('life-energy-toggle').click();
   await expect(firstRow).toContainText('hrs');
 
+  // P2.2 — who-notices line only when a listed buy is discretionary and not a
+  // dial. Demo may or may not qualify; when it does, the line is the compose
+  // copy and never a page-position claim.
+  const reflection = page.getByTestId('life-energy-memory-dividend');
+  if ((await reflection.count()) > 0) {
+    await expect(reflection).toContainText('money dials or a memory');
+    await expect(reflection).not.toContainText(/this card/i);
+    await expect(reflection).not.toContainText(/below/i);
+  }
+
   // Money Review: one improvement, one creep, one concrete next action.
   // In demo (no AI key) the §2.4 recap is the DETERMINISTIC floor — same three role lines,
   // and NO "Personalized" badge (the LLM ordering path only runs with a key).

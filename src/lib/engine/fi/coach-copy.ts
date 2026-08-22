@@ -912,6 +912,15 @@ export const COACH_COPY = {
   lifeEnergyFootnote: (wageCents: Cents) =>
     `Hours are computed assuming your after-tax wage of ${formatCents(wageCents)}/hr. A lens, not a judgment.`,
 
+  // P2.2 · C5 · Perkins, Housel — reflection for discretionary buys outside
+  // declared dials. Not a projection. Does not name a store or a page position.
+  memoryDividend: () =>
+    `A big purchase is worth the hours when it's one of your money dials or a memory you'll keep — but if it was meant to impress, almost no one notices the thing.`,
+  memoryDividendEmpty: () =>
+    `No large purchases in the last 90 days — so there's no hours-of-life reflection to phrase.`,
+  memoryDividendNotApplicable: () =>
+    `Your biggest recent purchases are money dials or necessities — the who-notices reflection is for discretionary buys outside those.`,
+
   reviewImprovement: (monthLabel: string, fromBps: number, toBps: number) =>
     `What improved in ${monthLabel}: savings rate moved from ${pct1(fromBps)} to ${pct1(toBps)}.`,
 

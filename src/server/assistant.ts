@@ -63,6 +63,7 @@ import {
   answerRunway,
   answerConsciousSpending,
   answerStayWealthy,
+  answerMemoryDividend,
   answerSafeToSpend,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
@@ -839,6 +840,11 @@ async function buildAnswer(
           creep: coach.creep,
         }),
       );
+    }
+    case 'memory_dividend': {
+      // SAME composeMemoryDividend row the /coach life-energy card uses.
+      const coach = await getCoachData(userId);
+      return answerMemoryDividend(coach.memoryDividend);
     }
     case 'fi_status': {
       // Standing FI date / number: SAME getCoachData().fi the /coach FI card prints.

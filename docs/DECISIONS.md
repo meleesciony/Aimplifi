@@ -8701,3 +8701,39 @@ The June 24 template always claimed all three were true.
 `tests/e2e/ask.spec.ts` "Am I staying wealthy agrees with Coach staying-wealthy row";
 `tests/e2e/phase3-coach.spec.ts` row vs runway title + creep title.
 
+## #501 — P2.2 memory-dividend line on life-energy (2026-08-22)
+
+**Context.** Owner: continue. #500 shipped. P.1 remaining half and
+W.6(b)(c)(d) are new money engines (off this lane). Highest-leverage
+unblocked leftover: plan P2.2, a Perkins/Housel who-notices reflection
+on `/coach` life-energy. The list already shows the five largest
+purchases as hours of work. P1.1 dialTag stays partial (trends + cuts
+skip dials).
+
+**Decision.**
+1. `composeMemoryDividend` reads listed `categoryId`s + Settings
+   money-dial ids + taxonomy `discretionary`. No new money math.
+   Reflect only when at least one listed buy is discretionary AND not
+   a dial. Rent, bills, dials, uncategorized, and an empty list are
+   silent on the card. Framing never names a store.
+2. New Ask intent `memory_dividend`. Parser + `intentFromKind` share
+   `memoryDividendFromQuestion`. The answer phrases the SAME compose
+   row `/coach` uses (reflect / not-applicable / empty). Source
+   `/coach`. Originates no purchase.
+3. Requires memory-dividend / who-notices / meant-to-impress language.
+   "Biggest purchase" stays `largest_purchases`. An amount declines.
+   A date / store / category is `unknown`. Copy does not say "this
+   card" or "below" (L.15).
+
+**Locked.** `tests/unit/memory-dividend.test.ts`
+`test_regression__memory_dividend_skips_dials_and_necessities`,
+`test_regression__memory_dividend_copy_does_not_claim_this_card_or_below`.
+`tests/unit/assistant-memory-dividend.test.ts`
+`test_regression__memory_dividend_who_notices_routes_to_coach`,
+`test_regression__memory_dividend_answer_agrees_with_coach_row`,
+`test_regression__memory_dividend_copy_does_not_claim_this_card_or_below`,
+`test_regression__memory_dividend_date_window_abstains`. e2e
+`tests/e2e/ask.spec.ts` "Who notices what I buy agrees with Coach
+life-energy reflection"; `tests/e2e/phase3-coach.spec.ts` optional
+visible line; `tests/e2e/auth.spec.ts` empty list has no line.
+

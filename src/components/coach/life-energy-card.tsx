@@ -22,9 +22,12 @@ import { formatISODate, isoDate } from '@/lib/dates';
 export function LifeEnergyCard({
   items,
   hourlyWageCents,
+  memoryDividend,
 }: {
   items: { merchant: string; amountCents: number; hours: number; date: string }[];
   hourlyWageCents: number;
+  /** P2.2 — set only when a listed buy is discretionary and not a dial. */
+  memoryDividend: string | null;
 }) {
   const [showHours, setShowHours] = useState(false);
 
@@ -79,6 +82,14 @@ export function LifeEnergyCard({
             <p className="mt-2 text-xs text-muted-foreground">
               {COACH_COPY.lifeEnergyFootnote(cents(hourlyWageCents))}
             </p>
+            {memoryDividend ? (
+              <p
+                className="mt-2 text-xs text-muted-foreground"
+                data-testid="life-energy-memory-dividend"
+              >
+                {memoryDividend}
+              </p>
+            ) : null}
           </>
         )}
       </CardContent>

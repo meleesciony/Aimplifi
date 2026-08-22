@@ -187,6 +187,13 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
         'When can I retire?',
       ]);
 
+    case 'memory_dividend':
+      return take([
+        'What was my biggest purchase this month?',
+        'What should I cut?',
+        'How are my spending buckets?',
+      ]);
+
     case 'forecast':
       return take([
         'How much do I need to pay my cards?',

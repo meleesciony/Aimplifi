@@ -67,6 +67,7 @@ import { addMonthsClamped, compareDates, formatMonth, isoDate } from '@/lib/date
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { runwayTitle, type CreepResult, type Opportunity } from '@/lib/engine/fi/insights';
 import type { StayingWealthyRow } from '@/lib/engine/fi/staying-wealthy';
+import type { MemoryDividendRow } from '@/lib/engine/fi/memory-dividend';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
 import type { DebtFreeByDateResult } from '@/lib/engine/solve/debt-free-by-date';
 import type { SavingsGoalByDateResult } from '@/lib/engine/solve/savings-goal-by-date';
@@ -2409,6 +2410,22 @@ export function answerStayWealthy(row: StayingWealthyRow): AssistantAnswer {
   };
 }
 
+const MEMORY_DIVIDEND_SOURCE: AssistantSource = { label: 'See on Coach', href: '/coach' };
+
+/**
+ * Phrases the SAME `composeMemoryDividend` row `/coach` life-energy uses.
+ * Originates no purchase. Copy does not say "this card" or "below" — those
+ * claims are false in Ask (the L.15 lesson).
+ */
+export function answerMemoryDividend(row: MemoryDividendRow): AssistantAnswer {
+  return {
+    kind: 'memory_dividend',
+    headline: row.line,
+    facts: [],
+    source: MEMORY_DIVIDEND_SOURCE,
+  };
+}
+
 const CONSCIOUS_SPENDING_SOURCE: AssistantSource = { label: 'See on Spending', href: '/budgets' };
 
 /** Same clamp the /budgets strip uses so Ask percents cannot drift from the legend. */
@@ -2673,6 +2690,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'Is my lifestyle creeping?',
   'How are my spending buckets?',
   'Am I staying wealthy?',
+  'Who notices what I buy?',
 ];
 
 export function answerUnknown(): AssistantAnswer {
@@ -2680,7 +2698,7 @@ export function answerUnknown(): AssistantAnswer {
     kind: 'unknown',
     headline: 'I can answer questions grounded in your own accounts and transactions.',
     detail:
-      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, your spending buckets, what you owe on your cards, when you can retire, what to cut, whether spending is outpacing income, whether you are staying wealthy, subscriptions, your 90-day forecast, income, or savings rate.',
+      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, your spending buckets, what you owe on your cards, when you can retire, what to cut, whether spending is outpacing income, whether you are staying wealthy, who notices what you buy, subscriptions, your 90-day forecast, income, or savings rate.',
     facts: [],
     suggestions: [...ASSISTANT_SUGGESTIONS],
   };

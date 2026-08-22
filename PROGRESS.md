@@ -2,6 +2,30 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-22 — P2.2 memory-dividend line on life-energy (DECISIONS #501)
+
+**Picked up.** Owner: continue. #500 shipped. P.1 remaining half and
+W.6(b)(c)(d) are new money engines (off this lane). P2.2 (who-notices
+reflection on life-energy) was the queued leftover.
+
+**Closed.** `composeMemoryDividend` — discretionary and not a dial.
+Card silent on rent/bills/dials/empty. Ask `memory_dividend` phrases
+the same row. Copy does not say "this card" or "below". Named
+store/category is `unknown`; amount declines; a calendar window is
+`unknown`. Biggest-purchase questions stay `largest_purchases`.
+
+**Left alone.** P.1 counterfactual; W.6(b)(c)(d); P1.1 dialTag;
+P1.3/P1.4/P1.5.
+
+**Locked.** `memory-dividend.test.ts` + `assistant-memory-dividend.test.ts`
+regressions; e2e Ask vs Coach line; empty account has no line.
+
+**Gate.** UNVERIFIED until `bash scripts/verify.sh` this session.
+No `prisma/` diff.
+
+**Next.** P1.1 dialTag note or leave as skip, Coast past-enough
+give/spend copy, or P.1 / W.6(b)(c)(d) with a hostile critic.
+
 ## 2026-08-21 — P1.2 staying-wealthy row composes three Coach signals (DECISIONS #500)
 
 **Picked up.** Owner: continue. #499 shipped. P.1 remaining half and
