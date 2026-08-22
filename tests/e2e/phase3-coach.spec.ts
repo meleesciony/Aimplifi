@@ -179,6 +179,14 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await page.getByTestId('life-energy-toggle').click();
   await expect(firstRow).toContainText('hrs');
 
+  // P2.2: demo last-90-days top 5 includes a discretionary buy outside
+  // travel/dining (seed lock in memory-dividend.test.ts). Same sentence.
+  const memoryDividend = page.getByTestId('life-energy-memory-dividend');
+  await expect(memoryDividend).toHaveText(
+    /A purchase outside your money dials is worth the hours/,
+  );
+  await expect(memoryDividend).not.toHaveText(/this card|below/i);
+
   // Money Review: one improvement, one creep, one concrete next action.
   // In demo (no AI key) the §2.4 recap is the DETERMINISTIC floor — same three role lines,
   // and NO "Personalized" badge (the LLM ordering path only runs with a key).
