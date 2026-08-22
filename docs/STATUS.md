@@ -31,7 +31,13 @@ tsc 0, probes tsc 0, eslint 0, unit **7,260 passed + 1 expected fail +
 1 skipped / 441 files + 1 skipped**, `next build` clean. Ask buckets
 e2e **1/1**; runway e2e still **1/1**. No `prisma/` diff.
 
-**Gate read.** Pending push — fill after `bash scripts/ci-status.sh`.
+**Gate read.** GitHub Actions `verify` on `1fc1e57a` = SUCCESS
+(push run **32547061845**, attempt 1, job **11m7s**, full
+`VERIFY_E2E`). Vercel production `dpl_ALJomEGGR1dZ3y67wxET1DkXfq9p`
+READY on the same sha, aliased to `www.aimplifi.app`. Live Ask
+(demo) shows the chip "How are my spending buckets?" and answers
+with source `/budgets` (headline "About 66% / 0% / 34% of your
+income pattern").
 
 ## ✅ BUILT 2026-08-21 — Ask "how many months of runway?" uses the Coach room-for-error card (DECISIONS #498)
 
