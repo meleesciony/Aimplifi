@@ -1,0 +1,4 @@
+{
+  "name": "Aimplifi",
+  "install": "export NVM_DIR=\"$HOME/.nvm\"; [ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\"; nvm install 24 && nvm use 24 && mkdir -p /usr/local/cargo/bin && NODE24_BIN=\"$(dirname \"$(nvm which 24)\")\" && ln -sf \"$NODE24_BIN/node\" /usr/local/cargo/bin/node && ln -sf \"$NODE24_BIN/npm\" /usr/local/cargo/bin/npm && ln -sf \"$NODE24_BIN/npx\" /usr/local/cargo/bin/npx && npm ci"
+}
