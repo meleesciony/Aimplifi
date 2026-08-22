@@ -21,7 +21,18 @@ import {
 } from '@/lib/engine/reports/reports';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
-import { planRowLabels, uncountedFixedNote } from '@/lib/engine/spending-plan/row-labels';
+import {
+  BUDGETS_CARD_NOTE_SURFACE,
+  planCardNotes,
+  planRowLabels,
+  uncountedFixedNote,
+} from '@/lib/engine/spending-plan/row-labels';
+import {
+  CONSCIOUS_BUCKET_LABELS,
+  consciousFixedCounts,
+  mapToConsciousBuckets,
+  type ConsciousBucketKey,
+} from '@/lib/engine/spending-plan/conscious';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { RadarResult } from '@/lib/engine/radar/radar';
@@ -2377,6 +2388,71 @@ export function answerRunway(input: {
   };
 }
 
+const CONSCIOUS_SPENDING_SOURCE: AssistantSource = { label: 'See on Spending', href: '/budgets' };
+
+/** Same clamp the /budgets strip uses so Ask percents cannot drift from the legend. */
+function consciousSharePct(bps: number): number {
+  return Math.min(100, Math.max(0, Math.round(bps / 100)));
+}
+
+/**
+ * Phrases the SAME `mapToConsciousBuckets` split `/budgets` prints via
+ * `COACH_COPY.consciousSpending`. Originates no cents. Copy does not say
+ * "this card" or "below" — those claims are false in Ask (the L.15 lesson).
+ */
+export function answerConsciousSpending(
+  plan: SpendingPlan,
+  disclosures: SpendingPlanDisclosures,
+): AssistantAnswer {
+  const mapped = mapToConsciousBuckets(plan);
+  if (mapped.patternIncomeCents <= 0) {
+    return {
+      kind: 'conscious_spending',
+      headline:
+        "There's no income pattern yet, so a percentage split isn't a number I can stand behind.",
+      facts: [],
+      source: CONSCIOUS_SPENDING_SOURCE,
+    };
+  }
+
+  const share = (k: ConsciousBucketKey) => mapped.buckets.find((b) => b.key === k)!.shareBps;
+  const fixedPct = consciousSharePct(share('fixed'));
+  const savePct = consciousSharePct(share('savings'));
+  const funPct = consciousSharePct(share('guiltFree'));
+  const caption = COACH_COPY.consciousSpending(
+    fixedPct,
+    savePct,
+    funPct,
+    consciousFixedCounts(plan.reserveLines.length),
+    plan.savingsTargetBps,
+  );
+
+  const notes: string[] = [];
+  if (plan.plannedSavingsCents === 0 && plan.savingsTargetBps == null) {
+    notes.push(
+      'Savings is $0 because no savings target and no monthly goal amount is set yet — not because nothing was saved. Set a target in Settings and this bucket fills in.',
+    );
+  }
+  const fixedShortfall = uncountedFixedNote(disclosures, 'left-to-spend', 'your fixed costs');
+  if (fixedShortfall) notes.push(fixedShortfall);
+  notes.push(...planCardNotes(disclosures, BUDGETS_CARD_NOTE_SURFACE));
+  if (mapped.overspent) notes.push(COACH_COPY.consciousOverspent());
+
+  const byKey = Object.fromEntries(mapped.buckets.map((b) => [b.key, b]));
+  const facts: AssistantFact[] = (['fixed', 'savings', 'guiltFree'] as const).map((key) => ({
+    label: CONSCIOUS_BUCKET_LABELS[key],
+    value: `${consciousSharePct(byKey[key]!.shareBps)}% · ${fmt(byKey[key]!.cents)}`,
+  }));
+
+  return {
+    kind: 'conscious_spending',
+    headline: `About ${fixedPct}% / ${savePct}% / ${funPct}% of your income pattern — Fixed costs, savings & investing, and guilt-free.`,
+    detail: [caption, ...notes].join(' '),
+    facts,
+    source: CONSCIOUS_SPENDING_SOURCE,
+  };
+}
+
 export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer {
   const source: AssistantSource = { label: 'See subscriptions', href: '/recurring' };
   if (summary.activeSubscriptionCount === 0) {
@@ -2574,6 +2650,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'If I want to save up to $10 million, what do I need to do?',
   'What should I cut?',
   'Is my lifestyle creeping?',
+  'How are my spending buckets?',
 ];
 
 export function answerUnknown(): AssistantAnswer {
@@ -2581,7 +2658,7 @@ export function answerUnknown(): AssistantAnswer {
     kind: 'unknown',
     headline: 'I can answer questions grounded in your own accounts and transactions.',
     detail:
-      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, what you owe on your cards, when you can retire, what to cut, whether spending is outpacing income, subscriptions, your 90-day forecast, income, or savings rate.',
+      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, your spending buckets, what you owe on your cards, when you can retire, what to cut, whether spending is outpacing income, subscriptions, your 90-day forecast, income, or savings rate.',
     facts: [],
     suggestions: [...ASSISTANT_SUGGESTIONS],
   };

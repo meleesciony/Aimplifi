@@ -151,6 +151,19 @@ test('How many months of runway agrees with Coach room-for-error card', async ({
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
 });
 
+test('How are my spending buckets agrees with Spending strip', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/budgets');
+  const caption = ((await page.getByTestId('conscious-caption').textContent()) ?? '').trim();
+  expect(caption, 'Spending bucket caption').not.toBe('');
+
+  await page.goto('/ask');
+  await ask(page, 'How are my spending buckets?');
+  await expect(page.getByTestId('ask-answer')).toContainText(caption);
+  await expect(page.getByTestId('ask-answer')).not.toContainText(/this card/i);
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/budgets');
+});
+
 test('When can I retire agrees with Coach FI card', async ({ page }) => {
   await signIn(page);
   await page.goto('/coach');

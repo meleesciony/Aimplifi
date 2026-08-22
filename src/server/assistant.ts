@@ -60,6 +60,7 @@ import {
   answerFiStatus,
   answerLifestyleCreep,
   answerRunway,
+  answerConsciousSpending,
   answerSafeToSpend,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
@@ -110,6 +111,7 @@ const DELEGATES_OWN_BOUNDARY: ReadonlySet<AssistantIntent['kind']> = new Set([
   'what_to_cut',
   'fi_status',
   'runway',
+  'conscious_spending',
 ]);
 
 const EMPTY_HANDOVER_KEYS: ReadonlySet<string> = new Set();
@@ -819,6 +821,11 @@ async function buildAnswer(
           nextStep: 'accounts-route',
         }),
       });
+    }
+    case 'conscious_spending': {
+      // SAME mapToConsciousBuckets split the /budgets strip prints.
+      const plan = await getSpendingPlan(userId);
+      return answerConsciousSpending(plan, plan.disclosures);
     }
     case 'fi_status': {
       // Standing FI date / number: SAME getCoachData().fi the /coach FI card prints.

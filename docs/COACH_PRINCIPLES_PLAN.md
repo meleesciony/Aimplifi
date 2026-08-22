@@ -1,30 +1,63 @@
 <!--
-RESUME HERE (saved 2026-06-24)
-Status: PLAN ONLY — no app code has been changed. Awaiting the owner's pick of a
-starting batch before any implementation.
-
-How we got here: a 14-agent audit/plan pass mapped 9 personal-finance books onto
-the live app. The Coach already embodies ~7 of the 9; this plan names the
-principles you're already living and fills the few real gaps, coach-first.
-
-NEXT STEP when you return — pick a starting batch (see §7 Build order):
-  • Recommended: Wave 1 (content-only coach captions) + the two Wave-2 highs
-    (P0.4 Conscious-Spending lens, P0.5 Automation blueprint). Surfaces 7/9 books.
-  • Or add Wave 3 (Debt Freedom planner) for the full Ramsey arc.
-Then I build engine-first + unit-tested, run `bash scripts/verify.sh` to green,
-and commit per the constitution.
-
-Caveat: each book's principles are the models' best recollection of that book —
-worth a quick sanity-check, though the adversarial pass found no misattributions.
-The 9 books: Psychology of Money (Housel); I Will Teach You to Be Rich (Sethi);
-The Total Money Makeover (Ramsey); The Simple Path to Wealth (Collins); Rich Dad
-Poor Dad (Kiyosaki); Die with Zero (Perkins); Get Good with Money (Aliche); The
-Millionaire Next Door (Stanley & Danko); The Richest Man in Babylon (Clason).
+RECONCILED 2026-08-21 (TASKS P.2 / DECISIONS #499). This file was authored
+2026-06-24 as PLAN ONLY. Waves 1–4 plus later W.*/Ask work have since shipped.
+Do not rebuild items listed SHIPPED / SUPERSEDED in §0. The body below is the
+original plan; §0 is the current-state overlay. Next leftovers are ranked there.
 -->
 
 # Coach Principles Plan — Embedding 9 Books into Aimplifi
 
 *Source: nine personal-finance books distilled to principles and mapped against the live app. Aimplifi is ~done; this plan is deliberately minimal and high-impact. Every item respects the constitution: engine-first + unit-tested, integer cents, assumptions stated inline, no-shame language, and all new user-facing strings routed through `COACH_COPY` (`src/lib/engine/fi/coach-copy.ts`) so `tests/unit/coach-copy.test.ts` keeps scanning them for guardrail violations.*
+
+---
+
+## 0. Reconciliation (2026-08-21 — P.2)
+
+Authoring-time verdicts in §2–§7 are **not** current build state (lesson:
+plan-verdicts-are-authoring-time). Verified against code this session.
+
+**Do not rebuild.** Invisible wealth, room-for-error pill, freedom dividend,
+yourEnough, volatility note, conscious strip (3 buckets — investing folded
+into savings, stated inline), automation blueprint, biggest-lever badge,
+cushion-is-a-goal, assumptions-change, assets-vs-liabilities caption,
+app-authored money-rules card, debt freedom planner + Ask `debt_payoff`,
+wealth-target + lifestyle creep + signature/streaks, W.6(a) dial-aware
+cuts, Ask intents `what_to_cut` / `fi_status` / `lifestyle_creep` /
+`wealth_target` / `debt_payoff` / `savings_rate` / `cash_needed` /
+`safe_to_spend` / `cash_flow_radar` / `forecast` / `subscriptions`,
+#493 Settings savings-goal reference line.
+
+**Clusters now.** C1, C3, C4, C7, C8, C11, C15 **SHIPPED**. C9 **SHIPPED**
+(payoff engine; mortgage what-if still absent). C6 **SHIPPED** as the
+adapted 3-bucket lens (book's 4th investing % is the honest fold). C16
+**SUPERSEDED** (app-authored rules card, not a Settings freeform list).
+C2 / C5 / C10 / C12 / C13 / C14 still **PARTIAL** (named leftovers below).
+
+**P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.5, P1.6, P2.1, P2.4, P2.5.
+PARTIAL: P0.4 (3 buckets, no Ask until this slice), P1.1 (`dialTag` on
+/trends only; cuts skip dials instead). SUPERSEDED: P2.3 (#493 Settings
+dial), P2.6 (app-authored card). ABSENT: P1.2 stay-wealthy row, P1.3
+Rich Life field, P1.4 income lever, P1.5 investing ladder / fee-drag,
+P2.2 memory-dividend line.
+
+**This slice (#499).** Ask `conscious_spending` phrases the existing
+`/budgets` strip (plan §4 Ask leftover). Same `mapToConsciousBuckets` +
+`COACH_COPY.consciousSpending`. "This month" is the strip's window;
+any other date / store / category / amount abstains. Ask `runway`
+shipped as #498 (P0.2 card already existed).
+
+**Still open, ranked.**
+
+Grok / Flash (no new money math): P1.2 stay-wealthy row (compose runway
++ card-cleared streak + creep); P1.1 dialTag note or leave as skip;
+P2.2 memory-dividend line on LifeEnergyCard; Coast past-enough
+give/spend copy; P1.3 Rich Life one-liner (needs a stored string).
+
+Opus + hostile critic (new money / money-visible): P.1 counterfactual
+re-projection; W.6(b) marginal-dollar order; W.6(d) drawdown on FI date;
+W.6(c) category fulfillment curve; mortgage early-payoff; Reports
+interest & fees YTD; P1.4 income lever; P1.5 fee-drag FV; PAW expected-NW
+lens.
 
 ---
 
@@ -191,7 +224,7 @@ Light but meaningful touches outside the Coach. All reuse existing engines; all 
 | **Automation** (`/coach`) | Automation blueprint card (P0.5) | C7 | both | M / high |
 | **Goals** (`/goals`) | "Paying yourself first {sum}/mo across {n} goals" summary feeding the conscious-spending lens; College/education + Giving goal presets; unallocated-cushion-is-a-goal note | C1, C6, C14 | content/mech | S / low–med |
 | **Reports** (`/reports`) | "Interest & fees paid YTD" tile (cost-of-debt made visible, no moralizing, with 30yr-FV-if-invested context); surface a "Giving" category in spending-by-category | C8, C9, C14 | content | M / med |
-| **Ask Aimplifi** (`/ask`) | Add intents that read the new/existing engines: `debt_payoff` ("when am I debt-free?"), `conscious_spending` ("how are my spending buckets?"), `rich_life`. Each delegates to the **same** tested read-path so `/ask` can't drift from `/coach` or `/budgets` | C9, C6, C13 | mechanic | M / med |
+| **Ask Aimplifi** (`/ask`) | Add intents that read the new/existing engines: `debt_payoff` ("when am I debt-free?"), `conscious_spending` ("how are my spending buckets?"), `rich_life`. Each delegates to the **same** tested read-path so `/ask` can't drift from `/coach` or `/budgets`. **2026-08-21:** `debt_payoff` already shipped; `conscious_spending` shipped this slice (#499). `rich_life` still needs a stored vision (P1.3). | C9, C6, C13 | mechanic | M / med |
 | **Onboarding/Settings** (`/settings`) | "My Rich Life" field (P1.3); My Money Rules list (P2.6); "assumptions will change" helper | C13, C16, Housel | content | S / low–med |
 
 ---
@@ -318,6 +351,6 @@ Sequenced so each step is independently shippable and verifiable (`bash scripts/
 | C14 Coast-FI "give/spend while you can" framing + Giving category/goal | C14 (Conflict C) | S | low |
 | P2.2 Memory-dividend / who-notices reflection | C5 | M | low |
 | P2.6 My Money Rules · C11 assets-vs-liabilities education · C12 PAW lens · high-yield note | mixed | S–M | low |
-| Ask Aimplifi new intents (debt_payoff, conscious_spending, rich_life) | C9/C6/C13 | M | med |
+| Ask Aimplifi new intents (debt_payoff, conscious_spending, rich_life) | C9/C6/C13 | M | med | **2026-08-21:** first two SHIPPED; `rich_life` still gated on P1.3 |
 
 **Stop condition.** Aimplifi is ~done; per the project CLAUDE.md "When blocked" / conventions guidance and the owner's #80 "only change if markedly better" directive, do not polish past real value. Ship Wave 1 + the two Wave-2 highs (P0.4, P0.5) and the Wave-3 Debt planner — those close the only genuinely *absent or partial* gaps that matter (C9 payoff ordering, C6 bucket lens, C7 automation) and add the highest-leverage *content* gaps (C2, C13). Everything past that is genuine polish; build only what is "markedly better," then stop. **Note:** Kiyosaki (C11) and Aliche (C16) remain in Wave 4 and will not ship in that scope — surface one Wave-1 content line each only if keeping all nine books visible from the first ship is wanted.

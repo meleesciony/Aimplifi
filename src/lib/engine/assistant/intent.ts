@@ -81,6 +81,11 @@ export type AssistantIntent =
    * 90-day radar projection and not an emergency-fund savings goal.
    */
   | { kind: 'runway' }
+  /**
+   * Sethi bucket lens — the SAME `mapToConsciousBuckets` `/budgets` prints.
+   * Global "how are my spending buckets?" only (P.2 leftover / plan §4 Ask).
+   */
+  | { kind: 'conscious_spending' }
   /** 90-day committed + card dues — same engine as dashboard Cash flow radar (DECISIONS #488). */
   | { kind: 'cash_flow_radar' }
   /** Recurring-only balance walk — same engine as /forecast (DECISIONS #72 / #75). */
@@ -111,6 +116,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'what_to_cut',
   'lifestyle_creep',
   'runway',
+  'conscious_spending',
   'cash_flow_radar',
   'forecast',
   'savings_rate',
@@ -1579,6 +1585,48 @@ function asksRunway(q: string): boolean {
   return false;
 }
 
+/**
+ * This-month conscious-spending split. Shared by the parser and
+ * `intentFromKind` so a model-chosen kind cannot answer a dated, store-
+ * scoped, or category-scoped question with the /budgets strip.
+ *
+ * Abstain (`null`) when the words do not ask this question, or when they
+ * name an amount (a different planner). A calendar other than "this month"
+ * is `unknown` — the strip is this month, not last month or a named year.
+ * "This month" is the same window the strip already prints, so it stays.
+ */
+export function consciousSpendingFromQuestion(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): AssistantIntent | null {
+  const q = normalize(question);
+  if (!asksConsciousSpending(q)) return null;
+  if (parseTargetAmount(question) !== null) return null;
+  const window = parseExplicitTimeframe(question, today);
+  if (window !== null && window.label !== 'this month') return { kind: 'unknown', question };
+  // "This month" is also a parseable target date. That is the strip's window,
+  // not a deadline — only a date that is not this month abstains.
+  if (window === null && parseTargetDate(question, today) !== null) {
+    return { kind: 'unknown', question };
+  }
+  if (unresolvedDateShape(question, today)) return { kind: 'unknown', question };
+  if (/\b(?:at|with)\b/.test(q)) return { kind: 'unknown', question };
+  const target = resolveSpendTarget(q, custom);
+  if (target) return { kind: 'unknown', question };
+  return { kind: 'conscious_spending' };
+}
+
+function asksConsciousSpending(q: string): boolean {
+  return (
+    /\b(spending|money) buckets?\b/.test(q) ||
+    /\bconscious[\s-]spend/.test(q) ||
+    /\bbucket (split|lens)\b/.test(q) ||
+    /\b(fixed|savings|guilt[- ]?free) buckets?\b/.test(q) ||
+    /\bhow (is|are) my (money|spending) (split|allocated|divided)\b/.test(q)
+  );
+}
+
 function asksLifestyleCreep(q: string): boolean {
   // Subscription price-increase language is the cut list / no-creep streak,
   // not discretionary-vs-income.
@@ -1756,6 +1804,14 @@ export function parseAssistantQuery(
   {
     const standing = runwayFromQuestion(question, today, custom);
     if (standing) return standing;
+  }
+
+  // Conscious-spending buckets (/budgets strip). BEFORE safe_to_spend so
+  // "conscious spending plan" is the lens, not the dollar leftover. "How
+  // much is guilt-free to spend" has no bucket words and stays that route.
+  {
+    const buckets = consciousSpendingFromQuestion(question, today, custom);
+    if (buckets) return buckets;
   }
 
   // Wealth target with NO deadline (W.4). The dated sibling above already took
@@ -2104,6 +2160,7 @@ export function validateIntent(
     case 'fi_status':
     case 'lifestyle_creep':
     case 'runway':
+    case 'conscious_spending':
     case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':

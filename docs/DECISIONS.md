@@ -8598,6 +8598,40 @@ already prints the discretionary-vs-income verdict.
 `test_regression__lifestyle_creep_date_window_abstains`. e2e
 `tests/e2e/ask.spec.ts` "Is my lifestyle creeping agrees with Coach creep card".
 
+## #499 — P.2 reconciled; Ask phrases the conscious-spending buckets (2026-08-21)
+
+**Context.** Owner: continue. #497 shipped; #498 (runway) landed on main
+during this slice. P.1 remaining half and W.6(b)(c)(d) are new money
+engines (off this lane). TASKS P.2 was the queued audit:
+`COACH_PRINCIPLES_PLAN.md` still said PLAN ONLY (2026-06-24) while
+Waves 1–4 and later W.*/Ask work had shipped. Highest-leverage leftover
+after the audit: plan §4's Ask `conscious_spending` while `/budgets`
+already prints the strip.
+
+**Decision.**
+1. Overlay current state on the plan as §0. Authoring-time verdicts stay
+   in the body; §0 is what a later session reads. Do not rebuild the
+   SHIPPED / SUPERSEDED list.
+2. New Ask intent `conscious_spending`. Parser + `intentFromKind` share
+   `consciousSpendingFromQuestion`. The answer formatter phrases the SAME
+   `mapToConsciousBuckets` + `COACH_COPY.consciousSpending` `/budgets`
+   prints — caption in the detail, percents from the strip's clamp,
+   source `/budgets`. Originates no cents.
+3. No new math. Copy does not say "this card" or "below" (L.15). "This
+   month" is the strip's own window and stays; any other date is
+   `unknown`. An amount declines so other planners can match. A named
+   store or category is `unknown`. "How much is guilt-free to spend"
+   stays `safe_to_spend` (no bucket words).
+4. Missing income pattern refuses a percentage split — the strip renders
+   nothing in that state, and a 0/0/0 answer would be a fabricated lens.
+
+**Locked.** `tests/unit/assistant-conscious-spending.test.ts`
+`test_regression__conscious_spending_how_are_my_spending_buckets_routes_to_strip`,
+`test_regression__conscious_spending_answer_agrees_with_budgets_caption`,
+`test_regression__conscious_spending_copy_does_not_claim_this_card_or_below`,
+`test_regression__conscious_spending_other_date_window_abstains`. e2e
+`tests/e2e/ask.spec.ts` "How are my spending buckets agrees with Spending strip".
+
 ## #498 — Ask "how many months of runway?" uses the Coach room-for-error card (2026-08-21)
 
 **Context.** Owner: continue; #497 shipped. P.1 remaining half and
@@ -8632,3 +8666,4 @@ months of expenses in cash.
 `test_regression__runway_copy_does_not_claim_this_card_or_below`,
 `test_regression__runway_date_window_abstains`. e2e
 `tests/e2e/ask.spec.ts` "How many months of runway agrees with Coach room-for-error card".
+

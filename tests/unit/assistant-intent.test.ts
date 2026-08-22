@@ -36,6 +36,9 @@ describe('parseAssistantQuery — routing', () => {
     ['How many months of runway do I have?', 'runway'],
     ["what's my cash buffer", 'runway'],
     ['do I have an emergency fund', 'runway'],
+    // conscious-spending buckets (/budgets strip)
+    ['How are my spending buckets?', 'conscious_spending'],
+    ['how is my conscious spending', 'conscious_spending'],
     // subscriptions
     ['what subscriptions am I paying for?', 'subscriptions'],
     ['list my recurring payments', 'subscriptions'],

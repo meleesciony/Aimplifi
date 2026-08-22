@@ -6,6 +6,30 @@ Living document; updated at each phase boundary and critic cycle.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-21 — P.2 reconciled; Ask phrases the conscious-spending buckets (DECISIONS #499)
+
+**The report.** #498 (runway) landed on main while this slice was in
+flight. The June 24 coach-principles plan still read PLAN ONLY. "How
+are my spending buckets?" was unknown while `/budgets` already prints
+the Sethi lens.
+
+**Shipped.** Plan §0 overlay (do not rebuild the SHIPPED list). Ask
+intent `conscious_spending` phrases `mapToConsciousBuckets` +
+`COACH_COPY.consciousSpending` — same caption as the Spending strip.
+"This month" stays; any other date / store / category / amount
+abstains. No income pattern refuses a split. Copy does not say
+"this card" / "below".
+
+**Still open.** P.1 counterfactual re-projection. W.6(b)(c)(d).
+P1.2 stay-wealthy row. P1.3 Rich Life. P1.4/P1.5.
+
+**Locked.** `assistant-conscious-spending.test.ts` four
+`test_regression__conscious_spending_*`. e2e Ask vs `/budgets` caption.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,242 passed + 1 expected fail + 1 skipped / 440 files + 1 skipped**,
+`next build` clean. Ask buckets e2e **1/1**. No `prisma/` diff.
+
 ## ✅ BUILT 2026-08-21 — Ask "how many months of runway?" uses the Coach room-for-error card (DECISIONS #498)
 
 **The report.** #497 shipped. "How many months of runway do I have?" and
@@ -19,7 +43,7 @@ say "this card" or "below". Named store or category is `unknown`; amount
 declines; a date window is `unknown`. "Run out of money" stays radar.
 A dated or amount-bearing emergency-fund goal stays those planners.
 
-**Still open.** P.1 counterfactual re-projection. W.6(b)(c)(d). P.2 audit.
+**Still open.** P.1 counterfactual re-projection. W.6(b)(c)(d).
 
 **Locked.** `assistant-runway.test.ts` four `test_regression__runway_*`.
 e2e Ask "How many months of runway do I have?" agrees with `/coach`

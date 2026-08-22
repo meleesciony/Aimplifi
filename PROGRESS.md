@@ -2,6 +2,31 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-21 — P.2 reconciled; Ask phrases the conscious-spending buckets (DECISIONS #499)
+
+**Picked up.** Owner: continue. #497 shipped; #498 (runway) landed on
+main during this slice. P.1 remaining half and W.6(b)(c)(d) are new
+money engines (off this lane). P.2 (stale coach-principles plan) was
+the queued audit.
+
+**Closed.** Plan §0 overlay. Ask `conscious_spending` phrases the
+`/budgets` strip (`mapToConsciousBuckets` + `COACH_COPY.consciousSpending`).
+Copy does not say "this card" or "below". Named store/category is
+`unknown`; amount declines; a calendar other than "this month" is
+`unknown`. Guilt-free leftover dollars stay `safe_to_spend`.
+
+**Left alone.** P.1 counterfactual; W.6(b)(c)(d); P1.2/P1.3/P1.4/P1.5.
+
+**Locked.** `assistant-conscious-spending.test.ts` four regressions;
+e2e Ask vs Spending caption.
+
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,242 passed + 1 expected fail + 1 skipped / 440 files + 1 skipped**,
+`next build` clean. Ask buckets e2e **1/1**. No `prisma/` diff.
+
+**Next.** P1.2 stay-wealthy row (copy over existing signals), or P.1
+counterfactual / W.6(b)(c)(d) with a hostile critic.
+
 ## 2026-08-21 — Ask "how many months of runway?" uses the Coach room-for-error card (DECISIONS #498)
 
 **Picked up.** Owner: continue + /remote-control. Queue empty. #497 shipped.
@@ -18,7 +43,7 @@ amount declines; a calendar window is `unknown`. Radar "run out of
 money" stays `cash_flow_radar`. Dated/amount emergency-fund goals stay
 those planners.
 
-**Left alone.** P.1 counterfactual; W.6(b)(c)(d); P.2 audit.
+**Left alone.** P.1 counterfactual; W.6(b)(c)(d); P.2 (closed #499).
 
 **Locked.** `assistant-runway.test.ts` four regressions; e2e Ask vs
 Coach `runway-months`.
@@ -33,8 +58,7 @@ GitHub Actions `verify` SUCCESS on `a68689eb` (push **32535935837**
 an empty preview URL — not a product-build failure (UNVERIFIED
 rejection text). Production is unchanged until merge to `main`.
 
-**Next.** Merge PR #13 when the owner wants it on www. Then P.1
-remaining half (money-math / hostile critic), W.6(b)(c)(d), or P.2.
+**Next.** P.2 closed in #499. P.1 remaining half (money-math / hostile critic) or W.6(b)(c)(d).
 
 ## 2026-08-21 — Ask "is my lifestyle creeping?" uses the Coach creep card (DECISIONS #497)
 
