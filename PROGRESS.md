@@ -20,8 +20,10 @@ P1.3/P1.4/P1.5.
 **Locked.** `memory-dividend.test.ts` + `assistant-memory-dividend.test.ts`
 regressions; e2e Ask vs Coach line; empty account has no line.
 
-**Gate.** UNVERIFIED until `bash scripts/verify.sh` this session.
-No `prisma/` diff.
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,325 passed + 1 expected fail + 1 skipped / 445 files + 1 skipped**,
+`next build` clean. Ask memory-dividend e2e **1/1**; coach page e2e
+**1/1**; empty-account life-energy e2e **1/1**. No `prisma/` diff.
 
 **Next.** P1.1 dialTag note or leave as skip, Coast past-enough
 give/spend copy, or P.1 / W.6(b)(c)(d) with a hostile critic.

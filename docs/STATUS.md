@@ -25,7 +25,10 @@ P1.3 Rich Life. P1.4/P1.5. P1.1 dialTag.
 `test_regression__memory_dividend_*`. e2e Ask vs Coach line; empty
 account has no line.
 
-**Gate.** UNVERIFIED until `bash scripts/verify.sh` this session.
+**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
+**7,325 passed + 1 expected fail + 1 skipped / 445 files + 1 skipped**,
+`next build` clean. Ask memory-dividend e2e **1/1**; coach page e2e
+**1/1**; empty-account life-energy e2e **1/1**. No `prisma/` diff.
 
 **Schema.** None.
 
