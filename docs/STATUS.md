@@ -30,6 +30,14 @@ account has no line.
 `next build` clean. Ask memory-dividend e2e **1/1**; coach page e2e
 **1/1**; empty-account life-energy e2e **1/1**. No `prisma/` diff.
 
+**Gate read.** GitHub Actions `verify` on `79d8d88b` = SUCCESS twice
+(push run **32592539270** 12m41s; pull_request run **32592541504**
+12m43s; both attempt 1, full `VERIFY_E2E`). Vercel Preview check
+failed — same class as #498 (local + CI `next build` both clean; no
+`prisma/` diff). Exact Vercel rejection text is UNVERIFIED here.
+Production on `www.aimplifi.app` is unchanged until this PR merges
+to `main`.
+
 **Schema.** None.
 
 ## ✅ BUILT 2026-08-21 — P1.2 staying-wealthy row composes three Coach signals (DECISIONS #500)

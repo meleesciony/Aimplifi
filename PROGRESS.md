@@ -25,6 +25,12 @@ regressions; e2e Ask vs Coach line; empty account has no line.
 `next build` clean. Ask memory-dividend e2e **1/1**; coach page e2e
 **1/1**; empty-account life-energy e2e **1/1**. No `prisma/` diff.
 
+**Shipped.** Branch `cursor/p2-2-memory-dividend-e9ed`, PR #15.
+GitHub Actions `verify` SUCCESS on `79d8d88b` (push **32592539270**
+12m41s; PR **32592541504** 12m43s). Vercel Preview failed — not a
+product-build failure (UNVERIFIED rejection text). Production is
+unchanged until merge to `main`.
+
 **Next.** P1.1 dialTag note or leave as skip, Coast past-enough
 give/spend copy, or P.1 / W.6(b)(c)(d) with a hostile critic.
 
