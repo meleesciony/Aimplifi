@@ -26,9 +26,12 @@ P1.2 stay-wealthy row. P1.3 Rich Life. P1.4/P1.5.
 **Locked.** `assistant-conscious-spending.test.ts` four
 `test_regression__conscious_spending_*`. e2e Ask vs `/budgets` caption.
 
-**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
-**7,242 passed + 1 expected fail + 1 skipped / 440 files + 1 skipped**,
-`next build` clean. Ask buckets e2e **1/1**. No `prisma/` diff.
+**Gate.** Rebased onto #498 (`55a0c937`). `bash scripts/verify.sh` →
+tsc 0, probes tsc 0, eslint 0, unit **7,260 passed + 1 expected fail +
+1 skipped / 441 files + 1 skipped**, `next build` clean. Ask buckets
+e2e **1/1**; runway e2e still **1/1**. No `prisma/` diff.
+
+**Gate read.** Pending push — fill after `bash scripts/ci-status.sh`.
 
 ## ✅ BUILT 2026-08-21 — Ask "how many months of runway?" uses the Coach room-for-error card (DECISIONS #498)
 

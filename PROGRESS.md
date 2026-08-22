@@ -20,9 +20,12 @@ Copy does not say "this card" or "below". Named store/category is
 **Locked.** `assistant-conscious-spending.test.ts` four regressions;
 e2e Ask vs Spending caption.
 
-**Gate.** `bash scripts/verify.sh` → tsc 0, probes tsc 0, eslint 0, unit
-**7,242 passed + 1 expected fail + 1 skipped / 440 files + 1 skipped**,
-`next build` clean. Ask buckets e2e **1/1**. No `prisma/` diff.
+**Gate.** Rebased onto #498 (`55a0c937`). `bash scripts/verify.sh` →
+tsc 0, probes tsc 0, eslint 0, unit **7,260 passed + 1 expected fail +
+1 skipped / 441 files + 1 skipped**, `next build` clean. Ask buckets
+e2e **1/1**; runway e2e still **1/1**. No `prisma/` diff.
+
+**Gate read.** Pending push — fill after `bash scripts/ci-status.sh`.
 
 **Next.** P1.2 stay-wealthy row (copy over existing signals), or P.1
 counterfactual / W.6(b)(c)(d) with a hostile critic.
