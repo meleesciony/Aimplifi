@@ -34,6 +34,7 @@ import {
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import type { DiscretionaryCategorySpend } from '@/lib/engine/fi/discretionary-cuts';
 import { averageDiscretionaryCategorySpend } from '@/lib/engine/fi/discretionary-spend';
+import { lifeEnergyShowsMemoryDividend } from '@/lib/engine/fi/memory-dividend';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { detectUnusualCharges, type UnusualCharge } from '@/lib/engine/anomaly/detect';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
@@ -207,6 +208,8 @@ export interface CoachData {
     liquid: { label: string; frozenSince: string }[];
   };
   lifeEnergy: { merchant: string; amountCents: number; hours: number; date: string }[];
+  /** P2.2: true when the list includes a discretionary buy outside money dials. */
+  lifeEnergyMemoryDividend: boolean;
   hourlyWageCents: number;
   /** Display names for coach copy (resolved from stored ids/names). */
   moneyDials: string[];
@@ -434,7 +437,7 @@ export async function getCoachData(
   // life-energy view: 5 largest non-transfer purchases in the last 90 days
   const cutoff = addMonthsClamped(today, -3);
   const wage = user.hourlyWageCents ?? 0;
-  const lifeEnergy = txns
+  const lifeEnergyRows = txns
     .filter(
       (t) =>
         !t.isTransfer &&
@@ -454,7 +457,19 @@ export async function getCoachData(
       amountCents: t.amountCents,
       hours: hoursOfWork(cents(t.amountCents), wage),
       date: t.date,
+      categoryId: t.categoryId,
     }));
+  const lifeEnergyMemoryDividend = lifeEnergyShowsMemoryDividend(
+    lifeEnergyRows,
+    moneyDialIds,
+    meta,
+  );
+  const lifeEnergy = lifeEnergyRows.map(({ merchant, amountCents, hours, date }) => ({
+    merchant,
+    amountCents,
+    hours,
+    date,
+  }));
 
   // the Money Review's "one next action" prefers the live cash-needed remedy
   // (single shared assembly path — cycle-1 H1)
@@ -606,6 +621,7 @@ export async function getCoachData(
     runwayMonths: runway,
     frozenBalances,
     lifeEnergy,
+    lifeEnergyMemoryDividend,
     hourlyWageCents: wage,
     moneyDials: dialDisplayNames(moneyDialIds, dialCatalog),
     moneyDialIds,

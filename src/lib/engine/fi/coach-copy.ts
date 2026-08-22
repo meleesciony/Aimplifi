@@ -912,6 +912,12 @@ export const COACH_COPY = {
   lifeEnergyFootnote: (wageCents: Cents) =>
     `Hours are computed assuming your after-tax wage of ${formatCents(wageCents)}/hr. A lens, not a judgment.`,
 
+  // C5 · Perkins, Housel — memory dividend / who-notices. Rendered only when
+  // the life-energy list contains a discretionary purchase that is not a
+  // money dial. No page-position claim ("this card" / "below").
+  memoryDividend: () =>
+    `A purchase outside your money dials is worth the hours if it's a memory you'll keep — if it was meant to impress, almost no one notices the thing.`,
+
   reviewImprovement: (monthLabel: string, fromBps: number, toBps: number) =>
     `What improved in ${monthLabel}: savings rate moved from ${pct1(fromBps)} to ${pct1(toBps)}.`,
 

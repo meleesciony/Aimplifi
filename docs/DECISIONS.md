@@ -8701,3 +8701,33 @@ The June 24 template always claimed all three were true.
 `tests/e2e/ask.spec.ts` "Am I staying wealthy agrees with Coach staying-wealthy row";
 `tests/e2e/phase3-coach.spec.ts` row vs runway title + creep title.
 
+## #501 — P2.2 memory-dividend line on Life Energy (2026-08-22)
+
+**Context.** Owner: continue. #500 shipped. P.1 remaining half and
+W.6(b)(c)(d) are new money engines (off this lane). Plan leftover
+P1.1 (`dialTag` on /trends, cuts already skip dials) was skippable.
+P2.2 was absent: Perkins/Housel "memory dividend / who notices" on
+the Life Energy card.
+
+**Decision.**
+1. `memoryDividendApplies` / `lifeEnergyShowsMemoryDividend` gate the
+   existing `COACH_COPY.memoryDividend` line. No new money math. The
+   card already lists the five largest purchases; the line appears
+   only when that list includes a discretionary category that is not
+   a declared money-dial id (O.17a exact id, same as W.6(a) / /trends
+   `dialTag`). Rent, groceries, uncategorized, unknown, and a travel
+   or dining dial stay quiet.
+2. Copy names the filter ("outside your money dials") so a mixed list
+   does not frame rent as meant to impress. No "this card" / "below".
+3. P1.1 leftover left as skip: `dialTag` is on /trends, `biggestLever`
+   is on /coach, and W.6(a) already removes dials from the cut list —
+   tagging a cut as a dial would contradict that skip.
+
+**Locked.** `tests/unit/memory-dividend.test.ts`
+`test_regression__memory_dividend_skips_a_money_dial_category`,
+`test_regression__memory_dividend_skips_rent_and_uncategorized`,
+`test_regression__memory_dividend_hidden_when_every_row_is_a_dial_or_a_need`,
+`test_regression__memory_dividend_demo_seed_shows_the_line`,
+`test_regression__memory_dividend_copy_does_not_claim_this_card_or_below`.
+e2e `tests/e2e/phase3-coach.spec.ts` Life Energy memory-dividend line.
+
