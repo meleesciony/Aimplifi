@@ -27,7 +27,13 @@ regressions; e2e Ask vs Coach row; coach page vs runway/creep titles.
 `next build` clean. Ask stay-wealthy e2e **1/1**; coach page e2e **1/1**.
 No `prisma/` diff.
 
-**Gate read.** Pending push — fill after `bash scripts/ci-status.sh`.
+**Gate read.** GitHub Actions `verify` on `1ccd03ea` = SUCCESS
+(push run **32549680184**, attempt 1, job **12m45s**, full
+`VERIFY_E2E`). Vercel production `dpl_CKBqBMT7ifJo6KPGKyPbFv6RnfGh`
+READY on the same sha, aliased to `www.aimplifi.app`. Live Coach
+(demo) shows the staying-wealthy row (cards clear / 5.7-month cushion /
+spending outpaced income). Live Ask shows the chip "Am I staying
+wealthy?" and answers with source `/coach`.
 
 **Next.** P1.1 dialTag note, P2.2 memory-dividend line, or P.1 / W.6(b)(c)(d)
 with a hostile critic.
