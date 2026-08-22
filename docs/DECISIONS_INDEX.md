@@ -493,3 +493,4 @@ refuses to write if it would drop any number this file already carries.
 - **#497** (Phase ?): Ask "is my lifestyle creeping?" uses the Coach lifestyle-creep card (2026-08-21)
 - **#498** (Phase ?): Ask "how many months of runway?" uses the Coach room-for-error card (2026-08-21)
 - **#499** (Phase ?): P.2 reconciled; Ask phrases the conscious-spending buckets (2026-08-21)
+- **#500** (Phase ?): P1.2 staying-wealthy row composes three Coach signals (2026-08-21)

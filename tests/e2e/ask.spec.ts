@@ -151,6 +151,28 @@ test('How many months of runway agrees with Coach room-for-error card', async ({
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
 });
 
+test('Am I staying wealthy agrees with Coach staying-wealthy row', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/coach');
+  const framing = ((await page.getByTestId('staying-wealthy-framing').textContent()) ?? '').trim();
+  const cards = ((await page.getByTestId('staying-wealthy-cards').textContent()) ?? '').trim();
+  const runway = ((await page.getByTestId('staying-wealthy-runway').textContent()) ?? '').trim();
+  const income = ((await page.getByTestId('staying-wealthy-income').textContent()) ?? '').trim();
+  expect(framing, 'Coach staying-wealthy framing').not.toBe('');
+  expect(cards, 'Coach staying-wealthy cards').not.toBe('');
+  expect(runway, 'Coach staying-wealthy runway').not.toBe('');
+  expect(income, 'Coach staying-wealthy income').not.toBe('');
+
+  await page.goto('/ask');
+  await ask(page, 'Am I staying wealthy?');
+  await expect(page.getByTestId('ask-headline')).toHaveText(framing);
+  await expect(page.getByTestId('ask-answer')).toContainText(cards);
+  await expect(page.getByTestId('ask-answer')).toContainText(runway);
+  await expect(page.getByTestId('ask-answer')).toContainText(income);
+  await expect(page.getByTestId('ask-answer')).not.toContainText(/this card/i);
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
+});
+
 test('How are my spending buckets agrees with Spending strip', async ({ page }) => {
   await signIn(page);
   await page.goto('/budgets');

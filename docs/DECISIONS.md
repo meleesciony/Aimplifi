@@ -8667,3 +8667,37 @@ months of expenses in cash.
 `test_regression__runway_date_window_abstains`. e2e
 `tests/e2e/ask.spec.ts` "How many months of runway agrees with Coach room-for-error card".
 
+## #500 — P1.2 staying-wealthy row composes three Coach signals (2026-08-21)
+
+**Context.** Owner: continue. #499 shipped. P.1 remaining half and
+W.6(b)(c)(d) are new money engines (off this lane). Highest-leverage
+unblocked leftover: plan P1.2, a compact stay-wealthy row. `/coach`
+already prints card-cleared streak, runway months, and lifestyle creep.
+The June 24 template always claimed all three were true.
+
+**Decision.**
+1. `composeStayingWealthy` reads `cardCleared` + `runwayMonths` +
+   `creep`. No new money math. Each checkmark is that signal's own
+   state. Framing is Housel's line only — it never lists the three as
+   facts. Present: streak > 0; positive finite runway (same number
+   `runwayTitle` prints); both creep sides measured and not flagged.
+   Absent signals are quiet circles, never a red X or scarcity copy.
+2. New Ask intent `stay_wealthy`. Parser + `intentFromKind` share
+   `stayWealthyFromQuestion`. The answer phrases the SAME composed row
+   `/coach` prints. Source `/coach`. Originates no signal.
+3. Requires stay-wealthy / survival-signal language. Single-signal
+   questions stay `runway` / `lifestyle_creep` / `cash_needed`. An
+   amount declines. A date / store / category is `unknown`. Copy does
+   not say "this card" or "below" (L.15).
+
+**Locked.** `tests/unit/staying-wealthy.test.ts`
+`test_regression__stay_wealthy_does_not_claim_all_three_when_one_is_absent`,
+`test_regression__stay_wealthy_copy_does_not_claim_this_card_or_below`.
+`tests/unit/assistant-stay-wealthy.test.ts`
+`test_regression__stay_wealthy_am_i_staying_wealthy_routes_to_coach`,
+`test_regression__stay_wealthy_answer_agrees_with_coach_row`,
+`test_regression__stay_wealthy_copy_does_not_claim_this_card_or_below`,
+`test_regression__stay_wealthy_date_window_abstains`. e2e
+`tests/e2e/ask.spec.ts` "Am I staying wealthy agrees with Coach staying-wealthy row";
+`tests/e2e/phase3-coach.spec.ts` row vs runway title + creep title.
+

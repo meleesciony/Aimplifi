@@ -180,6 +180,13 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
         'What should I cut?',
       ]);
 
+    case 'stay_wealthy':
+      return take([
+        'How many months of runway do I have?',
+        'Is my lifestyle creeping?',
+        'When can I retire?',
+      ]);
+
     case 'forecast':
       return take([
         'How much do I need to pay my cards?',

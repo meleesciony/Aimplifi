@@ -86,6 +86,12 @@ export type AssistantIntent =
    * Global "how are my spending buckets?" only (P.2 leftover / plan §4 Ask).
    */
   | { kind: 'conscious_spending' }
+  /**
+   * P1.2 staying-wealthy row — the SAME `composeStayingWealthy` `/coach`
+   * prints over card-cleared + runway + creep. Not a single-signal question
+   * (those stay lifestyle_creep / runway / cash_needed).
+   */
+  | { kind: 'stay_wealthy' }
   /** 90-day committed + card dues — same engine as dashboard Cash flow radar (DECISIONS #488). */
   | { kind: 'cash_flow_radar' }
   /** Recurring-only balance walk — same engine as /forecast (DECISIONS #72 / #75). */
@@ -117,6 +123,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'lifestyle_creep',
   'runway',
   'conscious_spending',
+  'stay_wealthy',
   'cash_flow_radar',
   'forecast',
   'savings_rate',
@@ -1564,6 +1571,40 @@ export function runwayFromQuestion(
   return { kind: 'runway' };
 }
 
+/**
+ * P1.2 staying-wealthy row. Shared by the parser and `intentFromKind` so a
+ * model-chosen kind cannot answer a dated, store-scoped, or amount-bearing
+ * question with the composed Coach row.
+ *
+ * Requires stay-wealthy / survival-signal language. Single-signal questions
+ * ("how many months of runway", "is my lifestyle creeping", "pay cards in
+ * full") stay those routes. An amount declines. A date / store / category
+ * is `unknown`.
+ */
+export function stayWealthyFromQuestion(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): AssistantIntent | null {
+  const q = normalize(question);
+  if (!asksStayWealthy(q)) return null;
+  if (parseTargetAmount(question) !== null) return null;
+  if (parseExplicitTimeframe(question, today) !== null) return { kind: 'unknown', question };
+  if (parseTargetDate(question, today) !== null) return { kind: 'unknown', question };
+  if (unresolvedDateShape(question, today)) return { kind: 'unknown', question };
+  if (/\b(?:at|with)\b/.test(q)) return { kind: 'unknown', question };
+  const target = resolveSpendTarget(q, custom);
+  if (target) return { kind: 'unknown', question };
+  return { kind: 'stay_wealthy' };
+}
+
+function asksStayWealthy(q: string): boolean {
+  if (/\bstay(?:ing)? wealthy\b/.test(q)) return true;
+  if (/\bsurvival signals?\b/.test(q)) return true;
+  if (/\bgetting wealthy\b/.test(q) && /\bstay(?:ing)?\b/.test(q)) return true;
+  return false;
+}
+
 function asksRunway(q: string): boolean {
   // Radar owns "run out of money". A leftover "runway" substring must not steal it.
   if (/\brun(ning)? out of (money|cash)\b/.test(q)) return false;
@@ -1812,6 +1853,14 @@ export function parseAssistantQuery(
   {
     const buckets = consciousSpendingFromQuestion(question, today, custom);
     if (buckets) return buckets;
+  }
+
+  // P1.2 staying-wealthy row (composed Coach signals). After the three
+  // single-signal routes so "runway" / "lifestyle creeping" / buckets stay
+  // theirs. Before wealth_target so a no-amount status question is not unknown.
+  {
+    const staying = stayWealthyFromQuestion(question, today, custom);
+    if (staying) return staying;
   }
 
   // Wealth target with NO deadline (W.4). The dated sibling above already took
@@ -2161,6 +2210,7 @@ export function validateIntent(
     case 'lifestyle_creep':
     case 'runway':
     case 'conscious_spending':
+    case 'stay_wealthy':
     case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':

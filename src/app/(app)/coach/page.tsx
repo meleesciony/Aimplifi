@@ -13,7 +13,9 @@ import { MoneySignatureCard } from '@/components/coach/money-signature-card';
 import { HabitStreaksCard } from '@/components/coach/habit-streaks-card';
 import { LifestyleCreepChart } from '@/components/coach/lifestyle-creep-chart';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
+import { StayingWealthyCard } from '@/components/coach/staying-wealthy-card';
 import { WealthTargetCard } from '@/components/coach/wealth-target-card';
+import { composeStayingWealthy } from '@/lib/engine/fi/staying-wealthy';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -148,6 +150,17 @@ export default async function CoachPage() {
           })}
         />
       </div>
+
+      {/* P1.2 — staying wealthy is a different skill from the FI growth story
+          above. Same three engines the runway / habit-streaks / creep cards
+          already run; the row composes them and never claims all three. */}
+      <StayingWealthyCard
+        row={composeStayingWealthy({
+          cardCleared: data.streaks.cardCleared,
+          runwayMonths: data.runwayMonths,
+          creep: data.creep,
+        })}
+      />
 
       {/* Wealth target — the reader states a number ("$10M") and a horizon; the card answers
           both directions (when the current pace arrives, what a chosen date requires) in

@@ -19,6 +19,7 @@ import { getRecurring } from '@/server/recurring';
 import { getCashFlowForecast } from '@/server/forecast';
 import { getCashFlowRadar } from '@/server/radar';
 import { getCoachData } from '@/server/coach';
+import { composeStayingWealthy } from '@/lib/engine/fi/staying-wealthy';
 import { loadDebtAccounts } from '@/server/debt';
 import { planDebtPayoff } from '@/lib/engine/debt/payoff';
 import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
@@ -61,6 +62,7 @@ import {
   answerLifestyleCreep,
   answerRunway,
   answerConsciousSpending,
+  answerStayWealthy,
   answerSafeToSpend,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
@@ -826,6 +828,17 @@ async function buildAnswer(
       // SAME mapToConsciousBuckets split the /budgets strip prints.
       const plan = await getSpendingPlan(userId);
       return answerConsciousSpending(plan, plan.disclosures);
+    }
+    case 'stay_wealthy': {
+      // SAME composeStayingWealthy row the /coach card prints.
+      const coach = await getCoachData(userId);
+      return answerStayWealthy(
+        composeStayingWealthy({
+          cardCleared: coach.streaks.cardCleared,
+          runwayMonths: coach.runwayMonths,
+          creep: coach.creep,
+        }),
+      );
     }
     case 'fi_status': {
       // Standing FI date / number: SAME getCoachData().fi the /coach FI card prints.

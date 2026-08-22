@@ -39,6 +39,9 @@ describe('parseAssistantQuery — routing', () => {
     // conscious-spending buckets (/budgets strip)
     ['How are my spending buckets?', 'conscious_spending'],
     ['how is my conscious spending', 'conscious_spending'],
+    // P1.2 staying-wealthy row (composed Coach signals)
+    ['Am I staying wealthy?', 'stay_wealthy'],
+    ['how are my survival signals', 'stay_wealthy'],
     // subscriptions
     ['what subscriptions am I paying for?', 'subscriptions'],
     ['list my recurring payments', 'subscriptions'],

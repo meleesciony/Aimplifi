@@ -1078,6 +1078,34 @@ export const COACH_COPY = {
   noCreepNoSubs: () =>
     `No steady-amount subscriptions detected yet, so there's no price creep to track.`,
 
+  // P1.2 — staying-wealthy row (C2 · Housel). Framing never lists the three
+  // signals as true; each label is selected from the engine state it names.
+  stayingWealthyTitle: () => `Staying wealthy`,
+  stayingWealthyFraming: () =>
+    `Getting wealthy and staying wealthy are different skills.`,
+  stayingWealthyFooter: () =>
+    `Frugality plus a little room for error is what keeps compounding alive.`,
+  stayingWealthyCards: (state: 'present' | 'forming' | 'no_history' | 'broken') =>
+    state === 'present'
+      ? `every card clears in full`
+      : state === 'forming'
+        ? `card-clear habit is forming`
+        : state === 'no_history'
+          ? `card-clear habit starts with the first due date`
+          : `card-clear streak starting over`,
+  stayingWealthyRunway: (state: 'present' | 'building' | 'unknown', months: number) =>
+    state === 'present'
+      ? `${months}-month cushion`
+      : state === 'unknown'
+        ? `runway fills in as spending is tracked`
+        : `cash buffer is building`,
+  stayingWealthyIncome: (state: 'present' | 'outpaced' | 'unknown') =>
+    state === 'present'
+      ? `spending is tracking income`
+      : state === 'outpaced'
+        ? `spending outpaced income recently`
+        : `spending vs income isn't comparable yet`,
+
   // C2 · Housel — saving for its own sake is a goal; the cushion is room for error
   cushionIsAGoal: () =>
     `Saving with no specific goal is still a goal — an unallocated cushion is room for error, and room for error is wealth working quietly.`,

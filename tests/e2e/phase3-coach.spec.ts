@@ -131,6 +131,37 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(page.getByTestId('signature-steadiness')).toContainText('median');
   await expect(page.getByTestId('money-signature-card')).toContainText('3 months in a row');
 
+  // P1.2 staying-wealthy row: composes the three engines already on this
+  // page. Demo has a 17-month cleared streak and a positive runway (calm
+  // weather ≥ 3 months). Income label must match the creep card's state —
+  // never a fabricated "all three true".
+  await expect(page.getByTestId('staying-wealthy-card')).toBeVisible();
+  await expect(page.getByTestId('staying-wealthy-framing')).toHaveText(
+    'Getting wealthy and staying wealthy are different skills.',
+  );
+  await expect(page.getByTestId('staying-wealthy-cards')).toContainText('every card clears in full');
+  await expect(page.getByTestId('staying-wealthy-cards')).toHaveAttribute('data-present', 'true');
+  const runwayTitle = ((await page.getByTestId('runway-months').textContent()) ?? '').trim();
+  const runwayMonths = runwayTitle.match(/^([\d.]+) months$/);
+  expect(runwayMonths, 'Coach runway title is N months').toBeTruthy();
+  await expect(page.getByTestId('staying-wealthy-runway')).toContainText(
+    `${runwayMonths![1]}-month cushion`,
+  );
+  const creepTitle = ((await page.getByTestId('creep-title').textContent()) ?? '').trim();
+  if (creepTitle === 'Tracking income') {
+    await expect(page.getByTestId('staying-wealthy-income')).toContainText(
+      'spending is tracking income',
+    );
+  } else if (creepTitle === 'Spending is outpacing income') {
+    await expect(page.getByTestId('staying-wealthy-income')).toContainText(
+      'spending outpaced income recently',
+    );
+  } else {
+    await expect(page.getByTestId('staying-wealthy-income')).toContainText(
+      "spending vs income isn't comparable yet",
+    );
+  }
+
   // #254 Habit streaks: demo pinned copy (default-asOf narrative — see the
   // cleared-streak / creep-streak seed locks for the hand math). Cleared-in-full
   // 17 months across 4 cards through May 2026; no-creep 3 full months with the
