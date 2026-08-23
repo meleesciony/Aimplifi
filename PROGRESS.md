@@ -2,6 +2,56 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-23 — Ask `rich_life` intent (DECISIONS #505)
+
+**Picked up.** The plan's Ask row last gate, unblocked by #504 the same day.
+Scope from the explorer pass: stay_wealthy is the intent-slice template; the
+Ask copy bans ("this card"/"below") are load-bearing; the follow-ups
+`sampleIntent` switch has no default (a new kind without a case breaks the
+suite — the hard gate); `validateIntent`'s default-null silently kills the
+LLM path if the case is forgotten (the silent trap).
+
+**Closed.** Registered like stay_wealthy: kind union + kinds list,
+deterministic guard (the possessive "my" required — bare "rich life" is
+advice-shaped; same amount/date/store abstentions so "save $X for my rich
+life" stays wealth_target), parseAssistantQuery wiring after the
+single-signal routes, validateIntent closed kind, LLM bullet + intentFromKind
+case, server case via getCoachData (the #504 read-leg fence gives the demo
+the honest not-written branch), follow-ups chips that all parse non-unknown,
+suggestion + capability copy. `answerRichLife` echoes the stored value
+verbatim (never a second author; the /coach one-author rule), not-written
+branch names the empty state and points at Settings (the retire-at-age
+precedent, not answerUnknown).
+
+**Locked.** `assistant-rich-life.test.ts` 11 tests (routing, abstention
+majority, validateIntent, intentFromKind, both answer branches, copy bans);
+assistant-intent routing rows; follow-ups sampleIntent case; suggestions
+17→18 lock. Ask e2e: demo asks "What is my rich life?" → not-written branch
++ /settings source + copy bans.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, build). Unit **7,342 passed + 1 expected fail + 1
+skipped / 448 files + 1 skipped**. E2E **365 passed + 1 flaky-on-retry**
+(transactions.spec.ts:295 — documented K.10 class, untouched). No `prisma/`
+diff. No critic: intent-slice lane precedent — the abstention suite + the
+follow-ups hard gate are the verifier.
+
+**Gate read.** Commit `05943a99` → pushed → GitHub Actions `verify` =
+**SUCCESS** (run **32620513291**, first attempt). Vercel: success,
+"Deployment has completed" (`7K3cbTDcHMMoqWFD1iSMuXVXV9LK`). Live proof
+`node scripts/ask-rich-life-live-check.mjs` → **5/5 PASS**: demo asks the
+question, gets the rich_life not-written branch (headline "I don't have your
+Rich Life line yet."), Settings source, no "this card"/"below", and —
+anti-vacuity — the answer is NOT the pre-#505 unknown answer (server-only
+copy cannot be bundle-probed; the answer itself is the discriminator).
+
+**Next.** With the Ask row fully closed, the coach lane's ranked leftovers are
+the Opus + hostile-critic items: P.1 counterfactual re-projection,
+W.6(b) marginal-dollar order, W.6(d) drawdown on FI date, W.6(c) category
+fulfillment curve, mortgage early-payoff, Reports interest & fees YTD,
+P1.4 income lever, P1.5 fee-drag FV, PAW expected-NW lens. Flash-lane coach
+content is exhausted.
+
 ## 2026-08-23 — P1.3 "My Rich Life" vision line (DECISIONS #504)
 
 **Picked up.** Resume from the C14 close: gate read, Vercel READY, live proof

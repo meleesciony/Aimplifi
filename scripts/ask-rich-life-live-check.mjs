@@ -9,11 +9,11 @@
  * not-written branch pointing at Settings. Read-only: it never submits a
  * form's data beyond the ask input, and writes nothing.
  *
- * ANTI-VACUITY. The not-written answer is exactly what a pre-#505 build would
- * answer UNKNOWN, so two discriminators matter: the answer must be the
- * rich_life branch ("I don't have your Rich Life line yet") AND the live
- * /ask client bundles must contain that sentence — a pre-#505 deploy has it
- * nowhere. The script fetches every script the live page loaded and greps them.
+ * ANTI-VACUITY. The answer copy is server-side only, so no bundle check is
+ * possible; the discriminator is the answer itself — a pre-#505 build has no
+ * rich_life kind and returns the UNKNOWN answer ("I can answer questions
+ * grounded in your own accounts…"). Proving the answer is the rich_life
+ * not-written branch AND not the unknown answer proves the routing shipped.
  *
  *   node scripts/ask-rich-life-live-check.mjs
  */
@@ -52,7 +52,19 @@ try {
   check('signed into the shared demo on production', true, BASE);
 
   await page.goto(`${BASE}/ask`, { waitUntil: 'domcontentloaded' });
-  await page.getByTestId('ask-input').fill('What is my rich life?');
+  await page.getByTestId('ask-input').waitFor({ state: 'visible', timeout: 30_000 });
+
+  // Hydration: the ask input is CONTROLLED — a fill that lands before React
+  // attaches gets reset to empty (and the submit button stays disabled), the
+  // same class as the demo-button pre-hydration race. Verify the value stuck
+  // and retry once.
+  const question = 'What is my rich life?';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.getByTestId('ask-input').fill(question);
+    const value = await page.getByTestId('ask-input').inputValue();
+    if (value === question) break;
+  }
+
   await page.getByTestId('ask-submit').click();
   await page.getByTestId('ask-answer').waitFor({ state: 'visible', timeout: 30_000 });
 
@@ -62,25 +74,16 @@ try {
   check('the answer points at Settings', answer.includes('Settings'));
   check('no "this card"/"below" claims in the answer', !/this card|below/i.test(answer));
 
-  // The sha, proved by content: the rich_life sentence is in the live /ask
-  // client bundles. A pre-#505 deploy has the string nowhere.
-  const loaded = await page.evaluate(async (marker) => {
-    const hrefs = performance
-      .getEntriesByType('resource')
-      .map((e) => e.name)
-      .filter((u) => u.includes('/_next/') && /\.[jt]s/.test(u));
-    const found = [];
-    for (const u of hrefs) {
-      try {
-        const t = await fetch(u).then((r) => r.text());
-        if (t.includes(marker)) found.push(u);
-      } catch {
-        /* a chunk that can't be read is not the proof; skip */
-      }
-    }
-    return found;
-  }, MARKER);
-  check('rich_life not-written sentence is in the live /ask client bundles', loaded.length > 0, `${loaded.length} chunk(s)`);
+  // ANTI-VACUITY (DOM side, deliberate): the answer copy is server-side only
+  // (assistant.ts answers in the request), so a bundle-content check is
+  // impossible for it. The discriminator is the ANSWER ITSELF: a pre-#505
+  // build has no rich_life kind and answers the off-topic/unknown sentence —
+  // a different headline AND body. Proving the answer is NOT the unknown
+  // answer proves the routing shipped.
+  check(
+    'the demo answer is the rich_life branch, not the pre-#505 unknown answer',
+    !answer.includes('I can answer questions grounded in your own accounts'),
+  );
 } finally {
   await browser.close();
 }

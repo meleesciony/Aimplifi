@@ -8914,3 +8914,53 @@ Write/Edit pipeline decodes backslash-u escape texts into real characters
 file), so non-ASCII controls must be written as backslash-x hex or as
 `\p{...}` property escapes with the `u` flag; probe the bytes after any such
 write.
+
+## #505 — Ask `rich_life` intent: the stored line routed, and the empty state named (2026-08-23)
+
+**Context.** The plan's Ask row last gate: `rich_life` ("what is my rich
+life?"). The stored vision shipped in #504; this slice builds the intent on
+the SAME read-path (`getCoachData().richLifeVision`), so the #504 read-leg
+demo fence carries over — the shared demo always gets the not-written
+branch.
+
+**Decision.**
+1. **Registration mirrors `stay_wealthy`** (the intent-slice template): kind
+   union + `ASSISTANT_INTENT_KINDS`, deterministic guard
+   `richLifeFromQuestion` with the same abstentions (amount declines so the
+   W.1 compounding planner takes "save $X for my rich life"; date windows and
+   `at|with` objects abstain; spend-targets abstain), wired into
+   `parseAssistantQuery` after the single-signal routes, `validateIntent`
+   accepts the closed kind (the LLM path silently returns null if forgotten
+   — the two switch-traps), LLM prompt bullet + `intentFromKind`
+   re-derivation case, server read-path case, follow-ups chips that each
+   parse non-unknown (the hard gate), and the suggestion/capability copy.
+2. **The possessive is the route mark.** "my rich life" routes; bare "rich
+   life" (advice-shaped: "how do I live a rich life") does not — the
+   stay_wealthy topic-word rule. Unit-locked both directions.
+3. **The answer never re-authors the line.** `answerRichLife(vision)` echoes
+   the stored value verbatim inside its own sentence (the /coach echo's one
+   author stays `COACH_COPY.richLifeHeader` — one-author rule from #504);
+   source = See on Coach. When `vision === null`: "I don't have your Rich
+   Life line yet. Write one in Settings…" with source = Set it in Settings —
+   the retire-at-age precedent for absent user input, NOT `answerUnknown`.
+4. **Copy bans hold in Ask**: no "this card", no "below" (the L.15 lesson,
+   and "below" is the exact word #504 had to scope away on /coach). Locked.
+
+**Verification (real output).** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅
+VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **7,342 passed + 1
+expected fail + 1 skipped / 448 files + 1 skipped**, `next build` clean; e2e
+**365 passed + 1 flaky-on-retry** (`transactions.spec.ts:295` — documented
+K.10 contention class, untouched by this diff; the new ask.spec rich_life
+test in the passing set). No `prisma/` diff. No hostile critic — the
+intent-slice lane precedent (#496–#500): the verifier is the majority
+abstention suite (`assistant-rich-life.test.ts`, 11 tests) plus the
+follow-ups hard gate (both switch-traps).
+
+**Lessons recorded while closing.** Live-check strategy correction:
+server-only answer copy cannot be bundle-probed (no client chunk carries
+it) — the discriminating live proof for an intent is the ANSWER itself
+versus the pre-slice unknown answer, and the script now asserts that
+DOM-side. Also hardened two harness races live: the ask input is CONTROLLED
+(a pre-hydration fill resets it → submit stays disabled — assert the
+value stuck before clicking), same class as the demo-button race recorded
+in #504. No code defect: production answered correctly on every probe.

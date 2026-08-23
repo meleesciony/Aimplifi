@@ -9,6 +9,33 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-23 — Ask `rich_life` intent (DECISIONS #505)
+
+**The report.** The plan's Ask row last gate, unblocked by #504 (the stored
+vision). "What is my rich life?" now routes to the stored line — echoed
+verbatim, never re-authored — and when none is written the answer names the
+empty state and points at Settings.
+
+**Shipped.** `stay_wealthy` template applied end-to-end (kind + guard +
+validateIntent + LLM bullet/case + server case + follow-ups chips + the
+suggestion/capability copy). The guard requires the possessive "my" (bare
+"rich life" is advice-shaped) and abstains on amounts/dates/stores.
+Demo answer = the honest not-written branch via the #504 read-leg fence.
+Copy bans held ("this card"/"below" locked).
+
+**Still open.** Nothing in the Ask row. Coach-lane Flash content is
+exhausted: remaining ranked items are P.1 counterfactual, W.6(b)(c)(d),
+P1.4/P1.5, Reports interest & fees YTD, mortgage early-payoff, PAW — the
+Opus + hostile-critic lane.
+
+**Locked.** `assistant-rich-life.test.ts` (11 tests), intent routing rows,
+follow-ups case, suggestions 17→18, ask.spec demo e2e.
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, build). Unit **7,342 passed + 1 expected fail + 1
+skipped / 448 files + 1 skipped**. E2E **365 passed + 1 flaky-on-retry**
+(transactions.spec.ts:295 — documented K.10 class). No `prisma/` diff.
+
 ## ✅ BUILT 2026-08-23 — P1.3 "My Rich Life" vision line (DECISIONS #504)
 
 **The report.** #503 shipped. Ranked Flash-lane leftover: the plan's P1.3 —
