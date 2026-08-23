@@ -20,7 +20,6 @@
 import { chromium } from 'playwright';
 
 const BASE = process.env.LIVE_BASE ?? 'https://www.aimplifi.app';
-const MARKER = "I don't have your Rich Life line yet";
 const results = [];
 const check = (name, ok, detail = '') => {
   results.push({ name, ok, detail });
