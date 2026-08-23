@@ -64,6 +64,7 @@ import {
   answerConsciousSpending,
   answerStayWealthy,
   answerSafeToSpend,
+  answerRichLife,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
   answerSavingsRate,
@@ -839,6 +840,13 @@ async function buildAnswer(
           creep: coach.creep,
         }),
       );
+    }
+    case 'rich_life': {
+      // SAME vision the /coach echo reads — getCoachData's read-leg demo fence
+      // already nulls it for the shared demo, so the "not written" branch is
+      // exactly what a shared visitor gets.
+      const coach = await getCoachData(userId);
+      return answerRichLife(coach.richLifeVision);
     }
     case 'fi_status': {
       // Standing FI date / number: SAME getCoachData().fi the /coach FI card prints.

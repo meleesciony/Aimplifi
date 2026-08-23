@@ -187,6 +187,11 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
         'When can I retire?',
       ]);
 
+    case 'rich_life':
+      // Every chip must parse non-unknown (the follow-ups test's hard gate) —
+      // these three all route.
+      return take(['When can I retire?', 'Am I staying wealthy?', 'What should I cut?']);
+
     case 'forecast':
       return take([
         'How much do I need to pay my cards?',

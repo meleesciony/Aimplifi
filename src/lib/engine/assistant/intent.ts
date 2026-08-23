@@ -92,6 +92,14 @@ export type AssistantIntent =
    * (those stay lifestyle_creep / runway / cash_needed).
    */
   | { kind: 'stay_wealthy' }
+  /**
+   * P1.3 Rich Life vision — the reader's stored one-line vision, echoed
+   * verbatim (the SAME `getCoachData().richLifeVision` /coach opens with).
+   * Parameterless; when none is written the answer says so and points at
+   * Settings. Never re-authors the line (that's COACH_COPY.richLifeHeader's
+   * job — one author).
+   */
+  | { kind: 'rich_life' }
   /** 90-day committed + card dues — same engine as dashboard Cash flow radar (DECISIONS #488). */
   | { kind: 'cash_flow_radar' }
   /** Recurring-only balance walk — same engine as /forecast (DECISIONS #72 / #75). */
@@ -124,6 +132,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'runway',
   'conscious_spending',
   'stay_wealthy',
+  'rich_life',
   'cash_flow_radar',
   'forecast',
   'savings_rate',
@@ -1605,6 +1614,35 @@ function asksStayWealthy(q: string): boolean {
   return false;
 }
 
+/**
+ * P1.3 Rich Life vision. The possessive "my" is REQUIRED ("rich life" alone is
+ * advice-shaped — "how do I live a rich life" is not a question about their
+ * stored line, the stay_wealthy topic-word rule). The stored-phrase and the
+ * Settings label are both "my rich life" (and the hyphenated spelling is
+ * tolerated), so one pattern covers the real inputs.
+ */
+export function richLifeFromQuestion(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): AssistantIntent | null {
+  const q = normalize(question);
+  if (!asksRichLife(q)) return null;
+  if (parseTargetAmount(question) !== null) return null;
+  if (parseExplicitTimeframe(question, today) !== null) return { kind: 'unknown', question };
+  if (parseTargetDate(question, today) !== null) return { kind: 'unknown', question };
+  if (unresolvedDateShape(question, today)) return { kind: 'unknown', question };
+  if (/\b(?:at|with)\b/.test(q)) return { kind: 'unknown', question };
+  const target = resolveSpendTarget(q, custom);
+  if (target) return { kind: 'unknown', question };
+  return { kind: 'rich_life' };
+}
+
+/** "my rich life" (and "my rich-life"); the possessive is the route mark. */
+function asksRichLife(q: string): boolean {
+  return /\bmy\s+rich[- ]?life\b/.test(q);
+}
+
 function asksRunway(q: string): boolean {
   // Radar owns "run out of money". A leftover "runway" substring must not steal it.
   if (/\brun(ning)? out of (money|cash)\b/.test(q)) return false;
@@ -1861,6 +1899,14 @@ export function parseAssistantQuery(
   {
     const staying = stayWealthyFromQuestion(question, today, custom);
     if (staying) return staying;
+  }
+
+  // P1.3 Rich Life vision (the reader's stored line). Parameterless like
+  // stay_wealthy, with the same amount/date/store abstentions so "save $X for
+  // my rich life" stays on savings_goal_by_date.
+  {
+    const rich = richLifeFromQuestion(question, today, custom);
+    if (rich) return rich;
   }
 
   // Wealth target with NO deadline (W.4). The dated sibling above already took
@@ -2211,6 +2257,7 @@ export function validateIntent(
     case 'runway':
     case 'conscious_spending':
     case 'stay_wealthy':
+    case 'rich_life':
     case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':

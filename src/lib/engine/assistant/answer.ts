@@ -2409,6 +2409,40 @@ export function answerStayWealthy(row: StayingWealthyRow): AssistantAnswer {
   };
 }
 
+const RICH_LIFE_SOURCE: AssistantSource = { label: 'See on Coach', href: '/coach' };
+const RICH_LIFE_SETTINGS_SOURCE: AssistantSource = { label: 'Set it in Settings', href: '/settings' };
+
+/**
+ * Phrases the reader's stored Rich Life line — VERBATIM, never re-authored:
+ * the /coach echo's one author is `COACH_COPY.richLifeHeader`, and this answer
+ * injects the same stored value into its own sentence, so the two surfaces can
+ * never disagree about what the reader's words are (the one-author rule from
+ * #504). When none is written, the answer states the empty state and points at
+ * Settings (the retire-at-age precedent). Copy does not say "this card" or
+ * "below" — false in Ask (the L.15 lesson); "below" in particular is the very
+ * word the /coach form had to scope away (#504 critic F2).
+ */
+export function answerRichLife(vision: string | null): AssistantAnswer {
+  if (vision === null) {
+    return {
+      kind: 'rich_life',
+      headline: "I don't have your Rich Life line yet.",
+      detail:
+        'Write one in Settings — one line, what a rich life looks like for you — and the FI Coach opens with it.',
+      facts: [],
+      source: RICH_LIFE_SETTINGS_SOURCE,
+    };
+  }
+  return {
+    kind: 'rich_life',
+    headline: `Your Rich Life: "${vision}".`,
+    detail:
+      'Aimplifi keeps it at the top of the FI Coach — the numbers serve the life, not the other way around.',
+    facts: [],
+    source: RICH_LIFE_SOURCE,
+  };
+}
+
 const CONSCIOUS_SPENDING_SOURCE: AssistantSource = { label: 'See on Spending', href: '/budgets' };
 
 /** Same clamp the /budgets strip uses so Ask percents cannot drift from the legend. */
@@ -2673,6 +2707,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'Is my lifestyle creeping?',
   'How are my spending buckets?',
   'Am I staying wealthy?',
+  'What is my rich life?',
 ];
 
 export function answerUnknown(): AssistantAnswer {
@@ -2680,7 +2715,7 @@ export function answerUnknown(): AssistantAnswer {
     kind: 'unknown',
     headline: 'I can answer questions grounded in your own accounts and transactions.',
     detail:
-      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, your spending buckets, what you owe on your cards, when you can retire, what to cut, whether spending is outpacing income, whether you are staying wealthy, subscriptions, your 90-day forecast, income, or savings rate.',
+      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, your spending buckets, what you owe on your cards, when you can retire, what to cut, whether spending is outpacing income, whether you are staying wealthy, your rich life, subscriptions, your 90-day forecast, income, or savings rate.',
     facts: [],
     suggestions: [...ASSISTANT_SUGGESTIONS],
   };

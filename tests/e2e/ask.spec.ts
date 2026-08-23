@@ -173,6 +173,17 @@ test('Am I staying wealthy agrees with Coach staying-wealthy row', async ({ page
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
 });
 
+test('What is my rich life? — demo has no vision, so the answer names the empty state and points at Settings', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'What is my rich life?');
+  await expect(page.getByTestId('ask-headline')).toContainText("don't have");
+  await expect(page.getByTestId('ask-answer')).toContainText('Settings');
+  await expect(page.getByTestId('ask-answer')).not.toContainText(/this card/i);
+  await expect(page.getByTestId('ask-answer')).not.toContainText(/\bbelow\b/i);
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/settings');
+});
+
 test('How are my spending buckets agrees with Spending strip', async ({ page }) => {
   await signIn(page);
   await page.goto('/budgets');

@@ -42,6 +42,9 @@ describe('parseAssistantQuery — routing', () => {
     // P1.2 staying-wealthy row (composed Coach signals)
     ['Am I staying wealthy?', 'stay_wealthy'],
     ['how are my survival signals', 'stay_wealthy'],
+    // P1.3 rich_life (stored vision line)
+    ['What is my rich life?', 'rich_life'],
+    ['my rich life', 'rich_life'],
     // subscriptions
     ['what subscriptions am I paying for?', 'subscriptions'],
     ['list my recurring payments', 'subscriptions'],
