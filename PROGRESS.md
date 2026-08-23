@@ -44,6 +44,11 @@ question, gets the rich_life not-written branch (headline "I don't have your
 Rich Life line yet."), Settings source, no "this card"/"below", and —
 anti-vacuity — the answer is NOT the pre-#505 unknown answer (server-only
 copy cannot be bundle-probed; the answer itself is the discriminator).
+One docs-chain gate DID catch me: the record commit `ed0700be` ran red on
+eslint — the DOM-side discriminator replacement orphaned the MARKER const
+in the live-check script (an edit made AFTER the last local gate). Fixed in
+a follow-up commit; the run id 32621037595 + the one finding (unused
+variable at scripts/ask-rich-life-live-check.mjs:23) are recorded here.
 
 **Next.** With the Ask row fully closed, the coach lane's ranked leftovers are
 the Opus + hostile-critic items: P.1 counterfactual re-projection,
