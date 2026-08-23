@@ -9,6 +9,7 @@ and rule live in each lesson file — open the file before acting on a hook.
 
 - [Never guess — verify or say you're unsure; write user instructions for a first-timer](never-guess-and-write-for-a-first-timer.md) — a live Plaid env-var + reset support session broke the deployed app via abbreviated, guessed-at steps and unverified diagnoses; […]
 - [Check a provider's PRODUCTION requirements before telling the owner "no setup needed"](check-provider-production-requirements-before-saying-no-setup.md) — "your integration is already built, ignore that checklist" was true of Plaid's tutorial and wrong about Plaid: unpublished Data Transparency Messaging made Link EXIT at institution-select for every OAuth bank; […]
+- [Unit full-suite SQLite cascade flake](unit-suite-sqlite-cascade-flake.md) — one file's transient `disk I/O error` on the shared off-tree temp DB locks every later file (`database is locked` / `SQLITE_BUSY_SNAPSHOT`), so 8 failures across 7 untouched suites looked like real bugs; all pass isolated, the rerun is green; never fix-to-please-a-lock.
 - [Don't develop in cloud-synced folders](cloud-synced-folders.md) — OneDrive/Dropbox/iCloud sync holds file locks that make a cold `tsc`/`eslint`/`next build` fail once and pass on rerun, and forces LF→CRLF churn; keep the checkout on a plain local disk.
 - [Generate code with Write/Edit, not shell heredocs](windows-codegen-via-shell.md) — bash→python heredocs mangled
  escapes in generated TS and `*/` inside comments broke builds; file tools are byte-exact.

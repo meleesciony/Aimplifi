@@ -9,6 +9,35 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-23 — C14 past-enough Coast-FI framing on the FI card (DECISIONS #503)
+
+**The report.** #502 shipped. Ranked Flash-lane leftovers: P1.1 dialTag
+note (closed as a skip — badge, dial tags and the "only hunts savings
+elsewhere" note were all already shipped), then the Coast past-enough
+give/spend copy (C14).
+
+**Shipped.** `COACH_COPY.pastEnoughCoast` — "Past enough, many people
+turn the dial toward experiences and giving — the compounding is already
+doing the work. A lens, not a judgment." — rendered under the Coast line
+on the FI card only when `coastIsCoast`. The plan draft's "we surface
+that" was dropped: giving categories are per-user visible, so the line
+claims nothing about app surfacing.
+
+**Still open.** P1.3 Rich Life. P1.4/P1.5. P.1 counterfactual.
+W.6(b)(c)(d). Reports interest & fees YTD.
+
+**Locked.** `tests/unit/past-enough-coast-render.test.tsx`; e2e
+phase3-coach locks the demo not-coast branch (line absent + coast line
+names the pace).
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN (tsc, probes tsc,
+eslint, unit **7,314 passed + 1 expected fail + 1 skipped / 445 files +
+1 skipped**, build). Coach e2e **1/1**.
+
+**Flake note (not a defect).** First full-suite run: 8 tests / 7 files
+red on `database is locked`/`disk I/O error` — all pass isolated (95/95),
+rerun green; lesson `docs/lessons/unit-suite-sqlite-cascade-flake.md`.
+
 ## ✅ BUILT 2026-08-23 — P2.2 memory-dividend line on the life-energy card (DECISIONS #502)
 
 **The report.** #500 shipped. Plan P2.2 was a Perkins/Housel reflection

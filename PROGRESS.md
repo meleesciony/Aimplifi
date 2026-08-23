@@ -2,6 +2,57 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-23 — C14 past-enough Coast-FI framing on the FI card (DECISIONS #503)
+
+**Picked up.** Owner: continue. #502 shipped. Ranked Flash-lane
+leftovers: #1 P1.1 dialTag note (or skip), #2 Coast past-enough
+give/spend copy.
+
+**Closed.** P1.1 closed as a **skip with evidence** — badge
+("Your biggest lever" under the #1 opportunity), `dialTag` on /trends
+movers, and the `moneyDials` "spend there proudly; the engine only hunts
+savings everywhere else" note on the /coach opportunities header are all
+shipped; the "note" delta is the same rule already stated at list level.
+Then the C14 framing: new `COACH_COPY.pastEnoughCoast` — "Past enough,
+many people turn the dial toward experiences and giving — the
+compounding is already doing the work. A lens, not a judgment." —
+rendered under the Coast line only when `coastIsCoast`. The plan's
+"We surface that the same as any spending" was deliberately NOT said
+(giving categories are per-user visible; a claim about app surfacing
+would be false for a reader who hides them).
+
+**Left alone.** P1.3 Rich Life (needs a stored string); P.1
+counterfactual; W.6(b)(c)(d); P1.4/P1.5; Reports interest & fees YTD.
+
+**Locked.** `tests/unit/past-enough-coast-render.test.tsx` (shows on
+coastIsCoast; silent when not — with and without a coast pace). e2e
+`phase3-coach.spec.ts` locks the demo's not-coast branch: line absent
+AND coast line names the monthly pace (one predicate, two assertions).
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN (tsc 0, probes tsc 0,
+eslint 0, `next build` clean). Unit **7,314 passed + 1 expected fail +
+1 skipped / 445 files + 1 skipped**. Coach e2e **1/1 (12.0s)**. No
+`prisma/` diff. First full-suite run was red on 8 tests / 7 files
+(`database is locked`/`disk I/O error` cascade — all files pass isolated
+95/95; rerun green; lesson +
+`docs/lessons/unit-suite-sqlite-cascade-flake.md`); eslint had caught one
+unused const in the new live-check script (now used).
+
+**Gate read.** GitHub Actions `verify` on `ccac7a24` = **SUCCESS** (push
+run **32616862626**, exit 0 via `scripts/ci-status.sh`). Vercel:
+success, "Deployment has completed"
+(`3G2nr7Wk4uDv3jhVUXq47xnbWjZi`, aliased to `www.aimplifi.app`). Live
+proof `node scripts/c14-past-enough-live-check.mjs` → **5/5 PASS**:
+demo sign-in, #502 reflection still renders, demo's not-coast branch
+(pace line names, past-enough absent), and the C14 sentence found in
+the live /coach client bundles — a pre-#503 deploy has the string
+nowhere, so this proves the sha, not just a 200. First live-check run
+tripped a pre-hydration click on the submit-type demo button (native
+POST → /sign-in); rerun clean — harness, not product.
+
+**Next.** Owner review; P1.3 Rich Life one-liner (or route P.1 /
+W.6(b)(c)(d) to Opus + hostile critic).
+
 ## 2026-08-23 — P2.2 memory-dividend line on the life-energy card (DECISIONS #502)
 
 **Picked up.** Owner: continue. #500 shipped. P.1 remaining half and

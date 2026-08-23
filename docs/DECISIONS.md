@@ -8777,3 +8777,64 @@ GREEN (tsc 0, eslint 0, `next build` clean). Unit **7,309 passed +
 Coach e2e **1/1** (`npx playwright test tests/e2e/phase3-coach.spec.ts`).
 First e2e attempt failed on a stale `.next` build (`next start` serves
 the last build — a rebuilt gate is the fix, not a code change).
+
+## #503 — C14 "past enough" Coast-FI framing on the FI card; P1.1 closed as a skip (2026-08-23)
+
+**Context.** Owner: continue. #502 shipped. Ranked Flash-lane leftover
+(#1: P1.1 dialTag note or skip; #2: Coast past-enough give/spend copy).
+The plan's Conflict C resolution: once Coast FI, the Coach opens the
+second framing — experiences and giving are a dial you can turn up,
+presented as a lens, never a judgment.
+
+**Decision.**
+1. **P1.1 closed as a skip, with evidence.** Everything its spec names
+   is already shipped: "Your biggest lever" under the #1 opportunity on
+   `/coach` (`src/app/(app)/coach/page.tsx:282`), the per-mover
+   `COACH_COPY.dialTag` on `/trends` (`trends-view.tsx:159`), and the
+   `moneyDials` note on the /coach opportunities header ("spend there
+   proudly; the engine only hunts savings everywhere else"). The old
+   PARTIAL verdict ("dialTag on /trends only") was the authoring-time
+   reading; the "cuts skip dials" behavior is the same rule stated at
+   the list level. No delta left to build.
+2. **One new `COACH_COPY.pastEnoughCoast` line**, registered in the
+   hand-maintained `ALL_STRINGS` guardrail scan (#92 rule). Not a
+   projection; no shame/ticker language.
+3. **The gate is the engine's own flag:** rendered directly under the
+   Coast line in `fi-card.tsx` only when `coastIsCoast`. Before coast,
+   "turn the dial toward experiences and giving" would be a nudge the
+   engine hasn't earned — the Coast line must not contradict the framing
+   two lines below it.
+4. **The copy claims nothing about app surfacing.** The plan draft said
+   "We surface that the same as any spending"; giving categories
+   (`Gifts`, `Charity & Donations`) exist but are per-user visible, so
+   the shipped sentence says "many people turn the dial…" — a values
+   choice, not a promise of a read-path.
+
+**Locked.** `tests/unit/past-enough-coast-render.test.tsx` (shows on
+coastIsCoast; silent when not, both with and without a coast pace).
+e2e `phase3-coach.spec.ts` locks the demo's not-coast branch (line
+absent AND the coast line naming the required monthly pace — one
+predicate, two assertions).
+
+**Left alone.** P1.3 Rich Life (needs a stored string); P.1
+counterfactual; W.6(b)(c)(d); P1.4/P1.5; Reports interest & fees YTD.
+
+**Verification (real, this session).** `bash scripts/verify.sh` →
+VERIFY GREEN (tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit
+**7,314 passed + 1 expected fail + 1 skipped / 445 files + 1 skipped**.
+Coach e2e **1/1** (12.0s).
+
+**First full-suite run was RED — and it was not this slice.** 8 tests
+across 7 files failed with `database is locked` /
+`SQLITE_BUSY_SNAPSHOT` / `disk I/O error` — every one a write in
+sync/triage/reserve engine paths this slice never imports. All 7 files
+pass isolated (95/95); the full rerun is green. The signature —
+one file's disk I/O error cascading into locks on the shared off-tree
+temp SQLite DB — is recorded as a lesson
+(`docs/lessons/unit-suite-sqlite-cascade-flake.md`).
+
+**Critic divergence (discipline note).** No hostile critic ran on this
+slice — content-only copy, verifier = the deterministic coach-copy
+guardrail scan + e2e, matching the lane routing and the #500/#502
+practice. The hostile-critic lane items (P.1, W.6(b)(c)(d), P1.4/P1.5)
+remain ranked under Opus + critic, per the plan's "Still open" list.
