@@ -32,7 +32,10 @@ import {
   type MonthFlowBreakdown,
 } from '@/lib/engine/glass-box/month-flow-breakdown';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
-import type { DiscretionaryCategorySpend } from '@/lib/engine/fi/discretionary-cuts';
+import {
+  categoryMatchesMoneyDial,
+  type DiscretionaryCategorySpend,
+} from '@/lib/engine/fi/discretionary-cuts';
 import { averageDiscretionaryCategorySpend } from '@/lib/engine/fi/discretionary-spend';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { detectUnusualCharges, type UnusualCharge } from '@/lib/engine/anomaly/detect';
@@ -206,7 +209,15 @@ export interface CoachData {
     portfolio: { label: string; frozenSince: string }[];
     liquid: { label: string; frozenSince: string }[];
   };
-  lifeEnergy: { merchant: string; amountCents: number; hours: number; date: string }[];
+  lifeEnergy: {
+    merchant: string;
+    amountCents: number;
+    hours: number;
+    date: string;
+    /** P2.2: true when the purchase's category is a declared money dial — those
+     *  buys are the "worth it" case; the reflection line is for the rest. */
+    isMoneyDial: boolean;
+  }[];
   hourlyWageCents: number;
   /** Display names for coach copy (resolved from stored ids/names). */
   moneyDials: string[];
@@ -454,6 +465,10 @@ export async function getCoachData(
       amountCents: t.amountCents,
       hours: hoursOfWork(cents(t.amountCents), wage),
       date: t.date,
+      // An uncategorized purchase matches no dial — it is "outside the dials"
+      // for the reflection gate, never silently blessed as one.
+      isMoneyDial:
+        t.categoryId != null && categoryMatchesMoneyDial(t.categoryId, moneyDialIds),
     }));
 
   // the Money Review's "one next action" prefers the live cash-needed remedy

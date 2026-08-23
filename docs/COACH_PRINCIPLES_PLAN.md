@@ -33,21 +33,22 @@ adapted 3-bucket lens (book's 4th investing % is the honest fold). C16
 **SUPERSEDED** (app-authored rules card, not a Settings freeform list).
 C2 / C5 / C10 / C12 / C13 / C14 still **PARTIAL** (named leftovers below).
 
-**P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.5, P1.2, P1.6, P2.1, P2.4,
-P2.5. PARTIAL: P0.4 (3 buckets + Ask #499), P1.1 (`dialTag` on /trends
+**P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.5, P1.2, P1.6, P2.1, P2.2,
+P2.4, P2.5. PARTIAL: P0.4 (3 buckets + Ask #499), P1.1 (`dialTag` on /trends
 only; cuts skip dials instead). SUPERSEDED: P2.3 (#493 Settings dial),
 P2.6 (app-authored card). ABSENT: P1.3 Rich Life field, P1.4 income
-lever, P1.5 investing ladder / fee-drag, P2.2 memory-dividend line.
+lever, P1.5 investing ladder / fee-drag.
 
-**This slice (#500).** P1.2 staying-wealthy row on `/coach`. Composes
-card-cleared streak + runway + creep. Framing never claims all three.
-Ask `stay_wealthy` phrases the same row. #499 Ask buckets stays.
+**This slice (#502).** P2.2 memory-dividend line on LifeEnergyCard —
+rendered only when a listed buy sits outside the declared money dials
+(per-item flag from src/server/coach.ts; uncategorized = outside).
+#500 staying-wealthy row and #499 Ask buckets stay.
 
 **Still open, ranked.**
 
 Grok / Flash (no new money math): P1.1 dialTag note or leave as skip;
-P2.2 memory-dividend line on LifeEnergyCard; Coast past-enough
-give/spend copy; P1.3 Rich Life one-liner (needs a stored string).
+Coast past-enough give/spend copy; P1.3 Rich Life one-liner (needs a
+stored string).
 
 Opus + hostile critic (new money / money-visible): P.1 counterfactual
 re-projection; W.6(b) marginal-dollar order; W.6(d) drawdown on FI date;

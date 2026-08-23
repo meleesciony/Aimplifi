@@ -912,6 +912,13 @@ export const COACH_COPY = {
   lifeEnergyFootnote: (wageCents: Cents) =>
     `Hours are computed assuming your after-tax wage of ${formatCents(wageCents)}/hr. A lens, not a judgment.`,
 
+  // C5 · Perkins, Housel (P2.2) — memory dividend / who notices. Rendered only
+  // when at least one listed purchase sits OUTSIDE the reader's declared money
+  // dials (src/server/coach.ts sets the per-item flag) — the dial purchases are
+  // the case this sentence already blesses, so tagging them would be noise.
+  lifeEnergyReflection: () =>
+    `Worth it if it's a money dial or a memory you'll keep — but if it was meant to impress, almost no one notices the thing.`,
+
   reviewImprovement: (monthLabel: string, fromBps: number, toBps: number) =>
     `What improved in ${monthLabel}: savings rate moved from ${pct1(fromBps)} to ${pct1(toBps)}.`,
 

@@ -178,6 +178,11 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(firstRow).toContainText('$');
   await page.getByTestId('life-energy-toggle').click();
   await expect(firstRow).toContainText('hrs');
+  // P2.2: the demo's biggest buys include rent (not a travel/dining dial), so
+  // the memory-dividend reflection renders.
+  await expect(page.getByTestId('life-energy-reflection')).toContainText(
+    'memory you\'ll keep',
+  );
 
   // Money Review: one improvement, one creep, one concrete next action.
   // In demo (no AI key) the §2.4 recap is the DETERMINISTIC floor — same three role lines,

@@ -23,10 +23,19 @@ export function LifeEnergyCard({
   items,
   hourlyWageCents,
 }: {
-  items: { merchant: string; amountCents: number; hours: number; date: string }[];
+  items: {
+    merchant: string;
+    amountCents: number;
+    hours: number;
+    date: string;
+    isMoneyDial: boolean;
+  }[];
   hourlyWageCents: number;
 }) {
   const [showHours, setShowHours] = useState(false);
+  // P2.2: the memory-dividend reflection is for buys OUTSIDE the declared
+  // dials — when everything listed is a dial, the sentence has no target.
+  const showReflection = items.some((item) => !item.isMoneyDial);
 
   return (
     <Card data-testid="life-energy-card">
@@ -79,6 +88,14 @@ export function LifeEnergyCard({
             <p className="mt-2 text-xs text-muted-foreground">
               {COACH_COPY.lifeEnergyFootnote(cents(hourlyWageCents))}
             </p>
+            {showReflection && (
+              <p
+                className="mt-1 text-xs text-muted-foreground"
+                data-testid="life-energy-reflection"
+              >
+                {COACH_COPY.lifeEnergyReflection()}
+              </p>
+            )}
           </>
         )}
       </CardContent>
