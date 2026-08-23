@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Single source of truth for "Definition of Done" verification.
-# A phase is NOT done unless this exits 0 with real output shown.
+# In the build graph (GRAPH.md) this script is the LOCAL GATE NODE: deterministic,
+# non-interactive, machine-readable. A phase is NOT done unless this exits 0 with real
+# output shown. Its verdicts route the graph: red ⇒ re-enter only the failed maker
+# node; green ⇒ the next node (simulate / critic / ship) may run. It deliberately does
+# NOT run e2e by default (see below) and does NOT prove anything about CI or
+# production — the ship gate is scripts/ci-status.sh, the live proof is a curl+grep
+# probe; all three verdicts are required before a slice reports SHIPPED.
 set -uo pipefail
 fail=0
 run() { echo; echo "════ $1 ════"; shift; "$@" || fail=1; }

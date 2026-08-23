@@ -1,8 +1,9 @@
 # Phases & Acceptance Criteria
 
-Every phase ends with `bash scripts/verify.sh` green + Hostile Critic pass
-(zero P0/P1). Criteria below are the minimum; restate them as test assertions at phase
-start and add what you discover.
+Every phase runs the per-slice build graph (`GRAPH.md` §4) and closes with
+`bash scripts/verify.sh` green + Hostile Critic pass (zero P0/P1, separate verifier
+context). Criteria below are the minimum; restate them as test assertions at phase
+start (the plan node) and add what you discover.
 
 ---
 

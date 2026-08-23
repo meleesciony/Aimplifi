@@ -8701,3 +8701,79 @@ The June 24 template always claimed all three were true.
 `tests/e2e/ask.spec.ts` "Am I staying wealthy agrees with Coach staying-wealthy row";
 `tests/e2e/phase3-coach.spec.ts` row vs runway title + creep title.
 
+
+## #501 — Build docs reframed from loop engineering to graph engineering (2026-08-22)
+
+**Context.** Owner task: rewrite the README and all build/instruction/agent-facing
+files around graph engineering (topology of nodes/edges/state/routing/gates) instead
+of pure loop engineering, elevating rather than discarding the existing discipline.
+
+**Decision.** Graph engineering becomes the top-level mental model; loop engineering
+is repositioned as the internal behavior of a single node. Concretely: (1) new
+`GRAPH.md` — the repo's build-graph contract: node vocabulary (maker / verifier /
+gate / explorer / state-writer / human-gate), edge payloads, the shared-state schema
+(the existing ledgers), the standing per-slice topology, gate semantics (verify.sh =
+local DoD gate, ci-status.sh = ship gate, curl+grep = live proof, critic = separate
+verifier), CLI/script success criteria, observability rules, and the migration note;
+(2) new `GRAPH_ENGINEERING.md` — the generic, cross-project method file that now sits
+above LOOP_ENGINEERING.md; (3) `LOOP_ENGINEERING.md` rewritten in place as the
+node-internal discipline (all 12 rules, self-healing loop, PASS/FAIL contract kept,
+each annotated with its graph role); (4) `CLAUDE.md`'s "build loop" rewritten as the
+build graph (same six steps, now with named nodes, edge payloads, and the 4-cycle cap
+as a retry budget on the critic edge; the "Model handoff line" section became "Model
+routing" — model choice framed as per-node-type routing); (5) `AGENTS.md` canon now
+reads GRAPH_ENGINEERING → LOOP_ENGINEERING → GRAPH → CLAUDE; (6) README gains a "How
+this repo is built — the build graph" section and a repo-map row for the graph files;
+(7) framing edits to docs/CRITIC_RUBRIC.md (critic = verifier node, separate context
+as contract), docs/PHASES.md intro, docs/STATUS.md preamble (shared-state role),
+scripts/verify.sh header (local gate node; explicitly NOT the ship/live gates), and
+the TASKS.md header.
+
+**Rationale.** The repo already had latent graph structure — a separate-context Hostile
+Critic, worktree isolation for parallel agents, deterministic gates routing work, and
+ledgers as cross-session state — but the canon described it as a single-agent loop,
+which under-specified the parts that actually caused past failures (unread CI gate,
+subagent greens treated as fact, gate/mutator sharing a tree). Naming the topology
+makes those rules structural instead of tribal. Nothing operational changed: the same
+gates, same critic rubric, same ledgers — so no existing workflow breaks.
+
+**Verification.** Docs-only change; no code touched. `npx tsx scripts/docs-lint.ts`
+run this session: zero findings in any rewritten/created file (the only findings are
+in stale `.claude/worktrees/agent-*` copies, pre-existing and untouched). Full
+`bash scripts/verify.sh` not run — docs-only, and the gate's verdict on an unchanged
+tree was already green this week; marked here as not-run rather than claimed.
+
+## #502 — P2.2 memory-dividend reflection on the life-energy card, gated to buys outside the dials (2026-08-23)
+
+**Context.** Owner: continue. #500 shipped; plan P2.2 was the queued
+content-only leftover: a Perkins/Housel "memory dividend / who notices"
+reflection on `LifeEnergyCard` for big discretionary buys OUTSIDE the
+declared money dials only.
+
+**Decision.**
+1. One new `COACH_COPY.lifeEnergyReflection` line, registered in the
+   hand-maintained `ALL_STRINGS` guardrail scan (the #92 rule — an
+   unregistered key passes CI silently). Not a projection; no shame /
+   ticker language.
+2. The gate is data, not copy: `src/server/coach.ts` adds `isMoneyDial`
+   to each life-energy item via the same `categoryMatchesMoneyDial`
+   helper W.6(a) uses (same resolved dial ids — no second source of the
+   dials). An UNCATEGORIZED purchase counts as outside the dials — it is
+   never silently blessed as one.
+3. The card renders the line only when at least one listed item is not a
+   dial — when every listed buy is a declared dial the sentence has no
+   target, and tagging those would contradict "spend there proudly."
+   No per-item badges, no verdict coloring: a lens, not a judgment.
+
+**Locked.** `tests/unit/life-energy-reflection-render.test.tsx` (shows
+when a non-dial buy sits among dials; silent when all are dials; silent
+on the empty state — deliberate assertions, not snapshots). e2e
+`tests/e2e/phase3-coach.spec.ts` asserts the line in demo, where the
+top buys include rent (not a travel/dining dial).
+
+**Verification (real, this session).** `bash scripts/verify.sh` → VERIFY
+GREEN (tsc 0, eslint 0, `next build` clean). Unit **7,309 passed +
+1 expected fail + 1 skipped / 444 files + 1 skipped** (`npx vitest run`).
+Coach e2e **1/1** (`npx playwright test tests/e2e/phase3-coach.spec.ts`).
+First e2e attempt failed on a stale `.next` build (`next start` serves
+the last build — a rebuilt gate is the fix, not a code change).

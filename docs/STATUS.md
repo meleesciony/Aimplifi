@@ -1,10 +1,38 @@
 # STATUS — known limitations & open items
 
-Living document; updated at each phase boundary and critic cycle.
+Living document; updated at each phase boundary and critic cycle. In the build graph
+(`GRAPH.md` §3) this file is shared state: the open-items field every node reads and
+the state-writer edge updates. It is also the only home for live counts (test totals,
+rates) — no other doc may restate them.
 
 > Entries from 2026-06/2026-07 (BUILT/CLOSED history) were moved verbatim to
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
+
+## ✅ BUILT 2026-08-23 — P2.2 memory-dividend line on the life-energy card (DECISIONS #502)
+
+**The report.** #500 shipped. Plan P2.2 was a Perkins/Housel reflection
+on the LifeEnergyCard for big buys outside the declared money dials.
+
+**Shipped.** `COACH_COPY.lifeEnergyReflection` — "Worth it if it's a
+money dial or a memory you'll keep — but if it was meant to impress,
+almost no one notices the thing." Rendered only when at least one
+listed purchase is outside the dials: `src/server/coach.ts` flags each
+item (`categoryMatchesMoneyDial`; uncategorized = outside) and the card
+stays silent when every listed buy is a dial. Registered in the
+coach-copy ALL_STRINGS guardrail scan.
+
+**Still open.** P.1 counterfactual re-projection. W.6(b)(c)(d).
+P1.3 Rich Life. P1.4/P1.5. P1.1 dialTag.
+
+**Locked.** `tests/unit/life-energy-reflection-render.test.tsx` (shows
+on a non-dial buy among dials; silent when all are dials; silent on
+empty). e2e `phase3-coach.spec.ts` asserts the line on demo (rent is
+not a travel/dining dial).
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN (tsc, eslint, unit,
+build). Unit **7,309 passed + 1 expected fail + 1 skipped / 444 files
++ 1 skipped**. Coach e2e **1/1**.
 
 ## ✅ BUILT 2026-08-21 — P1.2 staying-wealthy row composes three Coach signals (DECISIONS #500)
 

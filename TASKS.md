@@ -5,9 +5,11 @@
 > when a task is done, move its row there instead of leaving it here.
 
 *Derived from `docs/STRATEGIC_AUDIT_2026-07-09.md` (read it for the "why" behind every task).
-Every task obeys AGENTS.md / CLAUDE.md / LOOP_ENGINEERING.md: engine-first, integer cents,
-`bash scripts/verify.sh` green before done, hostile critic on money/security/data-integrity,
-regression ledger on every fix. Update the Status column in place; record decisions in
+Every task obeys AGENTS.md / CLAUDE.md / GRAPH.md / GRAPH_ENGINEERING.md / LOOP_ENGINEERING.md:
+engine-first, integer cents, `bash scripts/verify.sh` green before done, hostile critic
+(separate verifier context) on money/security/data-integrity, regression ledger on every
+fix. Each row below is the input edge to one maker node; the routing policy assigns the
+model tier per node type. Update the Status column in place; record decisions in
 `docs/DECISIONS.md`.*
 
 ## Routing policy (token efficiency is a core principle)

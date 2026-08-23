@@ -47,11 +47,45 @@ VERIFY_E2E=1 bash scripts/verify.sh # + Playwright e2e at 380×800 (incl. axe WC
 Every engine number is unit-tested against hand-computed values; the seed
 headline ($5,412.33 by Fri Jun 26; dip −$1,012.33 on Jun 24; transfer $1,050
 by Jun 23) is a golden integration test. Each phase passed a Hostile Critic
-review (`docs/CRITIC_RUBRIC.md`); findings and fixes are logged in
-`docs/STATUS.md`, and the critic’s adversarial probes live on as regressions
-in `tests/unit/critic*-*.test.ts`.
+review (`docs/CRITIC_RUBRIC.md`) run in a **separate context** from the code
+it reviewed; findings and fixes are logged in `docs/STATUS.md`, and the
+critic's adversarial probes live on as regressions in
+`tests/unit/critic*-*.test.ts`.
 
-## What’s implemented
+## How this repo is built — the build graph
+
+This project is developed by agents (and humans) running an explicit **build
+graph**, not an informal loop. The contract is `GRAPH.md`; the method behind it
+is `GRAPH_ENGINEERING.md`; the discipline inside each work unit is
+`LOOP_ENGINEERING.md`. The five primitives, as instantiated here:
+
+- **Nodes** — one job each: a *maker* (implements a slice), a *verifier* (the
+  Hostile Critic, always a separate context — never the maker grading itself),
+  a *gate* (deterministic code: `scripts/verify.sh`, `scripts/ci-status.sh`,
+  Playwright), an *explorer* (read-only research subagent), a *state-writer*
+  (ledger updates), a *human gate* (only where actions are irreversible).
+- **Edges** — named data contracts: task row → maker; maker → gate (tree +
+  commands); gate → maker (real, unedited output); maker → verifier (diff +
+  assertions + gate output, never the maker's confidence); verifier → maker
+  (numbered P0/P1/P2 findings with evidence).
+- **Shared state** — the ledgers, outside any chat window: `PROGRESS.md`
+  (position + gate evidence), `docs/STATUS.md` (open items), `docs/DECISIONS.md`,
+  `REGRESSION_LEDGER.md`, `TASKS.md`, `docs/lessons/`. The transcript is not state.
+- **Routing & gates** — red `verify.sh` ⇒ re-enter only the failed node; open
+  critic P0/P1 ⇒ another maker cycle; 4 exhausted critic cycles ⇒ the human
+  gate. Parallel fan-out (explorers, critics) runs in separate git worktrees;
+  fan-in re-runs the gate on the merged tree.
+- **Observability** — at any moment, node states, edges taken (which gates ran,
+  on which sha, which verdict), and budgets are reconstructible from the ledgers
+  alone.
+
+A successful CLI/agent invocation under this graph is machine-checkable: the
+gate exits 0 with parseable per-stage verdicts and its full output shown; the
+ship gate (`bash scripts/ci-status.sh`) is read after every push; a live probe
+greps production for a marker unique to the change; and the slice's state is
+written to the ledgers before the turn ends. Full semantics: `GRAPH.md` §5–§7.
+
+## What's implemented
 
 - **FI Coach** (`/coach`) — savings rate with net-worth-parity placement, FI
   number (with its expense basis stated inline), years-to-FI (live slider),
@@ -68,7 +102,7 @@ in `tests/unit/critic*-*.test.ts`.
   merchant strings) is tracked by `npm run eval:categorize` and reported in its
   own output, not restated here.
 - **Triage inbox** (`/triage`) — swipe right accept, swipe left for 3
-  alternatives, long-press split, batch “apply to all N similar”, universal
+  alternatives, long-press split, batch "apply to all N similar", universal
   undo (inverse corrections), one-tap durable rules with explicit consent.
   A full seeded weekly review clears in a handful of thumb actions — asserted
   under the **<15 interactions / <60 s** targets by `tests/e2e/phase2-triage.spec.ts`,
@@ -97,7 +131,7 @@ in `tests/unit/critic*-*.test.ts`.
 
 `src/lib/providers/types.ts` is the seam: anything that implements
 `DataProvider` (accounts, cursor-based transaction sync, statements) plugs in
-without touching the engines — that is also how you’d add any other data API.
+without touching the engines — that is also how you'd add any other data API.
 
 ## Deploy (Vercel)
 
@@ -109,19 +143,22 @@ Vercel, Postgres via `DATABASE_URL` (schema is portable), `AUTH_SECRET`, then
 ## Repo map
 
 ```
-src/lib/money.ts, dates.ts     # THE money/date utilities (branded types)
-src/lib/engine/                # pure engines: cash-needed, categorize,
-                               # recurring, fi, calendar, goals
-src/lib/providers/             # DataProvider seam: demo (seeded) | plaid (live in prod)
-src/server/                    # session+ownership-scoped data assembly & actions
+GRAPH.md                     # the build-graph contract: topology, state schema, gates
+GRAPH_ENGINEERING.md         # generic method: nodes, edges, state, routing, verifiers
+LOOP_ENGINEERING.md          # node-internal discipline: 12 rules, self-healing, PASS/FAIL
+CLAUDE.md / AGENTS.md        # project rules + agent entry point (bind every agent)
+src/lib/money.ts, dates.ts   # THE money/date utilities (branded types)
+src/lib/engine/              # pure engines: cash-needed, categorize,
+                             # recurring, fi, calendar, goals
+src/lib/providers/           # DataProvider seam: demo (seeded) | plaid (live in prod)
+src/server/                  # session+ownership-scoped data assembly & actions
 prisma/seed.ts + src/lib/seed/ # deterministic demo dataset (pure builder)
-docs/                          # architecture, edge cases (hand math), critic
-                               # rubric, status, privacy, Plaid walkthrough
-tests/unit + tests/e2e         # unit + e2e tests (counts: docs/STATUS.md), incl. axe WCAG AA
+docs/                        # architecture, edge cases (hand math), critic
+                             # rubric, status, privacy, Plaid walkthrough
+scripts/                     # the graph's gates & probes: verify.sh, ci-status.sh,
+                             # eval:categorize, ledger, docs-lint, live-deploy checks
+tests/unit + tests/e2e       # unit + e2e tests (counts: docs/STATUS.md), incl. axe WCAG AA
 ```
 
 Known limitations are honestly listed in `docs/STATUS.md`; the v1-vs-future
 split is in `docs/ROADMAP.md`. Educational software, not financial advice.
-
-
-

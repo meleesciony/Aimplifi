@@ -1,6 +1,79 @@
-﻿> Sessions from 2026-06/2026-07 were moved verbatim to
+> Sessions from 2026-06/2026-07 were moved verbatim to
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
+
+## 2026-08-23 — P2.2 memory-dividend line on the life-energy card (DECISIONS #502)
+
+**Picked up.** Owner: continue. #500 shipped. P.1 remaining half and
+W.6(b)(c)(d) are new money engines (off this lane). P2.2 (memory-dividend
+line on LifeEnergyCard, buys outside the dials only) was the queued
+content leftover.
+
+**Closed.** `COACH_COPY.lifeEnergyReflection` under the life-energy
+list, rendered only when at least one listed purchase is outside the
+declared money dials. `src/server/coach.ts` flags each item with the
+same `categoryMatchesMoneyDial` helper W.6(a) uses (uncategorized =
+outside, never silently blessed); an all-dial list stays silent.
+Registered in the hand-maintained ALL_STRINGS guardrail scan (#92 rule).
+
+**Left alone.** P.1 counterfactual; W.6(b)(c)(d); P1.3/P1.4/P1.5; P1.1
+dialTag note.
+
+**Locked.** `tests/unit/life-energy-reflection-render.test.tsx` (shows
+on a non-dial buy among dials; silent when all are dials; silent on
+empty). e2e `phase3-coach.spec.ts` asserts the line on demo — rent is
+not a travel/dining dial.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN (tsc 0, eslint 0,
+`next build` clean). Unit **7,309 passed + 1 expected fail + 1 skipped /
+444 files + 1 skipped** (`npx vitest run`). Coach e2e **1/1**
+(`npx playwright test tests/e2e/phase3-coach.spec.ts`). No `prisma/` diff.
+First e2e attempt failed on a stale `.next` — `next start` serves the
+last build; the rebuild in the gate was the fix.
+
+**Gate read.** NOT DONE — no commit/push this session (none requested).
+CI + Vercel live read happens after the push.
+
+**Next.** Commit + push, then the CI/live gate read. Then P1.1 dialTag
+note (or leave as skip), Coast past-enough copy, or P.1 / W.6(b)(c)(d)
+with a hostile critic.
+
+## 2026-08-22 — Build docs reframed as graph engineering (DECISIONS #501)
+
+**Picked up.** Owner task file: rewrite README + all build/instruction/agent files
+around graph engineering, elevating the loop discipline rather than discarding it.
+
+**Closed.** New `GRAPH.md` (build-graph contract: node vocabulary, edge payloads,
+ledger state schema, per-slice topology, gate semantics, CLI success criteria,
+observability, migration note). New `GRAPH_ENGINEERING.md` (generic method, sits
+above LOOP). `LOOP_ENGINEERING.md` rewritten as the node-internal discipline (12
+rules, self-healing loop, PASS/FAIL all kept, graph roles annotated). `CLAUDE.md`
+build loop → build graph (same steps; 4-cycle cap = retry budget on the critic edge;
+model handoff → per-node-type model routing). `AGENTS.md` canon now GRAPH_ENGINEERING
+→ LOOP → GRAPH → CLAUDE. README gains a build-graph section + repo-map rows. Framing
+edits: CRITIC_RUBRIC (verifier node), PHASES intro, STATUS preamble, verify.sh
+header, TASKS header. DECISIONS #501 recorded; index reindexed via ledger.ts.
+
+**Left alone.** All product code, tests, gates, ledgers' historical entries, SPEC.md
+(historical), docs/DEPLOY.md (operational runbook — no loop content to reframe).
+
+**Locked.** N/A — docs-only slice, no behavior to lock.
+
+**Gate.** `npx tsx scripts/docs-lint.ts` → zero findings in any created/rewritten
+file (findings exist only in stale `.claude/worktrees/agent-*` copies, pre-existing).
+Full `bash scripts/verify.sh` NOT run — docs-only change on an unchanged tree;
+recorded as not-run, not claimed. No push; nothing shipped.
+
+**Next.** Owner review of the reframe; the stale `.claude/worktrees/agent-*` dirs
+tripping docs-lint may want pruning.
+
+**Addendum (same session).** Owner directive: token efficiency is paramount — graphs
+ramp token usage. Encoded as GRAPH_ENGINEERING.md principle 10 + a fan-out rule
+(no node without a job a cheaper shape can't do; fan-out only when cheaper-tier /
+context-offload / wall-clock math pays; sequential loop is the default shape);
+GRAPH.md §4/§8 fan-out clauses tightened to match; CLAUDE.md model-routing section
+gained the fan-out-vs-budget rule; AGENTS.md canon notes the reading cost (GRAPH.md
+§4–§5 are the operational core on repeat sessions). docs-lint re-run: clean.
 
 ## 2026-08-21 — P1.2 staying-wealthy row composes three Coach signals (DECISIONS #500)
 
