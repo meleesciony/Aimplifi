@@ -57,6 +57,14 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   // dollar figure is the shape the owner called "arbitrary time" on the card below.
   await expect(coast).toContainText('not a date you set');
 
+  // C14 — the demo is NOT Coast FI (its Coast line names the monthly pace it would
+  // take), so the past-enough framing must stay silent here. These two assertions
+  // are the same predicate deliberately: the coast line's branch text is the reason
+  // the line above is absent. The coast-present branch is locked by
+  // tests/unit/past-enough-coast-render.test.tsx.
+  await expect(coast).toContainText('it takes about');
+  await expect(page.getByTestId('past-enough-coast')).toHaveCount(0);
+
   // W.11 — first paint is the unchanged branch. A hard 70% ceiling used to clamp a high
   // saver and fire "Lowering your savings rate…" before anyone dragged; the demo sits
   // below 70%, so this also locks the ordinary case.

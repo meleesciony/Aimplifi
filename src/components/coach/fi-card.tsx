@@ -199,6 +199,14 @@ export function FICard({
                 )
               : null}
         </p>
+        {/* C14 — "past enough" second framing, Coast-FI only. Same gate as the Coast
+            line above: the sentence is only honest when the engine says today's
+            portfolio already reaches FI on its own. */}
+        {coastIsCoast && (
+          <p className="text-sm text-muted-foreground" data-testid="past-enough-coast">
+            {COACH_COPY.pastEnoughCoast()}
+          </p>
+        )}
 
         <div className="space-y-2 rounded-lg border p-3">
           <label htmlFor="fi-slider" className="flex justify-between text-sm">

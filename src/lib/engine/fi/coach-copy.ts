@@ -273,6 +273,15 @@ export const COACH_COPY = {
   ) =>
     `To be on pace over the next ${targetYears} years — ${targetYearsIsAppDefault ? `a working lifetime we picked to measure against, not a date you set` : `the horizon you set`} — it takes about ${formatCents(requiredMonthly)}/month in today's money, under this card's return assumptions.`,
 
+  // C14 · Perkins/Ramsey, "past enough" (Coast-FI second framing) — rendered directly
+  // under the Coast line and ONLY when `coastIsCoast`: before coast, telling the reader
+  // to turn the dial up would be a nudge the engine hasn't earned. It surfaces the
+  // values choice and claims nothing about the app: giving categories are per-user
+  // visible (and the sentence names no read-path), so it does NOT say "we surface
+  // that" — the lens is the whole point.
+  pastEnoughCoast: () =>
+    `Past enough, many people turn the dial toward experiences and giving — the compounding is already doing the work. A lens, not a judgment.`,
+
   // C.9 (#405): the pace the slider starts from is `monthlySavings ÷ monthlyIncome`, and the
   // server divides BOTH by the real window — so the caption names that window, not "6".
   sliderCaption: (

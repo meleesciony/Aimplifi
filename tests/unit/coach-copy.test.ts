@@ -214,6 +214,8 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     text: COACH_COPY.notCoastFI(cents(120000), 25, false),
     isProjection: true,
   },
+  // C14 past-enough framing — a values choice, not a figure, so not a projection.
+  { label: 'pastEnoughCoast', text: COACH_COPY.pastEnoughCoast(), isProjection: false },
   { label: 'sliderCaption', text: COACH_COPY.sliderCaption(2200, 3000, 23, 17, 6), isProjection: true },
   // W.10 — the rate here is the reader's own RETURN dial (the money grows at it); the figures
   // themselves are then deflated to today's money, which `opportunityBasis` states once.
