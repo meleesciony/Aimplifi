@@ -31,12 +31,17 @@ not a travel/dining dial.
 First e2e attempt failed on a stale `.next` — `next start` serves the
 last build; the rebuild in the gate was the fix.
 
-**Gate read.** NOT DONE — no commit/push this session (none requested).
-CI + Vercel live read happens after the push.
+**Gate read.** GitHub Actions `verify` on `4831db81` = SUCCESS (push run
+**32614787763**). Vercel production `dpl_A33DYuVT7StVHvxRNBoAj3iw4LWP`
+READY, created on the push, aliased to `www.aimplifi.app`. Live proof
+`node scripts/p22-live-deploy-check.mjs` → **4/4 PASS**: demo `/coach`
+prints the reflection (the element cannot exist on a pre-#502 build).
+Commit/push were done by the owner mid-session (`cea4e081` #501 +
+`4831db81` #502); the "Gate read: NOT DONE" line this replaces was
+written before that.
 
-**Next.** Commit + push, then the CI/live gate read. Then P1.1 dialTag
-note (or leave as skip), Coast past-enough copy, or P.1 / W.6(b)(c)(d)
-with a hostile critic.
+**Next.** P1.1 dialTag note (or leave as skip), Coast past-enough copy,
+or P.1 / W.6(b)(c)(d) with a hostile critic.
 
 ## 2026-08-22 — Build docs reframed as graph engineering (DECISIONS #501)
 
