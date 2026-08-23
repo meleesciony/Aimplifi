@@ -13,6 +13,7 @@ and rule live in each lesson file — open the file before acting on a hook.
 - [Don't develop in cloud-synced folders](cloud-synced-folders.md) — OneDrive/Dropbox/iCloud sync holds file locks that make a cold `tsc`/`eslint`/`next build` fail once and pass on rerun, and forces LF→CRLF churn; keep the checkout on a plain local disk.
 - [Generate code with Write/Edit, not shell heredocs](windows-codegen-via-shell.md) — bash→python heredocs mangled
  escapes in generated TS and `*/` inside comments broke builds; file tools are byte-exact.
+- [File tools decode backslash-u escapes](file-tools-unescape-backslash-u.md) — a backslash-u regex class arrived on disk as real NUL bytes and a raw U+2028 byte (binary file, broken tsc); write non-ASCII controls as hex escapes or u-flag property classes and probe the bytes after.
 - [Diagnose hangs at boundaries, not by correlation](diagnose-hangs-at-boundaries.md) — load-correlated evidence pattern-matched the triage stall to the SQLite flake twice; […]
 - [Mutation forms use onSubmit, never useActionState](mutation-form-recipe.md) — React 19's form-action auto-reset silently reverts uncontrolled `<select>`s to their first option on the error return → a silent mis-file; […]
 - [mobile-380 Playwright viewport-scaling flake](mobile-380-viewport-scaling-flake.md) — a ~11.8% viewport scaling mismatch could make fixed-bottom-nav clicks intercept. **CORRECTED #193:** the recurring "full e2e can't exit 0 here" was actually a DETERMINISTIC auth.spec strict-mode locator bug (#182's "Sign […]

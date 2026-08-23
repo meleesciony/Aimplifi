@@ -8838,3 +8838,79 @@ slice — content-only copy, verifier = the deterministic coach-copy
 guardrail scan + e2e, matching the lane routing and the #500/#502
 practice. The hostile-critic lane items (P.1, W.6(b)(c)(d), P1.4/P1.5)
 remain ranked under Opus + critic, per the plan's "Still open" list.
+
+## #504 — P1.3 "My Rich Life" vision line: one stored string, two fences (2026-08-23)
+
+**Context.** The ranked Flash-lane leftover from #503: a freeform vision line
+("In one line, what does a rich life look like for you?") stored on the User
+and echoed quietly atop /coach. First user-authored PROSE on the User row —
+the repo's other freeform values are dial IDs, wage/rate numbers, or settings
+plans, so this slice had to fix the fence territory and the claim wording from
+scratch-ish.
+
+**Decision.**
+1. **Schema:** `User.richLifeVision String?`, nullable + additive (the
+   reserveHoldingAccountId idiom): null = never written, no echo line, every
+   existing user and the demo render identically until they opt in. No
+   migration workflow exists by design (frozen `_init`); shipped via `prisma
+   db push` (U.4 precedent) — the deployment's build command does it.
+2. **Pure normalize in `src/lib/engine/settings/rich-life.ts`** (one-author
+   rule like `tax/note.ts`): control/separator characters REPLACED WITH A
+   SPACE, never dropped (dropping a tab joins the words it separated — a
+   reword, the exact harm the cap rejects on); trim; empty/whitespace-only →
+   null (cleared = never written); over `RICH_LIFE_MAX_CHARS` = 120 REJECTS
+   with a message naming the limit, never silently truncates.
+3. **Write fence:** `updateRichLife` refuses `user-demo` FIRST, before any
+   read of form data (the typed-input leg of the shared-account rule — the
+   #210/#226/#243 class). The settings card gates the form off for demo and
+   shows the honest shared-account note; the action is the proof.
+4. **Read fence (critic F3):** `getCoachData` returns `richLifeVision: null`
+   for the demo even if a value ever lands on the row — a write fence alone
+   leaves a single load-bearing call site, the #226 shape. Both legs + the
+   `ai-demo-fence` read lock and a `shared-demo-fences` action lock.
+5. **The copy is a frame, scoped (critic F2):** the plan's bare template
+   ("Every number below is in service of that") was falsified by the
+   value-receipts tally below it — a count of the APP's own flags, not a
+   number about the reader's life — and this page's own doctrine is "every
+   surface scopes its claim". Shipped: **"Every number about your money
+   below is in service of that"** — the page's comments document the refusal
+   and the receipt quote. Registered in ALL_STRINGS; the e2e locks the exact
+   sentence.
+6. **No control cap in the UI (critic F1):** the input deliberately carries no
+   `maxLength`; typed/pasted over-length is REJECTED by the action with the
+   named limit and the text stays in the box. A control cap would silently
+   clamp the reader's answer and make the rejection dead code — the docblock's
+   own L.30 rule.
+7. **The Ask `rich_life` intent stays OUT** — the plan's Ask row. It shares
+   the /coach read-path, which is why this slice hardened that read path; the
+   intent is the next Flash-lane candidate.
+
+**Critic (fresh context, read-only): 0 P0, 3 P1, 5 P2 — all executed.** P1s:
+F1 maxLength dead-path/silent truncation (→ decision 6); F2 unscoped universal
+claim falsified by the receipts tally (→ decision 5); F3 write-leg-only fence
+(→ decision 4). P2s: F4 one-token overflow at 380px → `break-words` on the
+echo; F5 "Saved — the FI Coach now opens with it" false on clear / zero-account
+→ the action returns `hasVision` and the message keys on it, `role="status"`;
+F6 control-class missed U+2028/29/85 and stripped-joins → `\p{Cc}\p{Zl}\p{Zp}`
+replace-with-space; F7 success not announced → `role="status"`; F8 no
+action-level fence lock → `shared-demo-fences.test.ts` row + the read lock in
+`ai-demo-fence.test.ts`.
+
+**Verification (final tree, real output).** `VERIFY_E2E=1 bash
+scripts/verify.sh` → ✅ VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit
+**7,329 passed + 1 expected fail + 1 skipped / 447 files + 1 skipped**, `next
+build` clean, e2e **365 passed, 0 flaky (5.0m)** — including
+`rich-life.spec.ts` (real-user signup → save → persisted → /coach echo of the
+exact scoped sentence; demo note visible, no input, no echo). Fence locks green
+on their own: shared-demo-fences (updateRichLife refuses, demo column delta
+zero) and ai-demo-fence (a value planted on the demo row never reaches the
+`getCoachData` payload, restored after). No `prisma/` diff audit gap: the diff
+IS the one additive nullable column above — `prisma db push` runs on deploy by
+design, and the row-level effect on existing users is null (= unchanged).
+
+**Lesson added.** `docs/lessons/file-tools-unescape-backslash-u.md` — the
+Write/Edit pipeline decodes backslash-u escape texts into real characters
+(NUL bytes and a raw line separator both landed as literal bytes in a TS
+file), so non-ASCII controls must be written as backslash-x hex or as
+`\p{...}` property escapes with the `u` flag; probe the bytes after any such
+write.

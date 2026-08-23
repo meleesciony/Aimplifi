@@ -2,6 +2,62 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-23 — P1.3 "My Rich Life" vision line (DECISIONS #504)
+
+**Picked up.** Resume from the C14 close: gate read, Vercel READY, live proof
+5/5 recorded and shipped (`0f551b09`, docs-chain CI success 32617479692).
+Then the next ranked Flash-lane leftover: P1.3 Rich Life one-liner.
+
+**Shipped.** `User.richLifeVision String?` (additive nullable), /settings card
+("My Rich Life", one freeform line, shared-account note on demo), echo atop
+/coach (`RichLifeEcho`, only when set), `COACH_COPY.richLifeHeader` registered
+in ALL_STRINGS, Ask `rich_life` intent LEFT OUT (its own slice, per the plan
+row). Copy differences from the plan row are decisioned in #504: the sentence
+is scoped to "every number about your money below" (the bare template was
+falsified by the value-receipts tally — critic F2), input has NO maxLength so
+the over-cap reject is reachable (F1), and `hasVision` keys the success message
+so a clear doesn't claim the coach opens with the line (F5).
+
+**Two fences, both legs.** Write: `updateRichLife` refuses demo first thing
+(DEMO_ENTRY_BLOCKED); settings hides the form for demo. Read: `getCoachData`
+returns null for the demo even when the column holds a value (no single
+load-bearing call site — the #226 shape); locked by planting a value on the
+demo row in `ai-demo-fence.test.ts` (restored after), plus a
+`shared-demo-fences` action lock. Pure normalize (`rich-life.ts`): separators
+REPLACED with a space (never dropped — dropping joins the words), trim,
+empty→null, 120-char REJECT with named limit; `/\p{Cc}\p{Zl}\p{Zp}/gu`.
+
+**Critic (fresh context, read-only): 0 P0, 3 P1, 5 P2 — all executed.**
+F1 maxLength dead-path; F2 unscoped claim; F3 write-leg-only fence (the P1s);
+F4 break-words at 380px; F5 message state keys; F6 U+2028/29/85 + replace-not-
+drop; F7 role="status"; F8 fence lock rows. Added lesson
+(`file-tools-unescape-backslash-u.md`): Write/Edit decoded backslash-u escapes
+into literal NUL/U+2028 bytes twice this slice — fixed via ASCII-only property
+escapes + byte probes.
+
+**Gate (final tree).** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN
+(tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **7,329 passed + 1
+expected fail + 1 skipped / 447 files + 1 skipped**. E2E **365 passed, 0 flaky
+(5.0m)** — includes `rich-life.spec.ts` 2/2 (real-user write path then demo
+fence). Circle 1 gate (pre-critic) was 7,325 / 361+4-flaky. `prisma/` diff on
+push = this one additive nullable column (deploy runs `prisma db push` by
+design; existing rows unaffected: null).
+
+**Gate read.** Commit `87bdbca1` → pushed → GitHub Actions `verify` =
+**SUCCESS** (run **32619400742**, first attempt, exit 0 via
+`scripts/ci-status.sh`). Vercel: success, "Deployment has completed"
+(`6dUGsKaymtcAE2w8vkt6xtSqGPgw`, aliased to `www.aimplifi.app`). Live proof
+`node scripts/p13-live-deploy-check.mjs` → **5/5 PASS**: demo settings shows
+the My Rich Life card + shared-account note, no input, no /coach echo, and the
+scoped P1.3 sentence found in the live /coach client bundles (a pre-#504
+deploy has the string nowhere). Live-check script hardened: the demo button
+is type="submit", so a pre-hydration click natively submits to /sign-in (seen
+twice today — C14 and P1.3 runs); `signInDemo` now retries through '/'.
+
+**Next.** Ask `rich_life` intent (now unblocked — reads the same
+`getCoachData` path). Opus+critic lane: P.1 counterfactual, W.6(b)(c)(d),
+P1.4, P1.5, Reports interest & fees YTD.
+
 ## 2026-08-23 — C14 past-enough Coast-FI framing on the FI card (DECISIONS #503)
 
 **Picked up.** Owner: continue. #502 shipped. Ranked Flash-lane

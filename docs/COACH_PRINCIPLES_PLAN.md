@@ -35,8 +35,16 @@ C2 / C5 / C10 / C12 / C13 / C14 still **PARTIAL** (named leftovers below).
 
 **P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.5, P1.1, P1.2, P1.6, P2.1,
 P2.2, P2.4, P2.5. PARTIAL: P0.4 (3 buckets + Ask #499). SUPERSEDED: P2.3
-(#493 Settings dial), P2.6 (app-authored card). ABSENT: P1.3 Rich Life
-field, P1.4 income lever, P1.5 investing ladder / fee-drag.
+(#493 Settings dial), P2.6 (app-authored card). ABSENT: P1.4 income lever,
+P1.5 investing ladder / fee-drag.
+*P1.3 shipped 2026-08-23 (#504): `User.richLifeVision` + the /settings card
+(one line, demo-fenced on BOTH legs — write action and coach read —,
+normalize-or-reject in a pure module) echoed atop /coach in
+`COACH_COPY.richLifeHeader` only when set. The shipped echo's sentence is
+SCOPED to "every number about your money below" — the template's bare "every
+number below" was falsified by the value-receipts tally (critic F2). The Ask
+`rich_life` intent was NOT part of the row — it stays gated in the Ask table
+until its own slice.*
 *P1.1 closed 2026-08-22 (#503): the badge and tags were already shipped —
 "Your biggest lever" under the #1 opportunity on /coach, `dialTag` on
 matching /trends movers, and the `moneyDials` note ("spend there proudly…")
@@ -53,8 +61,9 @@ plan's "a lens, never a judgment" without promising a read-path.
 
 **Still open, ranked.**
 
-Grok / Flash (no new money math): Coast past-enough copy — SHIPPED as
-part of #503; P1.3 Rich Life one-liner (needs a stored string).
+Grok / Flash (no new money math): Coast past-enough copy — SHIPPED #503;
+P1.3 Rich Life one-liner — SHIPPED #504 (stored string + settings card +
+/coach echo; the Ask `rich_life` intent remains, gated in the Ask table).
 
 Opus + hostile critic (new money / money-visible): P.1 counterfactual
 re-projection; W.6(b) marginal-dollar order; W.6(d) drawdown on FI date;
@@ -173,7 +182,7 @@ stayingWealthy: (months: number) =>
   `Getting wealthy and staying wealthy are different skills. Your survival signals: every card clears in full, ${months} months of runway, and spending is tracking income. Frugality plus a little room for error is what keeps compounding alive.`,
 ```
 
-**P1.3 — "My Rich Life" vision line** · C13 · Sethi · onboarding/settings + `/coach` header · both · **S / med**
+**P1.3 — "My Rich Life" vision line** · C13 · Sethi · onboarding/settings + `/coach` header · both · **S / med** · **DONE 2026-08-23 (#504)**
 One freeform stored string ("In one line, what does a rich life look like for you?"), echoed quietly atop `/coach`.
 ```ts
 richLifeHeader: (vision: string) =>
@@ -227,7 +236,7 @@ Light but meaningful touches outside the Coach. All reuse existing engines; all 
 | **Automation** (`/coach`) | Automation blueprint card (P0.5) | C7 | both | M / high |
 | **Goals** (`/goals`) | "Paying yourself first {sum}/mo across {n} goals" summary feeding the conscious-spending lens; College/education + Giving goal presets; unallocated-cushion-is-a-goal note | C1, C6, C14 | content/mech | S / low–med |
 | **Reports** (`/reports`) | "Interest & fees paid YTD" tile (cost-of-debt made visible, no moralizing, with 30yr-FV-if-invested context); surface a "Giving" category in spending-by-category | C8, C9, C14 | content | M / med |
-| **Ask Aimplifi** (`/ask`) | Add intents that read the new/existing engines: `debt_payoff` ("when am I debt-free?"), `conscious_spending` ("how are my spending buckets?"), `rich_life`. Each delegates to the **same** tested read-path so `/ask` can't drift from `/coach` or `/budgets`. **2026-08-21:** `debt_payoff` already shipped; `conscious_spending` shipped #499; `stay_wealthy` shipped this slice (#500). `rich_life` still needs a stored vision (P1.3). | C9, C6, C13 | mechanic | M / med |
+| **Ask Aimplifi** (`/ask`) | Add intents that read the new/existing engines: `debt_payoff` ("when am I debt-free?"), `conscious_spending` ("how are my spending buckets?"), `rich_life`. Each delegates to the **same** tested read-path so `/ask` can't drift from `/coach` or `/budgets`. **2026-08-21:** `debt_payoff` already shipped; `conscious_spending` shipped #499; `stay_wealthy` shipped this slice (#500). `rich_life`: the stored vision shipped #504 (P1.3) — the intent itself is the still-open piece, its own slice (same read-path as the /coach echo). | C9, C6, C13 | mechanic | M / med |
 | **Onboarding/Settings** (`/settings`) | "My Rich Life" field (P1.3); My Money Rules list (P2.6); "assumptions will change" helper | C13, C16, Housel | content | S / low–med |
 
 ---

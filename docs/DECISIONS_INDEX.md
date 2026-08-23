@@ -497,3 +497,4 @@ refuses to write if it would drop any number this file already carries.
 - **#501** (Phase ?): Build docs reframed from loop engineering to graph engineering (2026-08-22)
 - **#502** (Phase ?): P2.2 memory-dividend reflection on the life-energy card, gated to buys outside the dials (2026-08-23)
 - **#503** (Phase ?): C14 "past enough" Coast-FI framing on the FI card; P1.1 closed as a skip (2026-08-23)
+- **#504** (Phase ?): P1.3 "My Rich Life" vision line — one stored string, fences on both the write and the read leg, claim scoped (2026-08-23)

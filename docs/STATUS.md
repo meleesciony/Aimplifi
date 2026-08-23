@@ -9,6 +9,43 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-23 — P1.3 "My Rich Life" vision line (DECISIONS #504)
+
+**The report.** #503 shipped. Ranked Flash-lane leftover: the plan's P1.3 —
+one stored text line the reader writes and the FI Coach opens with.
+
+**Shipped.** `User.richLifeVision String?` (additive nullable), /settings
+"My Rich Life" card (one freeform input; demo sees the shared-account note,
+no form), `RichLifeEcho` atop /coach — only when set, `COACH_COPY.
+richLifeHeader` in ALL_STRINGS. The sentence is scoped: "Every number about
+your money below is in service of that" — the plan's bare "every number
+below" was falsified by the value-receipts tally (a count of the app's own
+flags); and no input maxLength, so the 120-char reject is real (never silent
+truncation).
+
+**Fences, both legs.** Write: `updateRichLife` refuses demo first
+(DEMO_ENTRY_BLOCKED); card hides the form. Read: `getCoachData` returns null
+for the demo even when the column holds a value — no single load-bearing call
+site. Locked: `shared-demo-fences` action row + `ai-demo-fence` planted-value
+read lock.
+
+**Critic: 0 P0, 3 P1, 5 P2 — all executed** (maxLength dead-path; unscoped
+claim; write-leg-only fence; break-words; message state keys; U+2028/29/85
+separators; role=status; fence lock rows).
+
+**Still open.** Ask `rich_life` intent (unblocked by this slice). P1.4/P1.5.
+P.1 counterfactual. W.6(b)(c)(d). Reports interest & fees YTD.
+
+**Locked.** `rich-life-engine.test.ts` (trim/separator-replace/empty→null/
+cap-reject), `rich-life-render.test.tsx` (echo + silence + scoped sentence +
+break-words), fence locks above, `rich-life.spec.ts` e2e 2/2 (real user:
+save → reload persists → /coach echoes the exact sentence; demo: note, no
+form, no echo).
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, build). Unit **7,329 passed + 1 expected fail + 1
+skipped / 447 files + 1 skipped**. E2E **365 passed, 0 flaky (5.0m)**.
+
 ## ✅ BUILT 2026-08-23 — C14 past-enough Coast-FI framing on the FI card (DECISIONS #503)
 
 **The report.** #502 shipped. Ranked Flash-lane leftovers: P1.1 dialTag

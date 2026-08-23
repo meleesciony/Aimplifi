@@ -29,10 +29,28 @@ const check = (name, ok, detail = '') => {
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 380, height: 800 } });
 
+/**
+ * The demo button is type="submit": a click that lands before hydration fires a
+ * NATIVE submit and lands on /sign-in (seen twice, 2026-08-23 — the C14 and
+ * P1.3 checks). The hydrated click is the one that signs in, so retry through
+ * '/' once: the second attempt always executes the React handler.
+ */
+async function signInDemo() {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
+    await page.getByTestId('demo-sign-in').click();
+    try {
+      await page.waitForURL('**/dashboard', { timeout: 10_000 });
+      return;
+    } catch {
+      // Native/aborted submit — reload and click again once hydrated.
+    }
+  }
+  throw new Error('demo sign-in never reached /dashboard in 3 attempts');
+}
+
 try {
-  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-  await page.getByTestId('demo-sign-in').click();
-  await page.waitForURL('**/dashboard', { timeout: 30_000 });
+  await signInDemo();
   check('signed into the shared demo on production', true, BASE);
 
   // The settings card renders for the demo — WITH the shared-account note and
