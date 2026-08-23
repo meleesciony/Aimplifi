@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { buttonVariants } from '@/components/ui/button';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { MoneyDialsForm } from '@/components/settings/money-dials-form';
+import { RichLifeForm } from '@/components/settings/rich-life-form';
 import { DeleteMyDataForm } from '@/components/settings/delete-my-data-form';
 import { SignOutEverywhere } from '@/components/settings/sign-out-everywhere';
 import { CategoryManager } from '@/components/settings/category-manager';
@@ -66,6 +67,8 @@ export default async function SettingsPage() {
           endAge: true,
           inflationBps: true,
           savingsTargetBps: true,
+          // C.13 / P1.3 — the reader's one-line Rich Life (nullable: null = unset).
+          richLifeVision: true,
         },
       }),
       prisma.account.findMany({
@@ -187,6 +190,11 @@ export default async function SettingsPage() {
       <p className="px-1 text-xs text-muted-foreground" data-testid="assumptions-change">
         {COACH_COPY.assumptionsChange()}
       </p>
+
+      {/* C.13 / P1.3 — the Rich Life one-liner. Demo is fenced like every typed
+          input: the card reads the row's value (null for demo) while its form
+          stays off and the action refuses. */}
+      <RichLifeForm current={user.richLifeVision} canWrite={!isDemoUser(userId)} />
 
       {/* C.23 / DECISIONS #431 — the guided Fixed-costs section: the app's
           own basis, the detected proposals, and the reserve figure with its

@@ -7,6 +7,7 @@
  *  - liquid (runway) = checking + savings balances
  */
 import { isoDate, addMonthsClamped } from '@/lib/dates';
+import { isDemoUser } from '@/lib/demo-user';
 import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
 import { cashNeededFromSnapshot, resolvePaymentAccount } from '@/server/finance';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
@@ -71,6 +72,14 @@ import { accountLabel } from '@/lib/engine/account/display-name';
 
 export interface CoachData {
   today: string;
+  /**
+   * C.13 / plan P1.3 — the reader's own one-line Rich Life vision, echoed atop
+   * /coach. Written ONLY by the /settings Rich Life card (never by any engine),
+   * demo-fenced; null = never written, so the page renders no line. Carried
+   * verbatim — the echo is the reader's words inside a registered sentence,
+   * and a second derivation of the value would be a second definition of it.
+   */
+  richLifeVision: string | null;
   flows: MonthlyFlow[]; // last 12 full months, ascending
   /**
    * The savings-rate streak and personal-best claim over ALL complete months. The
@@ -584,6 +593,12 @@ export async function getCoachData(
 
   return {
     today,
+    // Read-leg demo fence (critic F3): a value on the shared demo row — by
+    // future seed, manual edit, or a later writer — must never echo one
+    // anonymous visitor's typed words to the next. `updateRichLife` refuses
+    // demo writes server-side; this makes the read leg refuse too, so no
+    // single call site is load-bearing.
+    richLifeVision: isDemoUser(userId) ? null : user.richLifeVision,
     flows,
     streak: savingsStreak,
     currentRateBps: flows[flows.length - 1]?.savingsRateBps ?? null,

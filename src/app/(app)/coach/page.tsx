@@ -14,6 +14,7 @@ import { HabitStreaksCard } from '@/components/coach/habit-streaks-card';
 import { LifestyleCreepChart } from '@/components/coach/lifestyle-creep-chart';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { StayingWealthyCard } from '@/components/coach/staying-wealthy-card';
+import { RichLifeEcho } from '@/components/coach/rich-life-echo';
 import { WealthTargetCard } from '@/components/coach/wealth-target-card';
 import { composeStayingWealthy } from '@/lib/engine/fi/staying-wealthy';
 import { getSpendingPlan } from '@/server/spending-plan';
@@ -86,6 +87,10 @@ export default async function CoachPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">FI Coach</h1>
+
+      {/* P1.3 — the reader's own one-line Rich Life, quiet atop the page. Only
+          set (and only writable) by the same person; no line when unset. */}
+      <RichLifeEcho vision={data.richLifeVision} />
 
       {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
           vanish silently. Renders nothing for all-USD users (the overwhelming case). */}

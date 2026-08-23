@@ -672,6 +672,9 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'noCreepLastIncrease', text: COACH_COPY.noCreepLastIncrease('Netflix', cents(1549), cents(1799), 'Feb 2026'), isProjection: false },
   { label: 'noCreepBrokenNow', text: COACH_COPY.noCreepBrokenNow('Netflix', cents(1549), cents(1799), 'May 2026'), isProjection: false },
   { label: 'noCreepNoSubs', text: COACH_COPY.noCreepNoSubs(), isProjection: false },
+  // P1.3 — the reader's own Rich Life one-liner (one state: their words inside
+  // the fixed sentence; the label stays bare so the completeness lock covers it).
+  { label: 'richLifeHeader', text: COACH_COPY.richLifeHeader('three months of travel every year'), isProjection: false },
   // P1.2 — staying-wealthy row: every branch these functions produce.
   { label: 'stayingWealthyTitle', text: COACH_COPY.stayingWealthyTitle(), isProjection: false },
   { label: 'stayingWealthyFraming', text: COACH_COPY.stayingWealthyFraming(), isProjection: false },

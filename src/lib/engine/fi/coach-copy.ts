@@ -1094,6 +1094,18 @@ export const COACH_COPY = {
   noCreepNoSubs: () =>
     `No steady-amount subscriptions detected yet, so there's no price creep to track.`,
 
+  // P1.3 — the reader's own Rich Life one-liner (C.13 · Sethi). Not a coaching
+  // claim: the sentence is the fixed frame around the reader's words, and it
+  // claims only that every number ABOUT THEIR MONEY below is in service of
+  // that vision — scoped deliberately (critic F2, and the page's own rule
+  // "every surface scopes its claim"): the value-receipts tally below is a
+  // count of the APP's flags, not a number about the reader's life, and the
+  // plan's bare "Every number below would be falsified beside it. The value
+  // is user input carved verbatim into the echo (the render site gates on
+  // existence); never a second author of what it says.
+  richLifeHeader: (vision: string) =>
+    `Your Rich Life: "${vision}". Every number about your money below is in service of that — not the other way around.`,
+
   // P1.2 — staying-wealthy row (C2 · Housel). Framing never lists the three
   // signals as true; each label is selected from the engine state it names.
   stayingWealthyTitle: () => `Staying wealthy`,

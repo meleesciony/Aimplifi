@@ -16,6 +16,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEMO_USER_ID } from '@/lib/demo-user';
+import { prisma } from '@/lib/db';
 
 vi.mock('@/server/authz', () => ({
   requireUserId: async () => DEMO_USER_ID,
@@ -57,6 +58,26 @@ describe('test_regression__demo_never_consults_a_model (keyed deployment)', () =
     // The recap still renders — the floor, never a model ordering.
     expect(data.reviewLines.length).toBeGreaterThan(0);
     expect(data.reviewPersonalized).toBe(false);
+  });
+
+  it('coach: even a VALUE on the demo vision column never reaches the read payload (read-leg fence)', async () => {
+    // The write leg is fenced in `updateRichLife`; this proves the READ leg too —
+    // no single call site is load-bearing (the #226 shape: typed input rendered
+    // for the next visitor, invisible to tests that never CREATE the state).
+    const row = await prisma.user.findUnique({ where: { id: DEMO_USER_ID } });
+    await prisma.user.update({
+      where: { id: DEMO_USER_ID },
+      data: { richLifeVision: 'one stranger typed this' },
+    });
+    try {
+      const data = await getCoachData(DEMO_USER_ID);
+      expect(data.richLifeVision).toBeNull();
+    } finally {
+      await prisma.user.update({
+        where: { id: DEMO_USER_ID },
+        data: { richLifeVision: row?.richLifeVision ?? null },
+      });
+    }
   });
 
   it('categorize (all five paths): the demo suggest is a null no-op with ZERO provider calls', async () => {

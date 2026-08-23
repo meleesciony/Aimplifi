@@ -53,6 +53,13 @@ model User {
   // and demo users compute identically until they opt in. The engine takes
   // max(goal contributions, income × this) — a floor, never a sum.
   savingsTargetBps  Int? // 0–9000 enforced at the dials boundary
+  // C.13 / DECISIONS #504 — the reader's own one-line "rich life" vision
+  // (plan P1.3), echoed atop /coach. Nullable and additive: null = never
+  // written, no echo line, all existing and demo users render identically
+  // until they opt in. Written only by the /settings Rich Life card (never by
+  // any engine, and demo writes are fenced — one visitor's line must not echo
+  // to the next); read by `getCoachData`.
+  richLifeVision    String?
   // Optional Plan figure overrides (DECISIONS #372). null = use the suggested
   // pattern from transactions. Integer cents. Cleared by submitting an empty
   // field on /spending-plan. Demo writes are fenced (shared account).
