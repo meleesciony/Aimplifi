@@ -7,11 +7,12 @@
  *  - spending on the user's money dials is encouraged, not policed
  */
 
-import { formatCents, type Cents } from '@/lib/money';
+import { cents, formatCents, type Cents } from '@/lib/money';
 import { formatISODate, formatMonth, type ISODate } from '@/lib/dates';
 import type { FrozenFunding } from '@/lib/engine/account/feed-dropped-view';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
 import type { CutCounterfactual } from './counterfactual';
+import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
 import { formatTargetBand, formatTargetBps } from '@/lib/engine/spending-plan/conscious';
 // The basis sentence decides WHICH claim to make from the same engine the figures come from —
@@ -1083,6 +1084,49 @@ export const COACH_COPY = {
       return `${action} — ${total} — lowers your FI number by about ${drop} (${why}) and puts a date on the horizon at all: the same projection that reaches no FI date within 100 years today gets there in about ${monthsSpanPhrase(cf.cutMonths ?? 0)} with the cut.${estimates} ${basis}`;
     }
     return `${action} — ${total} — moves your FI date about ${monthsSpanPhrase(cf.monthsSooner)} sooner and lowers the number itself by about ${drop}, because ${why}.${estimates} ${basis}`;
+  },
+
+  /**
+   * P.1 radar half — what acting on the cut list does to the 90-day committed
+   * cash-flow walk, computed by `cutRadarCounterfactual` (filter scheduled,
+   * re-run `radarFromSnapshot`, compare dip date + cover amount), never
+   * asserted. The honest null is decided HERE: when the engine says nothing
+   * improved (`moved` false), there is no sentence — "your July dip
+   * disappears" over a walk that did not move is a fabricated effect.
+   *
+   * Grounded as "the 90-day cash-flow walk" / "same committed projection as
+   * Cash flow radar" so the claim cannot be read as the FI date or the
+   * this-cycle cash-needed headline (those are different engines). No "this
+   * card"/"below" (the L.15 lesson). Dates come from the walk, never a
+   * hardcoded month. Cover figures are the engine's already-rounded amounts.
+   *
+   * A disappeared dip is the whole claim (the cover going to nothing is the
+   * same fact, not a second one). A later date and a smaller cover can share
+   * a sentence when both improved and the dip is still there.
+   */
+  cutRadarCounterfactual: (cf: CutRadarCounterfactual): string | null => {
+    if (!cf.moved) return null;
+    const walk = 'On the 90-day cash-flow walk';
+    const grounding = 'same committed projection as Cash flow radar';
+    const assumption =
+      'Assumes matching scheduled outflows on the payment account change by the cut — a cancelled series leaves the walk; an estimated saving only shrinks it.';
+    if (cf.dipDisappears && cf.baselineDipDate) {
+      return `${walk}, the projected checking dip around ${formatISODate(cf.baselineDipDate)} goes away (${grounding}). ${assumption}`;
+    }
+    const parts: string[] = [];
+    if (cf.dipLater && cf.baselineDipDate && cf.cutDipDate) {
+      parts.push(
+        `the projected checking dip moves from ${formatISODate(cf.baselineDipDate)} to ${formatISODate(cf.cutDipDate)}`,
+      );
+    }
+    if (cf.coverDropCents > 0 && cf.baselineCoverCents !== null) {
+      const to = cf.cutCoverCents === null ? formatCents(cents(0)) : formatCents(cf.cutCoverCents);
+      parts.push(
+        `the amount to stay covered drops from ${formatCents(cf.baselineCoverCents)} to ${to}`,
+      );
+    }
+    if (parts.length === 0) return null;
+    return `${walk}, ${parts.join(', and ')} (${grounding}). ${assumption}`;
   },
 
   // C5 · Sethi, Housel — a category that matches a money dial is protected, not policed

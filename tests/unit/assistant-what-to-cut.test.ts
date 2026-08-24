@@ -4,7 +4,8 @@
  * /coach already ranks findOpportunities. This intent routes "what should I
  * cut?" through Ask onto that SAME list, and (#506) reports what acting on
  * that exact list does to the FI math — computed by `cutCounterfactual`,
- * never asserted. The radar/cash-dip re-walk is the remaining open piece.
+ * never asserted — and (when the walk actually improves) the 90-day
+ * cash-flow dip, computed by `cutRadarCounterfactual`.
  *
  * Abstention tests are the majority (docs/lessons/context-carrying-features-must-abstain.md).
  */
@@ -24,6 +25,7 @@ import {
   cutCounterfactual,
   sumCutMonthlyCents,
 } from '@/lib/engine/fi/counterfactual';
+import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import { findOpportunities } from '@/lib/engine/fi/insights';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
@@ -46,6 +48,7 @@ function answerFrom(
   ops: readonly Opportunity[],
   moneyDials: readonly string[] = [],
   counterfactual?: { cutMonthlyCents: number; result: ReturnType<typeof cutCounterfactual> } | null,
+  radarCounterfactual?: CutRadarCounterfactual | null,
 ) {
   return answerWhatToCut({
     opportunities: ops,
@@ -60,8 +63,31 @@ function answerFrom(
             : { ...counterfactual, cutMonthlyCents: cents(counterfactual.cutMonthlyCents) },
         }
       : {}),
+    ...(radarCounterfactual !== undefined ? { radarCounterfactual } : {}),
   });
 }
+
+const radarMoved: CutRadarCounterfactual = {
+  baselineDipDate: isoDate('2026-06-24'),
+  cutDipDate: null,
+  dipDisappears: true,
+  dipLater: false,
+  baselineCoverCents: cents(105000),
+  cutCoverCents: null,
+  coverDropCents: cents(105000),
+  moved: true,
+};
+
+const radarStill: CutRadarCounterfactual = {
+  baselineDipDate: isoDate('2026-06-24'),
+  cutDipDate: isoDate('2026-06-24'),
+  dipDisappears: false,
+  dipLater: false,
+  baselineCoverCents: cents(105000),
+  cutCoverCents: cents(105000),
+  coverDropCents: cents(0),
+  moved: false,
+};
 
 describe('routing — what_to_cut', () => {
   it('test_regression__p1_what_should_i_cut_routes_to_opportunities', () => {
@@ -219,6 +245,29 @@ describe('answerWhatToCut — phrases the coach list, originates no figure', () 
     const a = answerFrom(seedOpportunities);
     const blob = `${a.headline} ${a.detail ?? ''}`;
     expect(blob).not.toMatch(/FI date|FI number|years to FI|months sooner|moves your FI|retire .*sooner/i);
+  });
+
+  it('test_regression__p1_cut_radar_movement_comes_from_the_engine', () => {
+    const a = answerFrom(seedOpportunities, [], undefined, radarMoved);
+    expect(a.detail).toContain(COACH_COPY.cutRadarCounterfactual(radarMoved)!);
+    expect(a.detail).toContain('90-day cash-flow walk');
+    expect(a.detail).toContain('Wed, Jun 24');
+    expect(a.detail).toContain('same committed projection as Cash flow radar');
+    expect(a.detail).toContain('Assumes matching scheduled outflows on the payment account change by the cut');
+    expect(a.detail).toContain('an estimated saving only shrinks it');
+    expect(a.detail).not.toMatch(/this card|below/i);
+  });
+
+  it('the honest null: the radar walk reports no improvement ⇒ no dip sentence at all', () => {
+    const a = answerFrom(seedOpportunities, [], undefined, radarStill);
+    const blob = `${a.headline} ${a.detail ?? ''}`;
+    expect(blob).not.toMatch(/cash-flow walk|checking dip|stay covered/i);
+  });
+
+  it('no radar counterfactual supplied ⇒ no dip sentence', () => {
+    const a = answerFrom(seedOpportunities);
+    const blob = `${a.headline} ${a.detail ?? ''}`;
+    expect(blob).not.toMatch(/cash-flow walk|checking dip|stay covered/i);
   });
 
   it('a list with estimate rows says the estimates are assumed to land as marked', () => {

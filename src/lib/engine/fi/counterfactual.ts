@@ -117,25 +117,32 @@ export function cutCounterfactual(input: CutCounterfactualInput): CutCounterfact
 }
 
 /**
- * The total monthly cut a LIST of opportunities adds up to.
+ * Per-merchant monthly cut (largest row wins).
  *
  * One merchant can produce two rows — a subscription whose price rose AND that
  * looks unused — and cancelling it saves the full amount ONCE. Summing both
  * rows would count the price-increase delta on top of the full amount, i.e.
- * promise money no action frees. So each merchant contributes its LARGEST
- * single row, and the per-merchant maxima are what sum.
+ * promise money no action frees. The radar re-walk consumes this same map so
+ * the FI sentence and the cash-flow sentence cannot disagree about how much
+ * of a merchant is being cut.
  *
  * Estimate rows (`isEstimate` — the ~15% insurance re-shop, the flat $20
  * retention offer) are included: they are the agreed standing answer to "what
  * should I cut", and the copy that renders a total including them names the
  * estimates as estimates.
  */
-export function sumCutMonthlyCents(opportunities: readonly Opportunity[]): Cents {
-  const byMerchant = new Map<string, number>();
+export function cutByMerchant(opportunities: readonly Opportunity[]): Map<string, Cents> {
+  const byMerchant = new Map<string, Cents>();
   for (const o of opportunities) {
-    byMerchant.set(o.merchant, Math.max(byMerchant.get(o.merchant) ?? 0, o.monthlyCents));
+    const prev = byMerchant.get(o.merchant) ?? 0;
+    if (o.monthlyCents > prev) byMerchant.set(o.merchant, o.monthlyCents);
   }
+  return byMerchant;
+}
+
+/** The total monthly cut a LIST of opportunities adds up to. See `cutByMerchant`. */
+export function sumCutMonthlyCents(opportunities: readonly Opportunity[]): Cents {
   let total = 0;
-  for (const monthly of byMerchant.values()) total += monthly;
+  for (const monthly of cutByMerchant(opportunities).values()) total += monthly;
   return cents(total);
 }

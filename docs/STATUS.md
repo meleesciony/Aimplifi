@@ -9,6 +9,37 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-24 — Ask "what should I cut?" radar/cash-dip re-walk (DECISIONS #507)
+
+**The report.** P.1's remaining engine half: the cut list can now say what
+acting on it does to the 90-day cash-flow walk — and stays silent when the
+walk does not move. On the demo that silence is the honest answer (the four
+opportunities are card-billed; checking scheduled is payroll/rent/savings).
+
+**Shipped.** New pure engine `src/lib/engine/radar/cut-counterfactual.ts`
+(`applyCutsToScheduled` + `cutRadarCounterfactual` + cadence scaling for
+the $20/mo `negotiable-bill`). `COACH_COPY.cutRadarCounterfactual` owns the
+sentence and the honest null. Ask `what_to_cut` re-runs `radarFromSnapshot`
+on the filtered scheduled array.
+
+**Critic (fresh context, read-only): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0,
+0 P1, 7 P2 carried.** Weekly $20 cancel and "stop hitting" executed.
+
+**Still open on P.1.** /coach-card radiation of the FI + radar sentences.
+Then the ranked lane: W.6(b)(c)(d), P1.4/P1.5, Reports interest & fees YTD,
+mortgage early-payoff, PAW.
+
+**Locked.** `radar-cut-counterfactual.test.ts` (23: applyCuts matching /
+partial / income / weekly $20 / unused weekly cancel / improvement-only
+compare / demo silence / harness-moves-when-checking-row-present /
+cancel-vs-scaled dipDisappear), `assistant-what-to-cut.test.ts` radar
+engine + honest-null locks, `coach-copy.test.ts` ALL_STRINGS + assumption
+lock, ask.spec + live-check demo absence of `90-day cash-flow walk`.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,416 passed +
+1 expected fail + 1 skipped / 450 files + 1 skipped**. E2E **366 passed**.
+No `prisma/` diff.
+
 ## ✅ BUILT 2026-08-24 — Ask "what should I cut?" FI counterfactual (DECISIONS #506)
 
 **The report.** P.1's second half: the cut list now answers "and what happens
@@ -32,12 +63,10 @@ total), F6 (unique-merchant count) executed; F2 fixed in REGRESSION_LEDGER;
 F5 (facts-panel remainder sums rows, the sentence's total is per-merchant)
 recorded open with rationale in #506 — unreachable on the demo.
 
-**Still open on P.1.** The radar/cash-dip re-walk ("your July dip
-disappears") — re-walk the projection without the cut series' scheduled rows
-(the `radarFromSnapshot` dedupe precedent), speak only if the dip/cover
-actually moves. /coach-card radiation of the sentence is a follow-up
-candidate. Then the ranked lane: W.6(b)(c)(d), P1.4/P1.5, Reports interest &
-fees YTD, mortgage early-payoff, PAW.
+**Still open on P.1 after #506.** Radar/cash-dip re-walk — SHIPPED #507.
+/coach-card radiation of the sentences remains. Then the ranked lane:
+W.6(b)(c)(d), P1.4/P1.5, Reports interest & fees YTD, mortgage
+early-payoff, PAW.
 
 **Locked.** `fi-cut-counterfactual.test.ts` (16: hand-computed 0% anchors,
 savings-only non-vacuity, honest nulls, monotonicity, dedupe, demo wiring

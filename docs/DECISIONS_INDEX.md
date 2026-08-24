@@ -500,3 +500,4 @@ refuses to write if it would drop any number this file already carries.
 - **#504** (Phase ?): P1.3 "My Rich Life" vision line: one stored string, two fences (2026-08-23)
 - **#505** (Phase ?): Ask `rich_life` intent: the stored line routed, and the empty state named (2026-08-23)
 - **#506** (Phase ?): Ask "what should I cut?": the FI counterfactual over exactly the list printed (2026-08-24)
+- **#507** (Phase ?): Ask "what should I cut?": radar/cash-dip re-walk, speak only if it moves (2026-08-24)

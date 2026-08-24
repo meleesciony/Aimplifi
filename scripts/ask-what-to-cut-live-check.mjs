@@ -1,7 +1,7 @@
 /**
  * Node type: live-probe (GRAPH.md §6 — proves one shipped claim against production).
- * Deploy proof for the Ask `what_to_cut` FI counterfactual (P.1 second half,
- * DECISIONS #506), run against PRODUCTION.
+ * Deploy proof for the Ask `what_to_cut` counterfactual (P.1 — FI half #506,
+ * radar/cash-dip half #507), run against PRODUCTION.
  *
  * /ask is auth-gated, so `curl | grep` gets a 307 (`committed-is-not-shipped`).
  * This signs into the shared demo and asks "What should I cut?". The demo's
@@ -93,6 +93,13 @@ try {
     && answer.includes('same return and inflation assumptions as Coach')
     && answer.includes('Illustration, not advice'));
   check('no "this card"/"below" claims in the answer', !/this card|below/i.test(answer));
+  // Demo seed: the four opportunities are card-billed, not checking
+  // scheduled, so the radar re-walk is the honest null. A production
+  // answer that invents "your July dip disappears" on this seed is a
+  // fabricated effect (the unit lock is
+  // test_regression__p1_cut_does_not_invent_a_radar_dip_on_the_demo_seed).
+  check('demo seed has no radar-dip sentence (honest null — nothing on checking scheduled matches)',
+    !/90-day cash-flow walk/.test(answer), snippet);
 } finally {
   await browser.close();
 }

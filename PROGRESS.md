@@ -2,6 +2,40 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-24 — Ask "what should I cut?" radar/cash-dip re-walk (DECISIONS #507)
+
+**Picked up.** Owner: "read readme files and continue." #506 shipped the FI
+half. This is P.1's remaining engine piece: filter the cut series' scheduled
+rows out of `radarFromSnapshot`, speak only if the dip/cover moves.
+
+**Closed (Ask radar half).** New pure `src/lib/engine/radar/cut-counterfactual.ts`:
+`applyCutsToScheduled` (per-merchant MAX, income skipped, `negotiable-bill`
+scaled onto cadence so a $20/mo estimate cannot cancel a weekly series) +
+`cutRadarCounterfactual` (improvement-only on dip date and rounded cover).
+`COACH_COPY.cutRadarCounterfactual` owns the sentence AND the honest null.
+Wired in the `what_to_cut` server case as two `radarFromSnapshot` walks on
+the same snapshot. Demo: the four opportunities are card-billed, checking
+scheduled is payroll/rent/savings — the walk does not move, and the sentence
+stays off. A checking series that does match is locked in the unit harness.
+
+**Critic (fresh context, read-only): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0,
+0 P1, 7 P2 carried.** P1-1 weekly $20 cancel and P1-2 "stop hitting" executed
+in-slice.
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, `next build` clean). Unit **7,416 passed + 1 expected
+fail + 1 skipped / 450 files + 1 skipped**. E2E **366 passed** (`npx
+playwright test` this session, 4.0m; P.1 ask.spec in the 29/29 Ask file).
+No `prisma/` diff.
+
+**Gate read.** Pending push.
+
+**Next.** Push, `scripts/ci-status.sh`, live probe
+`node scripts/ask-what-to-cut-live-check.mjs` (now also asserts the demo
+radar sentence is absent). Then /coach-card radiation of the cut sentences,
+or the ranked lane: W.6(b)(c)(d), P1.4/P1.5, Reports interest & fees YTD,
+mortgage early-payoff, PAW.
+
 ## 2026-08-24 — Ask "what should I cut?" FI counterfactual (DECISIONS #506)
 
 **Picked up.** The coach lane's top-ranked leftover (P.1's counterfactual

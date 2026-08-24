@@ -127,6 +127,11 @@ test('What should I cut agrees with Coach opportunities (P.1)', async ({ page })
   await expect(answer).toContainText(/same return and inflation assumptions as Coach/);
   await expect(answer).toContainText('Illustration, not advice');
   await expect(answer).not.toContainText(/this card/i);
+  // Radar half: the demo's four opportunities are card-billed, so they do
+  // not sit on checking scheduled and the 90-day walk does not move. A
+  // fabricated "dip disappears" on this seed fails here; a real-user
+  // checking subscription that does move is locked in the unit suite.
+  await expect(answer).not.toContainText(/90-day cash-flow walk/);
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
 });
 

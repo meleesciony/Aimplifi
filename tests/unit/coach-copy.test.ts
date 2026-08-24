@@ -596,6 +596,66 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     text: COACH_COPY.cutCounterfactual(count, cents(7837), cf, hasEstimate)!,
     isProjection: true,
   })),
+  // P.1 radar half — dip/cover movement over the 90-day walk. Honest null is
+  // locked separately below the scan (null is not a string to scan).
+  ...([
+    [
+      'cutRadarCounterfactual',
+      {
+        baselineDipDate: isoDate('2026-06-24'),
+        cutDipDate: null,
+        dipDisappears: true,
+        dipLater: false,
+        baselineCoverCents: cents(105000),
+        cutCoverCents: null,
+        coverDropCents: cents(105000),
+        moved: true,
+      },
+    ],
+    [
+      'cutRadarCounterfactual:later',
+      {
+        baselineDipDate: isoDate('2026-06-12'),
+        cutDipDate: isoDate('2026-06-25'),
+        dipDisappears: false,
+        dipLater: true,
+        baselineCoverCents: cents(50000),
+        cutCoverCents: cents(50000),
+        coverDropCents: cents(0),
+        moved: true,
+      },
+    ],
+    [
+      'cutRadarCounterfactual:cover',
+      {
+        baselineDipDate: isoDate('2026-06-20'),
+        cutDipDate: isoDate('2026-06-20'),
+        dipDisappears: false,
+        dipLater: false,
+        baselineCoverCents: cents(50000),
+        cutCoverCents: cents(40000),
+        coverDropCents: cents(10000),
+        moved: true,
+      },
+    ],
+    [
+      'cutRadarCounterfactual:later+cover',
+      {
+        baselineDipDate: isoDate('2026-06-12'),
+        cutDipDate: isoDate('2026-06-25'),
+        dipDisappears: false,
+        dipLater: true,
+        baselineCoverCents: cents(50000),
+        cutCoverCents: cents(30000),
+        coverDropCents: cents(20000),
+        moved: true,
+      },
+    ],
+  ] as const).map(([label, cf]) => ({
+    label: label as string,
+    text: COACH_COPY.cutRadarCounterfactual(cf)!,
+    isProjection: true,
+  })),
   { label: 'dialTag', text: COACH_COPY.dialTag('Dining Out'), isProjection: false },
   { label: 'volatilityPrice', text: COACH_COPY.volatilityPrice(700, 450), isProjection: true },
   { label: 'fifteenPercentReference', text: COACH_COPY.fifteenPercentReference(), isProjection: false },
@@ -784,6 +844,43 @@ describe('coach copy guardrails — zero shame, assumptions everywhere, no ticke
     expect(COACH_COPY.cutCounterfactual(3, cents(5000), still, false)).toBeNull();
     const alreadyThere = { ...still, baselineMonths: 0, cutMonths: 0, targetDropCents: cents(0) };
     expect(COACH_COPY.cutCounterfactual(3, cents(5000), alreadyThere, false)).toBeNull();
+  });
+
+  it('cutRadarCounterfactual: nothing improved ⇒ null, never a zero-delta dip sentence', () => {
+    const still = {
+      baselineDipDate: isoDate('2026-06-24'),
+      cutDipDate: isoDate('2026-06-24'),
+      dipDisappears: false,
+      dipLater: false,
+      baselineCoverCents: cents(105000),
+      cutCoverCents: cents(105000),
+      coverDropCents: cents(0),
+      moved: false,
+    };
+    expect(COACH_COPY.cutRadarCounterfactual(still)).toBeNull();
+    const alreadyClear = {
+      ...still,
+      baselineDipDate: null,
+      cutDipDate: null,
+      baselineCoverCents: null,
+      cutCoverCents: null,
+    };
+    expect(COACH_COPY.cutRadarCounterfactual(alreadyClear)).toBeNull();
+  });
+
+  it('cutRadarCounterfactual assumption does not claim every cut cancels the series (critic P1-2)', () => {
+    const text = COACH_COPY.cutRadarCounterfactual({
+      baselineDipDate: isoDate('2026-06-20'),
+      cutDipDate: isoDate('2026-06-20'),
+      dipDisappears: false,
+      dipLater: false,
+      baselineCoverCents: cents(50000),
+      cutCoverCents: cents(40000),
+      coverDropCents: cents(10000),
+      moved: true,
+    })!;
+    expect(text).toContain('an estimated saving only shrinks it');
+    expect(text).not.toMatch(/stop hitting/);
   });
 
   // Critic F3 — a month span reads the way the FI card phrases spans

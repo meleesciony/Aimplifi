@@ -66,6 +66,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { addMonthsClamped, compareDates, formatMonth, isoDate } from '@/lib/dates';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { CutCounterfactual } from '@/lib/engine/fi/counterfactual';
+import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import { runwayTitle, type CreepResult, type Opportunity } from '@/lib/engine/fi/insights';
 import type { StayingWealthyRow } from '@/lib/engine/fi/staying-wealthy';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
@@ -2173,13 +2174,13 @@ export function answerWealthTarget(
 
 /**
  * P.1 — phrases the SAME `findOpportunities` list /coach already prints, plus
- * what acting on that exact list does to the FI math. The counterfactual is
- * computed by the caller through `cutCounterfactual` (the engine re-runs
- * `monthsToFI` on the cut basis); this formatter only decides whether the
- * result earns a sentence, and COACH_COPY owns the wording — including the
- * honest null (nothing moves ⇒ no sentence). The radar/cash-dip re-walk is
- * the remaining open piece of P.1. Never ranks a money dial as a cut.
- * The formatter selects; the engine already ranked — and now re-projected.
+ * what acting on that exact list does to the FI math and (when the walk
+ * actually moves) the 90-day cash-flow dip. The counterfactuals are computed
+ * by the caller (`cutCounterfactual` / `cutRadarCounterfactual`); this
+ * formatter only decides whether each result earns a sentence, and COACH_COPY
+ * owns the wording — including the honest null (nothing moves ⇒ no sentence).
+ * Never ranks a money dial as a cut. The formatter selects; the engine
+ * already ranked — and re-projected.
  */
 export function answerWhatToCut(input: {
   opportunities: readonly Opportunity[];
@@ -2194,6 +2195,11 @@ export function answerWhatToCut(input: {
    * contract; every current caller passes it).
    */
   counterfactual?: { cutMonthlyCents: Cents; result: CutCounterfactual } | null;
+  /**
+   * The radar re-walk over the same list (scheduled rows filtered, same
+   * `radarFromSnapshot` engine). Absent ⇒ no dip/cover sentence.
+   */
+  radarCounterfactual?: CutRadarCounterfactual | null;
 }): AssistantAnswer {
   const source: AssistantSource = { label: 'See on Coach', href: '/coach' };
   const list = input.opportunities;
@@ -2244,6 +2250,10 @@ export function answerWhatToCut(input: {
       list.some((o) => o.isEstimate),
     );
     if (movement !== null) detailParts.push(movement);
+  }
+  if (input.radarCounterfactual) {
+    const radarMovement = COACH_COPY.cutRadarCounterfactual(input.radarCounterfactual);
+    if (radarMovement !== null) detailParts.push(radarMovement);
   }
   if (input.moneyDials.length > 0) {
     detailParts.push(COACH_COPY.moneyDials([...input.moneyDials]));

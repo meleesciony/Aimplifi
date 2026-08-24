@@ -9026,3 +9026,53 @@ facts panel's remainder sum is per-row while the sentence's total is
 per-merchant-max) recorded open with rationale: the facts sum the ROWS they
 cover, and a per-merchant-max there would falsify that claim — not reachable
 on the demo (raw == deduped == $78.87).
+
+## #507 — Ask "what should I cut?": radar/cash-dip re-walk, speak only if it moves (2026-08-24)
+
+**Context.** TASKS Wave P row P.1 leftover after #506. The FI half says what
+acting on the list does to the number and the date. The remaining half is the
+cash-flow walk: "your July dip disappears" — only if it actually does.
+
+**Decision.**
+1. **Harness, not new scalars.** Dip date and cover amount are properties of
+   a 90-day `radarFromSnapshot` walk. The server clones the snapshot, runs
+   `applyCutsToScheduled` on `snap.scheduled`, and re-calls the same engine
+   with the same recurring overrides. The duplicate-pair radar gate is the
+   precedent: re-walk, speak only if `firstNegativeDate` or
+   `coverTransfer.amountCents` improves. Worsening-only and identical walks
+   are the honest null.
+2. **`applyCutsToScheduled` is the pure core**
+   (`src/lib/engine/radar/cut-counterfactual.ts`). Opportunity has no series
+   id, so matching is `normalizeMerchant(description).canonical` against
+   `Opportunity.merchant` (for `toScheduledRow` those are the same string).
+   Per-merchant MAX is the same rule as `cutByMerchant`. Income rows are
+   never touched.
+3. **Cadence scaling for `negotiable-bill`.** That kind is a calendar-monthly
+   $20 estimate; unused-subscription / price-increase / 15% re-shop are
+   per-occurrence. Applying $20 against a weekly $15 template would cancel
+   ~13 hits. `monthlyCutToOccurrenceCents` (WEEKLY = round(monthly×12/52))
+   scales the estimate onto the row before comparing. Unknown cadence is
+   treated as monthly (fail-safe: do not invent a weekly conversion).
+4. **Copy's one author owns the honest null.**
+   `COACH_COPY.cutRadarCounterfactual` returns null when `moved` is false.
+   A disappeared dip is the whole claim (the cover going to nothing is the
+   same fact). Dates come from `formatISODate` on the walk, never a
+   hardcoded month. Assumption names both branches: cancelled series leave
+   the walk; an estimated saving only shrinks it. Grounding is "same
+   committed projection as Cash flow radar". No "this card"/"below".
+5. **Demo is the honest null, and that is locked.** Seed scheduled is
+   payroll / rent / savings; the four opportunities are card-billed. The
+   walk does not move. e2e and the live probe assert the radar sentence is
+   ABSENT on the demo. A checking series that does match is locked in the
+   unit harness, not on the demo.
+
+**Critic (fresh context, read-only): cycle 1 FAIL 0 P0 / 2 P1 / 7 P2; cycle 2
+PASS 0 P0 / 0 P1 / 7 P2 carried.** P1-1 (weekly $20 cancel) and P1-2
+("stop hitting" claimed cancellation for reduce-walks) executed in-slice.
+Carried P2s: sentence does not name the matching merchant; $50 cover rung;
+product gates lock silence not the positive wire; burn Watch vs committed
+"goes away"; "around" on an exact date; null-cover `$0.00` on a mixed
+sides(); empty-list still does two walks.
+
+**Scope: Ask only.** /coach-card radiation of the sentence remains the
+follow-up on this row.

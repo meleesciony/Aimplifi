@@ -17,10 +17,16 @@ import { resolvePaymentAccount, getCashNeeded } from '@/server/finance';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { getRecurring } from '@/server/recurring';
 import { getCashFlowForecast } from '@/server/forecast';
-import { getCashFlowRadar } from '@/server/radar';
+import { getCashFlowRadar, radarFromSnapshot } from '@/server/radar';
 import { getCoachData } from '@/server/coach';
+import { getRecurringOverrides } from '@/server/recurring-overrides';
 import { composeStayingWealthy } from '@/lib/engine/fi/staying-wealthy';
 import { cutCounterfactual, sumCutMonthlyCents } from '@/lib/engine/fi/counterfactual';
+import {
+  applyCutsToScheduled,
+  cutRadarCounterfactual,
+  radarCutSides,
+} from '@/lib/engine/radar/cut-counterfactual';
 import { loadDebtAccounts } from '@/server/debt';
 import { planDebtPayoff } from '@/lib/engine/debt/payoff';
 import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
@@ -30,7 +36,7 @@ import { seededHorizon, solveWealthTarget } from '@/lib/engine/solve/wealth-targ
 import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
 import { wealthTargetPlanUnproven } from '@/lib/engine/fi/coach-copy';
 import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
-import type { ISODate } from '@/lib/dates';
+import { isoDate, type ISODate } from '@/lib/dates';
 import { asOfWindow, spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
 import { askVocabulary, mergeCategoryMeta, type CategoryMeta } from '@/lib/engine/categorize/categories';
@@ -799,8 +805,10 @@ async function buildAnswer(
     case 'what_to_cut': {
       // P.1: SAME findOpportunities list /coach prints, plus the FI
       // counterfactual over exactly that list — the same monthsToFI walk at
-      // the same real projection rate the standing FI figures use. The
-      // radar/cash-dip re-walk remains the open piece of P.1.
+      // the same real projection rate the standing FI figures use — and the
+      // radar/cash-dip re-walk: filter the cut series' scheduled rows out of
+      // the SAME `radarFromSnapshot` input the dashboard radar reads, speak
+      // only if the dip date or cover amount actually improves.
       const coach = await getCoachData(userId);
       const cutMonthlyCents = sumCutMonthlyCents(coach.opportunities);
       const counterfactual =
@@ -817,6 +825,21 @@ async function buildAnswer(
               }),
             }
           : null;
+      const asOf = isoDate(today);
+      const overrides = await getRecurringOverrides(userId);
+      const { radar: baselineRadar } = radarFromSnapshot(snap, asOf, overrides);
+      const { radar: cutRadar } = radarFromSnapshot(
+        {
+          ...snap,
+          scheduled: applyCutsToScheduled(snap.scheduled, coach.opportunities),
+        },
+        asOf,
+        overrides,
+      );
+      const radarCounterfactual = cutRadarCounterfactual(
+        radarCutSides(baselineRadar),
+        radarCutSides(cutRadar),
+      );
       return answerWhatToCut({
         opportunities: coach.opportunities,
         moneyDials: coach.moneyDials,
@@ -827,6 +850,7 @@ async function buildAnswer(
           inflationIsDefault: coach.fi.inflationIsDefault,
         },
         counterfactual,
+        radarCounterfactual,
       });
     }
     case 'lifestyle_creep': {
