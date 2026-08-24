@@ -28,13 +28,24 @@ fail + 1 skipped / 450 files + 1 skipped**. E2E **366 passed** (`npx
 playwright test` this session, 4.0m; P.1 ask.spec in the 29/29 Ask file).
 No `prisma/` diff.
 
-**Gate read.** Pending push.
+**Gate read.** Commit `f66debf9` → pushed → GitHub Actions `verify` =
+**SUCCESS** (run **32771238086**, first attempt, job 12m38s,
+https://github.com/meleesciony/Aimplifi/actions/runs/32771238086). Vercel:
+Production deployment `6070344963`, "Deployment has completed", sha
+`f66debf9`. Live proof `node scripts/ask-what-to-cut-live-check.mjs` →
+**9/9 PASS**: demo Ask still lists LA Fitness $34.99 first, FI movement
+present with pinned dollars ($23,661.00 / about $78.87 a month, part
+estimated, 12 months sooner on production `today`), no "this card"/"below",
+honest-null radar sentence absent on the demo answer, AND the #507
+assumption copy ("an estimated saving only shrinks it") is in the live
+/coach client bundles (1 chunk) — the discriminator a pre-#507 deploy
+cannot satisfy. First live-check attempt failed the Ask hydration wait
+(value never stuck in 6×500ms); the probe now waits `load` and retries 12
+times.
 
-**Next.** Push, `scripts/ci-status.sh`, live probe
-`node scripts/ask-what-to-cut-live-check.mjs` (now also asserts the demo
-radar sentence is absent). Then /coach-card radiation of the cut sentences,
-or the ranked lane: W.6(b)(c)(d), P1.4/P1.5, Reports interest & fees YTD,
-mortgage early-payoff, PAW.
+**Next.** /coach-card radiation of the FI + radar sentences, or the ranked
+lane: W.6(b)(c)(d), P1.4/P1.5, Reports interest & fees YTD, mortgage
+early-payoff, PAW.
 
 ## 2026-08-24 — Ask "what should I cut?" FI counterfactual (DECISIONS #506)
 

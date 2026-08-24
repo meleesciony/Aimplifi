@@ -14,11 +14,14 @@
  * 12-month sentence. Read-only: it never submits a form's data beyond the ask
  * input, and writes nothing.
  *
- * ANTI-VACUITY. The answer copy is server-side only, so no bundle check is
- * possible; the discriminator is the answer itself — a pre-#506 build answers
- * the SAME list with NO FI-movement sentence (the pre-#506 e2e asserted its
- * absence). Proving the movement sentence with the pinned dollar figures is
- * present proves the counterfactual shipped.
+ * ANTI-VACUITY. The FI-movement sentence with the pinned dollar figures
+ * proves #506 is still live. The radar sentence is correctly ABSENT on the
+ * demo (card-billed opportunities), so absence alone cannot prove #507 — a
+ * pre-#507 build is absent too. The sha is therefore proved by BUNDLE
+ * CONTENT: `COACH_COPY.cutRadarCounterfactual` ships in the /coach client
+ * bundles (the page imports the whole COACH_COPY object) even when the
+ * honest null keeps it off the Ask screen. A pre-#507 deploy has the
+ * marker nowhere.
  *
  *   node scripts/ask-what-to-cut-live-check.mjs
  */
@@ -55,7 +58,7 @@ try {
   await signInDemo();
   check('signed into the shared demo on production', true, BASE);
 
-  await page.goto(`${BASE}/ask`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}/ask`, { waitUntil: 'load' });
   await page.getByTestId('ask-input').waitFor({ state: 'visible', timeout: 30_000 });
 
   // Hydration: the ask input is CONTROLLED — a fill that lands before React
@@ -64,11 +67,11 @@ try {
   // AND the submit is enabled before clicking; retry through the race.
   const question = 'What should I cut?';
   let ready = false;
-  for (let attempt = 0; attempt < 6 && !ready; attempt++) {
+  for (let attempt = 0; attempt < 12 && !ready; attempt++) {
     await page.getByTestId('ask-input').fill(question);
     const value = await page.getByTestId('ask-input').inputValue();
     ready = value === question && (await page.getByTestId('ask-submit').isEnabled());
-    if (!ready) await page.waitForTimeout(500);
+    if (!ready) await page.waitForTimeout(750);
   }
   if (!ready) throw new Error('ask input never hydrated (value never stuck / submit stayed disabled)');
 
@@ -100,6 +103,31 @@ try {
   // test_regression__p1_cut_does_not_invent_a_radar_dip_on_the_demo_seed).
   check('demo seed has no radar-dip sentence (honest null — nothing on checking scheduled matches)',
     !/90-day cash-flow walk/.test(answer), snippet);
+
+  // #507 sha, proved by content: the radar sentence lives on COACH_COPY,
+  // which /coach loads. Absence on Ask is the honest null; presence in the
+  // bundles is the discriminator a pre-#507 deploy cannot satisfy.
+  await page.goto(`${BASE}/coach`, { waitUntil: 'domcontentloaded' });
+  await page.getByTestId('fi-card').waitFor({ state: 'visible', timeout: 30_000 });
+  const MARKER = 'an estimated saving only shrinks it';
+  const loaded = await page.evaluate(async (marker) => {
+    const hrefs = performance
+      .getEntriesByType('resource')
+      .map((e) => e.name)
+      .filter((u) => u.includes('/_next/') && /\.[jt]s/.test(u));
+    const found = [];
+    for (const u of hrefs) {
+      try {
+        const t = await fetch(u).then((r) => r.text());
+        if (t.includes(marker)) found.push(u);
+      } catch {
+        /* a chunk that can't be read is not the proof; skip */
+      }
+    }
+    return found;
+  }, MARKER);
+  check('#507 radar-assumption copy is in the live /coach client bundles',
+    loaded.length > 0, `${loaded.length} chunk(s)`);
 } finally {
   await browser.close();
 }
