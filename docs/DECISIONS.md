@@ -8964,3 +8964,65 @@ DOM-side. Also hardened two harness races live: the ask input is CONTROLLED
 (a pre-hydration fill resets it → submit stays disabled — assert the
 value stuck before clicking), same class as the demo-button race recorded
 in #504. No code defect: production answered correctly on every probe.
+
+## #506 — Ask "what should I cut?": the FI counterfactual over exactly the list printed (2026-08-24)
+
+**Context.** TASKS Wave P row P.1, second half. The first slice (#494) routed
+"what should I cut?" to the SAME `findOpportunities` list /coach prints but
+deliberately did not answer "and what happens if I do". A cut is a decision
+with a counterfactual; this slice computes it.
+
+**Decision.**
+1. **New pure engine `src/lib/engine/fi/counterfactual.ts`.**
+   `cutCounterfactual` re-runs the SAME `monthsToFI` walk at the SAME real
+   projection rate the /coach FI card compounds at (`coach.fi.projectionReturnBps`
+   — the W.2 unit rule, never the nominal dial), with the cut applied to BOTH
+   sides of the FI math: the target drops (`fiNumberCents(annualExpenses −
+   12×cut, swr)`, floored at $0) AND monthly savings rise by the cut. The dual
+   effect is the honest counterfactual: the FI number is built from what the
+   reader spends, and a permanent cut is spending that stops — the $1/mo =
+   $300-at-4% identity. A savings-only move would be the slider's answer, not
+   the cut's; a non-vacuity lock asserts the two differ.
+2. **`monthsSooner` can never be negative by construction** (a cut lowers the
+   target and raises the pace; `monthsToFI` is monotonic in both) — the
+   `max(0, …)` is a rounding floor, not a clamp. `newlyReachable` (baseline
+   null → a date exists) is its own qualitative fact, because a null baseline
+   has no date to subtract.
+3. **The honest null lives in the copy's one author.** `COACH_COPY.
+   cutCounterfactual` returns `null` when nothing moves, so no caller can
+   print "about 0 months sooner" — a fabricated effect.
+4. **One merchant, one saving.** `sumCutMonthlyCents` dedupes per merchant by
+   the LARGEST row: one series can be both unused-subscription (full amount)
+   and price-increase (delta), and cancelling it frees the full amount once —
+   full+delta double-counts. The sentence's action count is the unique-merchant
+   count for the same reason (critic F6).
+5. **Copy discloses the three things that make the figure honest:** estimates
+   are qualified inline ("part of it estimated" + the marked rows "assumed to
+   land as marked"); the counterfactual's own load-bearing assumptions are
+   stated ("Assumes the cuts stick and the freed money goes to savings"); month
+   spans phrase as the FI card phrases them (months under two years,
+   years+months above — never "about 734 months"; critic F3). No "this
+   card"/"below" (the L.15 lesson); "as Coach", never "your rates" (W.13).
+6. **The pre-#506 lock was replaced, not weakened.** `test_regression__p1_
+   cut_does_not_invent_fi_movement` locked the first slice's no-re-projection
+   contract; the task row mandates the counterfactual, so the lock became
+   `test_regression__p1_cut_fi_movement_comes_from_the_engine` (movement iff
+   the engine reports it, with the engine's own numbers) plus two
+   honest-silence locks (no movement ⇒ no sentence; no counterfactual input ⇒
+   no sentence).
+7. **Scope: Ask only.** The radar/cash-dip re-walk ("your July dip
+   disappears") is the remaining open piece of P.1 (recorded in TASKS);
+   /coach-card radiation of the sentence is a follow-up candidate. The demo
+   wiring lock (`fi-cut-counterfactual.test.ts`, drives `getCoachData`) keeps
+   the counterfactual on the card's basis: baseline target and months must
+   equal the standing figures.
+
+**Critic (fresh context, read-only): PASS — 0 P0, 0 P1, 6 P2.** F1 (docblock
+claimed a permanence clause the copy lacked → the clause shipped), F3 (raw
+months → years+months phrasing + lock), F4 (estimate-heavy total → inline
+"part of it estimated"), F6 (row count → unique merchants) executed in-slice;
+F2 (ledger row citing the replaced test) fixed in REGRESSION_LEDGER; F5 (the
+facts panel's remainder sum is per-row while the sentence's total is
+per-merchant-max) recorded open with rationale: the facts sum the ROWS they
+cover, and a per-merchant-max there would falsify that claim — not reachable
+on the demo (raw == deduped == $78.87).

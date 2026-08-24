@@ -9,6 +9,50 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-24 — Ask "what should I cut?" FI counterfactual (DECISIONS #506)
+
+**The report.** P.1's second half: the cut list now answers "and what happens
+if I do". The Ask answer re-projects FI over exactly the opportunities it
+prints and reports what actually moves — on the demo: "Acting on all 4 of them
+— about $78.87 a month, part of it estimated — moves your FI date about 11
+months sooner and lowers the number itself by about $23,661.00…", with the
+assumptions named and an honest no-sentence when nothing moves.
+
+**Shipped.** New pure engine `src/lib/engine/fi/counterfactual.ts`
+(`cutCounterfactual` — the SAME `monthsToFI` walk at the SAME real projection
+rate, cut applied to BOTH the target and the pace; `sumCutMonthlyCents` —
+per-merchant MAX dedupe so an unused AND price-increased merchant frees its
+full amount once). `COACH_COPY.cutCounterfactual` owns the sentence AND the
+honest null (nothing moves ⇒ null). Wired in the `what_to_cut` server case
+over `coach.fi`'s own basis fields.
+
+**Critic (fresh context, read-only): PASS — 0 P0, 0 P1, 6 P2.** F1
+(permanence clause), F3 (years+months phrasing), F4 (estimate-qualified
+total), F6 (unique-merchant count) executed; F2 fixed in REGRESSION_LEDGER;
+F5 (facts-panel remainder sums rows, the sentence's total is per-merchant)
+recorded open with rationale in #506 — unreachable on the demo.
+
+**Still open on P.1.** The radar/cash-dip re-walk ("your July dip
+disappears") — re-walk the projection without the cut series' scheduled rows
+(the `radarFromSnapshot` dedupe precedent), speak only if the dip/cover
+actually moves. /coach-card radiation of the sentence is a follow-up
+candidate. Then the ranked lane: W.6(b)(c)(d), P1.4/P1.5, Reports interest &
+fees YTD, mortgage early-payoff, PAW.
+
+**Locked.** `fi-cut-counterfactual.test.ts` (16: hand-computed 0% anchors,
+savings-only non-vacuity, honest nulls, monotonicity, dedupe, demo wiring
+lock), `assistant-what-to-cut.test.ts` (movement-from-engine + both
+silence cases), `coach-copy.test.ts` (4 ALL_STRINGS rows + null + span
+locks), ask.spec e2e (the sentence with the pinned demo figures).
+
+**Gate.** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, `next build` clean). Unit **7,376 passed + 1
+expected fail + 1 skipped / 449 files + 1 skipped**. E2E **365 passed + 1
+flaky-on-retry** (`category-rename.spec.ts:110` — the rotating load-flake
+class; passed on retry). No `prisma/` diff. One gate red en route: the e2e
+asserted the pre-fix copy's capitalization (fixed, re-gated — recorded in
+REGRESSION_LEDGER).
+
 ## ✅ BUILT 2026-08-23 — Ask `rich_life` intent (DECISIONS #505)
 
 **The report.** The plan's Ask row last gate, unblocked by #504 (the stored

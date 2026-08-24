@@ -2,6 +2,65 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-24 — Ask "what should I cut?" FI counterfactual (DECISIONS #506)
+
+**Picked up.** The coach lane's top-ranked leftover (P.1's counterfactual
+half), with Flash-lane content exhausted at #505. Explorer pass first: the
+re-walk precedent lives in `src/server/radar.ts` (filter the input array,
+re-call the pure engine); the FI counterfactual needs no harness —
+`monthsToFI` takes the changed scalars directly; `Opportunity` carries no
+series identity, so the cut sum dedupes per merchant by its largest row.
+
+**Closed (Ask half).** New pure `src/lib/engine/fi/counterfactual.ts`:
+`cutCounterfactual` re-runs the standing `monthsToFI` walk at
+`coach.fi.projectionReturnBps` (the W.2 real-rate rule) with the cut applied
+to BOTH sides — the FI target drops (spending that stops leaves the expense
+basis; $1/mo = $300 at 4%) and the pace rises by the cut. Honest null lives
+in the copy's one author (`COACH_COPY.cutCounterfactual` → null when nothing
+moves); `newlyReachable` is its own qualitative branch (a null baseline has
+no date to subtract). Demo: all 4 opportunities, about $78.87/mo (part
+estimated) → FI about 11 months sooner, the number $23,661.00 lower.
+`test_regression__p1_cut_does_not_invent_fi_movement` REPLACED (contract
+change the task row mandates) by movement-from-the-engine + two
+honest-silence locks.
+
+**Critic (fresh context, read-only): PASS — 0 P0, 0 P1, 6 P2.** Hand-verified
+the 0% anchors on paper AND re-simulated a 5%-real case independently — exact
+match. F1 permanence clause, F3 years+months phrasing, F4 estimate-qualified
+total, F6 unique-merchant count executed in-slice; F2 ledger drift fixed; F5
+(facts remainder sum vs deduped total) recorded open with rationale in #506.
+
+**Gate (final tree).** `VERIFY_E2E=1 bash scripts/verify.sh` → ✅ VERIFY
+GREEN (tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **7,376
+passed + 1 expected fail + 1 skipped / 449 files + 1 skipped**. E2E **365
+passed + 1 flaky-on-retry** (`category-rename.spec.ts:110`, rotating load
+flake, passed on retry; the P.1 ask.spec test in the passing set). Two red
+gates en route, both mine and both recorded: a tsc error in the new
+span-phrasing test (missing arg — vitest doesn't typecheck), and the e2e
+asserting the pre-fix copy's capitalization (the fix-edge re-gate caught it —
+REGRESSION_LEDGER row). No `prisma/` diff.
+
+**Gate read.** Commit `97619d48` → pushed → GitHub Actions `verify` =
+**SUCCESS** (run **32756202009**, first attempt,
+https://github.com/meleesciony/Aimplifi/actions/runs/32756202009). Vercel:
+READY, production, aliased to `www.aimplifi.app`
+(`dpl_HcFkABKoHjHQEK7zhuzwxRYGoip5`, created 2026-08-24 13:21:59 EDT — the
+push instant). Live proof `node scripts/ask-what-to-cut-live-check.mjs` →
+**7/7 PASS**: demo Ask still lists LA Fitness $34.99 first, the movement
+sentence is present with the pinned dollars ($23,661.00 / about $78.87 a
+month, part of it estimated), assumptions inline, no "this card"/"below".
+The first live run failed the month-span pin: local seed (asOf 2026-06-10)
+is **11** months sooner (wiring test: baseline 297 → cut 286); production
+printed **12** (`today` is not the seed asOf). The probe now matches the
+e2e regex for the span and pins only the seed-stable dollar figures.
+
+**Next.** P.1's remaining piece: the radar/cash-dip re-walk ("your July dip
+disappears") — filter the cut series' scheduled rows out of
+`radarFromSnapshot`'s input and speak only if the dip/cover moves. Then the
+ranked lane: W.6(b) marginal-dollar order, W.6(d) drawdown on FI date,
+W.6(c) category fulfillment curve, P1.4 income lever, P1.5 fee-drag FV,
+Reports interest & fees YTD, mortgage early-payoff, PAW expected-NW lens.
+
 ## 2026-08-23 — Ask `rich_life` intent (DECISIONS #505)
 
 **Picked up.** The plan's Ask row last gate, unblocked by #504 the same day.

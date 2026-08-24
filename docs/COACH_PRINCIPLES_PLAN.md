@@ -66,7 +66,8 @@ P1.3 Rich Life one-liner — SHIPPED #504 (stored string + settings card +
 /coach echo; the Ask `rich_life` intent remains, gated in the Ask table).
 
 Opus + hostile critic (new money / money-visible): P.1 counterfactual
-re-projection; W.6(b) marginal-dollar order; W.6(d) drawdown on FI date;
+re-projection — FI half SHIPPED #506 (the radar/cash-dip re-walk remains in
+the P.1 row); W.6(b) marginal-dollar order; W.6(d) drawdown on FI date;
 W.6(c) category fulfillment curve; mortgage early-payoff; Reports
 interest & fees YTD; P1.4 income lever; P1.5 fee-drag FV; PAW expected-NW
 lens.
