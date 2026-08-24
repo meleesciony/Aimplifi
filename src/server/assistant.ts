@@ -20,6 +20,7 @@ import { getCashFlowForecast } from '@/server/forecast';
 import { getCashFlowRadar } from '@/server/radar';
 import { getCoachData } from '@/server/coach';
 import { composeStayingWealthy } from '@/lib/engine/fi/staying-wealthy';
+import { cutCounterfactual, sumCutMonthlyCents } from '@/lib/engine/fi/counterfactual';
 import { loadDebtAccounts } from '@/server/debt';
 import { planDebtPayoff } from '@/lib/engine/debt/payoff';
 import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
@@ -796,8 +797,26 @@ async function buildAnswer(
       });
     }
     case 'what_to_cut': {
-      // P.1: SAME findOpportunities list /coach prints. No FI re-projection.
+      // P.1: SAME findOpportunities list /coach prints, plus the FI
+      // counterfactual over exactly that list — the same monthsToFI walk at
+      // the same real projection rate the standing FI figures use. The
+      // radar/cash-dip re-walk remains the open piece of P.1.
       const coach = await getCoachData(userId);
+      const cutMonthlyCents = sumCutMonthlyCents(coach.opportunities);
+      const counterfactual =
+        cutMonthlyCents > 0
+          ? {
+              cutMonthlyCents,
+              result: cutCounterfactual({
+                portfolioCents: coach.fi.portfolioCents,
+                monthlySavingsCents: coach.fi.monthlySavingsCents,
+                annualExpensesCents: coach.fi.annualExpensesCents,
+                realReturnBps: coach.fi.projectionReturnBps,
+                swrBps: coach.fi.swrBps,
+                cutMonthlyCents,
+              }),
+            }
+          : null;
       return answerWhatToCut({
         opportunities: coach.opportunities,
         moneyDials: coach.moneyDials,
@@ -807,6 +826,7 @@ async function buildAnswer(
           returnIsDefault: coach.fi.returnIsDefault,
           inflationIsDefault: coach.fi.inflationIsDefault,
         },
+        counterfactual,
       });
     }
     case 'lifestyle_creep': {

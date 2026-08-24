@@ -117,7 +117,16 @@ test('What should I cut agrees with Coach opportunities (P.1)', async ({ page })
   await ask(page, 'What should I cut?');
   await expect(page.getByTestId('ask-headline')).toContainText('LA Fitness');
   await expect(page.getByTestId('ask-headline')).toContainText('$34.99');
-  await expect(page.getByTestId('ask-headline')).not.toContainText(/FI date|years to FI|weeks sooner/i);
+  // #506 — the counterfactual half: acting on the list re-projects FI through
+  // cutCounterfactual, and the sentence reports the engine's movement with its
+  // assumptions named. (Pre-#506 this test asserted NO FI mention; the movement
+  // is now computed, so the lock is that it is present and grounded.)
+  const answer = page.getByTestId('ask-answer');
+  await expect(answer).toContainText(/moves your FI date about \d+ months? sooner/);
+  await expect(answer).toContainText(/lowers the number itself by about \$[\d,]+\.\d\d/);
+  await expect(answer).toContainText(/same return and inflation assumptions as Coach/);
+  await expect(answer).toContainText('Illustration, not advice');
+  await expect(answer).not.toContainText(/this card/i);
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
 });
 

@@ -1,9 +1,10 @@
 /**
- * Ask Aimplifi — what_to_cut intent (P.1 first slice).
+ * Ask Aimplifi — what_to_cut intent (P.1).
  *
- * /coach already ranks findOpportunities. This slice routes "what should I
- * cut?" through Ask onto that SAME list. No FI / radar re-projection — a cut
- * that invents a date movement is the rest of P.1, not this slice.
+ * /coach already ranks findOpportunities. This intent routes "what should I
+ * cut?" through Ask onto that SAME list, and (#506) reports what acting on
+ * that exact list does to the FI math — computed by `cutCounterfactual`,
+ * never asserted. The radar/cash-dip re-walk is the remaining open piece.
  *
  * Abstention tests are the majority (docs/lessons/context-carrying-features-must-abstain.md).
  */
@@ -19,6 +20,10 @@ import {
 import { intentFromKind } from '@/lib/engine/assistant/llm';
 import { answerWhatToCut } from '@/lib/engine/assistant/answer';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import {
+  cutCounterfactual,
+  sumCutMonthlyCents,
+} from '@/lib/engine/fi/counterfactual';
 import { findOpportunities } from '@/lib/engine/fi/insights';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
@@ -37,13 +42,24 @@ const series = detectRecurring(
 const seedOpportunities = findOpportunities(series, 700, 250, []);
 const dials = { returnIsDefault: true, inflationIsDefault: true };
 
-function answerFrom(ops: readonly Opportunity[], moneyDials: readonly string[] = []) {
+function answerFrom(
+  ops: readonly Opportunity[],
+  moneyDials: readonly string[] = [],
+  counterfactual?: { cutMonthlyCents: number; result: ReturnType<typeof cutCounterfactual> } | null,
+) {
   return answerWhatToCut({
     opportunities: ops,
     moneyDials,
     expectedReturnBps: 700,
     inflationBps: 250,
     dialOwnership: dials,
+    ...(counterfactual !== undefined
+      ? {
+          counterfactual: counterfactual === null
+            ? null
+            : { ...counterfactual, cutMonthlyCents: cents(counterfactual.cutMonthlyCents) },
+        }
+      : {}),
   });
 }
 
@@ -150,10 +166,108 @@ describe('answerWhatToCut — phrases the coach list, originates no figure', () 
     expect(a.detail).toContain(COACH_COPY.opportunityBasis(700, 250, dials));
   });
 
-  it('test_regression__p1_cut_does_not_invent_fi_movement', () => {
+  it('test_regression__p1_cut_fi_movement_comes_from_the_engine', () => {
+    // #506 replaces the first slice's "no FI movement at all" contract: the
+    // movement is now COMPUTED (cutCounterfactual re-runs monthsToFI), so the
+    // lock becomes — the sentence carries exactly the engine's numbers, and
+    // appears only when the engine reports movement.
+    const cut = sumCutMonthlyCents(seedOpportunities);
+    const result = cutCounterfactual({
+      portfolioCents: cents(10_000_000),
+      monthlySavingsCents: cents(200_000),
+      annualExpensesCents: cents(3_600_000),
+      realReturnBps: 0,
+      swrBps: 400,
+      cutMonthlyCents: cut,
+    });
+    expect(result.monthsSooner).toBeGreaterThan(0); // the fixture must exercise the moving case
+    const a = answerFrom(seedOpportunities, [], { cutMonthlyCents: cut, result });
+    expect(a.detail).toContain(COACH_COPY.cutCounterfactual(
+      new Set(seedOpportunities.map((o) => o.merchant)).size,
+      cut,
+      result,
+      seedOpportunities.some((o) => o.isEstimate),
+    )!);
+    expect(a.detail).toMatch(/moves your FI date about .+ sooner/);
+    expect(a.detail).toContain(formatCents(result.targetDropCents));
+    expect(a.detail).toContain(`${formatCents(cut)} a month`);
+    expect(a.detail).toContain('Assumes the cuts stick');
+    expect(a.detail).toContain('Illustration, not advice');
+    // The Ask copy bans hold on the new sentence too (no positional claims).
+    expect(a.detail).not.toMatch(/this card|below/i);
+  });
+
+  it('the honest null: the engine reports no movement ⇒ no FI sentence at all', () => {
+    const cut = sumCutMonthlyCents(seedOpportunities);
+    // Portfolio already past the target: the cut cannot move a 0-month answer.
+    const result = cutCounterfactual({
+      portfolioCents: cents(90_000_000),
+      monthlySavingsCents: cents(200_000),
+      annualExpensesCents: cents(3_600_000),
+      realReturnBps: 0,
+      swrBps: 400,
+      cutMonthlyCents: cut,
+    });
+    expect(result.monthsSooner).toBe(0);
+    expect(result.newlyReachable).toBe(false);
+    const a = answerFrom(seedOpportunities, [], { cutMonthlyCents: cut, result });
+    const blob = `${a.headline} ${a.detail ?? ''}`;
+    expect(blob).not.toMatch(/FI date|FI number|years to FI|months sooner|moves your FI|retire .*sooner/i);
+  });
+
+  it('no counterfactual supplied ⇒ no FI sentence (a caller that did not re-project says nothing)', () => {
     const a = answerFrom(seedOpportunities);
     const blob = `${a.headline} ${a.detail ?? ''}`;
-    expect(blob).not.toMatch(/FI date|years to FI|weeks sooner|moves your FI|retire .*sooner/i);
+    expect(blob).not.toMatch(/FI date|FI number|years to FI|months sooner|moves your FI|retire .*sooner/i);
+  });
+
+  it('a list with estimate rows says the estimates are assumed to land as marked', () => {
+    const cut = sumCutMonthlyCents(seedOpportunities);
+    expect(seedOpportunities.some((o) => o.isEstimate)).toBe(true); // fixture exercises the branch
+    const result = cutCounterfactual({
+      portfolioCents: cents(10_000_000),
+      monthlySavingsCents: cents(200_000),
+      annualExpensesCents: cents(3_600_000),
+      realReturnBps: 0,
+      swrBps: 400,
+      cutMonthlyCents: cut,
+    });
+    const a = answerFrom(seedOpportunities, [], { cutMonthlyCents: cut, result });
+    expect(a.detail).toContain('estimates are assumed to land as marked');
+    // …and a no-estimate list does not claim it.
+    const measured = seedOpportunities.filter((o) => !o.isEstimate);
+    const measuredCut = sumCutMonthlyCents(measured);
+    const measuredResult = cutCounterfactual({
+      portfolioCents: cents(10_000_000),
+      monthlySavingsCents: cents(200_000),
+      annualExpensesCents: cents(3_600_000),
+      realReturnBps: 0,
+      swrBps: 400,
+      cutMonthlyCents: measuredCut,
+    });
+    const b = answerFrom(measured, [], { cutMonthlyCents: measuredCut, result: measuredResult });
+    expect(b.detail).not.toContain('estimates are assumed to land as marked');
+  });
+
+  it('unreachable → reachable gets the qualitative sentence, not a month delta', () => {
+    const result = cutCounterfactual({
+      portfolioCents: cents(0),
+      monthlySavingsCents: cents(10_000),
+      annualExpensesCents: cents(3_600_000),
+      realReturnBps: 0,
+      swrBps: 400,
+      cutMonthlyCents: cents(80_000),
+    });
+    expect(result.newlyReachable).toBe(true);
+    const a = answerFrom(seedOpportunities, [], { cutMonthlyCents: 80_000, result });
+    expect(a.detail).toContain('puts a date on the horizon at all');
+    expect(a.detail).toContain(COACH_COPY.cutCounterfactual(
+      new Set(seedOpportunities.map((o) => o.merchant)).size,
+      cents(80_000),
+      result,
+      seedOpportunities.some((o) => o.isEstimate),
+    )!);
+    expect(a.detail).not.toMatch(/months? sooner/i);
   });
 
   it('empty list matches the coach empty sentence', () => {

@@ -65,6 +65,7 @@ import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categ
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { addMonthsClamped, compareDates, formatMonth, isoDate } from '@/lib/dates';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import type { CutCounterfactual } from '@/lib/engine/fi/counterfactual';
 import { runwayTitle, type CreepResult, type Opportunity } from '@/lib/engine/fi/insights';
 import type { StayingWealthyRow } from '@/lib/engine/fi/staying-wealthy';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
@@ -2171,9 +2172,14 @@ export function answerWealthTarget(
 // ─── subscriptions ──────────────────────────────────────────────────────────
 
 /**
- * P.1 first slice — phrases the SAME `findOpportunities` list /coach already
- * prints. Originates no figure, does not re-project FI or radar, never ranks a
- * money dial as a cut. The formatter selects; the engine already ranked.
+ * P.1 — phrases the SAME `findOpportunities` list /coach already prints, plus
+ * what acting on that exact list does to the FI math. The counterfactual is
+ * computed by the caller through `cutCounterfactual` (the engine re-runs
+ * `monthsToFI` on the cut basis); this formatter only decides whether the
+ * result earns a sentence, and COACH_COPY owns the wording — including the
+ * honest null (nothing moves ⇒ no sentence). The radar/cash-dip re-walk is
+ * the remaining open piece of P.1. Never ranks a money dial as a cut.
+ * The formatter selects; the engine already ranked — and now re-projected.
  */
 export function answerWhatToCut(input: {
   opportunities: readonly Opportunity[];
@@ -2181,6 +2187,13 @@ export function answerWhatToCut(input: {
   expectedReturnBps: number;
   inflationBps: number;
   dialOwnership: DialOwnership;
+  /**
+   * The FI re-projection over exactly `opportunities` (its total is
+   * `sumCutMonthlyCents(opportunities)`), computed on the same coach basis the
+   * standing FI figures use. Absent ⇒ no FI-movement sentence (the pre-#506
+   * contract; every current caller passes it).
+   */
+  counterfactual?: { cutMonthlyCents: Cents; result: CutCounterfactual } | null;
 }): AssistantAnswer {
   const source: AssistantSource = { label: 'See on Coach', href: '/coach' };
   const list = input.opportunities;
@@ -2218,6 +2231,20 @@ export function answerWhatToCut(input: {
     COACH_COPY.biggestLever(),
     COACH_COPY.opportunity(first, input.expectedReturnBps),
   ];
+  if (input.counterfactual) {
+    // The movement sentence covers exactly the list printed above. Its total
+    // is the engine's per-merchant sum (a merchant that produced two rows —
+    // unused AND price-increased — is cancelled once), so its action count is
+    // the unique merchants, not the row count: "all N of them" must count the
+    // same things the dollars do.
+    const movement = COACH_COPY.cutCounterfactual(
+      new Set(list.map((o) => o.merchant)).size,
+      input.counterfactual.cutMonthlyCents,
+      input.counterfactual.result,
+      list.some((o) => o.isEstimate),
+    );
+    if (movement !== null) detailParts.push(movement);
+  }
   if (input.moneyDials.length > 0) {
     detailParts.push(COACH_COPY.moneyDials([...input.moneyDials]));
   }

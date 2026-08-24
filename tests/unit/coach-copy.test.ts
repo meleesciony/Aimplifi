@@ -584,6 +584,18 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'freedomDividend', text: COACH_COPY.freedomDividend(17), isProjection: false },
   { label: 'yourEnough', text: COACH_COPY.yourEnough(), isProjection: false },
   { label: 'biggestLever', text: COACH_COPY.biggestLever(), isProjection: false },
+  // P.1 #506 — the FI-movement sentence over the cut list. Every branch except
+  // the honest null (locked separately, below the scan).
+  ...([
+    ['cutCounterfactual', 4, false, { baselineMonths: 400, cutMonths: 367, monthsSooner: 33, newlyReachable: false, baselineFiTargetCents: cents(90_000_000), cutFiTargetCents: cents(87_000_000), targetDropCents: cents(3_000_000) }],
+    ['cutCounterfactual:singular', 1, false, { baselineMonths: 400, cutMonths: 399, monthsSooner: 1, newlyReachable: false, baselineFiTargetCents: cents(90_000_000), cutFiTargetCents: cents(89_700_000), targetDropCents: cents(300_000) }],
+    ['cutCounterfactual:estimate', 4, true, { baselineMonths: 400, cutMonths: 367, monthsSooner: 33, newlyReachable: false, baselineFiTargetCents: cents(90_000_000), cutFiTargetCents: cents(87_000_000), targetDropCents: cents(3_000_000) }],
+    ['cutCounterfactual:newlyReachable', 2, false, { baselineMonths: null, cutMonths: 734, monthsSooner: 0, newlyReachable: true, baselineFiTargetCents: cents(90_000_000), cutFiTargetCents: cents(66_000_000), targetDropCents: cents(24_000_000) }],
+  ] as const).map(([label, count, hasEstimate, cf]) => ({
+    label: label as string,
+    text: COACH_COPY.cutCounterfactual(count, cents(7837), cf, hasEstimate)!,
+    isProjection: true,
+  })),
   { label: 'dialTag', text: COACH_COPY.dialTag('Dining Out'), isProjection: false },
   { label: 'volatilityPrice', text: COACH_COPY.volatilityPrice(700, 450), isProjection: true },
   { label: 'fifteenPercentReference', text: COACH_COPY.fifteenPercentReference(), isProjection: false },
@@ -754,6 +766,46 @@ describe('coach copy guardrails — zero shame, assumptions everywhere, no ticke
   it('the disclaimer marks the coach as educational, not advice', () => {
     expect(COACH_COPY.disclaimer()).toMatch(/educational/i);
     expect(COACH_COPY.disclaimer()).toMatch(/not financial advice/i);
+  });
+
+  // P.1 #506 — when the re-projection moves nothing, there is no sentence:
+  // "about 0 months sooner" would fabricate an effect. The null is decided by
+  // the copy's one author, so no caller can print a zero-delta claim.
+  it('cutCounterfactual: nothing moves ⇒ null, never a zero-delta sentence', () => {
+    const still = {
+      baselineMonths: 400,
+      cutMonths: 400,
+      monthsSooner: 0,
+      newlyReachable: false,
+      baselineFiTargetCents: cents(90_000_000),
+      cutFiTargetCents: cents(89_700_000),
+      targetDropCents: cents(300_000),
+    };
+    expect(COACH_COPY.cutCounterfactual(3, cents(5000), still, false)).toBeNull();
+    const alreadyThere = { ...still, baselineMonths: 0, cutMonths: 0, targetDropCents: cents(0) };
+    expect(COACH_COPY.cutCounterfactual(3, cents(5000), alreadyThere, false)).toBeNull();
+  });
+
+  // Critic F3 — a month span reads the way the FI card phrases spans
+  // ("about X years Y months"), never "about 734 months" at a reader.
+  it('cutCounterfactual: month spans phrase as months under two years, years+months above', () => {
+    const at = (monthsSooner: number) =>
+      COACH_COPY.cutCounterfactual(2, cents(5000), {
+        baselineMonths: 400,
+        cutMonths: 400 - monthsSooner,
+        monthsSooner,
+        newlyReachable: false,
+        baselineFiTargetCents: cents(90_000_000),
+        cutFiTargetCents: cents(88_000_000),
+        targetDropCents: cents(2_000_000),
+      }, false)!;
+    expect(at(1)).toContain('about 1 month sooner');
+    expect(at(11)).toContain('about 11 months sooner');
+    expect(at(23)).toContain('about 23 months sooner');
+    expect(at(24)).toContain('about 2 years sooner');
+    expect(at(26)).toContain('about 2 years 2 months sooner');
+    expect(at(300)).toContain('about 25 years sooner');
+    expect(at(300)).not.toContain('300 months');
   });
 
   // Critic #174 P2-1: a first-week user (empty flows) makes monthsOfRunway = Infinity;

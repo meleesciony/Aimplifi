@@ -11,6 +11,7 @@ import { formatCents, type Cents } from '@/lib/money';
 import { formatISODate, formatMonth, type ISODate } from '@/lib/dates';
 import type { FrozenFunding } from '@/lib/engine/account/feed-dropped-view';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
+import type { CutCounterfactual } from './counterfactual';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
 import { formatTargetBand, formatTargetBps } from '@/lib/engine/spending-plan/conscious';
 // The basis sentence decides WHICH claim to make from the same engine the figures come from —
@@ -44,6 +45,20 @@ export interface PendingTransfer {
 
 const pct = (bps: number) => `${(bps / 100).toFixed(2)}%`;
 const pct1 = (bps: number) => `${(bps / 100).toFixed(1)}%`;
+
+/**
+ * A month span the way the FI card phrases it ("about X years Y months",
+ * `yearsToFI`), so no sentence prints "about 734 months" at a reader. Under
+ * two years stays in months ("1 month", "11 months"); at or above it, years
+ * plus the remaining months. Caller adds "about".
+ */
+const monthsSpanPhrase = (months: number): string => {
+  if (months < 24) return `${months} ${months === 1 ? 'month' : 'months'}`;
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  if (rest === 0) return `${years} ${years === 1 ? 'year' : 'years'}`;
+  return `${years} years ${rest} ${rest === 1 ? 'month' : 'months'}`;
+};
 
 /**
  * A growth figure with the verb that matches its SIGN (O.20g).
@@ -1022,6 +1037,53 @@ export const COACH_COPY = {
   // C4+C5 · Sethi, Housel — the #1 opportunity is the big win
   biggestLever: () =>
     `Your biggest lever — fix this and the small stuff barely matters.`,
+
+  /**
+   * P.1 second half — what acting on the whole cut list does to the FI math,
+   * computed by `cutCounterfactual` (src/lib/engine/fi/counterfactual.ts), never
+   * asserted. The sentence reports BOTH effects the engine computes: the number
+   * itself drops (it's built from what the reader spends, and this spending
+   * stops) and the freed money going to savings moves the date.
+   *
+   * The honest null is decided HERE, beside the sentence: when the engine says
+   * nothing moves (`monthsSooner` 0 and no newly-reachable transition), there
+   * is no sentence — a rounded-down "about 0 months sooner" is a fabrication of
+   * an effect, so this returns null and the answer prints nothing.
+   *
+   * The assumptions clause says "as Coach", not "above/below" — this string
+   * renders in Ask too, where no FI card is on screen (the L.15 lesson), and it
+   * does not call the rates "yours": the dials may be the app defaults (W.13).
+   * It also states the counterfactual's own load-bearing assumptions — that the
+   * cuts STICK and the freed money goes to savings — because the month delta is
+   * false without them. Estimate rows (the ~15% re-shop, the flat retention
+   * offer) are part of the total, so when any row is an estimate the total is
+   * qualified ("part of it estimated") and the sentence says the marked rows
+   * are assumed to land as marked, rather than letting a guessed-at saving read
+   * as a measured one.
+   */
+  cutCounterfactual: (
+    count: number,
+    totalMonthlyCents: Cents,
+    cf: CutCounterfactual,
+    hasEstimate: boolean,
+  ): string | null => {
+    if (cf.monthsSooner === 0 && !cf.newlyReachable) return null;
+    const action = count === 1 ? 'Cutting it' : `Acting on all ${count} of them`;
+    const total = `about ${formatCents(totalMonthlyCents)} a month${hasEstimate ? ', part of it estimated' : ''}`;
+    const drop = formatCents(cf.targetDropCents);
+    const why = `the number is built from what you spend, and this spending stops`;
+    const estimates = hasEstimate
+      ? ' Rows marked as estimates are assumed to land as marked.'
+      : '';
+    const basis =
+      'Assumes the cuts stick and the freed money goes to savings; same return and inflation assumptions as Coach. Illustration, not advice — in today\'s dollars.';
+    if (cf.newlyReachable) {
+      // No baseline date exists to subtract, so the claim is qualitative: a date
+      // appears where none did. `cutMonths` is non-null by construction here.
+      return `${action} — ${total} — lowers your FI number by about ${drop} (${why}) and puts a date on the horizon at all: the same projection that reaches no FI date within 100 years today gets there in about ${monthsSpanPhrase(cf.cutMonths ?? 0)} with the cut.${estimates} ${basis}`;
+    }
+    return `${action} — ${total} — moves your FI date about ${monthsSpanPhrase(cf.monthsSooner)} sooner and lowers the number itself by about ${drop}, because ${why}.${estimates} ${basis}`;
+  },
 
   // C5 · Sethi, Housel — a category that matches a money dial is protected, not policed
   dialTag: (category: string) =>
