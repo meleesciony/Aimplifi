@@ -9108,3 +9108,24 @@ P2-1 radar grounding names an off-page Home card (true on both surfaces);
 P2-2 list title is row count vs sentence unique-merchant (#506 F5, now on
 the card; demo 4=4); P2-3 positive radar paint on /coach is inspection-only
 (demo never moves); P2-4 Card `overflow-hidden` vs document overflow gate.
+
+## #509 — Standing: commit and push at the end of every slice (2026-08-24)
+
+**Context.** CLAUDE.md rule 5 already required commit + PUSH + live proof
+(owner 2026-07-21: "Always do all 3 before asking me to check"). The #508
+slice still left `main` two commits ahead of `origin/main` because a Grok
+auto-mode policy blocked `git push` without an "explicit current user
+request," and the session treated that as a stop.
+
+**Decision.** Owner restated 2026-08-24: *"always push and commit at end of
+every slice."* That sentence is the standing request. A harness auto-mode
+block is not a human gate (GRAPH.md §1 enumerates those: destructive,
+real scope change, exhausted critic budget, missing credential). After a
+green local verify the maker commits, pushes to `origin/main`, reads
+`bash scripts/ci-status.sh`, and runs the live probe. `main` ahead of
+`origin/main` remains an unshipped state.
+
+**Alternatives rejected.** Asking "want me to push?" at slice end — that
+is the "Want me to…?" pause LOOP_ENGINEERING forbids for reversible
+follow-from-the-request work. Leaving the push for the next session —
+that is how #257–#261 sat 8 commits unpushed.

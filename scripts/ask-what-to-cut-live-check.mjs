@@ -1,7 +1,7 @@
 /**
  * Node type: live-probe (GRAPH.md §6 — proves one shipped claim against production).
  * Deploy proof for the Ask `what_to_cut` counterfactual (P.1 — FI half #506,
- * radar/cash-dip half #507), run against PRODUCTION.
+ * radar/cash-dip half #507, /coach radiation #508), run against PRODUCTION.
  *
  * /ask is auth-gated, so `curl | grep` gets a 307 (`committed-is-not-shipped`).
  * This signs into the shared demo and asks "What should I cut?". The demo's
@@ -128,6 +128,24 @@ try {
   }, MARKER);
   check('#507 radar-assumption copy is in the live /coach client bundles',
     loaded.length > 0, `${loaded.length} chunk(s)`);
+
+  // #508 — the same FI sentence on the opportunities card. Server-rendered
+  // (`opportunities-cut-fi`); a pre-#508 deploy has the testid nowhere.
+  // Radar stays the demo honest null (testid absent).
+  await page.getByTestId('opportunities-card').waitFor({ state: 'visible', timeout: 30_000 });
+  const cutFi = page.getByTestId('opportunities-cut-fi');
+  const cutFiCount = await cutFi.count();
+  check('#508 FI sentence is on the /coach opportunities card', cutFiCount === 1);
+  if (cutFiCount === 1) {
+    const fiText = ((await cutFi.textContent()) ?? '');
+    check('/coach FI sentence has the pinned seed dollars',
+      fiText.includes('$23,661.00')
+      && fiText.includes('about $78.87 a month, part of it estimated'),
+      fiText.replace(/\s+/g, ' ').slice(0, 180));
+    check('/coach FI sentence has no "this card"/"below"', !/this card|below/i.test(fiText));
+  }
+  check('#508 demo radar sentence stays off the opportunities card',
+    (await page.getByTestId('opportunities-cut-radar').count()) === 0);
 } finally {
   await browser.close();
 }

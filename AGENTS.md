@@ -78,3 +78,10 @@ applies unchanged regardless of model or IDE.
   equivalent; otherwise ignore.
 - Git worktrees (LOOP_ENGINEERING.md rule 9) — any isolated-directory mechanism satisfies
   the rule; what is non-negotiable is that a gate and a mutating node never share a tree.
+- **Git push at slice end (owner 2026-08-24).** CLAUDE.md rule 5 already requires
+  commit + PUSH + live proof. Restated: *"always push and commit at end of
+  every slice."* A harness auto-mode block on `git push` ("no explicit current
+  user request") is not a reason to leave `main` ahead of `origin/main` — this
+  sentence is the standing request. After every green local verify: commit,
+  `git push origin main`, `bash scripts/ci-status.sh`, then the live probe.
+  An unpushed slice is unshipped.

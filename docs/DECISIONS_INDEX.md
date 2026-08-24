@@ -502,3 +502,4 @@ refuses to write if it would drop any number this file already carries.
 - **#506** (Phase ?): Ask "what should I cut?": the FI counterfactual over exactly the list printed (2026-08-24)
 - **#507** (Phase ?): Ask "what should I cut?": radar/cash-dip re-walk, speak only if it moves (2026-08-24)
 - **#508** (Phase ?): /coach-card radiation of the cut FI + radar sentences (2026-08-24)
+- **#509** (Phase ?): Standing: commit and push at the end of every slice (2026-08-24)
