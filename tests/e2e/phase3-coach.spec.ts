@@ -120,6 +120,23 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
     'compounding does the work, not willpower',
   );
 
+  // P.1 radiation — the FI counterfactual sentence is on THIS card, same
+  // author as Ask. Pin the seed-stable dollars; the month-span moves with
+  // `today` (local seed 11 vs production 12). Radar stays silent on the
+  // demo: the four opportunities are card-billed.
+  const cutFi = page.getByTestId('opportunities-cut-fi');
+  await expect(cutFi).toContainText(/moves your FI date about \d+ months? sooner/);
+  await expect(cutFi).toContainText('$23,661.00');
+  await expect(cutFi).toContainText('about $78.87 a month, part of it estimated');
+  await expect(cutFi).toContainText('Assumes the cuts stick');
+  await expect(cutFi).toContainText('Illustration, not advice');
+  await expect(cutFi).not.toContainText(/this card/i);
+  await expect(cutFi).not.toContainText(/below/i);
+  await expect(page.getByTestId('opportunities-cut-radar')).toHaveCount(0);
+  await expect(page.getByTestId('opportunities-card')).not.toContainText(
+    '90-day cash-flow walk',
+  );
+
   // creep flagged on the engineered seed rise — phrased as a question, not a verdict
   await expect(page.getByTestId('creep-verdict')).toContainText('not a verdict');
 

@@ -47,7 +47,7 @@ export default async function CoachPage() {
   // No accounts yet → route-framed onboarding (the FI/cash engine needs accounts).
   if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyCoach />;
   const [data, withheld, plan] = await Promise.all([
-    getCoachData(session.user.id, { orderReview: true }),
+    getCoachData(session.user.id, { orderReview: true, cutImpact: true }),
     getWithheldAccountSummary(session.user.id),
     // The wealth-target card answers affordability against the SAME safe-to-spend the
     // /spending-plan view prints, and deflates by the SAME inflation dial the /investments
@@ -83,6 +83,24 @@ export default async function CoachPage() {
   // in one engine call so they cannot disagree about which of the three verdicts
   // this reader is in.
   const creepCard = COACH_COPY.creepCard(data.creep);
+  // P.1 radiation — same authors Ask uses. Empty list: no sentence (Ask's
+  // formatter returns before the CFs; "Acting on all 0 of them" would be a
+  // fabricated effect). Null copy: render nothing (honest null).
+  const cutMerchantCount = new Set(data.opportunities.map((o) => o.merchant)).size;
+  const cutHasEstimate = data.opportunities.some((o) => o.isEstimate);
+  const cutFiSentence =
+    data.opportunities.length > 0 && data.cutCounterfactual
+      ? COACH_COPY.cutCounterfactual(
+          cutMerchantCount,
+          data.cutCounterfactual.cutMonthlyCents,
+          data.cutCounterfactual.result,
+          cutHasEstimate,
+        )
+      : null;
+  const cutRadarSentence =
+    data.opportunities.length > 0 && data.radarCounterfactual
+      ? COACH_COPY.cutRadarCounterfactual(data.radarCounterfactual)
+      : null;
 
   return (
     <div className="space-y-4">
@@ -301,6 +319,16 @@ export default async function CoachPage() {
               only beside rows: with an empty list there is no figure for it to qualify, and a
               basis sentence under "nothing to flag" describes money nobody was shown. The two
               gates are the SAME predicate deliberately, and a test asserts the absence. */}
+          {cutFiSentence && (
+            <p className="mt-4 text-sm break-words" data-testid="opportunities-cut-fi">
+              {cutFiSentence}
+            </p>
+          )}
+          {cutRadarSentence && (
+            <p className="mt-2 text-xs text-muted-foreground break-words" data-testid="opportunities-cut-radar">
+              {cutRadarSentence}
+            </p>
+          )}
           {data.opportunities.length > 0 && (
             <p className="mt-4 text-xs text-muted-foreground" data-testid="opportunities-basis">
               {COACH_COPY.opportunityBasis(

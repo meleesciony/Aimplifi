@@ -13,6 +13,13 @@ import { cashNeededFromSnapshot, resolvePaymentAccount } from '@/server/finance'
 import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { buildAutomationBlueprint, type BlueprintStep, type PayCadence } from '@/lib/engine/automation/blueprint';
 import { coastFI, fiNumberCents, monthsToFI } from '@/lib/engine/fi/fi';
+import { cutCounterfactual, sumCutMonthlyCents, type CutCounterfactual } from '@/lib/engine/fi/counterfactual';
+import {
+  applyCutsToScheduled,
+  cutRadarCounterfactual,
+  radarCutSides,
+  type CutRadarCounterfactual,
+} from '@/lib/engine/radar/cut-counterfactual';
 import {
   RETIREMENT_ASSUMPTIONS,
   isRealReturnFloored,
@@ -52,6 +59,7 @@ import { computeCardClearedStreak, type CardClearedStreakResult } from '@/lib/en
 import { computeNoCreepStreak, type NoCreepStreakResult } from '@/lib/engine/recurring/creep-streak';
 import { getConfirmedIncomePauses } from '@/server/income-pause';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
+import { radarFromSnapshot } from '@/server/radar';
 import { generateMoneyReview, type MoneyReview } from '@/lib/engine/fi/coach-copy';
 import { buildReviewCandidates, selectReview, type ReviewRole } from '@/lib/engine/fi/money-review';
 import { DEMO_USER_ID } from '@/lib/demo-user';
@@ -170,6 +178,23 @@ export interface CoachData {
     coastTargetYearsIsAppDefault: boolean;
   };
   opportunities: Opportunity[];
+  /**
+   * P.1 radiation — what acting on `opportunities` does to the standing FI
+   * walk. Engine result, never copy: /coach and Ask both render through
+   * `COACH_COPY.cutCounterfactual` so there is one author. Computed only
+   * when `opts.cutImpact` is set (the /coach page and Ask `what_to_cut`);
+   * other callers skip the work. Null when the flag is off, the list is
+   * empty, or the per-merchant cut sums to 0.
+   */
+  cutCounterfactual: { cutMonthlyCents: Cents; result: CutCounterfactual } | null;
+  /**
+   * P.1 radiation — what acting on `opportunities` does to the 90-day
+   * committed cash-flow walk. Same opt-in and one-author rule as
+   * `cutCounterfactual`. The result may have `moved: false` (the demo: the
+   * four opportunities are card-billed and do not sit on checking
+   * scheduled) — copy's honest null lives in `COACH_COPY.cutRadarCounterfactual`.
+   */
+  radarCounterfactual: CutRadarCounterfactual | null;
   /** Per-merchant median+MAD outliers (#249) — pure recompute, feeds the nudge feed. */
   unusualCharges: UnusualCharge[];
   /**
@@ -275,7 +300,7 @@ const COAST_TARGET_YEARS = 25;
 
 export async function getCoachData(
   userId: string,
-  opts?: { orderReview?: boolean },
+  opts?: { orderReview?: boolean; cutImpact?: boolean },
 ): Promise<CoachData> {
   const provider = getProvider();
   const today = provider.today(userId);
@@ -407,13 +432,17 @@ export async function getCoachData(
       .filter((a) => (SPENDING_ACCOUNT_TYPES as readonly string[]).includes(a.type))
       .map((a) => a.id),
   );
+  // Captured: the radar cut-walk (opts.cutImpact) must project from the SAME
+  // override set detectRecurring just read — a second fetch is how the two
+  // halves of one page would disagree about a demoted bill.
+  const overrides = await getRecurringOverrides(userId);
   const series = detectRecurring(
     txns.filter((t) => t.status === 'POSTED' && !t.isSplitParent && spendingIds.has(t.accountId)),
     today,
     // O.13f: the same reader verdicts /recurring and the projections read. A coach
     // "you could cancel this subscription" about a series he has already told the
     // app is not a bill would be the app arguing with him from a stale basis.
-    await getRecurringOverrides(userId),
+    overrides,
   );
   // W.10 — BOTH dials, because these figures are grown at the return assumption and then
   // deflated by the inflation assumption. They render one scroll below the FI card that W.2
@@ -591,6 +620,41 @@ export async function getCoachData(
     reviewOrder !== null &&
     reviewSelected.map((c) => c.line).join('\u0001') !== floorLines.map((c) => c.line).join('\u0001');
 
+  // P.1 radiation — same two engines Ask `what_to_cut` used to call itself.
+  // Opt-in (`opts.cutImpact`) so dashboard / digest / goals do not pay two
+  // extra 90-day radar walks. Ask omits `cardDuplicates` on these walks
+  // (DECISIONS #507); matching that default here so /coach cannot disagree
+  // with Ask about whether the dip moved.
+  let fiCutImpact: CoachData['cutCounterfactual'] = null;
+  let radarCutImpact: CutRadarCounterfactual | null = null;
+  if (opts?.cutImpact && opportunities.length > 0) {
+    const cutMonthlyCents = sumCutMonthlyCents(opportunities);
+    if (cutMonthlyCents > 0) {
+      fiCutImpact = {
+        cutMonthlyCents,
+        result: cutCounterfactual({
+          portfolioCents: portfolio,
+          monthlySavingsCents: monthlySavings,
+          annualExpensesCents: annualExpenses,
+          realReturnBps: projectionReturnBps,
+          swrBps: user.swrBps,
+          cutMonthlyCents,
+        }),
+      };
+    }
+    const asOf = isoDate(today);
+    const { radar: baselineRadar } = radarFromSnapshot(snap, asOf, overrides);
+    const { radar: cutRadar } = radarFromSnapshot(
+      { ...snap, scheduled: applyCutsToScheduled(snap.scheduled, opportunities) },
+      asOf,
+      overrides,
+    );
+    radarCutImpact = cutRadarCounterfactual(
+      radarCutSides(baselineRadar),
+      radarCutSides(cutRadar),
+    );
+  }
+
   return {
     today,
     // Read-leg demo fence (critic F3): a value on the shared demo row — by
@@ -639,6 +703,8 @@ export async function getCoachData(
     hourlyWageCents: wage,
     moneyDials: dialDisplayNames(moneyDialIds, dialCatalog),
     moneyDialIds,
+    cutCounterfactual: fiCutImpact,
+    radarCounterfactual: radarCutImpact,
     discretionaryCategorySpend: averageDiscretionaryCategorySpend(
       txns,
       isoDate(today),

@@ -9076,3 +9076,35 @@ sides(); empty-list still does two walks.
 
 **Scope: Ask only.** /coach-card radiation of the sentence remains the
 follow-up on this row.
+
+## #508 — /coach-card radiation of the cut FI + radar sentences (2026-08-24)
+
+**Context.** TASKS Wave P row P.1 leftover after #507. Ask already said what
+acting on the list does to FI and (when it moves) the 90-day cash-flow walk.
+/coach printed the same list with no counterfactual. Two surfaces answering
+"what should I cut?" could not disagree about the walk.
+
+**Decision.**
+1. **One load-bearing computation.** `getCoachData({ cutImpact: true })`
+   runs the same two engines Ask used to call itself (`cutCounterfactual` at
+   `projectionReturnBps`, `radarFromSnapshot` after `applyCutsToScheduled`,
+   no `cardDuplicates`) and attaches engine results, never copy. /coach and
+   Ask both render through `COACH_COPY.cutCounterfactual` /
+   `cutRadarCounterfactual`. Ask no longer walks locally.
+2. **Opt-in flag, same shape as `orderReview`.** Dashboard, digest, goals,
+   and investments omit it so they do not pay two extra 90-day radar walks.
+   Both required callers pass it (`/coach` page, Ask `what_to_cut`).
+3. **Honest null stays in the copy.** The page mounts a sentence only when
+   `COACH_COPY` returns a string — a `moved: false` payload is not a
+   sentence. Empty list: no walks, no "Acting on all 0". Demo radar remains
+   the seed-honest null (card-billed opportunities).
+4. **Spending-plan re-projection stays deferred.** Original P.1 named three
+   engines; #506/#507/#508 shipped FI + radar + radiation. The spending-plan
+   "what the cut does to guilt-free this month" is a new remaining leftover,
+   not this slice.
+
+**Critic (fresh context, read-only): PASS — 0 P0, 0 P1, 4 P2 carried.**
+P2-1 radar grounding names an off-page Home card (true on both surfaces);
+P2-2 list title is row count vs sentence unique-merchant (#506 F5, now on
+the card; demo 4=4); P2-3 positive radar paint on /coach is inspection-only
+(demo never moves); P2-4 Card `overflow-hidden` vs document overflow gate.

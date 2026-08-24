@@ -2,6 +2,42 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-24 — /coach-card radiation of the cut FI + radar sentences (DECISIONS #508)
+
+**Picked up.** Owner: "continue. read all readme files including graph."
+#507 shipped the radar half. Remaining on P.1: put the same sentences on
+the /coach opportunities card.
+
+**Closed (P.1 row).** `getCoachData({ cutImpact: true })` computes both
+engine results (FI at `projectionReturnBps`, radar re-walk, no
+`cardDuplicates`) and attaches them. /coach and Ask both render through
+`COACH_COPY`. Ask no longer walks locally. Dashboard/digest omit the flag.
+Demo: FI sentence present ($23,661.00 / about $78.87 a month, part
+estimated); radar silent.
+
+**Critic (fresh context, read-only): PASS — 0 P0, 0 P1, 4 P2 carried.**
+Radar grounding names Home's Cash flow radar; list title vs unique-merchant
+count; positive radar paint on /coach untested (demo never moves); Card
+overflow-hidden vs document overflow gate.
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, `next build` clean). Unit **7,421 passed + 1
+expected fail + 1 skipped / 451 files + 1 skipped**. E2E **365 passed + 1
+flaky-on-retry** (`combine-connections.spec.ts:67`, pre-existing, untouched;
+the P.1 phase3-coach + ask.spec + empty-coach auth assertions in the
+passing set). `VERIFY_E2E` did not reach bash from this PowerShell env;
+Playwright was run as `npx playwright test` after the green verify build.
+No `prisma/` diff.
+
+**Gate read.** Unshipped — this tree is not pushed. `main` was already 1
+commit ahead of `origin/main` at session start (`34e8ec48`, the #507
+docs-chain). Push is blocked without an explicit owner request.
+
+**Next.** Ranked lane: W.6(b) marginal-dollar order, W.6(d) drawdown on FI
+date, W.6(c) category fulfillment curve, P1.4 income lever, P1.5 fee-drag
+FV, Reports interest & fees YTD, mortgage early-payoff, PAW. Spending-plan
+cut re-projection is deferred (named in #508, not this row).
+
 ## 2026-08-24 — Ask "what should I cut?" radar/cash-dip re-walk (DECISIONS #507)
 
 **Picked up.** Owner: "read readme files and continue." #506 shipped the FI

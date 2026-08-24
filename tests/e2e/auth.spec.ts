@@ -122,6 +122,8 @@ test('first manual account → dashboard explains its sparse cards (no bare $0.0
   // "nothing to flag" it would be describing money nobody was shown. The two gates are one
   // predicate today; hoist the paragraph out of that conditional and this is what fails.
   await expect(page.getByTestId('opportunities-basis')).toHaveCount(0);
+  await expect(page.getByTestId('opportunities-cut-fi')).toHaveCount(0);
+  await expect(page.getByTestId('opportunities-cut-radar')).toHaveCount(0);
   await expect(page.getByTestId('life-energy-empty')).toBeVisible();
   await expect(page.getByTestId('life-energy-list')).toHaveCount(0);
 });

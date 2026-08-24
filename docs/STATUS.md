@@ -9,6 +9,33 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-24 — /coach-card radiation of the cut FI + radar sentences (DECISIONS #508)
+
+**The report.** P.1's last slice: the /coach opportunities card now says
+what acting on the list does, with the same sentences Ask already printed
+— and stays silent when nothing moves. On the demo that is the FI
+movement ($23,661.00 / about $78.87 a month, part estimated) and no radar
+sentence (card-billed opportunities).
+
+**Shipped.** `CoachData.cutCounterfactual` + `radarCounterfactual`,
+computed only when `opts.cutImpact` is set. /coach page and Ask
+`what_to_cut` both pass the flag and both render through `COACH_COPY`.
+Dashboard / digest / goals omit it.
+
+**Critic (fresh context, read-only): PASS — 0 P0, 0 P1, 4 P2 carried.**
+
+**Still open.** P.1 row closed. Ranked lane: W.6(b)(c)(d), P1.4/P1.5,
+Reports interest & fees YTD, mortgage early-payoff, PAW. Spending-plan
+cut re-projection deferred.
+
+**Locked.** `coach-cut-impact.test.ts` (5: flag-off; payload = hand-called
+engine; demo dollars; one-author FI sentence; demo radar not moved),
+phase3-coach e2e FI present + radar absent, auth empty-coach testids 0.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,421 passed
++ 1 expected fail + 1 skipped / 451 files + 1 skipped**. E2E **365 passed
++ 1 flaky-on-retry**. No `prisma/` diff. Unpushed this session.
+
 ## ✅ BUILT 2026-08-24 — Ask "what should I cut?" radar/cash-dip re-walk (DECISIONS #507)
 
 **The report.** P.1's remaining engine half: the cut list can now say what
@@ -25,8 +52,8 @@ on the filtered scheduled array.
 **Critic (fresh context, read-only): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0,
 0 P1, 7 P2 carried.** Weekly $20 cancel and "stop hitting" executed.
 
-**Still open on P.1.** /coach-card radiation of the FI + radar sentences.
-Then the ranked lane: W.6(b)(c)(d), P1.4/P1.5, Reports interest & fees YTD,
+**Still open on P.1.** /coach-card radiation — SHIPPED #508. Then the
+ranked lane: W.6(b)(c)(d), P1.4/P1.5, Reports interest & fees YTD,
 mortgage early-payoff, PAW.
 
 **Locked.** `radar-cut-counterfactual.test.ts` (23: applyCuts matching /
