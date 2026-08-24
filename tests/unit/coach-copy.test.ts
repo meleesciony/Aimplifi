@@ -761,6 +761,110 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'stayingWealthyIncome:present', text: COACH_COPY.stayingWealthyIncome('present'), isProjection: false },
   { label: 'stayingWealthyIncome:outpaced', text: COACH_COPY.stayingWealthyIncome('outpaced'), isProjection: false },
   { label: 'stayingWealthyIncome:unknown', text: COACH_COPY.stayingWealthyIncome('unknown'), isProjection: false },
+  // W.6(b) — every destination + skipped + assumptions (the assumption sweep
+  // is why `nextDollarAssumptions` is marked a projection).
+  ...(() => {
+    const auto = {
+      id: 'acct-autoloan',
+      name: 'Auto Loan',
+      kind: 'installment' as const,
+      balanceCents: 1_430_000,
+      aprBps: 649,
+    };
+    const store = {
+      id: 'acct-store',
+      name: 'Store Card',
+      kind: 'revolving' as const,
+      balanceCents: 4350,
+      aprBps: 3199,
+    };
+    const base = {
+      expectedReturnBps: 700,
+      returnIsDefault: true,
+      runwayMonths: 4.2,
+      runwayFloorMonths: 3 as const,
+      employerMatch: 'unknown' as const,
+      skipped: ['employer_match', 'tax_advantaged'] as const,
+      highestInstallment: auto,
+    };
+    const invest = { ...base, destination: 'invest' as const, debt: null };
+    const revolving = {
+      ...base,
+      destination: 'revolving_debt' as const,
+      debt: store,
+      runwayMonths: 1.5,
+    };
+    const match = {
+      ...base,
+      destination: 'employer_match' as const,
+      debt: null,
+      employerMatch: 'uncaptured' as const,
+      skipped: ['tax_advantaged'] as const,
+    };
+    const emergency = {
+      ...base,
+      destination: 'emergency_fund' as const,
+      debt: null,
+      runwayMonths: 1.5,
+    };
+    const installment = {
+      ...base,
+      destination: 'installment_debt' as const,
+      debt: { ...auto, aprBps: 1200, name: 'Personal Loan' },
+      highestInstallment: { ...auto, aprBps: 1200, name: 'Personal Loan' },
+    };
+    const noDebt = {
+      ...base,
+      destination: 'invest' as const,
+      debt: null,
+      highestInstallment: null,
+      runwayMonths: Number.POSITIVE_INFINITY,
+    };
+    return [
+      { label: 'nextDollarTitle', text: COACH_COPY.nextDollarTitle(), isProjection: false },
+      { label: 'nextDollarHeadline:invest', text: COACH_COPY.nextDollarHeadline(invest), isProjection: false },
+      { label: 'nextDollarHeadline:revolving', text: COACH_COPY.nextDollarHeadline(revolving), isProjection: false },
+      { label: 'nextDollarHeadline:match', text: COACH_COPY.nextDollarHeadline(match), isProjection: false },
+      { label: 'nextDollarHeadline:emergency', text: COACH_COPY.nextDollarHeadline(emergency), isProjection: false },
+      { label: 'nextDollarHeadline:installment', text: COACH_COPY.nextDollarHeadline(installment), isProjection: false },
+      { label: 'nextDollarWhy:invest', text: COACH_COPY.nextDollarWhy(invest), isProjection: false },
+      { label: 'nextDollarWhy:revolving', text: COACH_COPY.nextDollarWhy(revolving), isProjection: false },
+      { label: 'nextDollarWhy:match', text: COACH_COPY.nextDollarWhy(match), isProjection: false },
+      { label: 'nextDollarWhy:emergency', text: COACH_COPY.nextDollarWhy(emergency), isProjection: false },
+      { label: 'nextDollarWhy:installment', text: COACH_COPY.nextDollarWhy(installment), isProjection: false },
+      { label: 'nextDollarWhy:investNoDebt', text: COACH_COPY.nextDollarWhy(noDebt), isProjection: false },
+      { label: 'nextDollarSkipped:unknown', text: COACH_COPY.nextDollarSkipped(invest), isProjection: false },
+      { label: 'nextDollarSkipped:taxOnly', text: COACH_COPY.nextDollarSkipped(match), isProjection: false },
+      {
+        label: 'nextDollarSkipped:loanApr',
+        text: COACH_COPY.nextDollarSkipped({
+          ...invest,
+          skipped: ['employer_match', 'tax_advantaged', 'loan_apr'],
+        }),
+        isProjection: false,
+      },
+      {
+        label: 'nextDollarWhy:zeroAprLoan',
+        text: COACH_COPY.nextDollarWhy({
+          ...invest,
+          highestInstallment: { ...auto, aprBps: 0, name: 'Promo Loan' },
+        }),
+        isProjection: false,
+      },
+      {
+        label: 'nextDollarWhy:noKnownLoan',
+        text: COACH_COPY.nextDollarWhy(noDebt),
+        isProjection: false,
+      },
+      { label: 'nextDollarCardsNote', text: COACH_COPY.nextDollarCardsNote(), isProjection: false },
+      { label: 'nextDollarAssumptions:default', text: COACH_COPY.nextDollarAssumptions(invest), isProjection: true },
+      {
+        label: 'nextDollarAssumptions:chosen',
+        text: COACH_COPY.nextDollarAssumptions({ ...invest, returnIsDefault: false }),
+        isProjection: true,
+      },
+    ];
+  })(),
   { label: 'reviewImprovementRunway:noExpenses', text: COACH_COPY.reviewImprovementRunway(Infinity), isProjection: false },
   // The shared reminder line renders inside the digest body — scan its variants too.
   { label: 'reminderLine:selfPay', text: reminderLine(sampleReminder()), isProjection: false },

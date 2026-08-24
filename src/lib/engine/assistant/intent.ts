@@ -100,6 +100,12 @@ export type AssistantIntent =
    * job — one author).
    */
   | { kind: 'rich_life' }
+  /**
+   * W.6(b) next extra dollar — the SAME `getCoachData().nextDollar` `/coach`
+   * prints, ranked from rates on file. Not debt_payoff (horizon / snowball),
+   * not cash_needed (this-cycle cards), not runway (status of the buffer).
+   */
+  | { kind: 'next_dollar' }
   /** 90-day committed + card dues — same engine as dashboard Cash flow radar (DECISIONS #488). */
   | { kind: 'cash_flow_radar' }
   /** Recurring-only balance walk — same engine as /forecast (DECISIONS #72 / #75). */
@@ -133,6 +139,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'conscious_spending',
   'stay_wealthy',
   'rich_life',
+  'next_dollar',
   'cash_flow_radar',
   'forecast',
   'savings_rate',
@@ -1638,6 +1645,57 @@ export function richLifeFromQuestion(
   return { kind: 'rich_life' };
 }
 
+/**
+ * W.6(b) next extra dollar. Shared by the parser and `intentFromKind` so a
+ * model-chosen kind cannot answer a dated, store-scoped, or amount-bearing
+ * question with the ranking. More specific than debt_payoff / cash_needed
+ * ("pay off my loan or invest" is the ranking, "when will I be debt-free"
+ * is the horizon).
+ *
+ * An amount declines (a different planner). A date / store / category is
+ * `unknown`. Single-signal buffer questions stay `runway`.
+ */
+export function nextDollarFromQuestion(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): AssistantIntent | null {
+  const q = normalize(question);
+  if (!asksNextDollar(q)) return null;
+  if (parseTargetAmount(question) !== null) return null;
+  if (parseExplicitTimeframe(question, today) !== null) return { kind: 'unknown', question };
+  if (parseTargetDate(question, today) !== null) return { kind: 'unknown', question };
+  if (unresolvedDateShape(question, today)) return { kind: 'unknown', question };
+  if (/\b(?:at|with)\b/.test(q)) return { kind: 'unknown', question };
+  const target = resolveSpendTarget(q, custom);
+  // A spend synonym that is also a liability name ("auto loan", "mortgage")
+  // is the ranking's subject, not a grocery total (cycle-3 P2-4).
+  if (target && !/\b(loans?|mortgages?|cards?)\b/.test(q)) {
+    return { kind: 'unknown', question };
+  }
+  return { kind: 'next_dollar' };
+}
+
+function asksNextDollar(q: string): boolean {
+  if (/\bnext dollars?\b/.test(q)) return true;
+  if (/\bmarginal dollars?\b/.test(q)) return true;
+  // "extra" / "next" is required — bare "where does my money go" is top_categories.
+  if (/\bwhere (should|does|do) (my )?(extra|next) (dollars?|money|cash)\b/.test(q)) return true;
+  const invest = /\binvest(?:ing|ment)?\b/.test(q);
+  const debt = /\b(debts?|loans?|pay(?:ing)? off|pay(?:ing)? down)\b/.test(q);
+  const emergency = /\bemergency[\s-]?funds?\b/.test(q);
+  // Contrast only. Co-occurrence ("debt-free so I can invest", "pay off my
+  // loan if I keep investing") is a horizon / this-cycle question, not the
+  // ranking (critic P1-1).
+  const contrast =
+    /\b(or|vs\.?|versus|rather than|instead of)\b/.test(q) ||
+    // `before` is contrast only in a ranking frame. Bare "before I can
+    // invest" is the same purpose clause as "so I can invest" (cycle-3 P1-1).
+    (/\bshould i\b/.test(q) && /\bbefore\b/.test(q));
+  if (invest && (debt || emergency) && contrast) return true;
+  return false;
+}
+
 /** "my rich life" (and "my rich-life"); the possessive is the route mark. */
 function asksRichLife(q: string): boolean {
   return /\bmy\s+rich[- ]?life\b/.test(q);
@@ -1907,6 +1965,14 @@ export function parseAssistantQuery(
   {
     const rich = richLifeFromQuestion(question, today, custom);
     if (rich) return rich;
+  }
+
+  // W.6(b) next extra dollar. BEFORE debt_payoff / cash_needed so
+  // "pay off my loan or invest" is the ranking, not the horizon plan.
+  // After runway so "do I have an emergency fund" stays status.
+  {
+    const extra = nextDollarFromQuestion(question, today, custom);
+    if (extra) return extra;
   }
 
   // Wealth target with NO deadline (W.4). The dated sibling above already took
@@ -2258,6 +2324,7 @@ export function validateIntent(
     case 'conscious_spending':
     case 'stay_wealthy':
     case 'rich_life':
+    case 'next_dollar':
     case 'cash_flow_radar':
     case 'forecast':
     case 'savings_rate':

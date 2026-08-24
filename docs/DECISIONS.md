@@ -9129,3 +9129,39 @@ green local verify the maker commits, pushes to `origin/main`, reads
 is the "Want me to…?" pause LOOP_ENGINEERING forbids for reversible
 follow-from-the-request work. Leaving the push for the next session —
 that is how #257–#261 sat 8 commits unpushed.
+
+## #510 — W.6(b) next extra dollar, ranked from rates on file (2026-08-24)
+
+**Context.** TASKS W.6(b): given a dollar, does it go to debt, the match,
+the emergency fund, or investing, from the reader's own rates. Match %
+and tax-advantaged room are not collected.
+
+**Decision.** Pure `nextDollar` in `src/lib/engine/fi/next-dollar.ts`.
+Order: revolving APR strictly above the **nominal** return dial →
+uncaptured match → runway under 3 months (same floor as the net-worth
+band) → installment APR strictly above the return → investing. CREDIT is
+revolving only when a statement remainder is past the issuer due date
+(in-cycle balances are cash-needed). Null loan APR is skipped, never
+ranked as 0%. LOAN and MORTGAGE both feed installment. Match is
+hardcoded `unknown` this slice. Copy is one author (`COACH_COPY.nextDollar*`).
+/coach and Ask `next_dollar` both render the same plan. Demo: Auto Loan
+6.49% under our default 7.00%, runway ≥ 3 → investing.
+
+**Ask routing.** Canonical phrases ("Where should my next dollar go?",
+"Should I pay off debt or invest?") are locked. Contrast for
+invest+debt is `or` / `vs` / `versus` / `rather than` / `instead of`,
+or `before` only inside a `should I` ranking frame. Co-occurrence
+without contrast stays `debt_payoff` / `cash_needed`.
+
+**Critic.** Four cycles. Engine ranking: 0 P0 on money math across all
+four. Ask parser: cycle 4 FAIL 1 P1 (budget exhausted → human gate).
+Residual: `"How much should I pay off my cards before I can invest?"`
+still hits `next_dollar` because `\bshould i\b` + `\bbefore\b` is the
+ranking proxy and also cash-needed's modal. Recorded in STATUS. Not
+certified as a critic pass.
+
+**Alternatives rejected.** Collecting match % this slice (task row said
+the app does not yet collect it — skip unknown). Comparing APR to the
+real/after-inflation FI rate (unit mismatch). Treating in-cycle card
+balances as high-APR extra-pay (that is cash-needed). Coercing null
+APR to 0%.

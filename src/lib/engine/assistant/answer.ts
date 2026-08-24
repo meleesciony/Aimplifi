@@ -69,6 +69,7 @@ import type { CutCounterfactual } from '@/lib/engine/fi/counterfactual';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import { runwayTitle, type CreepResult, type Opportunity } from '@/lib/engine/fi/insights';
 import type { StayingWealthyRow } from '@/lib/engine/fi/staying-wealthy';
+import type { NextDollarPlan } from '@/lib/engine/fi/next-dollar';
 import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
 import type { DebtFreeByDateResult } from '@/lib/engine/solve/debt-free-by-date';
 import type { SavingsGoalByDateResult } from '@/lib/engine/solve/savings-goal-by-date';
@@ -2480,6 +2481,29 @@ export function answerRichLife(vision: string | null): AssistantAnswer {
   };
 }
 
+const NEXT_DOLLAR_SOURCE: AssistantSource = { label: 'See on Coach', href: '/coach' };
+
+/**
+ * Phrases the SAME `nextDollar` plan `/coach` prints via COACH_COPY.
+ * Originates no ranking. Copy does not say "this card" or "below".
+ */
+export function answerNextDollar(plan: NextDollarPlan): AssistantAnswer {
+  return {
+    kind: 'next_dollar',
+    headline: COACH_COPY.nextDollarHeadline(plan),
+    detail: [
+      COACH_COPY.nextDollarWhy(plan),
+      COACH_COPY.nextDollarSkipped(plan),
+      COACH_COPY.nextDollarCardsNote(),
+      COACH_COPY.nextDollarAssumptions(plan),
+    ].join(' '),
+    facts: plan.debt
+      ? [{ label: plan.debt.name, value: `${(plan.debt.aprBps / 100).toFixed(2)}% APR` }]
+      : [],
+    source: NEXT_DOLLAR_SOURCE,
+  };
+}
+
 const CONSCIOUS_SPENDING_SOURCE: AssistantSource = { label: 'See on Spending', href: '/budgets' };
 
 /** Same clamp the /budgets strip uses so Ask percents cannot drift from the legend. */
@@ -2745,6 +2769,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'How are my spending buckets?',
   'Am I staying wealthy?',
   'What is my rich life?',
+  'Where should my next dollar go?',
 ];
 
 export function answerUnknown(): AssistantAnswer {
@@ -2752,7 +2777,7 @@ export function answerUnknown(): AssistantAnswer {
     kind: 'unknown',
     headline: 'I can answer questions grounded in your own accounts and transactions.',
     detail:
-      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, your spending buckets, what you owe on your cards, when you can retire, what to cut, whether spending is outpacing income, whether you are staying wealthy, your rich life, subscriptions, your 90-day forecast, income, or savings rate.',
+      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, your spending buckets, what you owe on your cards, when you can retire, what to cut, whether spending is outpacing income, whether you are staying wealthy, your rich life, where your next dollar goes, subscriptions, your 90-day forecast, income, or savings rate.',
     facts: [],
     suggestions: [...ASSISTANT_SUGGESTIONS],
   };

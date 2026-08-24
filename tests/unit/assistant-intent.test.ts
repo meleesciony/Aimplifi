@@ -44,6 +44,8 @@ describe('parseAssistantQuery — routing', () => {
     ['how are my survival signals', 'stay_wealthy'],
     // P1.3 rich_life (stored vision line)
     ['What is my rich life?', 'rich_life'],
+    ['Where should my next dollar go?', 'next_dollar'],
+    ['Should I pay off debt or invest?', 'next_dollar'],
     ['my rich life', 'rich_life'],
     // subscriptions
     ['what subscriptions am I paying for?', 'subscriptions'],

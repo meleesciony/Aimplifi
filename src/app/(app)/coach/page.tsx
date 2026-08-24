@@ -14,6 +14,7 @@ import { HabitStreaksCard } from '@/components/coach/habit-streaks-card';
 import { LifestyleCreepChart } from '@/components/coach/lifestyle-creep-chart';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { StayingWealthyCard } from '@/components/coach/staying-wealthy-card';
+import { NextDollarCard } from '@/components/coach/next-dollar-card';
 import { RichLifeEcho } from '@/components/coach/rich-life-echo';
 import { WealthTargetCard } from '@/components/coach/wealth-target-card';
 import { composeStayingWealthy } from '@/lib/engine/fi/staying-wealthy';
@@ -184,6 +185,10 @@ export default async function CoachPage() {
           creep: data.creep,
         })}
       />
+
+      {/* W.6(b) — extra-dollar ranking from rates on file. After staying
+          wealthy (survival) and before the wealth-target planner. */}
+      <NextDollarCard plan={data.nextDollar} />
 
       {/* Wealth target — the reader states a number ("$10M") and a horizon; the card answers
           both directions (when the current pace arrives, what a chosen date requires) in

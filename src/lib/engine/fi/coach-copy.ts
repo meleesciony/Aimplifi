@@ -13,6 +13,7 @@ import type { FrozenFunding } from '@/lib/engine/account/feed-dropped-view';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
 import type { CutCounterfactual } from './counterfactual';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
+import type { NextDollarPlan } from './next-dollar';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
 import { formatTargetBand, formatTargetBps } from '@/lib/engine/spending-plan/conscious';
 // The basis sentence decides WHICH claim to make from the same engine the figures come from —
@@ -1239,6 +1240,82 @@ export const COACH_COPY = {
       : state === 'outpaced'
         ? `spending outpaced income recently`
         : `spending vs income isn't comparable yet`,
+
+  // ── W.6(b): next extra dollar, ranked from rates on file ───────────────────
+  nextDollarTitle: () => `Your next dollar`,
+  nextDollarHeadline: (plan: NextDollarPlan) => {
+    if (plan.destination === 'revolving_debt' && plan.debt) {
+      return `Next extra dollar: ${plan.debt.name} (${pct(plan.debt.aprBps)} APR)`;
+    }
+    if (plan.destination === 'employer_match') {
+      return `Next extra dollar: the employer match`;
+    }
+    if (plan.destination === 'emergency_fund') {
+      return `Next extra dollar: cash runway (under ${plan.runwayFloorMonths} months)`;
+    }
+    if (plan.destination === 'installment_debt' && plan.debt) {
+      return `Next extra dollar: ${plan.debt.name} (${pct(plan.debt.aprBps)} APR)`;
+    }
+    return `Next extra dollar: investing`;
+  },
+  nextDollarWhy: (plan: NextDollarPlan) => {
+    const ret = returnClause(plan.expectedReturnBps, {
+      returnIsDefault: plan.returnIsDefault,
+      inflationIsDefault: true,
+    });
+    if (plan.destination === 'revolving_debt' && plan.debt) {
+      return `${plan.debt.name} is ${pct(plan.debt.aprBps)}, above ${ret}. Extra there is a contracted rate, not a market expectation.`;
+    }
+    if (plan.destination === 'employer_match') {
+      return `An uncaptured employer match is free money on the next contribution — it outranks the other rungs we can see.`;
+    }
+    if (plan.destination === 'emergency_fund') {
+      return `Cash runway is ${plan.runwayMonths} months, under the ${plan.runwayFloorMonths}-month floor.`;
+    }
+    if (plan.destination === 'installment_debt' && plan.debt) {
+      return `${plan.debt.name} is ${pct(plan.debt.aprBps)}, above ${ret}. Extra there is a contracted rate, not a market expectation.`;
+    }
+    const loanBit =
+      plan.highestInstallment && plan.highestInstallment.aprBps > 0
+        ? `The ${plan.highestInstallment.name} is ${pct(plan.highestInstallment.aprBps)}, at or under ${ret}, so extra there is not the first extra dollar.`
+        : plan.highestInstallment
+          ? `The ${plan.highestInstallment.name} is 0.00% APR, so extra there is not the first extra dollar.`
+          : `No installment debt with a known APR is on file.`;
+    const runwayBit = Number.isFinite(plan.runwayMonths)
+      ? `Cash runway is ${plan.runwayMonths} months, at or above the ${plan.runwayFloorMonths}-month floor.`
+      : `Cash runway isn't sized yet (no expense history), so that rung is skipped.`;
+    return `${loanBit} ${runwayBit}`;
+  },
+  nextDollarSkipped: (plan: NextDollarPlan) => {
+    const hasMatch = plan.skipped.includes('employer_match');
+    const hasTax = plan.skipped.includes('tax_advantaged');
+    const hasLoanApr = plan.skipped.includes('loan_apr');
+    const parts: string[] = [];
+    if (hasMatch && hasTax) {
+      parts.push(
+        `Employer match and tax-advantaged contribution room are skipped — those rates are not on file yet.`,
+      );
+    } else if (hasTax) {
+      parts.push(`Tax-advantaged contribution room is skipped — that rate is not on file yet.`);
+    } else if (hasMatch) {
+      parts.push(`Employer match is skipped — that rate is not on file yet.`);
+    }
+    if (hasLoanApr) {
+      parts.push(`A loan with no APR on file is skipped — we do not invent a rate.`);
+    }
+    return parts.length > 0
+      ? parts.join(' ')
+      : `Every rung we collect a rate for is in this order.`;
+  },
+  nextDollarCardsNote: () =>
+    `Cards that are not past due are a this-cycle cash question, not an extra-pay destination.`,
+  nextDollarAssumptions: (plan: NextDollarPlan) => {
+    const ret = returnClause(plan.expectedReturnBps, {
+      returnIsDefault: plan.returnIsDefault,
+      inflationIsDefault: true,
+    });
+    return `Order: revolving APR above the return assumption, then match if known, then cash runway to ${plan.runwayFloorMonths} months, then installment APR above the return assumption, then investing. Compared at ${ret} (nominal, the same unit as APR). Illustration, not advice — Aimplifi never moves money.`;
+  },
 
   // C2 · Housel — saving for its own sake is a goal; the cushion is room for error
   cushionIsAGoal: () =>

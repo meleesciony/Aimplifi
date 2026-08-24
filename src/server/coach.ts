@@ -6,7 +6,7 @@
  *  - portfolio = investment account balances
  *  - liquid (runway) = checking + savings balances
  */
-import { isoDate, addMonthsClamped } from '@/lib/dates';
+import { isoDate, addMonthsClamped, compareDates } from '@/lib/dates';
 import { isDemoUser } from '@/lib/demo-user';
 import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
 import { cashNeededFromSnapshot, resolvePaymentAccount } from '@/server/finance';
@@ -14,6 +14,7 @@ import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { buildAutomationBlueprint, type BlueprintStep, type PayCadence } from '@/lib/engine/automation/blueprint';
 import { coastFI, fiNumberCents, monthsToFI } from '@/lib/engine/fi/fi';
 import { cutCounterfactual, sumCutMonthlyCents, type CutCounterfactual } from '@/lib/engine/fi/counterfactual';
+import { classifyDebts, nextDollar, type NextDollarPlan } from '@/lib/engine/fi/next-dollar';
 import {
   applyCutsToScheduled,
   cutRadarCounterfactual,
@@ -220,6 +221,12 @@ export interface CoachData {
   streaks: { cardCleared: CardClearedStreakResult; noCreep: NoCreepStreakResult };
   creep: CreepResult;
   runwayMonths: number;
+  /**
+   * W.6(b) — extra-dollar ranking from rates already on file. Always
+   * computed (cheap, pure). Employer match / tax-advantaged room are
+   * skipped unknown until those fields exist.
+   */
+  nextDollar: NextDollarPlan;
   /**
    * Accounts whose bank stopped sharing them, split by WHICH figure on this page each one feeds
    * (TASKS L.18) — because the answer differs per figure and a page-wide banner would make claims
@@ -513,6 +520,39 @@ export async function getCoachData(
   // (single shared assembly path — cycle-1 H1)
   const { result: cash } = cashNeededFromSnapshot(snap, today, 'PAY_IN_FULL');
 
+  // W.6(b) — extra-dollar ranking. CREDIT is revolving only when a generated
+  // statement remainder is past the issuer due date (in-cycle balances are
+  // cash-needed, not extra-pay). Match is unknown this slice.
+  const todayIso = isoDate(today);
+  const pastDueCards = cash.cards
+    .filter((c) => compareDates(c.dueDate, todayIso) < 0 && c.remainingDueCents > 0)
+    .map((c) => {
+      const acct = snap.accounts.find((a) => a.id === c.cardId);
+      return {
+        id: c.cardId,
+        name: c.cardName,
+        remainingDueCents: c.remainingDueCents,
+        aprBps: acct?.aprBps ?? null,
+      };
+    });
+  const loanRows = snap.accounts.filter(
+    (a) => (a.type === 'LOAN' || a.type === 'MORTGAGE') && a.currentBalanceCents > 0,
+  );
+  const loans = loanRows.map((a) => ({
+    id: a.id,
+    name: accountLabel(a),
+    balanceCents: a.currentBalanceCents,
+    aprBps: a.aprBps ?? null,
+  }));
+  const nextDollarPlan = nextDollar({
+    debts: classifyDebts({ loans, pastDueCards }),
+    expectedReturnBps: user.expectedReturnBps,
+    returnIsDefault: returnIsAppDefault(user.expectedReturnBps),
+    runwayMonths: runway,
+    employerMatch: 'unknown',
+    unknownLoanApr: loanRows.some((a) => a.aprBps == null),
+  });
+
   // Automation blueprint (P0.5): pay-yourself-first savings + card cash buffers,
   // phrased downstream as standing instructions to set up at the user's bank —
   // Aimplifi reminds, it never moves money (reminders/select.ts invariant).
@@ -714,6 +754,7 @@ export async function getCoachData(
       snap.loanPaymentFlowExclusions?.excludeIds,
     ),
     savingsTargetBps: user.savingsTargetBps ?? null,
+    nextDollar: nextDollarPlan,
     review,
     reviewLines,
     reviewPersonalized,

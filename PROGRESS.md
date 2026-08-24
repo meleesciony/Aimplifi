@@ -2,6 +2,31 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-24 — W.6(b) next extra dollar, ranked from rates on file (DECISIONS #510)
+
+**Picked up.** Owner: "continue after reading all readme files." P.1
+closed at #508. Ranked leftover: W.6(b) marginal-dollar order.
+
+**Closed (engine + /coach + canonical Ask).** Pure `nextDollar`: revolving
+APR > nominal return → uncaptured match → runway < 3 months → installment
+APR > return → invest. Null APR skipped. CREDIT revolving only if past
+due. Demo: investing, Auto Loan 6.49% under our default 7.00%.
+
+**Critic (4 cycles): FAIL — 0 P0, 1 P1 open, budget exhausted.** Money
+ranking had 0 P0. Residual Ask P1: "How much should I pay off my cards
+before I can invest?" still routes `next_dollar`. Human gate. Recorded
+in STATUS.
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, `next build` clean). Unit **7,497 passed + 1
+expected fail + 1 skipped / 454 files + 1 skipped**. E2E Coach + Ask
+green (`npx playwright test tests/e2e/phase3-coach.spec.ts tests/e2e/ask.spec.ts`).
+No `prisma/` diff.
+
+**Next.** Human gate on the Ask P1, or W.6(d) drawdown / W.6(c)
+fulfillment / P1.4 / P1.5. Match % collection is a later settings
+slice.
+
 ## 2026-08-24 — /coach-card radiation of the cut FI + radar sentences (DECISIONS #508)
 
 **Picked up.** Owner: "continue. read all readme files including graph."

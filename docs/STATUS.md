@@ -9,6 +9,37 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ⚠️ PARTIAL 2026-08-24 — W.6(b) next extra dollar (DECISIONS #510)
+
+**The report.** Extra-dollar ranking from rates on file. Demo: next extra
+dollar is investing (Auto Loan 6.49% under our default 7.00%; runway at
+or above 3 months). Match and tax-advantaged room skipped unknown.
+
+**Shipped.** Pure `nextDollar` + `classifyDebts`. /coach `NextDollarCard`.
+Ask `next_dollar` ("Where should my next dollar go?", "Should I pay off
+debt or invest?"). One author: `COACH_COPY.nextDollar*`.
+
+**Critic (4 cycles, budget exhausted → human gate): FAIL — 0 P0, 1 P1
+open.** Engine ranking had 0 P0 across all four cycles. Open P1 is Ask
+routing: `"How much should I pay off my cards before I can invest?"` is
+answered as the extra-dollar ranking because `\bshould i\b` + `\bbefore\b`
+is the ranking-frame proxy and also cash-needed's modal. Canonical ranking
+phrases and "so I can" / "if I keep" / "do I need to" twins stay on the
+right engines. Fix: stop using `should I` as the ranking proxy; lock the
+cycle-4 strings. Do not reopen the money engine.
+
+**Still open on W.6.** (c) category fulfillment curve; (d) drawdown on FI
+date. Match % / tax-advantaged room still not collected.
+
+**Locked.** `next-dollar.test.ts` (N1–N11 + unknown-APR skip + 0% copy
+honesty), `coach-next-dollar.test.ts` (demo invest + Auto Loan 6.49%),
+`assistant-next-dollar.test.ts` (routing, abstentions, contrast, auto
+loan / mortgage), phase3-coach + ask.spec e2e.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,497 passed
++ 1 expected fail + 1 skipped / 454 files + 1 skipped**. E2E Coach + Ask
+green. No `prisma/` diff.
+
 ## ✅ BUILT 2026-08-24 — /coach-card radiation of the cut FI + radar sentences (DECISIONS #508)
 
 **The report.** P.1's last slice: the /coach opportunities card now says

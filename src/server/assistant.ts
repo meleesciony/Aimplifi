@@ -65,6 +65,7 @@ import {
   answerStayWealthy,
   answerSafeToSpend,
   answerRichLife,
+  answerNextDollar,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
   answerSavingsRate,
@@ -852,6 +853,11 @@ async function buildAnswer(
       // exactly what a shared visitor gets.
       const coach = await getCoachData(userId);
       return answerRichLife(coach.richLifeVision);
+    }
+    case 'next_dollar': {
+      // SAME nextDollar plan the /coach card prints.
+      const coach = await getCoachData(userId);
+      return answerNextDollar(coach.nextDollar);
     }
     case 'fi_status': {
       // Standing FI date / number: SAME getCoachData().fi the /coach FI card prints.

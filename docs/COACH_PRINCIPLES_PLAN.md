@@ -68,8 +68,9 @@ P1.3 Rich Life one-liner — SHIPPED #504 (stored string + settings card +
 Opus + hostile critic (new money / money-visible): P.1 counterfactual
 re-projection — FI half SHIPPED #506, radar/cash-dip half SHIPPED #507,
 /coach-card radiation SHIPPED #508 (P.1 row closed; spending-plan
-re-projection deferred); W.6(b)
-marginal-dollar order; W.6(d) drawdown on FI date;
+re-projection deferred); W.6(b) marginal-dollar order — engine + /coach
++ canonical Ask SHIPPED #510 (critic cycle 4 FAIL 1 P1 on Ask purpose-clause
+`should I` + `before I can`; human gate); W.6(d) drawdown on FI date;
 W.6(c) category fulfillment curve; mortgage early-payoff; Reports
 interest & fees YTD; P1.4 income lever; P1.5 fee-drag FV; PAW expected-NW
 lens.

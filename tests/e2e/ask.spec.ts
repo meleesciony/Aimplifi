@@ -187,6 +187,21 @@ test('Am I staying wealthy agrees with Coach staying-wealthy row', async ({ page
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
 });
 
+test('Where should my next dollar go? agrees with the Coach ranking', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/coach');
+  const headline = ((await page.getByTestId('next-dollar-headline').textContent()) ?? '').trim();
+  expect(headline, 'Coach next-dollar headline').not.toBe('');
+
+  await page.goto('/ask');
+  await ask(page, 'Where should my next dollar go?');
+  await expect(page.getByTestId('ask-headline')).toHaveText(headline);
+  await expect(page.getByTestId('ask-answer')).toContainText('Auto Loan');
+  await expect(page.getByTestId('ask-answer')).not.toContainText(/this card/i);
+  await expect(page.getByTestId('ask-answer')).not.toContainText(/\bbelow\b/i);
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
+});
+
 test('What is my rich life? — demo has no vision, so the answer names the empty state and points at Settings', async ({ page }) => {
   await signIn(page);
   await page.goto('/ask');

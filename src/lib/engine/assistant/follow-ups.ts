@@ -192,6 +192,13 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
       // these three all route.
       return take(['When can I retire?', 'Am I staying wealthy?', 'What should I cut?']);
 
+    case 'next_dollar':
+      return take([
+        'When will I be debt-free?',
+        'How many months of runway do I have?',
+        'When can I retire?',
+      ]);
+
     case 'forecast':
       return take([
         'How much do I need to pay my cards?',

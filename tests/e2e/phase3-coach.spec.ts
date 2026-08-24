@@ -187,6 +187,19 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
     );
   }
 
+  // W.6(b) — extra-dollar ranking from rates on file. Demo: cards are not
+  // past due, Auto Loan 6.49% is under the 7.00% default return, runway is
+  // at/above 3 months → investing. Match skipped unknown.
+  await expect(page.getByTestId('next-dollar-card')).toBeVisible();
+  await expect(page.getByTestId('next-dollar-headline')).toContainText('investing');
+  await expect(page.getByTestId('next-dollar-why')).toContainText('Auto Loan');
+  await expect(page.getByTestId('next-dollar-why')).toContainText('6.49%');
+  await expect(page.getByTestId('next-dollar-assumptions')).toContainText(
+    'our default 7.00% return assumption',
+  );
+  await expect(page.getByTestId('next-dollar-card')).not.toContainText(/this card/i);
+  await expect(page.getByTestId('next-dollar-card')).not.toContainText(/\bbelow\b/i);
+
   // #254 Habit streaks: demo pinned copy (default-asOf narrative — see the
   // cleared-streak / creep-streak seed locks for the hand math). Cleared-in-full
   // 17 months across 4 cards through May 2026; no-creep 3 full months with the

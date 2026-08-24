@@ -31,6 +31,7 @@ function sampleIntent(kind: (typeof ASSISTANT_INTENT_KINDS)[number]): AssistantI
     case 'rich_life':
     case 'conscious_spending':
     case 'stay_wealthy':
+    case 'next_dollar':
     case 'forecast':
     case 'cash_flow_radar':
     case 'savings_rate':
