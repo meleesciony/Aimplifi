@@ -34,7 +34,12 @@ phase3-coach e2e FI present + radar absent, auth empty-coach testids 0.
 
 **Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,421 passed
 + 1 expected fail + 1 skipped / 451 files + 1 skipped**. E2E **365 passed
-+ 1 flaky-on-retry**. No `prisma/` diff. Unpushed this session.
++ 1 flaky-on-retry**. No `prisma/` diff.
+
+**Gate read.** Pushed. GitHub Actions `verify` SUCCESS (run
+**32777002267**, 13m17s). Vercel production `6071341859` completed on sha
+`4a2a0f63`. Live proof **13/13 PASS** including `opportunities-cut-fi` on
+www.aimplifi.app/coach.
 
 ## ✅ BUILT 2026-08-24 — Ask "what should I cut?" radar/cash-dip re-walk (DECISIONS #507)
 

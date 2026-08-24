@@ -29,9 +29,19 @@ passing set). `VERIFY_E2E` did not reach bash from this PowerShell env;
 Playwright was run as `npx playwright test` after the green verify build.
 No `prisma/` diff.
 
-**Gate read.** Unshipped — this tree is not pushed. `main` was already 1
-commit ahead of `origin/main` at session start (`34e8ec48`, the #507
-docs-chain). Push is blocked without an explicit owner request.
+**Gate read.** Owner standing #509: commit + push at every slice end.
+Pushed `43abed40` + `4a2a0f63` (the #509 standing-rule + live-check
+extension) to `origin/main`. GitHub Actions `verify` = **SUCCESS** (run
+**32777002267**, first attempt, job 13m17s,
+https://github.com/meleesciony/Aimplifi/actions/runs/32777002267). Vercel:
+Production deployment `6071341859`, "Deployment has completed", sha
+`4a2a0f63`. Live proof `node scripts/ask-what-to-cut-live-check.mjs` →
+**13/13 PASS**: Ask still lists LA Fitness $34.99 first, FI movement
+present with pinned dollars ($23,661.00 / about $78.87 a month, part
+estimated, 12 months sooner on production `today`), honest-null radar
+absent on Ask AND on /coach, #507 bundle marker present, AND
+`opportunities-cut-fi` is on the live /coach card with the same pinned
+dollars — the discriminator a pre-#508 deploy cannot satisfy.
 
 **Next.** Ranked lane: W.6(b) marginal-dollar order, W.6(d) drawdown on FI
 date, W.6(c) category fulfillment curve, P1.4 income lever, P1.5 fee-drag
