@@ -39,6 +39,14 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(basis).toContainText('our default 7.00% return assumption');
   await expect(basis).not.toContainText('your 7.00%');
 
+  // W.6(d) — portfolio-drawdown disclosure on the FI card (demo moves).
+  const drawdown = page.getByTestId('fi-drawdown');
+  await expect(drawdown).toBeVisible();
+  await drawdown.locator('summary').click();
+  await expect(page.getByTestId('fi-drawdown-sentence')).toContainText('30% drop');
+  await expect(page.getByTestId('fi-drawdown-sentence')).toContainText('later');
+  await expect(page.getByTestId('fi-drawdown-sentence')).toContainText('Illustration, not advice');
+
   // W.12 — payoff sits ABOVE the basis paragraph (fold), and neither the headline nor Coast
   // restates the 4.50% the basis owns. Measured on the painted card, not the copy functions.
   const years = page.getByTestId('years-to-fi');

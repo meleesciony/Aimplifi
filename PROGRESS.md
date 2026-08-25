@@ -2,6 +2,32 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-24 — W.6(d) drawdown on FI date (DECISIONS #512)
+
+**Picked up.** Owner: "read all readme files and continue." #511 closed W.6(b)
+Ask P1. Ranked next: W.6(d) Housel volatility line — what a 30% portfolio
+drop does to the FI date (sibling to W.1 return sensitivity, not Ask this
+slice).
+
+**Closed (engine + /coach).** Pure `drawdownCounterfactual`: one-time 30%
+portfolio shock, same `monthsToFI` walk and real `projectionReturnBps`
+as the FI card. `COACH_COPY.drawdownCounterfactual` owns the sentence;
+honest null when nothing moves. `/coach` FI card: `<details
+data-testid="fi-drawdown">` beside the behavioral volatility note. Demo:
+$142k brokerage shocked → monthsLater **45** (baseline 484 → shocked 529).
+
+**Critic (Bugbot, fresh context): PASS — 0 P0, 0 P1.**
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, `next build` clean). Unit **7,519 passed + 1
+expected fail + 1 skipped / 456 files + 1 skipped**. E2E phase3-coach
+1/1 (drawdown disclosure). No `prisma/` diff.
+
+**Gate read.** PENDING push.
+
+**Next.** W.6(c) category fulfillment curve; P1.4 / P1.5; Reports interest
+& fees YTD.
+
 ## 2026-08-24 — W.6(b) Ask P1: `should I` is not the ranking proxy (DECISIONS #511)
 
 **Picked up.** Owner: "continue" after #510's human gate. Recorded P1:

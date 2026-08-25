@@ -9189,3 +9189,26 @@ exhausted; not certified as a pass.
 (would un-route `"Should I pay off debt before investing?"`). Treating
 every `should I` as ranking (the recorded P1). Another global substring
 veto after each critic cycle (C3: purpose-anywhere stole matrix `or`).
+
+## #512 — W.6(d) drawdown on FI date (2026-08-24)
+
+**Context.** TASKS W.6(d): Housel's "reasonable > rational" — what a 30%
+portfolio drop does to the FI date. W.1's wealth-target card already
+sensitizes *returns* ±2pp; nothing shocked the *starting portfolio*.
+Behavioral `volatilityPrice` on the FI card was not quantitative.
+
+**Decision.** Pure `drawdownCounterfactual` in
+`src/lib/engine/fi/drawdown.ts`. Fixed 30% shock (keep 70% of portfolio),
+then re-run `monthsToFI` at the same real rate, savings, and FI target as
+the standing card. `COACH_COPY.drawdownCounterfactual` reports
+`monthsLater` or `newlyUnreachable`; honest null when nothing moves.
+/coach FI card: `<details data-testid="fi-drawdown">` after the behavioral
+volatility disclosure. Ask radiation deferred (same pattern as P.1 half
+slices). Demo: 45 months later on $142k brokerage at 4.5% real.
+
+**Critic (Bugbot, fresh context): PASS — 0 P0, 0 P1.**
+
+**Alternatives rejected.** Shocking the return dial instead of portfolio
+(that is W.1). A second behavioral-only paragraph (already have
+`volatilityPrice`). Ask routing this slice (engine + /coach first).
+

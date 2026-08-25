@@ -12,6 +12,7 @@ import { formatISODate, formatMonth, type ISODate } from '@/lib/dates';
 import type { FrozenFunding } from '@/lib/engine/account/feed-dropped-view';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
 import type { CutCounterfactual } from './counterfactual';
+import type { DrawdownCounterfactual } from './drawdown';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import type { NextDollarPlan } from './next-dollar';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
@@ -1148,6 +1149,27 @@ export const COACH_COPY = {
     // BELOW it. Naming the card instead of a position also survives the card being reordered
     // — the same hazard `coach/page.tsx` already documents for the frozen-balance note.
     `Those ${pct(nominalBps)} returns aren't free — the price is volatility along the way, and the average is never the experience. Staying invested through the dips is the assumption behind every projection here; inflation then takes its cut, which is why the projections on this card compound at ${pct(realReturnBps)} rather than ${pct(nominalBps)}. A fee for admission, not a fine.`,
+
+  /**
+   * W.6(d) — quantitative sibling of `volatilityPrice`. The engine re-runs the
+   * FI walk after a one-time portfolio drop; this sentence reports the delay
+   * (or the newly-unreachable transition), never invents one. Honest null when
+   * nothing moves (`monthsLater` 0 and not newlyUnreachable).
+   *
+   * No "this card" / "below" — Ask may phrase the same string later (L.15).
+   * The shock magnitude comes from the engine result so a future dial cannot
+   * leave the copy claiming 30% over a different walk.
+   */
+  drawdownCounterfactual: (cf: DrawdownCounterfactual): string | null => {
+    if (cf.monthsLater === 0 && !cf.newlyUnreachable) return null;
+    const dropPct = `${(cf.shockBps / 100).toFixed(0)}%`;
+    const basis =
+      "Same savings rate and same return and inflation assumptions as Coach. Markets deliver paths, not averages — staying invested through a dip is the load-bearing assumption behind every FI date. Illustration, not advice — in today's dollars.";
+    if (cf.newlyUnreachable) {
+      return `A ${dropPct} drop in what you've invested today would put financial independence past the 100-year projection horizon. ${basis}`;
+    }
+    return `A ${dropPct} drop in what you've invested today would push the FI date about ${monthsSpanPhrase(cf.monthsLater)} later. ${basis}`;
+  },
 
   // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade.
   // A set Settings dial uses savingsGoalReference instead (DECISIONS #493).

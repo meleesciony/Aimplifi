@@ -14,6 +14,10 @@ import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { buildAutomationBlueprint, type BlueprintStep, type PayCadence } from '@/lib/engine/automation/blueprint';
 import { coastFI, fiNumberCents, monthsToFI } from '@/lib/engine/fi/fi';
 import { cutCounterfactual, sumCutMonthlyCents, type CutCounterfactual } from '@/lib/engine/fi/counterfactual';
+import {
+  drawdownCounterfactual,
+  type DrawdownCounterfactual,
+} from '@/lib/engine/fi/drawdown';
 import { classifyDebts, nextDollar, type NextDollarPlan } from '@/lib/engine/fi/next-dollar';
 import {
   applyCutsToScheduled,
@@ -177,6 +181,13 @@ export interface CoachData {
      */
     coastTargetYears: number;
     coastTargetYearsIsAppDefault: boolean;
+    /**
+     * W.6(d) — what a one-time portfolio drawdown does to the FI date.
+     * Same `monthsToFI` walk and real rate as `monthsToFI` above; always
+     * computed (cheap). Surfaces that have nothing to say (monthsLater 0
+     * and not newlyUnreachable) stay silent via `COACH_COPY.drawdownCounterfactual`.
+     */
+    drawdown: DrawdownCounterfactual;
   };
   opportunities: Opportunity[];
   /**
@@ -730,6 +741,13 @@ export async function getCoachData(
       // than a literal `true` at the render site so that giving the reader a control later
       // changes one server line, not a copy branch that has quietly become false.
       coastTargetYearsIsAppDefault: true,
+      // W.6(d) — same walk, shocked portfolio. Baseline months must equal `months` above.
+      drawdown: drawdownCounterfactual({
+        portfolioCents: portfolio,
+        monthlySavingsCents: monthlySavings,
+        realReturnBps: projectionReturnBps,
+        fiTargetCents: fiTarget,
+      }),
     },
     opportunities,
     unusualCharges,

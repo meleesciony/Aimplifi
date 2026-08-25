@@ -9,6 +9,33 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-24 — W.6(d) drawdown on FI date (DECISIONS #512)
+
+**The report.** Housel's "reasonable > rational" now has a quantitative
+line on the FI card: a one-time **30%** portfolio drop and how many months
+later FI arrives — same savings rate and same real return as the headline
+date. Behavioral `volatilityPrice` unchanged.
+
+**Shipped.** `drawdownCounterfactual` in `src/lib/engine/fi/drawdown.ts`.
+`CoachData.fi.drawdown`. `COACH_COPY.drawdownCounterfactual`. FI card
+`<details data-testid="fi-drawdown">`. Demo: **45 months** later
+(484 → 529 mo at 4.5% real on $142k shocked to $99.4k).
+
+**Critic (Bugbot, fresh context): PASS — 0 P0, 0 P1.**
+
+**Still open on W.6.** (c) category fulfillment curve. Match % still not
+collected.
+
+**Locked.** `drawdown.test.ts` (EDGE §Drawdown D1–D6); `coach-drawdown.test.ts`;
+`coach-copy` ALL_STRINGS rows; phase3-coach e2e; `past-enough-coast-render`
+baseProps.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,519 passed
++ 1 expected fail + 1 skipped / 456 files + 1 skipped**. E2E phase3-coach
+1/1. No `prisma/` diff.
+
+**Gate read.** PENDING push.
+
 ## ✅ BUILT 2026-08-24 — W.6(b) Ask P1: `should I` is not the ranking proxy (DECISIONS #511)
 
 **The report.** #510's human-gate P1: `"How much should I pay off my cards

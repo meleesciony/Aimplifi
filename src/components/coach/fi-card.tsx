@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/card';
 import { FROZEN_COACH_TESTID } from '@/lib/engine/account/feed-dropped-view';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import type { DrawdownCounterfactual } from '@/lib/engine/fi/drawdown';
 import { monthsToFI } from '@/lib/engine/fi/fi';
 import { fiSliderInitialBps, fiSliderMaxBps } from '@/lib/engine/fi/fi-slider-bounds';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
@@ -38,6 +39,7 @@ export function FICard({
   coastRequiredMonthlyCents,
   coastTargetYears,
   coastTargetYearsIsAppDefault,
+  drawdown,
   latestMonthRateBps,
   latestMonthLabel,
   currencyNote,
@@ -99,6 +101,8 @@ export function FICard({
   coastTargetYears: number;
   /** W.9 — whether the app picked `coastTargetYears` rather than the reader. */
   coastTargetYearsIsAppDefault: boolean;
+  /** W.6(d) — portfolio-shock counterfactual from the server (same walk as monthsToFINow). */
+  drawdown: DrawdownCounterfactual;
 }) {
   const currentRateBps =
     monthlyIncomeCents > 0 ? Math.round((monthlySavingsCents / monthlyIncomeCents) * 10000) : 0;
@@ -118,6 +122,7 @@ export function FICard({
   }, [sliderBps, monthlyIncomeCents, portfolioCents, projectionReturnBps, fiNumberCents]);
 
   const yearsOf = (m: number | null) => (m === null ? null : Math.floor(m / 12));
+  const drawdownSentence = COACH_COPY.drawdownCounterfactual(drawdown);
 
   return (
     <Card data-testid="fi-card">
@@ -187,6 +192,18 @@ export function FICard({
             {COACH_COPY.volatilityPrice(expectedReturnBps, projectionReturnBps)}
           </p>
         </details>
+        {/* W.6(d) — quantitative path sibling of the behavioral volatility note. Honest
+            null: when the shock does not move the date, the disclosure is omitted. */}
+        {drawdownSentence ? (
+          <details className="text-xs text-muted-foreground" data-testid="fi-drawdown">
+            <summary className="flex min-h-11 cursor-pointer select-none items-center">
+              What if markets drop {(drawdown.shockBps / 100).toFixed(0)}%?
+            </summary>
+            <p className="mt-1" data-testid="fi-drawdown-sentence">
+              {drawdownSentence}
+            </p>
+          </details>
+        ) : null}
 
         <p className="text-sm text-muted-foreground" data-testid="coast-fi">
           {coastIsCoast

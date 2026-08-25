@@ -158,6 +158,7 @@ export default async function CoachPage() {
           coastRequiredMonthlyCents={data.fi.coastRequiredMonthlyCents}
           coastTargetYears={data.fi.coastTargetYears}
           coastTargetYearsIsAppDefault={data.fi.coastTargetYearsIsAppDefault}
+          drawdown={data.fi.drawdown}
           latestMonthRateBps={data.currentRateBps}
           latestMonthLabel={
             data.flows.length ? formatMonth(data.flows[data.flows.length - 1].month) : undefined
