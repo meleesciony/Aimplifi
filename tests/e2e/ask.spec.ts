@@ -202,6 +202,15 @@ test('Where should my next dollar go? agrees with the Coach ranking', async ({ p
   await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/coach');
 });
 
+test('How much should I pay off my cards before I can invest? is cash-needed, not the extra-dollar ranking', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/ask');
+  await ask(page, 'How much should I pay off my cards before I can invest?');
+  await expect(page.getByTestId('ask-headline')).toContainText(/You need \$[\d,]+\.\d{2}/);
+  await expect(page.getByTestId('ask-headline')).not.toContainText('Next extra dollar');
+  await expect(page.getByTestId('ask-source')).toHaveAttribute('href', '/cards');
+});
+
 test('What is my rich life? — demo has no vision, so the answer names the empty state and points at Settings', async ({ page }) => {
   await signIn(page);
   await page.goto('/ask');

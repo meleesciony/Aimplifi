@@ -2,6 +2,39 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-24 — W.6(b) Ask P1: `should I` is not the ranking proxy (DECISIONS #511)
+
+**Picked up.** Owner: "continue" after #510's human gate. Recorded P1:
+`"How much should I pay off my cards before I can invest?"` routed
+`next_dollar` because `\bshould i\b` + `\bbefore\b` was the ranking
+frame. Money engine not reopened.
+
+**Closed (Ask routing).** `hasNextDollarContrast` is constituency-aware:
+quantity/horizon stems (`how much` / `how long` / `when will`) refuse
+all contrast; purpose (`before I can` / `I'm able` / `so I can` / `so I
+could` / `so that I can`) vs `or`/`vs`/`instead of` is by index (op
+before purpose = ranking; op after = purpose object); bare `before
+investing` stays ranking. `next_dollar` runs before `fi_status`;
+retirement inside a purpose adjunct is not the FI date. Canonical
+`"Should I pay off debt or invest?"` / `"Do I need to pay off debt or
+invest?"` stay ranking.
+
+**Critic (4 cycles this slice): FAIL — 0 P0.** C1: 2 P1 (quantity+`or`;
+`I'm able`). C2: 1 P1 (`or` inside purpose). C3: 2 P1 (matrix `or`
+before purpose; `retire` adjunct → `fi_status`). C4: 3 P1 (FI still
+stole declined-ranking+retire; `do I need to` over-fired on ranking;
+`so I could` / `so that I can`). All eight executed and locked. No 5th
+critic (budget). Not certified as a critic pass.
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, `next build` clean). Unit **7,502 passed + 1
+expected fail + 1 skipped / 454 files + 1 skipped**. E2E Ask
+next-dollar + P1 string 2/2 (`npx playwright test tests/e2e/ask.spec.ts
+-g "next dollar|before I can invest"`). No `prisma/` diff.
+
+**Next.** Push #510 + this commit (main is unpushed). Then W.6(d)
+drawdown / W.6(c) fulfillment / P1.4 / P1.5.
+
 ## 2026-08-24 — W.6(b) next extra dollar, ranked from rates on file (DECISIONS #510)
 
 **Picked up.** Owner: "continue after reading all readme files." P.1

@@ -9,7 +9,38 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
-## ⚠️ PARTIAL 2026-08-24 — W.6(b) next extra dollar (DECISIONS #510)
+## ✅ BUILT 2026-08-24 — W.6(b) Ask P1: `should I` is not the ranking proxy (DECISIONS #511)
+
+**The report.** #510's human-gate P1: `"How much should I pay off my cards
+before I can invest?"` no longer answers as the extra-dollar ranking. It
+is cash-needed (`You need $X`). Canonical ranking stays ranking. Money
+engine untouched.
+
+**Shipped.** Constituency-aware `hasNextDollarContrast` in `intent.ts`.
+`next_dollar` before `fi_status`. Purpose-adjunct `retire` is not the
+FI date. `Do I need to pay off debt or invest?` is ranking; `how much
+do I need to` is still cash-needed.
+
+**Critic (4 cycles this slice, budget exhausted): FAIL — 0 P0.** C1–C4
+P1s (8) all executed and locked. No 5th critic. **Not certified as a
+critic pass.** Residual P2s: idiom `or` (`more or less`); `versus` /
+`instead of` after purpose untested (`vs` is locked).
+
+**Still open on W.6.** (c) category fulfillment curve; (d) drawdown on FI
+date. Match % / tax-advantaged room still not collected.
+
+**Locked.** `test_regression__w6b_should_i_is_not_the_before_ranking_proxy`;
+`test_regression__w6b_quantity_or_is_not_the_ranking`;
+`test_regression__w6b_purpose_or_is_not_the_ranking`;
+`test_regression__w6b_ranking_or_before_purpose_stays_ranking`;
+`test_regression__w6b_before_im_able_is_purpose_not_contrast`;
+ask.spec P1 e2e (cash-needed headline, not `Next extra dollar`).
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,502 passed
++ 1 expected fail + 1 skipped / 454 files + 1 skipped**. E2E Ask
+next-dollar + P1 2/2. No `prisma/` diff.
+
+## ✅ BUILT 2026-08-24 — W.6(b) next extra dollar (DECISIONS #510)
 
 **The report.** Extra-dollar ranking from rates on file. Demo: next extra
 dollar is investing (Auto Loan 6.49% under our default 7.00%; runway at
@@ -17,16 +48,11 @@ or above 3 months). Match and tax-advantaged room skipped unknown.
 
 **Shipped.** Pure `nextDollar` + `classifyDebts`. /coach `NextDollarCard`.
 Ask `next_dollar` ("Where should my next dollar go?", "Should I pay off
-debt or invest?"). One author: `COACH_COPY.nextDollar*`.
+debt or invest?"). One author: `COACH_COPY.nextDollar*`. Ask P1 closed
+in #511.
 
-**Critic (4 cycles, budget exhausted → human gate): FAIL — 0 P0, 1 P1
-open.** Engine ranking had 0 P0 across all four cycles. Open P1 is Ask
-routing: `"How much should I pay off my cards before I can invest?"` is
-answered as the extra-dollar ranking because `\bshould i\b` + `\bbefore\b`
-is the ranking-frame proxy and also cash-needed's modal. Canonical ranking
-phrases and "so I can" / "if I keep" / "do I need to" twins stay on the
-right engines. Fix: stop using `should I` as the ranking proxy; lock the
-cycle-4 strings. Do not reopen the money engine.
+**Critic (engine, 4 cycles): FAIL — 0 P0, 1 P1 on Ask routing (closed
+#511).** Engine ranking had 0 P0 across all four cycles.
 
 **Still open on W.6.** (c) category fulfillment curve; (d) drawdown on FI
 date. Match % / tax-advantaged room still not collected.

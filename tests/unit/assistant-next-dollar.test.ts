@@ -77,6 +77,95 @@ describe('routing — next_dollar', () => {
     expect(kindOf('How long to pay off my loan before investing?')).toBe('debt_payoff');
   });
 
+  it('test_regression__w6b_should_i_is_not_the_before_ranking_proxy', () => {
+    // Cycle-4 P1: cash-needed's modal is "how much should I … before I can".
+    // `should I` must not mint ranking contrast on `before`.
+    expect(kindOf('How much should I pay off my cards before I can invest?')).toBe(
+      'cash_needed',
+    );
+    expect(kindOf('How much should I pay off my cards before investing?')).toBe(
+      'cash_needed',
+    );
+    expect(kindOf('Should I pay off my cards before I can invest?')).toBe('cash_needed');
+    expect(kindOf('Should I pay off debt before investing?')).toBe('next_dollar');
+    expect(kindOf('Should I pay off my mortgage before investing?')).toBe('next_dollar');
+  });
+
+  it('test_regression__w6b_quantity_or_is_not_the_ranking', () => {
+    // Critic cycle 5 P1-1: `or`/`vs`/`instead of` used to short-circuit
+    // before the how-much refuse, so a this-cycle amount question got a
+    // ranking with no dollars.
+    expect(kindOf('How much should I pay off my cards or invest?')).toBe('cash_needed');
+    expect(kindOf('How much do I need to pay off my cards or invest?')).toBe('cash_needed');
+    expect(kindOf('How much should I pay off my cards instead of investing?')).toBe(
+      'cash_needed',
+    );
+    expect(kindOf('How much should I pay off my cards vs investing?')).toBe('cash_needed');
+    expect(kindOf('Should I pay off debt or invest?')).toBe('next_dollar');
+  });
+
+  it('test_regression__w6b_purpose_or_is_not_the_ranking', () => {
+    // `or` AFTER purpose = inside the purpose object, not ranking.
+    expect(kindOf('Should I pay off my cards before I can invest or save?')).toBe(
+      'cash_needed',
+    );
+    expect(kindOf("Should I pay off my cards before I'm able to invest or save?")).toBe(
+      'cash_needed',
+    );
+    expect(kindOf('Should I pay off my cards before I can invest vs save?')).toBe(
+      'cash_needed',
+    );
+    expect(kindOf('Should I pay off my cards so I can invest or save?')).toBe(
+      'cash_needed',
+    );
+    expect(kindOf('Should I pay off my cards so I could invest or save?')).toBe(
+      'cash_needed',
+    );
+    expect(kindOf('Should I pay off my cards so that I can invest or save?')).toBe(
+      'cash_needed',
+    );
+    expect(kindOf('Should I pay off debt or invest?')).toBe('next_dollar');
+    expect(kindOf('Do I need to pay off debt or invest?')).toBe('next_dollar');
+    expect(kindOf('Do I need to pay off my cards or invest?')).toBe('next_dollar');
+  });
+
+  it('test_regression__w6b_ranking_or_before_purpose_stays_ranking', () => {
+    // Critic cycle 3 P1-1/P1-2: matrix `or` BEFORE a purpose adjunct is
+    // the ranking; FI vocab in the adjunct must not steal it.
+    expect(kindOf('Should I pay off my cards or invest before I can save?')).toBe(
+      'next_dollar',
+    );
+    expect(kindOf('Should I pay off debt or invest before I can save?')).toBe(
+      'next_dollar',
+    );
+    expect(kindOf('Should I invest rather than pay off my cards before I can save?')).toBe(
+      'next_dollar',
+    );
+    expect(kindOf('Should I pay off my cards or invest before I can retire?')).toBe(
+      'next_dollar',
+    );
+    expect(kindOf('When can I retire?')).toBe('fi_status');
+    expect(kindOf('How much do I need to pay off my cards before I can retire?')).toBe(
+      'cash_needed',
+    );
+    expect(kindOf('When will I be debt-free before I can retire?')).toBe('debt_payoff');
+    expect(kindOf('Should I pay off my cards before I can invest or retire?')).toBe(
+      'cash_needed',
+    );
+  });
+
+  it('test_regression__w6b_before_im_able_is_purpose_not_contrast', () => {
+    // Critic cycle 5 P1-2: `am able` matched; the contraction did not.
+    expect(kindOf("Should I pay off my cards before I'm able to invest?")).toBe(
+      'cash_needed',
+    );
+    expect(kindOf('Should I pay off my cards before I am able to invest?')).toBe(
+      'cash_needed',
+    );
+    const curly = `Should I pay off my cards before I${String.fromCharCode(0x2019)}m able to invest?`;
+    expect(kindOf(curly)).toBe('cash_needed');
+  });
+
   it('test_regression__w6b_auto_loan_and_mortgage_are_not_spend_targets', () => {
     expect(kindOf('should I invest or pay down my auto loan')).toBe('next_dollar');
     expect(kindOf('Should I pay off my mortgage before investing?')).toBe('next_dollar');
@@ -120,6 +209,34 @@ describe('intentFromKind — the model picks a route, never the words', () => {
     expect(intentFromKind('next_dollar', 'how much did I spend last month', today)).toBeNull();
     expect(intentFromKind('next_dollar', 'whatever', today)).toBeNull();
     expect(intentFromKind('next_dollar', 'When will I be debt-free?', today)).toBeNull();
+    expect(
+      intentFromKind(
+        'next_dollar',
+        'How much should I pay off my cards before I can invest?',
+        today,
+      ),
+    ).toBeNull();
+    expect(
+      intentFromKind(
+        'next_dollar',
+        'Should I pay off my cards before I can invest or save?',
+        today,
+      ),
+    ).toBeNull();
+    expect(
+      intentFromKind(
+        'fi_status',
+        'Should I pay off my cards or invest before I can retire?',
+        today,
+      ),
+    ).toBeNull();
+    expect(
+      intentFromKind(
+        'next_dollar',
+        'Should I pay off my cards or invest before I can retire?',
+        today,
+      ),
+    ).toEqual({ kind: 'next_dollar' });
   });
 });
 

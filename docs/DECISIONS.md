@@ -9165,3 +9165,27 @@ the app does not yet collect it — skip unknown). Comparing APR to the
 real/after-inflation FI rate (unit mismatch). Treating in-cycle card
 balances as high-APR extra-pay (that is cash-needed). Coercing null
 APR to 0%.
+
+## #511 — W.6(b) Ask P1: `should I` is not the ranking proxy (2026-08-24)
+
+**Context.** #510 critic cycle 4 residual: `"How much should I pay off
+my cards before I can invest?"` hit `next_dollar` because `\bshould i\b`
++ `\bbefore\b` was the ranking-frame proxy and also cash-needed's modal.
+Owner "continue" unblocked the human gate. Money engine not reopened.
+
+**Decision.** Constituency, not another global veto. Quantity/horizon
+stems refuse all contrast. Purpose (`before I can` / `I'm able` / `so I
+can` and close twins) vs `or`/`vs`/`instead of` is by index: operator
+before the purpose is matrix ranking; operator after is inside the
+purpose object. Bare `before investing` stays ranking. `next_dollar`
+runs before `fi_status`; retirement inside a purpose adjunct declines
+the FI date. `Do I need to pay off debt or invest?` is ranking (`how
+much do I need to` already refuses via `how much`).
+
+**Critic.** Four cycles this slice, 0 P0, 8 P1 all executed. Budget
+exhausted; not certified as a pass.
+
+**Alternatives rejected.** Dropping `before` as contrast entirely
+(would un-route `"Should I pay off debt before investing?"`). Treating
+every `should I` as ranking (the recorded P1). Another global substring
+veto after each critic cycle (C3: purpose-anywhere stole matrix `or`).

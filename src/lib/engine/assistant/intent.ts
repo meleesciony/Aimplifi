@@ -1508,6 +1508,18 @@ export function fiStatusFromQuestion(
 ): AssistantIntent | null {
   const q = normalize(question);
   if (!asksFiStatus(q)) return null;
+  // A debt-vs-invest ranking with retirement as the adjunct is next_dollar
+  // ("Should I pay off my cards or invest before I can retire?"). Decline
+  // so the LLM cannot force the FI date onto that question.
+  if (nextDollarFromQuestion(question, today, custom)?.kind === 'next_dollar') return null;
+  // Retirement as the PURPOSE adjunct ("before I can retire") is not the
+  // standing FI date — cash-needed / debt-payoff still own how-much / when-debt-free.
+  {
+    const folded = foldAssistantApostrophes(q);
+    const purpose = NEXT_DOLLAR_PURPOSE_RE.exec(folded);
+    const retire = /\bretir(?:e|es|ed|ing|ement)\b/.exec(folded);
+    if (purpose && retire && retire.index > purpose.index) return null;
+  }
   // A stated age is the inverse planner. Decline so `retire_at_age` can match.
   if (parseTargetAge(question) !== null) return null;
   // An amount is a different planner (wealth target / dated savings goal).
@@ -1676,6 +1688,14 @@ export function nextDollarFromQuestion(
   return { kind: 'next_dollar' };
 }
 
+/** Purpose adjunct, not ranking: `before I can` / `so I can` (and close twins). */
+const NEXT_DOLLAR_PURPOSE_RE =
+  /\b(?:before i(?:'m able| am able| can| could)|so i could|so that i can|so i can)\b/;
+
+function foldAssistantApostrophes(q: string): string {
+  return q.replace(/[’‘`]/g, "'");
+}
+
 function asksNextDollar(q: string): boolean {
   if (/\bnext dollars?\b/.test(q)) return true;
   if (/\bmarginal dollars?\b/.test(q)) return true;
@@ -1686,14 +1706,41 @@ function asksNextDollar(q: string): boolean {
   const emergency = /\bemergency[\s-]?funds?\b/.test(q);
   // Contrast only. Co-occurrence ("debt-free so I can invest", "pay off my
   // loan if I keep investing") is a horizon / this-cycle question, not the
-  // ranking (critic P1-1).
-  const contrast =
-    /\b(or|vs\.?|versus|rather than|instead of)\b/.test(q) ||
-    // `before` is contrast only in a ranking frame. Bare "before I can
-    // invest" is the same purpose clause as "so I can invest" (cycle-3 P1-1).
-    (/\bshould i\b/.test(q) && /\bbefore\b/.test(q));
-  if (invest && (debt || emergency) && contrast) return true;
+  // ranking (critic P1-1). `should I` is not the ranking proxy: cash-needed's
+  // modal uses the same words ("How much should I pay off my cards before I
+  // can invest?" — cycle-4 P1).
+  if (invest && (debt || emergency) && hasNextDollarContrast(q)) return true;
   return false;
+}
+
+/**
+ * Ranking contrast: `or` / `vs` / `rather than` / `instead of`, or `before`
+ * as the other pole of a choice ("pay off debt before investing").
+ *
+ * A quantity/horizon stem ("how much", "how long", "when will") is
+ * cash-needed / debt-payoff even with `or` — that is the same class as
+ * the cycle-4 P1 (asked how much, got a ranking with no dollars).
+ * `do I need to pay off debt or invest` is ranking; `how much do I need
+ * to` is already refused by `how much`.
+ * `before I can` / `before I'm able` / `so I can` is a purpose clause, not
+ * a ranking. Constituency: an `or` BEFORE the purpose is matrix contrast
+ * ("pay off debt or invest before I can save"); an `or` AFTER it is inside
+ * the purpose object ("before I can invest or save") and is not ranking.
+ * Apostrophes are folded so the contraction matches.
+ */
+function hasNextDollarContrast(q: string): boolean {
+  const folded = foldAssistantApostrophes(q);
+  // Quantity/horizon only — `do I need to pay off debt or invest` is ranking
+  // (the `how much do I need to` twin is already caught by `how much`).
+  if (/\b(how (much|many|long)|when (will|can|do|am))\b/.test(folded)) {
+    return false;
+  }
+  const purpose = NEXT_DOLLAR_PURPOSE_RE.exec(folded);
+  const op = /\b(or|vs\.?|versus|rather than|instead of)\b/.exec(folded);
+  if (purpose && op) return op.index < purpose.index;
+  if (purpose) return false;
+  if (op) return true;
+  return /\bbefore\b/.test(folded);
 }
 
 /** "my rich life" (and "my rich-life"); the possessive is the route mark. */
@@ -1918,6 +1965,17 @@ export function parseAssistantQuery(
     if (age !== null) return { kind: 'retire_at_age', targetAge: age, label: `age ${age}` };
   }
 
+  // W.6(b) next extra dollar. BEFORE fi_status so "pay off debt or invest
+  // before I can retire" is the ranking, not the FI date (critic cycle 3
+  // P1-2). BEFORE debt_payoff / cash_needed so "pay off my loan or invest"
+  // is the ranking, not the horizon. After the aged inverse planner so
+  // "retire at 60" stays that route. After runway would also be safe —
+  // "do I have an emergency fund" has no contrast — but FI is the steal.
+  {
+    const extra = nextDollarFromQuestion(question, today, custom);
+    if (extra) return extra;
+  }
+
   // Standing FI date / number (Coach FI card). After the aged inverse planner
   // so "retire at 60" stays that route; before wealth_target so a no-amount
   // retirement question is not unknown.
@@ -1965,14 +2023,6 @@ export function parseAssistantQuery(
   {
     const rich = richLifeFromQuestion(question, today, custom);
     if (rich) return rich;
-  }
-
-  // W.6(b) next extra dollar. BEFORE debt_payoff / cash_needed so
-  // "pay off my loan or invest" is the ranking, not the horizon plan.
-  // After runway so "do I have an emergency fund" stays status.
-  {
-    const extra = nextDollarFromQuestion(question, today, custom);
-    if (extra) return extra;
   }
 
   // Wealth target with NO deadline (W.4). The dated sibling above already took
