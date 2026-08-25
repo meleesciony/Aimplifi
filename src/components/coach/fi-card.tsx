@@ -18,6 +18,12 @@ import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { DrawdownCounterfactual } from '@/lib/engine/fi/drawdown';
 import { monthsToFI } from '@/lib/engine/fi/fi';
 import { fiSliderInitialBps, fiSliderMaxBps } from '@/lib/engine/fi/fi-slider-bounds';
+import {
+  INCOME_LEVER_STEP_CENTS,
+  incomeLever,
+  incomeLeverSliderInitialCents,
+  incomeLeverSliderMaxCents,
+} from '@/lib/engine/fi/income-lever';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
 import { type Cents, cents, formatCents } from '@/lib/money';
 
@@ -120,6 +126,29 @@ export function FICard({
     // the one six inches above it.
     return monthsToFI(portfolioCents, savings, projectionReturnBps, fiNumberCents);
   }, [sliderBps, monthlyIncomeCents, portfolioCents, projectionReturnBps, fiNumberCents]);
+
+  const raiseMaxCents = incomeLeverSliderMaxCents(monthlyIncomeCents);
+  const [raiseCents, setRaiseCents] = useState(incomeLeverSliderInitialCents(monthlyIncomeCents));
+  const lever = useMemo(
+    () =>
+      incomeLever({
+        portfolioCents,
+        monthlySavingsCents,
+        monthlyIncomeCents,
+        realReturnBps: projectionReturnBps,
+        fiTargetCents: fiNumberCents,
+        raiseAnnualCents: raiseCents,
+      }),
+    [
+      portfolioCents,
+      monthlySavingsCents,
+      monthlyIncomeCents,
+      projectionReturnBps,
+      fiNumberCents,
+      raiseCents,
+    ],
+  );
+  const leverSentence = COACH_COPY.incomeLever(lever, monthlySavingsMonths);
 
   const yearsOf = (m: number | null) => (m === null ? null : Math.floor(m / 12));
   const drawdownSentence = COACH_COPY.drawdownCounterfactual(drawdown);
@@ -262,6 +291,39 @@ export function FICard({
                   monthlySavingsMonths,
                 )
               : COACH_COPY.notOnTrack()}
+          </p>
+        </div>
+
+        {/* P1.4 — income lever. Same walk as monthsToFINow; the raise is saved at
+            the slider's current-pace rate, FI number unchanged. Honest null via
+            COACH_COPY.incomeLever. */}
+        <div className="space-y-2 rounded-lg border p-3">
+          <label htmlFor="income-lever-slider" className="flex justify-between text-sm">
+            <span>What if I got a raise…</span>
+            <span className="font-semibold tabular-nums" data-testid="income-lever-raise">
+              {formatCents(cents(raiseCents))}/yr
+            </span>
+          </label>
+          <p className="text-xs text-muted-foreground" data-testid="income-lever-context">
+            {COACH_COPY.incomeLeverContext(
+              monthlyIncomeCents > 0 ? currentRateBps : null,
+              monthlySavingsMonths,
+            )}
+          </p>
+          <input
+            id="income-lever-slider"
+            type="range"
+            min={0}
+            max={raiseMaxCents}
+            step={INCOME_LEVER_STEP_CENTS}
+            value={raiseCents}
+            aria-valuetext={`${formatCents(cents(raiseCents))} per year raise`}
+            onChange={(e) => setRaiseCents(Number(e.target.value))}
+            className="w-full accent-brand-500"
+            data-testid="income-lever-slider"
+          />
+          <p className="text-sm" aria-live="polite" data-testid="income-lever-result">
+            {leverSentence ?? (raiseCents === 0 ? COACH_COPY.incomeLeverIdle() : null)}
           </p>
         </div>
       </CardContent>

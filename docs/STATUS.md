@@ -9,6 +9,36 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-25 — P1.4 income lever (DECISIONS #514)
+
+**The report.** A hypothetical raise, saved at the window-average rate,
+now moves the FI date on the same card as the savings-rate slider. Only
+that share of the raise is extra savings; the FI number stays the one
+built from spending already on file.
+
+**Shipped.** `incomeLever` in `src/lib/engine/fi/income-lever.ts`.
+`COACH_COPY.incomeLever` / `incomeLeverContext` / `incomeLeverIdle`.
+`/coach` FI card `data-testid="income-lever-slider"` (default $10,000/yr).
+Ask deferred.
+
+**Critic (fresh context): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0, 0 P1.**
+
+**Still open.** P1.5 fee-drag FV; Reports interest & fees YTD; mortgage
+early-payoff; PAW. Match % still uncollected.
+
+**Locked.** `income-lever.test.ts` (EDGE §Income lever I1–I9);
+`coach-income-lever.test.ts`; `test_regression__p14_income_lever_does_not_claim_lifestyle_frozen`;
+`test_regression__p14_income_lever_names_window_average_not_current`;
+phase3-coach e2e.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,585 passed
++ 1 expected fail + 1 skipped / 460 files + 1 skipped**. E2E phase3-coach
+1/1. No `prisma/` diff.
+
+**Gate read.** (this push)
+
+---
+
 ## ✅ BUILT 2026-08-24 — W.6(c) category fulfillment curve (DECISIONS #513)
 
 **The report.** YMOYL life-energy now exists per discretionary category over

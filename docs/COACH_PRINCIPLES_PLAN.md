@@ -33,10 +33,10 @@ adapted 3-bucket lens (book's 4th investing % is the honest fold). C16
 **SUPERSEDED** (app-authored rules card, not a Settings freeform list).
 C2 / C5 / C10 / C12 / C13 / C14 still **PARTIAL** (named leftovers below).
 
-**P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.5, P1.1, P1.2, P1.6, P2.1,
+**P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.5, P1.1, P1.2, P1.4, P1.6, P2.1,
 P2.2, P2.4, P2.5. PARTIAL: P0.4 (3 buckets + Ask #499). SUPERSEDED: P2.3
-(#493 Settings dial), P2.6 (app-authored card). ABSENT: P1.4 income lever,
-P1.5 investing ladder / fee-drag.
+(#493 Settings dial), P2.6 (app-authored card). ABSENT: P1.5 investing
+ladder / fee-drag.
 *P1.3 shipped 2026-08-23 (#504): `User.richLifeVision` + the /settings card
 (one line, demo-fenced on BOTH legs — write action and coach read —,
 normalize-or-reject in a pure module) echoed atop /coach in
@@ -72,9 +72,10 @@ re-projection deferred); W.6(b) marginal-dollar order — engine + /coach
 + canonical Ask SHIPPED #510, Ask P1 CLOSED #511 (`should I` is not the
 ranking proxy; critic 4-of-4 FAIL, findings executed, not certified);
 W.6(d) drawdown on FI date SHIPPED #512 (/coach FI disclosure; critic PASS);
-mortgage early-payoff; Reports
-interest & fees YTD; P1.4 income lever; P1.5 fee-drag FV; PAW expected-NW
-lens.
+P1.4 income lever SHIPPED #514 (raise slider on the FI card; same
+`monthsToFI` walk; FI number unchanged; Ask deferred); mortgage
+early-payoff; Reports interest & fees YTD; P1.5 fee-drag FV; PAW
+expected-NW lens.
 
 ---
 
@@ -194,7 +195,7 @@ richLifeHeader: (vision: string) =>
   `Your Rich Life: "${vision}". Every number below is in service of that — not the other way around.`,
 ```
 
-**P1.4 — Income lever (raise → FI delta) slider** · C1 (income side) · Sethi · `/coach` · both · **M / med**
+**P1.4 — Income lever (raise → FI delta) slider** · C1 (income side) · Sethi · `/coach` · both · **M / med** · **DONE 2026-08-25 (#514)**
 Mirrors the savings-rate slider: a hypothetical raise, saved at the current rate, recomputes the FI date via the existing `monthsToFI`. Names salary as the biggest big-win Aimplifi has never modeled.
 ```ts
 incomeLever: (raiseCents: Cents, monthsSooner: number) =>
@@ -345,7 +346,7 @@ Sequenced so each step is independently shippable and verifiable (`bash scripts/
 |---|---|---|---|
 | P0.4 Conscious-spending bucket lens (thin mapper over `computeSpendingPlan`, no new spend engine) | C6 | M | high |
 | P0.5 Automation blueprint (`blueprint.ts`) | C7 | M | high |
-| P1.4 Income-lever slider (reuses `monthsToFI`) | C1 | M | med |
+| P1.4 Income-lever slider (reuses `monthsToFI`) — SHIPPED #514 | C1 | M | med |
 | P1.3 Rich-Life vision field | C13 | S | med |
 | P1.2 Staying-wealthy survival row | C2 | M | med |
 

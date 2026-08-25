@@ -9213,6 +9213,33 @@ pattern). Ranking by hours instead of spend at a fixed wage (equivalent
 except tenth-rounding). Netting refunds (parity with
 `averageDiscretionaryCategorySpend`; creep discloses refunds separately).
 
+## #514 — P1.4 income lever (raise → FI delta) (2026-08-25)
+
+**Context.** COACH_PRINCIPLES_PLAN P1.4: Sethi's income-side lever — a
+hypothetical raise, saved at the current rate, recomputes the FI date
+via existing `monthsToFI`. The savings-rate slider already exists; nothing
+modeled earning more.
+
+**Decision.** Pure `incomeLever` in `src/lib/engine/fi/income-lever.ts`.
+Monthly raise = `roundHalfAwayFromZero(annual / 12)`; extra savings =
+current `savingsRateBps` × monthly raise; FI **target unchanged**.
+Non-positive rate saves $0 of the raise (dissaving is not applied as a
+negative extra). `COACH_COPY.incomeLever` names the hybrid (only that
+share is extra savings; FI number stays the one on file) and the
+N-month **average** rate, never "current" beside the savings slider.
+Honest null when nothing moves; newly-reachable is a date, not a
+fabricated sooner. `/coach` FI card slider default **$10,000/yr**.
+Ask deferred.
+
+**Critic (fresh context): cycle 1 FAIL 2 P1** (lifestyle-frozen overclaim;
+"current" vs the savings slider). **Cycle 2 PASS — 0 P0, 0 P1.** P2s
+remain (idle/zero-rate still say "current"; first-paint $10k; tap target).
+
+**Alternatives rejected.** Saving 100% of the raise (plan says current
+rate). Restating the FI number from implied new expenses (often delays
+the date; fabricates a lifestyle). Composing the two sliders this slice
+(copy names the window average instead). Ask routing this slice.
+
 ---
 
 ## #512 — W.6(d) drawdown on FI date (2026-08-24)

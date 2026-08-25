@@ -86,6 +86,22 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   expect(after).not.toBe(before);
   await expect(page.getByTestId('slider-rate')).toHaveText('60%');
 
+  // P1.4 — income-lever slider on the FI card (demo $10k default moves).
+  await expect(page.getByTestId('income-lever-slider')).toBeVisible();
+  await expect(page.getByTestId('income-lever-raise')).toContainText('$10,000.00/yr');
+  await expect(page.getByTestId('income-lever-context')).toContainText('average pace');
+  const lever = page.getByTestId('income-lever-result');
+  await expect(lever).toContainText('$10,000.00/yr raise');
+  await expect(lever).toContainText('sooner');
+  await expect(lever).toContainText('average');
+  await expect(lever).toContainText('Only that share of the raise');
+  await expect(lever).toContainText('Illustration, not advice');
+  await expect(lever).not.toContainText('your current ');
+  await page.getByTestId('income-lever-slider').fill('0');
+  await expect(page.getByTestId('income-lever-result')).toContainText(
+    'Drag to see what a raise saved at your current rate would do',
+  );
+
   // opportunities ranked with the unused gym present, estimates labeled
   await expect(page.getByTestId('opportunities-list')).toContainText('LA Fitness');
   await expect(page.getByTestId('opportunities-list')).toContainText('Netflix');

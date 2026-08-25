@@ -13,6 +13,7 @@ import type { FrozenFunding } from '@/lib/engine/account/feed-dropped-view';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
 import type { CutCounterfactual } from './counterfactual';
 import type { DrawdownCounterfactual } from './drawdown';
+import type { IncomeLever } from './income-lever';
 import type { FulfillmentCategory, FulfillmentCurve } from './fulfillment';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import type { NextDollarPlan } from './next-dollar';
@@ -1229,6 +1230,55 @@ export const COACH_COPY = {
     }
     return `A ${dropPct} drop in what you've invested today would push the FI date about ${monthsSpanPhrase(cf.monthsLater)} later. ${basis}`;
   },
+
+  /**
+   * P1.4 — raise saved at the current rate, same `monthsToFI` walk.
+   * Honest null when there is no income, the rate would save none of the
+   * raise, the raise is $0 (the idle prompt owns that slot), or the date
+   * does not move. Newly-reachable is a date, not a fabricated "sooner".
+   *
+   * No "this card" / "below" — Ask may phrase the same string later (L.15).
+   * The FI-number-unchanged assumption is named: a constant rate with a
+   * restated lifestyle would often DELAY the date, and this walk does not
+   * do that.
+   */
+  incomeLever: (cf: IncomeLever, windowMonths: number): string | null => {
+    if (cf.noIncome || cf.rateNonPositive || cf.raiseAnnualCents <= 0) return null;
+    if (cf.alreadyThere) {
+      return `You're already at the FI number on file — a raise does not move a date that is today.`;
+    }
+    if (cf.monthsSooner === 0 && !cf.newlyReachable) return null;
+    const raise = formatCents(cf.raiseAnnualCents);
+    const window =
+      windowMonths === 6
+        ? '6-month'
+        : `${Math.max(0, windowMonths)}-month`;
+    const rate =
+      cf.rateBps === null ? `${window} average` : `${window} average ${pct1(cf.rateBps)}`;
+    // Hybrid walk: rate% of the raise is extra savings; the FI number is not
+    // restated. Do not claim lifestyle is frozen (that would save 100%) or that
+    // the rate holds after a bigger life (that would raise the FI number).
+    const basis =
+      "Only that share of the raise is treated as extra savings; the FI number stays the one built from spending already on file. Same return and inflation assumptions as Coach. Illustration, not advice — in today's dollars.";
+    if (cf.newlyReachable && cf.raisedMonths !== null) {
+      return `A ${raise}/yr raise, saved at your ${rate} rate, would put a date on the horizon at all: about ${monthsSpanPhrase(cf.raisedMonths)}. ${basis}`;
+    }
+    return `A ${raise}/yr raise, saved at your ${rate} rate, would move the FI date about ${monthsSpanPhrase(cf.monthsSooner)} sooner. ${basis}`;
+  },
+
+  incomeLeverContext: (rateBps: number | null, windowMonths: number) => {
+    if (rateBps === null || windowMonths === 0) {
+      return `The raise slider has no savings rate to apply yet — no complete months of income are on record.`;
+    }
+    if (rateBps <= 0) {
+      return `At your current pace a raise would not add savings, so it would not move the FI date. The savings-rate slider is the lever that does.`;
+    }
+    const window = windowMonths === 6 ? '6-month' : `${windowMonths}-month`;
+    return `Illustrates a raise saved at your ${window} average pace (${pct1(rateBps)}), not a raise you have.`;
+  },
+
+  incomeLeverIdle: () =>
+    `Drag to see what a raise saved at your current rate would do. Same return and inflation assumptions as Coach.`,
 
   // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade.
   // A set Settings dial uses savingsGoalReference instead (DECISIONS #493).

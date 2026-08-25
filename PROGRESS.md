@@ -2,6 +2,31 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-25 — P1.4 income lever (DECISIONS #514)
+
+**Picked up.** Owner: "continue." #513 closed W.6(c). Ranked next: P1.4
+raise → FI delta slider (Sethi income side).
+
+**Closed (engine + /coach FI card).** Pure `incomeLever`: annual raise →
+monthly via `roundHalfAwayFromZero(/12)`; extra savings = current
+`savingsRateBps` × monthly raise; same `monthsToFI` walk and real rate as
+the FI card; FI target unchanged. Non-positive rate saves $0 of the raise.
+`COACH_COPY.incomeLever` names the hybrid and the N-month average rate.
+Slider default $10,000/yr. Ask deferred.
+
+**Critic (fresh context): cycle 1 FAIL 2 P1** (lifestyle-frozen overclaim;
+"current" vs savings slider). **Cycle 2 PASS — 0 P0, 0 P1.**
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, `next build` clean). Unit **7,585 passed + 1
+expected fail + 1 skipped / 460 files + 1 skipped**. E2E phase3-coach
+1/1 (income-lever slider + $10k sooner + idle at $0). No `prisma/` diff.
+
+**Gate read.** (this push)
+
+**Next.** P1.5 investing ladder / fee-drag; Reports interest & fees YTD;
+mortgage early-payoff; PAW. Wave 0 ops remain owner-blocked.
+
 ## 2026-08-24 — W.6(c) category fulfillment curve (DECISIONS #513)
 
 **Picked up.** Owner: "consume all readme files and continue. we want to get

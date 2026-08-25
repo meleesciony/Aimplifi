@@ -794,6 +794,76 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     })!,
     isProjection: true,
   },
+  {
+    label: 'incomeLever',
+    text: COACH_COPY.incomeLever({
+      raiseAnnualCents: cents(1_200_000),
+      monthlyRaiseCents: cents(100_000),
+      rateBps: 2000,
+      extraMonthlySavingsCents: cents(20_000),
+      raisedMonthlySavingsCents: cents(120_000),
+      baselineMonths: 120,
+      raisedMonths: 100,
+      monthsSooner: 20,
+      newlyReachable: false,
+      noIncome: false,
+      rateNonPositive: false,
+      alreadyThere: false,
+    }, 6)!,
+    isProjection: true,
+  },
+  {
+    label: 'incomeLever:reachable',
+    text: COACH_COPY.incomeLever({
+      raiseAnnualCents: cents(2_400_000),
+      monthlyRaiseCents: cents(200_000),
+      rateBps: 100,
+      extraMonthlySavingsCents: cents(2_000),
+      raisedMonthlySavingsCents: cents(11_000),
+      baselineMonths: null,
+      raisedMonths: 1091,
+      monthsSooner: 0,
+      newlyReachable: true,
+      noIncome: false,
+      rateNonPositive: false,
+      alreadyThere: false,
+    }, 6)!,
+    isProjection: true,
+  },
+  {
+    label: 'incomeLever:already',
+    text: COACH_COPY.incomeLever({
+      raiseAnnualCents: cents(1_200_000),
+      monthlyRaiseCents: cents(100_000),
+      rateBps: 2000,
+      extraMonthlySavingsCents: cents(20_000),
+      raisedMonthlySavingsCents: cents(120_000),
+      baselineMonths: 0,
+      raisedMonths: 0,
+      monthsSooner: 0,
+      newlyReachable: false,
+      noIncome: false,
+      rateNonPositive: false,
+      alreadyThere: true,
+    }, 6)!,
+    isProjection: false,
+  },
+  {
+    label: 'incomeLeverContext',
+    text: COACH_COPY.incomeLeverContext(2000, 6),
+    isProjection: false,
+  },
+  {
+    label: 'incomeLeverContext:zeroRate',
+    text: COACH_COPY.incomeLeverContext(0, 6),
+    isProjection: false,
+  },
+  {
+    label: 'incomeLeverContext:empty',
+    text: COACH_COPY.incomeLeverContext(null, 0),
+    isProjection: false,
+  },
+  { label: 'incomeLeverIdle', text: COACH_COPY.incomeLeverIdle(), isProjection: true },
   { label: 'fifteenPercentReference', text: COACH_COPY.fifteenPercentReference(), isProjection: false },
   { label: 'savingsGoalReference', text: COACH_COPY.savingsGoalReference(4000), isProjection: false },
   { label: 'savingsStreak:3', text: COACH_COPY.savingsStreak(3, 2653), isProjection: false },
@@ -1106,6 +1176,65 @@ describe('coach copy guardrails — zero shame, assumptions everywhere, no ticke
       cutCoverCents: null,
     };
     expect(COACH_COPY.cutRadarCounterfactual(alreadyClear)).toBeNull();
+  });
+
+  it('incomeLever: nothing moves ⇒ null, never a zero-delta sooner sentence', () => {
+    const still = {
+      raiseAnnualCents: cents(1_200_000),
+      monthlyRaiseCents: cents(100_000),
+      rateBps: 2000,
+      extraMonthlySavingsCents: cents(20_000),
+      raisedMonthlySavingsCents: cents(120_000),
+      baselineMonths: 120,
+      raisedMonths: 120,
+      monthsSooner: 0,
+      newlyReachable: false,
+      noIncome: false,
+      rateNonPositive: false,
+      alreadyThere: false,
+    };
+    expect(COACH_COPY.incomeLever(still, 6)).toBeNull();
+    expect(COACH_COPY.incomeLever({ ...still, noIncome: true, rateBps: null }, 6)).toBeNull();
+    expect(COACH_COPY.incomeLever({ ...still, rateNonPositive: true, rateBps: 0 }, 6)).toBeNull();
+    expect(COACH_COPY.incomeLever({ ...still, raiseAnnualCents: cents(0) }, 6)).toBeNull();
+  });
+
+  it('test_regression__p14_income_lever_does_not_claim_lifestyle_frozen', () => {
+    const text = COACH_COPY.incomeLever({
+      raiseAnnualCents: cents(1_200_000),
+      monthlyRaiseCents: cents(100_000),
+      rateBps: 2000,
+      extraMonthlySavingsCents: cents(20_000),
+      raisedMonthlySavingsCents: cents(120_000),
+      baselineMonths: 120,
+      raisedMonths: 100,
+      monthsSooner: 20,
+      newlyReachable: false,
+      noIncome: false,
+      rateNonPositive: false,
+      alreadyThere: false,
+    }, 6)!;
+    expect(text).toContain('Only that share of the raise is treated as extra savings');
+    expect(text).not.toMatch(/lifestyle grows|lifestyle frozen|does not assume lifestyle/i);
+  });
+
+  it('test_regression__p14_income_lever_names_window_average_not_current', () => {
+    const text = COACH_COPY.incomeLever({
+      raiseAnnualCents: cents(1_200_000),
+      monthlyRaiseCents: cents(100_000),
+      rateBps: 2000,
+      extraMonthlySavingsCents: cents(20_000),
+      raisedMonthlySavingsCents: cents(120_000),
+      baselineMonths: 120,
+      raisedMonths: 100,
+      monthsSooner: 20,
+      newlyReachable: false,
+      noIncome: false,
+      rateNonPositive: false,
+      alreadyThere: false,
+    }, 6)!;
+    expect(text).toContain('6-month average 20.0%');
+    expect(text).not.toMatch(/your current /i);
   });
 
   it('cutRadarCounterfactual assumption does not claim every cut cancels the series (critic P1-2)', () => {
