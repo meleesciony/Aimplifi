@@ -245,6 +245,10 @@ test('Reports: tapping the category BAR opens that category', async ({ page }) =
   // The bar is the last child of the anchor; click its centre, not the row's.
   const bar = row.locator('span.rounded-full').first();
   await expect(bar).toBeVisible();
+  // Bring the bar into the 380px frame before hit-testing. mouse.click does
+  // not scroll; a card inserted above this list pushed the first bar behind
+  // the bottom nav on CI (#516). The click is still the bar's centre.
+  await bar.scrollIntoViewIfNeeded();
   const box = (await bar.boundingBox())!;
   expect(box.height).toBeGreaterThan(0); // anti-vacuity: a real bar was measured
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);

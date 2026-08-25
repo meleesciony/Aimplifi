@@ -21,7 +21,13 @@ expected fail + 1 skipped / 464 files + 1 skipped**. E2E reports 1/1
 (interest-fees-ytd-card + empty + four names + year). No `prisma/`
 diff.
 
-**Gate read.** (pending push)
+**Gate read.** Pushed `75a1c181`. CI run **32871751508** = FAILURE
+(13m13s): `[mobile-380] category-drilldown` "tapping the category BAR"
+timed out — the YTD tile sat between the chart and the category list
+and pushed the first bar behind the 380px bottom nav. Fix: tile after
+the pair + `scrollIntoViewIfNeeded` before the bar `mouse.click`.
+Local re-proof (fresh server, `CI=1`): category-drilldown:232 1/1;
+reports.spec 1/1. (this push's CI + live probe pending)
 
 **Next.** Mortgage early-payoff; PAW. Wave 0 ops remain owner-blocked.
 

@@ -39,7 +39,10 @@ reports.spec e2e.
 + 1 expected fail + 1 skipped / 464 files + 1 skipped**. E2E reports
 1/1. No `prisma/` diff.
 
-**Gate read.** (pending push)
+**Gate read.** Pushed `75a1c181`. CI run **32871751508** = FAILURE
+(`category-drilldown` BAR click). Tile moved below the chart + category
+pair; bar test scrolls into view first. Local re-proof 1/1 on both
+specs. (this push's CI + live probe pending)
 
 ---
 

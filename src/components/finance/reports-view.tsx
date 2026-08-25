@@ -534,12 +534,6 @@ export function ReportsView({
         )}
       </section>
 
-      <InterestFeesYtdCard
-        result={data.interestFees.result}
-        dialOwnership={data.interestFees.dialOwnership}
-        year={Number(data.interestFees.window.fromYm.slice(0, 4))}
-      />
-
       {/* Spending by category */}
       <section className="rounded-2xl border bg-card p-5 shadow-sm">
         <div className="mb-3 flex items-baseline justify-between">
@@ -659,6 +653,16 @@ export function ReportsView({
           </div>
         )}
       </section>
+
+      {/* After the chart + category pair, not between them: those two
+          sections share a basis-gap sentence, and a card in the middle
+          pushed the first category bar behind the 380px bottom nav
+          (category-drilldown "tapping the category BAR"). */}
+      <InterestFeesYtdCard
+        result={data.interestFees.result}
+        dialOwnership={data.interestFees.dialOwnership}
+        year={Number(data.interestFees.window.fromYm.slice(0, 4))}
+      />
     </div>
   );
 }
