@@ -76,8 +76,9 @@ W.6(d) drawdown on FI date SHIPPED #512 (/coach FI disclosure; critic PASS);
 P1.4 income lever SHIPPED #514 (raise slider on the FI card; same
 `monthsToFI` walk; FI number unchanged; Ask deferred); P1.5 investing
 ladder + fee-drag SHIPPED #515 (level 1% leak of today's portfolio,
-today's money, Ask deferred); mortgage early-payoff; Reports interest
-& fees YTD; PAW expected-NW lens.
+today's money, Ask deferred); Reports interest & fees YTD SHIPPED #516
+(/reports tile; four leaves; demo empty; Ask deferred); mortgage
+early-payoff; PAW expected-NW lens.
 
 ---
 
@@ -359,7 +360,7 @@ Sequenced so each step is independently shippable and verifiable (`bash scripts/
 |---|---|---|---|
 | Debt Freedom planner: payoff-ordering engine `src/lib/engine/debt/payoff.ts` (snowball **and** avalanche, extra-$/mo, debt-free date) reusing the existing `aprBps`; add a minimum-payment field on the `Account` model for non-card LOAN liabilities only; $1,000 starter preset | C9 (Conflict A) | L | high |
 | P1.5 Investing ladder + fee-drag explainer — SHIPPED #515 | C10 | M | med |
-| Reports "Interest & fees YTD" tile | C8/C9 | M | med |
+| Reports "Interest & fees YTD" tile — SHIPPED #516 | C8/C9 | M | med |
 | Mortgage early-payoff what-if (amortization engine) | C9 (Conflict B) | L | med |
 | "Assign to zero" affordance on `/budgets` (highlights existing `leftToSpendCents`; no new store) | C6 | M | med |
 

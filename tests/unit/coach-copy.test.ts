@@ -938,6 +938,111 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   },
   { label: 'feeDragEmpty', text: COACH_COPY.feeDragEmpty(), isProjection: false },
   { label: 'dontTimeIt', text: COACH_COPY.dontTimeIt(), isProjection: true },
+  {
+    label: 'interestFeesYtdTitle',
+    text: COACH_COPY.interestFeesYtdTitle(2026),
+    isProjection: false,
+  },
+  {
+    label: 'interestFeesYtdSubtitle',
+    text: COACH_COPY.interestFeesYtdSubtitle(),
+    isProjection: false,
+  },
+  {
+    label: 'interestFeesYtd',
+    text: COACH_COPY.interestFeesYtd(
+      {
+        paidYtdCents: cents(120_000),
+        year: 2026,
+        contributingCategoryIds: ['fees-interest'] as const,
+        monthlyEquivalentCents: cents(10_000),
+        months: 360,
+        nominalReturnBps: 700,
+        inflationBps: 250,
+        valueTodayCents: cents(5_815_000),
+        valueNominalCents: cents(12_200_000),
+      },
+      DEFAULT_BOTH,
+    )!,
+    isProjection: true,
+  },
+  {
+    label: 'interestFeesYtd:chosen',
+    text: COACH_COPY.interestFeesYtd(
+      {
+        paidYtdCents: cents(120_000),
+        year: 2026,
+        contributingCategoryIds: ['fees-interest'] as const,
+        monthlyEquivalentCents: cents(10_000),
+        months: 360,
+        nominalReturnBps: 800,
+        inflationBps: 200,
+        valueTodayCents: cents(6_000_000),
+        valueNominalCents: cents(13_000_000),
+      },
+      OWNS_BOTH,
+    )!,
+    isProjection: true,
+  },
+  {
+    label: 'interestFeesYtd:zeroInflation',
+    text: COACH_COPY.interestFeesYtd(
+      {
+        paidYtdCents: cents(120_000),
+        year: 2026,
+        contributingCategoryIds: ['fees-interest'] as const,
+        monthlyEquivalentCents: cents(10_000),
+        months: 360,
+        nominalReturnBps: 700,
+        inflationBps: 0,
+        valueTodayCents: cents(12_200_000),
+        valueNominalCents: cents(12_200_000),
+      },
+      DEFAULT_BOTH,
+    )!,
+    isProjection: true,
+  },
+  {
+    label: 'interestFeesYtd:trails',
+    text: COACH_COPY.interestFeesYtd(
+      {
+        paidYtdCents: cents(120_000),
+        year: 2026,
+        contributingCategoryIds: ['fees-interest'] as const,
+        monthlyEquivalentCents: cents(10_000),
+        months: 360,
+        nominalReturnBps: 250,
+        inflationBps: 250,
+        valueTodayCents: cents(3_020_167),
+        valueNominalCents: cents(6_000_000),
+      },
+      DEFAULT_BOTH,
+    )!,
+    isProjection: true,
+  },
+  {
+    label: 'interestFeesYtd:tooSmall',
+    text: COACH_COPY.interestFeesYtd(
+      {
+        paidYtdCents: cents(5),
+        year: 2026,
+        contributingCategoryIds: ['fees'] as const,
+        monthlyEquivalentCents: cents(0),
+        months: 360,
+        nominalReturnBps: 700,
+        inflationBps: 250,
+        valueTodayCents: cents(0),
+        valueNominalCents: cents(0),
+      },
+      DEFAULT_BOTH,
+    )!,
+    isProjection: false,
+  },
+  {
+    label: 'interestFeesYtdEmpty',
+    text: COACH_COPY.interestFeesYtdEmpty(2026),
+    isProjection: false,
+  },
   { label: 'fifteenPercentReference', text: COACH_COPY.fifteenPercentReference(), isProjection: false },
   { label: 'savingsGoalReference', text: COACH_COPY.savingsGoalReference(4000), isProjection: false },
   { label: 'savingsStreak:3', text: COACH_COPY.savingsStreak(3, 2653), isProjection: false },
@@ -1324,6 +1429,25 @@ describe('coach copy guardrails — zero shame, assumptions everywhere, no ticke
           inflationBps: 250,
           costTodayCents: cents(0),
           costNominalCents: cents(0),
+        },
+        DEFAULT_BOTH,
+      ),
+    ).toBeNull();
+  });
+
+  it('interestFeesYtd: zero paid ⇒ null, never a $0.00 invested sentence', () => {
+    expect(
+      COACH_COPY.interestFeesYtd(
+        {
+          paidYtdCents: cents(0),
+          year: 2026,
+          contributingCategoryIds: [],
+          monthlyEquivalentCents: cents(0),
+          months: 360,
+          nominalReturnBps: 700,
+          inflationBps: 250,
+          valueTodayCents: cents(0),
+          valueNominalCents: cents(0),
         },
         DEFAULT_BOTH,
       ),

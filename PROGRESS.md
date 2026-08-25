@@ -2,6 +2,29 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-25 — Reports interest & fees YTD (DECISIONS #516)
+
+**Picked up.** Owner: "consume all readme files and continue building
+this out." #515 closed P1.5. Ranked next: Reports interest & fees YTD.
+
+**Closed (engine + /reports).** Pure `interestFeesYtd`: existing spend
+basis, four fee/interest leaves, YTD window Jan→today. Illustration =
+YTD paid as one year's amount (`/12` × 360), today's money. Copy names
+only contributing leaves. Demo empty. Ask deferred.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1** (all four leaves after
+the dollars). **Cycle 2 PASS — 0 P0, 0 P1.**
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, `next build` clean). Unit **7,664 passed + 1
+expected fail + 1 skipped / 464 files + 1 skipped**. E2E reports 1/1
+(interest-fees-ytd-card + empty + four names + year). No `prisma/`
+diff.
+
+**Gate read.** (pending push)
+
+**Next.** Mortgage early-payoff; PAW. Wave 0 ops remain owner-blocked.
+
 ## 2026-08-25 — P1.5 investing ladder + fee-drag (DECISIONS #515)
 
 **Picked up.** Owner: "consume all readme files and continue. we are

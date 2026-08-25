@@ -15,6 +15,10 @@ import type { CutCounterfactual } from './counterfactual';
 import type { DrawdownCounterfactual } from './drawdown';
 import type { IncomeLever } from './income-lever';
 import type { FeeDrag } from './fee-drag';
+import {
+  INTEREST_FEE_CATEGORY_LABELS,
+  type InterestFeesYtd,
+} from '@/lib/engine/reports/interest-fees-ytd';
 import type { FulfillmentCategory, FulfillmentCurve } from './fulfillment';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import type { NextDollarPlan } from './next-dollar';
@@ -1319,6 +1323,59 @@ export const COACH_COPY = {
     `No invested balance is on file, so there is no fee-drag illustration to run. The order of operations is still a lens, not a rule.`,
   dontTimeIt: () =>
     `Trying to jump in and out of the market is not part of this order. Staying invested is the load-bearing assumption behind every return projection on Coach.`,
+
+  // Reports — Interest & fees YTD (C8/C9). Cost of charges already on file,
+  // no moralizing, 30yr illustration in today's money (W.10). YTD paid is
+  // one year's amount if invested each year — not an annualized pace.
+  interestFeesYtdTitle: (year: number) => `Interest & fees so far in ${year}`,
+  interestFeesYtdSubtitle: () => `Charges already on file — not a grade`,
+  interestFeesYtd: (row: InterestFeesYtd, owner: DialOwnership): string | null => {
+    if (row.paidYtdCents <= 0) return null;
+    const paid = formatCents(row.paidYtdCents);
+    const year = String(row.year);
+    const labels = row.contributingCategoryIds.map((id) => INTEREST_FEE_CATEGORY_LABELS[id]);
+    const named =
+      labels.length === 0
+        ? null
+        : labels.length === 1
+          ? labels[0]
+          : labels.length === 2
+            ? `${labels[0]} and ${labels[1]}`
+            : `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
+    // Name ONLY the leaves that are in the dollars. The scan set is a
+    // separate "this figure counts" sentence so it cannot be read as
+    // "namely these four composed the $X" (critic P1).
+    const fact =
+      named && labels.length === 1
+        ? `You've paid ${paid} in ${named} so far in ${year}.`
+        : named
+          ? `You've paid ${paid} in interest and fees so far in ${year} (${named}).`
+          : `You've paid ${paid} in interest and fees so far in ${year}.`;
+    const basis =
+      ' This figure counts Fees & Charges, Interest & Finance Charges, ATM Fee, and Late Fee — a category with no charge so far adds nothing.';
+    if (row.valueTodayCents <= 0 || row.monthlyEquivalentCents <= 0) {
+      return `${fact}${basis}`;
+    }
+    const years = row.months / 12;
+    const monthly = formatCents(row.monthlyEquivalentCents);
+    const ret = returnClause(row.nominalReturnBps, owner);
+    const infl = inflationClause(row.inflationBps, owner);
+    const mechanism =
+      row.inflationBps === 0
+        ? `That's ${monthly} a month for ${years} years, grown at ${ret}. ${sentenceCase(infl)} is ${pct(0)}, so today's money and future dollars are the same thing here.`
+        : `That's ${monthly} a month for ${years} years, grown at ${ret}, then ${infl} taken off — so the figure is what those dollars would buy today, not what they would say on a statement.`;
+    const trails = opportunityValueTrailsContributions(
+      row.months,
+      row.nominalReturnBps,
+      row.inflationBps,
+    );
+    const trailsClause = trails
+      ? ` At those two assumptions inflation takes more than the growth adds, so the figure lands at or below the dollars that would be invested over the same years: that is the assumptions working, not an error.`
+      : '';
+    return `${fact}${basis} If that same ${paid} were invested each year for ${years} years, it would be worth about ${formatCents(row.valueTodayCents)} in today's money. ${mechanism}${trailsClause} That is this year's paid-so-far treated as a yearly amount — not a projection of the rest of ${year}, not an interest rate we can see on a loan, and not a recommendation to change how you borrow. Illustration, not advice.`;
+  },
+  interestFeesYtdEmpty: (year: number) =>
+    `No interest or fee charges are filed so far in ${year}, so there is no cost-of-charges figure to show. This figure counts Fees & Charges, Interest & Finance Charges, ATM Fee, and Late Fee — a category with no charge so far adds nothing.`,
 
   // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade.
   // A set Settings dial uses savingsGoalReference instead (DECISIONS #493).

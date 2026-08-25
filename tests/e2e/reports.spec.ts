@@ -21,4 +21,15 @@ test('Reports: income/expense chart + category breakdown render for the demo use
   // different rules"), which is the same locator-widening failure Wave 0.2
   // recorded for auth.spec's "Sign out".
   await expect(page.getByRole('heading', { name: 'Spending by category' })).toBeVisible();
+
+  await expect(page.getByTestId('interest-fees-ytd-card')).toBeVisible();
+  await expect(page.getByTestId('interest-fees-ytd-empty')).toBeVisible();
+  await expect(page.getByTestId('interest-fees-ytd-empty')).toContainText(
+    'No interest or fee charges are filed so far in 2026',
+  );
+  await expect(page.getByTestId('interest-fees-ytd-empty')).toContainText('Fees & Charges');
+  await expect(page.getByTestId('interest-fees-ytd-empty')).toContainText('Interest & Finance Charges');
+  await expect(page.getByTestId('interest-fees-ytd-empty')).toContainText('ATM Fee');
+  await expect(page.getByTestId('interest-fees-ytd-empty')).toContainText('Late Fee');
+  await expect(page.getByTestId('interest-fees-ytd-card')).toContainText('Interest & fees so far in 2026');
 });

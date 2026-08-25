@@ -36,6 +36,19 @@ import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getLinkableCategoryIds } from '@/server/categories';
 import { categoryWindowRegisterHref } from '@/lib/engine/transactions/links';
+import {
+  interestFeeContributions,
+  interestFeeYtdWindow,
+  interestFeesYtd,
+  type InterestFeesYtd,
+} from '@/lib/engine/reports/interest-fees-ytd';
+import {
+  DEFAULT_EXPECTED_RETURN_BPS,
+  returnIsAppDefault,
+  type DialOwnership,
+} from '@/lib/engine/settings/dials';
+import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
+import { prisma } from '@/lib/db';
 
 export interface ReportsData {
   ym: string;
@@ -127,6 +140,18 @@ export interface ReportsData {
    * decision, not a payload one.
    */
   monthFlows: Record<string, MonthFlowBreakdown>;
+  /**
+   * Interest & fees paid in the calendar year through today (DECISIONS #516).
+   * `result` is null when none of the four fee/interest leaves have a
+   * positive YTD spend — the view then prints the empty sentence, never
+   * a $0.00 "invested" illustration.
+   */
+  interestFees: {
+    result: InterestFeesYtd | null;
+    dialOwnership: DialOwnership;
+    /** The window the paid figure was summed over — Jan of `today`'s year through today. */
+    window: SpendWindow;
+  };
 }
 
 export async function getReports(
@@ -146,7 +171,7 @@ export async function getReports(
   // ACCOUNT-scoped (account, date) keys since U.16's second critic cycle, and a
   // variable that says "dates" invites the next reader to treat it as the
   // unscoped set — the exact confusion that cycle existed to fix.
-  const [snap, meta, linkableCategoryIds] = await Promise.all([
+  const [snap, meta, linkableCategoryIds, userRow] = await Promise.all([
     provider.getFinanceSnapshot(userId),
     getCategoryMeta(userId),
     // The register's own option list — the fence deciding which figures may
@@ -154,6 +179,10 @@ export async function getReports(
     // `categoryHrefs`); /reports' page no longer fetches it, while /trends and
     // /budgets still call `getLinkableCategoryIds` directly for their own.
     getLinkableCategoryIds(userId),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { expectedReturnBps: true, inflationBps: true },
+    }),
   ]);
   // U.35: the snapshot already derived these from the same link-table rows it
   // used for the keep. A second `getReconciliationHandoverKeys` here was a
@@ -239,6 +268,12 @@ export async function getReports(
   const notCountedYetCents = notCountedYetByCategory(named, window, meta, excludedFlowIds).totalCents;
   // C.25 (#403) disclosure facts, named by the one shared helper so every
   // surface phrases the exclusion the same way.
+  const expectedReturnBps = userRow?.expectedReturnBps ?? DEFAULT_EXPECTED_RETURN_BPS;
+  const inflationBps = userRow?.inflationBps ?? RETIREMENT_ASSUMPTIONS.inflationBps;
+  const ytdWindow = interestFeeYtdWindow(today);
+  const ytdPaid = interestFeeContributions(
+    spendingByCategory(snap.transactions, ytdWindow, meta, excludedFlowIds, handoverKeys),
+  );
   return {
     ym,
     window,
@@ -250,5 +285,19 @@ export async function getReports(
     monthFlows,
     loanPaymentExclusions: loanPaymentBasisFacts(snap),
     loanPaymentRefusedCategories: loanPaymentRefusedCategories(snap),
+    interestFees: {
+      result: interestFeesYtd({
+        paidYtdCents: ytdPaid.paidYtdCents,
+        year: Number(today.slice(0, 4)),
+        contributingCategoryIds: ytdPaid.contributingCategoryIds,
+        nominalReturnBps: expectedReturnBps,
+        inflationBps,
+      }),
+      dialOwnership: {
+        returnIsDefault: returnIsAppDefault(expectedReturnBps),
+        inflationIsDefault: userRow?.inflationBps == null,
+      },
+      window: ytdWindow,
+    },
   };
 }

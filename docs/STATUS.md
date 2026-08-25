@@ -9,6 +9,40 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-25 — Reports interest & fees YTD (DECISIONS #516)
+
+**The report.** Year-to-date interest and fees already on file, plus a
+30-year if-invested illustration in today's money. Not their APR, not
+an annualized remaining-year pace, not a nudge to prepay.
+
+**Shipped.** `interestFeesYtd` in
+`src/lib/engine/reports/interest-fees-ytd.ts`. Four leaves only
+(`fees`, `fees-interest`, `atm-fee`, `late-fee`).
+`COACH_COPY.interestFeesYtd*` name only the contributing leaves, then
+the scan set. `/reports` `<InterestFeesYtdCard data-testid="interest-fees-ytd-card">`.
+Demo: honest empty (seed files none of those leaves). Ask deferred.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1; cycle 2 PASS — 0 P0, 0 P1.**
+
+**Still open.** Mortgage early-payoff; PAW expected-NW lens. Match %
+still uncollected.
+
+**Locked.** `interest-fees-ytd.test.ts` (EDGE §Interest & fees YTD IF1–IF5);
+`reports-interest-fees.test.ts`;
+`test_regression__interest_fees_ytd_names_only_the_leaves_in_the_dollars`;
+`test_regression__interest_fees_ytd_names_monthly_and_grow_then_deflate`;
+`test_regression__interest_fees_ytd_trails_contributions_names_the_assumptions`;
+`test_regression__interest_fees_ytd_does_not_sum_the_financial_group`;
+reports.spec e2e.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,664 passed
++ 1 expected fail + 1 skipped / 464 files + 1 skipped**. E2E reports
+1/1. No `prisma/` diff.
+
+**Gate read.** (pending push)
+
+---
+
 ## ✅ BUILT 2026-08-25 — P1.5 investing ladder + fee-drag (DECISIONS #515)
 
 **The report.** A generic account-type order (match → Roth IRA → max

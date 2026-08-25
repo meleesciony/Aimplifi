@@ -9275,6 +9275,39 @@ match %. Ask routing this slice.
 
 ---
 
+## #516 — Reports interest & fees YTD (2026-08-25)
+
+**Context.** COACH_PRINCIPLES_PLAN leftover after P1.5: surface the
+cost of interest and fees already on file (C8/C9), no moralizing, with
+a 30-year if-invested illustration in today's money. Demo seed files
+none of the four fee leaves.
+
+**Decision.** Pure `interestFeesYtd` in
+`src/lib/engine/reports/interest-fees-ytd.ts`. Paid = existing
+`spendingByCategory` + `isSpendRow` over `interestFeeYtdWindow(today)`
+(Jan of `today`'s year through today), summed on `fees` /
+`fees-interest` / `atm-fee` / `late-fee` only — never the rest of
+Financial. Illustration treats that YTD total as **one year's amount**
+(`paid / 12` each month for 360), via `opportunityFVCents` /
+`opportunityValueTodayCents`. Honest null when paid is $0. Engine
+carries `contributingCategoryIds`; copy names only those leaves in the
+paid sentence and the scan set in a separate "this figure counts"
+clause. `/reports` `InterestFeesYtdCard`. Ask deferred. Demo empty.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1** (paid sentence listed all
+four leaves after the dollars). **Cycle 2 PASS — 0 P0, 0 P1.** Residual
+P2s: empty "this figure" after "no figure"; no YTD register href;
+dashboard lean path still computes the tile; assembler non-null path
+unlocked; reorder/drop of contributing IDs untested.
+
+**Alternatives rejected.** Summing the Financial group (taxes and
+loan-payment are not interest/fees). Annualizing remaining months of
+the year (copy would have to invent a pace). Adding seed fee rows
+(would ripple cash-needed / spend goldens). A this-month category-table
+link for a YTD figure (C.26).
+
+---
+
 ## #512 — W.6(d) drawdown on FI date (2026-08-24)
 
 **Context.** TASKS W.6(d): Housel's "reasonable > rational" — what a 30%

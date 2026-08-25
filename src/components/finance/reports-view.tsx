@@ -25,6 +25,7 @@ import { cents, formatCents } from '@/lib/money';
 import { withheldInlineNote, type WithheldAccountSummary } from '@/lib/providers/currency';
 import { loanPaymentBasisSentence } from '@/server/loan-payment-basis';
 import { REPORT_CHART_MONTHS, type ReportChartMonths } from '@/lib/engine/reports/chart-range';
+import { InterestFeesYtdCard } from '@/components/finance/interest-fees-ytd-card';
 import type { ReportsData } from '@/server/reports';
 import { CHART_SERIES, CHART_POSITIVE, CHART_NEGATIVE } from '@/lib/ui/chart-colors';
 
@@ -532,6 +533,12 @@ export function ReportsView({
           </div>
         )}
       </section>
+
+      <InterestFeesYtdCard
+        result={data.interestFees.result}
+        dialOwnership={data.interestFees.dialOwnership}
+        year={Number(data.interestFees.window.fromYm.slice(0, 4))}
+      />
 
       {/* Spending by category */}
       <section className="rounded-2xl border bg-card p-5 shadow-sm">
