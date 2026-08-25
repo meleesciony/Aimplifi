@@ -23,7 +23,12 @@ probes tsc 0, eslint 0, `next build` clean). Unit **7,519 passed + 1
 expected fail + 1 skipped / 456 files + 1 skipped**. E2E phase3-coach
 1/1 (drawdown disclosure). No `prisma/` diff.
 
-**Gate read.** PENDING push.
+**Gate read.** Pushed `44540eeb` to `origin/main`. GitHub Actions
+`verify` = **SUCCESS** (run **32804014980**, first attempt). Vercel:
+Production deployment `dpl_jA8MrZtwSGx4a2nAwiJgDKGttbge`, READY, sha
+`44540eeb`. Live proof `node scripts/w6d-live-deploy-check.mjs` →
+**9/9 PASS**: `fi-drawdown` on www.aimplifi.app/coach; 30% sentence
+("about 2 years 1 month later" on production `today`).
 
 **Next.** W.6(c) category fulfillment curve; P1.4 / P1.5; Reports interest
 & fees YTD.

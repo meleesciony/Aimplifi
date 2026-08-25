@@ -34,7 +34,10 @@ baseProps.
 + 1 expected fail + 1 skipped / 456 files + 1 skipped**. E2E phase3-coach
 1/1. No `prisma/` diff.
 
-**Gate read.** PENDING push.
+**Gate read.** Pushed. GitHub Actions `verify` SUCCESS (run
+**32804014980**). Vercel production `dpl_jA8MrZtwSGx4a2nAwiJgDKGttbge`
+completed on sha `44540eeb`. Live proof **9/9 PASS** including
+`fi-drawdown` on www.aimplifi.app/coach.
 
 ## ✅ BUILT 2026-08-24 — W.6(b) Ask P1: `should I` is not the ranking proxy (DECISIONS #511)
 
