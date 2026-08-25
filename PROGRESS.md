@@ -21,7 +21,10 @@ probes tsc 0, eslint 0, `next build` clean). Unit **7,712 passed + 1
 expected fail + 1 skipped / 467 files + 1 skipped**. E2E mortgage 1/1
 (empty + debt planner + not 0%). No `prisma/` diff.
 
-**Gate read.** (pending this push)
+**Gate read.** Pushed `d8947b10`. CI run **32877068082** = SUCCESS
+(12m49s, first attempt). Vercel `dpl_4vGF6F53pMGuEDN8iFmU9WjgdZxW`
+READY on that sha. Live proof **10/10 PASS**
+(`scripts/p17-live-deploy-check.mjs`).
 
 **Next.** PAW expected-NW lens. Wave 0 ops remain owner-blocked.
 

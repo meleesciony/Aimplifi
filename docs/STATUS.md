@@ -36,7 +36,13 @@ mortgage-early-payoff e2e.
 + 1 expected fail + 1 skipped / 467 files + 1 skipped**. E2E mortgage
 1/1 + reports 1/1 + category-drilldown BAR 1/1. No `prisma/` diff.
 
-**Gate read.** (pending this push)
+**Gate read.** Pushed `d8947b10` to `origin/main`. GitHub Actions
+`verify` = **SUCCESS** (run **32877068082**, first attempt, 12m49s).
+Vercel production `dpl_4vGF6F53pMGuEDN8iFmU9WjgdZxW` READY on that sha,
+aliased to www.aimplifi.app. Live proof
+`node scripts/p17-live-deploy-check.mjs` → **10/10 PASS**:
+`mortgage-early-payoff-card` on /accounts; empty names no mortgage,
+debt planner, missing rate is not 0%; no slider.
 
 ---
 
