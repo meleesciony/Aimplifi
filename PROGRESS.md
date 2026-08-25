@@ -24,9 +24,14 @@ probes tsc 0, eslint 0, `next build` clean). Unit **7,550 passed + 1
 expected fail + 1 skipped / 458 files + 1 skipped**. E2E phase3-coach
 1/1. No `prisma/` diff.
 
-**Next.** Ship gate + live proof. Then P1.4 / P1.5 / Reports interest & fees
-YTD. Wave 0 ops (Sentry, cron fire, Neon PITR, Plaid institution
-registration) remain owner-blocked.
+**Gate read.** Pushed `60b77891`. CI run **32807185604** = SUCCESS
+(13m10s, first attempt). Vercel `dpl_E36kPYRxae3rgGT2eqaX5Pr9MQct`
+READY on that sha. Live proof **13/13 PASS**
+(`scripts/w6c-live-deploy-check.mjs`).
+
+**Next.** P1.4 / P1.5 / Reports interest & fees YTD. Wave 0 ops (Sentry,
+cron fire, Neon PITR, Plaid institution registration) remain
+owner-blocked.
 
 ## 2026-08-24 — W.6(d) drawdown on FI date (DECISIONS #512)
 

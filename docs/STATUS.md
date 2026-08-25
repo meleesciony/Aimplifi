@@ -19,7 +19,7 @@ with a month-labelled sparkline and a median half-window trend that shares
 **Shipped.** `fulfillmentByCategory` in `src/lib/engine/fi/fulfillment.ts`.
 `CoachData.fulfillment`. `COACH_COPY.fulfillment*`. `/coach`
 `<FulfillmentCard data-testid="fulfillment-card">`. Truncation named
-(demo: top 5 of 11). Ask deferred.
+(live demo: top 5 of 7). Ask deferred.
 
 **Critic (fresh context): cycle 1 FAIL 3 P1; cycle 2 PASS — 0 P0, 0 P1.**
 
@@ -32,6 +32,15 @@ W.6 row complete for (a)(b)(c)(d).
 **Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,550 passed
 + 1 expected fail + 1 skipped / 458 files + 1 skipped**. E2E phase3-coach
 1/1 (fulfillment-card + spark + omitted). No `prisma/` diff.
+
+**Gate read.** Pushed `60b77891` to `origin/main`. GitHub Actions
+`verify` = **SUCCESS** (run **32807185604**, first attempt, 13m10s).
+Vercel production `dpl_E36kPYRxae3rgGT2eqaX5Pr9MQct` READY on sha
+`60b77891`, aliased to www.aimplifi.app. Live proof
+`node scripts/w6c-live-deploy-check.mjs` → **13/13 PASS**:
+`fulfillment-card` on /coach; subtitle names top 5 of 7 (not "each");
+month-labelled spark ends in `hrs`; omitted line; `$38.00/hr` +
+`typical (median)` footnote.
 
 ---
 

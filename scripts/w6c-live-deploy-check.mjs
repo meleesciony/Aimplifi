@@ -48,7 +48,7 @@ try {
   const subtitle = ((await page.getByTestId('fulfillment-subtitle').textContent()) ?? '').trim();
   check('subtitle names complete months', /complete months/i.test(subtitle), subtitle.slice(0, 120));
   check('subtitle does not claim each category when truncated', !/\beach discretionary\b/i.test(subtitle), subtitle.slice(0, 120));
-  check('subtitle names the top-N ranking', /took the most/i.test(subtitle), subtitle.slice(0, 120));
+  check('subtitle names the top-N ranking', /took the most working hours/i.test(subtitle), subtitle.slice(0, 120));
 
   await expectVisible(page.getByTestId('fulfillment-list'));
   check('fulfillment list has rows', true);
