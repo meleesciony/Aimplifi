@@ -32,8 +32,18 @@ expected fail + 1 skipped / 454 files + 1 skipped**. E2E Ask
 next-dollar + P1 string 2/2 (`npx playwright test tests/e2e/ask.spec.ts
 -g "next dollar|before I can invest"`). No `prisma/` diff.
 
-**Next.** Push #510 + this commit (main is unpushed). Then W.6(d)
-drawdown / W.6(c) fulfillment / P1.4 / P1.5.
+**Gate read.** Pushed `10638c4d` + `7a96ae96` to `origin/main`. GitHub
+Actions `verify` = **SUCCESS** (run **32796272090**, first attempt, job
+15m43s, https://github.com/meleesciony/Aimplifi/actions/runs/32796272090).
+Vercel: Production deployment `6074409688`, "Deployment has completed",
+sha `7a96ae96`. Live proof `node scripts/w6b-live-deploy-check.mjs` →
+**9/9 PASS**: Coach + Ask ranking share "Next extra dollar: investing"
+(Auto Loan 6.49%, default 7.00% nominal); P1 string on a fresh Ask turn
+is cash-needed (`You need $5,412.33 by Jun 15, 2026 to pay your cards
+in full`) and is not the ranking — a pre-#511 deploy cannot satisfy
+that discriminator.
+
+**Next.** W.6(d) drawdown / W.6(c) fulfillment / P1.4 / P1.5.
 
 ## 2026-08-24 — W.6(b) next extra dollar, ranked from rates on file (DECISIONS #510)
 
@@ -56,8 +66,12 @@ expected fail + 1 skipped / 454 files + 1 skipped**. E2E Coach + Ask
 green (`npx playwright test tests/e2e/phase3-coach.spec.ts tests/e2e/ask.spec.ts`).
 No `prisma/` diff.
 
-**Next.** Human gate on the Ask P1, or W.6(d) drawdown / W.6(c)
-fulfillment / P1.4 / P1.5. Match % collection is a later settings
+**Gate read.** Shipped in the same push as #511 (`10638c4d` + `7a96ae96`).
+GitHub Actions `verify` SUCCESS (run **32796272090**). Vercel production
+`6074409688` completed. Live proof 9/9 (ranking + P1).
+
+**Next.** Human gate on the Ask P1 closed in #511. Then W.6(d) drawdown /
+W.6(c) fulfillment / P1.4 / P1.5. Match % collection is a later settings
 slice.
 
 ## 2026-08-24 — /coach-card radiation of the cut FI + radar sentences (DECISIONS #508)

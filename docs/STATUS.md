@@ -40,6 +40,12 @@ ask.spec P1 e2e (cash-needed headline, not `Next extra dollar`).
 + 1 expected fail + 1 skipped / 454 files + 1 skipped**. E2E Ask
 next-dollar + P1 2/2. No `prisma/` diff.
 
+**Gate read.** Pushed. GitHub Actions `verify` SUCCESS (run
+**32796272090**, 15m43s, first attempt). Vercel production
+`6074409688` completed on sha `7a96ae96`. Live proof **9/9 PASS**
+including the P1 string as cash-needed (`You need $5,412.33 by Jun 15,
+2026`) on www.aimplifi.app/ask.
+
 ## ✅ BUILT 2026-08-24 — W.6(b) next extra dollar (DECISIONS #510)
 
 **The report.** Extra-dollar ranking from rates on file. Demo: next extra

@@ -78,6 +78,10 @@ try {
   check('Ask has no "this card"/"below"', !/this card|\bbelow\b/i.test(askAnswer));
 
   // Cycle-4 P1: the ranking proxy must not steal cash-needed's modal.
+  // Fresh /ask so this is not the previous turn's ask-headline (a conversation
+  // keeps every answer; getByTestId('ask-headline') would read the ranking).
+  await page.goto(`${BASE}/ask`, { waitUntil: 'domcontentloaded' });
+  await page.getByTestId('ask-input').waitFor({ state: 'visible', timeout: 30_000 });
   const p1 = 'How much should I pay off my cards before I can invest?';
   for (let attempt = 0; attempt < 12; attempt++) {
     await page.waitForLoadState('load');
@@ -88,7 +92,7 @@ try {
   }
   await page.getByTestId('ask-submit').click();
   await page.getByTestId('ask-answer').waitFor({ state: 'visible', timeout: 30_000 });
-  const p1Headline = ((await page.getByTestId('ask-headline').textContent()) ?? '').trim();
+  const p1Headline = ((await page.getByTestId('ask-headline').last().textContent()) ?? '').trim();
   check('Ask P1 string is cash-needed, not the extra-dollar ranking',
     /You need \$[\d,]+\.\d{2}/.test(p1Headline)
     && !p1Headline.includes('Next extra dollar'),
