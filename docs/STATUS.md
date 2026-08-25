@@ -32,11 +32,18 @@ Match % still uncollected. Wave 0 ops remain owner-blocked.
 `test_regression__paw_lens_names_fi_card_income_window`;
 paw-lens e2e.
 
-**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,745
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,746
 passed + 1 expected fail + 1 skipped / 469 files + 1 skipped**. E2E
-paw-lens 1/1 + mortgage 1/1. No `prisma/` diff.
+paw-lens 1/1 + add-asset 1/1. No `prisma/` diff.
 
-**Gate read.** (pending push)
+**Gate read.** Pushed `7d7a2c15`. CI run **32881961927** = FAILURE
+(`add-asset-btn` on zero-account /accounts). Fix `1781d3ee`: card on
+mine-scope /dashboard only. CI run **32886192868** = SUCCESS. Vercel
+`dpl_DHRj3vN2pkxfvhvBe8Gp9o7jhFKp` READY on that sha, aliased to
+www.aimplifi.app. Live proof
+`node scripts/p18-live-deploy-check.mjs` → **11/11 PASS**:
+`paw-lens-card` on /dashboard; idle names the formula, FI-card
+income, not a grade; slider present; no PAW/UAW.
 
 ---
 

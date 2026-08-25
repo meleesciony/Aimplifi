@@ -17,11 +17,16 @@ deferred. Demo idle.
 **Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.**
 
 **Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN
-(tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **7,745
+(tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **7,746
 passed + 1 expected fail + 1 skipped / 469 files + 1 skipped**.
-E2E paw-lens 1/1 + mortgage 1/1. No `prisma/` diff.
+E2E paw-lens 1/1 + add-asset 1/1. No `prisma/` diff.
 
-**Gate read.** (pending push)
+**Gate read.** Pushed `7d7a2c15`. CI run **32881961927** = FAILURE
+(/accounts `add-asset-btn`: `getCoachData` throws with zero accounts).
+Fix: card on mine-scope /dashboard only. Pushed `1781d3ee`. CI run
+**32886192868** = SUCCESS. Vercel `dpl_DHRj3vN2pkxfvhvBe8Gp9o7jhFKp`
+READY on that sha. Live proof **11/11 PASS**
+(`scripts/p18-live-deploy-check.mjs`).
 
 **Next.** High-yield note when idle cash far exceeds runway. Wave 0
 ops remain owner-blocked.
