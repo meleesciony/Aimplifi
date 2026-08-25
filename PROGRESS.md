@@ -2,6 +2,29 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-25 — Mortgage extra-principal (DECISIONS #517)
+
+**Picked up.** Owner: "consume all readme files and continue building
+this out." #516 closed (CI fix `5e4d797b`). Ranked next: mortgage
+early-payoff.
+
+**Closed (engine + /accounts).** Two `planDebtPayoff` legs on one
+`MORTGAGE`. Unknown APR is not 0%. Saved figures only when both legs
+clear. Cash-due minimum named as unsplit. Card after the accounts list.
+Ask deferred. Demo empty.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1** (escrow/add-on silent).
+**Cycle 2 PASS — 0 P0, 0 P1.**
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, `next build` clean). Unit **7,712 passed + 1
+expected fail + 1 skipped / 467 files + 1 skipped**. E2E mortgage 1/1
+(empty + debt planner + not 0%). No `prisma/` diff.
+
+**Gate read.** (pending this push)
+
+**Next.** PAW expected-NW lens. Wave 0 ops remain owner-blocked.
+
 ## 2026-08-25 — Reports interest & fees YTD (DECISIONS #516)
 
 **Picked up.** Owner: "consume all readme files and continue building
@@ -27,7 +50,9 @@ timed out — the YTD tile sat between the chart and the category list
 and pushed the first bar behind the 380px bottom nav. Fix: tile after
 the pair + `scrollIntoViewIfNeeded` before the bar `mouse.click`.
 Local re-proof (fresh server, `CI=1`): category-drilldown:232 1/1;
-reports.spec 1/1. (this push's CI + live probe pending)
+reports.spec 1/1. Fix pushed `5e4d797b`. CI run **32874042910** =
+SUCCESS (~15m13s). Vercel `dpl_Fs2tdRutPQPawSNxyTFeotGJj9HC` READY.
+Live proof **14/14 PASS** (`scripts/p16-live-deploy-check.mjs`).
 
 **Next.** Mortgage early-payoff; PAW. Wave 0 ops remain owner-blocked.
 

@@ -28,7 +28,7 @@ cuts, Ask intents `what_to_cut` / `fi_status` / `lifestyle_creep` /
 #493 Settings savings-goal reference line.
 
 **Clusters now.** C1, C3, C4, C7, C8, C11, C15 **SHIPPED**. C9 **SHIPPED**
-(payoff engine; mortgage what-if still absent). C6 **SHIPPED** as the
+(payoff engine; mortgage extra-principal SHIPPED #517). C6 **SHIPPED** as the
 adapted 3-bucket lens (book's 4th investing % is the honest fold). C16
 **SUPERSEDED** (app-authored rules card, not a Settings freeform list).
 C10 **SHIPPED** (P1.5 ladder + fee-drag + don't-time-it; P2.1 volatility).
@@ -78,7 +78,8 @@ P1.4 income lever SHIPPED #514 (raise slider on the FI card; same
 ladder + fee-drag SHIPPED #515 (level 1% leak of today's portfolio,
 today's money, Ask deferred); Reports interest & fees YTD SHIPPED #516
 (/reports tile; four leaves; demo empty; Ask deferred); mortgage
-early-payoff; PAW expected-NW lens.
+early-payoff SHIPPED #517 (/accounts extra-principal calculator;
+demo empty; Ask deferred); PAW expected-NW lens.
 
 ---
 
@@ -361,7 +362,7 @@ Sequenced so each step is independently shippable and verifiable (`bash scripts/
 | Debt Freedom planner: payoff-ordering engine `src/lib/engine/debt/payoff.ts` (snowball **and** avalanche, extra-$/mo, debt-free date) reusing the existing `aprBps`; add a minimum-payment field on the `Account` model for non-card LOAN liabilities only; $1,000 starter preset | C9 (Conflict A) | L | high |
 | P1.5 Investing ladder + fee-drag explainer — SHIPPED #515 | C10 | M | med |
 | Reports "Interest & fees YTD" tile — SHIPPED #516 | C8/C9 | M | med |
-| Mortgage early-payoff what-if (amortization engine) | C9 (Conflict B) | L | med |
+| Mortgage early-payoff what-if (amortization engine) — SHIPPED #517 | C9 (Conflict B) | L | med |
 | "Assign to zero" affordance on `/budgets` (highlights existing `leftToSpendCents`; no new store) | C6 | M | med |
 
 *Gate: debt payoff engine pinned to hand-verified amortization tables; the snowball/avalanche toggle defaults to avalanche per Conflict A; debt-free date proven against EDGE_CASES. No re-adding of `aprBps` or card `minimumPaymentCents` — both already exist and feed the Cash-Needed engine.*

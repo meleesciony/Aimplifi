@@ -9308,6 +9308,37 @@ link for a YTD figure (C.26).
 
 ---
 
+## #517 — Mortgage extra-principal what-if (2026-08-25)
+
+**Context.** COACH_PRINCIPLES_PLAN leftover after #516: a mortgage
+early-payoff calculator (C9 Conflict B). `loadDebtAccounts` already
+excludes mortgages from the consumer-debt planner (Ramsey BS6, not
+BS2). Demo seed has no `MORTGAGE` row.
+
+**Decision.** Pure wrapper `mortgageEarlyPayoff` /
+`pickMortgageForEarlyPayoff` in
+`src/lib/engine/debt/mortgage-early-payoff.ts`. Two calls to the
+existing `planDebtPayoff` on one mortgage — no second amortizer.
+Unknown APR is not 0%; a stored 0% is a known zero. Months saved and
+interest saved only when **both** legs clear. `/accounts` card after
+the list (not inside the net-worth pair). Extra-principal slider
+recomputes the same engine client-side. Copy is a calculator, not a
+nudge — not a recommendation to prepay or to keep the loan. Ask
+deferred. Demo empty. No seed mortgage.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1** (cash-due minimum treated
+as the amortizing installment with no escrow/add-on disclosure).
+**Cycle 2 PASS — 0 P0, 0 P1.** Residual P2s: context line omits escrow
+clause; “if any” hedge; two-mortgage switcher; slider-only extra.
+
+**Alternatives rejected.** Folding mortgages into `loadDebtAccounts`
+(re-opens Conflict B on the planner). A new amortization loop (the
+pinned walk already exists). Treating missing APR as 0% (W.6b). Adding
+a demo mortgage (ripples cash-needed / spend goldens). Dashboard
+`net-worth-card` this slice — `/accounts` already owns that card.
+
+---
+
 ## #512 — W.6(d) drawdown on FI date (2026-08-24)
 
 **Context.** TASKS W.6(d): Housel's "reasonable > rational" — what a 30%

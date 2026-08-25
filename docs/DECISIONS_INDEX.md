@@ -510,3 +510,4 @@ refuses to write if it would drop any number this file already carries.
 - **#514** (Phase ?): P1.4 income lever (raise → FI delta) (2026-08-25)
 - **#515** (Phase ?): P1.5 investing ladder + fee-drag (2026-08-25)
 - **#516** (Phase ?): Reports interest & fees YTD (2026-08-25)
+- **#517** (Phase ?): Mortgage extra-principal what-if (2026-08-25)

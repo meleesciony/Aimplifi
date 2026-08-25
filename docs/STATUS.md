@@ -9,6 +9,37 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-25 — Mortgage extra-principal (DECISIONS #517)
+
+**The report.** Extra principal on one mortgage vs its own minimum — months
+and interest if both walks clear. Not a nudge to prepay. Mortgages stay
+out of the consumer-debt planner.
+
+**Shipped.** `mortgageEarlyPayoff` / `pickMortgageForEarlyPayoff` wrap
+`planDebtPayoff` twice. Unknown APR is not 0%. Cash-due minimum is named
+as unsplit (escrow/add-ons stay in the figure). `/accounts`
+`<MortgageEarlyPayoffCard data-testid="mortgage-early-payoff-card">`
+after the list. Ask deferred. Demo empty. No seed mortgage.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1; cycle 2 PASS — 0 P0, 0 P1.**
+
+**Still open.** PAW expected-NW lens. Match % still uncollected.
+
+**Locked.** `mortgage-early-payoff.test.ts` (EDGE ME1–ME5);
+`mortgage-accounts.test.ts`;
+`test_regression__mortgage_early_payoff_zero_extra_is_idle_not_a_savings_claim`;
+`test_regression__mortgage_early_payoff_names_only_this_loan_and_does_not_nudge`;
+`test_regression__mortgage_early_payoff_names_cash_due_is_not_split_escrow`;
+mortgage-early-payoff e2e.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,712 passed
++ 1 expected fail + 1 skipped / 467 files + 1 skipped**. E2E mortgage
+1/1 + reports 1/1 + category-drilldown BAR 1/1. No `prisma/` diff.
+
+**Gate read.** (pending this push)
+
+---
+
 ## ✅ BUILT 2026-08-25 — Reports interest & fees YTD (DECISIONS #516)
 
 **The report.** Year-to-date interest and fees already on file, plus a
@@ -24,8 +55,8 @@ Demo: honest empty (seed files none of those leaves). Ask deferred.
 
 **Critic (fresh context): cycle 1 FAIL 1 P1; cycle 2 PASS — 0 P0, 0 P1.**
 
-**Still open.** Mortgage early-payoff; PAW expected-NW lens. Match %
-still uncollected.
+**Still open.** Mortgage extra-principal SHIPPED #517; PAW expected-NW
+lens. Match % still uncollected.
 
 **Locked.** `interest-fees-ytd.test.ts` (EDGE §Interest & fees YTD IF1–IF5);
 `reports-interest-fees.test.ts`;
@@ -40,9 +71,11 @@ reports.spec e2e.
 1/1. No `prisma/` diff.
 
 **Gate read.** Pushed `75a1c181`. CI run **32871751508** = FAILURE
-(`category-drilldown` BAR click). Tile moved below the chart + category
-pair; bar test scrolls into view first. Local re-proof 1/1 on both
-specs. (this push's CI + live probe pending)
+(`category-drilldown` BAR click). Fix `5e4d797b`: tile after the pair +
+bar `scrollIntoViewIfNeeded`. CI run **32874042910** = SUCCESS
+(~15m13s). Vercel `dpl_Fs2tdRutPQPawSNxyTFeotGJj9HC` READY on that sha,
+aliased to www.aimplifi.app. Live proof
+`node scripts/p16-live-deploy-check.mjs` → **14/14 PASS**.
 
 ---
 

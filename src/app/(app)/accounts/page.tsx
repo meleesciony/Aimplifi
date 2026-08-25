@@ -5,6 +5,9 @@ import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion
 import { HouseholdSharingCard } from '@/components/finance/household-sharing-card';
 import { getAccountDetail, getAccountsView } from '@/server/transactions';
 import { getAccountSharingView } from '@/server/household';
+import { loadMortgageCandidates } from '@/server/mortgage';
+import { pickMortgageForEarlyPayoff } from '@/lib/engine/debt/mortgage-early-payoff';
+import { MortgageEarlyPayoffCard } from '@/components/finance/mortgage-early-payoff-card';
 
 export const metadata = { title: "Accounts" };
 
@@ -24,11 +27,13 @@ export default async function AccountsPage({
   const detailParam = Array.isArray(sp.detail) ? (sp.detail[0] ?? '') : (sp.detail ?? '');
   // Sharing is a SEPARATE query path from getAccountsView (#192/T9): partner
   // rows must never enter the duplicate detector's input set.
-  const [data, sharing, detail] = await Promise.all([
+  const [data, sharing, detail, mortgages] = await Promise.all([
     getAccountsView(session.user.id),
     getAccountSharingView(),
     detailParam ? getAccountDetail(session.user.id, detailParam) : Promise.resolve(null),
+    loadMortgageCandidates(session.user.id),
   ]);
+  const mortgagePick = pickMortgageForEarlyPayoff(mortgages);
 
   return (
     <div className="space-y-5">
@@ -44,6 +49,10 @@ export default async function AccountsPage({
       {/* currency-guard disclosure (#135 residual) — nothing rendered for all-USD users */}
       <CurrencyExclusionBanner summary={data.withheld} />
       <AccountsList data={data} detail={detail} />
+      {/* After the list, not inside the net-worth / row pair: a card in the
+          middle of a hit-tested page hides the first target behind the 380px
+          nav (#516 category-bar timeout). */}
+      <MortgageEarlyPayoffCard pick={mortgagePick} />
       {/* Household members only — solo and demo users render nothing here (T6). */}
       {sharing.kind === 'member' && <HouseholdSharingCard view={sharing} />}
     </div>

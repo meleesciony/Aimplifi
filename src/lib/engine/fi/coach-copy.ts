@@ -19,6 +19,10 @@ import {
   INTEREST_FEE_CATEGORY_LABELS,
   type InterestFeesYtd,
 } from '@/lib/engine/reports/interest-fees-ytd';
+import type {
+  MortgageEarlyPayoff,
+  MortgageMissingTerm,
+} from '@/lib/engine/debt/mortgage-early-payoff';
 import type { FulfillmentCategory, FulfillmentCurve } from './fulfillment';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import type { NextDollarPlan } from './next-dollar';
@@ -1376,6 +1380,64 @@ export const COACH_COPY = {
   },
   interestFeesYtdEmpty: (year: number) =>
     `No interest or fee charges are filed so far in ${year}, so there is no cost-of-charges figure to show. This figure counts Fees & Charges, Interest & Finance Charges, ATM Fee, and Late Fee — a category with no charge so far adds nothing.`,
+
+  // Mortgage extra-principal what-if (C9 Conflict B). Calculator, not a
+  // nudge. Mortgages stay out of the consumer-debt planner on purpose.
+  mortgageEarlyPayoffTitle: () => `Extra principal`,
+  mortgageEarlyPayoffSubtitle: () => `A calculator, not a nudge`,
+  mortgageEarlyPayoffEmpty: () =>
+    `No mortgage with a rate and a minimum payment is on file, so there is no extra-principal calculator to run. Auto loans and cards live on the debt planner. A missing rate is not treated as 0% — a stored 0% is a known zero. This is not a recommendation to add a mortgage.`,
+  mortgageEarlyPayoffPaidOff: (name: string) =>
+    `${name} is on file at $0.00, so there is no extra-principal calculator to run.`,
+  mortgageEarlyPayoffIncomplete: (name: string, missing: MortgageMissingTerm) => {
+    const term =
+      missing === 'rate'
+        ? 'a rate'
+        : missing === 'minimum'
+          ? 'a minimum payment'
+          : 'a rate and a minimum payment';
+    return `${name} is on file, but ${term} is not, so there is no extra-principal calculator to run. A stored 0% is a known zero, not a missing rate.`;
+  },
+  mortgageEarlyPayoffContext: () =>
+    `Drag to add extra principal each month. Some borrowing buys a home you live in; this calculator does not say which choice is better.`,
+  mortgageEarlyPayoffIdle: (row: MortgageEarlyPayoff): string => {
+    const min = formatCents(cents(row.minimumPaymentCents));
+    const apr = `${(row.aprBps / 100).toFixed(2)}%`;
+    const name = row.accountName;
+    const assumptions =
+      'assuming the rate and minimum on file stay the same. The minimum on file is the cash payment due; this walk treats the whole amount as going to the loan after interest — escrow or other add-ons in that figure, if any, are not split out. Extra principal is a what-if on this loan alone — not a recommendation to prepay, and not a judgment that keeping the loan is wrong.';
+    if (row.baselineMonths === null) {
+      return `At the ${min} minimum on file, ${name} at ${apr} does not clear, ${assumptions}`;
+    }
+    return `At the ${min} minimum on file, ${name} at ${apr} would take about ${monthsSpanPhrase(row.baselineMonths)} and about ${formatCents(cents(row.baselineInterestCents))} in interest, ${assumptions}`;
+  },
+  mortgageEarlyPayoff: (row: MortgageEarlyPayoff): string | null => {
+    if (row.extraMonthlyCents <= 0) return null;
+    const extra = formatCents(cents(row.extraMonthlyCents));
+    const min = formatCents(cents(row.minimumPaymentCents));
+    const apr = `${(row.aprBps / 100).toFixed(2)}%`;
+    const name = row.accountName;
+    const close =
+      ' Same amortization as the debt planner, this loan only, assuming the rate and minimum on file stay the same. The minimum on file is the cash payment due; this walk treats the whole amount as going to the loan after interest — escrow or other add-ons in that figure, if any, are not split out. Illustration, not advice — not a recommendation to prepay or to keep the loan.';
+    if (row.baselineMonths === null && row.extraMonths === null) {
+      return `Even with an extra ${extra} a month on top of the ${min} minimum, ${name} does not clear at the ${apr} rate on file.${close}`;
+    }
+    if (row.baselineMonths === null && row.extraMonths !== null) {
+      return `The minimum on file does not clear ${name} at the ${apr} rate. An extra ${extra} a month would take about ${monthsSpanPhrase(row.extraMonths)} and about ${formatCents(cents(row.extraInterestCents))} in interest.${close}`;
+    }
+    if (row.extraMonths === null) {
+      return `Even with an extra ${extra} a month on top of the ${min} minimum, ${name} does not clear at the ${apr} rate on file.${close}`;
+    }
+    const sooner =
+      row.monthsSaved && row.monthsSaved > 0
+        ? `would clear ${name} about ${monthsSpanPhrase(row.monthsSaved)} sooner`
+        : `would still take about ${monthsSpanPhrase(row.extraMonths)}`;
+    const interest =
+      row.interestSavedCents && row.interestSavedCents > 0
+        ? ` and avoid about ${formatCents(cents(row.interestSavedCents))} of interest`
+        : '';
+    return `An extra ${extra} a month on top of the ${min} minimum ${sooner}${interest}, at the ${apr} rate on file.${close}`;
+  },
 
   // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade.
   // A set Settings dial uses savingsGoalReference instead (DECISIONS #493).
