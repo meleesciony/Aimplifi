@@ -23,6 +23,7 @@ import type {
   MortgageEarlyPayoff,
   MortgageMissingTerm,
 } from '@/lib/engine/debt/mortgage-early-payoff';
+import type { PawLens } from '@/lib/engine/networth/paw-lens';
 import type { FulfillmentCategory, FulfillmentCurve } from './fulfillment';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import type { NextDollarPlan } from './next-dollar';
@@ -1437,6 +1438,36 @@ export const COACH_COPY = {
         ? ` and avoid about ${formatCents(cents(row.interestSavedCents))} of interest`
         : '';
     return `An extra ${extra} a month on top of the ${min} minimum ${sooner}${interest}, at the ${apr} rate on file.${close}`;
+  },
+
+  // C12 · Stanley & Danko expected-NW lens. Age is chosen on the card, not
+  // stored. Bands are above/near/short-of — never PAW/UAW. Ask deferred.
+  pawLensTitle: () => `Expected net worth`,
+  pawLensSubtitle: () => `A lens on accumulation, not a grade`,
+  pawLensEmpty: (incomeWindowMonths: number) => {
+    const n = Math.max(0, Math.trunc(incomeWindowMonths));
+    const window = n === 1 ? '1 complete month' : `${n} complete months`;
+    return `No income is on file over the last ${window}, so there is no expected-net-worth number to compare. This lens uses the same income the FI card uses, scaled to a year. It is not a grade, and not a recommendation to earn more.`;
+  },
+  pawLensIdle: (row: PawLens): string => {
+    const annual = formatCents(cents(row.annualIncomeCents));
+    const n = row.incomeWindowMonths;
+    const window = n === 1 ? '1 complete month' : `${n} complete months`;
+    return `A common benchmark expects net worth ≈ age × yearly income ÷ 10. Set an age to compare yours. Yearly income here is the last ${window}, scaled to a year — the same income the FI card uses (${annual}). Age is the years you choose, not a stored date of birth. A lens on accumulation, not a grade — not a recommendation to save more or spend more.`;
+  },
+  pawLens: (row: PawLens): string | null => {
+    if (row.idle || row.noIncome || row.expectedNetWorthCents == null) return null;
+    const expected = formatCents(cents(row.expectedNetWorthCents));
+    const annual = formatCents(cents(row.annualIncomeCents));
+    const nw = formatCents(cents(row.netWorthCents));
+    const n = row.incomeWindowMonths;
+    const window = n === 1 ? '1 complete month' : `${n} complete months`;
+    const close = ` Yearly income is the last ${window}, scaled to a year — the same income the FI card uses. Age ${row.ageYears} is the years you chose, not a stored date of birth. A lens on accumulation, not a grade — not a recommendation to save more or spend more.`;
+    if (row.band == null) {
+      return `At age ${row.ageYears} × ${annual} ÷ 10, the common benchmark is ${expected}, which is too small to compare against ${nw}.${close}`;
+    }
+    const phrase = row.band === 'above' ? 'above' : row.band === 'under' ? 'short of' : 'near';
+    return `A common benchmark expects about ${expected} at age ${row.ageYears} × ${annual} ÷ 10. Your net worth of ${nw} is ${phrase} that number.${close}`;
   },
 
   // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade.

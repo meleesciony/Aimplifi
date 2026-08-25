@@ -2,6 +2,29 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-25 — PAW expected-NW lens (DECISIONS #518)
+
+**Picked up.** Owner: "consume all readme files and continue."
+#517 closed. Ranked next: PAW expected-NW lens.
+
+**Closed (engine + /accounts + mine-scope /dashboard).**
+`age × yearly income ÷ 10` vs on-file net worth. Yearly income is
+the FI card's monthly average × 12. Unknown age/income is not $0
+expected. Household dashboard omitted (two sets). Age not stored.
+Ask deferred. Demo idle.
+
+**Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.**
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN
+(tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **7,745
+passed + 1 expected fail + 1 skipped / 469 files + 1 skipped**.
+E2E paw-lens 1/1 + mortgage 1/1. No `prisma/` diff.
+
+**Gate read.** (pending push)
+
+**Next.** High-yield note when idle cash far exceeds runway. Wave 0
+ops remain owner-blocked.
+
 ## 2026-08-25 — Mortgage extra-principal (DECISIONS #517)
 
 **Picked up.** Owner: "consume all readme files and continue building

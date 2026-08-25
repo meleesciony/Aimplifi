@@ -7,6 +7,7 @@ import { dashboardCardIdentity } from '@/components/finance/card-identity-view';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { FeedDroppedBanner } from '@/components/finance/feed-dropped-banner';
 import { NetWorthCard } from '@/components/finance/net-worth-card';
+import { PawLensCard } from '@/components/finance/paw-lens-card';
 import { CashFlowRadarCard } from '@/components/finance/cash-flow-radar-card';
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
 import { SpendingInsightsCard } from '@/components/finance/spending-insights-card';
@@ -225,6 +226,15 @@ export default async function DashboardPage({
       <SpendingInsightsCard trends={trends} />
 
       <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} runwayMonths={coach.runwayMonths} />
+      {/* Mine-scope only: household net worth is a different set than the
+          FI card's income. Mixing them would invent a household PAW number. */}
+      {requestedScope === 'mine' && (
+        <PawLensCard
+          netWorthCents={data.netWorthCents}
+          monthlyIncomeCents={coach.fi.monthlyIncomeCents}
+          incomeWindowMonths={coach.fi.monthlySavingsMonths}
+        />
+      )}
     </div>
   );
 }

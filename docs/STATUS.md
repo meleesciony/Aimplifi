@@ -9,6 +9,36 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-25 — PAW expected-net-worth lens (DECISIONS #518)
+
+**The report.** Age × yearly income ÷ 10 vs the net worth already on
+file. A lens on accumulation, not a grade. Not PAW/UAW labels.
+
+**Shipped.** `pawLens` in `src/lib/engine/networth/paw-lens.ts`.
+Yearly income is the FI card's monthly average × 12. Age 0 / unset
+and no income produce no expected figure. `/accounts` and mine-scope
+`/dashboard` `<PawLensCard data-testid="paw-lens-card">` after the
+net-worth surfaces. Ask deferred. No stored age. Demo starts idle.
+
+**Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.**
+
+**Still open.** High-yield note when idle cash far exceeds runway.
+Match % still uncollected. Wave 0 ops remain owner-blocked.
+
+**Locked.** `paw-lens.test.ts` (EDGE PAW1–PAW7);
+`test_regression__paw_lens_zero_age_is_idle_not_a_savings_claim`;
+`test_regression__paw_lens_names_only_this_income_and_does_not_nudge`;
+`test_regression__paw_lens_names_fi_card_income_window`;
+paw-lens e2e.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,745
+passed + 1 expected fail + 1 skipped / 469 files + 1 skipped**. E2E
+paw-lens 1/1 + mortgage 1/1. No `prisma/` diff.
+
+**Gate read.** (pending push)
+
+---
+
 ## ✅ BUILT 2026-08-25 — Mortgage extra-principal (DECISIONS #517)
 
 **The report.** Extra principal on one mortgage vs its own minimum — months
@@ -23,7 +53,8 @@ after the list. Ask deferred. Demo empty. No seed mortgage.
 
 **Critic (fresh context): cycle 1 FAIL 1 P1; cycle 2 PASS — 0 P0, 0 P1.**
 
-**Still open.** PAW expected-NW lens. Match % still uncollected.
+**Still open.** PAW expected-NW lens SHIPPED #518. High-yield note;
+match % still uncollected.
 
 **Locked.** `mortgage-early-payoff.test.ts` (EDGE ME1–ME5);
 `mortgage-accounts.test.ts`;

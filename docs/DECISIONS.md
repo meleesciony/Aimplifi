@@ -9308,6 +9308,37 @@ link for a YTD figure (C.26).
 
 ---
 
+## #518 — PAW expected-net-worth lens (2026-08-25)
+
+**Context.** COACH_PRINCIPLES_PLAN leftover after #517: C12 Stanley &
+Danko expected net worth (age × income ÷ 10), framed as a lens, no
+shame. No date of birth is stored. The FI card already authors average
+monthly income.
+
+**Decision.** Pure `pawLens` / `annualIncomeFromMonthly` /
+`pawBand` in `src/lib/engine/networth/paw-lens.ts`. Expected =
+`roundHalfAwayFromZero(age × yearly income ÷ 10)`. Yearly income is
+the FI card's monthly average × 12. Age 0 / unset and income ≤ 0
+produce no expected figure (unknown is not $0). Near = |actual −
+expected| / expected ≤ 10% inclusive. Bands are above / near / under
+— never PAW/UAW labels. `/accounts` card after the list; `/dashboard`
+after `NetWorthCard` only when scope is `mine` (household net worth
+must not mix with personal FI income). Age slider is client-only, not
+stored. Copy names the income window and that age is chosen, not a
+date of birth. Ask deferred. No schema change.
+
+**Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.** Residual P2s:
+`getCoachData` over-fetch on /accounts; slider `aria-valuetext` at 0
+(closed this slice); theoretical `delta * 10000` overflow.
+
+**Alternatives rejected.** Persisting `User.ageYears` (schema + PII +
+demo fence for a calculator). Defaulting a working age (fabricates
+the reader). PAW/UAW labels (shame). Using household net worth on
+`?scope=household` (two engines, two sets). A second income definition
+(violates one-question-one-basis).
+
+---
+
 ## #517 — Mortgage extra-principal what-if (2026-08-25)
 
 **Context.** COACH_PRINCIPLES_PLAN leftover after #516: a mortgage
