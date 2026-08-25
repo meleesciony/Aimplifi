@@ -224,6 +224,38 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(page.getByTestId('next-dollar-card')).not.toContainText(/this card/i);
   await expect(page.getByTestId('next-dollar-card')).not.toContainText(/\bbelow\b/i);
 
+  // P1.5 — investing ladder + fee-drag on today's $142k brokerage.
+  await expect(page.getByTestId('investing-ladder-card')).toBeVisible();
+  await expect(page.getByTestId('fee-drag-sentence')).toContainText('$142,000.00');
+  // GOLDEN: $118.33/mo × 360 at 7.00% deflated 2.50% = $68,822.18 today.
+  // A phrase-level assertion would not notice the wrong rate pair.
+  await expect(page.getByTestId('fee-drag-sentence')).toContainText('$68,822.18');
+  await expect(page.getByTestId('fee-drag-sentence')).toContainText('$118.33 a month');
+  await expect(page.getByTestId('fee-drag-sentence')).toContainText("today's money");
+  await expect(page.getByTestId('fee-drag-sentence')).toContainText(
+    'grown at our default 7.00% return assumption',
+  );
+  await expect(page.getByTestId('fee-drag-sentence')).toContainText(
+    'our default 2.50% inflation assumption taken off',
+  );
+  await expect(page.getByTestId('fee-drag-sentence')).not.toContainText('assumptions working');
+  await expect(page.getByTestId('fee-drag-sentence')).toContainText('not a fee we can see');
+  await expect(page.getByTestId('fee-drag-sentence')).toContainText('Illustration, not advice');
+  await expect(page.getByTestId('investing-ladder').locator('summary')).toContainText(
+    'lens, not a rule',
+  );
+  await page.getByTestId('investing-ladder').locator('summary').click();
+  await expect(page.getByTestId('investing-ladder-steps')).toContainText('401(k) match');
+  await expect(page.getByTestId('investing-ladder-steps')).toContainText('Roth IRA');
+  await expect(page.getByTestId('investing-ladder-steps')).toContainText('taxable');
+  await expect(page.getByTestId('investing-ladder-steps')).toContainText('lens, not a rule');
+  await expect(page.getByTestId('dont-time-it')).toContainText('Staying invested');
+  await expect(page.getByTestId('investing-ladder-card')).not.toContainText(/this card/i);
+  await expect(page.getByTestId('investing-ladder-card')).not.toContainText(/\bbelow\b/i);
+  await expect(page.getByTestId('investing-ladder-card')).not.toContainText(
+    /\b(VTSAX|VTI|VOO|SPY|AAPL)\b/,
+  );
+
   // #254 Habit streaks: demo pinned copy (default-asOf narrative — see the
   // cleared-streak / creep-streak seed locks for the hand math). Cleared-in-full
   // 17 months across 4 cards through May 2026; no-creep 3 full months with the

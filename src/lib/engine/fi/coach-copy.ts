@@ -14,6 +14,7 @@ import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
 import type { CutCounterfactual } from './counterfactual';
 import type { DrawdownCounterfactual } from './drawdown';
 import type { IncomeLever } from './income-lever';
+import type { FeeDrag } from './fee-drag';
 import type { FulfillmentCategory, FulfillmentCurve } from './fulfillment';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import type { NextDollarPlan } from './next-dollar';
@@ -1279,6 +1280,45 @@ export const COACH_COPY = {
 
   incomeLeverIdle: () =>
     `Drag to see what a raise saved at your current rate would do. Same return and inflation assumptions as Coach.`,
+
+  // P1.5 — investing order of operations + fee-drag (C10 · Collins, Sethi).
+  // Ladder is generic: match % is still uncollected, so we must not claim
+  // they have (or lack) a match or a 401(k). Fee-drag is a LEVEL leak of
+  // today's 1%, printed in today's money (W.10), not their actual fee.
+  investingLadderTitle: () => `Investing order`,
+  investingLadderSubtitle: () => `Account types, not funds`,
+  investingLadderSummary: () => `A common order — a lens, not a rule`,
+  investingLadder: () =>
+    `A common order of operations — a lens, not a rule, and only if the account exists for you: 1) capture a full employer 401(k) match when you have one (that's a return no market pays), 2) fund a Roth IRA, 3) then the rest of a 401(k), 4) then taxable. Educational only — we never recommend specific funds, and we don't yet know whether you have a match.`,
+  feeDrag: (drag: FeeDrag, owner: DialOwnership): string | null => {
+    if (drag.costTodayCents <= 0) return null;
+    const years = drag.months / 12;
+    const feePct = `${(drag.feeBps / 100).toFixed(0)}%`;
+    const leak = formatCents(drag.monthlyLeakCents);
+    const ret = returnClause(drag.nominalReturnBps, owner);
+    const infl = inflationClause(drag.inflationBps, owner);
+    // Same grow-then-deflate recipe `opportunityBasis` names for this primitive
+    // (W.10 / critic P1-2). A blended "at 7% and 2.5%" does not distinguish it
+    // from the FI card's real-return walk on the same page.
+    const mechanism =
+      drag.inflationBps === 0
+        ? `That's ${leak} a month for ${years} years, grown at ${ret}. ${sentenceCase(infl)} is ${pct(0)}, so today's money and future dollars are the same thing here.`
+        : `That's ${leak} a month for ${years} years, grown at ${ret}, then ${infl} taken off — so the figure is what the leak would buy today, not what it would say on a statement.`;
+    // Same predicate the opportunity list already gates (W.10a / critic P1-1).
+    const trails = opportunityValueTrailsContributions(
+      drag.months,
+      drag.nominalReturnBps,
+      drag.inflationBps,
+    );
+    const trailsClause = trails
+      ? ` At those two assumptions inflation takes more than the growth adds, so the figure lands at or below the dollars that would leak over the same years: that is the assumptions working, not an error.`
+      : '';
+    return `If ${feePct} of the ${formatCents(drag.portfolioCents)} you have invested today leaked every year for ${years} years, that leak would cost about ${formatCents(drag.costTodayCents)} in today's money. ${mechanism}${trailsClause} That is ${feePct} of today's balance each year — not a fee we can see on your funds, and not a fee that grows with the pile. Illustration, not advice.`;
+  },
+  feeDragEmpty: () =>
+    `No invested balance is on file, so there is no fee-drag illustration to run. The order of operations is still a lens, not a rule.`,
+  dontTimeIt: () =>
+    `Trying to jump in and out of the market is not part of this order. Staying invested is the load-bearing assumption behind every return projection on Coach.`,
 
   // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade.
   // A set Settings dial uses savingsGoalReference instead (DECISIONS #493).

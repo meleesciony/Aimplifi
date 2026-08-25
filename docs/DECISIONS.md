@@ -9242,6 +9242,39 @@ the date; fabricates a lifestyle). Composing the two sliders this slice
 
 ---
 
+## #515 — P1.5 investing ladder + fee-drag (2026-08-25)
+
+**Context.** COACH_PRINCIPLES_PLAN P1.5: Collins/Sethi account-type
+order (match → Roth IRA → max 401(k) → taxable) plus a 1% fee-drag
+illustration on the reader's own portfolio. Match % still uncollected.
+The 2026-07 sketch named `opportunityFVCents` (future dollars); W.10
+already made /coach print today's money.
+
+**Decision.** Pure `feeDrag` in `src/lib/engine/fi/fee-drag.ts`. 1% of
+**today's** invested balance as a **level** monthly leak for 30 years
+(`OPPORTUNITY_HORIZON_MONTHS[2]`), grown with `opportunityFVCents` and
+printed via `opportunityValueTodayCents`. Not AUM-on-growth
+(`FV(r) − FV(r−1%)`) and not their actual fund fee. Honest null when
+there is nothing to leak. `COACH_COPY.feeDrag` names the monthly leak
+and the grow-then-deflate mechanism; when
+`opportunityValueTrailsContributions` the shortfall is "the assumptions
+working". Ladder is a lens, not a rule, and does not claim they have a
+match. `/coach` `InvestingLadderCard` after next-dollar. Ask deferred.
+Demo: $142,000 → $118.33/mo → **$68,822.18** today at 7.00%/2.50%.
+
+**Critic (fresh context): cycle 1 FAIL 2 P1** (trails-contributions
+unexplained; monthly leak / grow-then-deflate unnamed). **Cycle 2
+PASS — 0 P0, 0 P1.** Residual P2s: withheld-currency inline note on
+this card; `dontTimeIt` "this order"; flat-nominal "never raise it"
+clause.
+
+**Alternatives rejected.** Lump-sum `FV(r) − FV(r−fee)` (plan said
+reuse the opportunity primitive; copy names the level-leak model).
+Printing nominal FV (W.10). Personalizing the ladder from an uncollected
+match %. Ask routing this slice.
+
+---
+
 ## #512 — W.6(d) drawdown on FI date (2026-08-24)
 
 **Context.** TASKS W.6(d): Housel's "reasonable > rational" — what a 30%

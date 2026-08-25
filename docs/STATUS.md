@@ -9,6 +9,36 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-25 — P1.5 investing ladder + fee-drag (DECISIONS #515)
+
+**The report.** A generic account-type order (match → Roth IRA → max
+401(k) → taxable) plus a 1% fee-drag illustration on today's invested
+balance, in today's money. Not their actual fee, not AUM-on-growth,
+not a claim they have a match.
+
+**Shipped.** `feeDrag` in `src/lib/engine/fi/fee-drag.ts`.
+`COACH_COPY.investingLadder*` / `feeDrag` / `feeDragEmpty` / `dontTimeIt`.
+`/coach` `<InvestingLadderCard data-testid="investing-ladder-card">`.
+Demo: **$68,822.18** today on $142,000 at 7.00%/2.50%. Ask deferred.
+
+**Critic (fresh context): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0, 0 P1.**
+
+**Still open.** Reports interest & fees YTD; mortgage early-payoff;
+PAW. Match % still uncollected.
+
+**Locked.** `fee-drag.test.ts` (EDGE §Fee drag FD1–FD6);
+`coach-fee-drag.test.ts`; `test_regression__p15_fee_drag_names_monthly_leak_and_grow_then_deflate`;
+`test_regression__p15_fee_drag_trails_contributions_names_the_assumptions`;
+phase3-coach e2e.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,624 passed
++ 1 expected fail + 1 skipped / 462 files + 1 skipped**. E2E phase3-coach
+1/1. No `prisma/` diff.
+
+**Gate read.** pending push.
+
+---
+
 ## ✅ BUILT 2026-08-25 — P1.4 income lever (DECISIONS #514)
 
 **The report.** A hypothetical raise, saved at the window-average rate,

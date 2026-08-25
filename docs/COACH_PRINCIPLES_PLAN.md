@@ -31,12 +31,13 @@ cuts, Ask intents `what_to_cut` / `fi_status` / `lifestyle_creep` /
 (payoff engine; mortgage what-if still absent). C6 **SHIPPED** as the
 adapted 3-bucket lens (book's 4th investing % is the honest fold). C16
 **SUPERSEDED** (app-authored rules card, not a Settings freeform list).
-C2 / C5 / C10 / C12 / C13 / C14 still **PARTIAL** (named leftovers below).
+C10 **SHIPPED** (P1.5 ladder + fee-drag + don't-time-it; P2.1 volatility).
+C2 / C5 / C12 / C13 / C14 still **PARTIAL** (named leftovers below).
 
 **P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.5, P1.1, P1.2, P1.4, P1.6, P2.1,
 P2.2, P2.4, P2.5. PARTIAL: P0.4 (3 buckets + Ask #499). SUPERSEDED: P2.3
-(#493 Settings dial), P2.6 (app-authored card). ABSENT: P1.5 investing
-ladder / fee-drag.
+(#493 Settings dial), P2.6 (app-authored card). P1.5 investing ladder /
+fee-drag SHIPPED #515 (Ask deferred).
 *P1.3 shipped 2026-08-23 (#504): `User.richLifeVision` + the /settings card
 (one line, demo-fenced on BOTH legs — write action and coach read —,
 normalize-or-reject in a pure module) echoed atop /coach in
@@ -73,9 +74,10 @@ re-projection deferred); W.6(b) marginal-dollar order — engine + /coach
 ranking proxy; critic 4-of-4 FAIL, findings executed, not certified);
 W.6(d) drawdown on FI date SHIPPED #512 (/coach FI disclosure; critic PASS);
 P1.4 income lever SHIPPED #514 (raise slider on the FI card; same
-`monthsToFI` walk; FI number unchanged; Ask deferred); mortgage
-early-payoff; Reports interest & fees YTD; P1.5 fee-drag FV; PAW
-expected-NW lens.
+`monthsToFI` walk; FI number unchanged; Ask deferred); P1.5 investing
+ladder + fee-drag SHIPPED #515 (level 1% leak of today's portfolio,
+today's money, Ask deferred); mortgage early-payoff; Reports interest
+& fees YTD; PAW expected-NW lens.
 
 ---
 
@@ -109,7 +111,7 @@ Recurring principles are merged into shared clusters; each is attributed to its 
 | **C7** | **Automate so willpower isn't needed** | Sethi, Babylon, Ramsey | The system runs on a schedule without you | **Partial** — coach *recommends* automation; Aimplifi never moves money |
 | **C8** | **Use credit cards but pay in full / debt is expensive** | Sethi, Ramsey | Zero interest is the signature habit; carried interest is the costliest money | **Present** — Cash-Needed Engine + `/cards`; coach's preferred next action |
 | **C9** | **Debt elimination — baby steps, snowball/avalanche** | Ramsey | Starter buffer → kill debt smallest-first → 3-6mo fund → invest 15% | **Partial** — `aprBps` already on `Account` and `minimumPaymentCents` already on `Statement`, both consumed by the Cash-Needed engine; the real gap is **payoff ordering** and a per-Account minimum-payment for non-card LOAN liabilities |
-| **C10** | **Index-fund simplicity / low cost / don't time it** | Collins, Sethi (mechanics); Housel (behavior) | Buy cheap broad index funds, automate, hold; fees quietly destroy returns | **Partial** — FI math assumes long-horizon returns; no fee-drag content, no order-of-operations |
+| **C10** | **Index-fund simplicity / low cost / don't time it** | Collins, Sethi (mechanics); Housel (behavior) | Buy cheap broad index funds, automate, hold; fees quietly destroy returns | **Present** — P1.5 ladder + fee-drag + don't-time-it (#515); P2.1 volatility price |
 | **C11** | **Assets vs liabilities / financial education** | Kiyosaki | Buy assets that produce income; understand the difference | **Partial** — `/accounts` splits assets/liabilities, `/investments` tracks holdings; no explicit "what's an asset" education or income-vs-expense framing |
 | **C12** | **Frugality / stealth wealth / PAW vs UAW** | Stanley & Danko | Live below your means; net worth, not income, defines wealth; no Joneses | **Present** (net worth hero, no peer compare, no status nudges) / **Partial** (no expected-net-worth "are you a PAW?" lens) |
 | **C13** | **Define "enough" / your Rich Life / freedom buys time** | Sethi, Housel, Perkins | Decide what rich means to *you*; FI buys back your time | **Partial** — FI number anchors to own expenses; no stated Rich-Life vision, no "time becomes yours" reframe |
@@ -202,7 +204,7 @@ incomeLever: (raiseCents: Cents, monthsSooner: number) =>
   `A ${formatCents(raiseCents)}/yr raise, saved at your current rate, would move your FI date about ${monthsSooner} months sooner — assuming your expected return holds. Negotiating income is the biggest big win of all.`,
 ```
 
-**P1.5 — Investing order-of-operations + fee-drag explainer** · C10 · Collins, Sethi (mechanics) · `/coach` (collapsible) · both · **M / med**
+**P1.5 — Investing order-of-operations + fee-drag explainer** · C10 · Collins, Sethi (mechanics) · `/coach` (collapsible) · both · **M / med** · **DONE 2026-08-25 (#515)**
 Generic, no tickers (honors the no-securities disclaimer): account *types* and order (match → Roth IRA → max 401k → taxable), plus a fee-drag stat reusing `opportunityFVCents` on the user's own portfolio. Pairs with a one-line "don't try to time it." (Mechanics attributed to Collins/Sethi; the behavioral "don't time it / volatility is the price" framing is Housel's and lives in P2.1.)
 ```ts
 investingLadder: () =>
@@ -356,7 +358,7 @@ Sequenced so each step is independently shippable and verifiable (`bash scripts/
 | Item | Cluster | Effort | Impact |
 |---|---|---|---|
 | Debt Freedom planner: payoff-ordering engine `src/lib/engine/debt/payoff.ts` (snowball **and** avalanche, extra-$/mo, debt-free date) reusing the existing `aprBps`; add a minimum-payment field on the `Account` model for non-card LOAN liabilities only; $1,000 starter preset | C9 (Conflict A) | L | high |
-| P1.5 Investing ladder + fee-drag explainer | C10 | M | med |
+| P1.5 Investing ladder + fee-drag explainer — SHIPPED #515 | C10 | M | med |
 | Reports "Interest & fees YTD" tile | C8/C9 | M | med |
 | Mortgage early-payoff what-if (amortization engine) | C9 (Conflict B) | L | med |
 | "Assign to zero" affordance on `/budgets` (highlights existing `leftToSpendCents`; no new store) | C6 | M | med |

@@ -508,3 +508,4 @@ refuses to write if it would drop any number this file already carries.
 - **#512** (Phase ?): W.6(d) drawdown on FI date (2026-08-24)
 - **#513** (Phase ?): W.6(c) category fulfillment curve (2026-08-24)
 - **#514** (Phase ?): P1.4 income lever (raise → FI delta) (2026-08-25)
+- **#515** (Phase ?): P1.5 investing ladder + fee-drag (2026-08-25)

@@ -18,6 +18,7 @@ import {
   drawdownCounterfactual,
   type DrawdownCounterfactual,
 } from '@/lib/engine/fi/drawdown';
+import { feeDrag, type FeeDrag } from '@/lib/engine/fi/fee-drag';
 import { classifyDebts, nextDollar, type NextDollarPlan } from '@/lib/engine/fi/next-dollar';
 import {
   applyCutsToScheduled,
@@ -192,6 +193,12 @@ export interface CoachData {
      * and not newlyUnreachable) stay silent via `COACH_COPY.drawdownCounterfactual`.
      */
     drawdown: DrawdownCounterfactual;
+    /**
+     * P1.5 — 1% of today's invested balance as a level 30-year leak.
+     * Null when there is nothing to leak. Printed through `COACH_COPY.feeDrag`
+     * so /coach has one author. Ask deferred.
+     */
+    feeDrag: FeeDrag | null;
   };
   opportunities: Opportunity[];
   /**
@@ -757,6 +764,11 @@ export async function getCoachData(
         monthlySavingsCents: monthlySavings,
         realReturnBps: projectionReturnBps,
         fiTargetCents: fiTarget,
+      }),
+      feeDrag: feeDrag({
+        portfolioCents: portfolio,
+        nominalReturnBps: user.expectedReturnBps,
+        inflationBps,
       }),
     },
     opportunities,

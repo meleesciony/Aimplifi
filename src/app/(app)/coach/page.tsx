@@ -16,6 +16,7 @@ import { LifestyleCreepChart } from '@/components/coach/lifestyle-creep-chart';
 import { SavingsRateCard } from '@/components/coach/savings-rate-card';
 import { StayingWealthyCard } from '@/components/coach/staying-wealthy-card';
 import { NextDollarCard } from '@/components/coach/next-dollar-card';
+import { InvestingLadderCard } from '@/components/coach/investing-ladder-card';
 import { RichLifeEcho } from '@/components/coach/rich-life-echo';
 import { WealthTargetCard } from '@/components/coach/wealth-target-card';
 import { composeStayingWealthy } from '@/lib/engine/fi/staying-wealthy';
@@ -191,6 +192,18 @@ export default async function CoachPage() {
       {/* W.6(b) — extra-dollar ranking from rates on file. After staying
           wealthy (survival) and before the wealth-target planner. */}
       <NextDollarCard plan={data.nextDollar} />
+
+      {/* P1.5 — account-type order + fee-drag on today's invested balance.
+          After next-dollar (extra-dollar ranking) because this is the
+          account-type lens, not a second ranking. Ask deferred. */}
+      <InvestingLadderCard
+        drag={data.fi.feeDrag}
+        dialOwnership={dialOwnership}
+        frozenPortfolioNote={frozenTotalNote(data.frozenBalances.portfolio, {
+          figureLabel: 'the invested balance this illustration starts from',
+          nextStep: 'accounts-route',
+        })}
+      />
 
       {/* Wealth target — the reader states a number ("$10M") and a horizon; the card answers
           both directions (when the current pace arrives, what a chosen date requires) in

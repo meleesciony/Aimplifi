@@ -2,6 +2,30 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-25 — P1.5 investing ladder + fee-drag (DECISIONS #515)
+
+**Picked up.** Owner: "consume all readme files and continue. we are
+trying to ship this product. all gaps from simplifi and mint should be
+closed." #514 closed P1.4. Ranked next: P1.5 fee-drag / investing ladder.
+
+**Closed (engine + /coach).** Pure `feeDrag`: 1% of today's portfolio as
+a level monthly leak for 30 years; `opportunityFVCents` +
+`opportunityValueTodayCents`. Ladder is a lens (match unknown). Copy
+names monthly leak, grow-then-deflate, and trails-contributions.
+`InvestingLadderCard` after next-dollar. Ask deferred. Demo $68,822.18.
+
+**Critic (fresh context): cycle 1 FAIL 2 P1** (trails unexplained;
+mechanism unnamed). **Cycle 2 PASS — 0 P0, 0 P1.**
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, `next build` clean). Unit **7,624 passed + 1
+expected fail + 1 skipped / 462 files + 1 skipped**. E2E phase3-coach
+1/1 (investing-ladder-card + $68,822.18 + $118.33/mo + grow-then-deflate).
+No `prisma/` diff.
+
+**Next.** Reports interest & fees YTD; mortgage early-payoff; PAW.
+Wave 0 ops remain owner-blocked.
+
 ## 2026-08-25 — P1.4 income lever (DECISIONS #514)
 
 **Picked up.** Owner: "continue." #513 closed W.6(c). Ranked next: P1.4

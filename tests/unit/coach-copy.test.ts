@@ -864,6 +864,80 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     isProjection: false,
   },
   { label: 'incomeLeverIdle', text: COACH_COPY.incomeLeverIdle(), isProjection: true },
+  { label: 'investingLadderTitle', text: COACH_COPY.investingLadderTitle(), isProjection: false },
+  { label: 'investingLadderSubtitle', text: COACH_COPY.investingLadderSubtitle(), isProjection: false },
+  { label: 'investingLadderSummary', text: COACH_COPY.investingLadderSummary(), isProjection: false },
+  { label: 'investingLadder', text: COACH_COPY.investingLadder(), isProjection: false },
+  {
+    label: 'feeDrag',
+    text: COACH_COPY.feeDrag(
+      {
+        portfolioCents: cents(10_000_000),
+        monthlyLeakCents: cents(8_333),
+        feeBps: 100,
+        months: 360,
+        nominalReturnBps: 700,
+        inflationBps: 250,
+        costTodayCents: cents(2_000_000),
+        costNominalCents: cents(3_000_000),
+      },
+      DEFAULT_BOTH,
+    )!,
+    isProjection: true,
+  },
+  {
+    label: 'feeDrag:chosen',
+    text: COACH_COPY.feeDrag(
+      {
+        portfolioCents: cents(10_000_000),
+        monthlyLeakCents: cents(8_333),
+        feeBps: 100,
+        months: 360,
+        nominalReturnBps: 700,
+        inflationBps: 250,
+        costTodayCents: cents(2_000_000),
+        costNominalCents: cents(3_000_000),
+      },
+      OWNS_BOTH,
+    )!,
+    isProjection: true,
+  },
+  {
+    label: 'feeDrag:zeroInflation',
+    text: COACH_COPY.feeDrag(
+      {
+        portfolioCents: cents(10_000_000),
+        monthlyLeakCents: cents(8_333),
+        feeBps: 100,
+        months: 360,
+        nominalReturnBps: 700,
+        inflationBps: 0,
+        costTodayCents: cents(3_000_000),
+        costNominalCents: cents(3_000_000),
+      },
+      DEFAULT_BOTH,
+    )!,
+    isProjection: true,
+  },
+  {
+    label: 'feeDrag:trails',
+    text: COACH_COPY.feeDrag(
+      {
+        portfolioCents: cents(14_200_000),
+        monthlyLeakCents: cents(11_833),
+        feeBps: 100,
+        months: 360,
+        nominalReturnBps: 250,
+        inflationBps: 250,
+        costTodayCents: cents(3_020_167),
+        costNominalCents: cents(6_000_000),
+      },
+      DEFAULT_BOTH,
+    )!,
+    isProjection: true,
+  },
+  { label: 'feeDragEmpty', text: COACH_COPY.feeDragEmpty(), isProjection: false },
+  { label: 'dontTimeIt', text: COACH_COPY.dontTimeIt(), isProjection: true },
   { label: 'fifteenPercentReference', text: COACH_COPY.fifteenPercentReference(), isProjection: false },
   { label: 'savingsGoalReference', text: COACH_COPY.savingsGoalReference(4000), isProjection: false },
   { label: 'savingsStreak:3', text: COACH_COPY.savingsStreak(3, 2653), isProjection: false },
@@ -1197,6 +1271,63 @@ describe('coach copy guardrails — zero shame, assumptions everywhere, no ticke
     expect(COACH_COPY.incomeLever({ ...still, noIncome: true, rateBps: null }, 6)).toBeNull();
     expect(COACH_COPY.incomeLever({ ...still, rateNonPositive: true, rateBps: 0 }, 6)).toBeNull();
     expect(COACH_COPY.incomeLever({ ...still, raiseAnnualCents: cents(0) }, 6)).toBeNull();
+  });
+
+  it('test_regression__p15_fee_drag_names_monthly_leak_and_grow_then_deflate', () => {
+    const text = COACH_COPY.feeDrag(
+      {
+        portfolioCents: cents(14_200_000),
+        monthlyLeakCents: cents(11_833),
+        feeBps: 100,
+        months: 360,
+        nominalReturnBps: 700,
+        inflationBps: 250,
+        costTodayCents: cents(6_882_218),
+        costNominalCents: cents(14_435_917),
+      },
+      DEFAULT_BOTH,
+    );
+    expect(text).toContain('$118.33 a month');
+    expect(text).toContain('grown at our default 7.00% return assumption');
+    expect(text).toContain('our default 2.50% inflation assumption taken off');
+    expect(text).toContain("what the leak would buy today");
+    expect(text).not.toContain('assumptions working');
+  });
+
+  it('test_regression__p15_fee_drag_trails_contributions_names_the_assumptions', () => {
+    const text = COACH_COPY.feeDrag(
+      {
+        portfolioCents: cents(14_200_000),
+        monthlyLeakCents: cents(11_833),
+        feeBps: 100,
+        months: 360,
+        nominalReturnBps: 250,
+        inflationBps: 250,
+        costTodayCents: cents(3_020_167),
+        costNominalCents: cents(6_000_000),
+      },
+      DEFAULT_BOTH,
+    );
+    expect(text).toContain('assumptions working, not an error');
+    expect(text).toContain('at or below the dollars that would leak');
+  });
+
+  it('feeDrag: zero today-money cost ⇒ null, never a $0.00 leak sentence', () => {
+    expect(
+      COACH_COPY.feeDrag(
+        {
+          portfolioCents: cents(10_000_000),
+          monthlyLeakCents: cents(8_333),
+          feeBps: 100,
+          months: 360,
+          nominalReturnBps: 700,
+          inflationBps: 250,
+          costTodayCents: cents(0),
+          costNominalCents: cents(0),
+        },
+        DEFAULT_BOTH,
+      ),
+    ).toBeNull();
   });
 
   it('test_regression__p14_income_lever_does_not_claim_lifestyle_frozen', () => {
