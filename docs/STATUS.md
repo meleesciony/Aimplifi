@@ -9,6 +9,32 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-24 — W.6(c) category fulfillment curve (DECISIONS #513)
+
+**The report.** YMOYL life-energy now exists per discretionary category over
+complete months — not only per purchase. Top categories by hours on /coach,
+with a month-labelled sparkline and a median half-window trend that shares
+`growthPhrase` with lifestyle creep.
+
+**Shipped.** `fulfillmentByCategory` in `src/lib/engine/fi/fulfillment.ts`.
+`CoachData.fulfillment`. `COACH_COPY.fulfillment*`. `/coach`
+`<FulfillmentCard data-testid="fulfillment-card">`. Truncation named
+(demo: top 5 of 11). Ask deferred.
+
+**Critic (fresh context): cycle 1 FAIL 3 P1; cycle 2 PASS — 0 P0, 0 P1.**
+
+**Still open on W.6.** Match % / tax-advantaged room still not collected.
+W.6 row complete for (a)(b)(c)(d).
+
+**Locked.** `fulfillment.test.ts` (EDGE §Fulfillment F1–F8); `coach-fulfillment.test.ts`;
+`coach-copy` ALL_STRINGS rows; phase3-coach e2e.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,550 passed
++ 1 expected fail + 1 skipped / 458 files + 1 skipped**. E2E phase3-coach
+1/1 (fulfillment-card + spark + omitted). No `prisma/` diff.
+
+---
+
 ## ✅ BUILT 2026-08-24 — W.6(d) drawdown on FI date (DECISIONS #512)
 
 **The report.** Housel's "reasonable > rational" now has a quantitative

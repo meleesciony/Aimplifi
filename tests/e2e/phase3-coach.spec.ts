@@ -230,6 +230,20 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
     'memory you\'ll keep',
   );
 
+  // W.6(c) — category fulfillment curve (hours over complete months). Demo
+  // has wage $38/hr and discretionary history → card + rows, not empty.
+  await expect(page.getByTestId('fulfillment-card')).toBeVisible();
+  await expect(page.getByTestId('fulfillment-subtitle')).toContainText('complete months');
+  await expect(page.getByTestId('fulfillment-subtitle')).not.toHaveText(/each discretionary/);
+  await expect(page.getByTestId('fulfillment-list').locator('[data-testid="fulfillment-row"]').first()).toBeVisible();
+  await expect(page.getByTestId('fulfillment-spark').first()).toContainText('hrs');
+  await expect(page.getByTestId('fulfillment-omitted')).toBeVisible();
+  await expect(page.getByTestId('fulfillment-footnote')).toContainText('$38.00/hr');
+  await expect(page.getByTestId('fulfillment-footnote')).toContainText('typical (median)');
+  await expect(page.getByTestId('fulfillment-footnote')).toContainText('fulfillment curve');
+  await expect(page.getByTestId('fulfillment-card')).not.toContainText(/this card/i);
+  await expect(page.getByTestId('fulfillment-card')).not.toContainText(/\bbelow\b/i);
+
   // Money Review: one improvement, one creep, one concrete next action.
   // In demo (no AI key) the §2.4 recap is the DETERMINISTIC floor — same three role lines,
   // and NO "Personalized" badge (the LLM ordering path only runs with a key).

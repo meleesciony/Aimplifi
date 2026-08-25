@@ -504,5 +504,6 @@ refuses to write if it would drop any number this file already carries.
 - **#508** (Phase ?): /coach-card radiation of the cut FI + radar sentences (2026-08-24)
 - **#509** (Phase ?): Standing: commit and push at the end of every slice (2026-08-24)
 - **#510** (Phase ?): W.6(b) next extra dollar, ranked from rates on file (2026-08-24)
-- **#512** (Phase ?): W.6(d) drawdown on FI date (2026-08-24)
 - **#511** (Phase ?): W.6(b) Ask P1: `should I` is not the ranking proxy (2026-08-24)
+- **#512** (Phase ?): W.6(d) drawdown on FI date (2026-08-24)
+- **#513** (Phase ?): W.6(c) category fulfillment curve (2026-08-24)

@@ -13,6 +13,7 @@ import type { FrozenFunding } from '@/lib/engine/account/feed-dropped-view';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
 import type { CutCounterfactual } from './counterfactual';
 import type { DrawdownCounterfactual } from './drawdown';
+import type { FulfillmentCategory, FulfillmentCurve } from './fulfillment';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import type { NextDollarPlan } from './next-dollar';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
@@ -945,6 +946,64 @@ export const COACH_COPY = {
   // the case this sentence already blesses, so tagging them would be noise.
   lifeEnergyReflection: () =>
     `Worth it if it's a money dial or a memory you'll keep — but if it was meant to impress, almost no one notices the thing.`,
+
+  // W.6(c) — YMOYL fulfillment curve (category × months in hours). A lens on
+  // where life-energy went over complete months — not a grade, not a cut list.
+  fulfillmentTitle: () => `Life energy by category`,
+
+  /**
+   * Names the rank window honestly: never "each" category when topN truncates.
+   * When every discretionary category fits, the sentence says so without a
+   * fake "top N".
+   */
+  fulfillmentSubtitle: (curve: FulfillmentCurve) => {
+    const window =
+      curve.windowMonths === 1
+        ? 'the last complete month'
+        : `the last ${curve.windowMonths} complete months`;
+    if (curve.categoryCount === 0) {
+      return `Working hours by discretionary category over ${window}.`;
+    }
+    if (curve.categories.length >= curve.categoryCount) {
+      return `Working hours in each discretionary category over ${window}.`;
+    }
+    return `The ${curve.categories.length} discretionary categories that took the most working hours over ${window} (of ${curve.categoryCount}).`;
+  },
+
+  fulfillmentEmpty: () =>
+    `No discretionary spending in complete months yet — once a few weeks land, the hours by category show here.`,
+
+  fulfillmentOmitted: (curve: FulfillmentCurve): string | null => {
+    const n = curve.categoryCount - curve.categories.length;
+    if (n <= 0) return null;
+    return `${n} more discretionary ${n === 1 ? 'category' : 'categories'} by hours of working life — not shown in this top list.`;
+  },
+
+  fulfillmentFootnote: (wageCents: Cents) =>
+    `Hours are computed assuming your after-tax wage of ${formatCents(wageCents)}/hr across complete months only (oldest month first). Trend compares typical (median) monthly spend in the first half of the window to the second half — the same half-window assumption as lifestyle creep. A lens, not a judgment — Your Money or Your Life's fulfillment curve, not a spending grade.`,
+
+  /**
+   * One category row. Trend phrasing shares `growthPhrase` with lifestyle creep
+   * and says "typical monthly spend" so the median basis is not invisible.
+   * Unmeasured trends stay silent (first-half median was $0). Money dials are
+   * named so a rising dial is not read as accidental drift.
+   */
+  fulfillmentRow: (cat: FulfillmentCategory, windowMonths: number): string => {
+    const window =
+      windowMonths === 1 ? 'the last complete month' : `the last ${windowMonths} months`;
+    const hoursLabel =
+      cat.totalHours === 1 ? '1.0 hour' : `${cat.totalHours} hours`;
+    const dial = cat.isMoneyDial ? ' (a money dial)' : '';
+    if (!cat.trendMeasured) {
+      return `${cat.categoryName}${dial}: ${hoursLabel} of working life across ${window}.`;
+    }
+    return `${cat.categoryName}${dial}: ${hoursLabel} of working life across ${window} — typical monthly spend ${growthPhrase(cat.trendBps)}.`;
+  },
+
+  /** Month labels + hours, oldest → newest — the readable curve. */
+  fulfillmentSpark: (cat: FulfillmentCategory): string =>
+    cat.monthly.map((m) => `${formatMonth(m.month, 'short')} ${m.hours.toFixed(1)}`).join(' · ') +
+    ' hrs',
 
   reviewImprovement: (monthLabel: string, fromBps: number, toBps: number) =>
     `What improved in ${monthLabel}: savings rate moved from ${pct1(fromBps)} to ${pct1(toBps)}.`,

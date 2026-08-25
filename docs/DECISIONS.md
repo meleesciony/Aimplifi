@@ -9190,6 +9190,31 @@ exhausted; not certified as a pass.
 every `should I` as ranking (the recorded P1). Another global substring
 veto after each critic cycle (C3: purpose-anywhere stole matrix `or`).
 
+## #513 — W.6(c) category fulfillment curve (2026-08-24)
+
+**Context.** TASKS W.6(c): YMOYL fulfillment curve — life-energy exists per
+purchase but not per CATEGORY over time. Spec only names the purchase lens;
+the task row is the product requirement.
+
+**Decision.** Pure `fulfillmentByCategory` in
+`src/lib/engine/fi/fulfillment.ts`. Same complete-month window and
+discretionary/`countsInFlows` gates as the discretionary-spend average.
+Hours only via `hoursOfWork`. Trend = median of second-half monthly spend
+vs first half (creep's half-split), spoken as "typical monthly spend" with
+the half-window assumption in the footnote. Top N (5) ranked; `categoryCount`
+forces the subtitle to name truncation instead of "each". `totalHours` is
+the sum of monthly hours so the sparkline reconciles. `/coach`
+`FulfillmentCard`. Ask radiation deferred.
+
+**Critic (fresh context): cycle 1 FAIL 3 P1; cycle 2 PASS — 0 P0, 0 P1.**
+
+**Alternatives rejected.** Ask routing this slice (coach first, W.9/W.10
+pattern). Ranking by hours instead of spend at a fixed wage (equivalent
+except tenth-rounding). Netting refunds (parity with
+`averageDiscretionaryCategorySpend`; creep discloses refunds separately).
+
+---
+
 ## #512 — W.6(d) drawdown on FI date (2026-08-24)
 
 **Context.** TASKS W.6(d): Housel's "reasonable > rational" — what a 30%

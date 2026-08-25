@@ -50,6 +50,10 @@ import {
   type DiscretionaryCategorySpend,
 } from '@/lib/engine/fi/discretionary-cuts';
 import { averageDiscretionaryCategorySpend } from '@/lib/engine/fi/discretionary-spend';
+import {
+  fulfillmentByCategory,
+  type FulfillmentCurve,
+} from '@/lib/engine/fi/fulfillment';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { detectUnusualCharges, type UnusualCharge } from '@/lib/engine/anomaly/detect';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
@@ -271,6 +275,12 @@ export interface CoachData {
     isMoneyDial: boolean;
   }[];
   hourlyWageCents: number;
+  /**
+   * W.6(c) — life-energy by discretionary category over complete months.
+   * Null when the hourly wage is unset (hours are the lens). Empty categories
+   * when wage is set but no discretionary spend landed in the window.
+   */
+  fulfillment: FulfillmentCurve | null;
   /** Display names for coach copy (resolved from stored ids/names). */
   moneyDials: string[];
   /** Category ids for cut proposals — never names (O.17a). */
@@ -759,6 +769,15 @@ export async function getCoachData(
     frozenBalances,
     lifeEnergy,
     hourlyWageCents: wage,
+    fulfillment: fulfillmentByCategory({
+      transactions: txns,
+      today: isoDate(today),
+      hourlyWageCents: wage,
+      meta,
+      moneyDialIds,
+      nameOf: (id) => categoryName(id, meta),
+      excludedFlowIds: snap.loanPaymentFlowExclusions?.excludeIds,
+    }),
     moneyDials: dialDisplayNames(moneyDialIds, dialCatalog),
     moneyDialIds,
     cutCounterfactual: fiCutImpact,

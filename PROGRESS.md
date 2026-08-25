@@ -2,6 +2,32 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-24 — W.6(c) category fulfillment curve (DECISIONS #513)
+
+**Picked up.** Owner: "consume all readme files and continue. we want to get
+the app to production." #512 closed W.6(d). Ranked next: W.6(c) YMOYL
+fulfillment — life-energy per category over time.
+
+**Closed (engine + /coach).** Pure `fulfillmentByCategory`: discretionary
+outflows across complete months → hours via `hoursOfWork`; top 5 by spend;
+`categoryCount` for honest truncation; trend = creep's median half-split on
+cents. `COACH_COPY.fulfillment*` owns subtitle/row/spark/omitted/footnote.
+`/coach` `FulfillmentCard` beside LifeEnergyCard. Ask deferred.
+
+**Critic (fresh context): cycle 1 FAIL 3 P1** (subtitle "each" over-claim;
+aria-hidden unlabeled spark; unstated median trend). **Cycle 2 PASS —
+0 P0, 0 P1.** P2 polish: omitted-line wording + unconditional F7 truncation
+lock.
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0,
+probes tsc 0, eslint 0, `next build` clean). Unit **7,550 passed + 1
+expected fail + 1 skipped / 458 files + 1 skipped**. E2E phase3-coach
+1/1. No `prisma/` diff.
+
+**Next.** Ship gate + live proof. Then P1.4 / P1.5 / Reports interest & fees
+YTD. Wave 0 ops (Sentry, cron fire, Neon PITR, Plaid institution
+registration) remain owner-blocked.
+
 ## 2026-08-24 — W.6(d) drawdown on FI date (DECISIONS #512)
 
 **Picked up.** Owner: "read all readme files and continue." #511 closed W.6(b)

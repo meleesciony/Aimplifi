@@ -9,6 +9,7 @@ import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion
 import { withheldInlineNote } from '@/lib/providers/currency';
 import { FROZEN_RUNWAY_TESTID, frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
 import { LifeEnergyCard } from '@/components/coach/life-energy-card';
+import { FulfillmentCard } from '@/components/coach/fulfillment-card';
 import { MoneySignatureCard } from '@/components/coach/money-signature-card';
 import { HabitStreaksCard } from '@/components/coach/habit-streaks-card';
 import { LifestyleCreepChart } from '@/components/coach/lifestyle-creep-chart';
@@ -413,6 +414,7 @@ export default async function CoachPage() {
       <AutomationBlueprintCard steps={data.blueprint} />
 
       <LifeEnergyCard items={data.lifeEnergy} hourlyWageCents={data.hourlyWageCents} />
+      <FulfillmentCard curve={data.fulfillment} />
 
       {/* What Aimplifi caught (TASKS 1.3) — the cumulative value-receipts tally.
           Honest by construction: counts + per-kind totals of what was surfaced,
