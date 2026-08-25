@@ -16,9 +16,10 @@ file. A lens on accumulation, not a grade. Not PAW/UAW labels.
 
 **Shipped.** `pawLens` in `src/lib/engine/networth/paw-lens.ts`.
 Yearly income is the FI card's monthly average × 12. Age 0 / unset
-and no income produce no expected figure. `/accounts` and mine-scope
-`/dashboard` `<PawLensCard data-testid="paw-lens-card">` after the
-net-worth surfaces. Ask deferred. No stored age. Demo starts idle.
+and no income produce no expected figure. Mine-scope `/dashboard`
+`<PawLensCard data-testid="paw-lens-card">` after net worth — not
+`/accounts` (`getCoachData` throws with zero accounts). Ask deferred.
+No stored age. Demo starts idle.
 
 **Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.**
 

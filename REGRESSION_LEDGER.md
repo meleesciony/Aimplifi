@@ -11,6 +11,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-08-25 | CI /accounts `add-asset-btn` timed out after PAW shipped | `getCoachData` throws "No accounts found" for a zero-account throwaway, and /accounts is that first-run surface | a new read must not take down a page its throw was written for a different empty | `test_regression__paw_lens_does_not_block_accounts_list_on_coach` |
 | 2026-08-25 | An unset age on the expected-NW lens could have printed "you're under" against a fabricated $0 expected | age 0 / missing income must not produce an expected figure | an empty set is not a fact about money — idle is not a savings claim | `test_regression__paw_lens_zero_age_is_idle_not_a_savings_claim` |
 | 2026-08-25 | A PAW/UAW label would grade the reader against Stanley & Danko's UAW | the book names under-accumulators; Aimplifi does not | second-person copy is a load-bearing invariant — bands are above/near/short-of, never a grade | `test_regression__paw_lens_names_only_this_income_and_does_not_nudge` |
 | 2026-08-25 | A second yearly-income definition would disagree with the FI card | PAW uses pretax annual income; we already have a monthly average | one question, one basis — name the FI-card window × 12 | `test_regression__paw_lens_names_fi_card_income_window` |

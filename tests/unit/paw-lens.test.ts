@@ -1,6 +1,7 @@
 /**
  * PAW expected-net-worth lens — pinned to docs/EDGE_CASES.md §PAW.
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
@@ -122,6 +123,13 @@ describe('PAW copy honesty', () => {
     expect(text).toMatch(/not a recommendation to save more or spend more/);
     expect(text).not.toMatch(/\bPAW\b|\bUAW\b|prodigious|under-accumul/i);
     expect(text).not.toMatch(/this card|\bbelow\b/i);
+  });
+
+  it('test_regression__paw_lens_does_not_block_accounts_list_on_coach', () => {
+    const src = readFileSync('src/app/(app)/accounts/page.tsx', 'utf8');
+    expect(src).not.toMatch(/getCoachData/);
+    expect(src).not.toMatch(/PawLensCard/);
+    expect(src).not.toMatch(/paw-lens/);
   });
 
   it('test_regression__paw_lens_names_fi_card_income_window', () => {

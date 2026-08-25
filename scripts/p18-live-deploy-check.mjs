@@ -2,7 +2,7 @@
  * Node type: live-probe (GRAPH.md §6 — proves one shipped claim against production).
  * Deploy proof for the PAW expected-NW lens (DECISIONS #518), run against PRODUCTION.
  *
- * /accounts is auth-gated. Signs into the shared demo and checks the tile:
+ * /dashboard is auth-gated. Signs into the shared demo and checks the tile:
  * demo has income and no stored age, so the idle sentence is the anti-vacuous marker.
  *
  *   node scripts/p18-live-deploy-check.mjs
@@ -37,9 +37,9 @@ try {
   await signInDemo();
   check('signed into the shared demo on production', true, BASE);
 
-  await page.goto(`${BASE}/accounts`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${BASE}/dashboard`, { waitUntil: 'domcontentloaded' });
   await page.getByTestId('paw-lens-card').waitFor({ state: 'visible', timeout: 30_000 });
-  check('accounts has paw-lens-card', true);
+  check('dashboard has paw-lens-card', true);
 
   const idle = ((await page.getByTestId('paw-lens-idle').textContent()) ?? '').trim();
   check('demo idle names the age × income ÷ 10 formula', /age × yearly income ÷ 10/.test(idle), idle.slice(0, 160));

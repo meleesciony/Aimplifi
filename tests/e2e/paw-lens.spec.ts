@@ -1,20 +1,18 @@
 /**
- * Expected-net-worth lens on /accounts (DECISIONS #518).
+ * Expected-net-worth lens on /dashboard (DECISIONS #518).
  * Demo has income and net worth, no stored age — idle is the anti-vacuous marker.
+ * /accounts is not the host: getCoachData throws with zero accounts, and that
+ * page is the first-run add-asset surface.
  */
 import { expect, test } from './helpers/test';
 
-test('Accounts: expected-NW lens starts idle and compares after an age is set', async ({
+test('Dashboard: expected-NW lens starts idle and compares after an age is set', async ({
   page,
 }) => {
   await page.goto('/');
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
-  await expect(page.getByTestId('paw-lens-card')).toBeVisible();
-  await expect(page.getByTestId('paw-lens-idle')).toContainText('not a grade');
-
-  await page.goto('/accounts');
-  await expect(page.getByTestId('accounts-net-worth')).toBeVisible();
+  await expect(page.getByTestId('net-worth-card')).toBeVisible();
   await expect(page.getByTestId('paw-lens-card')).toBeVisible();
   const idle = page.getByTestId('paw-lens-idle');
   await expect(idle).toContainText('age × yearly income ÷ 10');

@@ -8,8 +8,6 @@ import { getAccountSharingView } from '@/server/household';
 import { loadMortgageCandidates } from '@/server/mortgage';
 import { pickMortgageForEarlyPayoff } from '@/lib/engine/debt/mortgage-early-payoff';
 import { MortgageEarlyPayoffCard } from '@/components/finance/mortgage-early-payoff-card';
-import { PawLensCard } from '@/components/finance/paw-lens-card';
-import { getCoachData } from '@/server/coach';
 
 export const metadata = { title: "Accounts" };
 
@@ -29,12 +27,11 @@ export default async function AccountsPage({
   const detailParam = Array.isArray(sp.detail) ? (sp.detail[0] ?? '') : (sp.detail ?? '');
   // Sharing is a SEPARATE query path from getAccountsView (#192/T9): partner
   // rows must never enter the duplicate detector's input set.
-  const [data, sharing, detail, mortgages, coach] = await Promise.all([
+  const [data, sharing, detail, mortgages] = await Promise.all([
     getAccountsView(session.user.id),
     getAccountSharingView(),
     detailParam ? getAccountDetail(session.user.id, detailParam) : Promise.resolve(null),
     loadMortgageCandidates(session.user.id),
-    getCoachData(session.user.id),
   ]);
   const mortgagePick = pickMortgageForEarlyPayoff(mortgages);
 
@@ -54,12 +51,9 @@ export default async function AccountsPage({
       <AccountsList data={data} detail={detail} />
       {/* After the list, not inside the net-worth / row pair: a card in the
           middle of a hit-tested page hides the first target behind the 380px
-          nav (#516 category-bar timeout). */}
-      <PawLensCard
-        netWorthCents={data.netWorthCents}
-        monthlyIncomeCents={coach.fi.monthlyIncomeCents}
-        incomeWindowMonths={coach.fi.monthlySavingsMonths}
-      />
+          nav (#516 category-bar timeout). Expected-NW lives on mine-scope
+          /dashboard — the coach loader throws with zero accounts, and this
+          page is the first-run add-asset surface. */}
       <MortgageEarlyPayoffCard pick={mortgagePick} />
       {/* Household members only — solo and demo users render nothing here (T6). */}
       {sharing.kind === 'member' && <HouseholdSharingCard view={sharing} />}

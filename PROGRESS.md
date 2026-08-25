@@ -7,11 +7,12 @@
 **Picked up.** Owner: "consume all readme files and continue."
 #517 closed. Ranked next: PAW expected-NW lens.
 
-**Closed (engine + /accounts + mine-scope /dashboard).**
+**Closed (engine + mine-scope /dashboard).**
 `age × yearly income ÷ 10` vs on-file net worth. Yearly income is
 the FI card's monthly average × 12. Unknown age/income is not $0
-expected. Household dashboard omitted (two sets). Age not stored.
-Ask deferred. Demo idle.
+expected. Household dashboard omitted (two sets). Not on /accounts
+(`getCoachData` throws with zero accounts). Age not stored. Ask
+deferred. Demo idle.
 
 **Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.**
 

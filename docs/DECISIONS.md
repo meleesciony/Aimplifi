@@ -9321,11 +9321,12 @@ monthly income.
 the FI card's monthly average × 12. Age 0 / unset and income ≤ 0
 produce no expected figure (unknown is not $0). Near = |actual −
 expected| / expected ≤ 10% inclusive. Bands are above / near / under
-— never PAW/UAW labels. `/accounts` card after the list; `/dashboard`
-after `NetWorthCard` only when scope is `mine` (household net worth
-must not mix with personal FI income). Age slider is client-only, not
-stored. Copy names the income window and that age is chosen, not a
-date of birth. Ask deferred. No schema change.
+— never PAW/UAW labels. `/dashboard` after `NetWorthCard` only when scope is `mine`
+(household net worth must not mix with personal FI income). Not on
+`/accounts`: `getCoachData` throws with zero accounts, and that page
+is the first-run add-asset surface (CI `add-asset-btn`). Age slider
+is client-only, not stored. Copy names the income window and that age
+is chosen, not a date of birth. Ask deferred. No schema change.
 
 **Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.** Residual P2s:
 `getCoachData` over-fetch on /accounts; slider `aria-valuetext` at 0

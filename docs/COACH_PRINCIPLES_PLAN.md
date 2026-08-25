@@ -81,8 +81,8 @@ today's money, Ask deferred); Reports interest & fees YTD SHIPPED #516
 (/reports tile; four leaves; demo empty; Ask deferred); mortgage
 early-payoff SHIPPED #517 (/accounts extra-principal calculator;
 demo empty; Ask deferred); PAW expected-NW lens SHIPPED #518
-(/accounts + mine-scope /dashboard; FI-card income × 12; age not
-stored; Ask deferred).
+(mine-scope /dashboard; FI-card income × 12; age not stored; Ask
+deferred).
 
 ---
 
