@@ -35,7 +35,13 @@ phase3-coach e2e.
 + 1 expected fail + 1 skipped / 462 files + 1 skipped**. E2E phase3-coach
 1/1. No `prisma/` diff.
 
-**Gate read.** pending push.
+**Gate read.** Pushed `6dda7ed6` to `origin/main`. GitHub Actions
+`verify` = **SUCCESS** (run **32866291224**, first attempt, 13m41s).
+Vercel production `dpl_s4hLu1aadKH8rcq7j9mTCvn2PWUB` READY on sha
+`6dda7ed6`, aliased to www.aimplifi.app. Live proof
+`node scripts/p15-live-deploy-check.mjs` → **17/17 PASS**:
+`investing-ladder-card` on /coach; `$142,000.00`; golden `$68,822.18`;
+`$118.33 a month`; grow-then-deflate; lens-not-a-rule summary; no tickers.
 
 ---
 

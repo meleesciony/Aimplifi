@@ -23,6 +23,11 @@ expected fail + 1 skipped / 462 files + 1 skipped**. E2E phase3-coach
 1/1 (investing-ladder-card + $68,822.18 + $118.33/mo + grow-then-deflate).
 No `prisma/` diff.
 
+**Gate read.** Pushed `6dda7ed6`. CI run **32866291224** = SUCCESS
+(13m41s, first attempt). Vercel `dpl_s4hLu1aadKH8rcq7j9mTCvn2PWUB`
+READY on that sha. Live proof **17/17 PASS**
+(`scripts/p15-live-deploy-check.mjs`).
+
 **Next.** Reports interest & fees YTD; mortgage early-payoff; PAW.
 Wave 0 ops remain owner-blocked.
 
