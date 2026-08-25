@@ -22,7 +22,10 @@ probes tsc 0, eslint 0, `next build` clean). Unit **7,585 passed + 1
 expected fail + 1 skipped / 460 files + 1 skipped**. E2E phase3-coach
 1/1 (income-lever slider + $10k sooner + idle at $0). No `prisma/` diff.
 
-**Gate read.** (this push)
+**Gate read.** Pushed `12767fff`. CI run **32853208505** = SUCCESS
+(14m53s, first attempt). Vercel `dpl_FbPCBtWKEJfaShGqZQu15FZJBjmk`
+READY on that sha. Live proof **13/13 PASS**
+(`scripts/p14-live-deploy-check.mjs`).
 
 **Next.** P1.5 investing ladder / fee-drag; Reports interest & fees YTD;
 mortgage early-payoff; PAW. Wave 0 ops remain owner-blocked.

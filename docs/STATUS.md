@@ -35,7 +35,13 @@ phase3-coach e2e.
 + 1 expected fail + 1 skipped / 460 files + 1 skipped**. E2E phase3-coach
 1/1. No `prisma/` diff.
 
-**Gate read.** (this push)
+**Gate read.** Pushed `12767fff` to `origin/main`. GitHub Actions
+`verify` = **SUCCESS** (run **32853208505**, first attempt, 14m53s).
+Vercel production `dpl_FbPCBtWKEJfaShGqZQu15FZJBjmk` READY on sha
+`12767fff`, aliased to www.aimplifi.app. Live proof
+`node scripts/p14-live-deploy-check.mjs` → **13/13 PASS**:
+`income-lever-slider` on /coach; default `$10,000.00/yr`; 6-month
+average 23.4%; **20 months sooner**; rate-share extra named; idle at $0.
 
 ---
 
