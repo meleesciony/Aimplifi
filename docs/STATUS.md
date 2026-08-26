@@ -41,6 +41,14 @@ idle-cash e2e.
 passed + 1 expected fail + 1 skipped / 471 files + 1 skipped**.
 E2E idle-cash 1/1. No `prisma/` diff.
 
+**Gate read.** Pushed `958d449b` to `origin/main`. GitHub Actions
+`verify` = **SUCCESS** (run **32994917230**, first attempt, 13m9s).
+Vercel production `dpl_CzovDyrTBqCFR6UR6nVJcf1nJj8p` READY on that sha,
+aliased to www.aimplifi.app. Live proof
+`node scripts/p19-live-deploy-check.mjs` → **11/11 PASS**:
+`idle-cash-card` on /dashboard; title is the lens name; demo idle
+names the 6-month cushion and runway expense basis; no HYSA lecture.
+
 ---
 
 ## ✅ BUILT 2026-08-25 — PAW expected-net-worth lens (DECISIONS #518)
