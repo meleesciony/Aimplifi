@@ -9468,3 +9468,39 @@ fees are a leak). Gating the tile on Coast FI (hides a true spend
 fact). A $0.00 row inside spending-by-category (a zero is a claim).
 Rebuilding C11 (already on /accounts).
 
+---
+
+## #521 — C14 Giving goal preset on /goals (2026-08-26)
+
+**Context.** COACH_PRINCIPLES_PLAN leftover after #520: a Giving
+goal preset on `/goals`. C14's Coast-FI "past enough" framing
+shipped as #503; the spend fact shipped as #520. What remained was
+a named starting point for a savings envelope, not a tithe.
+
+**Decision.** Pure `goalPresetFields` in
+`src/lib/engine/goals/presets.ts`. A preset is a **name**, never an
+amount — `GoalPresetFields` has `name` only. Chip on the existing
+`GoalForm` fills `Giving`; the reader types the dollars on the
+unchanged `createGoal` path (`kind` null). Copy through
+`COACH_COPY` (intro, label, hint). Hint names Gifts and Charity &
+Donations via `GIVING_CATEGORY_LABELS`. No 10% of income, no tithe
+band, no Coast-FI gate (that language stays on the FI card, same as
+#520). Live probe fills the name and does **not** submit — the demo
+row is shared. College/education deferred (same form, later slice).
+Ask deferred. No schema change.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1** (e2e `[data-testid^="goal-"]`
+also matched the chip and hint, so create+delete could not lock).
+Locator scoped to `goals-list` + exact heading; intro no longer
+claims a catalog; focus moves to the empty target; hint associated
+via `aria-describedby`. **Cycle 2 PASS — 0 P0, 0 P1.** Residual
+P2s: ungated vs Conflict C; savings-envelope FI-delay; duplicate
+names; placeholder 10000; intro fragment; fill not announced.
+
+**Alternatives rejected.** Inventing a yearly target from Giving YTD
+/ 12 (turns a spend fact into a recommended amount — the opposite of
+#520). A `kind: 'giving'` or reserve (this slice is a starting name
+on the existing savings path). Gating the chip on Coast FI (hides a
+starting name the way gating YTD hid a spend fact). Auto-submitting
+the chip (a zero is a claim). College in the same slice (one job).
+

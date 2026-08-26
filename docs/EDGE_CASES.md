@@ -3185,3 +3185,20 @@ No 30-year illustration: giving is a dial, not a leak. Engine:
 | GY4 | gifts **$100** + custom Giving-group row **$900** | given **$100.00** (10,000¢) — the group is not the figure |
 | GY5 | gifts **$100**; charity net ≤ 0 (absent from breakdown) | given **$100.00**; contributing `['gifts']` |
 | GY6 | today **2026-06-10** | window `{ fromYm: '2026-01', toYm: '2026-06', asOf: '2026-06-10' }` |
+
+---
+
+## §Giving goal preset (Goals — COACH_PRINCIPLES_PLAN C14)
+
+A preset on `/goals` is a **name**, never an amount. The reader types
+the dollars; `createGoal` stays the ordinary savings write path
+(`kind` null). No 10% of income, no tithe band, no Coast-FI gate
+(that framing stays on the FI card). Engine:
+`src/lib/engine/goals/presets.ts`. College/education is a sibling
+plan item, not this slice.
+
+| # | Inputs | Expected |
+|---|--------|----------|
+| GP1 | id `giving` | `{ name: 'Giving' }` — keys are `name` only |
+| GP2 | unknown id | `null` — does not invent a name |
+| GP3 | identity | `GIVING_GOAL_PRESET.name === 'Giving'`; label copy is that same string |

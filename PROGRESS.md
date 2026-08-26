@@ -2,6 +2,36 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-26 — C14 Giving goal preset on /goals (DECISIONS #521)
+
+**Picked up.** Owner: "continue." #520 closed. Ranked next was the
+Giving goal preset leftover of C14.
+
+**Closed (engine + /goals form).** A preset is a name, never an
+amount. Chip fills `Giving`; the reader types the dollars on the
+existing `createGoal` path (`kind` null). No 10%, no tithe, no
+Coast-FI gate (that framing stays on the FI card). College/education
+deferred. Ask deferred. Live probe does not submit (shared demo).
+
+**Critic (fresh context): cycle 1 FAIL 1 P1** (e2e locator also
+matched the chip/hint; create+delete could not lock). Locator scoped
+to `goals-list` + exact heading. Intro no longer claims a catalog.
+Focus moves to the empty target. Hint uses taxonomy labels.
+**Cycle 2 PASS — 0 P0, 0 P1.** Residual P2s: ungated vs Conflict C;
+savings-envelope FI-delay; duplicate names; placeholder 10000;
+intro fragment; fill not announced.
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN
+(tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **7,821
+passed + 1 expected fail + 1 skipped / 474 files + 1 skipped**.
+E2E giving-goal-preset 1/1 after a fresh `next build`. No `prisma/`
+diff.
+
+**Gate read.** Pending push.
+
+**Next.** College/education goal preset. Wave 0 ops remain
+owner-blocked. Match % still uncollected.
+
 ## 2026-08-26 — C14 Giving YTD on /reports (DECISIONS #520)
 
 **Picked up.** Owner: "consume all readme files and continue to build."

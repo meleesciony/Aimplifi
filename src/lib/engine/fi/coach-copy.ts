@@ -23,6 +23,7 @@ import {
   GIVING_CATEGORY_LABELS,
   type GivingYtd,
 } from '@/lib/engine/reports/giving-ytd';
+import { GIVING_GOAL_PRESET } from '@/lib/engine/goals/presets';
 import type {
   MortgageEarlyPayoff,
   MortgageMissingTerm,
@@ -1416,6 +1417,15 @@ export const COACH_COPY = {
   },
   givingYtdEmpty: (year: number) =>
     `No spend is filed in Gifts or Charity & Donations so far in ${year}, so there is no giving figure to show. When there is spend in those two categories, this figure counts it — a category with no spend so far adds nothing.`,
+
+  // /goals — Giving envelope preset (C14 leftover after #520). A NAME,
+  // never an amount. The reader types the dollars. No 10% band. Coast-FI
+  // language stays on the FI card. Label is the engine's name so the chip
+  // and the submitted Goal.name cannot drift.
+  givingGoalPresetIntro: () => `A starting name`,
+  givingGoalPresetLabel: () => GIVING_GOAL_PRESET.name,
+  givingGoalPresetHint: () =>
+    `Start with the name ${GIVING_GOAL_PRESET.name}. You type the dollars — this is not a recommended amount. A savings envelope for ${GIVING_CATEGORY_LABELS.gifts} and ${GIVING_CATEGORY_LABELS.charity}. A lens, not a grade.`,
 
   // Mortgage extra-principal what-if (C9 Conflict B). Calculator, not a
   // nudge. Mortgages stay out of the consumer-debt planner on purpose.

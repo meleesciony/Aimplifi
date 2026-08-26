@@ -33,8 +33,9 @@ adapted 3-bucket lens (book's 4th investing % is the honest fold). C16
 **SUPERSEDED** (app-authored rules card, not a Settings freeform list).
 C10 **SHIPPED** (P1.5 ladder + fee-drag + don't-time-it; P2.1 volatility;
 idle-cash note #519). C12 **SHIPPED** #518 (expected-NW lens). C2 / C5 /
-C13 **PARTIAL**. C14 **PARTIAL** (past-enough #503 + Giving YTD
-#520 shipped; Giving goal preset still open).
+C13 **PARTIAL**. C14 **SHIPPED** (past-enough #503 + Giving YTD
+#520 + Giving goal preset #521). College/education goal preset
+still open on /goals (C1/C6).
 
 **P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.5, P1.1, P1.2, P1.4, P1.6, P2.1,
 P2.2, P2.4, P2.5. PARTIAL: P0.4 (3 buckets + Ask #499). SUPERSEDED: P2.3
@@ -86,8 +87,9 @@ demo empty; Ask deferred); PAW expected-NW lens SHIPPED #518
 deferred); idle-cash note SHIPPED #519 (/dashboard; 6-month cushion;
 same liquid + expenses as runway; no invented yield; Ask deferred);
 Giving YTD SHIPPED #520 (/reports tile; gifts + charity leaves only;
-demo empty; no opportunity-cost illustration; Ask deferred; Giving
-goal preset still open).
+demo empty; no opportunity-cost illustration; Ask deferred);
+Giving goal preset SHIPPED #521 (/goals chip; name only; reader
+types the dollars; no 10%/tithe/Coast gate; College deferred).
 
 ---
 

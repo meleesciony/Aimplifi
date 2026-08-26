@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button';
 import { createGoal, type GoalFormResult } from '@/server/goal-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import { GIVING_GOAL_PRESET_ID, goalPresetFields } from '@/lib/engine/goals/presets';
 
 const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreground';
 
@@ -35,9 +37,18 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 
 export function GoalForm() {
   const formRef = useRef<HTMLFormElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const targetRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<GoalFormResult | null>(null);
   const [serial, setSerial] = useState(0);
+
+  function applyGivingPreset() {
+    const fields = goalPresetFields(GIVING_GOAL_PRESET_ID);
+    if (!fields || !nameRef.current) return;
+    nameRef.current.value = fields.name;
+    targetRef.current?.focus();
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -68,10 +79,33 @@ export function GoalForm() {
   const err = result?.errors;
   return (
     <form ref={formRef} onSubmit={onSubmit} className="space-y-2" data-testid="goal-form">
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground">{COACH_COPY.givingGoalPresetIntro()}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid="goal-preset-giving"
+            aria-describedby="goal-preset-giving-hint"
+            onClick={applyGivingPreset}
+          >
+            {COACH_COPY.givingGoalPresetLabel()}
+          </Button>
+        </div>
+        <p
+          id="goal-preset-giving-hint"
+          className="text-xs text-muted-foreground"
+          data-testid="goal-preset-giving-hint"
+        >
+          {COACH_COPY.givingGoalPresetHint()}
+        </p>
+      </div>
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Name
           <input
+            ref={nameRef}
             name="name"
             required
             aria-invalid={err?.name ? true : undefined}
@@ -83,6 +117,7 @@ export function GoalForm() {
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Target $
           <input
+            ref={targetRef}
             name="target"
             required
             inputMode="decimal"

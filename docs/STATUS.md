@@ -9,6 +9,37 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-26 — C14 Giving goal preset on /goals (DECISIONS #521)
+
+**The report.** C14 leftover after #520: a Giving starting name on
+/goals — a preset, not a tithe and not a Coast-gated nudge.
+
+**Shipped.** `goalPresetFields` in `src/lib/engine/goals/presets.ts`.
+Name only (`Giving`). `/goals` chip `data-testid="goal-preset-giving"`
+fills the name; target and monthly stay blank. `createGoal` unchanged
+(`kind` null). Copy through `COACH_COPY`. Live probe does not submit.
+College/education deferred. Ask deferred. Demo seed has no Giving row.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1; cycle 2 PASS — 0 P0,
+0 P1.** Residual P2s: ungated vs Conflict C; savings-envelope
+FI-delay; duplicate names; placeholder 10000; intro fragment; fill
+not announced.
+
+**Still open.** College/education goal preset. Match % still
+uncollected. Wave 0 ops remain owner-blocked.
+
+**Locked.** `giving-goal-preset.test.ts` (EDGE GP1–GP3);
+`test_regression__giving_goal_preset_does_not_invent_an_amount`;
+`test_regression__giving_goal_preset_is_a_lens_not_a_grade`;
+`test_regression__giving_goal_preset_intro_does_not_claim_a_catalog`;
+giving-goal-preset e2e.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,821
+passed + 1 expected fail + 1 skipped / 474 files + 1 skipped**.
+E2E giving-goal-preset 1/1. No `prisma/` diff.
+
+**Gate read.** Pending push.
+
 ## ✅ BUILT 2026-08-26 — C14 Giving YTD on /reports (DECISIONS #520)
 
 **The report.** C11 was already shipped (#99). C14 leftover: surface
