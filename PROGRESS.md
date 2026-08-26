@@ -32,6 +32,14 @@ typed name (unchanged #521 behaviour); both hints always render.
 passed + 1 expected fail + 1 skipped / 475 files + 1 skipped**. E2E
 education 1/1 and giving 1/1. No `prisma/` diff.
 
+**Gate read.** Pushed `a589ee21`. CI run **33024387295** = SUCCESS
+(~13m51s, first attempt). Vercel `dpl_BcAJZhE7D1bk8kVcGS646Km8GSdv`
+Ready on that sha. Live proof **28/28 PASS**
+(`scripts/p21-live-deploy-check.mjs`) — the education chip does not
+exist in any earlier build, so the probe passing is what proves the
+deploy carries this commit. `ci-status.sh` still cannot find `gh` on
+the Git bash PATH (same as #521); used `gh run watch` + `gh run view`.
+
 **Next.** C14 is closed. C2 / C5 / C13 remain partial. Wave 0 ops
 remain owner-blocked. Match % still uncollected.
 

@@ -66,7 +66,20 @@ expected fail + 1 skipped / 475 files + 1 skipped**. E2E
 education-goal-preset 1/1 and giving-goal-preset 1/1 (the shipped one,
 unbroken). No `prisma/` diff.
 
-**Gate read.** PENDING — push, CI conclusion, Vercel READY, live proof.
+**Gate read.** Pushed `a589ee21` to `origin/main`. GitHub Actions
+`verify` = **SUCCESS** (run **33024387295**, first attempt, ~13m51s).
+Vercel production `dpl_BcAJZhE7D1bk8kVcGS646Km8GSdv` **Ready** on that
+sha, aliased to www.aimplifi.app. Live proof
+`node scripts/p21-live-deploy-check.mjs` → **28/28 PASS**:
+`goal-preset-education` on /goals; chip labelled Education and fills
+name Education; target and monthly stay blank; hint names Tuition and
+Student Loan, says the reader types the dollars, sends the loan to the
+debt planner; no reports-lens clause, no 529 or tax treatment, no
+retirement ranking, no shame. All 14 Giving checks from #521 still
+pass unchanged, plus its new label lock. Did not submit (shared demo).
+`bash scripts/ci-status.sh` again could not find `gh` on the Git bash
+PATH; the equivalent `gh run watch 33024387295 --exit-status` exited 0
+and `gh run view` confirms `conclusion: success`.
 
 ## ✅ BUILT 2026-08-26 — C14 Giving goal preset on /goals (DECISIONS #521)
 
