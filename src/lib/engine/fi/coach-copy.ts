@@ -23,7 +23,11 @@ import {
   GIVING_CATEGORY_LABELS,
   type GivingYtd,
 } from '@/lib/engine/reports/giving-ytd';
-import { GIVING_GOAL_PRESET } from '@/lib/engine/goals/presets';
+import {
+  EDUCATION_CATEGORY_LABELS,
+  EDUCATION_GOAL_PRESET,
+  GIVING_GOAL_PRESET,
+} from '@/lib/engine/goals/presets';
 import type {
   MortgageEarlyPayoff,
   MortgageMissingTerm,
@@ -1418,14 +1422,25 @@ export const COACH_COPY = {
   givingYtdEmpty: (year: number) =>
     `No spend is filed in Gifts or Charity & Donations so far in ${year}, so there is no giving figure to show. When there is spend in those two categories, this figure counts it — a category with no spend so far adds nothing.`,
 
-  // /goals — Giving envelope preset (C14 leftover after #520). A NAME,
-  // never an amount. The reader types the dollars. No 10% band. Coast-FI
-  // language stays on the FI card. Label is the engine's name so the chip
-  // and the submitted Goal.name cannot drift.
-  givingGoalPresetIntro: () => `A starting name`,
+  // /goals — envelope presets (C14 leftovers after #520). A NAME, never an
+  // amount. The reader types the dollars. No 10% band. Coast-FI language
+  // stays on the FI card. Each label is the engine's own name so the chip
+  // and the submitted Goal.name cannot drift. The intro heads every chip,
+  // so it is not named for one of them.
+  goalPresetIntro: () => `A starting name`,
   givingGoalPresetLabel: () => GIVING_GOAL_PRESET.name,
   givingGoalPresetHint: () =>
     `Start with the name ${GIVING_GOAL_PRESET.name}. You type the dollars — this is not a recommended amount. A savings envelope for ${GIVING_CATEGORY_LABELS.gifts} and ${GIVING_CATEGORY_LABELS.charity}. A lens, not a grade.`,
+
+  // /goals — Education envelope preset (#522, the last C14 leftover). The
+  // "lens, not a grade" clause is Giving's ALONE: /reports renders a giving
+  // figure (#520) and renders no education one, so borrowing the clause here
+  // would describe a surface that does not exist. Names no 529/ESA/tax
+  // treatment and no ordering against retirement. Names the student loan
+  // only to send it to the debt planner.
+  educationGoalPresetLabel: () => EDUCATION_GOAL_PRESET.name,
+  educationGoalPresetHint: () =>
+    `Start with the name ${EDUCATION_GOAL_PRESET.name}. You type the dollars — this is not a recommended amount. A savings envelope for what you expect ${EDUCATION_CATEGORY_LABELS.education} and ${EDUCATION_CATEGORY_LABELS.tuition} to cost. A ${EDUCATION_CATEGORY_LABELS.studentLoan} you already owe is a debt, not this envelope — the debt planner has it.`,
 
   // Mortgage extra-principal what-if (C9 Conflict B). Calculator, not a
   // nudge. Mortgages stay out of the consumer-debt planner on purpose.

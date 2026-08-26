@@ -9,6 +9,65 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-26 — C14 Education goal preset on /goals (DECISIONS #522)
+
+**The report.** The last C14 leftover, deferred by #521. C14 is now
+closed end to end: past-enough #503, the spend fact #520, the Giving
+name #521, the Education name here.
+
+**Shipped.** The single Giving const in
+`src/lib/engine/goals/presets.ts` became an ordered registry
+(`GOAL_PRESETS` / `goalPresetFields`); the contract is unchanged and
+now applies to every preset — `GoalPresetFields` still has `name`
+only, so a preset structurally cannot carry an amount. `/goals`
+renders both chips from the registry
+(`data-testid="goal-preset-education"`). The name is the taxonomy's
+own label (`CATEGORY_BY_ID.get('education')?.name`), not a string
+typed into copy. `createGoal` unchanged (`kind` null).
+
+**What the copy refuses.** No "a lens, not a grade" — that clause is
+Giving's alone, because `/reports` renders a giving figure (#520) and
+no education one; borrowing it would describe a surface the app does
+not have. No 529/ESA/tax treatment/scholarship. No ordering against
+retirement. A student loan is named only to be sent to the debt
+planner, which genuinely owns it. `givingGoalPresetIntro` renamed
+`goalPresetIntro` (it heads every chip); Giving's label, hint,
+testids and `aria-describedby` are byte-identical, because the
+production probe greps four of its phrases.
+
+**Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.** It reproduced
+every gate itself and checked the premise of the biggest refusal
+(that `/reports` has no education figure) rather than taking it.
+**Its one P2 was fixed before ship:** the *rendered* chip label was
+pinned by nothing — swapping the two `label:` entries in the form's
+`PRESET_COPY` renders the Education chip as "Giving" while every
+unit test, both e2e specs and the live probe stay green, since all of
+them read the name *input*, which is filled from the engine registry.
+Now locked by an exact-text assertion on each chip in both specs and
+in the probe (EP6). Residual P3s: a chip click overwrites a typed
+name (shipped #521 behaviour, unchanged); both hints always render,
+so a scanning reader can attach one to the wrong chip.
+
+**Still open.** Wave 0 ops remain owner-blocked. Match % still
+uncollected. C2 / C5 / C13 remain partial.
+
+**Locked.** `education-goal-preset.test.ts` (EDGE EP1–EP5);
+`test_regression__education_goal_preset_does_not_claim_a_reports_lens`;
+`test_regression__education_goal_preset_names_the_student_loan_as_a_debt`;
+`test_regression__education_goal_preset_gives_no_account_or_tax_advice`;
+`test_regression__education_goal_preset_does_not_rank_against_retirement`;
+`test_regression__education_goal_preset_does_not_invent_an_amount`;
+`test_regression__adding_a_preset_does_not_change_the_giving_one`;
+education + giving e2e (EP6 label locks).
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **7,836 passed + 1
+expected fail + 1 skipped / 475 files + 1 skipped**. E2E
+education-goal-preset 1/1 and giving-goal-preset 1/1 (the shipped one,
+unbroken). No `prisma/` diff.
+
+**Gate read.** PENDING — push, CI conclusion, Vercel READY, live proof.
+
 ## ✅ BUILT 2026-08-26 — C14 Giving goal preset on /goals (DECISIONS #521)
 
 **The report.** C14 leftover after #520: a Giving starting name on

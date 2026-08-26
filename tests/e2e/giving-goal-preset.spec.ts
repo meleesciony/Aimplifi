@@ -21,6 +21,8 @@ test('goals: Giving preset fills the name and does not invent dollars', async ({
     'aria-describedby',
     'goal-preset-giving-hint',
   );
+  // The rendered label, not just the fill (critic P2 on #522).
+  await expect(page.getByTestId('goal-preset-giving')).toHaveText('Giving');
   const hint = page.getByTestId('goal-preset-giving-hint');
   await expect(hint).toBeVisible();
   await expect(hint).toContainText('Gifts');

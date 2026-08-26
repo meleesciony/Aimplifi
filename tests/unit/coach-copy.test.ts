@@ -1077,8 +1077,9 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     isProjection: false,
   },
   {
-    label: 'givingGoalPresetIntro',
-    text: COACH_COPY.givingGoalPresetIntro(),
+    // Renamed from `givingGoalPresetIntro` in #522 — it heads every chip.
+    label: 'goalPresetIntro',
+    text: COACH_COPY.goalPresetIntro(),
     isProjection: false,
   },
   {
@@ -1089,6 +1090,16 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   {
     label: 'givingGoalPresetHint',
     text: COACH_COPY.givingGoalPresetHint(),
+    isProjection: false,
+  },
+  {
+    label: 'educationGoalPresetLabel',
+    text: COACH_COPY.educationGoalPresetLabel(),
+    isProjection: false,
+  },
+  {
+    label: 'educationGoalPresetHint',
+    text: COACH_COPY.educationGoalPresetHint(),
     isProjection: false,
   },
   { label: 'mortgageEarlyPayoffTitle', text: COACH_COPY.mortgageEarlyPayoffTitle(), isProjection: false },

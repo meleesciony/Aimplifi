@@ -9504,3 +9504,80 @@ on the existing savings path). Gating the chip on Coast FI (hides a
 starting name the way gating YTD hid a spend fact). Auto-submitting
 the chip (a zero is a claim). College in the same slice (one job).
 
+## #522 — C14 Education goal preset on /goals (2026-08-26)
+
+**Context.** The last COACH_PRINCIPLES_PLAN C14 leftover, deferred by
+#521 ("College/education deferred — same form, later slice"). With
+this, C14 is closed: past-enough framing #503, the spend fact #520,
+the Giving name #521, this.
+
+**Decision.** The single Giving const in
+`src/lib/engine/goals/presets.ts` became an ordered registry
+(`GOAL_PRESETS`, `PRESET_BY_ID`, `goalPresetFields`). The contract is
+unchanged and now applies to every preset: a preset is a **name**,
+never an amount — `GoalPresetFields` still has `name` only, so a
+caller cannot forget an amount was invented. `createGoal` untouched
+(`kind` null).
+
+**The name is `Education`, not `College`,** and it is read from the
+taxonomy (`CATEGORY_BY_ID.get('education')?.name`) rather than typed
+into the copy — same one-author rule as `GIVING_CATEGORY_LABELS`, so
+the chip label, the submitted `Goal.name` and the category cannot
+drift apart. `College` would narrow the envelope to one case (it also
+covers trade school, a certification, the reader's own retraining)
+and would invent a word the taxonomy does not carry.
+
+**What the hint refuses to say, and why each refusal is load-bearing:**
+
+* **No "a lens, not a grade".** That clause is Giving's alone.
+  `/reports` renders a giving figure (#520) and renders **no**
+  education figure — verified in `reports-view.tsx`, which mounts
+  `GivingYtdCard` + `InterestFeesYtdCard` and nothing education-shaped.
+  Borrowing the clause would describe a surface the app does not have,
+  which is rule-1 fabrication in copy rather than in a claim.
+* **No 529, ESA, Coverdell, UTMA/UGMA, tax treatment, scholarship or
+  FAFSA.** The app has no account-recommendation surface and no
+  state-by-state facts to stand on.
+* **No ordering against retirement.** The canon disagrees with itself
+  here (Ramsey puts BS4 before BS5); a preset is a name the reader
+  asked for by clicking, not an ordering the app performed.
+* **A student loan is named only to be excluded** — "a debt, not this
+  envelope — the debt planner has it" — because `loadDebtAccounts`
+  genuinely owns it (LOAN accounts; Plaid `student[]` liabilities map
+  to LOAN), and a reader who files a payoff as savings makes both
+  surfaces lie. `goalPresetFields('student-loan')` is null.
+
+`givingGoalPresetIntro` renamed to **`goalPresetIntro`** — it heads
+every chip, so it is no longer named for one of them. Behaviour
+identical; the #521 lock (the heading must not promise a catalog it
+does not have) survives, repointed. Giving's label, hint, testids and
+`aria-describedby` are byte-identical, because
+`scripts/p21-live-deploy-check.mjs` greps four of its phrases against
+production. No schema change.
+
+**Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.** It reproduced
+tsc / eslint / vitest / both e2e itself, and independently checked the
+premise of the biggest copy refusal (that `/reports` has no education
+figure) rather than accepting it. **Its one P2 was fixed before ship,
+not deferred:** the *rendered* chip label was pinned by nothing —
+swapping the two `label:` entries in the form's `PRESET_COPY` renders
+the Education chip as "Giving" and leaves every unit test, both e2e
+specs and the production probe green, because they all read the name
+*input*, which `applyPreset` fills from the engine registry. That is a
+hole in precisely the no-drift claim this slice sells. Now locked by
+an exact-text assertion on each chip in both e2e specs and in the live
+probe (EDGE_CASES EP6). Residual P3s: a chip click overwrites a
+typed name (shipped #521 behaviour, unchanged); both hints render
+always, so a scanning reader can attach one to the wrong chip.
+
+**Alternatives rejected.** Naming it `College` (narrower than the
+envelope and absent from the taxonomy). Reusing Giving's hint
+wholesale (would claim a reports lens that does not exist). A
+`kind: 'education'` or a 529-shaped account (this slice is a starting
+name on the existing savings path; the app recommends no account).
+Rendering the chip label from `preset.name` directly to kill the drift
+structurally — it would strand the `COACH_COPY` label key outside the
+copy guardrail sweep, so the drift is caught by a test at the rendered
+surface instead. A default target from average tuition (a recommended
+amount, the thing every preset in this family refuses to be).
+

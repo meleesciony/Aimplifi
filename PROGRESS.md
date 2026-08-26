@@ -2,6 +2,39 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-26 — C14 Education goal preset on /goals (DECISIONS #522)
+
+**Picked up.** Owner: "continue." #521 closed and named this as next:
+the College/education leftover. It is the last C14 item.
+
+**Closed (registry + /goals form).** One preset became an ordered
+registry; the contract is unchanged — a preset is a name, never an
+amount. Name is `Education` (the taxonomy's label, read not typed),
+not `College`, which would narrow the envelope and invent a word the
+taxonomy lacks. The hint claims no reports lens (Giving has one, #520;
+education has none), names no 529/tax treatment, ranks nothing against
+retirement, and sends a student loan to the debt planner that owns it.
+Intro renamed `goalPresetIntro` — it heads every chip now. Giving left
+byte-identical: the #521 live probe greps four of its phrases.
+
+**Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.** It reproduced
+all gates itself and verified the reports-lens premise instead of
+accepting it. Its one **P2 was fixed before ship**: the rendered chip
+label was pinned by nothing — swapping the form's two `label:` entries
+renders Education as "Giving" with every test and the probe still
+green, because they all read the name input, which comes from the
+registry. Locked now by exact-text assertions on each chip in both e2e
+specs and the live probe (EP6). Residual P3s: chip click overwrites a
+typed name (unchanged #521 behaviour); both hints always render.
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN
+(tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **7,836
+passed + 1 expected fail + 1 skipped / 475 files + 1 skipped**. E2E
+education 1/1 and giving 1/1. No `prisma/` diff.
+
+**Next.** C14 is closed. C2 / C5 / C13 remain partial. Wave 0 ops
+remain owner-blocked. Match % still uncollected.
+
 ## 2026-08-26 — C14 Giving goal preset on /goals (DECISIONS #521)
 
 **Picked up.** Owner: "continue." #520 closed. Ranked next was the

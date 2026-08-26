@@ -55,7 +55,10 @@ describe('giving goal preset copy', () => {
     expect(hint).toContain(GIVING_CATEGORY_LABELS.charity);
   });
 
+  // Renamed to `goalPresetIntro` in #522 — the intro heads every chip, so it
+  // is no longer named for one of them. The locked behaviour is unchanged: the
+  // heading over the chips may not promise a catalog it does not have.
   it('test_regression__giving_goal_preset_intro_does_not_claim_a_catalog', () => {
-    expect(COACH_COPY.givingGoalPresetIntro()).not.toMatch(/presets?/i);
+    expect(COACH_COPY.goalPresetIntro()).not.toMatch(/presets?/i);
   });
 });

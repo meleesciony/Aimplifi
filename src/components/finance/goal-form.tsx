@@ -22,9 +22,26 @@ import { createGoal, type GoalFormResult } from '@/server/goal-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
-import { GIVING_GOAL_PRESET_ID, goalPresetFields } from '@/lib/engine/goals/presets';
+import { GOAL_PRESETS, type GoalPresetId, goalPresetFields } from '@/lib/engine/goals/presets';
 
 const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreground';
+
+/**
+ * Copy per preset. Typed `Record<GoalPresetId, …>` on purpose: a preset added
+ * to the engine registry without its own sentences is a tsc error here, not a
+ * chip that renders blank. Each hint is written for its own envelope — Giving's
+ * "a lens, not a grade" belongs to Giving alone (see coach-copy.ts).
+ */
+const PRESET_COPY: Record<GoalPresetId, { label: string; hint: string }> = {
+  giving: {
+    label: COACH_COPY.givingGoalPresetLabel(),
+    hint: COACH_COPY.givingGoalPresetHint(),
+  },
+  education: {
+    label: COACH_COPY.educationGoalPresetLabel(),
+    hint: COACH_COPY.educationGoalPresetHint(),
+  },
+};
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
@@ -43,9 +60,11 @@ export function GoalForm() {
   const [result, setResult] = useState<GoalFormResult | null>(null);
   const [serial, setSerial] = useState(0);
 
-  function applyGivingPreset() {
-    const fields = goalPresetFields(GIVING_GOAL_PRESET_ID);
+  function applyPreset(id: GoalPresetId) {
+    const fields = goalPresetFields(id);
     if (!fields || !nameRef.current) return;
+    // Name only. Target and monthly are left exactly as the reader left them —
+    // the preset has no amount to offer and must not clear their typing either.
     nameRef.current.value = fields.name;
     targetRef.current?.focus();
   }
@@ -80,26 +99,32 @@ export function GoalForm() {
   return (
     <form ref={formRef} onSubmit={onSubmit} className="space-y-2" data-testid="goal-form">
       <div className="space-y-1">
-        <p className="text-xs text-muted-foreground">{COACH_COPY.givingGoalPresetIntro()}</p>
+        <p className="text-xs text-muted-foreground">{COACH_COPY.goalPresetIntro()}</p>
         <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            data-testid="goal-preset-giving"
-            aria-describedby="goal-preset-giving-hint"
-            onClick={applyGivingPreset}
-          >
-            {COACH_COPY.givingGoalPresetLabel()}
-          </Button>
+          {GOAL_PRESETS.map((preset) => (
+            <Button
+              key={preset.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid={`goal-preset-${preset.id}`}
+              aria-describedby={`goal-preset-${preset.id}-hint`}
+              onClick={() => applyPreset(preset.id)}
+            >
+              {PRESET_COPY[preset.id].label}
+            </Button>
+          ))}
         </div>
-        <p
-          id="goal-preset-giving-hint"
-          className="text-xs text-muted-foreground"
-          data-testid="goal-preset-giving-hint"
-        >
-          {COACH_COPY.givingGoalPresetHint()}
-        </p>
+        {GOAL_PRESETS.map((preset) => (
+          <p
+            key={preset.id}
+            id={`goal-preset-${preset.id}-hint`}
+            className="text-xs text-muted-foreground"
+            data-testid={`goal-preset-${preset.id}-hint`}
+          >
+            {PRESET_COPY[preset.id].hint}
+          </p>
+        ))}
       </div>
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">

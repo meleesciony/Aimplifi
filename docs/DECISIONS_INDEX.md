@@ -515,3 +515,4 @@ refuses to write if it would drop any number this file already carries.
 - **#519** (Phase ?): Idle cash past a 6-month cushion (2026-08-26)
 - **#520** (Phase ?): C14 Giving YTD on /reports (2026-08-26)
 - **#521** (Phase ?): C14 Giving goal preset on /goals (2026-08-26)
+- **#522** (Phase ?): C14 Education goal preset on /goals (2026-08-26)

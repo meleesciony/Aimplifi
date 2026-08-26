@@ -33,9 +33,9 @@ adapted 3-bucket lens (book's 4th investing % is the honest fold). C16
 **SUPERSEDED** (app-authored rules card, not a Settings freeform list).
 C10 **SHIPPED** (P1.5 ladder + fee-drag + don't-time-it; P2.1 volatility;
 idle-cash note #519). C12 **SHIPPED** #518 (expected-NW lens). C2 / C5 /
-C13 **PARTIAL**. C14 **SHIPPED** (past-enough #503 + Giving YTD
-#520 + Giving goal preset #521). College/education goal preset
-still open on /goals (C1/C6).
+C13 **PARTIAL**. C14 **SHIPPED and CLOSED** (past-enough #503 + Giving
+YTD #520 + Giving goal preset #521 + Education goal preset #522 —
+nothing left open in this cluster).
 
 **P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.5, P1.1, P1.2, P1.4, P1.6, P2.1,
 P2.2, P2.4, P2.5. PARTIAL: P0.4 (3 buckets + Ask #499). SUPERSEDED: P2.3
@@ -127,7 +127,7 @@ Recurring principles are merged into shared clusters; each is attributed to its 
 | **C11** | **Assets vs liabilities / financial education** | Kiyosaki | Buy assets that produce income; understand the difference | **Partial** — `/accounts` splits assets/liabilities, `/investments` tracks holdings; no explicit "what's an asset" education or income-vs-expense framing |
 | **C12** | **Frugality / stealth wealth / PAW vs UAW** | Stanley & Danko | Live below your means; net worth, not income, defines wealth; no Joneses | **Present** (net worth hero, no peer compare, no status nudges) / **Partial** (no expected-net-worth "are you a PAW?" lens) |
 | **C13** | **Define "enough" / your Rich Life / freedom buys time** | Sethi, Housel, Perkins | Decide what rich means to *you*; FI buys back your time | **Partial** — FI number anchors to own expenses; no stated Rich-Life vision, no "time becomes yours" reframe |
-| **C14** | **Give generously / die with zero / memory dividends** | Ramsey (BS7), Perkins | Past "enough," give while alive and spend down for experiences | **Partial** — Coast-FI exists; no "Giving" surfacing, no past-enough framing |
+| **C14** | **Give generously / die with zero / memory dividends** | Ramsey (BS7), Perkins | Past "enough," give while alive and spend down for experiences | **Present** — past-enough framing (#503), Giving YTD on `/reports` (#520), Giving + Education name presets on `/goals` (#521, #522) |
 | **C15** | **Behavior > math / reasonable > rational / 85% solution** | Housel, Ramsey, Sethi | A sustainable plan you'll keep beats an optimal one you'll quit | **Present** — single "one next action", honest "not on track", money-dials tone |
 | **C16** | **Financial wholeness (10 components) / write your rules** | Aliche, Sethi (10 money rules) | A short personal rulebook + a holistic checklist of money areas | **Absent** — no money-rules list, no wholeness checklist |
 
