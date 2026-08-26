@@ -2,6 +2,35 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-26 — C14 Giving YTD on /reports (DECISIONS #520)
+
+**Picked up.** Owner: "consume all readme files and continue to build."
+#519 closed. Ranked next was "C11 assets-vs-liabilities caption or C14
+Giving category." C11 is already shipped (DECISIONS #99 —
+`COACH_COPY.assetsVsLiabilities` on /accounts
+`data-testid="assets-vs-liabilities"`). This slice is the C14 leftover:
+surface Giving on /reports.
+
+**Closed (engine + /reports).** Same spend basis and calendar YTD as
+interest-and-fees. Two system leaves only (`gifts`, `charity`). Null
+when nothing is filed. No opportunity illustration. Empty title is
+the lens name; empty body names the two leaves. Ask deferred. Demo
+empty. C11 left alone (already on /accounts). Giving goal preset
+deferred.
+
+**Critic (fresh context): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0,
+0 P1.**
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN
+(tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **7,809
+passed + 1 expected fail + 1 skipped / 473 files + 1 skipped**.
+E2E reports 1/1. No `prisma/` diff.
+
+**Gate read.** (pending push)
+
+**Next.** Giving goal preset. Wave 0 ops remain owner-blocked.
+Match % still uncollected.
+
 ## 2026-08-26 — Idle cash past a 6-month cushion (DECISIONS #519)
 
 **Picked up.** Owner: "read all required files and continue."

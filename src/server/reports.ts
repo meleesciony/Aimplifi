@@ -43,6 +43,12 @@ import {
   type InterestFeesYtd,
 } from '@/lib/engine/reports/interest-fees-ytd';
 import {
+  givingContributions,
+  givingYtd,
+  givingYtdWindow,
+  type GivingYtd,
+} from '@/lib/engine/reports/giving-ytd';
+import {
   DEFAULT_EXPECTED_RETURN_BPS,
   returnIsAppDefault,
   type DialOwnership,
@@ -150,6 +156,16 @@ export interface ReportsData {
     result: InterestFeesYtd | null;
     dialOwnership: DialOwnership;
     /** The window the paid figure was summed over — Jan of `today`'s year through today. */
+    window: SpendWindow;
+  };
+  /**
+   * Gifts and donations filed in the calendar year through today (DECISIONS #520).
+   * `result` is null when neither Giving leaf has a positive YTD spend —
+   * the view then prints the empty sentence, never a $0.00 gift.
+   */
+  giving: {
+    result: GivingYtd | null;
+    /** Same calendar YTD as `interestFees.window` (locked in unit tests). */
     window: SpendWindow;
   };
 }
@@ -271,9 +287,15 @@ export async function getReports(
   const expectedReturnBps = userRow?.expectedReturnBps ?? DEFAULT_EXPECTED_RETURN_BPS;
   const inflationBps = userRow?.inflationBps ?? RETIREMENT_ASSUMPTIONS.inflationBps;
   const ytdWindow = interestFeeYtdWindow(today);
-  const ytdPaid = interestFeeContributions(
-    spendingByCategory(snap.transactions, ytdWindow, meta, excludedFlowIds, handoverKeys),
+  const ytdBreakdown = spendingByCategory(
+    snap.transactions,
+    ytdWindow,
+    meta,
+    excludedFlowIds,
+    handoverKeys,
   );
+  const ytdPaid = interestFeeContributions(ytdBreakdown);
+  const ytdGiven = givingContributions(ytdBreakdown);
   return {
     ym,
     window,
@@ -298,6 +320,14 @@ export async function getReports(
         inflationIsDefault: userRow?.inflationBps == null,
       },
       window: ytdWindow,
+    },
+    giving: {
+      result: givingYtd({
+        givenYtdCents: ytdGiven.givenYtdCents,
+        year: Number(today.slice(0, 4)),
+        contributingCategoryIds: ytdGiven.contributingCategoryIds,
+      }),
+      window: givingYtdWindow(today),
     },
   };
 }

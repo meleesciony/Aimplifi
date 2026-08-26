@@ -9,6 +9,39 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-26 — C14 Giving YTD on /reports (DECISIONS #520)
+
+**The report.** C11 was already shipped (#99). C14 leftover: surface
+gifts and donations as spending on /reports — a lens, not a Coast-FI
+nudge and not a target.
+
+**Shipped.** `givingYtd` in `src/lib/engine/reports/giving-ytd.ts`.
+Same spend basis and calendar YTD as interest-and-fees. Two system
+leaves only (`gifts`, `charity`). Null when nothing is filed.
+`/reports` `<GivingYtdCard data-testid="giving-ytd-card">` after
+interest-and-fees. No opportunity-cost illustration. Ask deferred.
+Demo empty.
+
+**Critic (fresh context): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0,
+0 P1.** Residual P2s: empty "this figure" phrasing; GY5 is absence
+not a live refund; assembler non-null path; rename vs taxonomy;
+window computed twice; no 380px DOM-order lock.
+
+**Still open.** Giving goal preset. Match % still uncollected.
+Wave 0 ops remain owner-blocked.
+
+**Locked.** `giving-ytd.test.ts` (EDGE GY1–GY6);
+`test_regression__giving_ytd_names_only_the_leaves_in_the_dollars`;
+`test_regression__giving_ytd_does_not_sum_the_giving_group`;
+`test_regression__giving_ytd_does_not_invent_an_opportunity_cost`;
+`test_regression__giving_ytd_empty_title_does_not_claim_already_on_file`;
+`test_regression__giving_ytd_empty_does_not_deny_custom_giving_group_spend`;
+reports e2e.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,809
+passed + 1 expected fail + 1 skipped / 473 files + 1 skipped**.
+E2E reports 1/1. No `prisma/` diff.
+
 ## ✅ BUILT 2026-08-26 — Idle cash past a 6-month cushion (DECISIONS #519)
 
 **The report.** Checking and savings vs a 6-month cash cushion — the

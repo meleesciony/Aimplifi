@@ -32,4 +32,13 @@ test('Reports: income/expense chart + category breakdown render for the demo use
   await expect(page.getByTestId('interest-fees-ytd-empty')).toContainText('ATM Fee');
   await expect(page.getByTestId('interest-fees-ytd-empty')).toContainText('Late Fee');
   await expect(page.getByTestId('interest-fees-ytd-card')).toContainText('Interest & fees so far in 2026');
+
+  await expect(page.getByTestId('giving-ytd-card')).toBeVisible();
+  await expect(page.getByTestId('giving-ytd-empty')).toBeVisible();
+  await expect(page.getByTestId('giving-ytd-empty')).toContainText(
+    'No spend is filed in Gifts or Charity & Donations so far in 2026',
+  );
+  await expect(page.getByTestId('giving-ytd-empty')).toContainText('Gifts');
+  await expect(page.getByTestId('giving-ytd-empty')).toContainText('Charity & Donations');
+  await expect(page.getByTestId('giving-ytd-card')).toContainText('Giving so far in 2026');
 });

@@ -513,3 +513,4 @@ refuses to write if it would drop any number this file already carries.
 - **#517** (Phase ?): Mortgage extra-principal what-if (2026-08-25)
 - **#518** (Phase ?): PAW expected-net-worth lens (2026-08-25)
 - **#519** (Phase ?): Idle cash past a 6-month cushion (2026-08-26)
+- **#520** (Phase ?): C14 Giving YTD on /reports (2026-08-26)

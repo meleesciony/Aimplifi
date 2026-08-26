@@ -1043,6 +1043,39 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     text: COACH_COPY.interestFeesYtdEmpty(2026),
     isProjection: false,
   },
+  {
+    label: 'givingYtdTitle',
+    text: COACH_COPY.givingYtdTitle(2026),
+    isProjection: false,
+  },
+  {
+    label: 'givingYtdSubtitle',
+    text: COACH_COPY.givingYtdSubtitle(),
+    isProjection: false,
+  },
+  {
+    label: 'givingYtd',
+    text: COACH_COPY.givingYtd({
+      givenYtdCents: cents(100_000),
+      year: 2026,
+      contributingCategoryIds: ['gifts', 'charity'],
+    })!,
+    isProjection: false,
+  },
+  {
+    label: 'givingYtd:charityOnly',
+    text: COACH_COPY.givingYtd({
+      givenYtdCents: cents(25_000),
+      year: 2026,
+      contributingCategoryIds: ['charity'],
+    })!,
+    isProjection: false,
+  },
+  {
+    label: 'givingYtdEmpty',
+    text: COACH_COPY.givingYtdEmpty(2026),
+    isProjection: false,
+  },
   { label: 'mortgageEarlyPayoffTitle', text: COACH_COPY.mortgageEarlyPayoffTitle(), isProjection: false },
   { label: 'mortgageEarlyPayoffSubtitle', text: COACH_COPY.mortgageEarlyPayoffSubtitle(), isProjection: false },
   { label: 'mortgageEarlyPayoffEmpty', text: COACH_COPY.mortgageEarlyPayoffEmpty(), isProjection: false },

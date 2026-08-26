@@ -19,6 +19,10 @@ import {
   INTEREST_FEE_CATEGORY_LABELS,
   type InterestFeesYtd,
 } from '@/lib/engine/reports/interest-fees-ytd';
+import {
+  GIVING_CATEGORY_LABELS,
+  type GivingYtd,
+} from '@/lib/engine/reports/giving-ytd';
 import type {
   MortgageEarlyPayoff,
   MortgageMissingTerm,
@@ -1382,6 +1386,36 @@ export const COACH_COPY = {
   },
   interestFeesYtdEmpty: (year: number) =>
     `No interest or fee charges are filed so far in ${year}, so there is no cost-of-charges figure to show. This figure counts Fees & Charges, Interest & Finance Charges, ATM Fee, and Late Fee — a category with no charge so far adds nothing.`,
+
+  // Reports — Giving YTD (C14). Filed gifts and donations, a lens, never
+  // a target. No opportunity-cost illustration (that would frame giving
+  // as a leak). No tithe band. Coast-FI "past enough" language stays on
+  // the FI card — this tile is the spend fact, available to everyone.
+  givingYtdTitle: (year: number) => `Giving so far in ${year}`,
+  givingYtdSubtitle: () => `A lens, not a grade`,
+  givingYtd: (row: GivingYtd): string | null => {
+    if (row.givenYtdCents <= 0) return null;
+    const given = formatCents(row.givenYtdCents);
+    const year = String(row.year);
+    const labels = row.contributingCategoryIds.map((id) => GIVING_CATEGORY_LABELS[id]);
+    const named =
+      labels.length === 0
+        ? null
+        : labels.length === 1
+          ? labels[0]
+          : `${labels[0]} and ${labels[1]}`;
+    const fact =
+      named && labels.length === 1
+        ? `${named} on file comes to ${given} so far in ${year}.`
+        : named
+          ? `${named} on file come to ${given} so far in ${year}.`
+          : `Gifts and donations on file come to ${given} so far in ${year}.`;
+    const basis =
+      ' This figure counts Gifts and Charity & Donations — a category with no spend so far adds nothing.';
+    return `${fact}${basis} A lens on what is already filed, not a target.`;
+  },
+  givingYtdEmpty: (year: number) =>
+    `No spend is filed in Gifts or Charity & Donations so far in ${year}, so there is no giving figure to show. When there is spend in those two categories, this figure counts it — a category with no spend so far adds nothing.`,
 
   // Mortgage extra-principal what-if (C9 Conflict B). Calculator, not a
   // nudge. Mortgages stay out of the consumer-debt planner on purpose.

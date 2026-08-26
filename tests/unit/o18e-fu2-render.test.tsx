@@ -92,6 +92,10 @@ const reportsFigureless = (exclusions = true): ReportsData => ({
     dialOwnership: { returnIsDefault: true, inflationIsDefault: true },
     window: { fromYm: '2026-01', toYm: '2026-06', asOf: '2026-06-10' },
   },
+  giving: {
+    result: null,
+    window: { fromYm: '2026-01', toYm: '2026-06', asOf: '2026-06-10' },
+  },
 });
 
 // The with-figure shape — the FU2 fixtures' mirror (critic P2-2): the same

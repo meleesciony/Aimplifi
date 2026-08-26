@@ -9429,3 +9429,42 @@ slices). Demo: 45 months later on $142k brokerage at 4.5% real.
 (that is W.1). A second behavioral-only paragraph (already have
 `volatilityPrice`). Ask routing this slice (engine + /coach first).
 
+---
+
+## #520 — C14 Giving YTD on /reports (2026-08-26)
+
+**Context.** COACH_PRINCIPLES_PLAN leftover after #519: surface a
+Giving category on reports. C11 assets-vs-liabilities is already
+shipped (#99 — caption on /accounts). C14's Coast-FI "past enough"
+framing shipped as #503. What remained was making gifts and
+donations visible as spending, not a Coast-gated nudge.
+
+**Decision.** Pure `givingYtd` in `src/lib/engine/reports/giving-ytd.ts`.
+Same spend basis and calendar YTD window as interest-and-fees
+(`givingYtdWindow === interestFeeYtdWindow`). Two system leaves only
+(`gifts`, `charity`) — a custom row in the Giving group is not the
+figure. Null when nothing is filed (empty sentence, never $0.00
+given). Copy names only the contributing leaves. No 30-year
+opportunity illustration (that would frame giving as a leak). No
+tithe band, no "you should give." Coast-FI language stays on the FI
+card. `/reports` after the interest-and-fees tile (not between the
+chart and the category list — #516's mobile-nav lesson). Ask
+deferred. Demo empty. No schema change. Giving goal preset left
+for a later slice.
+
+**Critic (fresh context): cycle 1 FAIL 2 P1** (empty title claimed
+gifts already on file; empty body denied a custom Giving-group
+donation). Empty subtitle is now "A lens, not a grade"; empty body
+names the two leaves. "give more or less" dropped (P2). Dollars
+unchanged. **Cycle 2 PASS — 0 P0, 0 P1.** Residual P2s: empty
+"this figure" phrasing; GY5 is absence not a live refund;
+assembler non-null path; rename vs taxonomy labels; window
+computed twice; no 380px DOM-order lock.
+
+**Alternatives rejected.** Summing the Giving group (a custom
+category would silently join the dollars). A 30-year "if invested"
+illustration (shame-adjacent; the fee tile earned that because
+fees are a leak). Gating the tile on Coast FI (hides a true spend
+fact). A $0.00 row inside spending-by-category (a zero is a claim).
+Rebuilding C11 (already on /accounts).
+

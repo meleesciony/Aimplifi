@@ -286,6 +286,10 @@ describe('C.26 — /reports itself, the surface the finding is about (critic cyc
       dialOwnership: { returnIsDefault: true, inflationIsDefault: true },
       window: { fromYm: '2026-01', toYm: '2026-06', asOf: '2026-06-10' },
     },
+    giving: {
+      result: null,
+      window: { fromYm: '2026-01', toYm: '2026-06', asOf: '2026-06-10' },
+    },
   });
 
   const withheld = { count: 0, currencies: [] as string[] };
