@@ -31,9 +31,9 @@ cuts, Ask intents `what_to_cut` / `fi_status` / `lifestyle_creep` /
 (payoff engine; mortgage extra-principal SHIPPED #517). C6 **SHIPPED** as the
 adapted 3-bucket lens (book's 4th investing % is the honest fold). C16
 **SUPERSEDED** (app-authored rules card, not a Settings freeform list).
-C10 **SHIPPED** (P1.5 ladder + fee-drag + don't-time-it; P2.1 volatility).
-C12 **SHIPPED** #518 (expected-NW lens). C2 / C5 / C13 / C14 still
-**PARTIAL** (named leftovers below).
+C10 **SHIPPED** (P1.5 ladder + fee-drag + don't-time-it; P2.1 volatility;
+idle-cash note #519). C12 **SHIPPED** #518 (expected-NW lens). C2 / C5 /
+C13 / C14 still **PARTIAL** (named leftovers below).
 
 **P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.5, P1.1, P1.2, P1.4, P1.6, P2.1,
 P2.2, P2.4, P2.5. PARTIAL: P0.4 (3 buckets + Ask #499). SUPERSEDED: P2.3
@@ -82,7 +82,8 @@ today's money, Ask deferred); Reports interest & fees YTD SHIPPED #516
 early-payoff SHIPPED #517 (/accounts extra-principal calculator;
 demo empty; Ask deferred); PAW expected-NW lens SHIPPED #518
 (mine-scope /dashboard; FI-card income × 12; age not stored; Ask
-deferred).
+deferred); idle-cash note SHIPPED #519 (/dashboard; 6-month cushion;
+same liquid + expenses as runway; no invented yield; Ask deferred).
 
 ---
 

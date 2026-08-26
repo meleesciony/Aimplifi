@@ -9,6 +9,40 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-26 — Idle cash past a 6-month cushion (DECISIONS #519)
+
+**The report.** Checking and savings vs a 6-month cash cushion — the
+same liquid and last-N expense average the runway figure uses. A lens
+on surplus, not a HYSA calculator and not a grade.
+
+**Shipped.** `idleCash` in `src/lib/engine/fi/idle-cash.ts`. Excess
+named only when liquid is at least one extra month past the cushion.
+Unknown expenses and negative liquid produce no surplus figure.
+Mine-scope `/dashboard` `<IdleCashCard data-testid="idle-cash-card">`
+after expected-NW — not `/accounts`. Ask deferred. Demo idle.
+
+**Critic (fresh context): cycle 1 FAIL 3 P1; cycle 2 FAIL 1 P1;
+cycle 3 PASS — 0 P0, 0 P1.** Residual P2s: rounded 7-month runway
+beside "short of one extra month"; speaking branch has no UI lock.
+
+**Still open.** C11 assets-vs-liabilities caption; C14 Giving
+category. Match % still uncollected. Wave 0 ops remain owner-blocked.
+
+**Locked.** `idle-cash.test.ts` (EDGE IC1–IC7 + IC3b);
+`test_regression__idle_cash_zero_expenses_is_idle_not_a_surplus_claim`;
+`test_regression__idle_cash_names_only_this_liquid_and_does_not_nudge`;
+`test_regression__idle_cash_one_cent_past_cushion_is_idle_not_far`;
+`test_regression__idle_cash_past_cushion_not_far_does_not_say_at_or_under`;
+`test_regression__idle_cash_title_is_a_lens_not_a_surplus_claim`;
+`test_regression__idle_cash_does_not_block_accounts_list_on_coach`;
+idle-cash e2e.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **7,779
+passed + 1 expected fail + 1 skipped / 471 files + 1 skipped**.
+E2E idle-cash 1/1. No `prisma/` diff.
+
+---
+
 ## ✅ BUILT 2026-08-25 — PAW expected-net-worth lens (DECISIONS #518)
 
 **The report.** Age × yearly income ÷ 10 vs the net worth already on

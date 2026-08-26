@@ -2,6 +2,28 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-26 — Idle cash past a 6-month cushion (DECISIONS #519)
+
+**Picked up.** Owner: "read all required files and continue."
+#518 closed. Ranked next: high-yield note when idle cash far exceeds runway.
+
+**Closed (engine + mine-scope /dashboard).** Checking+savings vs a
+6-month cushion (same liquid and last-N expenses as runway). Surplus
+named only when the extra is at least one month of expenses. No
+invented yield. Title is the lens name. Household omitted. Not on
+/accounts. Ask deferred. Demo idle.
+
+**Critic (fresh context): cycle 1 FAIL 3 P1; cycle 2 FAIL 1 P1;
+cycle 3 PASS — 0 P0, 0 P1.**
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN
+(tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **7,779
+passed + 1 expected fail + 1 skipped / 471 files + 1 skipped**.
+E2E idle-cash 1/1. No `prisma/` diff.
+
+**Next.** C11 assets-vs-liabilities caption or C14 Giving category.
+Wave 0 ops remain owner-blocked. Match % still uncollected.
+
 ## 2026-08-25 — PAW expected-NW lens (DECISIONS #518)
 
 **Picked up.** Owner: "consume all readme files and continue."

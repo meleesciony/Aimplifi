@@ -19,6 +19,7 @@ import {
   type DrawdownCounterfactual,
 } from '@/lib/engine/fi/drawdown';
 import { feeDrag, type FeeDrag } from '@/lib/engine/fi/fee-drag';
+import { idleCash, type IdleCash } from '@/lib/engine/fi/idle-cash';
 import { classifyDebts, nextDollar, type NextDollarPlan } from '@/lib/engine/fi/next-dollar';
 import {
   applyCutsToScheduled,
@@ -243,6 +244,11 @@ export interface CoachData {
   streaks: { cardCleared: CardClearedStreakResult; noCreep: NoCreepStreakResult };
   creep: CreepResult;
   runwayMonths: number;
+  /**
+   * C10/C2 — surplus of checking+savings past a 6-month cushion.
+   * Same liquid and expense average as `runwayMonths`. Ask deferred.
+   */
+  idleCash: IdleCash;
   /**
    * W.6(b) — extra-dollar ranking from rates already on file. Always
    * computed (cheap, pure). Employer match / tax-advantaged room are
@@ -504,6 +510,11 @@ export async function getCoachData(
   // documented rounding rule, not Math.round (consistency with monthlySavings above)
   const avgMonthlyExpenses = cents(roundHalfAwayFromZero(expenses6 / Math.max(1, last6.length)));
   const runway = monthsOfRunway(liquid, avgMonthlyExpenses);
+  const idleCashRow = idleCash({
+    liquidCents: liquid,
+    monthlyExpenseCents: avgMonthlyExpenses,
+    expenseWindowMonths: last6.length,
+  });
   // Money Signature (#252) reads ALL flows (the engine drops the partial current
   // month itself and materializes calendar gaps) so the trailing-12-eligible
   // habit window sees the full history, not the 12-month display slice.
@@ -778,6 +789,7 @@ export async function getCoachData(
     streaks,
     creep,
     runwayMonths: runway,
+    idleCash: idleCashRow,
     frozenBalances,
     lifeEnergy,
     hourlyWageCents: wage,

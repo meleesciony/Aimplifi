@@ -23,6 +23,7 @@ import type {
   MortgageEarlyPayoff,
   MortgageMissingTerm,
 } from '@/lib/engine/debt/mortgage-early-payoff';
+import type { IdleCash } from '@/lib/engine/fi/idle-cash';
 import type { PawLens } from '@/lib/engine/networth/paw-lens';
 import type { FulfillmentCategory, FulfillmentCurve } from './fulfillment';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
@@ -1468,6 +1469,56 @@ export const COACH_COPY = {
     }
     const phrase = row.band === 'above' ? 'above' : row.band === 'under' ? 'short of' : 'near';
     return `A common benchmark expects about ${expected} at age ${row.ageYears} × ${annual} ÷ 10. Your net worth of ${nw} is ${phrase} that number.${close}`;
+  },
+
+  // C10 + C2 · idle cash past the classic 6-month cushion. Liquid and
+  // expenses are the runway figure's own inputs. No invented yield.
+  idleCashTitle: () => `Cash vs a 6-month cushion`,
+  idleCashSubtitle: () => `A lens on idle cash, not a recommendation`,
+  idleCashEmpty: (row: IdleCash): string => {
+    const n = Math.max(0, Math.trunc(row.expenseWindowMonths));
+    if (n === 0) {
+      return `No complete month of expenses is on file, so there is no 6-month cash cushion to compare checking and savings against. This note uses the same expense average the runway figure uses. Aimplifi never moves money. Not a recommendation to open an account or invest cash.`;
+    }
+    const window = n === 1 ? 'the last 1 complete month' : `the last ${n} complete months`;
+    return `No average expenses are on file over ${window}, so there is no 6-month cash cushion to compare checking and savings against. This note uses the same expense average the runway figure uses. Aimplifi never moves money. Not a recommendation to open an account or invest cash.`;
+  },
+  idleCashIdle: (row: IdleCash): string => {
+    const n = Math.max(0, Math.trunc(row.expenseWindowMonths));
+    const window =
+      n === 0
+        ? 'no complete month yet'
+        : n === 1
+          ? 'the last 1 complete month'
+          : `the last ${n} complete months`;
+    const liquid = formatCents(cents(row.liquidCents));
+    const cushion =
+      row.cushionCents == null ? null : formatCents(cents(row.cushionCents));
+    const months = Number.isFinite(row.runwayMonths) ? `${row.runwayMonths} months` : null;
+    const pastCushion =
+      row.cushionCents != null && row.liquidCents > row.cushionCents;
+    const cover =
+      row.runwayMonths < 0
+        ? `Checking and savings total ${liquid} — the cash side of the runway is negative, so there is no surplus past a 6-month cash cushion${cushion ? ` of ${cushion}` : ''}.`
+        : pastCushion
+          ? `Checking and savings total ${liquid}${months ? ` — about ${months} of expenses` : ''}, past a 6-month cash cushion${cushion ? ` of ${cushion}` : ''} but short of one extra month of those expenses, so this note does not name a surplus.`
+          : months
+            ? `Checking and savings total ${liquid} — about ${months} of expenses, at or under a 6-month cash cushion${cushion ? ` of ${cushion}` : ''}.`
+            : `Checking and savings total ${liquid}, at or under a 6-month cash cushion${cushion ? ` of ${cushion}` : ''}.`;
+    return `${cover} This note names extra only when checking and savings are at least one month past that cushion. Expenses are ${window} — the same expense average the runway figure uses. Aimplifi never moves money. Not a recommendation to open an account, move money, or invest the difference.`;
+  },
+  idleCash: (row: IdleCash): string | null => {
+    if (row.idle || row.noExpenses || row.excessCents == null || row.cushionCents == null) {
+      return null;
+    }
+    const liquid = formatCents(cents(row.liquidCents));
+    const excess = formatCents(cents(row.excessCents));
+    const cushion = formatCents(cents(row.cushionCents));
+    const n = Math.max(0, Math.trunc(row.expenseWindowMonths));
+    const window =
+      n === 0 ? 'no complete month yet' : n === 1 ? 'the last 1 complete month' : `the last ${n} complete months`;
+    const months = Number.isFinite(row.runwayMonths) ? `${row.runwayMonths} months` : 'the months';
+    return `Checking and savings total ${liquid} — ${excess} past a 6-month cash cushion of ${cushion} (${months} of expenses). Extra is named only when it is at least one month of those expenses. Expenses are ${window} — the same expense average the runway figure uses. Aimplifi never moves money. Not a recommendation to open an account, move money, or invest the difference.`;
   },
 
   // C9 · Ramsey BS4 — a 15% reference point on the savings-rate trend, never a grade.

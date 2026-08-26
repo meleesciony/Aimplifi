@@ -9308,6 +9308,42 @@ link for a YTD figure (C.26).
 
 ---
 
+## #519 — Idle cash past a 6-month cushion (2026-08-26)
+
+**Context.** COACH_PRINCIPLES_PLAN leftover after #518: a high-yield
+note when idle cash far exceeds runway (C10 / C2). Runway already
+divides checking+savings by the last-N expense average. The classic
+6-month ceiling is the same bound Room for error already calls
+"past".
+
+**Decision.** Pure `idleCash` in `src/lib/engine/fi/idle-cash.ts`.
+Cushion = 6 × monthly expenses (integer cents). Excess is named only
+when liquid is at least **one extra month** past that cushion
+("far", not a 1¢ nick). Unknown expenses are not a $0 cushion.
+Negative liquid is idle, not a shortfall this note invents. No
+illustrated yield and no HYSA/checking-yield lecture — we do not
+collect a savings APY. Title is the lens name ("Cash vs a 6-month
+cushion"), never a surplus claim. `/dashboard` after the expected-NW
+card, **mine-scope only** (household net worth is a different set).
+Not on `/accounts` (`getCoachData` throws with zero accounts). Frozen
+checking/savings reuse `frozenTotalNote` with this note's own figure
+label. Ask deferred. No schema change.
+
+**Critic (fresh context): cycle 1 FAIL 3 P1** (HYSA/"pays little"
+lecture; 1¢ surplus fired it; title claimed "past" on idle/empty).
+**Cycle 2 FAIL 1 P1** (idle copy said "at or under" for the new
+past-cushion / not-far band). **Cycle 3 PASS — 0 P0, 0 P1.** Residual
+P2s: rounded 7-month runway beside "short of one extra month";
+speaking branch has no UI lock.
+
+**Alternatives rejected.** A 4% / 30-year opportunity illustration
+(invents a rate and treats cash as invested). Putting the card on
+`/accounts` (repeats #518's add-asset crash). A second liquid or
+expense definition (violates one-question-one-basis). Nudging the
+reader to open a HYSA or invest the difference (advice).
+
+---
+
 ## #518 — PAW expected-net-worth lens (2026-08-25)
 
 **Context.** COACH_PRINCIPLES_PLAN leftover after #517: C12 Stanley &
