@@ -27,7 +27,12 @@ passed + 1 expected fail + 1 skipped / 474 files + 1 skipped**.
 E2E giving-goal-preset 1/1 after a fresh `next build`. No `prisma/`
 diff.
 
-**Gate read.** Pending push.
+**Gate read.** Pushed `54ad51b6`. CI run **33019457590** = SUCCESS
+(~13m25s, first attempt). Vercel `dpl_EqmWqnoFprAUky9NEcvKp3cP7df3`
+READY on that sha. Live proof **14/14 PASS**
+(`scripts/p21-live-deploy-check.mjs`). `bash scripts/ci-status.sh`
+could not find `gh` on the Git bash PATH this session; the
+equivalent `gh run watch 33019457590 --exit-status` was SUCCESS.
 
 **Next.** College/education goal preset. Wave 0 ops remain
 owner-blocked. Match % still uncollected.
