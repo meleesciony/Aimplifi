@@ -26,7 +26,10 @@ deferred.
 passed + 1 expected fail + 1 skipped / 473 files + 1 skipped**.
 E2E reports 1/1. No `prisma/` diff.
 
-**Gate read.** (pending push)
+**Gate read.** Pushed `b3a1bb8e`. CI run **33009312696** = SUCCESS
+(~13m23s, first attempt). Vercel `dpl_5voxdV1BojFqiYJuScnXqGHAdJP1`
+READY on that sha. Live proof **13/13 PASS**
+(`scripts/p20-live-deploy-check.mjs`).
 
 **Next.** Giving goal preset. Wave 0 ops remain owner-blocked.
 Match % still uncollected.

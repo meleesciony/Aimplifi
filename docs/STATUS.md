@@ -42,6 +42,15 @@ reports e2e.
 passed + 1 expected fail + 1 skipped / 473 files + 1 skipped**.
 E2E reports 1/1. No `prisma/` diff.
 
+**Gate read.** Pushed `b3a1bb8e` to `origin/main`. GitHub Actions
+`verify` = **SUCCESS** (run **33009312696**, first attempt, ~13m23s).
+Vercel production `dpl_5voxdV1BojFqiYJuScnXqGHAdJP1` READY on that sha,
+aliased to www.aimplifi.app. Live proof
+`node scripts/p20-live-deploy-check.mjs` → **13/13 PASS**:
+`giving-ytd-card` on /reports; title is the lens name; demo empty
+names Gifts and Charity & Donations; no tithe, target, or
+opportunity-cost lecture.
+
 ## ✅ BUILT 2026-08-26 — Idle cash past a 6-month cushion (DECISIONS #519)
 
 **The report.** Checking and savings vs a 6-month cash cushion — the
