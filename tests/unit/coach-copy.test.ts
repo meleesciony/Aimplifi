@@ -692,6 +692,9 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'runwayBanded:negative', text: COACH_COPY.runwayBanded(-2.3, 'below'), isProjection: false },
   { label: 'runwayBanded:in', text: COACH_COPY.runwayBanded(4.2, 'in'), isProjection: false },
   { label: 'runwayBanded:above', text: COACH_COPY.runwayBanded(9.5, 'above'), isProjection: false },
+  // P.3 — the dashboard-side cushion line. A values/scope statement, not a
+  // figure projection, so isProjection stays false (same rule as pastEnoughCoast).
+  { label: 'cushionLine', text: COACH_COPY.cushionLine(2.1), isProjection: false },
   // W.12 — payoff reframes the headline years; it is not a second projection with its own rate.
   { label: 'freedomDividend', text: COACH_COPY.freedomDividend(17), isProjection: false },
   { label: 'yourEnough', text: COACH_COPY.yourEnough(), isProjection: false },

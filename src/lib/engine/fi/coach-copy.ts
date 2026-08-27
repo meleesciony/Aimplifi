@@ -1106,6 +1106,17 @@ export const COACH_COPY = {
       ? `Room for error: none right now — your cash balance is negative, about ${-months} months of expenses short of zero.`
       : `Room for error: ${months} months of expenses in cash — you're ${band === 'below' ? 'approaching' : band === 'in' ? 'inside' : 'past'} the classic 3–6 month range. The richest feeling money buys is not needing the next paycheck.`,
 
+  // C2+C15 · Housel — the cushion is what stands where no projection sees.
+  // Paired with the radar's projected dip on /dashboard (DECISIONS #523). No
+  // claim about what the projection contains: the card states its own basis
+  // (committed flows + card dues, estimated future statements disclosed), and
+  // a scope clause written here would have to stay true of it (critic P1-1).
+  // The cover transfer above handles the KNOWN dip; this sentence is about
+  // what no forecast sees. Months printed as-is, same convention as
+  // `stayingWealthyRunway` — never rounded, so 1.8 stays 1.8.
+  cushionLine: (months: number) =>
+    `Surprises are what history guarantees — and your ${months}-month cushion is what handles what no forecast sees.`,
+
   // C13 · Housel, Sethi, Perkins — years-to-FI reframed as time bought back (sibling to yearsToFI)
   // W.12 — no rate and no screen position. The rate lived here as "the 4.50% after inflation
   // above", which both restated a figure the basis owns and pointed at a position that moved

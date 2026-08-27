@@ -41,6 +41,16 @@ test('demo dashboard shows the radar heads-up: dip date, colliding cards, minimu
   // Estimated future cycles are disclosed inline (adjudicated condition 3).
   await expect(card).toContainText('includes estimated future statements');
 
+  // P.3 — C2 cushion line: the dip is paired with the reader's own runway
+  // cushion (the demo has a finite positive runway — pinned by the unit test).
+  // The sentence is about what no forecast sees; it must not steal the cover
+  // transfer's job or name the dip its own gate saw.
+  const cushion = page.getByTestId('radar-cushion-line');
+  await expect(cushion).toBeVisible();
+  await expect(cushion).toContainText('history guarantees');
+  await expect(cushion).toContainText('cushion is what handles what no forecast sees');
+  await expect(cushion).not.toContainText('Jun 24');
+
   // Assumptions are one tap away and state the committed-only basis.
   await card.locator('summary').click();
   await expect(card).toContainText('no spending estimate is mixed into it');

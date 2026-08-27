@@ -195,7 +195,11 @@ export default async function DashboardPage({
 
       {showOnboarding && <OnboardingNudge />}
 
-      <CashFlowRadarCard radar={radar.radar} paymentAccountName={radar.paymentAccountName} />
+      <CashFlowRadarCard
+        radar={radar.radar}
+        paymentAccountName={radar.paymentAccountName}
+        runwayMonths={coach.runwayMonths}
+      />
 
       {/* C.25 (#403, critic P2-B): the savings-rate, top-spending and pace
           cards below all read flows the exclusion moved — name what left, or

@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { formatCents, type Cents } from '@/lib/money';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import type { RadarResult } from '@/lib/engine/radar/radar';
+import { cushionLineFor } from '@/lib/engine/radar/cushion-line';
 import { TrackedDetails } from '@/components/engagement/tracked-details';
 
 const fmt = (n: number) => formatCents(n as Cents);
@@ -24,13 +25,18 @@ function joinNames(names: string[]): string {
 export function CashFlowRadarCard({
   radar,
   paymentAccountName,
+  runwayMonths,
 }: {
   radar: RadarResult;
   paymentAccountName: string;
+  /** C2 cushion months (same value the room-for-error pill prints). Null/absent
+   *  → no cushion line — the caller has no cushion to name or chose not to. */
+  runwayMonths?: number | null;
 }) {
   const today = isoDate(radar.today);
   const dip = radar.committed.firstNegativeDate;
   const undatable = radar.undatableCards ?? [];
+  const cushion = cushionLineFor(radar.status, dip, runwayMonths ?? null);
 
   const STATUS = {
     ok: {
@@ -137,6 +143,13 @@ export function CashFlowRadarCard({
               {radar.includesEstimatedDues ? ' (includes estimated future statements)' : ''}. No shame in a
               tight stretch — knowing early is the whole point.
             </p>
+            {/* P.3 — C2 cushion line: the cover transfer above handles the KNOWN
+                dip; this line is what stands under what no forecast sees. */}
+            {cushion && (
+              <p className="text-xs text-muted-foreground" data-testid="radar-cushion-line">
+                {cushion}
+              </p>
+            )}
           </>
         )}
 

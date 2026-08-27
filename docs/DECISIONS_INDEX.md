@@ -516,3 +516,4 @@ refuses to write if it would drop any number this file already carries.
 - **#520** (Phase ?): C14 Giving YTD on /reports (2026-08-26)
 - **#521** (Phase ?): C14 Giving goal preset on /goals (2026-08-26)
 - **#522** (Phase ?): C14 Education goal preset on /goals (2026-08-26)
+- **#523** (Phase P): C2 cushion line pairs radar dip on /dashboard (2026-08-27)
