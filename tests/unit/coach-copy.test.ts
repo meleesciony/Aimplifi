@@ -509,6 +509,8 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
     isProjection: true,
   },
   { label: 'moneyDials', text: COACH_COPY.moneyDials(['Travel', 'Dining Out']), isProjection: false },
+  // #524 — the C5 time-window line; a values statement with no figures (same rule as pastEnoughCoast).
+  { label: 'experiencesWindow', text: COACH_COPY.experiencesWindow(), isProjection: false },
   { label: 'creepFlagged', text: COACH_COPY.creepFlagged(creepFlagged), isProjection: false },
   { label: 'creepClear', text: COACH_COPY.creepClear(creepClear), isProjection: false },
   // O.20g — the third verdict and its Money Review line, both refusal states each.

@@ -3255,3 +3255,17 @@ the room-for-error pill prints — one value, one author, never rounded):
 | CL4 | `('alert', '2026-06-24', Infinity)` | `null` — ∞ is "no expenses yet" (monthsOfRunway contract), not a month count |
 | CL5 | `('alert', '2026-06-24', 0 \| -2.3 \| null)` | `null` — a zero/negative/absent cushion is an absence to disclose elsewhere (the pill's own honest sentences), never a "cushion handles it" claim |
 | CL6 | regression lock | the line never names the dip date/amount and never claims to cover the shown dip (`this dip`, `handles it`, `covers it` forbidden — the cover transfer above does that) |
+
+## C5 time-window line (DECISIONS #524, P.3)
+
+The C5 row's last gap — "buy experiences while you can" — closes as one
+sentence on the life-energy card via the pure `windowLineFor(itemCount)` →
+`COACH_COPY.experiencesWindow()` (pinned byte-identical in
+`tests/unit/experiences-window.test.ts`):
+
+| # | Inputs | Expected |
+|---|--------|----------|
+| EW1 | `windowLineFor(5)` | the sentence — a card with purchases qualifies the framing |
+| EW2 | `windowLineFor(0)` | `null` — "No large purchases in the last 90 days" already stands there; a "savor the moment" line over it would qualify nothing (same absence rule as CL4/CL5) |
+| EW3 | regression lock | no numeral, no reader age/health claim (none stored, #518), no imperative to spend, no Aimplifi read-path claim, no restatement of the Coast-gated #503 sentence |
+| EW4 | regression lock | `moneyDials` and `lifeEnergyReflection` byte-identical — both are read by the production probe and by the Ask `what_to_cut` answer; the slice adds one leaf, never edits one |

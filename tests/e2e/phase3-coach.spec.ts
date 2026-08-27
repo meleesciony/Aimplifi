@@ -277,6 +277,16 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(page.getByTestId('life-energy-reflection')).toContainText(
     'memory you\'ll keep',
   );
+  // #524: the C5 time-window line renders with the purchases — exact text
+  // (the copy lives in the engine; this pins the RENDERED leaf, the half a
+  // unit test on the picker cannot see).
+  await expect(page.getByTestId('life-energy-window')).toContainText(
+    'inside a window of life',
+  );
+  await expect(page.getByTestId('life-energy-window')).toContainText(
+    'Money lasts; the chance at the moment doesn\'t wait for the money.',
+  );
+  await expect(page.getByTestId('life-energy-window')).not.toContainText(/\d/);
 
   // W.6(c) — category fulfillment curve (hours over complete months). Demo
   // has wage $38/hr and discretionary history → card + rows, not empty.

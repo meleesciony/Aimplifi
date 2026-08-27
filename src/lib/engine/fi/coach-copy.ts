@@ -968,6 +968,17 @@ export const COACH_COPY = {
   lifeEnergyReflection: () =>
     `Worth it if it's a money dial or a memory you'll keep — but if it was meant to impress, almost no one notices the thing.`,
 
+  // C5 · Perkins (#524) — time-window-of-life framing, the last named C5 gap:
+  // the plan's "buy experiences while you can". A values statement with no
+  // figures (isProjection: false). It says only that some experiences are
+  // available during a part of life and money does not extend that part, and
+  // it may NOT: claim anything about the reader's own window (no age/health
+  // data is stored, #518), carry an imperative to spend, or restate the #503
+  // Coast-gated past-enough sentence (that one is gated on surplus; this one
+  // on time).
+  experiencesWindow: () =>
+    `Some experiences only happen inside a window of life — the hike at one age isn't the same hike at another. Money lasts; the chance at the moment doesn't wait for the money.`,
+
   // W.6(c) — YMOYL fulfillment curve (category × months in hours). A lens on
   // where life-energy went over complete months — not a grade, not a cut list.
   fulfillmentTitle: () => `Life energy by category`,

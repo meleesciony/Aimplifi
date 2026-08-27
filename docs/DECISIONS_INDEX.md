@@ -517,3 +517,4 @@ refuses to write if it would drop any number this file already carries.
 - **#521** (Phase ?): C14 Giving goal preset on /goals (2026-08-26)
 - **#522** (Phase ?): C14 Education goal preset on /goals (2026-08-26)
 - **#523** (Phase P): C2 cushion line pairs radar dip on /dashboard (2026-08-27)
+- **#524** (Phase P): C5 time-window-of-life line on the life-energy card (2026-08-27)
