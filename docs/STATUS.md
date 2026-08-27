@@ -9,6 +9,73 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04 to keep this
 > file loadable. Only OPEN/DECIDED items and 2026-08 entries live here.
 
+## ✅ BUILT 2026-08-27 — C2 cushion line pairs the radar dip on /dashboard (DECISIONS #523)
+
+**The report.** The coach-principles plan §4 Dashboard row's last C2
+artifact: "pair every forecast dip with the runway cushion line"
+("surprises are what history guarantees; your N-month cushion handles
+what no forecast sees"). Zero code existed for it (verified by
+explorer: the phrase has no source match), so C2's §0 "partial" is now
+closed end to end — invisible-wealth caption (P0.1), room-for-error pill
+(P0.2), staying-wealthy row (P1.2/#500), reflection (#502), cushion line
+here.
+
+**Shipped.** Pure composer `cushionLineFor` in
+`src/lib/engine/radar/cushion-line.ts` returns
+`COACH_COPY.cushionLine(months)` only when the radar is `alert` with a
+first-negative date AND the runway is a finite positive month count —
+null for ok/watch/no-date and for ∞/0/negative/absent (an absence is
+never restated as a cushion: "your 0-month cushion handles…" would be a
+fabricated function; the pill already prints the honest parallel states).
+Rendered in the radar card's alert block on /dashboard
+(`data-testid="radar-cushion-line"`), under the cover-transfer box. Same
+`coach.runwayMonths` the room-for-error pill prints (one value, one
+author); raw months per the `stayingWealthyRunway` convention
+("2.1-month", never rounded). The sentence claims ONLY that the cushion
+is what stands under what no forecast sees — never that it covers the
+shown dip (the transfer above does that), never a date/amount, never a
+recommendation. The nudge feed's same-dip row was adjudicated out: it
+points at the card ("See Cash Flow Radar below"), one dip, one
+treatment.
+
+**Critic (fresh context, Opus): cycle 1 FAIL 1 P1; cycle 2 PASS — 0
+P0, 0 P1.** The P1 was the maker's own added scope clause — "this
+forecast sees only the scheduled flows on file" — which is FALSE of the
+radar's committed walk: synthesized future card cycles (estimated dues)
+are in it and disclosed one paragraph above ("(includes estimated
+future statements)"). The clause is gone; the copy is the plan's
+near-verbatim. The critic mutation-checked the `Number.isFinite` gate,
+reproduced every gate (7844 unit / 476 files, tsc, eslint, build, e2e
+1/1, full suite 372 passed + 1 pre-existing flake that retried green),
+and confirmed the ∞/0/negative refusal is the right call. Residual P2s
+(recorded, not re-opens): today-feed dip row has no line (adjudicated
+above); the cushion's "months of expenses in cash" basis is the pill one
+card away; ledger row-style formatting.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **7,844 passed + 1 expected
+fail + 1 skipped / 476 files + 1 skipped** (+8: 6 new composer tests +
+2 guardrail `it.each` rows from the ALL_STRINGS entry). E2E
+cash-flow-radar 1/1 on the fresh build (mobile-380, axe-clean). New
+locks pinned in EDGE_CASES (CL1–CL6). No `prisma/` diff.
+
+**Gate read.** Pushed `11aefcb8` to `origin/main`. GitHub Actions
+`verify` = **SUCCESS**, run **33088573999**, first attempt, ~13m14s
+(`gh run watch` exit 0; `gh run view` conclusion `success` on sha
+`11aefcb884779956834ba35cac28e255c9a1074e`). Vercel commit status:
+`success`, "Deployment has completed", same sha. Live proof
+`node scripts/p23-live-deploy-check.mjs` → **7/7 PASS**: signed into
+the shared demo, radar Heads-up, `radar-cushion-line` renders —
+"Surprises are what history guarantees — and your 5.7-month cushion is
+what handles what no forecast sees." — no shame, no cover-of-shown-dip
+claim. No pre-#523 build has the element, so the probe passing is the
+deploy proof. Did not submit (shared demo).
+
+**Still open.** C5 "buy experiences while you can" time-window line
+(P2-tier, the C5 partial's last named gap); P0.4 "assign to zero"
+(plan marks it optional; 3-bucket lens + bands + Ask already shipped).
+Wave 0 ops remain owner-blocked. Match % still uncollected.
+
 ## ✅ BUILT 2026-08-26 — C14 Education goal preset on /goals (DECISIONS #522)
 
 **The report.** The last C14 leftover, deferred by #521. C14 is now

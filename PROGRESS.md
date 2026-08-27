@@ -2,6 +2,61 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-27 — C2 cushion line pairs the radar dip on /dashboard (DECISIONS #523)
+
+**Picked up.** Owner: "continue." #522 closed C14; §0 left C2 / C5 / C13
+partial. An explorer sweep (fresh code map, not plan verdicts) found the
+only unshipped C2 artifact: the §4 Dashboard row's forecast-dip cushion
+line — zero code exists (the plan's sentence has no source match; the
+pill/invisible-wealth/staying-wealthy/reflection are all shipped). C5's
+time-window line and P0.4's assign-to-zero are also open but P2-tier /
+plan-optional.
+
+**Closed (engine composer + radar card).** Pure `cushionLineFor(status,
+firstNegativeDate, runwayMonths)` — sentence only when the radar prints
+a dip (`alert` + date) AND finite positive runway; null for
+ok/watch/no-date and for ∞/0/negative/absent. Renders on /dashboard in
+the radar card's alert block under the cover box; the today-feed dip row
+points at the card ("See Cash Flow Radar below"), so one dip, one
+treatment there; /forecast and /calendar are outside the plan's
+Dashboard row (scope reading recorded in #523). Same
+`coach.runwayMonths` as the pill.
+
+**Critic (fresh context, Opus): cycle 1 FAIL 1 P1; cycle 2 PASS — 0
+P0, 0 P1.** The P1: my first draft added "this forecast sees only the
+scheduled flows on file" — false of the radar's owned committed walk,
+which includes SYNTHESIZED future card cycles (estimated dues,
+disclosed one paragraph above). The clause is dropped; plan copy is
+near-verbatim. Residual P2s recorded, not re-opens: today-feed row
+(adjudicated), cushion basis one card away, ledger row-style.
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN
+(tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **7,844
+passed + 1 expected fail + 1 skipped / 476 files + 1 skipped**. E2E
+cash-flow-radar 1/1 on the fresh build. EDGE_CASES CL1–CL6 pinned. No
+`prisma/` diff.
+
+**Gate read.** Pushed `11aefcb8`. CI run **33088573999** = SUCCESS
+(~13m14s, first attempt) on that sha. Vercel "Deployment has completed"
+on the same sha. Live proof `node scripts/p23-live-deploy-check.mjs`
+→ **7/7 PASS** — radar-cushion-line renders on production demo
+("…your 5.7-month cushion…"); the pre-#523 build lacks the element, so
+the probe passing is the deploy proof. Did not submit (shared demo).
+
+**Process note worth keeping (the p22 clobber).** I wrote my live probe
+to `scripts/p22-live-deploy-check.mjs` — a path that was ALREADY a
+tracked file: the #502 memory-dividend probe. Write silently replaced
+it; the critic flagged it as an "unlisted tree change" and I treated
+that as "mine, needs listing" instead of checking `git status` — the
+restore came before the commit, but only after the critic's catch. Two
+habits worth having always: `git status` before writing to ANY path
+that could plausibly exist, and `git log --oneline -- <path>` — or the
+probe file is now `p23`.
+
+**Next.** C5 "buy experiences while you can" (P2-tier; the C5 partial's
+last named gap). P0.4 assign-to-zero (optional). Wave 0 ops remain
+owner-blocked. Match % still uncollected.
+
 ## 2026-08-26 — C14 Education goal preset on /goals (DECISIONS #522)
 
 **Picked up.** Owner: "continue." #521 closed and named this as next:
