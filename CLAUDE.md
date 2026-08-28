@@ -83,8 +83,10 @@ as a **separate verifier context**, never the maker grading itself
 work that ships, the CI conclusion is additionally required (rule 5, "Read the gate").
 3. **Financial math is sacred.** All money values are **integer cents** (`number` of
 cents, or `bigint` where sums could overflow). Never floats for money. Every financial
-calculation has unit tests with the hand-verified expected values in
-`docs/EDGE_CASES.md`. Date math uses a single tested utility module (no ad-hoc
+calculation has unit tests with the hand-verified expected values indexed in
+`docs/EDGE_CASES.md` and stored in `tests/edge-cases/` (one file per section,
+next to the suite). Do not load the index end-to-end — open the linked
+section. Date math uses a single tested utility module (no ad-hoc
 `new Date()` arithmetic in business logic); all business dates are calendar dates
 (YYYY-MM-DD strings or date-only types), never timestamps with timezones.
 4. **Demo mode is mandatory and first-class.** The app must run fully with zero

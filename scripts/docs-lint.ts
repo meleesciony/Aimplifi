@@ -156,6 +156,7 @@ function findHardcodedCounts(repoPath: string, text: string): string[] {
   if (repoPath === "docs/STATUS.md" || isLedger(repoPath) || isArchived(repoPath)) return [];
   if (isBanneredHistorical(text) || NARRATIVE_SNAPSHOT_FILES.has(repoPath)) return [];
   if (repoPath.startsWith("docs/lessons/")) return []; // incident write-ups citing the count at the time
+  if (repoPath.startsWith("tests/edge-cases/")) return []; // hand-verified tables; not live counts
   const findings: string[] = [];
   const lines = text.split(/\r\n|\n/);
   lines.forEach((line, idx) => {

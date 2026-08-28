@@ -231,3 +231,38 @@
 
 | D.1 | **Rotate the working ledgers and set a ceiling.** STATUS/PROGRESS/REGRESSION entries older than the current wave move to the dated archives (pattern exists: `docs/archive/*_2026-06_to_2026-07.md` — add an August file); done TASKS rows move on every close, not in batches. Then make it stick: add to CLAUDE.md conventions that each live ledger stays under ~40 KB and rotating is part of a slice's close, like the verify. | Sonnet | medium | 40k | **[x] DONE 2026-08-28.** STATUS/DECISIONS/REGRESSION/TASKS rotated 2026-08-27; PROGRESS 2026-08-01..08-17 → `docs/archive/PROGRESS_ARCHIVE_2026-08-01_to_2026-08-17.md` (80 sessions; 389 KB → 69 KB live); ~40 KB ceiling + rotate-at-slice-close written into CLAUDE.md conventions; GRAPH.md §3 + AGENTS.md name the archive layout. Live files still over the ceiling (DECISIONS is D.2; STATUS/TASKS shrink on later close rotations). |
 | D.2 | **Split DECISIONS.md; shrink its index to one line per decision.** 1.1 MB in one file makes every targeted lookup a heavy read even via the index. Range-split into `docs/archive/DECISIONS_<range>.md` keeping the newest ~50 decisions live; DECISIONS_INDEX becomes strictly `#id — one-line title → file` (no prose), so INDEX-then-target stays the read path but the index itself is cheap. Update the CLAUDE.md pointer; verify no in-repo reference breaks (`grep -rn 'DECISIONS' --include='*.md'` for anchored links). | Sonnet | medium | 50k | **[x] DONE 2026-08-28.** #402–#484 → `docs/archive/DECISIONS_ARCHIVE_402_to_484.md` (83 entries, 419 KB; file-order cut at `## #486` because #486/#487 sit above #485 in the file). Live #485–#524 (40 entries, current wave 2026-08-20, 508 KB → 89 KB). INDEX is `- #n — title → file` (155 KB → 119 KB, 512 entries); `parseIndexNumbers` still reads the pre-D.2 bold-prose lines so the anti-deletion lock is not neutered on the format change. CLAUDE.md pointer: #485 onward + archive glob. No anchored `DECISIONS.md#` links in-repo. |
+| D.3 | **Audit the standing session reads.** CLAUDE.md mandates LOOP_ENGINEERING.md + lessons INDEX up front, and every session loads TASKS.md; measure the actual token cost of that standing set, then trim: closed-wave preambles out of TASKS.md with their rows, lessons-INDEX entries to one line each, EDGE_CASES sections referenced from tests moved nearer the tests. Deliverable = before/after token counts in STATUS, not a vibe. | Opus 5 | small | 30k | **[x] DONE 2026-08-28 (DECISIONS #526).** Named standing set (LOOP + lessons INDEX + TASKS) 196,814 B → see STATUS §D.3 for the measured after. INDEX 37,527 B / 93 of 97 lines over 220 chars → 22,380 B / 0 over 220 / 99 files indexed. EDGE_CASES.md 242,457 B dump → 12,097 B index + 69 section files in `tests/edge-cases/`. Closed-wave empty preambles (Wave 1, Wave P, O.17 residuals) and the now-complete Wave D heading left live TASKS. Nothing deleted. |
+
+## Closed-wave preambles (D.3, 2026-08-28)
+
+Moved verbatim from live `TASKS.md` — empty tables whose rows had already been archived, plus the Wave D heading that closed with D.3.
+
+## Wave 1 — The return loop (30 days; retention)
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+
+## Wave P — Beyond parity: the half the owner actually bought (opened 2026-07-29)
+
+Owner: *"Parity is the baseline. We were supposed to make this smarter and more useful in every way,
+building in principles from personal finance books, finding ways to cut unnecessary spending etc…"*
+
+The differentiator layer is largely SPECIFIED already — `docs/COACH_PRINCIPLES_PLAN.md` (the
+personal-finance canon), `docs/NUDGE_PLAN.md`, `docs/AI_DIFFERENTIATION_PLAN.md`,
+`docs/COMPETITIVE_GAP_PLAN.md` — and those plans own their own slices. What the owner named that has NO
+task row anywhere is below. Read the plan docs against `git log` before building (lesson:
+plan-verdicts-are-authoring-time).
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+
+## O.17 residuals (opened 2026-07-31 from the built-in-category rename slice, DECISIONS #350)
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+
+## Wave D — Docs diet: the ledgers are burning session context (owner request 2026-08-04)
+
+Owner, verbatim: *"please consolidate readme files if needed, we don't want massive token
+burning context."* D.1–D.3 closed 2026-08-28; this heading no longer earns a live-queue slot.
+

@@ -1496,3 +1496,36 @@ success at zero guilt-free, against the 20–35% band.
 
 | 524 | P | C5 time-window-of-life line closes the coach-principles plan's last C5 gap (§3 row: "no ... time-window-of-life framing" — the one-line's "buy experiences while you can"; §6's two C5 sentences — the dials "spend there proudly" line and the P2.2 memory-dividend reflection — were both already shipped; P1.1's dial tags shipped before it — #503 closed P1.1 as a skip). Artifact: a pure `windowLineFor(itemCount)` (src/lib/engine/fi/experiences-window.ts) returns `COACH_COPY.experiencesWindow()` only when the life-energy card has a purchase to qualify; `0` ⇒ null — a card printing "No large purchases" gets no "savor the moment" line under it (same absence rule as the cushion line's null states: an absence never restated as a claim). The line renders inside the life-energy card, beneath the P2.2 reflection, data-testid `life-energy-window` — the plan pairs its time-of-life language with hours-of-working-life (§6 C5 second sentence lives on this card; P2.2's row names this card as the C5 surface). Copy states the general truth only — some experiences are available only during a part of life, and money does not extend that part — with zero reader-specific claims (no age/health data stored, #518), zero numerals, no imperative to spend, no Aimplifi read-path claims, no restatement of the #503 Coast-gated past-enough sentence, byte-identical moneyDials/lifeEnergyReflection (both read by the production probe and the Ask what_to_cut answer — the slice adds one leaf, never edits one). Alternatives rejected: (a) opportunities-card header beside the moneyDials paragraph — that card is a savings-cuts list ("Savings opportunities — big wins first"); a sentence arguing why some spending is worth it would fight the card's purpose from inside it, and being dials-gated it would be invisible to every reader who never set a dial even though the window framing is true of everyone; (b) gating on outside-dial purchases like `showReflection` — the window is P2.2's sibling, not part of P2.2; an all-dial purchase list would lose the line exactly where the celebrating matters; (c) adding it to the Ask `what_to_cut` answer (which carries COACH_COPY.moneyDials) — no plan row names the window for Ask; deferred. ALL_STRINGS row (isProjection: false — no figures, same rule as pastEnoughCoast) + guardrail sweeps + EDGE_CASES EW1–EW4 + e2e exact-text pin. | See §0: "C2 / C5 / C13 PARTIAL"; C2 closed #523 and named this as next; the C5 one-line decomposes as dials (Present), cuts (Present), and exactly one unshipped clause — the time-window framing. The plan's own ordering (§6) puts the time-of-life idea beside the hours-of-working-life sentence, which is the life-energy card's field, so placement follows the plan's pairing, not the easiest slot. |
 
+## #526 — D.3 standing-read audit: INDEX ≤220, EDGE_CASES next to tests, closed TASKS waves out (2026-08-28)
+
+**Context.** Owner 2026-08-04: ledgers were burning session context. D.1/D.2
+rotated the heavy ledgers. D.3's remaining job: measure the standing
+session reads (LOOP_ENGINEERING.md + lessons INDEX + TASKS.md), then
+trim the three named piles.
+
+**Measured before (bytes; ÷4 ≈ tokens).** Named standing set:
+LOOP 14,338 (~3.6k) + INDEX 37,527 (~9.4k) + TASKS 144,949 (~36.2k) =
+196,814 (~49.2k). INDEX: 93 of 97 lines over 220 chars. EDGE_CASES.md
+was a 242,457-byte dump (~60.6k) that every money session slurp- grepped.
+
+**Decision.** (1) INDEX: one physical line per lesson, whole line ≤220
+chars; backtick-only entry converted to a markdown link; the previously
+unindexed duration lesson added. (2) EDGE_CASES.md is now the index;
+69 section bodies moved verbatim to `tests/edge-cases/` (nearer the
+suites that pin them). CLAUDE.md rule 3 points at the index + the
+section files; do not load the index end-to-end. (3) Closed-wave empty
+preambles (Wave 1, Wave P, O.17 residuals) and the now-complete Wave D
+heading moved to `TASKS_DONE_ARCHIVE.md` with their rows. Nothing
+deleted.
+
+**After.** Named standing: LOOP 14,338 + INDEX 22,380 (~5.6k) + TASKS
+142,378 (~35.6k) = 179,096 (~44.8k). INDEX 0 over-220 / 99 files
+indexed. EDGE_CASES.md 12,097 (~3.0k). Locked by
+`tests/unit/standing-reads.test.ts`.
+
+**Alternatives rejected.** Truncating open-row status cells (not named;
+those rows are still the work). Archiving the pre-split EDGE_CASES
+monolith (the split files ARE the move; a second 242 KB copy is not a
+standing-read win).
+
+

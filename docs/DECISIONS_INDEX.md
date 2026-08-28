@@ -519,3 +519,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #523 — C2 dashboard cushion line pairs the radar dip (coach-principles plan §4 Dashboard row): a pure composer `cushionLineFor(status, firstNegativeDate, runwayMonths)` (src/lib/engine/radar/cushion-line.ts) returns `COACH_COPY… → docs/DECISIONS.md
 - #524 — C5 time-window-of-life line closes the coach-principles plan's last C5 gap (§3 row: "no ... time-window-of-life framing" — the one-line's "buy experiences while you can"; §6's two C5 sentences — the dials "spend there pr… → docs/DECISIONS.md
 - #525 — P0.4 assign-to-zero leftover line on /budgets (2026-08-28) → docs/DECISIONS.md
+- #526 — D.3 standing-read audit: INDEX ≤220, EDGE_CASES next to tests, closed TASKS waves out (2026-08-28) → docs/DECISIONS.md

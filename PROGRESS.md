@@ -5,12 +5,43 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-08-28 — D.3 standing-read audit (DECISIONS #526)
+
+**Picked up.** Owner: "continue." P0.4 closed (`bc68bbf7`). Next
+non-blocked work was D.3 (standing-read token audit). Wave 0 ops
+remain owner-blocked.
+
+**Measured before.** Named standing set LOOP+INDEX+TASKS = 196,814 B
+(~49.2k tok). INDEX 37,527 B, 93/97 lines over 220 chars. EDGE_CASES.md
+242,457 B. TASKS 144,949 B.
+
+**Trimmed (nothing deleted).** INDEX → 22,380 B, 0 over-220, 99 lesson
+files indexed (duration lesson was missing; backtick entry converted).
+EDGE_CASES.md → 12,097 B index; 69 sections moved verbatim to
+`tests/edge-cases/`. Closed-wave empty preambles (Wave 1, Wave P, O.17
+residuals) + Wave D heading/D.3 row → `TASKS_DONE_ARCHIVE.md`. TASKS →
+142,378 B. Named standing after: 179,096 B (~44.8k). CLAUDE.md rule 3
+points at the index + section files.
+
+**D.3 closed.** Wave D is complete. Locked by
+`tests/unit/standing-reads.test.ts`.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **7,875 passed + 1 expected
+fail + 1 skipped / 479 files + 1 skipped**. E2E skipped (`VERIFY_E2E`
+unset) — docs diet, no UI. `npx tsx scripts/docs-lint.ts` → clean
+(233 markdown files). No `prisma/` diff. No hostile critic.
+
+**Next.** Wave 0 ops remain owner-blocked. Match % still uncollected.
+Product P0/P1 from the coach-principles plan are closed.
+
 ## 2026-08-28 — P0.4 assign-to-zero leftover line on /budgets (DECISIONS #525)
 
 **Picked up.** Owner: "work on project unless ledgers and instructions
-must be fixed to perform better." D.3 (standing-read audit) remains
-OPEN; D.1/D.2 already cut the heavy ledger bytes. Next product slice
-was P0.4 assign-to-zero (PROGRESS after #524).
+must be fixed to perform better." D.1/D.2 already cut the heavy ledger
+bytes; D.3 was still OPEN then. Next product slice was P0.4
+assign-to-zero (PROGRESS after #524). D.3 closed later the same day
+(#526).
 
 **Closed (engine composer + /budgets strip).** Pure
 `assignToZeroLineFor(leftToSpendCents, inflation)` — sentence only when

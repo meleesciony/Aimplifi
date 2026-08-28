@@ -11,6 +11,30 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-08-28 — D.3 standing-read audit (DECISIONS #526)
+
+**The report.** Named standing set (LOOP_ENGINEERING.md + lessons INDEX +
+TASKS.md) was 196,814 bytes (~49.2k tokens at ÷4) before any product
+file. INDEX: 37,527 B, 93 of 97 lines over 220 chars. EDGE_CASES.md:
+242,457 B dump. TASKS still carried empty closed-wave headings.
+
+**Shipped.** INDEX: one physical line per lesson, whole line ≤220 chars
+(22,380 B, 0 over 220, 99 files indexed). EDGE_CASES.md is the index
+(12,097 B); 69 section bodies live in `tests/edge-cases/`. Closed-wave
+empty preambles (Wave 1, Wave P, O.17 residuals) and Wave D (D.3 close)
+moved to `TASKS_DONE_ARCHIVE.md`. Named standing after: 179,096 B
+(~44.8k). EDGE_CASES dump no longer sits on the docs read path
+(−230 KB from `docs/EDGE_CASES.md`).
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **7,875 passed + 1 expected
+fail + 1 skipped / 479 files + 1 skipped**. E2E skipped (`VERIFY_E2E`
+unset) — docs diet, no UI. `docs-lint` clean (233 markdown files).
+No `prisma/` diff. No hostile critic (docs diet, no money math).
+
+**Still open.** Wave 0 ops remain owner-blocked. Match % still
+uncollected. Wave D is closed.
+
 ## ✅ BUILT 2026-08-28 — P0.4 assign-to-zero leftover line on /budgets (DECISIONS #525)
 
 **The report.** After C5 (#524) the coach-principles plan's remaining
@@ -57,7 +81,7 @@ the probe passing is the deploy proof. Did not submit (shared demo).
 
 **Still open.** Coach-principles named P0/P1 gaps are closed (P0.4
 #525). Wave 0 ops remain owner-blocked. Match % still uncollected.
-D.3 standing-read audit still OPEN.
+Wave D (D.3) closed #526.
 
 ## ✅ BUILT 2026-08-27 — C5 time-window line on the life-energy card (DECISIONS #524)
 
