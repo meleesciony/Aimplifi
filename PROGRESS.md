@@ -2,6 +2,29 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-27 — Ledger rotation part 2: REGRESSION_LEDGER + TASKS (owner-approved follow-up)
+
+**Done (verbatim moves, nothing deleted).** REGRESSION_LEDGER.md 244 KB → 33 KB:
+rows dated 2026-08-01..08-17 (152 rows) →
+`docs/archive/REGRESSION_LEDGER_ARCHIVE_2026-08-01_to_2026-08-17.md`; the current
+wave (2026-08-20 onward, 59 rows) stays live. TASKS.md 339 KB → 146 KB: the 88
+completed `[x]` table rows → appended verbatim to
+`docs/archive/TASKS_DONE_ARCHIVE.md` (with a dated provenance comment), per the
+file's own header rule; all 32 wave sections and every open/partial/blocked row
+untouched. Wave D rows D.1/D.2 stay OPEN with dated partial-progress notes — the
+rotations are done but their ceiling-convention and CLAUDE.md-pointer sub-asks are
+not, and claiming [x] would be fabrication. Reader scan BEFORE cutting this time
+(last session's lesson): only ledger.ts (appends at END — unaffected) and
+docs-lint exemptions reference these files; no parity gate exists for either.
+Fidelity: REGRESSION body lines byte-identical across live+archive (sorted-line
+diff; only the archive's re-added table header differs); TASKS diff = exactly the
+88 row deletions + the header-note line; section count 32 = 32; archive rows
+sorted-diff identical.
+
+**Result.** Live ledger set now: DECISIONS 502 KB, PROGRESS ~400 KB, TASKS 146
+KB, STATUS 105 KB, REGRESSION 33 KB. docs-lint clean. Docs-only; verify.sh not
+run locally (Windows e2e artifact); CI verify is the ship gate.
+
 ## 2026-08-27 — Ledger rotation: DECISIONS #1–#401 and STATUS 2026-08 BUILT history archived
 
 **Why.** Owner flagged that coding-CLI sessions are costing noticeably more
