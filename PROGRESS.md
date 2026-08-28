@@ -2,6 +2,54 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-27 — C5 time-window line on the life-energy card (DECISIONS #524)
+
+**Picked up.** Owner: "continue." #523 closed C2 and named this next:
+the C5 partial's last named gap — §3's "no … time-window-of-life
+framing", the one-line's "buy experiences while you can". An explorer
+sweep confirmed the premise: §6's two C5 sentences (dials line,
+P2.2 memory-dividend reflection) are both in the tree; P1.1's dial
+tags shipped before #503 (which closed P1.1 as a skip); no
+"window of life"/"while you can" string exists anywhere in src.
+
+**Closed (engine picker + life-energy card).** Pure
+`windowLineFor(itemCount)` returns `COACH_COPY.experiencesWindow()`
+only when the life-energy card has a purchase; `0 ⇒ null` — the
+empty card's own "No large purchases…" state stays the only claim
+(absence rule, as CL4/CL5). Renders under the P2.2 reflection,
+`data-testid="life-energy-window"`. Copy word-locked: no reader
+age/health claim (none stored, #518), no numerals, no imperative, no
+Aimplifi read-path claim, no #503 restatement. Placement = the plan's
+own C5 surface (P2.2 row names the card); the opportunities-header
+paragraph rejected — savings-cuts card, and dials-gating would hide
+the line from every reader who never set a dial while the window is
+true of everyone (recorded as alternative (a) in #524).
+
+**Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1** (reproduced all
+gates; audit-confirmed premise/placement/copy/gate/tests/regression
+independently). Its three P2s fixed before ship: #524 row's P1.1
+citation corrected; "Money keeps" → "Money lasts" (first-parse
+clarity); rendered-negative locked on the zero-purchase fixture in
+`auth.spec.ts` (critic's own suggested line).
+
+**Gate (final tree).** `bash scripts/verify.sh` → ✅ VERIFY GREEN
+(tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **7,853
+passed + 1 expected fail + 1 skipped / 477 files**. E2E: phase3-coach
+1/1 + auth sparse-cards 1/1 (rendered-negative) on the fresh build.
+EDGE_CASES EW1–EW4 pinned. No `prisma/` diff.
+
+**Gate read.** Pushed `6dc9c5a7`. CI run **33127710694** = SUCCESS
+(exit 0 via `scripts/ci-status.sh`). Vercel commit status `success`
+on the same sha. Live proof `node scripts/p24-live-deploy-check.mjs`
+→ **7/7 PASS** — the window line renders on production demo; the
+pre-#524 build lacks the element, so the probe passing is the deploy
+proof. Did not submit (shared demo).
+
+**Next.** P0.4 "assign to zero" on /budgets (plan marks it optional;
+the bucket lens + bands + Ask already shipped; STATUS #524 records it
+as the only remaining coach-principles gap). Wave 0 ops remain
+owner-blocked. Match % still uncollected.
+
 ## 2026-08-27 — C2 cushion line pairs the radar dip on /dashboard (DECISIONS #523)
 
 **Picked up.** Owner: "continue." #522 closed C14; §0 left C2 / C5 / C13
