@@ -2,6 +2,37 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04. Only 2026-08
 > sessions live here; append new sessions at the top as before.
 
+## 2026-08-27 — Ledger rotation: DECISIONS #1–#401 and STATUS 2026-08 BUILT history archived
+
+**Why.** Owner flagged that coding-CLI sessions are costing noticeably more
+tokens. Measurement this session: the mandatory canon stack (AGENTS +
+GRAPH_ENGINEERING + LOOP_ENGINEERING + GRAPH + CLAUDE) is ~54 KB before any
+code is read, and the five ledgers together were ~3.2 MB (~800k tokens) —
+past any context window, so any ritual full-read blows the budget.
+DECISIONS.md (1.59 MB, never rotated) and STATUS.md (back to 557 KB two
+weeks after its first rotation) were the worst.
+
+**Done (verbatim moves, nothing deleted).** DECISIONS entries #1–#401 →
+`docs/archive/DECISIONS_ARCHIVE_1_to_401.md`; #402–#524 stay live (the
+#523/#524 table rows keep a re-added table header — scaffolding, not
+content). STATUS ✅ BUILT/CLOSED 2026-08 sections →
+`docs/archive/STATUS_ARCHIVE_2026-08.md`; all OPEN/DECIDED/record sections
+stay live, and the newest BUILT entry stays as the home of the live counts
+(the file's stated role). Both live files carry pointer banners matching the
+2026-08-04 PROGRESS/STATUS precedent; `> **HISTORICAL**` banners on the
+archives per docs-lint check 3. Fidelity proven by byte arithmetic (every
+original byte accounted for after LF normalization) and by entry-set diff:
+all 512 decision entries present exactly once; all 153 STATUS sections
+present exactly once. No code touched — verify.sh not run (docs-only slice);
+docs-lint clean. Interleave note: the parallel session committed #524
+(6dc9c5a7, a79b84f0) mid-rotation; its STATUS/PROGRESS entries landed
+cleanly on the trimmed files and are preserved.
+
+**Result.** DECISIONS.md 1.59 MB → 502 KB; STATUS.md 557 KB → 105 KB;
+combined ritual-read risk cut by ~1.54 MB (~385k tokens). REGRESSION_LEDGER
+(243 KB) and TASKS.md (339 KB) intentionally left for a future rotation —
+this slice was scoped to the two the owner approved.
+
 ## 2026-08-27 — C5 time-window line on the life-energy card (DECISIONS #524)
 
 **Picked up.** Owner: "continue." #523 closed C2 and named this next:
