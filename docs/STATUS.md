@@ -32,6 +32,11 @@ fail + 1 skipped / 479 files + 1 skipped**. E2E skipped (`VERIFY_E2E`
 unset) — docs diet, no UI. `docs-lint` clean (233 markdown files).
 No `prisma/` diff. No hostile critic (docs diet, no money math).
 
+**Ship.** CI `33210628415` SUCCESS on `7eafb27e`. Vercel
+`dpl_FbRGvHQoz9bSn3je7bCu8CDPg8BA` READY (`www.aimplifi.app`). Origin
+INDEX: 99 entries, 0 over 220, max 219. Origin EDGE_CASES.md is the
+index into `tests/edge-cases/`.
+
 **Still open.** Wave 0 ops remain owner-blocked. Match % still
 uncollected. Wave D is closed.
 
