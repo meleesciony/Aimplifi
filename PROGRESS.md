@@ -76,6 +76,14 @@ on the same sha. Live proof `node scripts/p24-live-deploy-check.mjs`
 pre-#524 build lacks the element, so the probe passing is the deploy
 proof. Did not submit (shared demo).
 
+**CI note (recorded, not silent).** After this record, the owner's
+ledger rotation `38b09865` went to main; its CI ran red (run
+33128661995) on exactly the two ledger-index tests — DECISIONS.md
+rotated to #402–#524 while DECISIONS_INDEX.md still indexes #1–#401.
+A synchronous index rotation belongs to the same owner lane
+(docs/archive/ is agent-walled); the reindex guard refuses the drop by
+design, so it cannot be papered over by a regeneration.
+
 **Next.** P0.4 "assign to zero" on /budgets (plan marks it optional;
 the bucket lens + bands + Ask already shipped; STATUS #524 records it
 as the only remaining coach-principles gap). Wave 0 ops remain

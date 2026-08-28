@@ -82,6 +82,26 @@ for the money."), no numerals, no shame, no past-enough restatement.
 No pre-#524 build has the element, so the probe passing is the deploy
 proof. Did not submit (shared demo).
 
+**Follow-up gate read (owner's rotation commit) — RED, recorded, not
+silent.** The owner's ledger rotation `38b09865` ("docs: rotate ledgers
+— DECISIONS #1-#401 and STATUS 2026-08 BUILT history to archive,
+verbatim, owner-approved") landed on top of this record. Its CI run
+**33128661995 FAILED** on exactly two tests, both in
+`tests/unit/ledger-decisions-index.test.ts`: "leaves nothing in the
+committed index unaccounted for" (`[1..380]` unaccounted) and
+"carries exactly one index row per decision" (`[1..503]` vs the live
+123). Cause: DECISIONS.md was rotated to #402–#524 but
+`DECISIONS_INDEX.md` still carries an index row for every archived
+decision — the index-sync guard (`scripts/ledger.ts reindex` refuses a
+drop) fired exactly as designed. Class: docs-sync of the rotation
+commit, not this slice (code gates all green; this slice's own run
+33127710694 succeeded). Fix (owner's lane; docs/archive/ is
+permission-walled to agents here): move the #1–#401 index rows
+alongside `DECISIONS_ARCHIVE_1_to_401.md` and regenerate with
+`npx tsx scripts/ledger.ts reindex` — or if the archive index is
+explicitly out of scope, the same trim synchronizes the two files; do
+NOT run reindex against the stale index (it refuses by design).
+
 **Still open.** P0.4 "assign to zero" (plan marks it optional; 3-bucket
 lens + bands + Ask already shipped). Wave 0 ops remain owner-blocked.
 Match % still uncollected.
