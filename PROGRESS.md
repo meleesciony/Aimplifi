@@ -23,8 +23,12 @@ tap-targets remember-me 1/1 on mobile-380 (port 3100 was free).
 **Critic (fresh context): PASS — 0 P0, 0 P1.** P2-1..P2-4 fixed this
 cycle. Residual P2-5 (JWE roundtrip of remember/activityAt) recorded.
 
-**Next.** Commit, push, ci-status, live `auth-remember` marker on
-www.aimplifi.app/sign-in.
+**Ship.** Pushed `298135e6`. GitHub Actions `verify` run **33218912621**
+= SUCCESS (13m48s). Vercel `dpl_9XmLSXxsbGTaqi9eBUC62SmJ7xDD` READY,
+aliases include `www.aimplifi.app`. Live `curl` of `/sign-in` contains
+`data-testid="auth-remember"` and "Remember me on this device".
+
+**Next.** Wave 0 ops remain owner-blocked. Match % still uncollected.
 
 ## 2026-08-28 — D.3 standing-read audit (DECISIONS #526)
 

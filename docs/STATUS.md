@@ -42,6 +42,10 @@ callbacks lock `remember === false`; remember label measured at the
 44px tap floor. Residual P2-5 (no JWE roundtrip of the two claims)
 recorded, not blocking.
 
+**Ship.** Pushed `298135e6`. CI `33218912621` SUCCESS (13m48s). Vercel
+`dpl_9XmLSXxsbGTaqi9eBUC62SmJ7xDD` READY (`www.aimplifi.app`). Live
+`/sign-in` HTML carries `data-testid="auth-remember"`.
+
 **Still open.** Wave 0 ops remain owner-blocked. Match % still
 uncollected. The 2026-07-21 password-manager item remains undiagnosed.
 
