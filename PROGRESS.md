@@ -35,8 +35,17 @@ close rotations) — the rule is now written, not yet fully met.
 write the ceiling) are done. D.2 remains OPEN: newest ~50 live and a
 strictly one-line index; the CLAUDE.md pointer is now updated.
 
-**Gate.** Docs-only; `docs-lint` is the local check. `verify.sh` not
-run locally (same as the 08-27 rotations). CI verify is the ship gate.
+**Gate.** Docs-only; `docs-lint` local = clean (162 markdown files).
+`verify.sh` not run locally (same as the 08-27 rotations). CI is the
+ship gate.
+
+**Gate read.** Pushed `1173c6e2`. GitHub Actions `verify` run
+**33183622856** = SUCCESS (11m33s, `gh run watch --exit-status` exit 0).
+Vercel deployment `dpl_5bpDGU9t5aHZqBM9zm6e111GJcfx` **READY** on the
+same sha (production). Live proof against that sha: `PROGRESS.md` carries
+this heading and does **not** carry the archived 08-17 W.4 session; the
+archive file opens `HISTORICAL` and holds W.4; CLAUDE.md carries the
+ledger-ceiling convention. No UI marker (docs-only). No `prisma/` diff.
 
 ## 2026-08-27 — Ledger rotation part 2: REGRESSION_LEDGER + TASKS (owner-approved follow-up)
 
