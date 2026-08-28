@@ -41,6 +41,20 @@ timeout / unique constraint); those 4 files 104/104 isolated; rerun
 green. E2E `conscious-buckets.spec.ts` mobile-380 **2/2** on the fresh
 build (port 3100 free). EDGE_CASES AZ1–AZ5. No `prisma/` diff.
 
+**Gate read.** Pushed `bc68bbf7` to `origin/main`. GitHub Actions
+`verify` = **SUCCESS**, run **33206221592** (13m26s, `gh run watch
+--exit-status` exit 0) on sha
+`bc68bbf78babe61e9a8998532271003a709a2b0e`. Vercel commit status
+`success`, "Deployment has completed", same sha
+(`GUiqJ8yBeua61zUbESrz8rwzL71q`). Live proof
+`node scripts/p25-live-deploy-check.mjs` → **10/10 PASS**: signed into
+the shared demo, `/budgets` conscious-spending strip,
+`conscious-assign-to-zero` renders with the capacity sentence ("…a
+monthly capacity, not cash still sitting unspent"), one dollar amount
+($1,659.08), no "You have" / "still unassigned", no shame, no
+zero-out-fun-money imperative. No pre-#525 build has the element, so
+the probe passing is the deploy proof. Did not submit (shared demo).
+
 **Still open.** Coach-principles named P0/P1 gaps are closed (P0.4
 #525). Wave 0 ops remain owner-blocked. Match % still uncollected.
 D.3 standing-read audit still OPEN.

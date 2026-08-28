@@ -31,6 +31,14 @@ fail + 1 skipped / 478 files**. Intermediate full-suite run flaked
 conscious-buckets mobile-380 **2/2** on the fresh build. No `prisma/`
 diff.
 
+**Gate read.** Pushed `bc68bbf7`. GitHub Actions `verify` run
+**33206221592** = SUCCESS (13m26s). Vercel "Deployment has completed"
+on the same sha. Live proof `node scripts/p25-live-deploy-check.mjs`
+→ **10/10 PASS** — `conscious-assign-to-zero` renders on production
+demo ("…a monthly capacity, not cash still sitting unspent"); the
+pre-#525 build lacks the element, so the probe passing is the deploy
+proof. Did not submit (shared demo).
+
 **Next.** Coach-principles named P0/P1 gaps are closed. Wave 0 ops
 remain owner-blocked. Match % still uncollected. D.3 still OPEN.
 
