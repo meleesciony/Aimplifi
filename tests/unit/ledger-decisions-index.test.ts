@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -15,6 +15,17 @@ import {
 const ROOT = join(__dirname, "..", "..");
 const DECISIONS = readFileSync(join(ROOT, "docs", "DECISIONS.md"), "utf8");
 const DECISIONS_INDEX = readFileSync(join(ROOT, "docs", "DECISIONS_INDEX.md"), "utf8");
+
+// Since the 2026-08-27 ledger rotation, decisions live in docs/DECISIONS.md PLUS
+// verbatim archives (docs/archive/DECISIONS_ARCHIVE_*.md — the lower numbers). The
+// index covers the union, so every assertion below must read the union too —
+// reading the live file alone would report the archived numbers as "dropped".
+const DECISIONS_ARCHIVE_DIR = join(ROOT, "docs", "archive");
+const DECISIONS_ARCHIVES = readdirSync(DECISIONS_ARCHIVE_DIR)
+  .filter((f) => /^DECISIONS_ARCHIVE_.*\.md$/.test(f))
+  .sort()
+  .map((f) => readFileSync(join(DECISIONS_ARCHIVE_DIR, f), "utf8"));
+const ALL_DECISIONS = [DECISIONS, ...DECISIONS_ARCHIVES].join("\n");
 
 describe("ledger-parse — heading-era decisions", () => {
   it("parses `## #n (phase): title`", () => {
@@ -123,10 +134,17 @@ describe("ledger-parse — guards", () => {
 });
 
 describe("the real ledger", () => {
-  it("indexes every decision in docs/DECISIONS.md, in both formats", () => {
-    const entries = collectDecisionEntries(DECISIONS);
-    const headings = DECISIONS.split(/\r?\n/).filter((l) => /^##\s*#\d+/.test(l)).length;
-    const rows = DECISIONS.split(/\r?\n/).filter((l) => /^\|\s*\d+\s*\|/.test(l)).length;
+  it("reads at least one verbatim archive, so the union below cannot silently shrink", () => {
+    // Guards the guard: if the archive glob ever matches nothing (renamed files,
+    // moved directory), the union would quietly become the live file alone and the
+    // no-loss invariant would weaken without a red test. Fail loudly instead.
+    expect(DECISIONS_ARCHIVES.length).toBeGreaterThan(0);
+  });
+
+  it("indexes every decision in docs/DECISIONS.md and its archives, in both formats", () => {
+    const entries = collectDecisionEntries(ALL_DECISIONS);
+    const headings = ALL_DECISIONS.split(/\r?\n/).filter((l) => /^##\s*#\d+/.test(l)).length;
+    const rows = ALL_DECISIONS.split(/\r?\n/).filter((l) => /^\|\s*\d+\s*\|/.test(l)).length;
 
     expect(headings).toBeGreaterThan(0); // the format this parser was blind to
     expect(rows).toBeGreaterThan(0); // the format it could already read
@@ -135,12 +153,12 @@ describe("the real ledger", () => {
   });
 
   it("leaves nothing in the committed index unaccounted for", () => {
-    const entries = collectDecisionEntries(DECISIONS);
+    const entries = collectDecisionEntries(ALL_DECISIONS);
     expect(droppedNumbers(parseIndexNumbers(DECISIONS_INDEX), entries)).toEqual([]);
   });
 
   it("carries exactly one index row per decision", () => {
-    const entries = collectDecisionEntries(DECISIONS);
+    const entries = collectDecisionEntries(ALL_DECISIONS);
     const indexed = parseIndexNumbers(DECISIONS_INDEX);
     expect(new Set(indexed).size).toBe(indexed.length); // no number indexed twice
     expect(indexed.sort((a, b) => a - b)).toEqual(entries.map((e) => e.num));

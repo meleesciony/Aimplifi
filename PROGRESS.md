@@ -33,6 +33,21 @@ combined ritual-read risk cut by ~1.54 MB (~385k tokens). REGRESSION_LEDGER
 (243 KB) and TASKS.md (339 KB) intentionally left for a future rotation —
 this slice was scoped to the two the owner approved.
 
+**Addendum — the rotation broke a gate I didn't know existed, fixed same
+session.** `tests/unit/ledger-decisions-index.test.ts` enforces
+DECISIONS.md ↔ DECISIONS_INDEX.md parity (the anti-deletion lock built
+after a Cursor agent once dropped 46 decisions), and `scripts/ledger.ts`
+reindex/next-number read only the live file. CI on the rotation commit
+(38b09865) went red: 390 archived numbers read as "dropped". Fix (no test
+weakened — the invariant now reads the live+archive UNION, which is the
+same no-loss guarantee over the new file layout): `decisionSources()` in
+ledger.ts globs `docs/archive/DECISIONS_ARCHIVE_*.md`; the test reads the
+union and gains an archive-glob-nonempty guard so a future rename can't
+silently weaken it; index header + REGRESSION_LEDGER row updated. Lesson:
+AGENTS.md's ledger list does not name DECISIONS_INDEX.md — grep the repo
+for readers of a file before restructuring it (`grep -rln 'DECISIONS\.md'
+tests/ scripts/` would have caught this pre-push).
+
 ## 2026-08-27 — C5 time-window line on the life-energy card (DECISIONS #524)
 
 **Picked up.** Owner: "continue." #523 closed C2 and named this next:
