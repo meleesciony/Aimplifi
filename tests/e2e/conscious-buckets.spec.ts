@@ -15,6 +15,7 @@
 import Database from 'better-sqlite3';
 import { expect, test, type Page } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
+import { cents, formatCents } from '@/lib/money';
 
 /** "$1,629.44" → 162944. Also handles a signed "−$1,629.44". */
 function parseCents(text: string): number {
@@ -183,6 +184,24 @@ test('each bucket amount opens a panel whose rows sum to exactly that amount', a
   await expect(page.getByTestId('conscious-guilt-free-reconciled')).toContainText(
     'matched to the penny',
   );
+
+  // P0.4 (#525): leftover highlighted as unassigned is the SAME cents the
+  // guilt-free legend paints — one remainder, two names. Anti-vacuity: the
+  // demo leftover must be positive or this assertion cannot pass.
+  expect(legendCents['conscious-guilt-free']).toBeGreaterThan(0);
+  const assignLine = page.getByTestId('conscious-assign-to-zero');
+  await expect(assignLine).toBeVisible();
+  // Do not parseCents the whole sentence: trailing periods ("remainder." /
+  // "verdict.") become extra decimals and Number() is NaN. Match the leftover
+  // with the same formatter the copy uses — one remainder, one dollar string.
+  await expect(assignLine).toContainText(
+    formatCents(cents(legendCents['conscious-guilt-free'])),
+  );
+  await expect(assignLine).toContainText('leftover after Fixed and savings');
+  await expect(assignLine).toContainText('guilt-free remainder');
+  await expect(assignLine).toContainText('monthly capacity');
+  await expect(assignLine).toContainText('not a verdict');
+  await expect(assignLine).not.toContainText('still unassigned');
 
   // Collapse works and does not disturb the figure (a stale-render tell).
   await page.getByTestId('conscious-fixed-toggle').click();

@@ -5,6 +5,35 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-08-28 — P0.4 assign-to-zero leftover line on /budgets (DECISIONS #525)
+
+**Picked up.** Owner: "work on project unless ledgers and instructions
+must be fixed to perform better." D.3 (standing-read audit) remains
+OPEN; D.1/D.2 already cut the heavy ledger bytes. Next product slice
+was P0.4 assign-to-zero (PROGRESS after #524).
+
+**Closed (engine composer + /budgets strip).** Pure
+`assignToZeroLineFor(leftToSpendCents, inflation)` — sentence only when
+leftover > 0 and this card does not already know leftover is inflated
+(uncounted-fixed / card notes); null for 0 / negative. Copy names
+monthly capacity, not remaining cash. Amount is the guilt-free bucket
+by construction. Unset savings still prints (genuine Ramsey leftover).
+
+**Critic (fresh context): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0, 0 P1.**
+P1-1: "You have … still unassigned" was a cash claim about capacity.
+P1-2: sign-only picker certified leftovers the strip already discloses
+as too large. Both locked (AZ1–AZ5).
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **7,870 passed + 1 expected
+fail + 1 skipped / 478 files**. Intermediate full-suite run flaked
+(SQLite lock in untouched files; 104/104 isolated; rerun green). E2E
+conscious-buckets mobile-380 **2/2** on the fresh build. No `prisma/`
+diff.
+
+**Next.** Coach-principles named P0/P1 gaps are closed. Wave 0 ops
+remain owner-blocked. Match % still uncollected. D.3 still OPEN.
+
 ## 2026-08-28 — Wave D.2: DECISIONS live cut to #485–#524; index is `#id — title → file`
 
 **Picked up.** Owner: "continue." D.1 closed (`a74f8248`). Remaining D.2: keep

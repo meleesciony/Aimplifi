@@ -11,6 +11,40 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-08-28 — P0.4 assign-to-zero leftover line on /budgets (DECISIONS #525)
+
+**The report.** After C5 (#524) the coach-principles plan's remaining
+named P0.4 gap: highlight existing `leftToSpendCents` as leftover
+toward a fully-assigned plan (no new math). The 3-bucket lens + bands
++ Ask were already shipped.
+
+**Shipped.** Pure `assignToZeroLineFor(leftToSpendCents, inflation)` in
+`src/lib/engine/spending-plan/assign-to-zero.ts` returns
+`COACH_COPY.assignToZero` only when leftover > 0 and this card does
+not already know the leftover is inflated. Null for 0 / negative.
+Rendered on `/budgets` under the conscious-spending caption,
+`data-testid="conscious-assign-to-zero"`. Amount is the guilt-free
+bucket by construction. Copy names monthly capacity, not remaining
+cash (critic P1-1). Uncounted-fixed / card notes refuse the line
+(critic P1-2); unset savings still prints (genuine Ramsey leftover).
+
+**Critic (fresh context): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0, 0 P1.**
+P2s recorded, not blocking ($0 silence, soft "is the plan", no
+aria-describedby, critic-voiced capacity clause, picker-not-strip
+inflation locks, blunt card-note gate).
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **7,870 passed + 1 expected
+fail + 1 skipped / 478 files**. One intermediate full-suite run hit
+the SQLite cascade flake (6 failures in untouched files: lock /
+timeout / unique constraint); those 4 files 104/104 isolated; rerun
+green. E2E `conscious-buckets.spec.ts` mobile-380 **2/2** on the fresh
+build (port 3100 free). EDGE_CASES AZ1–AZ5. No `prisma/` diff.
+
+**Still open.** Coach-principles named P0/P1 gaps are closed (P0.4
+#525). Wave 0 ops remain owner-blocked. Match % still uncollected.
+D.3 standing-read audit still OPEN.
+
 ## ✅ BUILT 2026-08-27 — C5 time-window line on the life-energy card (DECISIONS #524)
 
 **The report.** The coach-principles plan §3 row C5's last named gap:
@@ -108,9 +142,9 @@ archive-aware — it unions the live DECISIONS.md with
 invariant holds. CI run **33130300577 = SUCCESS** on that sha; main is
 green again.
 
-**Still open.** P0.4 "assign to zero" (plan marks it optional; 3-bucket
-lens + bands + Ask already shipped). Wave 0 ops remain owner-blocked.
-Match % still uncollected.
+**Still open.** C13 remaining content (P0.3 years-until-time-is-yours,
+P1.6 define-your-enough). P0.4 assign-to-zero shipped #525. Wave 0 ops
+remain owner-blocked. Match % still uncollected.
 
 ## ✅ BUILT 2026-08-27 — C2 cushion line pairs the radar dip on /dashboard (DECISIONS #523)
 

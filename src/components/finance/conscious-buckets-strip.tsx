@@ -1,6 +1,7 @@
 /**
- * Conscious Spending strip (P0.4, DECISIONS #93) — Sethi's bucket lens over the
- * existing spending plan. Pure render of the engine's re-partition
+ * Conscious Spending strip (P0.4, DECISIONS #93 / #525) — Sethi's bucket lens
+ * over the existing spending plan, plus the leftover "assign to zero" line
+ * (`assignToZeroLineFor`). Pure render of the engine's re-partition
  * (`mapToConsciousBuckets`); no spend math here. Per the guardrail, NO segment
  * is ever colored red — this is a lens, not a guilt meter.
  */
@@ -8,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ConsciousBucketRow } from '@/components/finance/conscious-bucket-row';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { traceConsciousBuckets } from '@/lib/engine/glass-box/trace';
+import { assignToZeroLineFor } from '@/lib/engine/spending-plan/assign-to-zero';
 import {
   CONSCIOUS_BUCKET_LABELS,
   consciousFixedCounts,
@@ -83,6 +85,10 @@ export function ConsciousBucketsStrip({
   const cardNotes = planCardNotes(disclosures, BUDGETS_CARD_NOTE_SURFACE);
 
   const share = (k: ConsciousBucketKey) => buckets.find((b) => b.key === k)!.shareBps;
+  const assignToZeroLine = assignToZeroLineFor(plan.leftToSpendCents, {
+    uncountedFixed: Boolean(fixedShortfall),
+    cardNotesPresent: cardNotes.length > 0,
+  });
 
   // Bar widths come from NON-NEGATIVE bucket magnitudes normalized to sum to
   // exactly 100% — so an overspent month (guilt-free negative) can't overflow the
@@ -190,6 +196,11 @@ export function ConsciousBucketsStrip({
             plan.savingsTargetBps,
           )}
         </p>
+        {assignToZeroLine && (
+          <p className="text-xs text-muted-foreground" data-testid="conscious-assign-to-zero">
+            {assignToZeroLine}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

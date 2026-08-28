@@ -1800,6 +1800,18 @@ export const COACH_COPY = {
   consciousOverspent: () =>
     `Fixed costs and savings have outpaced this month's income pattern, so guilt-free has gone negative — one month is weather, not climate. The trend is what matters.`,
 
+  // P0.4 leftover (#525) — Ramsey's "give every dollar a job" overlay on the
+  // SAME leftover the strip already prints as Guilt-free. The amount is
+  // `leftToSpendCents` (integer cents, formatted here). That figure is MONTHLY
+  // CAPACITY (income − fixed − savings), not cash still sitting unspent —
+  // discretionary spend this month is not subtracted. The sentence may NOT:
+  // invent a second remainder, treat a non-positive leftover as unassigned
+  // (overspent has its own sentence; $0 leftover is an absence), claim the
+  // reader HAS remaining cash ("You have … still unassigned"), imply the
+  // guilt-free bucket is empty or false, or instruct them to zero out fun money.
+  assignToZero: (leftoverCents: Cents) =>
+    `${formatCents(leftoverCents)} of this month's income pattern is leftover after Fixed and savings — that's the guilt-free remainder, a monthly capacity, not cash still sitting unspent. Giving every dollar a job is the plan, not a verdict.`,
+
   // ── Wave 2: P0.5 Automation blueprint (C7 · Sethi, Babylon, Ramsey) ────────
   automationBlueprintBanner: () =>
     `Set these up once at your bank — Aimplifi reminds, it never moves your money. Then the system runs itself.`,

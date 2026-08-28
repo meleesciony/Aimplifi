@@ -1432,6 +1432,64 @@ copy guardrail sweep, so the drift is caught by a test at the rendered
 surface instead. A default target from average tuition (a recommended
 amount, the thing every preset in this family refuses to be).
 
+## #525 — P0.4 assign-to-zero leftover line on /budgets (2026-08-28)
+
+**Context.** After C5 (#524) the coach-principles plan's remaining named
+gap was P0.4 "assign to zero": the 3-bucket lens + bands + Ask already
+shipped (#93 / #499); the leftover C6 affordance was to highlight
+existing `leftToSpendCents` as leftover toward a fully-assigned plan
+(no new math, no parallel budget store).
+
+**Decision.** Pure `assignToZeroLineFor(leftToSpendCents, inflation)` in
+`src/lib/engine/spending-plan/assign-to-zero.ts` returns
+`COACH_COPY.assignToZero(cents)` only when leftover > 0 AND this card
+does not already know the leftover is inflated. Null for 0 / negative
+(overspent has `consciousOverspent`; a $0 leftover is an absence, not
+a leftover-to-assign claim). Renders on `/budgets` in the conscious-
+spending strip after the lens caption, `data-testid="conscious-assign-to-zero"`.
+The amount is the guilt-free bucket by construction.
+
+**Copy (critic cycle 1 P1-1).** Leftover is MONTHLY CAPACITY (income −
+fixed − savings); discretionary spend this month is not subtracted
+(`plan.ts` spentSoFar retirement). The first draft said "You have $X
+still unassigned" — a remaining-cash claim about capacity. Shipped
+sentence names capacity, never possession of unspent cash:
+"$X of this month's income pattern is leftover after Fixed and
+savings — that's the guilt-free remainder, a monthly capacity, not
+cash still sitting unspent. Giving every dollar a job is the plan,
+not a verdict."
+
+**Inflation gate (critic cycle 1 P1-2).** The picker REQUIRES
+`{ uncountedFixed, cardNotesPresent }` (L.15 — a default would be
+forgotten at the caller that needed it). Either true ⇒ null, so a
+leftover this card already discloses as too large / direction-unknown
+is not certified as assignable. Unset savings is NOT inflation: that
+is genuine unassigned leftover (the Ramsey case) and still prints
+beside the savings-unset note. Strip passes the same `fixedShortfall`
+and `cardNotes` it renders.
+
+Ask / coach / spending-plan do not emit the line (one author).
+`consciousSpending` / `consciousOverspent` byte-identical. ALL_STRINGS
+row (`isProjection: false`). No schema change.
+
+**Critic (fresh context): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0, 0 P1.**
+P1s executed and locked (AZ1–AZ5). Residual P2s recorded, not blocking:
+$0 leftover stays silent (celebrating zero guilt-free would fight
+Sethi's 20–35% band); soft "is the plan" is the C6 plan copy;
+no aria-describedby; capacity clause reads as critic-voiced (true,
+and required to close P1-1); inflation locks bind the picker not a
+strip-render; `cardNotesPresent` is any note including leftover-
+irrelevant frozen card-pay notes (safe direction).
+
+**Alternatives rejected.** (a) Subtracting posted discretionary spend
+so leftover means cash remaining — that reopens the retired
+`spentSoFarCents` term the plan killed on purpose. (b) Treating unset
+savings as inflation and hiding the line — that hides the genuine
+Ramsey case, including the demo. (c) Emitting the line on Ask's
+`conscious_spending` answer — no plan row names it for Ask; deferred.
+(d) A "$0 leftover, every dollar has a job" close — would read as
+success at zero guilt-free, against the 20–35% band.
+
 | # | Phase | Decision | Rationale |
 |---|---|---|---|
 | 523 | P | C2 dashboard cushion line pairs the radar dip (coach-principles plan §4 Dashboard row): a pure composer `cushionLineFor(status, firstNegativeDate, runwayMonths)` (src/lib/engine/radar/cushion-line.ts) returns `COACH_COPY.cushionLine(months)` only when the radar prints a dip (`alert` + a first-negative date) AND the runway is a finite positive month count; null for ok/watch/no-date and for an unbounded (no expenses yet), zero, negative or absent cushion — a 0/∞/negative month count is an absence, not a cushion to name (naming it would fabricate a function). The line renders on /dashboard inside the Cash Flow Radar card (data-testid radar-cushion-line) in the alert block, under the cover-transfer box; the nudge feed's dip row defers to the card ("See Cash Flow Radar below"), and /forecast and /calendar are outside the plan's Dashboard row (recorded scope). Copy claims ONLY that the cushion handles what no forecast sees — it never covers or names the known dip the transfer above handles (regression-locked), and makes no claim about what the projection contains (the card states its own committed basis + estimated-future-cycle disclosure; critic cycle-1 P1-1 caught the maker's first draft asserting "sees only scheduled flows on file", which is false of the synthesized future dues — dropped, plan copy near-verbatim). Months printed as-is per the stayingWealthyRunway convention (2.1-month, never rounded). `COACH_COPY.cushionLine` registered in the guardrail scan as isProjection: false (a values/scope statement, same rule as pastEnoughCoast). Alternatives rejected: (a) adding a scope clause naming the card's basis — the card already states it, and a second statement must stay true of the whole card (cycle-1 P1-1); (b) rendering the line in the nudge feed row — one dip, one treatment is the card's job and the feed points at the card; (c) extending to /forecast and /calendar — the plan row names /dashboard; (d) a runway threshold (e.g. ≥3 months) — the sentence claims no sufficiency, and the pill already bands below/inside/above; (e) a counterpart sentence for negative/unbounded runway — the pill and staying-wealthy row already print the honest negative/no-expenses state; a third copy would duplicate. Cross-surface note: the cushion figure is the SAME `coach.runwayMonths` the room-for-error pill prints — one value, one author. | The plan's Dashboard row asks for exactly one sentence pairing dips with the cushion, and C2 was the last item on that row (pill already shipped). "Surprises" without the cushion would be the Housel point half-credited; the radar dip is where a reader sees a forecast fall short, which is the natural pairing. Honesty rules decided the shape: the sentence may describe what the cushion does (stands under the unseen) but never that it covers a dip the projection DID see, and never restate the projection's composition — that claim belongs to the card's own basis disclosure. |

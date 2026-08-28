@@ -32,13 +32,15 @@ cuts, Ask intents `what_to_cut` / `fi_status` / `lifestyle_creep` /
 adapted 3-bucket lens (book's 4th investing % is the honest fold). C16
 **SUPERSEDED** (app-authored rules card, not a Settings freeform list).
 C10 **SHIPPED** (P1.5 ladder + fee-drag + don't-time-it; P2.1 volatility;
-idle-cash note #519). C12 **SHIPPED** #518 (expected-NW lens). C2 / C5 /
-C13 **PARTIAL**. C14 **SHIPPED and CLOSED** (past-enough #503 + Giving
+idle-cash note #519). C12 **SHIPPED** #518 (expected-NW lens). C2 **SHIPPED** #523 (cushion
+line). C5 **SHIPPED** #524 (time-window line). C13 **SHIPPED** (Rich
+Life #504, freedom dividend, enough caption). C6 assign-to-zero
+**SHIPPED** #525. C14 **SHIPPED and CLOSED** (past-enough #503 + Giving
 YTD #520 + Giving goal preset #521 + Education goal preset #522 —
 nothing left open in this cluster).
 
-**P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.5, P1.1, P1.2, P1.4, P1.6, P2.1,
-P2.2, P2.4, P2.5. PARTIAL: P0.4 (3 buckets + Ask #499). SUPERSEDED: P2.3
+**P0–P2 now.** SHIPPED: P0.1, P0.2, P0.3, P0.4, P0.5, P1.1, P1.2, P1.4, P1.6, P2.1,
+P2.2, P2.4, P2.5. SUPERSEDED: P2.3
 (#493 Settings dial), P2.6 (app-authored card). P1.5 investing ladder /
 fee-drag SHIPPED #515 (Ask deferred).
 *P1.3 shipped 2026-08-23 (#504): `User.richLifeVision` + the /settings card
@@ -64,6 +66,8 @@ plan's "a lens, never a judgment" without promising a read-path.
 #502 reflection and #500 staying-wealthy row stay.
 
 **Still open, ranked.**
+
+P0.4 assign-to-zero leftover line — SHIPPED #525.
 
 Grok / Flash (no new money math): Coast past-enough copy — SHIPPED #503;
 P1.3 Rich Life one-liner — SHIPPED #504 (stored string + settings card +
