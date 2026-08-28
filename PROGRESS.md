@@ -34,6 +34,15 @@ no source file. CLAUDE.md pointer: #485 onward + archive glob.
 files). `verify.sh` not run locally (docs + index generator; CI is the
 ship gate). No `prisma/` diff.
 
+**Gate read.** Pushed `db4832c6`. GitHub Actions `verify` run
+**33188944785** = SUCCESS (14m27s, `gh run watch --exit-status` exit 0).
+Vercel deployment `dpl_BsB1heMQgKei98cBew1x8z24s2aL` **READY** on the
+same sha (production: www.aimplifi.app). Live proof against that sha:
+`docs/DECISIONS.md` on origin opens with the #485-onward pointer and
+does **not** contain `## #402`; INDEX #1 → `DECISIONS_ARCHIVE_1_to_401.md`,
+#402 → `DECISIONS_ARCHIVE_402_to_484.md`, #485/#524 → `docs/DECISIONS.md`.
+No UI marker (docs-only).
+
 ## 2026-08-28 — Ledger rotation part 3: PROGRESS + ceiling convention (Wave D.1)
 
 **Picked up.** Owner: "continue." Last slice left D.1/D.2 OPEN: the
