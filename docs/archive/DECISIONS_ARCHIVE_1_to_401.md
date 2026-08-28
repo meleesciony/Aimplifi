@@ -1,5 +1,5 @@
 > **HISTORICAL** — archived 2026-08-27 from `docs/DECISIONS.md` (verbatim moves, not rewrites).
-> Point-in-time decision log; do not update. Live entries (#402 onward) remain in `docs/DECISIONS.md`.
+> Point-in-time decision log; do not update. Later entries: #402–#484 in `docs/archive/DECISIONS_ARCHIVE_402_to_484.md`; live (#485 onward) in `docs/DECISIONS.md`.
 
 # DECISIONS archive — entries #1 through #401
 

@@ -19,7 +19,13 @@
  * running the command the index header itself prescribes).
  */
 
-export type DecisionEntry = { num: number; phase: string; summary: string };
+export type DecisionEntry = {
+  num: number;
+  phase: string;
+  summary: string;
+  /** Repo-relative path, set when collecting per-file for the index. */
+  file?: string;
+};
 
 const SUMMARY_MAX = 220;
 
@@ -80,9 +86,10 @@ export function parseDecisionHeading(line: string): { num: number; title: string
  * non-empty body line before the next `##` — which by house style is the bold
  * one-line thesis (`**(W.1a) The wealth-target card renders its inputs…**`).
  */
-export function collectDecisionEntries(contents: string): DecisionEntry[] {
+export function collectDecisionEntries(contents: string, file?: string): DecisionEntry[] {
   const lines = contents.split(/\r?\n/);
   const entries: DecisionEntry[] = [];
+  const loc = file !== undefined ? { file } : {};
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
@@ -102,22 +109,32 @@ export function collectDecisionEntries(contents: string): DecisionEntry[] {
         }
       }
       const { phase, rest } = splitLeadingPhase(title);
-      entries.push({ num: heading.num, phase, summary: truncate(tidy(rest)) });
+      entries.push({ num: heading.num, phase, summary: truncate(tidy(rest)), ...loc });
       continue;
     }
 
     const row = parseDecisionRow(line);
-    if (row) entries.push(row);
+    if (row) entries.push({ ...row, ...loc });
   }
 
   return entries.sort((a, b) => a.num - b.num);
 }
 
-/** Decision numbers already present in an existing DECISIONS_INDEX.md. */
+/** Union of per-file collections, sorted by number. Each entry is stamped with its source. */
+export function collectFromSources(sources: { file: string; contents: string }[]): DecisionEntry[] {
+  return sources
+    .flatMap((s) => collectDecisionEntries(s.contents, s.file))
+    .sort((a, b) => a.num - b.num);
+}
+
+/** Decision numbers already present in an existing DECISIONS_INDEX.md.
+ * Accepts the pre-D.2 bold-prose lines (`- **#n** (Phase …): …`) AND the
+ * D.2 one-line form (`- #n — title → file`) so the anti-deletion lock still
+ * sees today's numbers on the first regenerate after a format change. */
 export function parseIndexNumbers(indexContents: string): number[] {
   return indexContents
     .split(/\r?\n/)
-    .map((line) => line.match(/^- \*\*#(\d+)\*\*/))
+    .map((line) => line.match(/^\s*-\s+(?:\*\*)?#(\d+)\b/))
     .filter((m): m is RegExpMatchArray => m !== null)
     .map((m) => Number(m[1]));
 }
@@ -150,6 +167,16 @@ export function nextDecisionNumber(contents: string): number {
   return max + 1;
 }
 
+/** One line per decision: `- #n — title → file`. Title is the summary with
+ * any trailing `| rationale` from a legacy table row stripped — the body
+ * lives in the pointed-at file. Throws if an entry has no source file:
+ * a line without a path is an index that cannot be followed. */
 export function renderIndexBody(entries: DecisionEntry[]): string[] {
-  return entries.map((e) => `- **#${e.num}** (Phase ${e.phase}): ${e.summary}`);
+  return entries.map((e) => {
+    if (!e.file) {
+      throw new Error(`renderIndexBody: decision #${e.num} has no source file`);
+    }
+    const title = e.summary.split(" | ")[0];
+    return `- #${e.num} — ${title} → ${e.file}`;
+  });
 }

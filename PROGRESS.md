@@ -5,6 +5,35 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-08-28 — Wave D.2: DECISIONS live cut to #485–#524; index is `#id — title → file`
+
+**Picked up.** Owner: "continue." D.1 closed (`a74f8248`). Remaining D.2: keep
+newest ~50 live and shrink DECISIONS_INDEX to one line per decision with a
+file pointer.
+
+**Cut.** Same current-wave boundary as PROGRESS/REGRESSION (2026-08-20):
+#402–#484 (83 entries, 419 KB) →
+`docs/archive/DECISIONS_ARCHIVE_402_to_484.md`; live #485–#524 (40 entries).
+`docs/DECISIONS.md` 508 KB → 89 KB. Fidelity: moved bytes are a contiguous
+verbatim range; both sides' sorted number sets match 402–484 and 485–524.
+File-order gotcha (new lesson): #486 and #487 sit *above* #485 in the file,
+so splitting on `## #485` would have archived them; the cut is the first
+keep-set heading in file order (`## #486`).
+
+**Index.** `- #n — title → file` (no phase, no rationale). 512 entries
+unchanged; `docs/DECISIONS_INDEX.md` 155 KB → 119 KB. `parseIndexNumbers`
+still reads the pre-D.2 `- **#n**` lines so the anti-deletion lock is not
+neutered on the first regenerate. `renderIndexBody` refuses an entry with
+no source file. CLAUDE.md pointer: #485 onward + archive glob.
+
+**D.2 closed.** D.3 remains OPEN (standing-read token audit).
+
+**Gate.** `npx vitest run tests/unit/ledger-decisions-index.test.ts` → 20/20;
+`npx tsc --noEmit` → 0; eslint on `ledger-parse.ts` / `ledger.ts` /
+`ledger-decisions-index.test.ts` → 0; `docs-lint` → clean (164 markdown
+files). `verify.sh` not run locally (docs + index generator; CI is the
+ship gate). No `prisma/` diff.
+
 ## 2026-08-28 — Ledger rotation part 3: PROGRESS + ceiling convention (Wave D.1)
 
 **Picked up.** Owner: "continue." Last slice left D.1/D.2 OPEN: the

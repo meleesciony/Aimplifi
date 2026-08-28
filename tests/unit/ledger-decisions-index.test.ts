@@ -1,15 +1,17 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
   collectDecisionEntries,
+  collectFromSources,
   droppedNumbers,
   duplicateNumbers,
   nextDecisionNumber,
   parseDecisionHeading,
   parseDecisionRow,
   parseIndexNumbers,
+  renderIndexBody,
 } from "../../scripts/ledger-parse";
 
 const ROOT = join(__dirname, "..", "..");
@@ -162,5 +164,72 @@ describe("the real ledger", () => {
     const indexed = parseIndexNumbers(DECISIONS_INDEX);
     expect(new Set(indexed).size).toBe(indexed.length); // no number indexed twice
     expect(indexed.sort((a, b) => a - b)).toEqual(entries.map((e) => e.num));
+  });
+
+  it("index lines are `#n — title → file` pointing at a file that exists and holds that number", () => {
+    const archiveNames = readdirSync(DECISIONS_ARCHIVE_DIR).filter((f) =>
+      /^DECISIONS_ARCHIVE_.*\.md$/.test(f),
+    );
+    const sources = [
+      { file: "docs/DECISIONS.md", contents: DECISIONS },
+      ...archiveNames.map((f) => ({
+        file: `docs/archive/${f}`,
+        contents: readFileSync(join(DECISIONS_ARCHIVE_DIR, f), "utf8"),
+      })),
+    ];
+    const byNum = new Map(collectFromSources(sources).map((e) => [e.num, e.file]));
+    const lines = DECISIONS_INDEX.split(/\r?\n/).filter((l) => /^- #\d+ — /.test(l));
+    expect(lines.length).toBe(byNum.size);
+    for (const line of lines) {
+      const match = line.match(/^- #(\d+) — .+ → (docs\/\S+)$/);
+      expect(match, line).not.toBeNull();
+      const num = Number(match![1]);
+      const file = match![2];
+      expect(existsSync(join(ROOT, file)), file).toBe(true);
+      expect(byNum.get(num)).toBe(file);
+    }
+  });
+});
+
+describe("ledger-parse — index format", () => {
+  it("parseIndexNumbers reads the pre-D.2 bold-prose lines and the D.2 one-line form", () => {
+    // The anti-deletion lock must still see today's numbers on the first
+    // regenerate after a format change — a parser that only matched the new
+    // shape would return [] against the old index and the lock would go silent.
+    expect(
+      parseIndexNumbers(
+        [
+          "- **#12** (Phase 0): Money = integer cents | Auditability",
+          "- #13 — Business dates are date-only → docs/archive/DECISIONS_ARCHIVE_1_to_401.md",
+          "# Decisions Index",
+          "- #14 — next → docs/DECISIONS.md",
+        ].join("\n"),
+      ),
+    ).toEqual([12, 13, 14]);
+  });
+
+  it("renderIndexBody emits `#n — title → file`, strips a trailing `| rationale`, and refuses a missing file", () => {
+    expect(
+      renderIndexBody([
+        {
+          num: 12,
+          phase: "0",
+          summary: "Money = integer cents | Auditability; floats forbidden",
+          file: "docs/archive/DECISIONS_ARCHIVE_1_to_401.md",
+        },
+        {
+          num: 524,
+          phase: "P",
+          summary: "C5 time-window-of-life line on the life-energy card",
+          file: "docs/DECISIONS.md",
+        },
+      ]),
+    ).toEqual([
+      "- #12 — Money = integer cents → docs/archive/DECISIONS_ARCHIVE_1_to_401.md",
+      "- #524 — C5 time-window-of-life line on the life-energy card → docs/DECISIONS.md",
+    ]);
+    expect(() =>
+      renderIndexBody([{ num: 1, phase: "0", summary: "no file" }]),
+    ).toThrow(/#1 has no source file/);
   });
 });

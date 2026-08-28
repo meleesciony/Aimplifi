@@ -178,11 +178,11 @@ feature does or what's next, never how many tests currently pass.
 older-than-current-wave entries *verbatim* into `docs/archive/` is part of a slice's
 close, like `verify.sh` — nothing is deleted; the archive is the record. A file still
 over the ceiling is not a license to skip the rotate; it is the next cut.
-* **DECISIONS lookup.** `docs/DECISIONS.md` holds the current wave only (#402 onward as
-of the 2026-08-27 split). Entries #1–#401 live in
-`docs/archive/DECISIONS_ARCHIVE_1_to_401.md`. `docs/DECISIONS_INDEX.md` is the index
-across live + archive (one line per decision); read the index first, then only the
-target entry. Do not load a ledger end-to-end to find a number.
+* **DECISIONS lookup.** `docs/DECISIONS.md` holds the current wave only (#485 onward as
+of the 2026-08-28 split). Older entries live in `docs/archive/DECISIONS_ARCHIVE_*.md`
+(#1–#401 and #402–#484). `docs/DECISIONS_INDEX.md` is the index across live + archive
+(one line per decision: `#id — title → file`); read the index first, then only the
+target file. Do not load a ledger end-to-end to find a number.
 * These ledgers are the graph's shared state (`GRAPH.md` §3): write them at node
 boundaries, read them instead of re-exploring.
 
