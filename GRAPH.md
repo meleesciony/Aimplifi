@@ -68,10 +68,10 @@ parallel session must be able to reconstruct "where are we" from these alone.
 
 | State object | File | Carries |
 |---|---|---|
-| Graph position + evidence | `PROGRESS.md` | Per-slice: picked up / closed / left alone / locked / gate / gate read / next |
+| Graph position + evidence | `PROGRESS.md` (older waves in `docs/archive/PROGRESS_ARCHIVE_*.md`) | Per-slice: picked up / closed / left alone / locked / gate / gate read / next |
 | Open & decided items | `docs/STATUS.md` | Current limitations, critic findings, the only home for live counts |
-| Decision log | `docs/DECISIONS.md` (+ `docs/DECISIONS_INDEX.md`) | What was decided, why, alternatives — append-only |
-| Regression spine | `REGRESSION_LEDGER.md` | date / symptom / root cause / rule broken / locking test |
+| Decision log | `docs/DECISIONS.md` (current wave) + `docs/archive/DECISIONS_ARCHIVE_*.md` (+ `docs/DECISIONS_INDEX.md` over the union) | What was decided, why, alternatives — append-only |
+| Regression spine | `REGRESSION_LEDGER.md` (older waves in `docs/archive/REGRESSION_LEDGER_ARCHIVE_*.md`) | date / symptom / root cause / rule broken / locking test |
 | Work queue | `TASKS.md` | The routed backlog; done rows move to the archive |
 | Method memory | `docs/lessons/` (+ `INDEX.md`) | Cross-session how-to-work corrections |
 

@@ -25,8 +25,10 @@ Before any work:
    relevant to your task.
 
 Durable state lives in ledgers, not chat history — these files are the graph's shared
-state (`GRAPH.md` §3): `PROGRESS.md` (graph position + gate evidence), `docs/DECISIONS.md`
-(decisions + rationale), `REGRESSION_LEDGER.md` (every fix + its locking test),
+state (`GRAPH.md` §3): `PROGRESS.md` (graph position + gate evidence; older waves in
+`docs/archive/`), `docs/DECISIONS.md` (current wave — index first via
+`docs/DECISIONS_INDEX.md`; older entries in `docs/archive/DECISIONS_ARCHIVE_*.md`),
+`REGRESSION_LEDGER.md` (every fix + its locking test),
 `docs/STATUS.md` (open items + the only home for live counts), `TASKS.md` (the routed
 queue), `docs/lessons/` (how-to-work lessons). Resume from these; write to them at every
 node boundary.

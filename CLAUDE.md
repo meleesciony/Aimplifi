@@ -172,9 +172,18 @@ language, every projection states its assumptions inline.
 * **One status home:** `docs/STATUS.md` (plus root `TASKS.md` for the build queue) is the
 only place current status/counts live. Never hardcode test counts, coverage numbers, or
 "as of" totals in README, ROADMAP, PHASES, or the gap plan — those files describe what a
-feature does or what's next, never how many tests currently pass. `docs/DECISIONS_INDEX.md`
-is the index into `docs/DECISIONS.md`; read the index first on large-file lookups.
-These ledgers are the graph's shared state (`GRAPH.md` §3): write them at node
+feature does or what's next, never how many tests currently pass.
+* **Ledger ceiling (~40 KB live).** Each live ledger (`PROGRESS.md`, `docs/STATUS.md`,
+`docs/DECISIONS.md`, `REGRESSION_LEDGER.md`, `TASKS.md`) stays under ~40 KB. Rotating
+older-than-current-wave entries *verbatim* into `docs/archive/` is part of a slice's
+close, like `verify.sh` — nothing is deleted; the archive is the record. A file still
+over the ceiling is not a license to skip the rotate; it is the next cut.
+* **DECISIONS lookup.** `docs/DECISIONS.md` holds the current wave only (#402 onward as
+of the 2026-08-27 split). Entries #1–#401 live in
+`docs/archive/DECISIONS_ARCHIVE_1_to_401.md`. `docs/DECISIONS_INDEX.md` is the index
+across live + archive (one line per decision); read the index first, then only the
+target entry. Do not load a ledger end-to-end to find a number.
+* These ledgers are the graph's shared state (`GRAPH.md` §3): write them at node
 boundaries, read them instead of re-exploring.
 
 ## Model routing (which model runs which node)
