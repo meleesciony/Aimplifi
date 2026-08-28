@@ -102,6 +102,12 @@ alongside `DECISIONS_ARCHIVE_1_to_401.md` and regenerate with
 explicitly out of scope, the same trim synchronizes the two files; do
 NOT run reindex against the stale index (it refuses by design).
 
+**Resolved.** `a0c390c6` (owner): the decisions-index tooling is now
+archive-aware — it unions the live DECISIONS.md with
+`DECISIONS_ARCHIVE_*` so the index stays complete and the no-loss
+invariant holds. CI run **33130300577 = SUCCESS** on that sha; main is
+green again.
+
 **Still open.** P0.4 "assign to zero" (plan marks it optional; 3-bucket
 lens + bands + Ask already shipped). Wave 0 ops remain owner-blocked.
 Match % still uncollected.

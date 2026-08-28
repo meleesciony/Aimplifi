@@ -98,6 +98,9 @@ rotated to #402–#524 while DECISIONS_INDEX.md still indexes #1–#401.
 A synchronous index rotation belongs to the same owner lane
 (docs/archive/ is agent-walled); the reindex guard refuses the drop by
 design, so it cannot be papered over by a regeneration.
+**Resolved by `a0c390c6`** (owner): decisions-index tooling made
+archive-aware (live ∪ archives, no-loss invariant kept); its CI run
+33130300577 = SUCCESS, main green.
 
 **Next.** P0.4 "assign to zero" on /budgets (plan marks it optional;
 the bucket lens + bands + Ask already shipped; STATUS #524 records it
