@@ -12,6 +12,7 @@ import Credentials from 'next-auth/providers/credentials';
 import { applyGoogleSignIn } from '@/lib/auth/google-provision';
 import { verifyPassword } from '@/lib/auth/password';
 import { credentialRejection } from '@/lib/auth/reject-reason';
+import { isRememberRequested } from '@/lib/engine/auth/session-lifetime';
 import { normalizeEmail } from '@/lib/auth/validate';
 import { prisma } from '@/lib/db';
 import { currentSessionEpoch, isSessionEpochCurrent } from '@/server/session-guard';
@@ -26,7 +27,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Credentials({
       id: 'password',
       name: 'Email and password',
-      credentials: { email: {}, password: {} },
+      credentials: { email: {}, password: {}, remember: {} },
       authorize: async (creds) => {
         const email = normalizeEmail(String(creds?.email ?? ''));
         const password = String(creds?.password ?? '');
@@ -54,7 +55,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           );
           return null; // same response either way
         }
-        return { id: user.id, email: user.email, name: user.name ?? undefined };
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name ?? undefined,
+          remember: isRememberRequested(creds?.remember as string | undefined),
+        };
       },
     }),
   ],
@@ -86,6 +92,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // lives in the session callback below).
     jwt: async (params) => {
       const token = await authConfig.callbacks.jwt(params);
+      if (!token) return token;
       if ((params.user || params.account) && token.sub) {
         const epoch = await currentSessionEpoch(token.sub);
         if (epoch !== undefined) token.epoch = epoch;

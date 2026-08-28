@@ -5,6 +5,27 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-08-28 — Remember me on this device (DECISIONS #527)
+
+**Picked up.** Owner: "build a remember password button at login."
+
+**Closed.** Opt-in checkbox on email/password sign-in, off by default.
+30-minute idle remains the default (#321); checked grants 30-day idle
+on this browser. Auth.js `maxAge` is the remember ceiling;
+`applySessionLifetime` in the edge jwt callback kills a default
+session at 30 minutes idle. Google/demo never remember.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit 7,897 passed
++ 1 expected fail + 1 skipped / 481 files. E2E auth.spec.ts 8/8 and
+tap-targets remember-me 1/1 on mobile-380 (port 3100 was free).
+`docs-lint` clean. No `prisma/` diff.
+
+**Critic (fresh context): PASS — 0 P0, 0 P1.** P2-1..P2-4 fixed this
+cycle. Residual P2-5 (JWE roundtrip of remember/activityAt) recorded.
+
+**Next.** Commit, push, ci-status, live `auth-remember` marker on
+www.aimplifi.app/sign-in.
+
 ## 2026-08-28 — D.3 standing-read audit (DECISIONS #526)
 
 **Picked up.** Owner: "continue." P0.4 closed (`bc68bbf7`). Next

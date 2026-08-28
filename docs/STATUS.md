@@ -11,6 +11,40 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-08-28 — Remember me on this device (DECISIONS #527)
+
+**The report.** Owner: "build a remember password button at login." #321
+made every session a 30-minute idle timeout with no opt-in.
+
+**Shipped.** Checkbox on email/password sign-in, off by default,
+`data-testid="auth-remember"`. Unchecked: 30-minute idle (jwt callback
+drops the token). Checked: 30-day idle on that browser. Google/demo
+never stamp `remember: true`. Auth.js `maxAge` is the 30-day ceiling
+because it cannot vary per sign-in; `applySessionLifetime` is the
+default window. Copy on /sign-in, LOGIN_AND_SESSIONS.md, PRIVACY.md
+derives from `session-lifetime.ts`.
+
+**Does not close** the 2026-07-21 undiagnosed "password isn't being
+remembered" item (browser password-manager vs session vs env). This is
+stay-signed-in, not credential storage.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes tsc
+0, eslint 0, `next build` clean). Unit **7,897 passed + 1 expected fail
++ 1 skipped / 481 files + 1 skipped**. E2E `auth.spec.ts` **8/8** on
+the prior build (mobile-380), including default-unchecked, check-then-
+sign-in, and failed-attempt restores the box. Remember-me label tap
+floor **1/1** on mobile-380. `docs-lint` clean. No `prisma/` diff.
+
+**Critic (fresh context): PASS — 0 P0, 0 P1.** P2s closed this cycle:
+browser-close is not the differentiator (idle window is); cookie is
+cleared on jwt `null` not left until the ceiling; demo/Google jwt
+callbacks lock `remember === false`; remember label measured at the
+44px tap floor. Residual P2-5 (no JWE roundtrip of the two claims)
+recorded, not blocking.
+
+**Still open.** Wave 0 ops remain owner-blocked. Match % still
+uncollected. The 2026-07-21 password-manager item remains undiagnosed.
+
 ## ✅ BUILT 2026-08-28 — D.3 standing-read audit (DECISIONS #526)
 
 **The report.** Named standing set (LOOP_ENGINEERING.md + lessons INDEX +

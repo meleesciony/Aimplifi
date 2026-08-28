@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { SESSION_IDLE_TIMEOUT_MINUTES } from '@/auth.config';
+import { SESSION_IDLE_TIMEOUT_MINUTES, SESSION_REMEMBER_TIMEOUT_DAYS } from '@/auth.config';
 import { auth } from '@/auth';
 import { DemoSignInButton } from '@/components/auth/demo-sign-in-button';
 import { EmailPasswordForm } from '@/components/auth/email-password-form';
@@ -56,6 +56,13 @@ export default async function SignInPage() {
             For your security, Aimplifi signs you out after{' '}
             {SESSION_IDLE_TIMEOUT_MINUTES} minutes without activity, so a closed laptop or a
             shared computer doesn&rsquo;t stay signed in. Using the app keeps you signed in.
+            Check &ldquo;Remember me on this device&rdquo; to stay signed in for{' '}
+            {SESSION_REMEMBER_TIMEOUT_DAYS} days on this computer — not on a shared or public
+            one.
+          </p>
+          <p id="auth-remember-hint" className="sr-only">
+            Stays signed in for {SESSION_REMEMBER_TIMEOUT_DAYS} days on this device. Do not use
+            on a shared or public computer.
           </p>
           <p className="text-[11px] leading-relaxed text-muted-foreground" data-testid="consent-notice">
             By creating an account or continuing, you agree to our{' '}

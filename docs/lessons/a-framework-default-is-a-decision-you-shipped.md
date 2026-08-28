@@ -66,6 +66,19 @@ answered "is my fix safe", "is this key real", and "is that follow-up cheap".
   mid-form still loses a draft; the mitigation is a pre-expiry warning, recorded as the follow-up
   rather than hand-waved.
 
+## Extended #527 — remember-me is a JWT claim, not a cookie-config key
+
+The same session.js read that made 30 minutes safe also said a "remember this device"
+checkbox is not expressible through Auth.js cookie config: `expires` is hardcoded from
+the single `session.maxAge`. That is still true. The opt-in (#527) does not fight that
+callsite. `maxAge` is the 30-day ceiling (cookie `Expires` and JWT `exp` for every
+session, including demo/Google). The default 30-minute window is `applySessionLifetime`
+in the edge jwt callback, which returns `null` when a token without `remember: true`
+has been idle past 30 minutes. Auth.js then runs `sessionStore.clean()` (verified
+at `@auth/core/lib/actions/session.js`: `if (token !== null)` re-issues; `else`
+clears). Granting the ceiling without that callback would be shipping the original
+30-day default again.
+
 ## Extended W.13 — a column `@default` is the same defect, one layer down, and it leaves no evidence
 
 An absent config key is a value you shipped. So is `Int @default(700)`. The database default is the

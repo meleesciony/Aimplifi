@@ -195,12 +195,14 @@ is ever needed.
 
 - All app routes behind session middleware; every server action re-verifies
   the session and scopes queries by `userId` (`src/server/authz.ts`).
-- Sessions expire after 30 minutes of inactivity, rolling forward on each page
-  load, so an unattended or shut-down machine does not stay signed in
-  (`SESSION_IDLE_TIMEOUT_SECONDS`, `src/auth.config.ts`; full policy in
-  `docs/LOGIN_AND_SESSIONS.md`). There is no long-lived "remember this device"
-  option, and the sign-in cookie is `httpOnly` + `sameSite=lax`, `secure` in
-  production.
+- Sessions expire after 30 minutes of inactivity by default, rolling forward on
+  each page load, so an unattended or shut-down machine does not stay signed in
+  (`SESSION_IDLE_TIMEOUT_SECONDS`). Checking "Remember me on this device" at
+  email/password sign-in opts that browser into a 30-day idle window
+  (`SESSION_REMEMBER_TIMEOUT_SECONDS`); Google and demo sign-ins never get it.
+  "Sign out of all devices" still invalidates every token. Full policy in
+  `docs/LOGIN_AND_SESSIONS.md`. The sign-in cookie is `httpOnly` + `sameSite=lax`,
+  `secure` in production.
 - CSP (no third-party scripts loaded — only the Plaid Link SDK origin is
   allowlisted), HSTS (production), X-Frame-Options DENY, nosniff, strict referrer.
 - Rate limiting on the export endpoint and on authentication, backed by a durable

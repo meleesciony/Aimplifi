@@ -15,6 +15,7 @@ import { normalizeEmail, validateSignup } from '@/lib/auth/validate';
 import { rateLimitDurable } from '@/server/authz';
 import { clientIp } from '@/lib/request-ip';
 import { prisma } from '@/lib/db';
+import { isRememberRequested } from '@/lib/engine/auth/session-lifetime';
 
 /**
  * Sign-in throttle (ROADMAP #8, hardened per Critic SEC-2). Two durable, cross-instance
@@ -85,6 +86,8 @@ export interface AuthFormState {
    * the wire to be restored into a field.
    */
   email?: string;
+  /** Echoed so a failed attempt restores the remember-me box the reader already checked. */
+  remember?: boolean;
 }
 
 export async function signUpWithPassword(
@@ -93,8 +96,9 @@ export async function signUpWithPassword(
 ): Promise<AuthFormState> {
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
+  const remember = isRememberRequested(formData.get('remember'));
   const parsed = validateSignup({ email, password });
-  if (!parsed.ok) return { error: parsed.errors.join(' '), email: normalizeEmail(email) };
+  if (!parsed.ok) return { error: parsed.errors.join(' '), email: normalizeEmail(email), remember };
 
   // Invite-only gate (DECISIONS #57, #60). On Vercel the household owners are always
   // allowed (env ∪ OWNER_ALLOWLIST) so a mis-set env var can't lock them out; off
@@ -104,18 +108,24 @@ export async function signUpWithPassword(
     return {
       error: 'This app is invite-only. Ask the owner to add your email to the allowlist.',
       email: parsed.email,
+      remember,
     };
   }
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.email }, select: { id: true } });
   if (existing)
-    return { error: 'An account with that email already exists — sign in instead.', email: parsed.email };
+    return { error: 'An account with that email already exists — sign in instead.', email: parsed.email, remember };
 
   await prisma.user.create({ data: { email: parsed.email, passwordHash: hashPassword(password) } });
   try {
-    await signIn('password', { email: parsed.email, password, redirectTo: '/dashboard' });
+    await signIn('password', {
+      email: parsed.email,
+      password,
+      remember: remember ? 'true' : 'false',
+      redirectTo: '/dashboard',
+    });
   } catch (e) {
-    if (e instanceof AuthError) return { error: 'Account created — please sign in.', email: parsed.email };
+    if (e instanceof AuthError) return { error: 'Account created — please sign in.', email: parsed.email, remember };
     throw e; // NEXT_REDIRECT
   }
   return {};
@@ -127,7 +137,8 @@ export async function signInWithPassword(
 ): Promise<AuthFormState> {
   const email = normalizeEmail(String(formData.get('email') ?? ''));
   const password = String(formData.get('password') ?? '');
-  if (!email || !password) return { error: 'Enter your email and password.', email };
+  const remember = isRememberRequested(formData.get('remember'));
+  if (!email || !password) return { error: 'Enter your email and password.', email, remember };
 
   // (1) Per-device volume cap, BEFORE any auth work (fails CLOSED on a limiter DB
   //     error). Keyed on the caller's IP, so it bounds an attacker's guess rate but
@@ -137,11 +148,12 @@ export async function signInWithPassword(
     return {
       error: 'Too many sign-in attempts from this device. Please wait a minute and try again.',
       email,
+      remember,
     };
   }
 
   try {
-    await signIn('password', { email, password, redirectTo: '/dashboard' });
+    await signIn('password', { email, password, remember: remember ? 'true' : 'false', redirectTo: '/dashboard' });
   } catch (e) {
     if (e instanceof AuthError) {
       // A fault on OUR side may not be reported as a wrong password, and may not
@@ -154,6 +166,7 @@ export async function signInWithPassword(
           error:
             'We could not complete sign-in, and it is a problem on our side rather than your password. Please try again.',
           email,
+          remember,
         };
       }
       // (2) Per-account FAILED-attempt cap, consumed ONLY on a failure and checked
@@ -163,9 +176,10 @@ export async function signInWithPassword(
         return {
           error: 'Too many failed attempts for this account. Please wait a minute and try again.',
           email,
+          remember,
         };
       }
-      return { error: 'Invalid email or password.', email };
+      return { error: 'Invalid email or password.', email, remember };
     }
     throw e; // NEXT_REDIRECT
   }

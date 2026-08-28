@@ -52,6 +52,13 @@ test('the shadcn Button primitive meets the 44px tap-target floor on touch devic
   await expectTapFloor(page.getByTestId('demo-sign-in'), 'demo-sign-in Button');
 });
 
+test('the remember-me label meets the 44px tap-target floor on touch devices', async ({
+  page,
+}) => {
+  await page.goto('/sign-in');
+  await expectTapFloor(page.getByTestId('auth-remember-label'), 'remember-me label');
+});
+
 test('hand-rolled /accounts controls meet the 44px tap-target floor', async ({ page }) => {
   await page.goto('/sign-in');
   await page.getByTestId('demo-sign-in').click();

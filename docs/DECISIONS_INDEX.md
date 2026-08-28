@@ -520,3 +520,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #524 — C5 time-window-of-life line closes the coach-principles plan's last C5 gap (§3 row: "no ... time-window-of-life framing" — the one-line's "buy experiences while you can"; §6's two C5 sentences — the dials "spend there pr… → docs/DECISIONS.md
 - #525 — P0.4 assign-to-zero leftover line on /budgets (2026-08-28) → docs/DECISIONS.md
 - #526 — D.3 standing-read audit: INDEX ≤220, EDGE_CASES next to tests, closed TASKS waves out (2026-08-28) → docs/DECISIONS.md
+- #527 — Opt-in "Remember me on this device" at email/password sign-in (2026-08-28) → docs/DECISIONS.md

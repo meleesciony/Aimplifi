@@ -1528,4 +1528,37 @@ those rows are still the work). Archiving the pre-split EDGE_CASES
 monolith (the split files ARE the move; a second 242 KB copy is not a
 standing-read win).
 
+## #527 — Opt-in "Remember me on this device" at email/password sign-in (2026-08-28)
+
+**Context.** Owner: "build a remember password button at login." #321 made
+every session a 30-minute rolling idle timeout after Auth.js's implicit
+30-day `maxAge` kept people signed in across shutdown on a shared
+machine. LOGIN_AND_SESSIONS.md recorded "no remember this device option"
+as deliberate for a first release. The owner now wants that opt-in.
+
+**Decision.** A checkbox on the email/password form, **off by default**,
+labeled "Remember me on this device." Unchecked keeps the 30-minute idle
+window. Checked grants a 30-day idle window on that browser. Google and
+demo sign-in have no checkbox and never stamp `remember: true`.
+
+Auth.js cannot vary `session.maxAge` per sign-in (`session.js` hardcodes
+cookie `Expires` from that single number on every session read — the
+same fact that made #321 an idle timeout). So `maxAge` is the 30-day
+ceiling, and `applySessionLifetime` in the **edge** jwt callback still
+returns `null` when a token without `remember: true` has been idle past
+30 minutes. Auth.js then clears the session cookie (`sessionStore.clean()`
+in `@auth/core/lib/actions/session.js`). "Sign out of all devices" still
+works: remember tokens carry `sessionEpoch`.
+
+Numbers live in `src/lib/engine/auth/session-lifetime.ts` and are
+re-exported from `auth.config.ts`. Sign-in copy derives from them.
+
+**Alternatives rejected.** (a) Raising the global idle window — that
+reopens #321 for every device, including shared ones. (b) A second
+submit button "Sign in and remember" — two ways to sign in. (c) Storing
+the password — the app never stores a password the browser's manager
+doesn't already handle; this is stay-signed-in, not credential storage.
+(d) Expressing the split through cookie config — not possible; see
+`docs/lessons/a-framework-default-is-a-decision-you-shipped.md`.
+
 

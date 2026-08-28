@@ -173,6 +173,26 @@ test('wrong password is rejected with a friendly error', async ({ page }) => {
   await expect(page).toHaveURL(/\/sign-in/);
 });
 
+test('remember-me is unchecked by default and can be checked before sign-in', async ({ page }) => {
+  const email = `e2e-remember-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  const password = 'e2e-password-123';
+
+  await page.goto('/sign-in');
+  const remember = page.getByTestId('auth-remember');
+  await expect(remember).toBeVisible();
+  await expect(remember).not.toBeChecked();
+  await expect(page.getByTestId('session-timeout-notice')).toContainText('Remember me on this device');
+
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill(password);
+  await remember.check();
+  await expect(remember).toBeChecked();
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+  await expect(page.getByTestId('empty-dashboard')).toBeVisible();
+});
+
 test('a failed attempt keeps the email, so a retry is not a full re-entry', async ({ page }) => {
   // O.14b. React resets an uncontrolled `<form action>` after the action returns,
   // so a rejection emptied BOTH fields and every retry meant re-invoking the
@@ -187,4 +207,14 @@ test('a failed attempt keeps the email, so a retry is not a full re-entry', asyn
   await expect(page.getByTestId('auth-error')).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('auth-email')).toHaveValue('nobody-here@aimplifi.test');
   await expect(page.getByTestId('auth-password')).toHaveValue('');
+});
+
+test('a failed attempt keeps remember-me checked, so a retry is not a re-tick', async ({ page }) => {
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-email').fill('nobody-here@aimplifi.test');
+  await page.getByTestId('auth-password').fill('definitely-wrong');
+  await page.getByTestId('auth-remember').check();
+  await page.getByTestId('auth-submit').click();
+  await expect(page.getByTestId('auth-error')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('auth-remember')).toBeChecked();
 });

@@ -45,6 +45,22 @@ export function EmailPasswordForm() {
         data-testid="auth-password"
         className={inputClass}
       />
+      <label
+        className="tap-target flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+        data-testid="auth-remember-label"
+      >
+        <input
+          type="checkbox"
+          name="remember"
+          value="on"
+          key={state?.remember ? 'remember-on' : 'remember-off'}
+          defaultChecked={Boolean(state?.remember)}
+          aria-describedby="auth-remember-hint"
+          data-testid="auth-remember"
+          className="size-4 shrink-0 accent-primary"
+        />
+        Remember me on this device
+      </label>
       <button
         type="submit"
         disabled={pending}
