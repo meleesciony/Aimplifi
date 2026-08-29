@@ -34,6 +34,10 @@ and phase3-coach **1/1** on mobile-380. `docs-lint` clean (234
 markdown files). Additive `User.employerMatch String?` — Neon `db
 push` on deploy.
 
+**Ship.** Pushed `540a309f`. CI `33235696977` SUCCESS (11m8s, attempt
+1). Vercel `dpl_jn78nuhdBaGW2pTF4hNsuX6i9Smr` READY
+(`www.aimplifi.app`). Live probe **4/4 PASS**.
+
 **Still open.** Wave 0 ops remain owner-blocked. Tax-advantaged room
 still uncollected. Residual P2s in #528.
 

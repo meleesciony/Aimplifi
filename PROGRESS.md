@@ -24,6 +24,15 @@ and phase3-coach **1/1** on mobile-380 (port 3100 free). `docs-lint`
 clean (234 markdown files). Additive `User.employerMatch String?` —
 Neon `db push` on deploy.
 
+**Ship.** Pushed `540a309f`. GitHub Actions `verify` run **33235696977**
+= SUCCESS (11m8s, attempt 1). Watched via `gh.exe run view` (Git Bash
+`scripts/ci-status.sh` still cannot find `gh` on PATH — same as #521).
+Vercel `dpl_jn78nuhdBaGW2pTF4hNsuX6i9Smr` READY; aliases include
+`www.aimplifi.app`. Live `node scripts/employer-match-live-check.mjs`
+→ **4/4 PASS** (demo settings card + shared-account note, no form;
+next-dollar skipped names Settings). This deploy ran `prisma db push`
+for `User.employerMatch`.
+
 **Next.** Wave 0 ops remain owner-blocked. Tax-advantaged room still
 uncollected.
 
