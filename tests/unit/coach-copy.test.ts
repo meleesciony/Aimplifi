@@ -873,6 +873,9 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
   { label: 'investingLadderSubtitle', text: COACH_COPY.investingLadderSubtitle(), isProjection: false },
   { label: 'investingLadderSummary', text: COACH_COPY.investingLadderSummary(), isProjection: false },
   { label: 'investingLadder', text: COACH_COPY.investingLadder(), isProjection: false },
+  { label: 'investingLadder:captured', text: COACH_COPY.investingLadder('captured'), isProjection: false },
+  { label: 'investingLadder:none', text: COACH_COPY.investingLadder('none'), isProjection: false },
+  { label: 'investingLadder:uncaptured', text: COACH_COPY.investingLadder('uncaptured'), isProjection: false },
   {
     label: 'feeDrag',
     text: COACH_COPY.feeDrag(

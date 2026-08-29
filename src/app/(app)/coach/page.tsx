@@ -199,6 +199,7 @@ export default async function CoachPage() {
       <InvestingLadderCard
         drag={data.fi.feeDrag}
         dialOwnership={dialOwnership}
+        employerMatch={data.nextDollar.employerMatch}
         frozenPortfolioNote={frozenTotalNote(data.frozenBalances.portfolio, {
           figureLabel: 'the invested balance this illustration starts from',
           nextStep: 'accounts-route',

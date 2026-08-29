@@ -75,9 +75,19 @@ describe('P1.5 /coach fee-drag payload', () => {
     expect(ladder).toContain('lens, not a rule');
     expect(ladder).toContain('when you have one');
     expect(ladder).toContain("we don't yet know whether you have a match");
+    expect(ladder).toContain('You can say so in Settings');
     expect(ladder).toContain('never recommend specific funds');
     expect(ladder).not.toMatch(/this card/i);
     expect(ladder).not.toMatch(/\bbelow\b/i);
     expect(ladder).not.toMatch(/\b(VTSAX|VTI|VOO|SPY|AAPL)\b/);
+  });
+
+  it('test_regression__known_match_drops_the_dont_know_ladder_clause', () => {
+    for (const status of ['uncaptured', 'captured', 'none'] as const) {
+      const ladder = COACH_COPY.investingLadder(status);
+      expect(ladder, status).not.toContain("we don't yet know whether you have a match");
+      expect(ladder, status).toContain('when you have one');
+      expect(ladder, status).toContain('never recommend specific funds');
+    }
   });
 });

@@ -11,6 +11,32 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-08-29 — Employer-match Settings rung (DECISIONS #528)
+
+**The report.** Standing leftover after #527: "Match % still uncollected."
+W.6(b) already ranked an uncaptured match above runway; Coach always
+passed `unknown` because Settings never stored it.
+
+**Shipped.** Settings card, `data-testid="employer-match-card"`. Closed
+status, not a percentage: unknown / uncaptured / captured / none.
+`parseEmployerMatch` is the boundary; garbage → unknown. Demo write
+fenced; demo read forced to unknown. Uncaptured why names Settings.
+Assumptions name "an uncaptured employer match" (critic P1-1). Ladder
+drops "we don't yet know" once a status is stored.
+
+**Does not collect** tax-advantaged contribution room, or a match
+percentage compared to APR.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **7,915 passed + 1 expected
+fail + 1 skipped / 482 files + 1 skipped**. E2E employer-match **2/2**
+and phase3-coach **1/1** on mobile-380. `docs-lint` clean (234
+markdown files). Additive `User.employerMatch String?` — Neon `db
+push` on deploy.
+
+**Still open.** Wave 0 ops remain owner-blocked. Tax-advantaged room
+still uncollected. Residual P2s in #528.
+
 ## ✅ BUILT 2026-08-28 — Remember me on this device (DECISIONS #527)
 
 **The report.** Owner: "build a remember password button at login." #321

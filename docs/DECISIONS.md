@@ -1561,4 +1561,47 @@ doesn't already handle; this is stay-signed-in, not credential storage.
 (d) Expressing the split through cookie config — not possible; see
 `docs/lessons/a-framework-default-is-a-decision-you-shipped.md`.
 
+## #528 — Employer-match Settings rung for next-dollar (2026-08-29)
+
+**Context.** W.6(b) `#510` ranked an uncaptured employer match above
+runway, but Coach always passed `employerMatch: 'unknown'` because
+Settings never collected it. Ledgers called this leftover "Match %."
+Tax-advantaged contribution room is still uncollected.
+
+**Decision.** Collect a **rung status**, not a percentage. Match is not
+a rate compared to APR (`#510`). Closed set on `User.employerMatch`
+(`String?`): null = unknown (skip the rung), `uncaptured` wins the
+destination, `captured` / `none` fall through and are not listed as
+skipped-unknown. `parseEmployerMatch` is the one boundary; garbage
+reads as unknown (never invent uncaptured). Demo writes fenced; demo
+reads forced to unknown so the shared row cannot re-rank Coach.
+
+Copy: uncaptured why names Settings, not the feed. Assumptions name
+"an uncaptured employer match" (the engine predicate), not "match if
+known." The investing ladder drops "we don't yet know" once a status
+is stored; it stays a generic lens ("when you have one").
+
+**Schema.** Additive nullable. Existing and demo rows stay null.
+`vercel.json` `prisma db push` applies it on deploy.
+
+**Alternatives rejected.** (a) A match-% field (50% of first 6% is two
+numbers and is not comparable to APR). (b) Folding `none` into
+`captured` in the UI — ranking is the same, the labels are not.
+(c) Collecting tax-advantaged room this slice.
+
+**Locked.** `parseEmployerMatch` EM1–EM3;
+`test_regression__garbage_employer_match_column_is_unknown_never_uncaptured`;
+N12/N13; `test_regression__captured_match_does_not_win_over_thin_runway`;
+`test_regression__assumptions_name_uncaptured_match_not_if_known`;
+`test_regression__known_match_drops_the_dont_know_ladder_clause`;
+`test_regression__uncaptured_why_names_settings_not_a_feed`;
+`test_regression__known_match_is_not_described_as_not_on_file`;
+demo fence unit + `tests/e2e/employer-match.spec.ts`.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1** (assumptions said "match
+if known" after captured/none). **Cycle 2 PASS — 0 P0, 0 P1.** Residual
+P2s: generic ladder still leads with capture-the-match for `none`;
+radios remount via `key` rather than fully controlled; dead "rate"
+fallback in skipped copy; no e2e for captured/none ranking.
+
 

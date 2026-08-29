@@ -81,3 +81,4 @@ expected value to match the code.
 - [C2 dashboard cushion line (DECISIONS #523, P.3)](../tests/edge-cases/c2-dashboard-cushion-line-decisions-523-p-3.md)
 - [C5 time-window line (DECISIONS #524, P.3)](../tests/edge-cases/c5-time-window-line-decisions-524-p-3.md)
 - [P0.4 assign-to-zero line (DECISIONS #525)](../tests/edge-cases/p0-4-assign-to-zero-line-decisions-525.md)
+- [§Employer-match Settings (W.6(b) follow-up — DECISIONS #528)](../tests/edge-cases/employer-match-settings-w-6-b.md)

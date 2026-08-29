@@ -7,10 +7,10 @@
  * Compared at the NOMINAL return dial (APR is a nominal contracted rate; the
  * FI card's real/after-inflation rate is a different unit).
  *
- * This slice does not invent rates the app does not collect. Employer match
- * and tax-advantaged contribution room are skipped with reason `unknown`.
- * CREDIT balances that are not past-due are this-cycle cash-needed, not
- * extra-pay destinations — pay-in-full is the product's standing instruction.
+ * Employer match is collected in Settings as a rung status, not a percentage
+ * (#528). Tax-advantaged contribution room is still skipped with reason
+ * `unknown`. CREDIT balances that are not past-due are this-cycle cash-needed,
+ * not extra-pay destinations — pay-in-full is the product's standing instruction.
  *
  * Pure: integer cents in, no I/O, no `new Date()`.
  */
@@ -31,10 +31,11 @@ export interface NextDollarDebt {
 
 /**
  * Match is a rung, not a rate we can compare to APR. `unknown` = not on file
- * (this slice: always). `uncaptured` / `captured` reserved for a later settings
- * field; do not invent a percentage.
+ * (skip the rung). `uncaptured` wins the destination. `captured` and `none`
+ * fall through — we know the rung does not apply, so it is not listed as
+ * skipped-unknown. Do not invent a percentage.
  */
-export type EmployerMatch = 'unknown' | 'uncaptured' | 'captured';
+export type EmployerMatch = 'unknown' | 'uncaptured' | 'captured' | 'none';
 
 export type NextDollarDestination =
   | 'revolving_debt'

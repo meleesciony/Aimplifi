@@ -36,7 +36,7 @@ import type { IdleCash } from '@/lib/engine/fi/idle-cash';
 import type { PawLens } from '@/lib/engine/networth/paw-lens';
 import type { FulfillmentCategory, FulfillmentCurve } from './fulfillment';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
-import type { NextDollarPlan } from './next-dollar';
+import type { EmployerMatch, NextDollarPlan } from './next-dollar';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
 import { formatTargetBand, formatTargetBps } from '@/lib/engine/spending-plan/conscious';
 // The basis sentence decides WHICH claim to make from the same engine the figures come from —
@@ -1323,14 +1323,21 @@ export const COACH_COPY = {
     `Drag to see what a raise saved at your current rate would do. Same return and inflation assumptions as Coach.`,
 
   // P1.5 — investing order of operations + fee-drag (C10 · Collins, Sethi).
-  // Ladder is generic: match % is still uncollected, so we must not claim
-  // they have (or lack) a match or a 401(k). Fee-drag is a LEVEL leak of
+  // Ladder is generic: it does not claim the reader has (or lacks) a match.
+  // When the Settings rung is still unknown we say so; once they set it the
+  // "don't yet know" clause would be a lie (#528). Fee-drag is a LEVEL leak of
   // today's 1%, printed in today's money (W.10), not their actual fee.
   investingLadderTitle: () => `Investing order`,
   investingLadderSubtitle: () => `Account types, not funds`,
   investingLadderSummary: () => `A common order — a lens, not a rule`,
-  investingLadder: () =>
-    `A common order of operations — a lens, not a rule, and only if the account exists for you: 1) capture a full employer 401(k) match when you have one (that's a return no market pays), 2) fund a Roth IRA, 3) then the rest of a 401(k), 4) then taxable. Educational only — we never recommend specific funds, and we don't yet know whether you have a match.`,
+  investingLadder: (match: EmployerMatch = 'unknown') => {
+    const steps =
+      `A common order of operations — a lens, not a rule, and only if the account exists for you: 1) capture a full employer 401(k) match when you have one (that's a return no market pays), 2) fund a Roth IRA, 3) then the rest of a 401(k), 4) then taxable. Educational only — we never recommend specific funds`;
+    if (match === 'unknown') {
+      return `${steps}, and we don't yet know whether you have a match. You can say so in Settings.`;
+    }
+    return `${steps}.`;
+  },
   feeDrag: (drag: FeeDrag, owner: DialOwnership): string | null => {
     if (drag.costTodayCents <= 0) return null;
     const years = drag.months / 12;
@@ -1720,7 +1727,7 @@ export const COACH_COPY = {
       return `${plan.debt.name} is ${pct(plan.debt.aprBps)}, above ${ret}. Extra there is a contracted rate, not a market expectation.`;
     }
     if (plan.destination === 'employer_match') {
-      return `An uncaptured employer match is free money on the next contribution — it outranks the other rungs we can see.`;
+      return `You said in Settings that the employer match isn't fully captured — that's a return no market pays, so it outranks the other rungs we have rates for.`;
     }
     if (plan.destination === 'emergency_fund') {
       return `Cash runway is ${plan.runwayMonths} months, under the ${plan.runwayFloorMonths}-month floor.`;
@@ -1746,12 +1753,14 @@ export const COACH_COPY = {
     const parts: string[] = [];
     if (hasMatch && hasTax) {
       parts.push(
-        `Employer match and tax-advantaged contribution room are skipped — those rates are not on file yet.`,
+        `Employer match isn't on file yet (you can add it in Settings). Tax-advantaged contribution room is also skipped — that rate is not on file yet.`,
       );
     } else if (hasTax) {
       parts.push(`Tax-advantaged contribution room is skipped — that rate is not on file yet.`);
     } else if (hasMatch) {
-      parts.push(`Employer match is skipped — that rate is not on file yet.`);
+      parts.push(
+        `Employer match is skipped — it isn't on file yet. You can add it in Settings.`,
+      );
     }
     if (hasLoanApr) {
       parts.push(`A loan with no APR on file is skipped — we do not invent a rate.`);
@@ -1767,7 +1776,7 @@ export const COACH_COPY = {
       returnIsDefault: plan.returnIsDefault,
       inflationIsDefault: true,
     });
-    return `Order: revolving APR above the return assumption, then match if known, then cash runway to ${plan.runwayFloorMonths} months, then installment APR above the return assumption, then investing. Compared at ${ret} (nominal, the same unit as APR). Illustration, not advice — Aimplifi never moves money.`;
+    return `Order: revolving APR above the return assumption, then an uncaptured employer match, then cash runway to ${plan.runwayFloorMonths} months, then installment APR above the return assumption, then investing. Compared at ${ret} (nominal, the same unit as APR). Illustration, not advice — Aimplifi never moves money.`;
   },
 
   // C2 · Housel — saving for its own sake is a goal; the cushion is room for error

@@ -60,6 +60,12 @@ model User {
   // any engine, and demo writes are fenced — one visitor's line must not echo
   // to the next); read by `getCoachData`.
   richLifeVision    String?
+  // W.6(b) follow-up / DECISIONS #528 — employer-match rung for next-dollar.
+  // Nullable and additive: null = unknown (skip the rung), so demo and every
+  // existing user rank identically until they opt in. Closed set enforced by
+  // `parseEmployerMatch`: 'uncaptured' | 'captured' | 'none'. Garbage reads as
+  // unknown (skip, never invent uncaptured). Demo writes are fenced.
+  employerMatch     String?
   // Optional Plan figure overrides (DECISIONS #372). null = use the suggested
   // pattern from transactions. Integer cents. Cleared by submitting an empty
   // field on /spending-plan. Demo writes are fenced (shared account).

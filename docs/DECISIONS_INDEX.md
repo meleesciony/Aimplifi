@@ -521,3 +521,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #525 — P0.4 assign-to-zero leftover line on /budgets (2026-08-28) → docs/DECISIONS.md
 - #526 — D.3 standing-read audit: INDEX ≤220, EDGE_CASES next to tests, closed TASKS waves out (2026-08-28) → docs/DECISIONS.md
 - #527 — Opt-in "Remember me on this device" at email/password sign-in (2026-08-28) → docs/DECISIONS.md
+- #528 — Employer-match Settings rung for next-dollar (2026-08-29) → docs/DECISIONS.md

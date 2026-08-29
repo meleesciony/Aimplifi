@@ -188,6 +188,27 @@ describe('nextDollar — EDGE_CASES §Next-dollar', () => {
     expect(p.highestInstallment).toBeNull();
     expect(p.skipped).toContain('loan_apr');
   });
+
+  it('N12 none + thin runway + cheap loan → emergency fund; match is not skipped-unknown', () => {
+    const p = plan({
+      debts: [autoLoan],
+      runwayMonths: 1.5,
+      employerMatch: 'none',
+    });
+    expect(p.destination).toBe('emergency_fund');
+    expect(p.skipped).toEqual(['tax_advantaged']);
+  });
+
+  it('N13 captured + demo-shaped debts → invest; match is not skipped-unknown', () => {
+    const p = plan({ debts: [autoLoan], runwayMonths: 4.2, employerMatch: 'captured' });
+    expect(p.destination).toBe('invest');
+    expect(p.skipped).toEqual(['tax_advantaged']);
+  });
+
+  it('test_regression__captured_match_does_not_win_over_thin_runway', () => {
+    const p = plan({ debts: [], runwayMonths: 1.5, employerMatch: 'captured' });
+    expect(p.destination).toBe('emergency_fund');
+  });
 });
 
 describe('copy honesty for 0% / unknown APR (critic P1-2)', () => {
@@ -208,5 +229,35 @@ describe('copy honesty for 0% / unknown APR (critic P1-2)', () => {
     expect(COACH_COPY.nextDollarSkipped(p)).toContain('we do not invent a rate');
     expect(COACH_COPY.nextDollarWhy(p)).toContain('No installment debt with a known APR is on file');
     expect(COACH_COPY.nextDollarWhy(p)).not.toContain('No installment debt is on file.');
+  });
+
+  it('test_regression__known_match_is_not_described_as_not_on_file', async () => {
+    const { COACH_COPY } = await import('@/lib/engine/fi/coach-copy');
+    const p = plan({ debts: [autoLoan], employerMatch: 'captured' });
+    const skipped = COACH_COPY.nextDollarSkipped(p);
+    expect(skipped).not.toMatch(/Employer match isn't on file/i);
+    expect(skipped).not.toMatch(/Employer match is skipped/i);
+    expect(skipped).toContain('Tax-advantaged contribution room is skipped');
+  });
+
+  it('test_regression__uncaptured_why_names_settings_not_a_feed', async () => {
+    const { COACH_COPY } = await import('@/lib/engine/fi/coach-copy');
+    const p = plan({ employerMatch: 'uncaptured', runwayMonths: 1.5 });
+    const why = COACH_COPY.nextDollarWhy(p);
+    expect(why).toContain('Settings');
+    expect(why).not.toMatch(/we can see/i);
+    expect(why).not.toMatch(/free money/i);
+  });
+
+  it('test_regression__assumptions_name_uncaptured_match_not_if_known', async () => {
+    const { COACH_COPY } = await import('@/lib/engine/fi/coach-copy');
+    const captured = plan({ debts: [], runwayMonths: 1.5, employerMatch: 'captured' });
+    expect(captured.destination).toBe('emergency_fund');
+    const assumptions = COACH_COPY.nextDollarAssumptions(captured);
+    expect(assumptions).toContain('uncaptured employer match');
+    expect(assumptions).not.toMatch(/match if known/i);
+    const unknown = COACH_COPY.nextDollarAssumptions(plan());
+    expect(unknown).toContain('uncaptured employer match');
+    expect(unknown).not.toMatch(/match if known/i);
   });
 });

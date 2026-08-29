@@ -77,6 +77,7 @@ import { DEMO_USER_ID } from '@/lib/demo-user';
 import { aiAuditSink } from '@/server/ai-audit';
 import { orderReviewViaLLM } from './money-review-llm';
 import { returnIsAppDefault } from '@/lib/engine/settings/dials';
+import { parseEmployerMatch } from '@/lib/engine/settings/employer-match';
 import { dialDisplayNames } from '@/lib/engine/settings/money-dial-ids';
 import { loadDialCatalog, resolvedMoneyDialIds } from '@/server/money-dials';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
@@ -561,7 +562,8 @@ export async function getCoachData(
 
   // W.6(b) — extra-dollar ranking. CREDIT is revolving only when a generated
   // statement remainder is past the issuer due date (in-cycle balances are
-  // cash-needed, not extra-pay). Match is unknown this slice.
+  // cash-needed, not extra-pay). Match is the Settings column (#528), parsed
+  // so garbage cannot invent uncaptured.
   const todayIso = isoDate(today);
   const pastDueCards = cash.cards
     .filter((c) => compareDates(c.dueDate, todayIso) < 0 && c.remainingDueCents > 0)
@@ -588,7 +590,7 @@ export async function getCoachData(
     expectedReturnBps: user.expectedReturnBps,
     returnIsDefault: returnIsAppDefault(user.expectedReturnBps),
     runwayMonths: runway,
-    employerMatch: 'unknown',
+    employerMatch: isDemoUser(userId) ? 'unknown' : parseEmployerMatch(user.employerMatch),
     unknownLoanApr: loanRows.some((a) => a.aprBps == null),
   });
 

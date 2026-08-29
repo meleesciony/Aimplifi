@@ -249,6 +249,9 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   await expect(page.getByTestId('investing-ladder-steps')).toContainText('Roth IRA');
   await expect(page.getByTestId('investing-ladder-steps')).toContainText('taxable');
   await expect(page.getByTestId('investing-ladder-steps')).toContainText('lens, not a rule');
+  await expect(page.getByTestId('investing-ladder-steps')).toContainText(
+    "we don't yet know whether you have a match",
+  );
   await expect(page.getByTestId('dont-time-it')).toContainText('Staying invested');
   await expect(page.getByTestId('investing-ladder-card')).not.toContainText(/this card/i);
   await expect(page.getByTestId('investing-ladder-card')).not.toContainText(/\bbelow\b/i);

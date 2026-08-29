@@ -1,7 +1,8 @@
 /**
  * P1.5 — investing order of operations + fee-drag on /coach.
- * Generic ladder (match % uncollected). Fee-drag is one-authored
- * through COACH_COPY. Collapsible ladder; the money sentence is the hook.
+ * Generic ladder: when match is still unknown we say so; once Settings
+ * has a status the "don't yet know" clause is dropped (#528). Fee-drag
+ * is one-authored through COACH_COPY.
  */
 import {
   Card,
@@ -12,15 +13,19 @@ import {
 } from '@/components/ui/card';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { FeeDrag } from '@/lib/engine/fi/fee-drag';
+import type { EmployerMatch } from '@/lib/engine/fi/next-dollar';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
 
 export function InvestingLadderCard({
   drag,
   dialOwnership,
+  employerMatch = 'unknown',
   frozenPortfolioNote,
 }: {
   drag: FeeDrag | null;
   dialOwnership: DialOwnership;
+  /** Settings rung — drives the "don't yet know" clause, not a ranking. */
+  employerMatch?: EmployerMatch;
   /** Same frozen-investment disclosure the FI card already carries. */
   frozenPortfolioNote?: string | null;
 }) {
@@ -50,7 +55,7 @@ export function InvestingLadderCard({
             {COACH_COPY.investingLadderSummary()}
           </summary>
           <p className="mt-1" data-testid="investing-ladder-steps">
-            {COACH_COPY.investingLadder()}
+            {COACH_COPY.investingLadder(employerMatch)}
           </p>
         </details>
         <p className="text-xs text-muted-foreground" data-testid="dont-time-it">

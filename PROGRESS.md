@@ -5,6 +5,28 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-08-29 — Employer-match Settings rung (DECISIONS #528)
+
+**Picked up.** Owner: "continue." Remember-me (#527) closed. Wave 0 ops
+owner-blocked. Ranked leftover: Match % still uncollected.
+
+**Closed.** Settings collects a rung status (not a %), wired into
+`nextDollar`. Uncaptured wins the destination; captured/none fall
+through; unknown still skips. Demo fenced both legs.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1; cycle 2 PASS — 0 P0, 0 P1.**
+P1-1: assumptions said "match if known" after captured/none.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **7,915 passed + 1 expected
+fail + 1 skipped / 482 files + 1 skipped**. E2E employer-match **2/2**
+and phase3-coach **1/1** on mobile-380 (port 3100 free). `docs-lint`
+clean (234 markdown files). Additive `User.employerMatch String?` —
+Neon `db push` on deploy.
+
+**Next.** Wave 0 ops remain owner-blocked. Tax-advantaged room still
+uncollected.
+
 ## 2026-08-28 — Remember me on this device (DECISIONS #527)
 
 **Picked up.** Owner: "build a remember password button at login."

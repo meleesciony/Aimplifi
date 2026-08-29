@@ -42,7 +42,7 @@ describe('W.6(b) /coach next-dollar payload', () => {
       expectedReturnBps: d.fi.expectedReturnBps,
       returnIsDefault: d.fi.returnIsDefault,
       runwayMonths: d.runwayMonths,
-      employerMatch: 'unknown',
+      employerMatch: d.nextDollar.employerMatch,
     });
     expect(d.nextDollar.destination).toBe(measured.destination);
     expect(d.nextDollar.highestInstallment).toEqual(measured.highestInstallment);

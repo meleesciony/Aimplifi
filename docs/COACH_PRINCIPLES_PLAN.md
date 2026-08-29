@@ -79,6 +79,8 @@ re-projection — FI half SHIPPED #506, radar/cash-dip half SHIPPED #507,
 re-projection deferred); W.6(b) marginal-dollar order — engine + /coach
 + canonical Ask SHIPPED #510, Ask P1 CLOSED #511 (`should I` is not the
 ranking proxy; critic 4-of-4 FAIL, findings executed, not certified);
+W.6(b) match collection SHIPPED #528 (Settings rung status, not a %;
+tax-advantaged room still uncollected);
 W.6(d) drawdown on FI date SHIPPED #512 (/coach FI disclosure; critic PASS);
 P1.4 income lever SHIPPED #514 (raise slider on the FI card; same
 `monthsToFI` walk; FI number unchanged; Ask deferred); P1.5 investing

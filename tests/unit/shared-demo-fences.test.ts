@@ -25,6 +25,7 @@ import { prisma } from '@/lib/db';
 import { clearBudget, setBudget } from '@/server/budget-actions';
 import { updateMoneyDials } from '@/server/settings-actions';
 import { updateRichLife } from '@/server/rich-life-actions';
+import { updateEmployerMatch } from '@/server/employer-match-actions';
 import { recordUnknownQuestion } from '@/server/unknown-questions';
 import { GET as auditCronGet } from '@/app/api/cron/audit/route';
 
@@ -90,6 +91,19 @@ describe('shared-demo fences (server actions refuse before any write)', () => {
     expect(res).toEqual({ ok: false, error: DEMO_ENTRY_BLOCKED });
     const after = await prisma.user.findUnique({ where: { id: DEMO_USER_ID } });
     expect(after?.richLifeVision).toBe(before?.richLifeVision);
+  });
+
+  it('updateEmployerMatch as the demo session refuses and never touches the match column', async () => {
+    vi.mocked(auth).mockResolvedValue(DEMO_SESSION);
+    const before = await prisma.user.findUnique({ where: { id: DEMO_USER_ID } });
+    const fd = new FormData();
+    fd.set('employerMatch', 'uncaptured');
+
+    const res = await updateEmployerMatch(null, fd);
+
+    expect(res).toEqual({ ok: false, error: DEMO_ENTRY_BLOCKED });
+    const after = await prisma.user.findUnique({ where: { id: DEMO_USER_ID } });
+    expect(after?.employerMatch).toBe(before?.employerMatch);
   });
 
   it('recordUnknownQuestion as the demo session returns false and writes no row', async () => {
