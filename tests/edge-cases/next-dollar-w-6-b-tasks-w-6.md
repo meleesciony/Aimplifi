@@ -4,12 +4,13 @@ The extra-dollar order, compared at **nominal** APR vs the **nominal** expected-
 dial (APR is a contracted nominal rate; the FI card's real/after-inflation rate is a
 different unit). Strict `>` so an APR equal to the return assumption is a wash and
 falls through (eventually to investing). Employer match is a Settings rung status (`unknown` → skipped; `uncaptured` wins
-the destination; `captured` / `none` fall through). Tax-advantaged room is still
-not on file (`unknown` → skipped). CREDIT is revolving only when a
+the destination; `captured` / `none` fall through). Tax-advantaged room is a Settings
+rung status (`unknown` → skipped; `remaining` wins after installment; `maxed` / `none`
+fall through). CREDIT is revolving only when a
 statement remainder is past due; in-cycle card balances are cash-needed, not extra-pay.
 
 Order: revolving APR above the return → uncaptured match → runway under 3 months →
-installment APR above the return → investing.
+installment APR above the return → remaining tax-advantaged contribution room → investing.
 
 | # | Inputs | Destination |
 |---|--------|-------------|
@@ -26,6 +27,13 @@ installment APR above the return → investing.
 | N11 | LOAN with `aprBps` null; runway 4.2 mo | investing; skip `loan_apr` (unknown is not 0%) |
 | N12 | match **none**; Auto Loan 6.49%; runway 1.5 mo | emergency fund (none is not uncaptured; skip list is tax only) |
 | N13 | match **captured**; Auto Loan 6.49%; runway 4.2 mo | investing; skip tax only (match is known, not unknown) |
+| N14 | tax **remaining**; Auto Loan 6.49%; runway 4.2 mo; match unknown | tax-advantaged; skip match only |
+| N15 | tax **remaining**; runway 1.5 mo | emergency fund (remaining does not beat the floor) |
+| N16 | tax **remaining**; Personal Loan 12.00%; runway 4.2 mo | installment Personal Loan |
+| N17 | tax **remaining**; match **uncaptured**; runway 1.5 mo | employer match |
+| N18 | tax **maxed**; Auto Loan 6.49%; runway 4.2 mo | investing; skip match only |
+| N19 | tax **none**; Auto Loan 6.49%; runway 4.2 mo | investing; skip match only |
+| N20 | tax **remaining**; revolving Store Card 31.99%; runway 1.5 mo | revolving Store Card |
 
 The 3-month floor is the same band `NetWorthCard` uses (`runwayMonths < 3`).
 3.0 months is at the floor, not under it. A known 0% installment stays on file

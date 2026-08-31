@@ -1604,4 +1604,59 @@ P2s: generic ladder still leads with capture-the-match for `none`;
 radios remount via `key` rather than fully controlled; dead "rate"
 fallback in skipped copy; no e2e for captured/none ranking.
 
+## #529 — Tax-advantaged contribution-room Settings rung (2026-08-31)
+
+**Context.** W.6(b) `#510` skipped tax-advantaged contribution room as
+unknown because Settings never collected it. `#528` collected match as a
+rung status; this leftover stayed. Collecting an IRS dollar limit would
+invent MAGI, catch-up ages, and annual caps we do not have, and naming
+a vehicle would be account advice the education-preset lesson already
+refused.
+
+**Decision.** Collect a **rung status**, not a dollar amount and not a
+vehicle. Closed set on `User.taxAdvantagedRoom` (`String?`): null =
+unknown (skip the rung), `remaining` wins the destination **after**
+revolving, uncaptured match, the 3-month runway floor, and installment
+APR above the return — it names the envelope before taxable investing
+and never outranks a contracted high-APR loan or a thin cushion.
+`maxed` / `none` fall through and are not listed as skipped-unknown.
+`parseTaxAdvantagedRoom` is the one boundary; garbage reads as unknown
+(never invent remaining). Demo writes fenced; demo reads forced to
+unknown so the shared row cannot re-rank Coach.
+
+Copy: remaining why names Settings and the envelope, not Roth / 529 /
+HSA. Assumptions name "remaining tax-advantaged contribution room" (the
+engine predicate), not "if known." Skipped copy says the room isn't on
+file yet (Settings), never "that rate." Radios and legend do **not**
+say "this year" — a yearless column cannot carry an indexical tax year
+(critic P1-1). The investing ladder is untouched this slice (still a
+generic lens).
+
+**Schema.** Additive nullable. Existing and demo rows stay null.
+`vercel.json` `prisma db push` applies it on deploy.
+
+**Alternatives rejected.** (a) Collecting remaining-room dollars or an
+IRS limit (ungroundable without MAGI / filing status / tax year).
+(b) Ranking remaining room above a thin runway or a high-APR installment
+(those are contracted / survival rungs; the tax wrapper is not).
+(c) Recommending Roth vs 401(k) vs HSA (educational not advisory).
+(d) Storing a tax year beside the status — the reader can update the
+rung; an invented year would be a calendar claim we do not compute.
+
+**Locked.** `parseTaxAdvantagedRoom` TR1–TR3;
+`test_regression__garbage_tax_room_column_is_unknown_never_remaining`;
+N14–N20; `test_regression__maxed_tax_room_does_not_win_over_thin_runway`;
+`test_regression__remaining_why_names_settings_not_a_vehicle`;
+`test_regression__assumptions_name_remaining_room_not_if_known`;
+`test_regression__known_tax_room_is_not_described_as_not_on_file`;
+`test_regression__tax_room_copy_does_not_bind_a_tax_year`;
+`test_regression__demo_tax_room_read_is_forced_unknown_even_if_column_is_dirty`;
+`test_regression__ask_tax_advantaged_plan_is_the_same_author_and_names_no_vehicle`;
+demo fence unit + `tests/e2e/tax-advantaged-room.spec.ts`.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1** (Settings radios said
+"this year" with no stored tax year). **Cycle 2 PASS — 0 P0, 0 P1.**
+Residual P2s: investing ladder still names Roth IRA (#515 lens);
+radios remount via `key` rather than fully controlled.
+
 

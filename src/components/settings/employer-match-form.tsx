@@ -77,7 +77,7 @@ export function EmployerMatchForm({
               </legend>
               <p className="text-xs text-muted-foreground" id="employer-match-hint">
                 This is a rung on the next-dollar order, not a percentage compared to a
-                loan. Tax-advantaged contribution room is still not collected.
+                loan. Contribution room is a separate Settings card.
               </p>
               {OPTIONS.map((opt) => (
                 <label

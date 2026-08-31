@@ -11,35 +11,37 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
-## ✅ BUILT 2026-08-29 — Employer-match Settings rung (DECISIONS #528)
+## ✅ BUILT 2026-08-31 — Tax-advantaged contribution-room Settings rung (DECISIONS #529)
 
-**The report.** Standing leftover after #527: "Match % still uncollected."
-W.6(b) already ranked an uncaptured match above runway; Coach always
-passed `unknown` because Settings never stored it.
+**The report.** Standing leftover after #528: tax-advantaged
+contribution room still uncollected. W.6(b) always skipped that rung
+as unknown.
 
-**Shipped.** Settings card, `data-testid="employer-match-card"`. Closed
-status, not a percentage: unknown / uncaptured / captured / none.
-`parseEmployerMatch` is the boundary; garbage → unknown. Demo write
-fenced; demo read forced to unknown. Uncaptured why names Settings.
-Assumptions name "an uncaptured employer match" (critic P1-1). Ladder
-drops "we don't yet know" once a status is stored.
+**Shipped.** Settings card, `data-testid="tax-advantaged-room-card"`.
+Closed status, not a dollar amount and not a vehicle: unknown /
+remaining / maxed / none. `parseTaxAdvantagedRoom` is the boundary;
+garbage → unknown. Demo write fenced; demo read forced to unknown
+even if the column is dirty. `remaining` wins only after revolving,
+uncaptured match, the 3-month runway floor, and installment APR above
+the return. Copy names Settings and the envelope; radios do not say
+"this year" (critic P1-1). Ask uses the same `COACH_COPY` author.
 
-**Does not collect** tax-advantaged contribution room, or a match
-percentage compared to APR.
+**Does not collect** an IRS dollar limit, MAGI, a tax year, or a
+match percentage compared to APR. Does not pick Roth vs 401(k) vs
+HSA. Investing ladder still names Roth IRA as the #515 generic lens.
 
 **Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
-tsc 0, eslint 0, `next build` clean). Unit **7,915 passed + 1 expected
-fail + 1 skipped / 482 files + 1 skipped**. E2E employer-match **2/2**
-and phase3-coach **1/1** on mobile-380. `docs-lint` clean (234
-markdown files). Additive `User.employerMatch String?` — Neon `db
-push` on deploy.
+tsc 0, eslint 0, `next build` clean). Unit **7,942 passed + 1 expected
+fail + 1 skipped / 483 files + 1 skipped**. E2E tax-advantaged-room
+**2/2**, employer-match **2/2**, and phase3-coach **1/1** on
+mobile-380 (port 3100 free). `docs-lint` clean (235 markdown files).
+Additive `User.taxAdvantagedRoom String?` — Neon `db push` on deploy.
 
-**Ship.** Pushed `540a309f`. CI `33235696977` SUCCESS (11m8s, attempt
-1). Vercel `dpl_jn78nuhdBaGW2pTF4hNsuX6i9Smr` READY
-(`www.aimplifi.app`). Live probe **4/4 PASS**.
+**Critic (fresh context): cycle 1 FAIL 1 P1; cycle 2 PASS — 0 P0, 0 P1.**
+P1-1: radios said "this year" with no stored tax year.
 
-**Still open.** Wave 0 ops remain owner-blocked. Tax-advantaged room
-still uncollected. Residual P2s in #528.
+**Still open.** Wave 0 ops remain owner-blocked. Residual P2s in #529
+(ladder still names Roth IRA; radios remount via `key`).
 
 ## ✅ BUILT 2026-08-28 — Remember me on this device (DECISIONS #527)
 

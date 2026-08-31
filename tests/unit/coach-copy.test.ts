@@ -1513,6 +1513,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
       runwayMonths: 4.2,
       runwayFloorMonths: 3 as const,
       employerMatch: 'unknown' as const,
+      taxAdvantagedRoom: 'unknown' as const,
       skipped: ['employer_match', 'tax_advantaged'] as const,
       highestInstallment: auto,
     };
@@ -1529,6 +1530,13 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
       debt: null,
       employerMatch: 'uncaptured' as const,
       skipped: ['tax_advantaged'] as const,
+    };
+    const taxRoom = {
+      ...base,
+      destination: 'tax_advantaged' as const,
+      debt: null,
+      taxAdvantagedRoom: 'remaining' as const,
+      skipped: ['employer_match'] as const,
     };
     const emergency = {
       ...base,
@@ -1554,16 +1562,29 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
       { label: 'nextDollarHeadline:invest', text: COACH_COPY.nextDollarHeadline(invest), isProjection: false },
       { label: 'nextDollarHeadline:revolving', text: COACH_COPY.nextDollarHeadline(revolving), isProjection: false },
       { label: 'nextDollarHeadline:match', text: COACH_COPY.nextDollarHeadline(match), isProjection: false },
+      { label: 'nextDollarHeadline:taxRoom', text: COACH_COPY.nextDollarHeadline(taxRoom), isProjection: false },
       { label: 'nextDollarHeadline:emergency', text: COACH_COPY.nextDollarHeadline(emergency), isProjection: false },
       { label: 'nextDollarHeadline:installment', text: COACH_COPY.nextDollarHeadline(installment), isProjection: false },
       { label: 'nextDollarWhy:invest', text: COACH_COPY.nextDollarWhy(invest), isProjection: false },
       { label: 'nextDollarWhy:revolving', text: COACH_COPY.nextDollarWhy(revolving), isProjection: false },
       { label: 'nextDollarWhy:match', text: COACH_COPY.nextDollarWhy(match), isProjection: false },
+      { label: 'nextDollarWhy:taxRoom', text: COACH_COPY.nextDollarWhy(taxRoom), isProjection: false },
       { label: 'nextDollarWhy:emergency', text: COACH_COPY.nextDollarWhy(emergency), isProjection: false },
       { label: 'nextDollarWhy:installment', text: COACH_COPY.nextDollarWhy(installment), isProjection: false },
       { label: 'nextDollarWhy:investNoDebt', text: COACH_COPY.nextDollarWhy(noDebt), isProjection: false },
       { label: 'nextDollarSkipped:unknown', text: COACH_COPY.nextDollarSkipped(invest), isProjection: false },
       { label: 'nextDollarSkipped:taxOnly', text: COACH_COPY.nextDollarSkipped(match), isProjection: false },
+      { label: 'nextDollarSkipped:matchOnly', text: COACH_COPY.nextDollarSkipped(taxRoom), isProjection: false },
+      {
+        label: 'nextDollarSkipped:none',
+        text: COACH_COPY.nextDollarSkipped({
+          ...invest,
+          employerMatch: 'captured',
+          taxAdvantagedRoom: 'maxed',
+          skipped: [],
+        }),
+        isProjection: false,
+      },
       {
         label: 'nextDollarSkipped:loanApr',
         text: COACH_COPY.nextDollarSkipped({

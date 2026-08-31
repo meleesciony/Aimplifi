@@ -10,5 +10,4 @@ closed status; `parseEmployerMatch` is the one boundary. Fail-safe is **skip**
 | EM2 | `'uncaptured'` / `'captured'` / `'none'` (trimmed) | same token |
 | EM3 | `'yes'` / `'50'` / `'UNCAPTURED'` / `'true'` | `unknown` (never invent uncaptured) |
 
-Column: null stores `unknown`. Demo writes are fenced. Tax-advantaged room is still
-uncollected.
+Column: null stores `unknown`. Demo writes are fenced.

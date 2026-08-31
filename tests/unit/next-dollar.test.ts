@@ -3,6 +3,8 @@
  * §Next-dollar. Integer cents, nominal APR vs nominal return, strict `>`.
  */
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { cents } from '@/lib/money';
 import {
@@ -42,6 +44,7 @@ function plan(over: Partial<NextDollarInput> = {}) {
     returnIsDefault: true,
     runwayMonths: 4.2,
     employerMatch: 'unknown',
+    taxAdvantagedRoom: 'unknown',
     ...over,
   });
 }
@@ -205,6 +208,65 @@ describe('nextDollar — EDGE_CASES §Next-dollar', () => {
     expect(p.skipped).toEqual(['tax_advantaged']);
   });
 
+  it('N14 remaining room + demo shape → tax-advantaged; match still skipped-unknown', () => {
+    const p = plan({
+      debts: [autoLoan],
+      runwayMonths: 4.2,
+      taxAdvantagedRoom: 'remaining',
+    });
+    expect(p.destination).toBe('tax_advantaged');
+    expect(p.debt).toBeNull();
+    expect(p.skipped).toEqual(['employer_match']);
+  });
+
+  it('N15 remaining room does not beat a thin runway', () => {
+    const p = plan({ debts: [], runwayMonths: 1.5, taxAdvantagedRoom: 'remaining' });
+    expect(p.destination).toBe('emergency_fund');
+    expect(p.skipped).toEqual(['employer_match']);
+  });
+
+  it('N16 remaining room does not beat installment APR above the return', () => {
+    const p = plan({
+      debts: [priceyLoan],
+      runwayMonths: 4.2,
+      taxAdvantagedRoom: 'remaining',
+    });
+    expect(p.destination).toBe('installment_debt');
+    expect(p.debt?.id).toBe('acct-personal');
+  });
+
+  it('N17 remaining room does not beat an uncaptured match', () => {
+    const p = plan({
+      debts: [autoLoan],
+      runwayMonths: 1.5,
+      employerMatch: 'uncaptured',
+      taxAdvantagedRoom: 'remaining',
+    });
+    expect(p.destination).toBe('employer_match');
+  });
+
+  it('N20 remaining room does not beat revolving APR above the return', () => {
+    const p = plan({
+      debts: [storeCard, autoLoan],
+      runwayMonths: 1.5,
+      taxAdvantagedRoom: 'remaining',
+    });
+    expect(p.destination).toBe('revolving_debt');
+    expect(p.debt?.id).toBe('acct-store');
+  });
+
+  it('N18 maxed + demo shape → invest; tax is not skipped-unknown', () => {
+    const p = plan({ debts: [autoLoan], runwayMonths: 4.2, taxAdvantagedRoom: 'maxed' });
+    expect(p.destination).toBe('invest');
+    expect(p.skipped).toEqual(['employer_match']);
+  });
+
+  it('N19 none + demo shape → invest; tax is not skipped-unknown', () => {
+    const p = plan({ debts: [autoLoan], runwayMonths: 4.2, taxAdvantagedRoom: 'none' });
+    expect(p.destination).toBe('invest');
+    expect(p.skipped).toEqual(['employer_match']);
+  });
+
   it('test_regression__captured_match_does_not_win_over_thin_runway', () => {
     const p = plan({ debts: [], runwayMonths: 1.5, employerMatch: 'captured' });
     expect(p.destination).toBe('emergency_fund');
@@ -237,7 +299,26 @@ describe('copy honesty for 0% / unknown APR (critic P1-2)', () => {
     const skipped = COACH_COPY.nextDollarSkipped(p);
     expect(skipped).not.toMatch(/Employer match isn't on file/i);
     expect(skipped).not.toMatch(/Employer match is skipped/i);
-    expect(skipped).toContain('Tax-advantaged contribution room is skipped');
+    expect(skipped).toContain('Tax-advantaged contribution room isn');
+    expect(skipped).not.toMatch(/that rate is not on file/i);
+  });
+
+  it('test_regression__tax_room_copy_does_not_bind_a_tax_year', async () => {
+    const { COACH_COPY } = await import('@/lib/engine/fi/coach-copy');
+    const remaining = plan({ taxAdvantagedRoom: 'remaining' });
+    const maxed = plan({ taxAdvantagedRoom: 'maxed', employerMatch: 'captured' });
+    for (const p of [remaining, maxed, plan()]) {
+      expect(COACH_COPY.nextDollarHeadline(p), p.destination).not.toMatch(/this year/i);
+      expect(COACH_COPY.nextDollarWhy(p), p.destination).not.toMatch(/this year/i);
+      expect(COACH_COPY.nextDollarSkipped(p), p.destination).not.toMatch(/this year/i);
+      expect(COACH_COPY.nextDollarAssumptions(p), p.destination).not.toMatch(/this year/i);
+    }
+    const src = readFileSync(
+      join(__dirname, '../../src/components/settings/tax-advantaged-room-form.tsx'),
+      'utf8',
+    );
+    expect(src).not.toMatch(/this year/i);
+    expect(src).not.toMatch(/this year's/i);
   });
 
   it('test_regression__uncaptured_why_names_settings_not_a_feed', async () => {
@@ -259,5 +340,39 @@ describe('copy honesty for 0% / unknown APR (critic P1-2)', () => {
     const unknown = COACH_COPY.nextDollarAssumptions(plan());
     expect(unknown).toContain('uncaptured employer match');
     expect(unknown).not.toMatch(/match if known/i);
+  });
+
+  it('test_regression__maxed_tax_room_does_not_win_over_thin_runway', () => {
+    const p = plan({ debts: [], runwayMonths: 1.5, taxAdvantagedRoom: 'maxed' });
+    expect(p.destination).toBe('emergency_fund');
+  });
+
+  it('test_regression__remaining_why_names_settings_not_a_vehicle', async () => {
+    const { COACH_COPY } = await import('@/lib/engine/fi/coach-copy');
+    const p = plan({ taxAdvantagedRoom: 'remaining' });
+    expect(p.destination).toBe('tax_advantaged');
+    const why = COACH_COPY.nextDollarWhy(p);
+    expect(why).toContain('Settings');
+    expect(why).not.toMatch(/Roth|529|HSA|Traditional|brokerage/i);
+    expect(COACH_COPY.nextDollarHeadline(p)).toContain('tax-advantaged contribution room');
+  });
+
+  it('test_regression__assumptions_name_remaining_room_not_if_known', async () => {
+    const { COACH_COPY } = await import('@/lib/engine/fi/coach-copy');
+    const maxed = plan({ debts: [], runwayMonths: 4.2, taxAdvantagedRoom: 'maxed' });
+    expect(maxed.destination).toBe('invest');
+    const assumptions = COACH_COPY.nextDollarAssumptions(maxed);
+    expect(assumptions).toContain('remaining tax-advantaged contribution room');
+    expect(assumptions).not.toMatch(/tax-advantaged if known/i);
+    expect(assumptions).not.toMatch(/room if known/i);
+  });
+
+  it('test_regression__known_tax_room_is_not_described_as_not_on_file', async () => {
+    const { COACH_COPY } = await import('@/lib/engine/fi/coach-copy');
+    const p = plan({ debts: [autoLoan], taxAdvantagedRoom: 'maxed', employerMatch: 'captured' });
+    const skipped = COACH_COPY.nextDollarSkipped(p);
+    expect(skipped).not.toMatch(/Tax-advantaged contribution room isn't on file/i);
+    expect(skipped).not.toMatch(/Tax-advantaged contribution room is skipped/i);
+    expect(skipped).not.toMatch(/that rate is not on file/i);
   });
 });

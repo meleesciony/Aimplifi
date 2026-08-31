@@ -78,6 +78,7 @@ import { aiAuditSink } from '@/server/ai-audit';
 import { orderReviewViaLLM } from './money-review-llm';
 import { returnIsAppDefault } from '@/lib/engine/settings/dials';
 import { parseEmployerMatch } from '@/lib/engine/settings/employer-match';
+import { parseTaxAdvantagedRoom } from '@/lib/engine/settings/tax-advantaged-room';
 import { dialDisplayNames } from '@/lib/engine/settings/money-dial-ids';
 import { loadDialCatalog, resolvedMoneyDialIds } from '@/server/money-dials';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
@@ -253,7 +254,7 @@ export interface CoachData {
   /**
    * W.6(b) — extra-dollar ranking from rates already on file. Always
    * computed (cheap, pure). Employer match / tax-advantaged room are
-   * skipped unknown until those fields exist.
+   * skipped unknown until Settings stores them (#528 / #529).
    */
   nextDollar: NextDollarPlan;
   /**
@@ -591,6 +592,9 @@ export async function getCoachData(
     returnIsDefault: returnIsAppDefault(user.expectedReturnBps),
     runwayMonths: runway,
     employerMatch: isDemoUser(userId) ? 'unknown' : parseEmployerMatch(user.employerMatch),
+    taxAdvantagedRoom: isDemoUser(userId)
+      ? 'unknown'
+      : parseTaxAdvantagedRoom(user.taxAdvantagedRoom),
     unknownLoanApr: loanRows.some((a) => a.aprBps == null),
   });
 

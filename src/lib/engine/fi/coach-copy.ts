@@ -1716,6 +1716,9 @@ export const COACH_COPY = {
     if (plan.destination === 'installment_debt' && plan.debt) {
       return `Next extra dollar: ${plan.debt.name} (${pct(plan.debt.aprBps)} APR)`;
     }
+    if (plan.destination === 'tax_advantaged') {
+      return `Next extra dollar: tax-advantaged contribution room`;
+    }
     return `Next extra dollar: investing`;
   },
   nextDollarWhy: (plan: NextDollarPlan) => {
@@ -1735,6 +1738,9 @@ export const COACH_COPY = {
     if (plan.destination === 'installment_debt' && plan.debt) {
       return `${plan.debt.name} is ${pct(plan.debt.aprBps)}, above ${ret}. Extra there is a contracted rate, not a market expectation.`;
     }
+    if (plan.destination === 'tax_advantaged') {
+      return `You said in Settings that tax-advantaged contribution room remains — filling that envelope is the extra-dollar destination before taxable investing. This names the wrapper, not a specific account.`;
+    }
     const loanBit =
       plan.highestInstallment && plan.highestInstallment.aprBps > 0
         ? `The ${plan.highestInstallment.name} is ${pct(plan.highestInstallment.aprBps)}, at or under ${ret}, so extra there is not the first extra dollar.`
@@ -1753,10 +1759,12 @@ export const COACH_COPY = {
     const parts: string[] = [];
     if (hasMatch && hasTax) {
       parts.push(
-        `Employer match isn't on file yet (you can add it in Settings). Tax-advantaged contribution room is also skipped — that rate is not on file yet.`,
+        `Employer match isn't on file yet (you can add it in Settings). Tax-advantaged contribution room isn't on file yet either — add it in Settings.`,
       );
     } else if (hasTax) {
-      parts.push(`Tax-advantaged contribution room is skipped — that rate is not on file yet.`);
+      parts.push(
+        `Tax-advantaged contribution room isn't on file yet (you can add it in Settings).`,
+      );
     } else if (hasMatch) {
       parts.push(
         `Employer match is skipped — it isn't on file yet. You can add it in Settings.`,
@@ -1767,7 +1775,7 @@ export const COACH_COPY = {
     }
     return parts.length > 0
       ? parts.join(' ')
-      : `Every rung we collect a rate for is in this order.`;
+      : `Every rung we collect is in this order.`;
   },
   nextDollarCardsNote: () =>
     `Cards that are not past due are a this-cycle cash question, not an extra-pay destination.`,
@@ -1776,7 +1784,7 @@ export const COACH_COPY = {
       returnIsDefault: plan.returnIsDefault,
       inflationIsDefault: true,
     });
-    return `Order: revolving APR above the return assumption, then an uncaptured employer match, then cash runway to ${plan.runwayFloorMonths} months, then installment APR above the return assumption, then investing. Compared at ${ret} (nominal, the same unit as APR). Illustration, not advice — Aimplifi never moves money.`;
+    return `Order: revolving APR above the return assumption, then an uncaptured employer match, then cash runway to ${plan.runwayFloorMonths} months, then installment APR above the return assumption, then remaining tax-advantaged contribution room, then investing. Compared at ${ret} (nominal, the same unit as APR). Illustration, not advice — Aimplifi never moves money.`;
   },
 
   // C2 · Housel — saving for its own sake is a goal; the cushion is room for error

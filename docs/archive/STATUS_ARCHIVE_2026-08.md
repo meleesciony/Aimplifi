@@ -6,6 +6,35 @@
 
 ---
 
+## ✅ BUILT 2026-08-29 — Employer-match Settings rung (DECISIONS #528)
+
+**The report.** Standing leftover after #527: "Match % still uncollected."
+W.6(b) already ranked an uncaptured match above runway; Coach always
+passed `unknown` because Settings never stored it.
+
+**Shipped.** Settings card, `data-testid="employer-match-card"`. Closed
+status, not a percentage: unknown / uncaptured / captured / none.
+`parseEmployerMatch` is the boundary; garbage → unknown. Demo write
+fenced; demo read forced to unknown. Uncaptured why names Settings.
+Assumptions name "an uncaptured employer match" (critic P1-1). Ladder
+drops "we don't yet know" once a status is stored.
+
+**Does not collect** tax-advantaged contribution room, or a match
+percentage compared to APR.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **7,915 passed + 1 expected
+fail + 1 skipped / 482 files + 1 skipped**. E2E employer-match **2/2**
+and phase3-coach **1/1** on mobile-380. `docs-lint` clean (234
+markdown files). Additive `User.employerMatch String?` — Neon `db
+push` on deploy.
+
+**Ship.** Pushed `540a309f`. CI `33235696977` SUCCESS (11m8s, attempt
+1). Vercel `dpl_jn78nuhdBaGW2pTF4hNsuX6i9Smr` READY
+(`www.aimplifi.app`). Live probe **4/4 PASS**.
+
+**Still open.** Wave 0 ops remain owner-blocked. Tax-advantaged room
+still uncollected. Residual P2s in #528.
 
 ## ✅ BUILT 2026-08-26 — C14 Education goal preset on /goals (DECISIONS #522)
 

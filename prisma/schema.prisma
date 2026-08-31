@@ -66,6 +66,12 @@ model User {
   // `parseEmployerMatch`: 'uncaptured' | 'captured' | 'none'. Garbage reads as
   // unknown (skip, never invent uncaptured). Demo writes are fenced.
   employerMatch     String?
+  // W.6(b) follow-up / DECISIONS #529 — tax-advantaged contribution-room
+  // rung for next-dollar. Nullable and additive: null = unknown (skip the
+  // rung). Closed set enforced by `parseTaxAdvantagedRoom`: 'remaining' |
+  // 'maxed' | 'none'. Garbage reads as unknown (skip, never invent remaining).
+  // Demo writes are fenced. Not a dollar amount and not a vehicle pick.
+  taxAdvantagedRoom String?
   // Optional Plan figure overrides (DECISIONS #372). null = use the suggested
   // pattern from transactions. Integer cents. Cleared by submitting an empty
   // field on /spending-plan. Demo writes are fenced (shared account).

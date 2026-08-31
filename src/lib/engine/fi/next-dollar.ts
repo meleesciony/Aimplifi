@@ -3,14 +3,18 @@
  *
  * Given an extra dollar, the canon's agreed order is: high-APR revolving debt,
  * then employer match if known uncaptured, then cash runway to a 3-month floor,
- * then installment debt whose APR beats the return assumption, then investing.
+ * then installment debt whose APR beats the return assumption, then remaining
+ * tax-advantaged contribution room, then investing.
  * Compared at the NOMINAL return dial (APR is a nominal contracted rate; the
  * FI card's real/after-inflation rate is a different unit).
  *
  * Employer match is collected in Settings as a rung status, not a percentage
- * (#528). Tax-advantaged contribution room is still skipped with reason
- * `unknown`. CREDIT balances that are not past-due are this-cycle cash-needed,
- * not extra-pay destinations — pay-in-full is the product's standing instruction.
+ * (#528). Tax-advantaged contribution room is the same shape (#529): a status,
+ * not a dollar amount or a vehicle. `remaining` wins only after contracted
+ * rates and the runway floor — it names the envelope before taxable investing,
+ * and it never outranks a high-APR loan or a thin cushion. CREDIT balances
+ * that are not past-due are this-cycle cash-needed, not extra-pay destinations
+ * — pay-in-full is the product's standing instruction.
  *
  * Pure: integer cents in, no I/O, no `new Date()`.
  */
@@ -37,11 +41,20 @@ export interface NextDollarDebt {
  */
 export type EmployerMatch = 'unknown' | 'uncaptured' | 'captured' | 'none';
 
+/**
+ * Contribution room is a rung, not an IRS limit we invent. `unknown` = not on
+ * file (skip). `remaining` wins the destination once earlier rungs fall
+ * through. `maxed` and `none` fall through — known, so not skipped-unknown.
+ * Do not invent a dollar amount or pick Roth vs 401(k) vs HSA.
+ */
+export type TaxAdvantagedRoom = 'unknown' | 'remaining' | 'maxed' | 'none';
+
 export type NextDollarDestination =
   | 'revolving_debt'
   | 'employer_match'
   | 'emergency_fund'
   | 'installment_debt'
+  | 'tax_advantaged'
   | 'invest';
 
 export type SkippedRungId = 'employer_match' | 'tax_advantaged' | 'loan_apr';
@@ -53,6 +66,7 @@ export interface NextDollarInput {
   returnIsDefault: boolean;
   runwayMonths: number;
   employerMatch: EmployerMatch;
+  taxAdvantagedRoom: TaxAdvantagedRoom;
   /** A LOAN row with a positive balance and no APR — skipped, not ranked as 0%. */
   unknownLoanApr?: boolean;
 }
@@ -65,6 +79,7 @@ export interface NextDollarPlan {
   runwayMonths: number;
   runwayFloorMonths: typeof RUNWAY_FLOOR_MONTHS;
   employerMatch: EmployerMatch;
+  taxAdvantagedRoom: TaxAdvantagedRoom;
   skipped: readonly SkippedRungId[];
   /** Highest-APR installment on file (winner or the comparison that lost). */
   highestInstallment: NextDollarDebt | null;
@@ -125,9 +140,14 @@ function pickHighest(debts: readonly NextDollarDebt[]): NextDollarDebt | null {
   return ranked[0] ?? null;
 }
 
-function skippedRungs(match: EmployerMatch, unknownLoanApr: boolean): SkippedRungId[] {
-  const skipped: SkippedRungId[] = ['tax_advantaged'];
-  if (match === 'unknown') skipped.unshift('employer_match');
+function skippedRungs(
+  match: EmployerMatch,
+  tax: TaxAdvantagedRoom,
+  unknownLoanApr: boolean,
+): SkippedRungId[] {
+  const skipped: SkippedRungId[] = [];
+  if (match === 'unknown') skipped.push('employer_match');
+  if (tax === 'unknown') skipped.push('tax_advantaged');
   if (unknownLoanApr) skipped.push('loan_apr');
   return skipped;
 }
@@ -145,7 +165,12 @@ function base(input: NextDollarInput, extra: {
     runwayMonths: input.runwayMonths,
     runwayFloorMonths: RUNWAY_FLOOR_MONTHS,
     employerMatch: input.employerMatch,
-    skipped: skippedRungs(input.employerMatch, input.unknownLoanApr === true),
+    taxAdvantagedRoom: input.taxAdvantagedRoom,
+    skipped: skippedRungs(
+      input.employerMatch,
+      input.taxAdvantagedRoom,
+      input.unknownLoanApr === true,
+    ),
     highestInstallment: pickHighest(installments),
   };
 }
@@ -180,6 +205,10 @@ export function nextDollar(input: NextDollarInput): NextDollarPlan {
     ),
   );
   if (installment) return base(input, { destination: 'installment_debt', debt: installment });
+
+  if (input.taxAdvantagedRoom === 'remaining') {
+    return base(input, { destination: 'tax_advantaged', debt: null });
+  }
 
   return base(input, { destination: 'invest', debt: null });
 }

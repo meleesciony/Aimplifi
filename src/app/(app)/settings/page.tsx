@@ -7,6 +7,7 @@ import { ConnectAccountsButton } from '@/components/finance/connect-accounts-but
 import { MoneyDialsForm } from '@/components/settings/money-dials-form';
 import { RichLifeForm } from '@/components/settings/rich-life-form';
 import { EmployerMatchForm } from '@/components/settings/employer-match-form';
+import { TaxAdvantagedRoomForm } from '@/components/settings/tax-advantaged-room-form';
 import { DeleteMyDataForm } from '@/components/settings/delete-my-data-form';
 import { SignOutEverywhere } from '@/components/settings/sign-out-everywhere';
 import { CategoryManager } from '@/components/settings/category-manager';
@@ -72,6 +73,8 @@ export default async function SettingsPage() {
           richLifeVision: true,
           // W.6(b) / #528 — employer-match rung (null = unknown).
           employerMatch: true,
+          // W.6(b) / #529 — tax-advantaged contribution-room rung (null = unknown).
+          taxAdvantagedRoom: true,
         },
       }),
       prisma.account.findMany({
@@ -203,6 +206,11 @@ export default async function SettingsPage() {
           typed input: the card reads the row (null for demo) while the
           form stays off and the action refuses. */}
       <EmployerMatchForm current={user.employerMatch} canWrite={!isDemoUser(userId)} />
+
+      {/* W.6(b) / #529 — tax-advantaged contribution-room rung. Demo is
+          fenced like every typed input: the card reads the row (null for
+          demo) while the form stays off and the action refuses. */}
+      <TaxAdvantagedRoomForm current={user.taxAdvantagedRoom} canWrite={!isDemoUser(userId)} />
 
       {/* C.23 / DECISIONS #431 — the guided Fixed-costs section: the app's
           own basis, the detected proposals, and the reserve figure with its

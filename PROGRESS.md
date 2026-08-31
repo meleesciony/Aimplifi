@@ -5,6 +5,30 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-08-31 — Tax-advantaged contribution-room Settings (DECISIONS #529)
+
+**Picked up.** Owner: "continue." Employer-match (#528) closed. Wave 0
+ops owner-blocked. Ranked leftover: tax-advantaged room still
+uncollected.
+
+**Closed.** Settings collects a rung status (not a $ amount, not a
+vehicle), wired into `nextDollar`. `remaining` wins after contracted
+rates and the runway floor; `maxed`/`none` fall through; unknown still
+skips. Demo fenced both legs. Radios do not say "this year."
+
+**Critic (fresh context): cycle 1 FAIL 1 P1; cycle 2 PASS — 0 P0, 0 P1.**
+P1-1: radios said "this year" with no stored tax year.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **7,942 passed + 1 expected
+fail + 1 skipped / 483 files + 1 skipped**. E2E tax-advantaged-room
+**2/2**, employer-match **2/2**, and phase3-coach **1/1** on
+mobile-380 (port 3100 free). `docs-lint` clean (235 markdown files).
+Additive `User.taxAdvantagedRoom String?` — Neon `db push` on deploy.
+
+**Next.** Wave 0 ops remain owner-blocked. Coach-principles product
+P0/P1 from the ranked leftover list are closed.
+
 ## 2026-08-29 — Employer-match Settings rung (DECISIONS #528)
 
 **Picked up.** Owner: "continue." Remember-me (#527) closed. Wave 0 ops

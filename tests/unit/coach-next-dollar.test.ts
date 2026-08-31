@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEMO_USER_ID } from '@/lib/demo-user';
+import { prisma } from '@/lib/db';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { classifyDebts, nextDollar } from '@/lib/engine/fi/next-dollar';
 import { getCoachData } from '@/server/coach';
@@ -43,6 +44,7 @@ describe('W.6(b) /coach next-dollar payload', () => {
       returnIsDefault: d.fi.returnIsDefault,
       runwayMonths: d.runwayMonths,
       employerMatch: d.nextDollar.employerMatch,
+      taxAdvantagedRoom: d.nextDollar.taxAdvantagedRoom,
     });
     expect(d.nextDollar.destination).toBe(measured.destination);
     expect(d.nextDollar.highestInstallment).toEqual(measured.highestInstallment);
@@ -59,5 +61,23 @@ describe('W.6(b) /coach next-dollar payload', () => {
     expect(why).not.toMatch(/this card/i);
     expect(why).not.toMatch(/\bbelow\b/i);
     expect(COACH_COPY.nextDollarAssumptions(d.nextDollar)).toContain('Illustration, not advice');
+  });
+
+  it('test_regression__demo_tax_room_read_is_forced_unknown_even_if_column_is_dirty', async () => {
+    await prisma.user.update({
+      where: { id: DEMO_USER_ID },
+      data: { taxAdvantagedRoom: 'remaining' },
+    });
+    try {
+      const d = await getCoachData(DEMO_USER_ID);
+      expect(d.nextDollar.taxAdvantagedRoom).toBe('unknown');
+      expect(d.nextDollar.destination).toBe('invest');
+      expect(d.nextDollar.skipped).toContain('tax_advantaged');
+    } finally {
+      await prisma.user.update({
+        where: { id: DEMO_USER_ID },
+        data: { taxAdvantagedRoom: null },
+      });
+    }
   });
 });

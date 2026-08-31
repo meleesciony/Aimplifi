@@ -35,6 +35,7 @@ const demoPlan = nextDollar({
   returnIsDefault: true,
   runwayMonths: 4.2,
   employerMatch: 'unknown',
+  taxAdvantagedRoom: 'unknown',
 });
 
 describe('routing — next_dollar', () => {
@@ -251,5 +252,24 @@ describe('answerNextDollar — one author, copy bans', () => {
     expect(a.detail).not.toMatch(/this card/i);
     expect(a.detail).not.toMatch(/\bbelow\b/i);
     expect(a.source).toEqual({ label: 'See on Coach', href: '/coach' });
+  });
+
+  it('test_regression__ask_tax_advantaged_plan_is_the_same_author_and_names_no_vehicle', () => {
+    const remainingPlan = nextDollar({
+      debts: demoPlan.highestInstallment ? [demoPlan.highestInstallment] : [],
+      expectedReturnBps: 700,
+      returnIsDefault: true,
+      runwayMonths: 4.2,
+      employerMatch: 'unknown',
+      taxAdvantagedRoom: 'remaining',
+    });
+    expect(remainingPlan.destination).toBe('tax_advantaged');
+    const a = answerNextDollar(remainingPlan);
+    expect(a.headline).toBe(COACH_COPY.nextDollarHeadline(remainingPlan));
+    expect(a.headline).toContain('tax-advantaged contribution room');
+    expect(a.detail).toContain(COACH_COPY.nextDollarWhy(remainingPlan));
+    expect(a.detail).toContain('Settings');
+    expect(a.detail).not.toMatch(/Roth|529|HSA|Traditional|brokerage/i);
+    expect(a.detail).not.toMatch(/this year/i);
   });
 });
