@@ -40,6 +40,10 @@ Additive `User.taxAdvantagedRoom String?` — Neon `db push` on deploy.
 **Critic (fresh context): cycle 1 FAIL 1 P1; cycle 2 PASS — 0 P0, 0 P1.**
 P1-1: radios said "this year" with no stored tax year.
 
+**Ship.** Pushed `4859f3aa`. CI `33431938464` SUCCESS (13m41s, attempt
+1). Vercel `dpl_4DmVktxqnZVPT59EGeqPnrAt71u1` READY
+(`www.aimplifi.app`). Live probe **5/5 PASS**.
+
 **Still open.** Wave 0 ops remain owner-blocked. Residual P2s in #529
 (ladder still names Roth IRA; radios remount via `key`).
 

@@ -26,6 +26,14 @@ fail + 1 skipped / 483 files + 1 skipped**. E2E tax-advantaged-room
 mobile-380 (port 3100 free). `docs-lint` clean (235 markdown files).
 Additive `User.taxAdvantagedRoom String?` — Neon `db push` on deploy.
 
+**Ship.** Pushed `4859f3aa`. GitHub Actions `verify` run **33431938464**
+= SUCCESS (13m41s, attempt 1). Watched via `gh.exe run view`.
+Vercel `dpl_4DmVktxqnZVPT59EGeqPnrAt71u1` READY; aliases include
+`www.aimplifi.app`. Live `node scripts/tax-advantaged-room-live-check.mjs`
+→ **5/5 PASS** (demo settings card + shared-account note, no form;
+next-dollar skipped names Settings and does not call room a rate).
+This deploy ran `prisma db push` for `User.taxAdvantagedRoom`.
+
 **Next.** Wave 0 ops remain owner-blocked. Coach-principles product
 P0/P1 from the ranked leftover list are closed.
 
