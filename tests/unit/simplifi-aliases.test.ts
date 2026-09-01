@@ -4,7 +4,6 @@ import {
   expandSimplifiAliasRows,
   canonicalCategoryName,
   SIMPLIFI_LEAF_ALIASES,
-  simplifiAliasToCategoryId,
 } from '@/lib/engine/categorize/simplifi-aliases';
 
 describe('Simplifi alias rows (O.17 refused duplicates)', () => {
@@ -43,18 +42,5 @@ describe('Simplifi alias rows (O.17 refused duplicates)', () => {
   it('does not invent a Restaurants system id', () => {
     expect(SIMPLIFI_LEAF_ALIASES.dining).toEqual(['Restaurants']);
     expect('restaurants' in SIMPLIFI_LEAF_ALIASES).toBe(false);
-  });
-});
-
-describe('simplifiAliasToCategoryId', () => {
-  it('maps Restaurants and a grouped path to dining', () => {
-    expect(simplifiAliasToCategoryId('Restaurants')).toBe('dining');
-    expect(simplifiAliasToCategoryId('Food & Dining: Restaurants')).toBe('dining');
-    expect(simplifiAliasToCategoryId('Food & Dining > Restaurants')).toBe('dining');
-  });
-
-  it('does not invent an id for an unknown Simplifi name', () => {
-    expect(simplifiAliasToCategoryId('Mystery Bucket')).toBeNull();
-    expect(simplifiAliasToCategoryId('')).toBeNull();
   });
 });

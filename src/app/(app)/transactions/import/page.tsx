@@ -40,11 +40,11 @@ export default async function ImportTransactionsPage() {
     <div className="mx-auto max-w-md space-y-4">
       <h1 className="text-xl font-semibold">Import transactions</h1>
       <p className="text-sm text-muted-foreground">
-        Bring in real transactions from any bank — or a Simplifi CSV — and paste
-        it here. No bank connection required. Rows your synced connection already
-        holds are not duplicated. If the file names a category, matching existing
-        rows take that category (Simplifi wins while Aimplifi is standing up).
-        If the file contains the same line twice the import will flag it.
+        Bring in real transactions from any bank — export a CSV from your bank or
+        another app and paste it here. No bank connection required. Rows your
+        synced connection already holds are skipped automatically, and if your
+        file contains the same line twice the import will flag it — so importing
+        your bank&apos;s full export is safe.
       </p>
       <ImportCsvForm accounts={accounts} />
       <CsvImportGuides institutions={institutions} />
