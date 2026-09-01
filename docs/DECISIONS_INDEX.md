@@ -539,3 +539,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #543 — Home Needs a category goes to Activity, not Inbox (2026-09-01) → docs/DECISIONS.md
 - #544 — CSV import accepts Debit/Credit and Net Amount (2026-09-01) → docs/DECISIONS.md
 - #545 — Uncategorized figures go to Needs a category, not Inbox (2026-09-01) → docs/DECISIONS.md
+- #546 — CSV paste helper names Debit/Credit and Net Amount (2026-09-01) → docs/DECISIONS.md

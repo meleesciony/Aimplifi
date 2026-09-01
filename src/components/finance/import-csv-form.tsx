@@ -12,7 +12,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { type ImportResult, importTransactionsCsv } from '@/server/transaction-actions';
-import { CSV_IMPORT_CATEGORY_HELP } from '@/lib/copy/csv-import-copy';
+import { CSV_IMPORT_CATEGORY_HELP, CSV_IMPORT_COLUMNS_HELP } from '@/lib/copy/csv-import-copy';
 
 const fieldClass =
   'w-full rounded-md border border-input bg-background px-3 text-sm text-foreground';
@@ -48,11 +48,8 @@ export function ImportCsvForm({ accounts }: { accounts: { id: string; name: stri
               placeholder={'date,description,amount\n2026-06-01,Coffee shop,-4.50\n2026-06-01,Paycheck,2500.00'}
               className={`py-2 font-mono text-xs ${fieldClass}`}
             />
-            <span className="text-xs text-muted-foreground">
-              Columns: <code>date</code>, <code>description</code> (or <code>payee</code>),
-              <code>amount</code>, optional <code>category</code>. {CSV_IMPORT_CATEGORY_HELP}
-              Amount is negative for money out, positive for money in. Dates as
-              YYYY-MM-DD or MM/DD/YYYY.
+            <span className="text-xs text-muted-foreground" data-testid="csv-import-columns-help">
+              {CSV_IMPORT_COLUMNS_HELP} {CSV_IMPORT_CATEGORY_HELP}
             </span>
           </label>
 

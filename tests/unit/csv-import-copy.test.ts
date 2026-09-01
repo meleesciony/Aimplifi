@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { CSV_IMPORT_CATEGORY_HELP, CSV_IMPORT_INTRO } from '@/lib/copy/csv-import-copy';
+import { CSV_IMPORT_CATEGORY_HELP, CSV_IMPORT_COLUMNS_HELP, CSV_IMPORT_INTRO } from '@/lib/copy/csv-import-copy';
 
 describe('CSV import is any source, not a Simplifi matcher (DECISIONS #540)', () => {
   it('test_regression__csv_import_copy_is_any_source_not_simplifi_standup', () => {
@@ -27,3 +27,19 @@ describe('CSV import is any source, not a Simplifi matcher (DECISIONS #540)', ()
     expect(form).not.toMatch(/Simplifi export/);
   });
 });
+
+describe('CSV paste helper names Debit/Credit and Net Amount (DECISIONS #546)', () => {
+  it('test_regression__csv_paste_helper_names_debit_credit_and_net_amount', () => {
+    expect(CSV_IMPORT_COLUMNS_HELP).toMatch(/Debit plus Credit/);
+    expect(CSV_IMPORT_COLUMNS_HELP).toMatch(/Net Amount/);
+    expect(CSV_IMPORT_COLUMNS_HELP).toMatch(/Trade Date/);
+    expect(CSV_IMPORT_COLUMNS_HELP).not.toMatch(/Simplifi/i);
+
+    const form = readFileSync(resolve('src/components/finance/import-csv-form.tsx'), 'utf8');
+    expect(form).toContain('CSV_IMPORT_COLUMNS_HELP');
+    expect(form).toContain('data-testid="csv-import-columns-help"');
+    expect(form).not.toMatch(/Columns: <code>date<\/code>/);
+    expect(form).not.toMatch(/Amount is negative for money out, positive for money in/);
+  });
+});
+

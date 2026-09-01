@@ -1866,3 +1866,11 @@ invent an auto-file quality claim.
 **Decision.** Copy and href only. Same destination as Home: `/transactions?unclassified=1`. Label is "Needs a category". Do not make Uncategorized a category-select filter. Do not claim the figure equals the landing total. Spending plan "File transactions" and Rules still point at Inbox.
 
 **Locked.** `test_regression__uncategorized_figure_opens_needs_a_category_not_inbox`.
+
+## #546 — CSV paste helper names Debit/Credit and Net Amount (2026-09-01)
+
+**Context.** #544 taught the parser Debit+Credit and Net Amount. The paste helper still listed only `date`, `description`, `amount` and said amount is signed. A Capital One or Vanguard paste would look rejected by the page even though it files.
+
+**Decision.** Copy-only on the paste helper. Name Trade Date, Net Amount, and Debit plus Credit. Signed amount files stay valid. Placeholder example stays the signed three-column shape. Do not name Simplifi.
+
+**Locked.** `test_regression__csv_paste_helper_names_debit_credit_and_net_amount`.

@@ -8,3 +8,7 @@ export const CSV_IMPORT_INTRO =
 
 export const CSV_IMPORT_CATEGORY_HELP =
   'A category in the file on a row you already have replaces the one on file.';
+
+export const CSV_IMPORT_COLUMNS_HELP =
+  'Need date (or Trade Date), a payee, and money: amount or Net Amount, or Debit plus Credit. Optional category. Signed amount is negative for money out. Debit is money out. Dates as YYYY-MM-DD or MM/DD/YYYY.';
+
