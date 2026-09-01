@@ -81,3 +81,24 @@ export function credentialRejection(input: RejectionInput): CredentialRejection 
 
   return 'bad-hash';
 }
+
+/**
+ * Values to try against the stored hash. Raw first (the typed password). Then
+ * the trimmed copy when autofill/keyboard wrapped it in whitespace. Empty after
+ * trim is not a candidate — that would turn "   " into a login.
+ */
+export function passwordVerifyCandidates(password: string): string[] {
+  const trimmed = password.trim();
+  if (trimmed !== password && trimmed.length > 0) return [password, trimmed];
+  return [password];
+}
+
+/** True when any candidate verifies. Null/empty stored hash never matches. */
+export function credentialsMatch(
+  password: string,
+  storedHash: string | null | undefined,
+  verify: (plain: string, stored: string) => boolean,
+): boolean {
+  if (!storedHash) return false;
+  return passwordVerifyCandidates(password).some((candidate) => verify(candidate, storedHash));
+}

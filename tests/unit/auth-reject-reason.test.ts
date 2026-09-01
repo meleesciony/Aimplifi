@@ -5,7 +5,9 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
-import { credentialRejection } from '@/lib/auth/reject-reason';
+import { credentialRejection, credentialsMatch, passwordVerifyCandidates } from '@/lib/auth/reject-reason';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const EMAIL = 'owner@aimplifi.test';
 const PASSWORD = 'correct-horse-battery-staple';
@@ -64,5 +66,26 @@ describe('credentialRejection', () => {
     expect(reason).not.toContain(PASSWORD);
     expect(reason).not.toContain(EMAIL);
     expect(reason).not.toMatch(/\d/); // no lengths, no counts
+  });
+});
+
+
+describe('sign-in accepts autofill whitespace (DECISIONS #541)', () => {
+  it('test_regression__sign_in_accepts_password_with_surrounding_whitespace', () => {
+    expect(passwordVerifyCandidates(PASSWORD)).toEqual([PASSWORD]);
+    expect(passwordVerifyCandidates(` ${PASSWORD} `)).toEqual([` ${PASSWORD} `, PASSWORD]);
+    expect(passwordVerifyCandidates('   ')).toEqual(['   ']);
+
+    expect(credentialsMatch(PASSWORD, HASH, verifyPassword)).toBe(true);
+    expect(credentialsMatch(`\t${PASSWORD}\n`, HASH, verifyPassword)).toBe(true);
+    expect(credentialsMatch(` ${PASSWORD} `, HASH, verifyPassword)).toBe(true);
+    expect(credentialsMatch('wrong-password', HASH, verifyPassword)).toBe(false);
+    expect(credentialsMatch(' wrong-password ', HASH, verifyPassword)).toBe(false);
+    expect(credentialsMatch(PASSWORD, null, verifyPassword)).toBe(false);
+    expect(credentialsMatch('   ', HASH, verifyPassword)).toBe(false);
+
+    const auth = readFileSync(resolve('src/auth.ts'), 'utf8');
+    expect(auth).toContain('credentialsMatch');
+    expect(auth).not.toMatch(/!user \|\| !verifyPassword\(password, user\.passwordHash\)/);
   });
 });

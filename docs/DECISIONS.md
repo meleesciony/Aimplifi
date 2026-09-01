@@ -1826,3 +1826,11 @@ invent an auto-file quality claim.
 **Decision.** Copy-only on the import page and paste helper. Any bank or CSV. Optional category column files matching existing rows. Do not name Simplifi. Do not drop the alias table (Restaurants still files dining). Do not hardcode a household's merchants.
 
 **Locked.** `test_regression__csv_import_copy_is_any_source_not_simplifi_standup`.
+
+## #541 — Sign-in accepts a correct password wrapped in autofill whitespace (2026-09-01)
+
+**Context.** O.14 logged `bad-hash+trim-verifies` when a password manager submitted the real password with surrounding whitespace, then still rejected. The reader saw Invalid email or password and a retry (a second autofill) often worked. That is a product login defect for any household, not one vault.
+
+**Decision.** Authorize tries the trimmed candidate when it differs and is non-empty. A wrong password still fails. Email-in-the-password-field still fails. Do not sign anyone out. Do not change AUTH_SECRET.
+
+**Locked.** `test_regression__sign_in_accepts_password_with_surrounding_whitespace`.

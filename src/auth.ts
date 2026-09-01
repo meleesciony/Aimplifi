@@ -11,7 +11,7 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { applyGoogleSignIn } from '@/lib/auth/google-provision';
 import { verifyPassword } from '@/lib/auth/password';
-import { credentialRejection } from '@/lib/auth/reject-reason';
+import { credentialRejection, credentialsMatch } from '@/lib/auth/reject-reason';
 import { isRememberRequested } from '@/lib/engine/auth/session-lifetime';
 import { normalizeEmail } from '@/lib/auth/validate';
 import { prisma } from '@/lib/db';
@@ -33,7 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = String(creds?.password ?? '');
         if (!email || !password) return null;
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || !verifyPassword(password, user.passwordHash)) {
+        if (!user || !credentialsMatch(password, user.passwordHash, verifyPassword)) {
           // PII-FREE DIAGNOSTIC (owner report 2026-07-29: sign-in "sometimes says
           // wrong pw", and the retry works). The reader sees ONE sentence for
           // several different facts, so a reproduction on its own tells us
