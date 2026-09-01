@@ -45,6 +45,7 @@ import {
   Waves,
   type LucideIcon,
 } from 'lucide-react';
+import { INBOX_NAV_DESCRIPTION } from '@/lib/copy/inbox-copy';
 
 /** Which block of the menu a destination belongs to. `primary` items are the bottom tab bar. */
 export type NavGroup = 'primary' | 'money' | 'explore';
@@ -102,7 +103,7 @@ export const NAV_DESTINATIONS: readonly NavDestination[] = [
   {
     href: '/triage',
     label: 'Inbox',
-    description: 'Transactions Aimplifi could not confidently file. Only genuinely ambiguous ones land here.',
+    description: INBOX_NAV_DESCRIPTION,
     keywords: ['review', 'categorize', 'uncategorized', 'queue', 'needs review', 'ambiguous'],
     group: 'primary',
     icon: Inbox,

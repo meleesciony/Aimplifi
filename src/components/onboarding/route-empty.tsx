@@ -8,6 +8,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConnectOnboardingPanel } from '@/components/onboarding/connect-onboarding-panel';
 import { StepIndicator } from '@/components/onboarding/step-indicator';
+import { INBOX_EMPTY_DESCRIPTION, INBOX_EMPTY_FOOTNOTE, INBOX_EMPTY_TITLE } from '@/lib/copy/inbox-copy';
 
 function RouteEmptyShell({
   pageTitle,
@@ -68,12 +69,12 @@ export function EmptyTriage() {
   return (
     <RouteEmptyShell
       pageTitle="Inbox"
-      cardTitle="Only genuinely ambiguous transactions will land here"
-      description="Once accounts are connected, Aimplifi files almost everything automatically. This inbox collects the few transactions it isn't sure about, so a quick thumb-through keeps your categories accurate."
+      cardTitle={INBOX_EMPTY_TITLE}
+      description={INBOX_EMPTY_DESCRIPTION}
       // NOT "triage-empty" — that testid is the drained-queue "Inbox zero" state
       // inside TriageInbox (phase2-triage.spec.ts asserts it); this is first-run.
       testId="triage-first-run-empty"
-      footnote="Your data is private to your account. After you connect, most transactions are categorized silently — you only ever review the genuinely ambiguous few."
+      footnote={INBOX_EMPTY_FOOTNOTE}
     />
   );
 }

@@ -1777,3 +1777,20 @@ and layout unchanged. Do not hide the 90-day hole. Do not retune
 computeRadar / computeCashNeeded.
 
 **Locked.** `test_regression__covered_alert_names_this_cycle_not_a_90_day_all_clear`.
+
+## #536 — Inbox copy does not promise auto-file quality (2026-09-01)
+
+**Context.** Live 2026-09-01 www.aimplifi.app /triage: the page promised
+"Only genuinely ambiguous transactions land here — everything else is
+filed automatically" next to Categorization accuracy 5.3% (21 of 398
+labeled). The 5.3% is a real scored hit-rate over later labels (DECISIONS
+#37). The promise is not. Same claim in nav Inbox description and the
+zero-account empty state.
+
+**Decision.** Copy-only. Inbox subtitle, nav description, and first-run
+empty state describe transactions that still need a category. Subtitle
+names the accuracy figure as how often auto-file matched a later label,
+not a promise that the list is small. Accuracy math unchanged. Do not
+invent an auto-file quality claim.
+
+**Locked.** `test_regression__inbox_copy_does_not_promise_only_ambiguous_land_here`.

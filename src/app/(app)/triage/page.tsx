@@ -11,6 +11,7 @@ import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getTriageGroups } from '@/server/triage';
 import { getVisibleCategories } from '@/server/categories';
 import { getWithheldAccountSummary } from '@/server/transactions';
+import { INBOX_PAGE_SUBTITLE } from '@/lib/copy/inbox-copy';
 
 export const metadata = { title: "Review" };
 
@@ -33,9 +34,8 @@ export default async function TriagePage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Inbox</h1>
-          <p className="text-sm text-muted-foreground">
-            Only genuinely ambiguous transactions land here — everything else is
-            filed automatically.
+          <p className="text-sm text-muted-foreground" data-testid="inbox-subtitle">
+            {INBOX_PAGE_SUBTITLE}
           </p>
         </div>
         <BackfillButton />
