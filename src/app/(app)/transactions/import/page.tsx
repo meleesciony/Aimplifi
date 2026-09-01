@@ -5,6 +5,7 @@ import { CsvImportGuides } from '@/components/finance/csv-import-guides';
 import { prisma } from '@/lib/db';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { CSV_IMPORT_INTRO } from '@/lib/copy/csv-import-copy';
 
 export const metadata = { title: "Import transactions" };
 
@@ -39,12 +40,8 @@ export default async function ImportTransactionsPage() {
   return (
     <div className="mx-auto max-w-md space-y-4">
       <h1 className="text-xl font-semibold">Import transactions</h1>
-      <p className="text-sm text-muted-foreground">
-        Bring in real transactions from any bank — or a Simplifi CSV — and paste
-        it here. No bank connection required. Rows your synced connection already
-        holds are not duplicated. If the file names a category, matching existing
-        rows take that category (Simplifi wins while Aimplifi is standing up).
-        If the file contains the same line twice the import will flag it.
+      <p className="text-sm text-muted-foreground" data-testid="csv-import-intro">
+        {CSV_IMPORT_INTRO}
       </p>
       <ImportCsvForm accounts={accounts} />
       <CsvImportGuides institutions={institutions} />

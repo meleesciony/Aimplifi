@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-01 | Import sold CSV as a Simplifi standup matcher | page/helper named Simplifi CSV and Simplifi-wins-during-standup | classify-any-source is the product, not one household export | `test_regression__csv_import_copy_is_any_source_not_simplifi_standup` |
 | 2026-09-01 | Direct Starbucks filed Food Delivery (or DD *STARBUCKS filed coffee) | DD * stripped to STARBUCKS then coffee; no delivery-channel exception | Starbucks is Food Delivery only through a delivery app; direct is coffee | `test_regression__direct_starbucks_is_coffee_not_food_delivery` + `test_regression__doordash_starbucks_is_food_delivery` |
 | 2026-09-01 | Cursor Usage Jul and Moonshot Ai filed Shopping | unknown merchant fell through to Plaid GENERAL_MERCHANDISE shopping rescue | a known software payee must not be rescued into shopping | `test_regression__cursor_usage_and_moonshot_file_software_not_shopping` |
 | 2026-09-01 | Activity showed Purchase Trn / Www. / Linkagnt leftovers as payee names | cleanDescriptor title-cased the raw string; joined canonical kept the dirt | a name that still contains the bank token is not a payee | `test_regression__purchase_trn_and_www_are_not_the_payee` |

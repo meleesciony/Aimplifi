@@ -1818,3 +1818,11 @@ invent an auto-file quality claim.
 **Decision.** A delivery-channel pattern (DD *, DOORDASH, UBER EATS, GRUBHUB, POSTMATES, SEAMLESS, INSTACART, GOPUFF, CAVIAR) plus STARBUCKS files food-delivery. Bare / Square / Toast Starbucks stays coffee. Do not invent a leaf. Do not file every Starbucks as Food Delivery. A reader's renameTo still wins display.
 
 **Locked.** `test_regression__direct_starbucks_is_coffee_not_food_delivery`; `test_regression__doordash_starbucks_is_food_delivery`; `test_regression__starbucks_rename_is_kept`.
+
+## #540 — CSV import is any source, not a Simplifi standup matcher (2026-09-01)
+
+**Context.** Live 2026-09-01 /transactions/import promised "any bank — or a Simplifi CSV" and "Simplifi wins while Aimplifi is standing up." CSV is a production classify-any-source path. That copy made it a household-standup tool.
+
+**Decision.** Copy-only on the import page and paste helper. Any bank or CSV. Optional category column files matching existing rows. Do not name Simplifi. Do not drop the alias table (Restaurants still files dining). Do not hardcode a household's merchants.
+
+**Locked.** `test_regression__csv_import_copy_is_any_source_not_simplifi_standup`.

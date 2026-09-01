@@ -533,3 +533,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #537 — Strip bank-feed tokens that are not a payee (2026-09-01) → docs/DECISIONS.md
 - #538 — Cursor and Moonshot file software (2026-09-01) → docs/DECISIONS.md
 - #539 — Direct Starbucks is coffee; delivery-app Starbucks is Food Delivery (2026-09-01) → docs/DECISIONS.md
+- #540 — CSV import is any source, not a Simplifi standup matcher (2026-09-01) → docs/DECISIONS.md
