@@ -1757,3 +1757,23 @@ null on payment_due. Amounts and dates unchanged.
 **Locked.** `test_regression__payment_due_copy_names_the_account`;
 payment_due.accountName verbatim lock in `tests/unit/nudge-select.test.ts`;
 `test_regression__payment_due_carries_account_name`.
+
+## #535 — You're covered names this cycle (2026-09-01)
+
+**Context.** Live 2026-09-01 www.aimplifi.app: Cash needed "You're covered /
+Projected low point is $2,105.16 on Fri, Sep 4" sat in the same viewport as
+Cash flow radar "Investor Checking is projected to dip below $0 in 30 days"
+and a 90-day lowest of -$34,442.88. Investigation verified this is not a
+math bug (same payment account, same clock, integer cents; $34,450 cover is
+the $50 round-up of that low). Cash needed walks this-cycle cards only
+(loans and estimated next-cycle excluded). Radar is the 90-day committed
+walk (loans + estimated dues). The green all-clear did not repeat window or
+account, so a 3-day this-cycle cover read as a 90-day all-clear.
+
+**Decision.** Copy-only on CashNeededCard covered-alert. Title "You're
+covered this cycle". Description names through headline.byDate, the low
+point, and "every card due this cycle in {paymentAccountName}". Radar math
+and layout unchanged. Do not hide the 90-day hole. Do not retune
+computeRadar / computeCashNeeded.
+
+**Locked.** `test_regression__covered_alert_names_this_cycle_not_a_90_day_all_clear`.

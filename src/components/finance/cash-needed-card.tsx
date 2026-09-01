@@ -270,13 +270,14 @@ export function CashNeededCard({
         )}
         {covered ? (
           <Alert data-testid="covered-alert">
-            <AlertTitle>You&apos;re covered</AlertTitle>
+            <AlertTitle>You&apos;re covered this cycle</AlertTitle>
             <AlertDescription>
-              Projected low point is{' '}
+              Projected low point
+              {headline.byDate ? ` through ${formatISODate(isoDate(headline.byDate))}` : ''} is{' '}
               {result.intraPeriodMinimum
                 ? `${formatCents(result.intraPeriodMinimum.balanceCents)} on ${formatISODate(isoDate(result.intraPeriodMinimum.date))}`
                 : 'above zero'}{' '}
-              — every due date clears without a transfer.
+              — every card due this cycle in {paymentAccountName} clears without a transfer.
             </AlertDescription>
           </Alert>
         ) : (

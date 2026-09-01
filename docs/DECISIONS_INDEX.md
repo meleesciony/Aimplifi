@@ -528,3 +528,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #532 — Needs a category chip is a real link (2026-09-01) → docs/DECISIONS.md
 - #533 — Over-plan copy is the pattern remainder, not this-month spend (2026-09-01) → docs/DECISIONS.md
 - #534 — Today payment-due rows name the account (2026-09-01) → docs/DECISIONS.md
+- #535 — You're covered names this cycle (2026-09-01) → docs/DECISIONS.md
