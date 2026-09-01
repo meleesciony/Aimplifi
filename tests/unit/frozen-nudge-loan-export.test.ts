@@ -68,6 +68,7 @@ function prop(o: { kind: ProposalKind; centsAtStake: number; fundingFrozen: Prop
     centsAtStake: cents(o.centsAtStake) as Cents,
     autopayCents: cents(0) as Cents,
     merchant: null,
+    accountName: null,
     typicalCents: null,
     typicalCount: null,
     cadence: null,

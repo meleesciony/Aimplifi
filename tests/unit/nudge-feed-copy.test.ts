@@ -21,6 +21,7 @@ function prop(o: Partial<Proposal> & { kind: ProposalKind; tier: ProposalTier })
     centsAtStake: cents(0) as Cents,
     autopayCents: cents(0) as Cents,
     merchant: null,
+    accountName: null,
     typicalCents: null,
     typicalCount: null,
     cadence: null,
@@ -40,6 +41,21 @@ describe('proposalCopy — money-honesty per kind', () => {
     expect(c.detail).toContain('$600.00 to pay');
     expect(c.detail).not.toContain('autopay covers');
     expect(c.detail).not.toContain('Card');
+  });
+
+  it('test_regression__payment_due_copy_names_the_account', () => {
+    const c = proposalCopy(prop({
+      kind: 'payment_due',
+      tier: 'critical',
+      centsAtStake: cents(621707) as Cents,
+      autopayCents: cents(0) as Cents,
+      sortDate: isoDate('2026-09-01'),
+      daysUntil: 0,
+      accountName: 'Sapphire',
+    }));
+    expect(c.title).toBe('Payment due');
+    expect(c.detail).toContain('Sapphire: $6,217.07 to pay');
+    expect(c.detail).not.toContain('Card payment');
   });
 
   it('payment_due (partial autopay): shows the split, never the summed total', () => {

@@ -91,6 +91,13 @@ export interface Proposal {
    * ("median of N charges") next to the figure, per the coaching guardrails.
    */
   merchant: string | null;
+  /**
+   * Verbatim PaymentReminder.accountName for payment_due; null for every other
+   * kind. Same shape as autopayCents / merchant context fields. Never recomputed.
+   * Never stuffed into `merchant` (that field drives a register link on
+   * unusual_charge / income_pause).
+   */
+  accountName: string | null;
   typicalCents: Cents | null;
   typicalCount: number | null;
   /**

@@ -291,11 +291,25 @@ describe('nudge · criterion 1 · verbatim-copy', () => {
     expect(byKind.get('payment_due')!.centsAtStake).toBe(r.userActionCents);
     expect(byKind.get('payment_due')!.sortDate).toBe(r.dueDate);
     expect(byKind.get('payment_due')!.daysUntil).toBe(r.daysUntil);
+    expect(byKind.get('payment_due')!.accountName).toBe(r.accountName);
+    expect(byKind.get('payment_due')!.merchant).toBeNull();
     expect(byKind.get('cash_needed_shortfall')!.centsAtStake).toBe(cn.headline.shortfallCents);
     expect(byKind.get('cash_needed_shortfall')!.sortDate).toBe(cn.headline.shortfallDate);
     expect(byKind.get('cash_flow_dip')!.centsAtStake).toBe(rad.coverTransfer!.amountCents);
     expect(byKind.get('cash_flow_dip')!.sortDate).toBe(rad.committed.firstNegativeDate);
     expect(byKind.get('unused-subscription')!.centsAtStake).toBe(op.monthlyCents);
+    expect(byKind.get('cash_needed_shortfall')!.accountName).toBeNull();
+    expect(byKind.get('cash_flow_dip')!.accountName).toBeNull();
+    expect(byKind.get('unused-subscription')!.accountName).toBeNull();
+  });
+
+  it('test_regression__payment_due_carries_account_name', () => {
+    const r = reminder({ accountName: 'Sapphire', dueDate: '2026-06-12', daysUntil: 2, userActionCents: 50000 });
+    const feed = buildNudgeFeed(input({ reminders: [r] }));
+    const p = feed.ordered[0];
+    expect(p.kind).toBe('payment_due');
+    expect(p.accountName).toBe(r.accountName); // verbatim
+    expect(p.merchant).toBeNull(); // never overload merchant — that mints a register link
   });
 
   it('a handled autopay due exposes the autopay amount verbatim', () => {
@@ -404,6 +418,7 @@ describe('nudge · unusual_charge (#249)', () => {
     expect(p.typicalCount).toBe(u.sampleCount);
     expect(p.autopayCents).toBe(0);
     expect(p.isEstimated).toBe(false); // a posted charge is a fact, not an estimate
+    expect(p.accountName).toBeNull();
   });
 
   it('every OTHER kind carries null display context (merchant/typicalCents/typicalCount)', () => {
@@ -417,6 +432,11 @@ describe('nudge · unusual_charge (#249)', () => {
     );
     for (const p of feed.ordered) {
       expect(p.merchant, p.kind).toBeNull();
+      if (p.kind === 'payment_due') {
+        expect(p.accountName, p.kind).toBe('Sapphire');
+      } else {
+        expect(p.accountName, p.kind).toBeNull();
+      }
       expect(p.typicalCents, p.kind).toBeNull();
       expect(p.typicalCount, p.kind).toBeNull();
       expect(p.cadence, p.kind).toBeNull();
@@ -481,6 +501,7 @@ describe('nudge · income_pause (#251)', () => {
     expect(p.runwayWindowMonths).toBe(6);
     expect(p.autopayCents).toBe(0);
     expect(p.isEstimated).toBe(false);
+    expect(p.accountName).toBeNull();
   });
 
   it('runway passthrough is honest: absent or non-finite (no expense history) → null, never ∞', () => {

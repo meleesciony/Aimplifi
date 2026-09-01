@@ -1737,3 +1737,23 @@ not reintroduced. No remaining-after-spend number is invented.
 **Locked.** `test_regression__overplan_copy_does_not_claim_this_month_spend`;
 `test_regression__positive_safe_to_spend_copy_does_not_claim_this_month_spend`;
 `test_regression__spending_plan_hero_headers_drop_this_month`.
+
+## #534 — Today payment-due rows name the account (2026-09-01)
+
+**Context.** Live 2026-09-01 www.aimplifi.app dashboard Today feed: eight
+"Payment due $X to pay by DATE" rows with no account name, while Cash needed
+above already showed "Bonvoy Amex Card ····2001". The name was already on
+PaymentReminder.accountName (cardName / loan accountName). paymentProposal
+hardcoded merchant null; Proposal had no accountName, so copy could not print
+it. STATUS.md already named this Home gap. Putting the name in merchant would
+mint a false register "View charges" link.
+
+**Decision.** Add Proposal.accountName, verbatim from PaymentReminder.accountName
+on payment_due and null on every other kind. payment_due detail prefixes
+`{accountName}: ` when present; title stays "Payment due" / "Payment scheduled
+(autopay)" (never "Card payment due" — rows are cards AND loans). merchant stays
+null on payment_due. Amounts and dates unchanged.
+
+**Locked.** `test_regression__payment_due_copy_names_the_account`;
+payment_due.accountName verbatim lock in `tests/unit/nudge-select.test.ts`;
+`test_regression__payment_due_carries_account_name`.

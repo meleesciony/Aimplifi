@@ -112,11 +112,12 @@ export function proposalCopy(p: Proposal): { title: string; detail: string } {
   switch (p.kind) {
     case 'payment_due': {
       const est = p.isEstimated ? ' (estimated statement)' : '';
+      const named = p.accountName ? `${p.accountName}: ` : '';
       if (p.tier === 'handled') {
         // Fully covered by autopay: centsAtStake is the autopay amount itself.
         return {
           title: 'Payment scheduled (autopay)',
-          detail: `${money}${date ? ` on ${date}` : ''}${est} — autopay moves it automatically; the funds need to be in the account by then.`,
+          detail: `${named}${money}${date ? ` on ${date}` : ''}${est} — autopay moves it automatically; the funds need to be in the account by then.`,
         };
       }
       // centsAtStake here is `userActionCents` — the amount to pay AFTER autopay, not the
@@ -127,7 +128,7 @@ export function proposalCopy(p: Proposal): { title: string; detail: string } {
         p.autopayCents > 0 ? ` (autopay covers ${formatCents(p.autopayCents as Cents)})` : '';
       return {
         title: 'Payment due',
-        detail: `${money} to pay${date ? ` by ${date}` : ''}${whenPhrase(p.daysUntil)}${autopayNote}${est}.`,
+        detail: `${named}${money} to pay${date ? ` by ${date}` : ''}${whenPhrase(p.daysUntil)}${autopayNote}${est}.`,
       };
     }
     case 'cash_flow_dip':

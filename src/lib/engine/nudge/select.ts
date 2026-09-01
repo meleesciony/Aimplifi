@@ -83,6 +83,7 @@ function paymentProposal(r: PaymentReminder, today: ISODate, dismissed: Readonly
     centsAtStake,
     autopayCents: r.autopayCents, // verbatim — display context for the autopay split
     merchant: null,
+    accountName: r.accountName, // verbatim — Today feed names the account
     typicalCents: null,
     typicalCount: null,
     cadence: null,
@@ -116,6 +117,7 @@ function dipProposal(
     centsAtStake: radar.coverTransfer?.amountCents ?? ZERO, // verbatim (mirrors notify/select)
     autopayCents: ZERO, // not a payment_due proposal
     merchant: null,
+    accountName: null,
     typicalCents: null,
     typicalCount: null,
     cadence: null,
@@ -168,6 +170,7 @@ function shortfallProposal(
       cn.headline.firstShortCents > 0 ? cn.headline.firstShortCents : cn.headline.shortfallCents,
     autopayCents: ZERO, // not a payment_due proposal
     merchant: null,
+    accountName: null,
     typicalCents: null,
     typicalCount: null,
     cadence: null,
@@ -225,6 +228,7 @@ function opportunityProposal(o: Opportunity, today: ISODate, dismissed: Readonly
     centsAtStake: o.monthlyCents, // verbatim
     autopayCents: ZERO, // not a payment_due proposal
     merchant: null,
+    accountName: null,
     typicalCents: null,
     typicalCount: null,
     cadence: null,
@@ -261,6 +265,7 @@ function unusualProposal(u: UnusualCharge, today: ISODate, dismissed: ReadonlySe
     centsAtStake: u.amountCents, // verbatim — the flagged charge's magnitude
     autopayCents: ZERO, // not a payment_due proposal
     merchant: u.merchantCanonical, // verbatim display context
+    accountName: null,
     typicalCents: u.typicalCents, // verbatim display context
     typicalCount: u.sampleCount, // verbatim display context
     cadence: null,
@@ -322,6 +327,7 @@ function incomePauseProposal(
     centsAtStake: p.typicalAmountCents as Cents, // verbatim — the deposit that hasn't arrived
     autopayCents: ZERO, // not a payment_due proposal
     merchant: p.merchantCanonical, // verbatim display context
+    accountName: null,
     typicalCents: null,
     typicalCount: p.occurrences, // verbatim display context — the disclosed basis
     cadence: p.cadence, // verbatim display context
