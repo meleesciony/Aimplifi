@@ -1675,3 +1675,22 @@ existing id — no new system leaf. Confirm copy uses the canonical name
 Enter does not file.
 
 **Locked.** `tests/unit/simplifi-aliases.test.ts`.
+
+## #531 — Simplifi CSV recategorizes matching existing rows (2026-09-01)
+
+**Context.** Change category already persists by click. CSV import still skipped
+duplicates (date + signed amount) and left Aimplifi's category in place, so a
+Simplifi export could not correct live Plaid rows. Simplifi names like
+Restaurants also did not resolve (`dining` is Dining Out). Savings-rate percent
+is Settings-only; this slice does not restore the deleted 40% rails.
+
+**Decision.** (1) `resolveCategory` maps a Simplifi alias (bare or grouped path)
+onto an existing system id — never a new leaf. (2) Duplicate file rows with an
+explicit resolved category rewrite the matched register row: Correction +
+category write, Just this once (no Always merchant rule). Match order is the
+same (date, signed amount) queue as the dedupe. No category column, unknown
+name, or already-that-id is a no-op. Dashboard revalidates. Import copy says
+matching rows take the file's category while Aimplifi is standing up.
+
+**Locked.** `test_regression__simplifi_restaurants_csv_files_dining_not_a_new_leaf`;
+`test_regression__simplifi_csv_recategorizes_duplicate_existing_row`.

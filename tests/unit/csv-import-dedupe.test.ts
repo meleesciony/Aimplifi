@@ -237,4 +237,39 @@ describe('importTransactionsCsv dedupe (H.2)', () => {
     expect(r.ok).toBe(true);
     expect(r.historyReachesDate).toBe('2024-11-03'); // the register floor, not 2026-06-01
   });
+
+  it('test_regression__simplifi_csv_recategorizes_duplicate_existing_row', async () => {
+    const accountId = await freshAccount();
+    const existing = await prisma.transaction.create({
+      data: {
+        accountId,
+        date: '2026-08-28',
+        amountCents: -1443,
+        rawDescriptor: 'GUSTO CHASTAIN',
+        categoryId: 'fast-food',
+        confidenceBps: 8000,
+        status: 'POSTED',
+        needsReview: true,
+        isTransfer: false,
+      },
+    });
+    const file = [
+      'date,description,amount,category',
+      '2026-08-28,Gusto Chastain,-14.43,Restaurants',
+    ].join('\n');
+    const r = await importTransactionsCsv(null, csv(file, accountId));
+    expect(r.ok).toBe(true);
+    expect(r.imported).toBe(0);
+    expect(r.duplicates).toBe(1);
+    expect(r.recategorized).toBe(1);
+    expect(await prisma.transaction.count({ where: { accountId } })).toBe(1);
+    const fresh = await prisma.transaction.findUniqueOrThrow({ where: { id: existing.id } });
+    expect(fresh.categoryId).toBe('dining');
+    expect(fresh.needsReview).toBe(false);
+    const corrections = await prisma.correction.findMany({ where: { transactionId: existing.id } });
+    expect(corrections).toHaveLength(1);
+    expect(corrections[0]!.toCategoryId).toBe('dining');
+    expect(corrections[0]!.fromCategoryId).toBe('fast-food');
+    expect(corrections[0]!.becameRuleId).toBeNull();
+  });
 });

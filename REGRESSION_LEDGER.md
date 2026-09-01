@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-01 | Simplifi CSV import left matching Plaid rows on Aimplifi's category (Gusto stayed Fast Food) | duplicates skipped with no recategorize; Restaurants did not resolve to dining | Simplifi wins classification during standup - export category must file the existing id, never a new leaf | `test_regression__simplifi_csv_recategorizes_duplicate_existing_row` + `test_regression__simplifi_restaurants_csv_files_dining_not_a_new_leaf` |
 | 2026-08-31 | Settings radios said "this year" for contribution room while the column stored no tax year, so next January the checked label and ranking would be a live false claim | indexical copy on a yearless status | a disclosure is several claims — "this year" is a tax-year claim the engine does not have | `test_regression__tax_room_copy_does_not_bind_a_tax_year` |
 | 2026-08-31 | A garbage or omitted tax-room column could invent remaining and re-rank extra dollars | fail-open parse | a typed key is a pattern — closed set only; else unknown | `test_regression__garbage_tax_room_column_is_unknown_never_remaining` |
 | 2026-08-31 | Remaining contribution room could have ranked above a high-APR revolving card | treating "has room" as free money | remaining is a wrapper on investing, not a contracted rate — only after revolving / match / runway / high-APR installment | `next-dollar.test.ts` N20 |

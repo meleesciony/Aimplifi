@@ -12,6 +12,7 @@ import { prisma, serializableTx } from '@/lib/db';
 import { type PreparedTxn, prepareManualTransaction } from '@/lib/engine/transactions/manual';
 import {
   parseTransactionCsv,
+  planCsvCategoryApply,
   planCsvDedupe,
   prepareImportedTransaction,
 } from '@/lib/engine/transactions/csv-import';
@@ -217,6 +218,11 @@ export interface ImportResult {
   /** File rows the account already holds and the import did not create (H.2). */
   duplicates: number;
   /**
+   * Existing rows whose category was rewritten from an explicit CSV category
+   * (Simplifi export during standup). 0 when the file has no category column.
+   */
+  recategorized: number;
+  /**
    * Kept rows whose (date, amount) key occurs ≥2 times in the FILE itself
    * (critic P1-1). The classic shape is two overlapping exports pasted
    * together; a well-formed export never contains it. Shown as an amber
@@ -244,13 +250,13 @@ export async function importTransactionsCsv(
   // Demo manual-entry fence (#243 follow-up): a pasted CSV is bulk REAL
   // statement rows — the highest-volume leak of the four typed/uploaded paths.
   if (isDemoUser(userId)) {
-    return { ok: false, imported: 0, duplicates: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: [DEMO_ENTRY_BLOCKED] };
+    return { ok: false, imported: 0, duplicates: 0, recategorized: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: [DEMO_ENTRY_BLOCKED] };
   }
 
   const accountId = String(formData.get('accountId') ?? '');
   const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
   if (!account) {
-    return { ok: false, imported: 0, duplicates: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: ['Account not found'] };
+    return { ok: false, imported: 0, duplicates: 0, recategorized: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: ['Account not found'] };
   }
   // Critic P2-2 residual: the picker only offers register accounts, but crafted
   // FormData could name any account — fence the WRITE to the same basis
@@ -265,6 +271,7 @@ export async function importTransactionsCsv(
       ok: false,
       imported: 0,
       duplicates: 0,
+      recategorized: 0,
       repeatedRows: 0,
       skipped: 0,
       historyReachesDate: null,
@@ -276,12 +283,12 @@ export async function importTransactionsCsv(
   // imported rows landing on a reconciled predecessor would be silently dropped figures.
   const supersededRefusal = await refuseManualWriteToSuperseded(userId, accountId);
   if (supersededRefusal) {
-    return { ok: false, imported: 0, duplicates: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: [supersededRefusal] };
+    return { ok: false, imported: 0, duplicates: 0, recategorized: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: [supersededRefusal] };
   }
 
   const text = String(formData.get('csv') ?? '');
   if (!text.trim()) {
-    return { ok: false, imported: 0, duplicates: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: ['Paste CSV content first.'] };
+    return { ok: false, imported: 0, duplicates: 0, recategorized: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: ['Paste CSV content first.'] };
   }
 
   // A CSV "category" column may name one of the user's custom categories ("Golf"),
@@ -333,6 +340,7 @@ export async function importTransactionsCsv(
   let rowsToImport = rows;
   let duplicates = 0;
   let repeatedRows = 0;
+  let categoryApplies: { transactionId: string; categoryId: string }[] = [];
   let spanMin: ISODate | null = null;
   let spanMax: ISODate | null = null;
   let plan1Keep: boolean[] | null = null;
@@ -345,18 +353,25 @@ export async function importTransactionsCsv(
     }
     const existing = await prisma.transaction.findMany({
       where: { accountId, date: { gte: spanMin, lte: spanMax } },
-      select: { date: true, amountCents: true },
+      select: { id: true, date: true, amountCents: true, categoryId: true },
     });
+    const visibleExisting = existing
+      .filter((r) => keeps(accountId, r.date))
+      .map((r) => ({
+        id: r.id,
+        date: r.date as ISODate,
+        amountCents: r.amountCents,
+        categoryId: r.categoryId,
+      }));
     const plan1 = planCsvDedupe(
       rows.map((r) => ({ date: r.date, amountCents: r.amountCents })),
-      existing
-        .filter((r) => keeps(accountId, r.date))
-        .map((r) => ({ date: r.date as ISODate, amountCents: r.amountCents })),
+      visibleExisting,
     );
     plan1Keep = plan1.keep;
     rowsToImport = rows.filter((_, i) => plan1.keep[i]);
     duplicates = plan1.duplicates;
     repeatedRows = plan1.repeatedRows;
+    categoryApplies = planCsvCategoryApply(rows, visibleExisting, plan1.keep);
   }
 
   const prepared = rowsToImport.map((row) => {
@@ -466,6 +481,42 @@ export async function importTransactionsCsv(
     );
   }
 
+  // Duplicate rows with an explicit CSV category take that category on the
+  // existing register row (Simplifi wins classification during standup).
+  // Just this once: a Correction, no merchant rule.
+  let recategorized = 0;
+  if (categoryApplies.length > 0) {
+    recategorized = await serializableTx(async (tx) => {
+      let n = 0;
+      for (const a of categoryApplies) {
+        const fresh = await tx.transaction.findFirst({
+          where: { id: a.transactionId, account: { userId } },
+        });
+        if (!fresh || fresh.categoryId === a.categoryId) continue;
+        await tx.correction.create({
+          data: {
+            userId,
+            transactionId: fresh.id,
+            fromCategoryId: fresh.categoryId,
+            toCategoryId: a.categoryId,
+          },
+        });
+        await tx.transaction.update({
+          where: { id: fresh.id },
+          data: {
+            categoryId: a.categoryId,
+            needsReview: false,
+            confidenceBps: 9900,
+            reviewPinned: false,
+            ...(a.categoryId === 'transfer' ? { isTransfer: true as const } : {}),
+          },
+        });
+        n++;
+      }
+      return n;
+    });
+  }
+
   // H.2 depth confirmation: after a successful import, the account's earliest
   // KEPT register row is the "history now reaches" fact — computed on the SAME
   // basis as the /accounts depth line (registerRowWhere + the R1 keep) so the
@@ -487,6 +538,7 @@ export async function importTransactionsCsv(
     accountId,
     imported: createdRows.length,
     duplicates,
+    recategorized,
     repeatedRows,
     skipped: errors.length,
     historyReachesDate,
@@ -499,10 +551,12 @@ export async function importTransactionsCsv(
   // that must show it deepened (H.2).
   revalidatePath('/accounts');
 
+  revalidatePath('/dashboard');
   return {
-    ok: createdRows.length > 0 || duplicates > 0,
+    ok: createdRows.length > 0 || duplicates > 0 || recategorized > 0,
     imported: createdRows.length,
     duplicates,
+    recategorized,
     repeatedRows,
     skipped: errors.length,
     historyReachesDate,
