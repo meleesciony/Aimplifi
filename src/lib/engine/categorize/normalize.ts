@@ -756,10 +756,21 @@ export const TOAST_PRIOR_CONFIDENCE_BPS = 8000;
 const US_STATE_RE =
   /\s+(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|WA|WV|WI|WY|DC)$/i;
 
+/** Bank-feed tokens that are never a payee name (live 2026-09-01 register). */
+export function stripPayeeNoise(s: string): string {
+  let t = s;
+  t = t.replace(/\bPURCHASE\s+TRN\s+\S+/gi, ' ');
+  t = t.replace(/^WWW\./i, '');
+  t = t.replace(/^LINKAGNT\s+/i, '');
+  t = t.replace(/\s*~\s*TRAN\b/gi, '');
+  t = t.replace(/\s+-\s+[A-Z]$/i, '');
+  return t.replace(/\s{2,}/g, ' ').trim();
+}
 /** Generic cleanup for descriptors we have no pattern for. */
 export function cleanDescriptor(raw: string): string {
   let s = stripBankNoise(raw);
   s = s.replace(/^(SQ \*|TST\*\s*|PAYPAL \*|PP\*|PY \*|DD \*|POS \d+ |PADDLE\.NET\*\s*|FS \*|CKE\*|IN \*|SP \* ?)/i, '');
+  s = stripPayeeNoise(s);
   s = s.replace(/\b\d{3}-\d{3}-\d{4}\b/g, ''); // phone numbers
   s = s.replace(/\b8\d{2}-[A-Z]+\b/gi, ''); // 800-COMCAST style
   s = s.replace(/[#*]\s*\d+/g, ''); // store numbers

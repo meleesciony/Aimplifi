@@ -26,7 +26,7 @@
  * Pure: no I/O. The `merchant` shape is deliberately structural rather than the
  * Prisma type, so an engine fixture can build one.
  */
-import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { normalizeMerchant, stripPayeeNoise } from '@/lib/engine/categorize/normalize';
 
 export interface DisplayNameSource {
   /** The joined merchant row, when the transaction has one. */
@@ -36,5 +36,8 @@ export interface DisplayNameSource {
 }
 
 export function registerDisplayName(t: DisplayNameSource): string {
-  return t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical;
+  const base = t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical;
+  // Bank-noise tokens are not a rename (O.13a). Strip them on the way to the
+  // register so a persisted dirty canonical still reads as a payee.
+  return stripPayeeNoise(base) || base;
 }

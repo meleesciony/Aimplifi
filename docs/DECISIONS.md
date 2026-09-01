@@ -1794,3 +1794,11 @@ not a promise that the list is small. Accuracy math unchanged. Do not
 invent an auto-file quality claim.
 
 **Locked.** `test_regression__inbox_copy_does_not_promise_only_ambiguous_land_here`.
+
+## #537 — Strip bank-feed tokens that are not a payee (2026-09-01)
+
+**Context.** Live 2026-09-01 www.aimplifi.app /transactions showed bank leftovers as names: "Debellis & Assoc Purchase Trn Fj8xzkz", "Linkagnt Hertz", "Www.springscinema.com", "Local Expedition - S". cleanDescriptor title-cased the whole string and did not strip those tokens. Joined Merchant.canonical kept the dirty form, so the register showed it.
+
+**Decision.** stripPayeeNoise removes PURCHASE TRN <token>, leading WWW., leading LINKAGNT, trailing ~ TRAN, and a truncated trailing " - X". cleanDescriptor uses it on ingest. registerDisplayName applies it to the chosen label so a persisted dirty canonical still reads as a payee. A reader's renameTo is unchanged unless it is those tokens. Do not invent a brand table for every leftover.
+
+**Locked.** `test_regression__purchase_trn_and_www_are_not_the_payee`; `test_regression__register_strips_persisted_payee_noise_not_a_rename`.
