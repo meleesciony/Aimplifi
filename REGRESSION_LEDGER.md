@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-01 | Home said merchants need filing and sent the reader to Inbox | chip used getReviewCount (inbox groups) and /triage | Home work queue is Needs a category, same as Activity | `test_regression__home_needs_file_href_is_unclassified_not_inbox` |
 | 2026-09-01 | Activity still showed TST* / SQ * as the payee | stripPayeeNoise skipped processor prefixes that ingest already drops | payee cleanup is general, not one household | `test_regression__tst_and_sq_prefixes_are_not_the_payee` |
 | 2026-09-01 | Sign-in rejects a correct password with surrounding whitespace | authorize verified raw bytes only; trim-verifies was log-only | login trust: autofill whitespace is not a wrong password | `test_regression__sign_in_accepts_password_with_surrounding_whitespace` |
 | 2026-09-01 | Import sold CSV as a Simplifi standup matcher | page/helper named Simplifi CSV and Simplifi-wins-during-standup | classify-any-source is the product, not one household export | `test_regression__csv_import_copy_is_any_source_not_simplifi_standup` |

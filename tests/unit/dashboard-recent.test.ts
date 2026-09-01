@@ -15,6 +15,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { getDashboardRecent } from '@/server/dashboard-recent';
 import { prisma } from '@/lib/db';
+import { getReviewCount } from '@/server/triage';
 
 const USER = `dashrecent-ho-${Date.now()}-${process.pid}`;
 const CUTOVER = '2026-07-08';
@@ -97,5 +98,81 @@ describe('U.30 — dashboard Recent transactions resolves onHandoverDay, scoped 
     ]);
     expect(onCutover.find((r) => r.amountCents === -2_500)!.onHandoverDay).toBe(false);
     expect(rows.find((r) => r.date === '2026-07-02')!.onHandoverDay).toBe(false);
+  });
+});
+
+
+describe('Home needsFileCount is unclassified rows, not Inbox merchant groups (DECISIONS #543)', () => {
+  const USER2 = `dashrecent-nf-${Date.now()}-${process.pid}`;
+  let acctId = '';
+
+  beforeAll(async () => {
+    await prisma.user.create({ data: { id: USER2, email: `${USER2}@test.local` } });
+    acctId = (
+      await prisma.account.create({
+        data: {
+          userId: USER2,
+          provider: 'manual',
+          providerRef: 'drh-nf',
+          name: 'Checking',
+          type: 'CHECKING',
+          currentBalanceCents: 10_000,
+          currency: 'USD',
+        },
+      })
+    ).id;
+    await prisma.transaction.create({
+      data: {
+        id: `nf-filed-${process.pid}`,
+        accountId: acctId,
+        date: '2026-08-01',
+        amountCents: -1_000,
+        rawDescriptor: 'GROCERY STORE',
+        categoryId: 'groceries',
+        needsReview: false,
+        status: 'POSTED',
+      },
+    });
+    await prisma.transaction.create({
+      data: {
+        id: `nf-uncat-${process.pid}`,
+        accountId: acctId,
+        date: '2026-08-02',
+        amountCents: -2_000,
+        rawDescriptor: 'UNKNOWN CAFE',
+        categoryId: 'uncategorized',
+        needsReview: false,
+        status: 'POSTED',
+      },
+    });
+    await prisma.transaction.create({
+      data: {
+        id: `nf-review-${process.pid}`,
+        accountId: acctId,
+        date: '2026-08-03',
+        amountCents: -3_000,
+        rawDescriptor: 'AMBIGUOUS ROW',
+        categoryId: 'uncategorized',
+        needsReview: true,
+        status: 'POSTED',
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.transaction.deleteMany({ where: { accountId: acctId } });
+    await prisma.account.deleteMany({ where: { userId: USER2 } });
+    await prisma.user.deleteMany({ where: { id: USER2 } });
+  });
+
+  it('counts the unclassified union as rows, not inbox merchant groups', async () => {
+    const { rows, needsFileCount } = await getDashboardRecent(USER2, 10);
+    const inboxGroups = await getReviewCount(USER2);
+    expect(inboxGroups).toBe(1);
+    expect(needsFileCount).toBe(2);
+    expect(needsFileCount).not.toBe(inboxGroups);
+
+    expect(rows).toHaveLength(3);
+    expect(rows.filter((r) => r.needsFile)).toHaveLength(2);
   });
 });

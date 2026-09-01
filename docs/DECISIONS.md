@@ -1842,3 +1842,11 @@ invent an auto-file quality claim.
 **Decision.** `stripPayeeNoise` uses the same processor-prefix list as ingest. A reader's renameTo is kept. Do not hardcode named merchants.
 
 **Locked.** `test_regression__tst_and_sq_prefixes_are_not_the_payee`.
+
+## #543 — Home Needs a category goes to Activity, not Inbox (2026-09-01)
+
+**Context.** Home said "N merchants need filing" and linked to Inbox. Inbox counts needsReview merchant groups. Activity's Needs a category chip already lists the unclassified union at `/transactions?unclassified=1`. Count, label, and destination disagreed on one card.
+
+**Decision.** Home chip only. Href is `/transactions?unclassified=1`. Count is unclassified rows after the reconciliation keep, same union as `isUnclassifiedTxn`. Copy is "1 needs a category" / "N need a category". Nav Inbox badge stays merchant groups. Do not invent a Home picker.
+
+**Locked.** `test_regression__home_needs_file_href_is_unclassified_not_inbox`.

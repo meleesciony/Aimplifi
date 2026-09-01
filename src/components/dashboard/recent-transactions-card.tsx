@@ -5,10 +5,11 @@ import { cents, formatCents } from '@/lib/money';
 import type { DashboardRecentResult } from '@/server/dashboard-recent';
 import { SURFACE_CARD_CLASS } from '@/components/finance/surface-card-styles';
 import { namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/links';
+import { HOME_NEEDS_FILE_HREF, homeNeedsFileLabel } from '@/lib/copy/home-needs-file-copy';
 
 /**
  * Home strip: latest spending rows, with needs-file rows highlighted.
- * Deep-links to the transaction detail / Inbox — categorization is the product loop.
+ * Deep-links to the transaction detail / Needs a category — categorization is the product loop.
  */
 export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResult }) {
   const { rows, needsFileCount } = recent;
@@ -22,10 +23,8 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
           </div>
           {needsFileCount > 0 ? (
             <p className="mt-1 text-sm text-warning-700 dark:text-warning-400" data-testid="dashboard-needs-file">
-              <Link href="/triage" className="underline underline-offset-2 hover:text-foreground">
-                {needsFileCount === 1
-                  ? '1 merchant needs filing'
-                  : `${needsFileCount} merchants need filing`}
+              <Link href={HOME_NEEDS_FILE_HREF} className="underline underline-offset-2 hover:text-foreground">
+                {homeNeedsFileLabel(needsFileCount)}
               </Link>
             </p>
           ) : null}

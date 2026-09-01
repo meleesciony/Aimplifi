@@ -1,15 +1,14 @@
 /**
  * Lightweight recent-transaction strip for the dashboard (owner 2026-08-01).
- * Not the full register — just the latest rows + how many inbox groups need filing.
+ * Not the full register — latest rows plus how many register rows still need a category.
  */
 import { prisma } from '@/lib/db';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
-import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { isUnclassifiedTxn, SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getReconciliationBoundary } from '@/server/reconciliation';
-import { getReviewCount } from '@/server/triage';
 
 export interface DashboardRecentTxn {
   id: string;
@@ -31,7 +30,7 @@ export interface DashboardRecentTxn {
 
 export interface DashboardRecentResult {
   rows: DashboardRecentTxn[];
-  /** Merchant groups in the triage inbox — same number as the nav badge. */
+  /** Register rows that still need a category — same promise as Activity's Needs a category chip. */
   needsFileCount: number;
 }
 
@@ -53,14 +52,15 @@ export async function getDashboardRecent(
   // (transactions.ts, critic F-4) already argued against: independently re-reading the link
   // table twice leaves a window where a confirm/undo landing between the two reads desyncs
   // one output from the other.
-  const [raw, meta, { keepsReconciled, handoverKeys }, needsFileCount] = await Promise.all([
-    prisma.transaction.findMany({
-      where: {
-        account: {
+  const accountWhere = {
           userId,
           type: { in: [...SPENDING_ACCOUNT_TYPES] },
           OR: [{ currency: null }, { currency: 'USD' }],
-        },
+        };
+  const [raw, meta, { keepsReconciled, handoverKeys }, unclassifiedCandidates] = await Promise.all([
+    prisma.transaction.findMany({
+      where: {
+        account: accountWhere,
         isSplitParent: false,
       },
       include: {
@@ -73,15 +73,24 @@ export async function getDashboardRecent(
     }),
     getCategoryMeta(userId),
     getReconciliationBoundary(userId),
-    getReviewCount(userId),
+    prisma.transaction.findMany({
+      where: {
+        account: accountWhere,
+        isSplitParent: false,
+        OR: [{ needsReview: true }, { categoryId: 'uncategorized' }, { categoryId: null }],
+      },
+      select: { accountId: true, date: true },
+    }),
   ]);
 
   const rows: DashboardRecentTxn[] = [];
   for (const t of raw) {
     if (!keepsReconciled(t.accountId, t.date)) continue;
     const catId = t.categoryId ?? null;
-    const needsFile =
-      t.needsReview || catId == null || catId === 'uncategorized';
+    const needsFile = isUnclassifiedTxn({
+      needsReview: t.needsReview,
+      categoryId: catId ?? 'uncategorized',
+    });
     rows.push({
       id: t.id,
       date: t.date,
@@ -94,5 +103,6 @@ export async function getDashboardRecent(
     if (rows.length >= limit) break;
   }
 
+  const needsFileCount = unclassifiedCandidates.filter((r) => keepsReconciled(r.accountId, r.date)).length;
   return { rows, needsFileCount };
 }
