@@ -103,7 +103,7 @@ export default async function SpendingPlanPage() {
         className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-sm"
       >
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {positive ? 'Guilt-free to spend this month' : 'Over plan this month'}
+          {positive ? 'Guilt-free to spend' : 'Over plan'}
         </p>
         <p
           data-testid="safe-to-spend"

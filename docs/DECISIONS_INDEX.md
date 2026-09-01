@@ -526,3 +526,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #530 — Change category click persists; Simplifi aliases are clickable (2026-08-31) → docs/DECISIONS.md
 - #531 — Simplifi CSV recategorizes matching existing rows (2026-09-01) → docs/DECISIONS.md
 - #532 — Needs a category chip is a real link (2026-09-01) → docs/DECISIONS.md
+- #533 — Over-plan copy is the pattern remainder, not this-month spend (2026-09-01) → docs/DECISIONS.md

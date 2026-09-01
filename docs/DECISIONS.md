@@ -1712,3 +1712,28 @@ drops that param and keeps the rest. Selects, search, and dates stay on
 
 **Locked.** `test_regression__needs_category_href_encodes_unclassified`;
 `test_regression__needs_category_chip_is_a_href_before_hydration`.
+
+## #533 — Over-plan copy is the pattern remainder, not this-month spend (2026-09-01)
+
+**Context.** Live 2026-09-01 www.aimplifi.app dashboard (signed-in, not signed
+out): top card "Over plan by $3,085.33" / "guilt-free is $0 this month" next to
+TOP SPENDING "$0.00 this month / No spending yet this month" and TRENDS "No
+spending counted yet this month". Investigation verified this is NOT a clock
+split. All three use provider.today. Over-plan is patternIncome − fixed −
+savings from complete months month < ym. Discretionary this-month spend was
+removed on purpose. Copy labeled that remainder as this-month overspend.
+
+**Decision.** Copy-only; math unchanged. Dashboard SafeToSpendCard overspent
+subtitle is the spending-plan honest line ("Your income pattern is more than
+spoken for by fixed costs and savings"); drop "guilt-free is $0 this month".
+The amount may still show the dollar shortfall ("Over plan by $X") without
+"this month". Header stays "Over plan". Positive subtitle is "monthly
+allocation after fixed costs & savings" — not a this-month spend window.
+Spending-plan hero headers drop "this month" ("Over plan" / "Guilt-free to
+spend"); the existing overspent subtitle stays. leftToSpendCents /
+computeSpendingPlan stay pattern income − fixed − savings; spentSoFarCents is
+not reintroduced. No remaining-after-spend number is invented.
+
+**Locked.** `test_regression__overplan_copy_does_not_claim_this_month_spend`;
+`test_regression__positive_safe_to_spend_copy_does_not_claim_this_month_spend`;
+`test_regression__spending_plan_hero_headers_drop_this_month`.

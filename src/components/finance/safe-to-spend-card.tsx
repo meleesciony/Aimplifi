@@ -57,9 +57,9 @@ export function SafeToSpendCard({
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {ok ? (
-              <>this month, after fixed costs &amp; savings</>
+              <>monthly allocation after fixed costs &amp; savings</>
             ) : (
-              <>guilt-free is $0 this month</>
+              <>Your income pattern is more than spoken for by fixed costs and savings</>
             )}
           </p>
           {longCadencesInTerm(plan.scheduledFixed).map((c) => (
