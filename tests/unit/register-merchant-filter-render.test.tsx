@@ -31,6 +31,25 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => '/transactions',
 }));
+
+vi.mock('next/link', () => ({
+  default: function MockLink({
+    href,
+    children,
+    prefetch = true,
+    ...rest
+  }: {
+    href: string;
+    children?: import('react').ReactNode;
+    prefetch?: boolean;
+  } & Omit<import('react').AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'children'>) {
+    return (
+      <a href={href} data-next-prefetch={prefetch ? 'true' : 'false'} {...rest}>
+        {children}
+      </a>
+    );
+  },
+}));
 // The register's row actions are server actions, and every one of them pulls
 // next-auth into the module graph, which cannot load under jsdom. Stubbed at
 // the ACTION boundary only — the component tree under test, empty state and
@@ -45,7 +64,7 @@ vi.mock('@/server/transaction-flags-actions', () => ({
 vi.mock('@/server/triage-actions', () => ({ recategorize: vi.fn() }));
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { TransactionFilters } from '@/components/finance/transaction-filters';
+import { TransactionFilters, transactionsHref } from '@/components/finance/transaction-filters';
 import { TransactionList } from '@/components/finance/transaction-list';
 import { cents } from '@/lib/money';
 
@@ -375,5 +394,38 @@ describe('the empty state names the account zero', () => {
       />,
     );
     expect(screen.getByTestId('txn-list').textContent).toContain('0 transactions in an account this page can’t show');
+  });
+});
+
+describe('Needs a category chip is a real link (DECISIONS #532)', () => {
+  it('test_regression__needs_category_href_encodes_unclassified', () => {
+    expect(transactionsHref(noFilters)).toBe('/transactions');
+    expect(transactionsHref({ ...noFilters, unclassified: true })).toBe('/transactions?unclassified=1');
+    expect(transactionsHref({ ...noFilters, from: '2026-01-01', unclassified: true })).toBe(
+      '/transactions?from=2026-01-01&unclassified=1',
+    );
+    expect(transactionsHref({ ...noFilters, from: '2026-01-01', unclassified: false })).toBe(
+      '/transactions?from=2026-01-01',
+    );
+  });
+
+  it('test_regression__needs_category_chip_is_a_href_before_hydration', () => {
+    renderBar({}, 15);
+    const chip = screen.getByTestId('txn-filter-unclassified');
+    expect(chip.tagName).toBe('A');
+    expect(chip.getAttribute('href')).toBe('/transactions?unclassified=1');
+    expect(chip.getAttribute('aria-pressed')).toBe('false');
+    cleanup();
+
+    renderBar({ unclassified: true }, 15);
+    const on = screen.getByTestId('txn-filter-unclassified');
+    expect(on.getAttribute('href')).toBe('/transactions');
+    expect(on.getAttribute('aria-pressed')).toBe('true');
+    cleanup();
+
+    renderBar({ from: '2026-01-01', unclassified: false }, 15);
+    const mixed = screen.getByTestId('txn-filter-unclassified');
+    expect(mixed.getAttribute('href')).toBe('/transactions?from=2026-01-01&unclassified=1');
+    cleanup();
   });
 });

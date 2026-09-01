@@ -6,6 +6,7 @@
  * component re-render. No client-side data; the server does the filtering via
  * the pure query engine.
  */
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatISODate, isoDate } from '@/lib/dates';
 import {
@@ -32,6 +33,44 @@ const SPEND_CLASS_OPTIONS = [
 const selectClass =
   'h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground';
 
+export type TransactionFilterState = {
+  search: string;
+  account: string;
+  category: string;
+  merchant: string;
+  type: string;
+  from: string;
+  to: string;
+  unclassified: boolean;
+  reimbursement: 'awaiting' | 'received' | null;
+  /** W.7 — empty string = all classes. */
+  spendClass: string;
+};
+
+/** Shareable register URL. The Needs-a-category chip is a Link to this, so a
+ *  click before hydration still filters (#167 / DECISIONS #532). `commit()`
+ *  pushes the same string. */
+export function transactionsHref(current: TransactionFilterState): string {
+  const q = new URLSearchParams();
+  if (current.search.trim()) q.set('q', current.search.trim());
+  if (current.account) q.set('account', current.account);
+  if (current.category) q.set('category', current.category);
+  // Merchant lens filter (DECISIONS #250) — set by tapping a merchant name,
+  // preserved across form commits, cleared by Clear / the lens card's link.
+  if (current.merchant) q.set('merchant', current.merchant);
+  if (current.type && current.type !== 'all') q.set('type', current.type);
+  if (current.from) q.set('from', current.from);
+  if (current.to) q.set('to', current.to);
+  if (current.unclassified) q.set('unclassified', '1');
+  // O.15: the coach's owed-money link sets this — preserved across commits and
+  // cleared by Clear, like every other axis (critic P1-4: a filter the bar
+  // denies is a dead end wearing a page).
+  if (current.reimbursement) q.set('reimb', current.reimbursement);
+  if (current.spendClass) q.set('spendClass', current.spendClass);
+  const qs = q.toString();
+  return qs ? `/transactions?${qs}` : '/transactions';
+}
+
 export function TransactionFilters({
   accountOptions,
   missingAccountOption,
@@ -54,19 +93,7 @@ export function TransactionFilters({
   /** Category dropdown options — the user's visible assignable set incl. customs
    *  (DECISIONS #111). Hidden categories are still findable via the search box. */
   categoryOptions: { id: string; name: string }[];
-  current: {
-    search: string;
-    account: string;
-    category: string;
-    merchant: string;
-    type: string;
-    from: string;
-    to: string;
-    unclassified: boolean;
-    reimbursement: 'awaiting' | 'received' | null;
-    /** W.7 — empty string = all classes. */
-    spendClass: string;
-  };
+  current: TransactionFilterState;
   /** How many rows in the register still need a category decision, BEFORE this
    *  filter is applied — so the toggle can say what it would find, and can say so
    *  while it is already on. Zero hides the control: a filter that can only ever
@@ -90,26 +117,8 @@ export function TransactionFilters({
 }) {
   const router = useRouter();
 
-  function commit(next: Partial<typeof current>) {
-    const merged = { ...current, ...next };
-    const q = new URLSearchParams();
-    if (merged.search.trim()) q.set('q', merged.search.trim());
-    if (merged.account) q.set('account', merged.account);
-    if (merged.category) q.set('category', merged.category);
-    // Merchant lens filter (DECISIONS #250) — set by tapping a merchant name,
-    // preserved across form commits, cleared by Clear / the lens card's link.
-    if (merged.merchant) q.set('merchant', merged.merchant);
-    if (merged.type && merged.type !== 'all') q.set('type', merged.type);
-    if (merged.from) q.set('from', merged.from);
-    if (merged.to) q.set('to', merged.to);
-    if (merged.unclassified) q.set('unclassified', '1');
-    // O.15: the coach's owed-money link sets this — preserved across commits and
-    // cleared by Clear, like every other axis (critic P1-4: a filter the bar
-    // denies is a dead end wearing a page).
-    if (merged.reimbursement) q.set('reimb', merged.reimbursement);
-    if (merged.spendClass) q.set('spendClass', merged.spendClass);
-    const qs = q.toString();
-    router.push(qs ? `/transactions?${qs}` : '/transactions');
+  function commit(next: Partial<TransactionFilterState>) {
+    router.push(transactionsHref({ ...current, ...next }));
   }
 
   const hasFilters =
@@ -170,10 +179,10 @@ export function TransactionFilters({
             count belongs in the accessible name so a screen reader hears the same
             thing the eye sees. */}
         {(unclassifiedCount > 0 || current.unclassified) && (
-          <button
-            type="button"
+          <Link
+            href={transactionsHref({ ...current, unclassified: !current.unclassified })}
+            prefetch={false}
             aria-pressed={current.unclassified}
-            onClick={() => commit({ unclassified: !current.unclassified })}
             data-testid="txn-filter-unclassified"
             className={`tap-target inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm transition ${
               current.unclassified
@@ -185,7 +194,7 @@ export function TransactionFilters({
             <span className="tabular-nums" data-testid="txn-unclassified-count">
               {unclassifiedCount}
             </span>
-          </button>
+          </Link>
         )}
 
         <select

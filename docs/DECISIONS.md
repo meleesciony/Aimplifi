@@ -1694,3 +1694,21 @@ matching rows take the file's category while Aimplifi is standing up.
 
 **Locked.** `test_regression__simplifi_restaurants_csv_files_dining_not_a_new_leaf`;
 `test_regression__simplifi_csv_recategorizes_duplicate_existing_row`.
+
+## #532 — Needs a category chip is a real link (2026-09-01)
+
+**Context.** Live 2026-09-01 on www.aimplifi.app: tapping Needs a category on
+/transactions left the list at 2679 rows and the chip at aria-pressed=false.
+`?unclassified=1` already showed the 15 unfiled rows. Server parse already
+accepted `str(sp.unclassified) === '1'`. The chip was a `<button onClick>` that
+`router.push`ed; a click before React hydration dropped silently (#167).
+
+**Decision.** The unclassified chip is a Next.js `<Link>` to the same URL
+`commit()` would push, so a pre-hydration click still filters. Off-state href
+includes `unclassified=1` (and preserves other active params); on-state href
+drops that param and keeps the rest. Selects, search, and dates stay on
+`commit()` / `router.push`. Visibility unchanged: show when unclassifiedCount
+> 0 or the filter is already on.
+
+**Locked.** `test_regression__needs_category_href_encodes_unclassified`;
+`test_regression__needs_category_chip_is_a_href_before_hydration`.
