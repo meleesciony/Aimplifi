@@ -1834,3 +1834,11 @@ invent an auto-file quality claim.
 **Decision.** Authorize tries the trimmed candidate when it differs and is non-empty. A wrong password still fails. Email-in-the-password-field still fails. Do not sign anyone out. Do not change AUTH_SECRET.
 
 **Locked.** `test_regression__sign_in_accepts_password_with_surrounding_whitespace`.
+
+## #542 — POS prefixes are not a payee name (2026-09-01)
+
+**Context.** Activity already strips PURCHASE TRN / WWW / LINKAGNT. A persisted canonical can still show Toast/Square/PayPal prefixes (`TST*`, `SQ *`) which ingest already drops in `cleanDescriptor`. Those tokens are the processor, not the merchant. Any household, not one register.
+
+**Decision.** `stripPayeeNoise` uses the same processor-prefix list as ingest. A reader's renameTo is kept. Do not hardcode named merchants.
+
+**Locked.** `test_regression__tst_and_sq_prefixes_are_not_the_payee`.

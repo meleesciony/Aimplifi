@@ -37,3 +37,23 @@ describe('payee noise is not a name (DECISIONS #537)', () => {
     expect(registerDisplayName({ rawDescriptor: 'LINKAGNT HERTZ' })).toBe('Hertz');
   });
 });
+
+describe('POS prefixes are not a payee name (DECISIONS #542)', () => {
+  it('test_regression__tst_and_sq_prefixes_are_not_the_payee', () => {
+    expect(stripPayeeNoise('TST* Local Cafe')).toBe('Local Cafe');
+    expect(stripPayeeNoise('SQ *Blue Bottle')).toBe('Blue Bottle');
+    expect(stripPayeeNoise('PAYPAL *SOME SHOP')).toBe('SOME SHOP');
+    expect(
+      registerDisplayName({
+        merchant: { canonical: 'TST* Local Cafe' },
+        rawDescriptor: 'TST* LOCAL CAFE',
+      }),
+    ).toBe('Local Cafe');
+    expect(
+      registerDisplayName({
+        merchant: { canonical: "Mum's Pharmacy" },
+        rawDescriptor: 'SQ *WALGREENS #4471 CHICAGO IL',
+      }),
+    ).toBe("Mum's Pharmacy");
+  });
+});

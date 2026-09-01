@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-01 | Activity still showed TST* / SQ * as the payee | stripPayeeNoise skipped processor prefixes that ingest already drops | payee cleanup is general, not one household | `test_regression__tst_and_sq_prefixes_are_not_the_payee` |
 | 2026-09-01 | Sign-in rejects a correct password with surrounding whitespace | authorize verified raw bytes only; trim-verifies was log-only | login trust: autofill whitespace is not a wrong password | `test_regression__sign_in_accepts_password_with_surrounding_whitespace` |
 | 2026-09-01 | Import sold CSV as a Simplifi standup matcher | page/helper named Simplifi CSV and Simplifi-wins-during-standup | classify-any-source is the product, not one household export | `test_regression__csv_import_copy_is_any_source_not_simplifi_standup` |
 | 2026-09-01 | Direct Starbucks filed Food Delivery (or DD *STARBUCKS filed coffee) | DD * stripped to STARBUCKS then coffee; no delivery-channel exception | Starbucks is Food Delivery only through a delivery app; direct is coffee | `test_regression__direct_starbucks_is_coffee_not_food_delivery` + `test_regression__doordash_starbucks_is_food_delivery` |
