@@ -53,6 +53,7 @@ import {
 } from '@/server/recurring-override-actions';
 import { DECLARABLE_CADENCES } from '@/lib/engine/recurring/override';
 import { recategorize, splitTransaction, undoSplit } from '@/server/triage-actions';
+import { expandSimplifiAliasRows } from '@/lib/engine/categorize/simplifi-aliases';
 import {
   STATUS_PENDING_EFFECT,
   STATUS_PENDING_TAX_CAUTION,
@@ -819,8 +820,8 @@ export function TransactionDetailView({
               <option value="">Choose a category…</option>
               {categoryGroups.map((g) => (
                 <optgroup key={g.group} label={g.group}>
-                  {g.categories.map((c) => (
-                    <option key={c.id} value={c.id}>
+                  {expandSimplifiAliasRows(g.categories).map((c) => (
+                    <option key={`${c.id}:${c.name}`} value={c.id}>
                       {c.name}
                     </option>
                   ))}

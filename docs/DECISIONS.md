@@ -1659,4 +1659,19 @@ demo fence unit + `tests/e2e/tax-advantaged-room.spec.ts`.
 Residual P2s: investing ladder still names Roth IRA (#515 lens);
 radios remount via `key` rather than fully controlled.
 
+## #530 — Change category click persists; Simplifi aliases are clickable (2026-08-31)
 
+**Context.** Money on production: Uncategorized on Home did not open a
+picker; ⋮ Change category opened Search categories; a Simplifi name
+(Restaurants) was missing; Just this once did not still show after
+refresh. Picker is scroll/click, not type-and-Enter.
+
+**Decision.** (1) Category writes revalidate `/dashboard` as well as
+`/triage` and `/transactions`, so Home cannot keep a stale Uncategorized
+chip after a successful file. (2) O.17 refused Simplifi leaves
+(Restaurants → `dining`, etc.) appear as extra clickable rows with the
+existing id — no new system leaf. Confirm copy uses the canonical name
+(Dining Out). Food Delivery is already a real leaf. Search may filter;
+Enter does not file.
+
+**Locked.** `tests/unit/simplifi-aliases.test.ts`.

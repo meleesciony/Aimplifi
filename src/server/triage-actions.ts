@@ -20,6 +20,14 @@ import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { type TriageGroupView, getTriageGroups, similarTransactionsWhere } from '@/server/triage';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
 
+/** Category writes must bust Home too — Money verified persist on the signed-in dashboard. */
+function revalidateAfterCategoryWrite() {
+  revalidatePath('/triage');
+  revalidatePath('/transactions');
+  revalidatePath('/dashboard');
+}
+
+
 /** Aggregate pseudo-merchants (Zelle/checks/ATM) never get merchant-wide rules. */
 function assertRuleEligible(rawDescriptor: string): void {
   if (normalizeMerchant(rawDescriptor).aggregate) {
@@ -205,8 +213,7 @@ export async function applyCategory(input: {
     await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', { ruleId, merchantId, categoryId: input.categoryId });
   }
 
-  revalidatePath('/triage');
-  revalidatePath('/transactions');
+  revalidateAfterCategoryWrite();
   return { correctionIds: [correction.id], ruleId, affected: 1 };
 }
 
@@ -318,8 +325,7 @@ export async function applyToAllSimilar(input: {
     affected: targets.length,
   });
 
-  revalidatePath('/triage');
-  revalidatePath('/transactions');
+  revalidateAfterCategoryWrite();
   return { correctionIds, ruleId: null, affected: targets.length };
 }
 
@@ -445,8 +451,7 @@ export async function fileMerchantGroup(input: {
     await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', { ruleId, merchantId: txn.merchantId, categoryId: input.categoryId });
   }
 
-  revalidatePath('/triage');
-  revalidatePath('/transactions');
+  revalidateAfterCategoryWrite();
   return { correctionIds, ruleId, affected };
 }
 
@@ -530,8 +535,7 @@ export async function acceptAllConfident(): Promise<AcceptAllResult> {
   }
 
   await auditLog(userId, 'group.accept-all', { merchantsFiled, affected });
-  revalidatePath('/triage');
-  revalidatePath('/transactions');
+  revalidateAfterCategoryWrite();
   return { correctionIds, merchantsFiled, affected, groups: await getTriageGroups(userId) };
 }
 
@@ -638,8 +642,7 @@ export async function recategorize(input: {
     via: 'register',
   });
 
-  revalidatePath('/triage');
-  revalidatePath('/transactions');
+  revalidateAfterCategoryWrite();
   return { correctionIds, ruleId, affected };
 }
 
@@ -738,8 +741,7 @@ export async function splitTransaction(input: {
   // a split MOVES money in it — the parent leaves the list, two children take its
   // place. Revalidating only /triage left the reader looking at the row he had
   // just split.
-  revalidatePath('/triage');
-  revalidatePath('/transactions');
+  revalidateAfterCategoryWrite();
   return { childIds };
 }
 
@@ -776,8 +778,7 @@ export async function undoSplit(transactionId: string): Promise<TriageGroupView[
       },
     }),
   ]);
-  revalidatePath('/triage');
-  revalidatePath('/transactions'); // O.13b — same reason as splitTransaction above.
+  revalidateAfterCategoryWrite(); // O.13b — same reason as splitTransaction above.
   return getTriageGroups(userId); // group queue (Phase 3c)
 }
 
@@ -888,6 +889,6 @@ export async function undoCorrections(correctionIds: string[]): Promise<TriageGr
       if ((e as { code?: string }).code !== 'P2002') throw e;
     }
   }
-  revalidatePath('/triage');
+  revalidateAfterCategoryWrite();
   return getTriageGroups(userId); // group queue (Phase 3c)
 }

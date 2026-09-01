@@ -31,6 +31,10 @@ import {
   filterCategoryOptions,
 } from '@/lib/engine/categorize/assign';
 import {
+  canonicalCategoryName,
+  expandSimplifiAliasRows,
+} from '@/lib/engine/categorize/simplifi-aliases';
+import {
   HANDOVER_DAY_ROW_MARKER,
   handoverDayRegisterTotalsNote,
 } from '@/lib/engine/glass-box/category-breakdown';
@@ -483,7 +487,7 @@ export function TransactionList({
   // "Bills & Utilities" group — the previous name-only inline filter had the
   // same duplicate-manufacturing false-negative the triage picker was fixed for.
   const visibleCatGroups = filterCategoryOptions(
-    categoryGroups.map((g) => ({ group: g.group, items: g.categories })),
+    categoryGroups.map((g) => ({ group: g.group, items: expandSimplifiAliasRows(g.categories) })),
     query,
   );
 
@@ -1154,10 +1158,10 @@ export function TransactionList({
                                     </div>
                                     {grp.items.map((c) => (
                                       <button
-                                        key={c.id}
+                                        key={`${c.id}:${c.name}`}
                                         type="button"
                                         role="option"
-                                        aria-selected={c.id === t.categoryId}
+                                        aria-selected={c.id === t.categoryId && c.name === canonicalCategoryName(c.id, grp.items)}
                                         data-testid="cat-option"
                                         data-cat={c.id}
                                         disabled={pending}
@@ -1165,7 +1169,11 @@ export function TransactionList({
                                         onClick={() =>
                                           c.id === t.categoryId
                                             ? close()
-                                            : setChosen({ rowId: t.id, id: c.id, name: c.name })
+                                            : setChosen({
+                                                rowId: t.id,
+                                                id: c.id,
+                                                name: canonicalCategoryName(c.id, grp.items),
+                                              })
                                         }
                                       >
                                         {c.name}
