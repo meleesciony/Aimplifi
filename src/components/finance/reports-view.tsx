@@ -20,6 +20,7 @@ import {
 import { MonthFlowPanel } from '@/components/finance/month-flow-panel';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { CATEGORY_LINK_CLASS } from '@/lib/engine/transactions/links';
+import { HOME_NEEDS_FILE_HREF, NEEDS_A_CATEGORY_LINK_LABEL } from '@/lib/copy/home-needs-file-copy';
 import { formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { withheldInlineNote, type WithheldAccountSummary } from '@/lib/providers/currency';
@@ -177,13 +178,13 @@ export function ReportsView({
             absence of a decision, not a filing target), so the control would
             read "All categories" over a filtered list, and the reader's next
             filter change would silently drop the category. That bucket
-            already has the better destination — the inbox that drains it. */}
+            already has the work queue: Needs a category on Activity. */}
         {href === null ? (
           <div className="flex items-baseline justify-between text-sm">
             <span className="min-w-0 truncate">
               {c.name} <span className="text-xs text-muted-foreground">· {c.group}</span>
               {/* #166: "Uncategorized" topping the list with no path to fix it
-                  reads as broken — link straight to the inbox that drains it.
+                  reads as broken — link to Needs a category, not Inbox.
                   OUTSIDE the truncating span: inside it, `overflow:hidden` +
                   `nowrap` clipped ~45px of this 98px link at 380px (O.5 critic
                   F-6), hiding the arrow and half the words — and it is the only
@@ -192,10 +193,10 @@ export function ReportsView({
             <span className="ml-2 flex shrink-0 items-baseline gap-2">
               {c.categoryId === 'uncategorized' && (
                 <Link
-                  href="/triage"
+                  href={HOME_NEEDS_FILE_HREF}
                   className="whitespace-nowrap text-xs text-muted-foreground underline-offset-2 hover:underline"
                 >
-                  review in Inbox →
+                  {NEEDS_A_CATEGORY_LINK_LABEL} →
                 </Link>
               )}
               <span className="tabular-nums">{formatCents(cents(c.amountCents))}</span>

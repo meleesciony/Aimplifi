@@ -1858,3 +1858,11 @@ invent an auto-file quality claim.
 **Decision.** Amount aliases: amount, net amount, transaction amount. Else compose a signed amount from Debit+Credit or Outflow+Inflow (debit/outflow = money out). Date also accepts Trade Date; description accepts Transaction Description. Signed amount files stay the same. Category aliases unchanged. Bank guides no longer ask for a rewrite.
 
 **Locked.** `test_regression__csv_any_source_accepts_debit_credit_and_net_amount`.
+
+## #545 — Uncategorized figures go to Needs a category, not Inbox (2026-09-01)
+
+**Context.** #543 moved Home's filing chip to Activity. Reports and Spending still said "review in Inbox" on the Uncategorized bucket and linked to `/triage`. Inbox is merchant groups in needsReview. The register's category select cannot display Uncategorized (O.5 refuses a `category=uncategorized` href). Needs a category already lists the unclassified union.
+
+**Decision.** Copy and href only. Same destination as Home: `/transactions?unclassified=1`. Label is "Needs a category". Do not make Uncategorized a category-select filter. Do not claim the figure equals the landing total. Spending plan "File transactions" and Rules still point at Inbox.
+
+**Locked.** `test_regression__uncategorized_figure_opens_needs_a_category_not_inbox`.

@@ -28,6 +28,7 @@ import {
   categoryWindowRegisterHref,
 } from '@/lib/engine/transactions/links';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
+import { HOME_NEEDS_FILE_HREF, NEEDS_A_CATEGORY_LINK_LABEL } from '@/lib/copy/home-needs-file-copy';
 import { getReconciliationBoundary } from '@/server/reconciliation';
 import { getSpendingPlan } from '@/server/spending-plan';
 import {
@@ -429,17 +430,16 @@ export default async function BudgetsPage() {
                   <span className="flex items-baseline gap-2">
                     {/* O.6 critic P2-8: with every other row now tappable, the
                         uncategorized row was the one dead figure on the card and
-                        said nothing about why. /reports already solved this — send
-                        it to the inbox that drains it, which is the destination
-                        that can actually act on it (the register's category select
-                        cannot even display the placeholder, which is why the href
-                        builder refuses it). */}
+                        said nothing about why. Same destination as Home and
+                        Reports: Needs a category, not Inbox (the register's
+                        category select cannot display the placeholder, which is
+                        why the href builder refuses a category= link). */}
                     {href === null && row.categoryId === 'uncategorized' && (
                       <Link
-                        href="/triage"
+                        href={HOME_NEEDS_FILE_HREF}
                         className="whitespace-nowrap text-xs text-muted-foreground underline-offset-2 hover:underline"
                       >
-                        review in Inbox →
+                        {NEEDS_A_CATEGORY_LINK_LABEL} →
                       </Link>
                     )}
                     <span className="tabular-nums">

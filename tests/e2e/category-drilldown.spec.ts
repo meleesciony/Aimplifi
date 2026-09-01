@@ -33,7 +33,7 @@ test('Reports: a category figure links to a register that nets to the same amoun
 
   // The top spending category that is actually linkable — selected by testid, NOT
   // by "first link in the card": the uncategorized row is deliberately not a
-  // category link but still renders a "review in Inbox" anchor, so a positional
+  // category link but still renders a "Needs a category" anchor, so a positional
   // locator would grab that one whenever uncategorized tops the breakdown.
   const row = page.locator('[data-testid^="category-link-"]').first();
   await expect(row).toBeVisible();

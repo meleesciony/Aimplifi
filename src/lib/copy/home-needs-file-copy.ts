@@ -6,6 +6,9 @@
  */
 export const HOME_NEEDS_FILE_HREF = '/transactions?unclassified=1';
 
+/** Side-link on Reports/Spending uncategorized figures. Same destination as Home. */
+export const NEEDS_A_CATEGORY_LINK_LABEL = 'Needs a category';
+
 export function homeNeedsFileLabel(count: number): string {
   return count === 1 ? '1 needs a category' : `${count} need a category`;
 }

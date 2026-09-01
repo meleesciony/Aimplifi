@@ -250,11 +250,11 @@ test('uncategorized in the tail keeps the O.5 refusal and still counts in the id
 
   await page.getByTestId('reports-everything-else-toggle').click();
   // The refusal, asserted where it was previously only inherited: no register
-  // link for the uncategorized bucket — its affordance is the Inbox…
+  // category-select link for the uncategorized bucket — its affordance is Needs a category.
   await expect(section.locator('[data-testid="category-link-uncategorized"]')).toHaveCount(0);
-  const inboxLink = section.getByRole('link', { name: 'review in Inbox →' });
-  await expect(inboxLink).toBeVisible();
-  await expect(inboxLink).toHaveAttribute('href', '/triage');
+  const needsLink = section.getByRole('link', { name: 'Needs a category →' });
+  await expect(needsLink).toBeVisible();
+  await expect(needsLink).toHaveAttribute('href', '/transactions?unclassified=1');
   // …and its money is on the page: the ROW prints $0.50 beside "Uncategorized".
   // Scoped to the row's parent div — a bare getByText('$0.50') strict-violates,
   // because the O.18 expander panel prints the same sum twice more.
