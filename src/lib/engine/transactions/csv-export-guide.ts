@@ -41,7 +41,7 @@ export const CSV_EXPORT_GUIDES: readonly CsvExportGuide[] = [
       'In the transaction list, click "Download Transactions".',
       'Choose CSV as the file type, pick a date range, and click Export.',
     ],
-    note: "Capital One's export uses separate Debit and Credit columns instead of one signed amount. Before pasting, add a column named `amount`: use the Credit value for money in, and the Debit value as a negative number for money out. (The export covers recent activity only.)",
+    note: "Capital One's export uses Debit (money out) and Credit (money in). Paste it as exported. (The export covers recent activity only.)",
   },
   {
     institution: 'American Express',
@@ -70,7 +70,7 @@ export const CSV_EXPORT_GUIDES: readonly CsvExportGuide[] = [
       'Go to "My accounts" → "Transaction history" (Accounts & activity).',
       'Click "Download", choose CSV and a date range, then save the file.',
     ],
-    note: "Vanguard's export uses different column names (Trade Date / Transaction Description / Net Amount) — rename the headers to `date`, `description`, and `amount` before pasting. The CSV window is limited; older history is PDF statements.",
+    note: "Vanguard's export uses Trade Date, Transaction Description, and Net Amount. Paste it as exported. The CSV window is limited; older history is PDF statements.",
   },
   {
     institution: 'Truist',

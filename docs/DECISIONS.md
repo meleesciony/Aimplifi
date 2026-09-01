@@ -1850,3 +1850,11 @@ invent an auto-file quality claim.
 **Decision.** Home chip only. Href is `/transactions?unclassified=1`. Count is unclassified rows after the reconciliation keep, same union as `isUnclassifiedTxn`. Copy is "1 needs a category" / "N need a category". Nav Inbox badge stays merchant groups. Do not invent a Home picker.
 
 **Locked.** `test_regression__home_needs_file_href_is_unclassified_not_inbox`.
+
+## #544 — CSV import accepts Debit/Credit and Net Amount (2026-09-01)
+
+**Context.** #540 told any household they could paste a bank CSV. The parser still required a column literally named `amount`. Capital One Debit/Credit and Vanguard Net Amount failed unless the reader rewrote the spreadsheet — the import page's own guides said so.
+
+**Decision.** Amount aliases: amount, net amount, transaction amount. Else compose a signed amount from Debit+Credit or Outflow+Inflow (debit/outflow = money out). Date also accepts Trade Date; description accepts Transaction Description. Signed amount files stay the same. Category aliases unchanged. Bank guides no longer ask for a rewrite.
+
+**Locked.** `test_regression__csv_any_source_accepts_debit_credit_and_net_amount`.

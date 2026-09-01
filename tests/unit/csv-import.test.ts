@@ -84,6 +84,40 @@ describe('parseTransactionCsv', () => {
     expect(errors[0].message).toMatch(/amount/i);
   });
 
+  it('test_regression__csv_any_source_accepts_debit_credit_and_net_amount', () => {
+    const cap = [
+      'Date,Description,Debit,Credit',
+      '2026-06-01,Coffee,4.50,',
+      '2026-06-02,Payroll,,2500.00',
+    ].join('\n');
+    const capParsed = parseTransactionCsv(cap);
+    expect(capParsed.errors).toEqual([]);
+    expect(capParsed.rows[0]).toMatchObject({ description: 'Coffee', amountCents: -450 });
+    expect(capParsed.rows[1]).toMatchObject({ description: 'Payroll', amountCents: 250000 });
+
+    const vg = [
+      'Trade Date,Transaction Description,Net Amount',
+      '2026-06-01,VTSAX Purchase,-100.00',
+      '06/02/2026,Dividend,12.34',
+    ].join('\n');
+    const vgParsed = parseTransactionCsv(vg);
+    expect(vgParsed.errors).toEqual([]);
+    expect(vgParsed.rows[0]).toMatchObject({
+      date: '2026-06-01',
+      description: 'VTSAX Purchase',
+      amountCents: -10000,
+    });
+    expect(vgParsed.rows[1]).toMatchObject({ date: '2026-06-02', amountCents: 1234 });
+
+    const signed = parseTransactionCsv('date,description,amount\n2026-06-01,Rent,"-$1,250.00"');
+    expect(signed.errors).toEqual([]);
+    expect(signed.rows[0].amountCents).toBe(-125000);
+
+    const missing = parseTransactionCsv('date,memo\n2026-06-01,x');
+    expect(missing.rows).toEqual([]);
+    expect(missing.errors[0].message).toMatch(/amount/i);
+  });
+
   it('treats a fully blank file as an error', () => {
     expect(parseTransactionCsv('\n\n  \n').errors[0].message).toMatch(/empty/i);
   });

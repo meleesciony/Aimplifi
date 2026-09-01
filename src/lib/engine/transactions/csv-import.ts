@@ -7,9 +7,10 @@
  *
  * Contract (kept deliberately simple and unambiguous):
  *  - A header row is required. Recognized columns (case-insensitive, aliased):
- *      date         ← date | transaction date | posted date
- *      description  ← description | payee | memo | name
- *      amount       ← amount
+ *      date         ← date | transaction date | posted date | trade date
+ *      description  ← description | payee | memo | name | transaction description
+ *      amount       ← amount | net amount | transaction amount
+ *                    OR Debit+Credit / Outflow+Inflow (unsigned; debit/outflow = money out)
  *      category     ← category   (OPTIONAL; slug, display name, or Simplifi alias)
  *  - Amount is SIGNED in Pulse convention: NEGATIVE = money out, POSITIVE = in
  *    (matches Mint/most US bank exports). "$" and thousands commas are stripped.
@@ -26,8 +27,11 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
 import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 
-const DESCRIPTION_ALIASES = ['description', 'payee', 'memo', 'name'];
-const DATE_ALIASES = ['date', 'transaction date', 'posted date'];
+const DESCRIPTION_ALIASES = ['description', 'payee', 'memo', 'name', 'transaction description'];
+const DATE_ALIASES = ['date', 'transaction date', 'posted date', 'trade date'];
+const AMOUNT_ALIASES = ['amount', 'net amount', 'transaction amount'];
+const DEBIT_ALIASES = ['debit', 'outflow'];
+const CREDIT_ALIASES = ['credit', 'inflow'];
 
 const CATEGORY_BY_NAME = new Map(CATEGORIES.map((c) => [c.name.toLowerCase(), c.id]));
 
@@ -108,6 +112,22 @@ function resolveCategory(raw: string, customByName: ReadonlyMap<string, string>)
   );
 }
 
+function signedAmountFromCell(raw: string): number {
+  const amountRaw = raw.replace(/[$,\s]/g, '');
+  if (amountRaw === '') throw new Error('amount is empty');
+  return centsFromDollarString(amountRaw);
+}
+
+/** Debit/outflow is money out; credit/inflow is money in. Columns are magnitudes. */
+function composedDebitCreditCents(debitRaw: string, creditRaw: string): number {
+  const debitCell = debitRaw.replace(/[$,\s]/g, '');
+  const creditCell = creditRaw.replace(/[$,\s]/g, '');
+  const debitAbs = debitCell === '' ? 0 : Math.abs(centsFromDollarString(debitCell));
+  const creditAbs = creditCell === '' ? 0 : Math.abs(centsFromDollarString(creditCell));
+  if (debitAbs === 0 && creditAbs === 0) throw new Error('amount is empty');
+  return creditAbs - debitAbs;
+}
+
 /**
  * @param customByName lowercased custom-category name → id, so a CSV "category"
  * column naming one of the user's own categories ("Golf") resolves to it
@@ -126,13 +146,16 @@ export function parseTransactionCsv(
   const find = (aliases: string[]) => header.findIndex((h) => aliases.includes(h));
   const dateCol = find(DATE_ALIASES);
   const descCol = find(DESCRIPTION_ALIASES);
-  const amountCol = header.indexOf('amount');
+  const amountCol = find(AMOUNT_ALIASES);
+  const debitCol = find(DEBIT_ALIASES);
+  const creditCol = find(CREDIT_ALIASES);
   const catCol = header.indexOf('category');
+  const canComposeAmount = debitCol !== -1 && creditCol !== -1;
 
   const missing: string[] = [];
   if (dateCol === -1) missing.push('date');
   if (descCol === -1) missing.push('description');
-  if (amountCol === -1) missing.push('amount');
+  if (amountCol === -1 && !canComposeAmount) missing.push('amount');
   if (missing.length) {
     return {
       rows: [],
@@ -150,9 +173,10 @@ export function parseTransactionCsv(
       const description = (fields[descCol] ?? '').trim();
       if (!description) throw new Error('description is empty');
       const date = normalizeImportDate(fields[dateCol] ?? '');
-      const amountRaw = (fields[amountCol] ?? '').replace(/[$,\s]/g, '');
-      if (amountRaw === '') throw new Error('amount is empty');
-      const amountCents = centsFromDollarString(amountRaw); // signed; throws if malformed
+      const amountCents =
+        amountCol !== -1
+          ? signedAmountFromCell(fields[amountCol] ?? '')
+          : composedDebitCreditCents(fields[debitCol] ?? '', fields[creditCol] ?? '');
       const categoryId = catCol === -1 ? null : resolveCategory(fields[catCol] ?? '', customByName);
       rows.push({ line: lineNo, date, description, amountCents, categoryId });
     } catch (e) {
