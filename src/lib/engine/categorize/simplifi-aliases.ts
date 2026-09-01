@@ -43,3 +43,20 @@ export function expandSimplifiAliasRows(
   }
   return out;
 }
+
+/**
+ * Map a Simplifi (or other export) category name to an existing system id.
+ * Accepts a bare alias ("Restaurants") or a grouped path
+ * ("Food & Dining: Restaurants", "Food & Dining > Restaurants").
+ * Unknown names return null — never invent a leaf.
+ */
+export function simplifiAliasToCategoryId(raw: string): string | null {
+  const s = raw.trim().toLowerCase();
+  if (!s) return null;
+  const parts = s.split(/[:/>]/).map((part) => part.trim()).filter(Boolean);
+  const leaf = parts[parts.length - 1] ?? s;
+  for (const [id, aliases] of Object.entries(SIMPLIFI_LEAF_ALIASES)) {
+    if (aliases.some((a) => a.toLowerCase() === leaf)) return id;
+  }
+  return null;
+}

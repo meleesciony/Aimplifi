@@ -10,16 +10,18 @@
  *      date         ← date | transaction date | posted date
  *      description  ← description | payee | memo | name
  *      amount       ← amount
- *      category     ← category   (OPTIONAL)
+ *      category     ← category   (OPTIONAL; slug, display name, or Simplifi alias)
  *  - Amount is SIGNED in Pulse convention: NEGATIVE = money out, POSITIVE = in
  *    (matches Mint/most US bank exports). "$" and thousands commas are stripped.
  *  - Dates accepted as YYYY-MM-DD or US MM/DD/YYYY.
- *  - Category may be a slug ("dining") or a display name ("Dining Out"); unknown
- *    or blank → auto-categorized through the pipeline.
+ *  - Category may be a slug ("dining"), a display name ("Dining Out"), or a
+ *    Simplifi alias ("Restaurants" → dining). Unknown or blank → auto-categorized.
+ *    On a duplicate of an existing row, the file category is applied to that row.
  */
 import { type ISODate, isoDate } from '@/lib/dates';
 import { centsFromDollarString } from '@/lib/money';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { simplifiAliasToCategoryId } from '@/lib/engine/categorize/simplifi-aliases';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
 import type { PredictionSource } from '@/lib/engine/categorize/provenance';
@@ -95,8 +97,15 @@ function resolveCategory(raw: string, customByName: ReadonlyMap<string, string>)
   const s = raw.trim().toLowerCase();
   if (!s) return null;
   if (CATEGORY_BY_ID.has(s)) return s;
-  // System display name, then a custom category name the user owns; unknown → auto.
-  return CATEGORY_BY_NAME.get(s) ?? customByName.get(s) ?? null;
+  // System display name, then a Simplifi alias (Restaurants → dining), then a
+  // custom category name the user owns; unknown → auto. Simplifi wins
+  // classification: an export name must file the existing id, never a new leaf.
+  return (
+    CATEGORY_BY_NAME.get(s) ??
+    simplifiAliasToCategoryId(raw) ??
+    customByName.get(s) ??
+    null
+  );
 }
 
 /**
@@ -242,6 +251,58 @@ export function planCsvDedupe(
     }
   }
   return { keep, duplicates, repeatedRows };
+}
+
+
+/** An existing register row the CSV overlap planner can recategorize. */
+export interface ExistingImportRow {
+  id: string;
+  date: ISODate;
+  amountCents: number;
+  categoryId: string | null;
+}
+
+export interface CsvCategoryApply {
+  transactionId: string;
+  categoryId: string;
+}
+
+/**
+ * When a CSV row is a duplicate of an existing register row AND the file
+ * names an explicit category, apply that category onto the existing row.
+ * Simplifi-as-source-of-truth during standup: matching history takes the
+ * export's category instead of keeping Aimplifi's. No-ops when the file
+ * has no category, the name does not resolve, or the row is already that id.
+ *
+ * Matching consumes existing rows in the same (date, signed amount) file
+ * order as `planCsvDedupe`, so the row that was skipped as a duplicate is
+ * the row that gets recategorized.
+ */
+export function planCsvCategoryApply(
+  fileRows: readonly { date: ISODate; amountCents: number; categoryId: string | null }[],
+  existingRows: readonly ExistingImportRow[],
+  keep: readonly boolean[],
+): CsvCategoryApply[] {
+  const queues = new Map<string, ExistingImportRow[]>();
+  for (const r of existingRows) {
+    const k = `${r.date}|${r.amountCents}`;
+    const q = queues.get(k) ?? [];
+    q.push(r);
+    queues.set(k, q);
+  }
+  const out: CsvCategoryApply[] = [];
+  for (let i = 0; i < fileRows.length; i++) {
+    if (keep[i]) continue;
+    const row = fileRows[i];
+    if (!row.categoryId) continue;
+    const k = `${row.date}|${row.amountCents}`;
+    const q = queues.get(k);
+    if (!q || q.length === 0) continue;
+    const existing = q.shift()!;
+    if (existing.categoryId === row.categoryId) continue;
+    out.push({ transactionId: existing.id, categoryId: row.categoryId });
+  }
+  return out;
 }
 
 export interface PreparedImportRow {

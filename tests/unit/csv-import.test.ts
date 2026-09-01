@@ -5,6 +5,7 @@ import {
   normalizeImportDate,
   parseCsvLine,
   parseTransactionCsv,
+  planCsvCategoryApply,
   planCsvDedupe,
   prepareImportedTransaction,
 } from '@/lib/engine/transactions/csv-import';
@@ -113,6 +114,20 @@ describe('parseTransactionCsv', () => {
     // Without the map, the same custom name is unknown → auto-categorize (null).
     const withoutMap = parseTransactionCsv(csv).rows;
     expect(withoutMap[0].categoryId).toBeNull();
+  });
+
+  it('test_regression__simplifi_restaurants_csv_files_dining_not_a_new_leaf', () => {
+    const csv = [
+      'date,description,amount,category',
+      '2026-08-28,Gusto Chastain,-14.43,Restaurants',
+      '2026-08-23,Gusto Chastain,-14.43,Food & Dining: Restaurants',
+      '2026-08-21,Uber,-12.00,Rideshare',
+    ].join('\n');
+    const { rows, errors } = parseTransactionCsv(csv);
+    expect(errors).toEqual([]);
+    expect(rows[0].categoryId).toBe('dining');
+    expect(rows[1].categoryId).toBe('dining');
+    expect(rows[2].categoryId).toBe('transport');
   });
 });
 
@@ -300,5 +315,46 @@ describe('prepareImportedTransaction', () => {
     const prepared = prepareImportedTransaction(row, 'acct-checking', rules);
     expect(prepared.isTransfer).toBe(true);
     expect(prepared.categoryId).toBe('transfer');
+  });
+});
+
+
+describe('planCsvCategoryApply', () => {
+  it('test_regression__simplifi_csv_recategorizes_duplicate_existing_row', () => {
+    const file = [
+      { date: isoDate('2026-08-28'), amountCents: -1443, categoryId: 'dining' },
+    ];
+    const existing = [
+      { id: 'txn-gusto', date: isoDate('2026-08-28'), amountCents: -1443, categoryId: 'fast-food' },
+    ];
+    const plan = planCsvDedupe(file, existing);
+    expect(plan.keep).toEqual([false]);
+    const applies = planCsvCategoryApply(file, existing, plan.keep);
+    expect(applies).toEqual([{ transactionId: 'txn-gusto', categoryId: 'dining' }]);
+  });
+
+  it('does not recategorize when the file has no category', () => {
+    const file = [{ date: isoDate('2026-08-28'), amountCents: -1443, categoryId: null }];
+    const existing = [
+      { id: 'txn-gusto', date: isoDate('2026-08-28'), amountCents: -1443, categoryId: 'fast-food' },
+    ];
+    const plan = planCsvDedupe(file, existing);
+    expect(planCsvCategoryApply(file, existing, plan.keep)).toEqual([]);
+  });
+
+  it('does not recategorize a new row the account does not hold', () => {
+    const file = [{ date: isoDate('2026-08-28'), amountCents: -1443, categoryId: 'dining' }];
+    const plan = planCsvDedupe(file, []);
+    expect(plan.keep).toEqual([true]);
+    expect(planCsvCategoryApply(file, [], plan.keep)).toEqual([]);
+  });
+
+  it('skips when the existing row already has the export category', () => {
+    const file = [{ date: isoDate('2026-08-28'), amountCents: -1443, categoryId: 'dining' }];
+    const existing = [
+      { id: 'txn-gusto', date: isoDate('2026-08-28'), amountCents: -1443, categoryId: 'dining' },
+    ];
+    const plan = planCsvDedupe(file, existing);
+    expect(planCsvCategoryApply(file, existing, plan.keep)).toEqual([]);
   });
 });

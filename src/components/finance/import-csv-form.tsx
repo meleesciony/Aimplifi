@@ -48,9 +48,11 @@ export function ImportCsvForm({ accounts }: { accounts: { id: string; name: stri
               className={`py-2 font-mono text-xs ${fieldClass}`}
             />
             <span className="text-xs text-muted-foreground">
-              Columns: <code>date</code>, <code>description</code>, <code>amount</code> (and
-              optional <code>category</code>). Amount is negative for money out, positive
-              for money in. Dates as YYYY-MM-DD or MM/DD/YYYY.
+              Columns: <code>date</code>, <code>description</code> (or <code>payee</code>),
+              <code>amount</code>, optional <code>category</code>. A Simplifi export
+              category on a row you already have replaces Aimplifi&apos;s category.
+              Amount is negative for money out, positive for money in. Dates as
+              YYYY-MM-DD or MM/DD/YYYY.
             </span>
           </label>
 
@@ -71,6 +73,9 @@ export function ImportCsvForm({ accounts }: { accounts: { id: string; name: stri
               Imported {result.imported} transaction{result.imported === 1 ? '' : 's'}
               {result.duplicates > 0
                 ? `, ${result.duplicates} already in your history`
+                : ''}
+              {result.recategorized > 0
+                ? `, updated ${result.recategorized} categor${result.recategorized === 1 ? 'y' : 'ies'} from the file`
                 : ''}
               {result.skipped > 0 ? `, skipped ${result.skipped}` : ''}.
             </p>
