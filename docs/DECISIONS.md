@@ -1802,3 +1802,19 @@ invent an auto-file quality claim.
 **Decision.** stripPayeeNoise removes PURCHASE TRN <token>, leading WWW., leading LINKAGNT, trailing ~ TRAN, and a truncated trailing " - X". cleanDescriptor uses it on ingest. registerDisplayName applies it to the chosen label so a persisted dirty canonical still reads as a payee. A reader's renameTo is unchanged unless it is those tokens. Do not invent a brand table for every leftover.
 
 **Locked.** `test_regression__purchase_trn_and_www_are_not_the_payee`; `test_regression__register_strips_persisted_payee_noise_not_a_rename`.
+
+## #538 — Cursor and Moonshot file software (2026-09-01)
+
+**Context.** Live 2026-09-01 /transactions: "Cursor Usage Jul" and "Moonshot Ai" showed Shopping. normalizeMerchant left them unknown (uncategorized, 50%), so the provider-category rescue (#155) auto-filed Plaid GENERAL_MERCHANDISE as shopping.
+
+**Decision.** Known merchants: CURSOR → Cursor / software; MOONSHOT (AI) → Moonshot / software. Same tokens in the software generic table for non-leading forms. A confident software match is not overridden by a Plaid shopping hint. Starbucks already files coffee in the engine; do not invent a Food Delivery fix without a descriptor that actually files that way.
+
+**Locked.** `test_regression__cursor_usage_and_moonshot_file_software_not_shopping`.
+
+## #539 — Direct Starbucks is coffee; delivery-app Starbucks is Food Delivery (2026-09-01)
+
+**Context.** Live 2026-09-01 some Starbucks rows showed Food Delivery. Direct store charges are Coffee Shops (existing leaf). Food Delivery is correct only when the charge is through DoorDash / Uber Eats / Grubhub / Postmates / similar. `DD *STARBUCKS` cleaned to Starbucks and filed coffee.
+
+**Decision.** A delivery-channel pattern (DD *, DOORDASH, UBER EATS, GRUBHUB, POSTMATES, SEAMLESS, INSTACART, GOPUFF, CAVIAR) plus STARBUCKS files food-delivery. Bare / Square / Toast Starbucks stays coffee. Do not invent a leaf. Do not file every Starbucks as Food Delivery. A reader's renameTo still wins display.
+
+**Locked.** `test_regression__direct_starbucks_is_coffee_not_food_delivery`; `test_regression__doordash_starbucks_is_food_delivery`; `test_regression__starbucks_rename_is_kept`.

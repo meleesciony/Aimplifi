@@ -531,3 +531,5 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #535 — You're covered names this cycle (2026-09-01) → docs/DECISIONS.md
 - #536 — Inbox copy does not promise auto-file quality (2026-09-01) → docs/DECISIONS.md
 - #537 — Strip bank-feed tokens that are not a payee (2026-09-01) → docs/DECISIONS.md
+- #538 — Cursor and Moonshot file software (2026-09-01) → docs/DECISIONS.md
+- #539 — Direct Starbucks is coffee; delivery-app Starbucks is Food Delivery (2026-09-01) → docs/DECISIONS.md

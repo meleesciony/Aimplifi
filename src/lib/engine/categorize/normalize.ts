@@ -210,6 +210,8 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^CHICK-FIL-A/i, canonical: 'Chick-fil-A', categoryId: 'fast-food' },
   { pattern: /^MCDONALD'?S/i, canonical: "McDonald's", categoryId: 'fast-food' },
   { pattern: /^CHIPOTLE\b/i, canonical: 'Chipotle', categoryId: 'fast-food' },
+  // Delivery-channel Starbucks is Food Delivery. Direct Starbucks stays coffee.
+  { pattern: /^(DD \*|DOORDASH|GRUBHUB|UBER\s+\*?\s*EATS|POSTMATES|SEAMLESS|INSTACART|GOPUFF|CAVIAR).*\bSTARBUCKS\b/i, canonical: 'Starbucks', categoryId: 'food-delivery' },
   { pattern: /^STARBUCKS/i, canonical: 'Starbucks', categoryId: 'coffee' },
   { pattern: /^WAFFLE HOUSE/i, canonical: 'Waffle House', categoryId: 'dining' },
   // Fuel
@@ -332,6 +334,8 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
   { pattern: /^PARAMOUNT\s?(\+|PLUS)/i, canonical: 'Paramount+', categoryId: 'entertainment' },
   { pattern: /^KINDLE (UNLTD|UNLIMITED)/i, canonical: 'Kindle Unlimited', categoryId: 'books' },
   { pattern: /^ITUNES\.COM/i, canonical: 'Apple', categoryId: 'software' },
+  { pattern: /^CURSOR\b/i, canonical: 'Cursor', categoryId: 'software' },
+  { pattern: /^MOONSHOT(\s+AI)?\b/i, canonical: 'Moonshot', categoryId: 'software' },
   { pattern: /^RING (YEARLY|MONTHLY|PROTECT|PLAN|BASIC)/i, canonical: 'Ring', categoryId: 'subscriptions' },
   // Retail / grocery / dining stragglers the benchmark surfaced (#163):
   { pattern: /^ETSY(\.COM)?\b/i, canonical: 'Etsy', categoryId: 'shopping' },
@@ -513,7 +517,7 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   // Live-event ticketing → the events leaf (#163), before broad entertainment.
   { pattern: /\b(TICKETMASTER|STUBHUB|LIVE NATION|AXS\.COM|SEATGEEK)\b/i, categoryId: 'events' },
   { pattern: /\b(HULU|DISNEY ?\+|DISNEY PLUS|HBO|PARAMOUNT ?\+|PEACOCK|APPLE TV|PRIME VIDEO|TWITCH|CRUNCHYROLL|SLING TV|FUBO|SIRIUSXM|AMC|CINEMARK|REGAL CIN|CINEMA|THEATER|THEATRE|FANDANGO|TOPGOLF|GOLF|COUNTRY CLUB|BOWLING|ARCADE|MUSEUM|AQUARIUM|SIX FLAGS|UNIVERSAL STUDIO)\b/i, categoryId: 'entertainment' },
-  { pattern: /\b(ADOBE|MICROSOFT|GITHUB|GOOGLE CLOUD|DROPBOX|NOTION|SLACK|ZOOM|OPENAI|CHATGPT|ANTHROPIC|CLAUDE\.AI|FIGMA|ATLASSIAN|GODADDY|NAMECHEAP|SQUARESPACE|MAILCHIMP|ICLOUD|GOOGLE WORKSPACE|GRAMMARLY|1PASSWORD|NORDVPN)\b/i, categoryId: 'software' },
+  { pattern: /\b(ADOBE|MICROSOFT|GITHUB|GOOGLE CLOUD|DROPBOX|NOTION|SLACK|ZOOM|OPENAI|CHATGPT|ANTHROPIC|CLAUDE\.AI|CURSOR|MOONSHOT|FIGMA|ATLASSIAN|GODADDY|NAMECHEAP|SQUARESPACE|MAILCHIMP|ICLOUD|GOOGLE WORKSPACE|GRAMMARLY|1PASSWORD|NORDVPN)\b/i, categoryId: 'software' },
   // Income — split to the precise Income leaves (#163): payroll signals are a
   // PAYCHECK, interest is interest-income, dividends investment-income,
   // government programs govt-benefits — matching the leaf precision the
