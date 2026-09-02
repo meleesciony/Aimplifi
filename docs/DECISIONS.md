@@ -2075,3 +2075,12 @@ invent an auto-file quality claim.
 **Decision.** A cell wrapped in parentheses is money out (Pulse negative). `$` and thousands commas still strip first. Debit/Credit and Withdrawal/Deposit columns unwrap parentheses then take magnitude as before. `centsFromDollarString` stays strict.
 
 **Locked.** `test_regression__csv_accepts_accounting_parentheses_amounts`.
+
+
+## #572 — CSV import skips bank footer totals (2026-09-02)
+
+**Context.** Bank and Excel CSVs often end with summary rows: empty date plus Total, Totals, Beginning Balance, Ending Balance, Starting Balance, Closing Balance, Balance, Total Withdrawals, or Total Deposits. Import treated those as row errors. Good charges still saved, but the form listed import-errors and a household thought the file failed.
+
+**Decision.** Skip those rows with no error and no imported transaction when the date cell is blank and the description (trimmed, case-insensitive) is a summary label. A dated merchant still imports (date + Total Wine). A blank date plus an ordinary merchant name still errors. Do not invent a transaction from the footer amount. Fully blank data rows stay skipped.
+
+**Locked.** `test_regression__csv_skips_bank_footer_totals` + `test_regression__csv_skips_bank_footer_summary_rows`.

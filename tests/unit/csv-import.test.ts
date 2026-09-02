@@ -264,10 +264,87 @@ describe('parseTransactionCsv', () => {
     });
   });
 
+  it('test_regression__csv_skips_bank_footer_summary_rows', () => {
+    const csv = [
+      'Date,Description,Amount',
+      '2026-06-01,Coffee,-4.50',
+      '2026-06-02,Total Coffee,-5.00',
+      '2026-06-03,Total,-1.00',
+      ',Total,-9.50',
+      ',Totals,-9.50',
+      ',Beginning Balance,1000.00',
+      ',Ending Balance,990.50',
+      ',Beginning balance as of 01/01/2026,1000.00',
+      ',Total deposits,2500.00',
+      ',,',
+    ].join('\n');
+    const { rows, errors } = parseTransactionCsv(csv);
+    expect(errors).toEqual([]);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toMatchObject({ description: 'Coffee', amountCents: -450 });
+    expect(rows[1]).toMatchObject({ description: 'Total Coffee', amountCents: -500 });
+    expect(rows[2]).toMatchObject({ description: 'Total', amountCents: -100 });
+
+    const debit = [
+      'Date,Description,Debit,Credit',
+      '2026-06-01,Coffee,4.50,',
+      ',Total,4.50,',
+      ',,,',
+    ].join('\n');
+    const composed = parseTransactionCsv(debit);
+    expect(composed.errors).toEqual([]);
+    expect(composed.rows).toHaveLength(1);
+    expect(composed.rows[0]).toMatchObject({ description: 'Coffee', amountCents: -450 });
+
+    const missingDate = parseTransactionCsv(
+      'Date,Description,Amount\n,Starbucks,-4.50\n2026-06-01,Coffee,-4.50',
+    );
+    expect(missingDate.rows).toHaveLength(1);
+    expect(missingDate.rows[0].description).toBe('Coffee');
+    expect(missingDate.errors).toHaveLength(1);
+    expect(missingDate.errors[0].message).toMatch(/date/i);
+  });
+
   it('test_regression__csv_accepts_utf8_bom_header', () => {
     const parsed = parseTransactionCsv('\uFEFFDate,Description,Amount\n2026-06-01,Coffee,-4.50');
     expect(parsed.errors).toEqual([]);
     expect(parsed.rows[0]).toMatchObject({ date: '2026-06-01', description: 'Coffee', amountCents: -450 });
+  });
+
+  it('test_regression__csv_skips_bank_footer_totals', () => {
+    const csv = [
+      'Date,Description,Amount',
+      '2026-06-01,Coffee,-4.50',
+      '2026-06-02,Total Wine,-12.00',
+      ',Total,-16.50',
+      ',Totals,-16.50',
+      ',Beginning Balance,100.00',
+      ',Ending Balance,83.50',
+      ',Starting Balance,100.00',
+      ',Closing Balance,83.50',
+      ',Balance,83.50',
+      ',Total Withdrawals,16.50',
+      ',Total Deposits,0.00',
+      ',',
+    ].join('\n');
+    const parsed = parseTransactionCsv(csv);
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows).toHaveLength(2);
+    expect(parsed.rows[0]).toMatchObject({
+      date: '2026-06-01',
+      description: 'Coffee',
+      amountCents: -450,
+    });
+    expect(parsed.rows[1]).toMatchObject({
+      date: '2026-06-02',
+      description: 'Total Wine',
+      amountCents: -1200,
+    });
+
+    const blankMerchant = parseTransactionCsv('Date,Description,Amount\n,Coffee,-4.50');
+    expect(blankMerchant.rows).toEqual([]);
+    expect(blankMerchant.errors).toHaveLength(1);
+    expect(blankMerchant.errors[0].message).toMatch(/date/i);
   });
 
   it('treats a fully blank file as an error', () => {

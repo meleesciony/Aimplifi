@@ -565,3 +565,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #569 — CSV import can create another account (2026-09-01) → docs/DECISIONS.md
 - #570 — CSV import finds the header under a bank preamble (2026-09-02) → docs/DECISIONS.md
 - #571 — CSV import accepts accounting parentheses amounts (2026-09-02) → docs/DECISIONS.md
+- #572 — CSV import skips bank footer totals (2026-09-02) → docs/DECISIONS.md

@@ -6,7 +6,7 @@
  * (normalize → rules → categorize), exactly like Plaid and manual entry.
  *
  * Contract (kept deliberately simple and unambiguous):
- *  - A header row is required. Title/account/date-range rows above it are skipped. A leading UTF-8 BOM is ignored. Recognized columns (case-insensitive, aliased):
+ *  - A header row is required. Title/account/date-range rows above it are skipped. Footer summary rows with a blank date (Total, Totals, Beginning Balance, Ending Balance, and common bank variants) and fully blank date+amount data rows are skipped, not errors. A leading UTF-8 BOM is ignored. Recognized columns (case-insensitive, aliased):
  *      date         ← date | transaction date | posted date | post date | posting date | trade date | trans date | run date
  *      description  ← description | payee | memo | name | merchant | transaction description
  *      amount       ← amount | net amount | transaction amount | Amount (USD)
@@ -171,6 +171,74 @@ function csvColumnLayout(header: readonly string[]) {
   return { dateCol, descCol, amountCol, debitCol, creditCol, catCol, canComposeAmount, missing };
 }
 
+function csvCell(fields: readonly string[], col: number): string {
+  if (col < 0) return '';
+  return (fields[col] ?? '').trim();
+}
+
+function csvAmountsBlank(
+  fields: readonly string[],
+  layout: ReturnType<typeof csvColumnLayout>,
+): boolean {
+  if (layout.amountCol !== -1) return csvCell(fields, layout.amountCol) === '';
+  return csvCell(fields, layout.debitCol) === '' && csvCell(fields, layout.creditCol) === '';
+}
+
+const BANK_SUMMARY_LABELS = new Set([
+  'total',
+  'totals',
+  'subtotal',
+  'subtotals',
+  'grand total',
+  'grand totals',
+  'account total',
+  'account totals',
+  'beginning balance',
+  'ending balance',
+  'opening balance',
+  'closing balance',
+  'start balance',
+  'starting balance',
+  'end balance',
+  'balance',
+  'previous balance',
+  'current balance',
+  'new balance',
+  'running balance',
+  'balance forward',
+  'beginning bal',
+  'ending bal',
+  'opening bal',
+  'closing bal',
+  'starting bal',
+]);
+
+/** Bank/Excel footer labels — never a dated merchant like Total Wine. */
+function isBankSummaryDescription(description: string): boolean {
+  const s = description.trim().replace(/\s+/g, ' ').replace(/[:.\s]+$/, '').toLowerCase();
+  if (!s) return false;
+  if (BANK_SUMMARY_LABELS.has(s)) return true;
+  if (/^(beginning|ending|opening|closing|starting|start|end|previous|current|new)\s+bal(?:ance)?\b/.test(s)) {
+    return true;
+  }
+  if (/^balance forward\b/.test(s)) return true;
+  if (/^totals?\s+(deposits?|withdrawals?|credits?|debits?|checks?|transactions?)\b/.test(s)) {
+    return true;
+  }
+  if (/^totals?\s+for\b/.test(s)) return true;
+  return false;
+}
+
+function isIgnorableCsvDataRow(
+  fields: readonly string[],
+  layout: ReturnType<typeof csvColumnLayout>,
+): boolean {
+  if (csvCell(fields, layout.dateCol) !== '') return false;
+  const description = csvCell(fields, layout.descCol);
+  if (isBankSummaryDescription(description)) return true;
+  return description === '' && csvAmountsBlank(fields, layout);
+}
+
 /**
  * @param customByName lowercased custom-category name → id, so a CSV "category"
  * column naming one of the user's own categories ("Golf") resolves to it
@@ -219,6 +287,7 @@ export function parseTransactionCsv(
     const lineNo = i + 1;
     if (rawLines[i].trim() === '') continue; // skip blank lines
     const fields = parseCsvLine(rawLines[i]);
+    if (isIgnorableCsvDataRow(fields, layout)) continue;
     try {
       const description = (fields[descCol] ?? '').trim();
       if (!description) throw new Error('description is empty');

@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | Bank CSV Total / Beginning Balance footer rows showed as import errors | parser treated blank-date summary rows as charges | classify-any-source: a statement footer is not a charge | `test_regression__csv_skips_bank_footer_totals` |
 | 2026-09-02 | Bank/Excel CSV amounts like (4.50) failed as malformed | signedAmountFromCell stripped $ comma space then required a leading minus | classify-any-source: accounting parentheses are money out | `test_regression__csv_accepts_accounting_parentheses_amounts` |
 | 2026-09-02 | Bank CSV with a title row failed as missing columns | First non-blank line was treated as the header | classify-any-source: a real export header may sit under a preamble | `test_regression__csv_skips_bank_preamble_to_header` |
 | 2026-09-01 | CSV import could not create a second account | Into account listed only existing accounts | classify-any-source: a new CSV account is the same create path as first-run | `test_regression__csv_import_creates_a_second_account` |
