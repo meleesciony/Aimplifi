@@ -12,12 +12,16 @@ import { formatMonth, isoDate, type ISODate } from '@/lib/dates';
 import { loadDebtAccounts } from '@/server/debt';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
+import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
+import { goalNameError } from '@/lib/engine/goals/goal-name';
 import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
 import { solveSavingsGoalByDate } from '@/lib/engine/solve/savings-goal-by-date';
 import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 
 export interface GoalFormResult {
   ok: boolean;
+  /** Whole-form refusal (demo fence, missing row). Not a field typo. */
+  error?: string;
   /** Per-field messages when validation failed — rendered inline by GoalForm. */
   errors?: { name?: string; target?: string; monthly?: string };
 }
@@ -224,3 +228,40 @@ export async function deleteGoal(goalId: string): Promise<void> {
   await auditLog(userId, 'goal.delete', { goalId });
   revalidatePath('/goals');
 }
+
+/**
+ * Rename a savings goal already on /goals. Dollars stay put — target,
+ * saved, monthly contribution, and target date are untouched. Reserves
+ * and debt-free rows are refused (those are not savings goals).
+ * Demo cannot learn.
+ */
+export async function renameGoal(
+  goalId: string,
+  formData: FormData,
+): Promise<GoalFormResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const nameRaw = String(formData.get('name') ?? '');
+  const nameErr = goalNameError(nameRaw);
+  if (nameErr) return { ok: false, errors: { name: nameErr } };
+  const name = nameRaw.trim();
+
+  const id = typeof goalId === 'string' ? goalId.trim() : '';
+  if (!id) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+
+  const updated = await prisma.goal.updateMany({
+    where: { id, userId, kind: null },
+    data: { name },
+  });
+  if (updated.count === 0) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+  await auditLog(userId, 'goal.rename', { goalId: id, name });
+  revalidatePath('/goals');
+  revalidatePath('/coach');
+  return { ok: true };
+}
+

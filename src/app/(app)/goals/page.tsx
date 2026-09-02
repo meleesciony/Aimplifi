@@ -12,6 +12,7 @@ import { cents, formatCents } from '@/lib/money';
 import { getCoachData } from '@/server/coach';
 import { loadDebtAccounts } from '@/server/debt';
 import { DeleteGoalButton } from '@/components/finance/delete-goal-button';
+import { GoalNameControl } from '@/components/finance/rename-goal-form';
 import { DebtFreedomPlanner } from '@/components/finance/debt-freedom-planner';
 import { GoalForm } from '@/components/finance/goal-form';
 
@@ -163,7 +164,9 @@ export default async function GoalsPage() {
             <Card key={goal.id} data-testid={`goal-${goal.id}`}>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{goal.name}</CardTitle>
+                  <CardTitle className="text-base">
+                    <GoalNameControl goalId={goal.id} name={goal.name} />
+                  </CardTitle>
                   <DeleteGoalButton goalId={goal.id} goalName={goal.name} />
                 </div>
                 <CardDescription>

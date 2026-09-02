@@ -2151,3 +2151,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__household_can_name_a_repeating_bill`.
 
+## #581 — Household can rename a savings goal (2026-09-02)
+
+**Context.** A savings goal on Goals could be created with a name, then only deleted. There was no way to rename one already sitting on the page.
+
+**Decision.** Tapping a savings-goal name on Goals opens a rename field. The write changes only the name. Target, saved, monthly contribution, and target date stay put. Blank and over-cap names are refused in words. Reserves and debt-free rows cannot be renamed through this path. Demo cannot learn.
+
+**Locked.** `test_regression__household_can_rename_a_savings_goal`.
+
