@@ -132,6 +132,25 @@ describe('parseTransactionCsv', () => {
     expect(rows[4]).toMatchObject({ description: 'Refund', amountCents: -1200 });
   });
 
+  it('test_regression__csv_accepts_cr_dr_amount_suffixes', () => {
+    const csv = [
+      'date,description,amount',
+      '2026-06-01,Coffee,4.50 DR',
+      '2026-06-02,Payroll,2500.00 CR',
+      '2026-06-03,Fee,$4.50DR',
+      '2026-06-04,Refund,CR12.00',
+      '2026-06-05,ATM,DR 20.00',
+    ].join('\n');
+    const { rows, errors } = parseTransactionCsv(csv);
+    expect(errors).toEqual([]);
+    expect(rows).toHaveLength(5);
+    expect(rows[0]).toMatchObject({ description: 'Coffee', amountCents: -450 });
+    expect(rows[1]).toMatchObject({ description: 'Payroll', amountCents: 250000 });
+    expect(rows[2]).toMatchObject({ description: 'Fee', amountCents: -450 });
+    expect(rows[3]).toMatchObject({ description: 'Refund', amountCents: 1200 });
+    expect(rows[4]).toMatchObject({ description: 'ATM', amountCents: -2000 });
+  });
+
   it('reports per-row errors with line numbers and keeps good rows', () => {
     const csv = [
       'date,description,amount',

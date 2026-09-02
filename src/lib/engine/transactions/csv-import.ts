@@ -116,22 +116,35 @@ function resolveCategory(raw: string, customByName: ReadonlyMap<string, string>)
   );
 }
 
-function normalizeAmountCell(raw: string): { digits: string; parenthesized: boolean } {
+function normalizeAmountCell(raw: string): { digits: string; parenthesized: boolean; credit: boolean } {
   const s = raw.replace(/[$,\s]/g, '');
   const paren = /^\((.*)\)$/.exec(s);
-  if (paren) return { digits: paren[1], parenthesized: true };
+  if (paren) return { digits: paren[1], parenthesized: true, credit: false };
   // Excel/QuickBooks trailing minus is money out (DECISIONS #573).
   if (/^\d+(?:\.\d{1,2})?-$/.test(s)) {
-    return { digits: s.slice(0, -1), parenthesized: true };
+    return { digits: s.slice(0, -1), parenthesized: true, credit: false };
   }
-  return { digits: s, parenthesized: false };
+  // Bank register CR/DR suffix or prefix (DECISIONS #574). DR = money out, CR = money in.
+  const suffix = /^(-?)(\d+(?:\.\d{1,2})?)(CR|DR)\.?$/i.exec(s);
+  if (suffix) {
+    const dr = suffix[3].toUpperCase() === 'DR';
+    return { digits: `${suffix[1]}${suffix[2]}`, parenthesized: dr, credit: !dr };
+  }
+  const prefix = /^(CR|DR)\.?(-?)(\d+(?:\.\d{1,2})?)$/i.exec(s);
+  if (prefix) {
+    const dr = prefix[1].toUpperCase() === 'DR';
+    return { digits: `${prefix[2]}${prefix[3]}`, parenthesized: dr, credit: !dr };
+  }
+  return { digits: s, parenthesized: false, credit: false };
 }
 
 function signedAmountFromCell(raw: string): number {
-  const { digits, parenthesized } = normalizeAmountCell(raw);
+  const { digits, parenthesized, credit } = normalizeAmountCell(raw);
   if (digits === '') throw new Error('amount is empty');
   const value = centsFromDollarString(digits);
-  return parenthesized ? -Math.abs(value) : value;
+  if (parenthesized) return -Math.abs(value);
+  if (credit) return Math.abs(value);
+  return value;
 }
 
 /** Debit/outflow is money out; credit/inflow is money in. Columns are magnitudes. */

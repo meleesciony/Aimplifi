@@ -2092,3 +2092,12 @@ invent an auto-file quality claim.
 **Decision.** After stripping `$`, commas, and spaces, a trailing minus on an otherwise numeric cell is money out (Pulse negative). A leading minus is unchanged. `centsFromDollarString` stays strict.
 
 **Locked.** `test_regression__csv_accepts_trailing_minus_amounts`.
+
+## #574 — CSV import accepts CR/DR amount marks (2026-09-02)
+
+**Context.** Some bank registers write amounts as `4.50 DR` / `2500.00 CR` (or the letters before the number). Import already handles a leading minus, parentheses, and a trailing minus. CR/DR still failed as malformed amounts.
+
+**Decision.** After stripping `$`, commas, and spaces, a CR or DR prefix or suffix marks the sign: DR is money out, CR is money in. `centsFromDollarString` stays strict.
+
+**Locked.** `test_regression__csv_accepts_cr_dr_amount_suffixes`.
+

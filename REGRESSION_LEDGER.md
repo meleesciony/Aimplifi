@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | Bank CSV amounts like 4.50 DR / 2500 CR failed as malformed | amount cell had no CR/DR sign marks | classify-any-source: register CR/DR is the sign | `test_regression__csv_accepts_cr_dr_amount_suffixes` |
 | 2026-09-02 | Excel/QuickBooks CSV amounts like 4.50- failed as malformed | amount cell required a leading minus or parentheses | classify-any-source: a trailing minus is money out | `test_regression__csv_accepts_trailing_minus_amounts` |
 | 2026-09-02 | Bank CSV Total / Beginning Balance footer rows showed as import errors | parser treated blank-date summary rows as charges | classify-any-source: a statement footer is not a charge | `test_regression__csv_skips_bank_footer_totals` |
 | 2026-09-02 | Bank/Excel CSV amounts like (4.50) failed as malformed | signedAmountFromCell stripped $ comma space then required a leading minus | classify-any-source: accounting parentheses are money out | `test_regression__csv_accepts_accounting_parentheses_amounts` |
