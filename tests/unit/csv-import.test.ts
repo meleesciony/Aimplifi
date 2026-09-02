@@ -86,6 +86,33 @@ describe('parseTransactionCsv', () => {
     expect(rows[0].amountCents).toBe(-125000);
   });
 
+  it('test_regression__csv_accepts_accounting_parentheses_amounts', () => {
+    const csv = [
+      'date,description,amount',
+      '2026-06-01,Coffee,(4.50)',
+      '2026-06-02,Fee,($4.50)',
+      '2026-06-03,Rent,"($1,250.00)"',
+      '2026-06-04,Payroll,2500.00',
+    ].join('\n');
+    const { rows, errors } = parseTransactionCsv(csv);
+    expect(errors).toEqual([]);
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toMatchObject({ description: 'Coffee', amountCents: -450 });
+    expect(rows[1]).toMatchObject({ description: 'Fee', amountCents: -450 });
+    expect(rows[2]).toMatchObject({ description: 'Rent', amountCents: -125000 });
+    expect(rows[3]).toMatchObject({ description: 'Payroll', amountCents: 250000 });
+
+    const debit = [
+      'Date,Description,Debit,Credit',
+      '2026-06-01,Coffee,(4.50),',
+      '2026-06-02,Payroll,,2500.00',
+    ].join('\n');
+    const composed = parseTransactionCsv(debit);
+    expect(composed.errors).toEqual([]);
+    expect(composed.rows[0]).toMatchObject({ description: 'Coffee', amountCents: -450 });
+    expect(composed.rows[1]).toMatchObject({ description: 'Payroll', amountCents: 250000 });
+  });
+
   it('reports per-row errors with line numbers and keeps good rows', () => {
     const csv = [
       'date,description,amount',

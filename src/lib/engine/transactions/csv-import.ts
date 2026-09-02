@@ -13,7 +13,7 @@
  *                    OR Debit+Credit / Outflow+Inflow / Withdrawal+Deposit (unsigned; debit/outflow/withdrawal = money out)
  *      category     ← category   (OPTIONAL; slug, display name, or Simplifi alias)
  *  - Amount is SIGNED in Pulse convention: NEGATIVE = money out, POSITIVE = in
- *    (matches Mint/most US bank exports). "$" and thousands commas are stripped.
+ *    (matches Mint/most US bank exports). "$" and thousands commas are stripped. Accounting parentheses ((4.50) or ($4.50)) mean money out.
  *  - Dates accepted as YYYY-MM-DD or US MM/DD/YYYY, MM/DD/YY, MM-DD-YYYY, MM-DD-YY; a trailing time is dropped (calendar date only). Two-digit years: 00–69 → 2000–2069, 70–99 → 1970–1999.
  *  - Category may be a slug ("dining"), a display name ("Dining Out"), or a
  *    Simplifi alias ("Restaurants" → dining). Unknown or blank → auto-categorized.
@@ -116,16 +116,24 @@ function resolveCategory(raw: string, customByName: ReadonlyMap<string, string>)
   );
 }
 
+function normalizeAmountCell(raw: string): { digits: string; parenthesized: boolean } {
+  const s = raw.replace(/[$,\s]/g, '');
+  const paren = /^\((.*)\)$/.exec(s);
+  if (paren) return { digits: paren[1], parenthesized: true };
+  return { digits: s, parenthesized: false };
+}
+
 function signedAmountFromCell(raw: string): number {
-  const amountRaw = raw.replace(/[$,\s]/g, '');
-  if (amountRaw === '') throw new Error('amount is empty');
-  return centsFromDollarString(amountRaw);
+  const { digits, parenthesized } = normalizeAmountCell(raw);
+  if (digits === '') throw new Error('amount is empty');
+  const value = centsFromDollarString(digits);
+  return parenthesized ? -Math.abs(value) : value;
 }
 
 /** Debit/outflow is money out; credit/inflow is money in. Columns are magnitudes. */
 function composedDebitCreditCents(debitRaw: string, creditRaw: string): number {
-  const debitCell = debitRaw.replace(/[$,\s]/g, '');
-  const creditCell = creditRaw.replace(/[$,\s]/g, '');
+  const debitCell = normalizeAmountCell(debitRaw).digits;
+  const creditCell = normalizeAmountCell(creditRaw).digits;
   const debitAbs = debitCell === '' ? 0 : Math.abs(centsFromDollarString(debitCell));
   const creditAbs = creditCell === '' ? 0 : Math.abs(centsFromDollarString(creditCell));
   if (debitAbs === 0 && creditAbs === 0) throw new Error('amount is empty');

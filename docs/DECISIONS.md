@@ -2067,3 +2067,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__csv_skips_bank_preamble_to_header` + `test_regression__csv_accepts_utf8_bom_header`.
 
+
+## #571 — CSV import accepts accounting parentheses amounts (2026-09-02)
+
+**Context.** Banks and Excel often write money out as `(4.50)` or `($4.50)`. Import stripped `$`, commas, and spaces then required a leading minus or a bare number, so those rows failed as malformed amounts.
+
+**Decision.** A cell wrapped in parentheses is money out (Pulse negative). `$` and thousands commas still strip first. Debit/Credit and Withdrawal/Deposit columns unwrap parentheses then take magnitude as before. `centsFromDollarString` stays strict.
+
+**Locked.** `test_regression__csv_accepts_accounting_parentheses_amounts`.
