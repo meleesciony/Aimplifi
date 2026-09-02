@@ -32,7 +32,7 @@ import {
 } from '@/lib/engine/auth/reset';
 import { hashPassword } from '@/lib/auth/password';
 import { tokenSalt } from '@/lib/auth/token-salt';
-import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, normalizeEmail } from '@/lib/auth/validate';
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, normalizeEmail, passwordToStore } from '@/lib/auth/validate';
 import { isDemoUser } from '@/lib/demo-user';
 import { sendEmail } from '@/lib/email';
 import { prisma } from '@/lib/db';
@@ -129,7 +129,8 @@ export async function performPasswordReset(
   newPassword: string,
   now: Date,
 ): Promise<PerformResetResult> {
-  if (newPassword.length < MIN_PASSWORD_LENGTH || newPassword.length > MAX_PASSWORD_LENGTH) {
+  const storedPassword = passwordToStore(newPassword);
+  if (storedPassword.length < MIN_PASSWORD_LENGTH || storedPassword.length > MAX_PASSWORD_LENGTH) {
     return {
       ok: false,
       state: 'weak-password',

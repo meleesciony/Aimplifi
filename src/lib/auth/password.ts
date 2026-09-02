@@ -4,12 +4,14 @@
  * Format: `scrypt$<saltB64>$<keyB64>`. Verification is constant-time.
  */
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { passwordToStore } from '@/lib/auth/validate';
 
 const KEY_LEN = 64;
 
 export function hashPassword(plain: string): string {
+  const stored = passwordToStore(plain);
   const salt = randomBytes(16);
-  const key = scryptSync(plain, salt, KEY_LEN);
+  const key = scryptSync(stored, salt, KEY_LEN);
   return `scrypt$${salt.toString('base64')}$${key.toString('base64')}`;
 }
 

@@ -1906,3 +1906,11 @@ invent an auto-file quality claim.
 **Decision.** Debit aliases also: outflow, withdrawal, withdrawals. Credit aliases also: inflow, deposit, deposits. Missing-column error names amount, Net Amount, or Debit plus Credit. Signed amount files unchanged.
 
 **Locked.** `test_regression__csv_accepts_withdrawal_deposit_and_names_amount_alternatives`.
+
+## #551 — Signup and reset hash the trimmed password (2026-09-01)
+
+**Context.** #541 lets sign-in accept a correct password wrapped in autofill whitespace. Create-account and reset still hashed the raw field, so a manager that wraps spaces on signup stored a hash that only matched the padded string. Length checks used the padded length, so seven real characters plus a space passed.
+
+**Decision.** `passwordToStore` trims when trim is non-empty. `hashPassword` hashes that. `validateSignup` length-checks that. Sign-in `credentialsMatch` unchanged. All-space passwords stay raw so we never hash empty.
+
+**Locked.** `test_regression__signup_password_strips_autofill_whitespace`.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { hashPassword, verifyPassword } from '@/lib/auth/password';
-import { MIN_PASSWORD_LENGTH, normalizeEmail, validateSignup } from '@/lib/auth/validate';
+import { MIN_PASSWORD_LENGTH, normalizeEmail, passwordToStore, validateSignup } from '@/lib/auth/validate';
+import { credentialsMatch } from '@/lib/auth/reject-reason';
 
 describe('password hashing (DECISIONS #43)', () => {
   it('round-trips: the right password verifies, a wrong one does not', () => {
@@ -43,3 +44,20 @@ describe('validateSignup', () => {
     expect(normalizeEmail('  Foo@Bar.com ')).toBe('foo@bar.com');
   });
 });
+
+describe('signup/reset hash strips autofill whitespace (DECISIONS #551)', () => {
+  it('test_regression__signup_password_strips_autofill_whitespace', () => {
+    expect(passwordToStore('  hunter2long  ')).toBe('hunter2long');
+    expect(passwordToStore('hunter2long')).toBe('hunter2long');
+    expect(passwordToStore('   ')).toBe('   ');
+
+    const hash = hashPassword('  correct horse battery staple  ');
+    expect(verifyPassword('correct horse battery staple', hash)).toBe(true);
+    expect(credentialsMatch('  correct horse battery staple  ', hash, verifyPassword)).toBe(true);
+    expect(credentialsMatch('correct horse battery staple', hash, verifyPassword)).toBe(true);
+
+    expect(validateSignup({ email: 'user@example.com', password: '  abcdefgh  ' }).ok).toBe(true);
+    expect(validateSignup({ email: 'user@example.com', password: '1234567 ' }).ok).toBe(false);
+  });
+});
+
