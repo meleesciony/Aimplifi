@@ -209,3 +209,57 @@ describe('setMerchantSpendClass — the "all of this payee" scope (#397)', () =>
     expect(res).toEqual({ ok: false, error: DEMO_ENTRY_BLOCKED });
   });
 });
+
+describe('setMerchantSpendClass — merchantless payee (DECISIONS #590)', () => {
+  const stamp = `${Date.now()}-${process.pid}`;
+  const USER = `spend-class-mless-${stamp}`;
+  let a = '';
+  let b = '';
+  let other = '';
+
+  async function wipe() {
+    await prisma.user.deleteMany({ where: { id: USER } });
+  }
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.user.create({ data: { id: USER, email: `${USER}@test.local` } });
+    const acct = await prisma.account.create({
+      data: { userId: USER, provider: 'demo', name: 'Checking', type: 'CHECKING', currentBalanceCents: 0 },
+    });
+    const d1 = `RIVER BEND POTTERY #12 ${stamp}`;
+    const d2 = `RIVER BEND POTTERY #99 ${stamp}`;
+    expect(normalizeMerchant(d1).canonical).toBe(normalizeMerchant(d2).canonical);
+    const base = {
+      accountId: acct.id,
+      amountCents: -2200,
+      categoryId: 'shopping',
+      status: 'POSTED',
+      needsReview: false,
+      merchantId: null,
+    };
+    a = (await prisma.transaction.create({ data: { ...base, date: '2026-06-04', rawDescriptor: d1 } })).id;
+    b = (await prisma.transaction.create({ data: { ...base, date: '2026-07-04', rawDescriptor: d2 } })).id;
+    other = (
+      await prisma.transaction.create({
+        data: { ...base, date: '2026-07-05', rawDescriptor: `QQQZX PAYEE LLC ${stamp}` },
+      })
+    ).id;
+    vi.mocked(auth).mockResolvedValue({ user: { id: USER } } as never);
+  });
+
+  afterAll(wipe);
+
+  it('test_regression__household_can_change_spend_class_for_all_similar_merchantless_payee', async () => {
+    const res = await setMerchantSpendClass({ transactionId: a, spendClass: 'fixed' });
+    expect(res).toEqual({ ok: true, affected: 2 });
+    const [ra, rb, ro] = await Promise.all([
+      prisma.transaction.findUniqueOrThrow({ where: { id: a } }),
+      prisma.transaction.findUniqueOrThrow({ where: { id: b } }),
+      prisma.transaction.findUniqueOrThrow({ where: { id: other } }),
+    ]);
+    expect(ra.spendClassOverride).toBe('fixed');
+    expect(rb.spendClassOverride).toBe('fixed');
+    expect(ro.spendClassOverride).toBeNull();
+  });
+});

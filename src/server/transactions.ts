@@ -991,17 +991,30 @@ async function spendClassSiblingCountOf(
   t: { merchantId: string | null; rawDescriptor: string; isSplitParent: boolean },
   keepsReconciled: (accountId: string, date: string) => boolean,
 ): Promise<number | null> {
-  const aggregate = normalizeMerchant(t.rawDescriptor).aggregate;
-  if (t.isSplitParent || t.merchantId === null || aggregate) return null;
+  const n = normalizeMerchant(t.rawDescriptor);
+  if (t.isSplitParent || n.aggregate || !isDurablePayeeCanonical(n.canonical)) return null;
+  const merchantlessByCanonical = t.merchantId === null;
+  const canon = merchantlessByCanonical
+    ? n.canonical.normalize('NFC').trim().toLowerCase()
+    : null;
   const siblings = await prisma.transaction.findMany({
     where: similarTransactionsWhere(
       userId,
-      { merchantId: t.merchantId, rawDescriptor: t.rawDescriptor, aggregate },
-      { onlyNeedsReview: false },
+      { merchantId: t.merchantId, rawDescriptor: t.rawDescriptor, aggregate: false },
+      merchantlessByCanonical
+        ? { onlyNeedsReview: false, merchantlessByCanonical: true }
+        : { onlyNeedsReview: false },
     ),
-    select: { id: true, accountId: true, date: true },
+    select: { id: true, accountId: true, date: true, merchantId: true, rawDescriptor: true },
   });
-  return siblings.filter((s) => keepsReconciled(s.accountId, s.date)).length;
+  return siblings.filter((s) => {
+    if (!keepsReconciled(s.accountId, s.date)) return false;
+    if (!canon) return true;
+    if (s.merchantId !== null) return false;
+    const sn = normalizeMerchant(s.rawDescriptor);
+    if (sn.aggregate) return false;
+    return sn.canonical.normalize('NFC').trim().toLowerCase() === canon;
+  }).length;
 }
 
 /**

@@ -17,6 +17,7 @@ import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
 import { guessSpendClass } from '@/lib/engine/spending-plan/spend-class';
+import { isDurablePayeeCanonical } from '@/lib/engine/categorize/group';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { similarTransactionsWhere } from '@/server/triage';
 import { getReconciliationTxnKeep } from '@/server/reconciliation';
@@ -292,9 +293,9 @@ export type SpendClassBulkResult = { ok: true; affected: number } | { ok: false;
  * scope is the register's own merchant-wide where
  * (`similarTransactionsWhere`, onlyNeedsReview:false — the "Always — re-file
  * all N" basis, DECISIONS #36/#42), reconciliation-filtered, so the count the
- * reader confirmed is the set this writes. Merchantless and aggregate
- * payees (Zelle, checks) carry no merchant-wide meaning — the write falls
- * back to the single row, the recategorize rule (#23).
+ * reader confirmed is the set this writes. Aggregates (Zelle, checks) and
+ * masked bank names still fall back to the single row. Merchantless CSV/manual
+ * rows of a real payee take the same canonical group as File-all.
  *
  * Per row the same agreement rule as the single-row dial applies: a row
  * whose guess already IS the choice stores NULL, so the guess stays the
@@ -317,27 +318,40 @@ export async function setMerchantSpendClass(input: {
   });
   if (!row) return { ok: false, error: 'That transaction is no longer available — nothing was changed.' };
 
-  const aggregate = normalizeMerchant(row.rawDescriptor).aggregate;
-  if (row.merchantId === null || aggregate) {
+  const n = normalizeMerchant(row.rawDescriptor);
+  if (n.aggregate || !isDurablePayeeCanonical(n.canonical)) {
     const single = await setTransactionSpendClass(input);
     return single.ok ? { ok: true, affected: 1 } : single;
   }
 
+  const merchantlessByCanonical = row.merchantId === null;
+  const canon = merchantlessByCanonical
+    ? n.canonical.normalize('NFC').trim().toLowerCase()
+    : null;
   const keepsReconciled = await getReconciliationTxnKeep(userId);
   const targets = (
     await prisma.transaction.findMany({
       where: similarTransactionsWhere(
         userId,
-        { merchantId: row.merchantId, rawDescriptor: row.rawDescriptor, aggregate },
-        { onlyNeedsReview: false },
+        { merchantId: row.merchantId, rawDescriptor: row.rawDescriptor, aggregate: false },
+        merchantlessByCanonical
+          ? { onlyNeedsReview: false, merchantlessByCanonical: true }
+          : { onlyNeedsReview: false },
       ),
       select: {
         id: true, date: true, amountCents: true, rawDescriptor: true, accountId: true,
-        isTransfer: true, status: true, categoryId: true, isSplitParent: true,
+        merchantId: true, isTransfer: true, status: true, categoryId: true, isSplitParent: true,
         splitParentId: true, excludeFromTotals: true,
       },
     })
-  ).filter((t) => keepsReconciled(t.accountId, t.date));
+  ).filter((txn) => {
+    if (!keepsReconciled(txn.accountId, txn.date)) return false;
+    if (!canon) return true;
+    if (txn.merchantId !== null) return false;
+    const tn = normalizeMerchant(txn.rawDescriptor);
+    if (tn.aggregate) return false;
+    return tn.canonical.normalize('NFC').trim().toLowerCase() === canon;
+  });
 
   const [meta, fixedMerchants] = await Promise.all([
     getCategoryMeta(userId),

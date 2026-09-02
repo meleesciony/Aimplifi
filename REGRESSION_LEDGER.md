@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | Spend-class all-similar of a merchantless payee wrote one row | setMerchantSpendClass fell through to one row when merchantId was null | a household can change spend class for all similar rows of a payee with no merchant name | `test_regression__household_can_change_spend_class_for_all_similar_merchantless_payee` |
 | 2026-09-02 | Merchant-wide recategorize of a merchantless payee filed one row | recategorize merchant required merchantId | a household can recategorize a payee with no merchant name across the merchant, not one row | `test_regression__household_can_recategorize_merchantless_payee_across_the_merchant` |
 | 2026-09-02 | All-similar of a merchantless payee filed one row and minted no rule | applyToAllSimilar fell through to applyCategory when merchantId was null | a household can file all similar rows of a payee with no merchant name and save the rule | `test_regression__all_similar_of_merchantless_payee_files_group_and_saves_rule` |
 | 2026-09-02 | One-row Inbox pick of a merchantless payee did not save a rule | applyCategory / Always required merchantId to mint | a household can file one Inbox row of a payee with no merchant name and still save the rule | `test_regression__one_row_inbox_pick_of_merchantless_payee_saves_rule` |

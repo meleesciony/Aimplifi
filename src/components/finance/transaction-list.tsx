@@ -1403,7 +1403,7 @@ export function TransactionList({
                               excluded={t.excludeFromTotals}
                               busy={actionBusy}
                               spendClassCurrent={t.spendClass}
-                              spendClassBulkCount={t.ruleEligible && t.merchantId ? t.merchantCount : undefined}
+                              spendClassBulkCount={t.ruleEligible ? t.merchantCount : undefined}
                               spendClassMerchantName={t.merchantName}
                               handlers={{
                                 onCategory: () => openCategoryPicker(t, actionTop),

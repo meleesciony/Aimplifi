@@ -2223,3 +2223,11 @@ invent an auto-file quality claim.
 **Decision.** Merchant-wide recategorize of a non-aggregate real payee files every merchantless row of that canonical (already-filed included) and mints (or reuses) the unconditional merchant rule, upserting a Merchant on the canonical. Aggregates and masked bank names still file one row. Synced m: rows of the same bank text stay separate. Demo cannot learn. No CSV parser change.
 
 **Locked.** `test_regression__household_can_recategorize_merchantless_payee_across_the_merchant`.
+
+## #590 — Spend-class all-similar of a merchantless payee files the group (2026-09-02)
+
+**Context.** Category File-all / Always of a merchantless payee already files that canonical. Spend-class "all of this payee" still required merchantId, so a CSV payee fell through to one row. Store-number siblings kept the old spend class.
+
+**Decision.** Spend-class all-similar of a non-aggregate real payee writes every merchantless row of that canonical. Aggregates and masked bank names still write one row. Synced m: rows of the same bank text stay separate. Demo cannot learn. No CSV parser change.
+
+**Locked.** `test_regression__household_can_change_spend_class_for_all_similar_merchantless_payee`.
