@@ -549,3 +549,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #553 — CSV import accepts Post Date and Trans Date (2026-09-01) → docs/DECISIONS.md
 - #554 — Empty Home connect heading names CSV, not only a bank (2026-09-01) → docs/DECISIONS.md
 - #555 — CSV paste helper and bank guides name Post Date and Withdrawal/Deposit (2026-09-01) → docs/DECISIONS.md
+- #556 — Sign-in and first-run empty name CSV, not bank-only (2026-09-01) → docs/DECISIONS.md

@@ -14,7 +14,7 @@ export const INBOX_NAV_DESCRIPTION =
 export const INBOX_EMPTY_TITLE = 'Transactions that still need a category land here';
 
 export const INBOX_EMPTY_DESCRIPTION =
-  'Once accounts are connected, this inbox collects transactions that still need a category decision.';
+  'Once a bank is connected or a CSV is pasted, this inbox collects transactions that still need a category decision.';
 
 export const INBOX_EMPTY_FOOTNOTE =
-  'Your data is private to your account. Connect once, then review transactions that still need a category.';
+  'Your data is private to your account. Connect a bank or paste a CSV, then review transactions that still need a category.';

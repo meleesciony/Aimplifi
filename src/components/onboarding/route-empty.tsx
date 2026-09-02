@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ConnectOnboardingPanel } from '@/components/onboarding/connect-onboarding-panel';
 import { StepIndicator } from '@/components/onboarding/step-indicator';
 import { INBOX_EMPTY_DESCRIPTION, INBOX_EMPTY_FOOTNOTE, INBOX_EMPTY_TITLE } from '@/lib/copy/inbox-copy';
+import { GET_STARTED_DESCRIPTION } from '@/lib/copy/onboarding-empty-copy';
 
 function RouteEmptyShell({
   pageTitle,
@@ -29,7 +30,7 @@ function RouteEmptyShell({
       <Card className="border-dashed" data-testid={testId}>
         <CardHeader>
           <StepIndicator step={1} />
-          <CardDescription>Connect an account to get started</CardDescription>
+          <CardDescription>{GET_STARTED_DESCRIPTION}</CardDescription>
           <CardTitle className="text-xl">{cardTitle}</CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
@@ -48,7 +49,7 @@ export function EmptyCoach() {
       cardTitle="Your savings rate, FI timeline, and money review live here"
       description="Once accounts and a few weeks of spending are in, Coach shows your savings rate, FI number, opportunities, and a monthly money review — educational framing, not advice."
       testId="coach-empty"
-      footnote="Your data is private to your account. After you connect, Coach fills in from the same spending and balances you already see elsewhere."
+      footnote="Your data is private to your account. After you connect a bank or paste a CSV, Coach fills in from the same spending and balances you already see elsewhere."
     />
   );
 }
@@ -58,9 +59,9 @@ export function EmptyGoals() {
     <RouteEmptyShell
       pageTitle="Goals"
       cardTitle="Goals with a clear effect on your FI date"
-      description="Add accounts first so Goals can show each target against your savings rate and expected return — including debt-freedom planning when you have loans."
+      description="Connect a bank or paste a CSV first so Goals can show each target against your savings rate and expected return — including debt-freedom planning when you have loans."
       testId="goals-empty"
-      footnote="Your data is private to your account. Connect once, then set goals that show their FI-date impact with assumptions stated inline."
+      footnote="Your data is private to your account. Connect a bank or paste a CSV, then set goals that show their FI-date impact with assumptions stated inline."
     />
   );
 }
@@ -84,9 +85,9 @@ export function EmptyCalendar() {
     <RouteEmptyShell
       pageTitle="Cash-flow calendar"
       cardTitle="See dues, inflows, and shortfalls on a calendar"
-      description="With accounts connected, this calendar maps scheduled income, card and loan due dates, and projected cash shortfalls for the month ahead."
+      description="Once a bank is connected or a CSV is pasted, this calendar maps scheduled income, card and loan due dates, and projected cash shortfalls for the month ahead."
       testId="calendar-empty"
-      footnote="Your data is private to your account. Connect a bank or add accounts manually, then open Calendar again to see the month’s cash-flow map."
+      footnote="Your data is private to your account. Connect a bank or paste a CSV, then open Calendar again to see the month’s cash-flow map."
     />
   );
 }

@@ -12,3 +12,11 @@ export const CONNECT_ONBOARDING_HEADING =
 
 export const CONNECT_ONBOARDING_FOOTNOTE =
   'Your data is private to this household. A bank connection is optional. Paste a CSV if you prefer.';
+
+/** First-run and sign-in: CSV is a start path, not a bank-only product. */
+export const GET_STARTED_DESCRIPTION =
+  'Connect a bank or paste a CSV to get started';
+
+export const SIGN_IN_DEMO_FOOTNOTE =
+  'The demo uses a realistic seeded dataset — fictional accounts, no sign-up. Create an account to track your own money. Connect a bank or paste a CSV to get started.';
+

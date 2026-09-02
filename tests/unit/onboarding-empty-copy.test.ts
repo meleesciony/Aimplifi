@@ -9,7 +9,10 @@ import {
   CONNECT_ONBOARDING_FOOTNOTE,
   CONNECT_ONBOARDING_HEADING,
   EMPTY_DASHBOARD_DESCRIPTION,
+  GET_STARTED_DESCRIPTION,
+  SIGN_IN_DEMO_FOOTNOTE,
 } from '@/lib/copy/onboarding-empty-copy';
+import { INBOX_EMPTY_DESCRIPTION, INBOX_EMPTY_FOOTNOTE } from '@/lib/copy/inbox-copy';
 
 describe('Empty Home sells bank or CSV, not a 30-second Cash-Needed promise (DECISIONS #549)', () => {
   it('test_regression__empty_home_offers_csv_without_cash_needed_countdown', () => {
@@ -33,5 +36,31 @@ describe('Empty Home sells bank or CSV, not a 30-second Cash-Needed promise (DEC
     expect(panel).toContain('onboard-import');
     expect(CONNECT_ONBOARDING_HEADING).toMatch(/paste a CSV/i);
     expect(CONNECT_ONBOARDING_HEADING).not.toMatch(/takes about a minute/);
+  });
+});
+
+describe('Sign-in and first-run empty name CSV, not bank-only (DECISIONS #556)', () => {
+  it('test_regression__sign_in_and_route_empty_offer_csv_not_bank_only', () => {
+    expect(GET_STARTED_DESCRIPTION).toMatch(/paste a CSV/i);
+    expect(GET_STARTED_DESCRIPTION).not.toMatch(/Connect an account to get started/);
+    expect(SIGN_IN_DEMO_FOOTNOTE).toMatch(/paste a CSV/i);
+    expect(SIGN_IN_DEMO_FOOTNOTE).not.toMatch(/connect your banks, cards, and brokerages/);
+
+    const signIn = readFileSync(resolve('src/app/sign-in/page.tsx'), 'utf8');
+    expect(signIn).toContain('SIGN_IN_DEMO_FOOTNOTE');
+    expect(signIn).not.toMatch(/connect your banks, cards, and brokerages/);
+
+    const empty = readFileSync(resolve('src/components/onboarding/route-empty.tsx'), 'utf8');
+    expect(empty).toContain('GET_STARTED_DESCRIPTION');
+    expect(empty).not.toMatch(/Connect an account to get started/);
+    expect(empty).not.toMatch(/Add accounts first/);
+    expect(empty).toMatch(/paste a CSV first/);
+    expect(empty).toMatch(/connect a bank or paste a CSV, Coach fills in/i);
+    expect(empty).not.toMatch(/add accounts manually/);
+
+    expect(INBOX_EMPTY_DESCRIPTION).toMatch(/CSV is pasted/);
+    expect(INBOX_EMPTY_DESCRIPTION).not.toMatch(/Once accounts are connected/);
+    expect(INBOX_EMPTY_FOOTNOTE).toMatch(/paste a CSV/);
+    expect(INBOX_EMPTY_FOOTNOTE).not.toMatch(/Connect once,/);
   });
 });

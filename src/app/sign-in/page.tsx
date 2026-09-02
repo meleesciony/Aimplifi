@@ -6,6 +6,7 @@ import { DemoSignInButton } from '@/components/auth/demo-sign-in-button';
 import { EmailPasswordForm } from '@/components/auth/email-password-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { SIGN_IN_DEMO_FOOTNOTE } from '@/lib/copy/onboarding-empty-copy';
 import { googleSignIn } from '@/server/auth-actions';
 
 export default async function SignInPage() {
@@ -45,9 +46,8 @@ export default async function SignInPage() {
           </div>
 
           <DemoSignInButton />
-          <p className="text-xs text-muted-foreground">
-            The demo uses a realistic seeded dataset — fictional accounts, no sign-up. Create an account
-            to track your own money; connect your banks, cards, and brokerages to get started.
+          <p className="text-xs text-muted-foreground" data-testid="sign-in-demo-footnote">
+            {SIGN_IN_DEMO_FOOTNOTE}
           </p>
           <p
             className="text-[11px] leading-relaxed text-muted-foreground"

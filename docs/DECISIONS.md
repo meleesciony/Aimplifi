@@ -1946,3 +1946,12 @@ invent an auto-file quality claim.
 **Decision.** Copy-only. Paste helper names Post Date, Trade Date, Debit/Credit, Withdrawal/Deposit. Chase note: Post Date + signed Amount. Schwab note: Withdrawal (-) and Deposit (+). Generic export step matches. Do not invent unverified bank steps.
 
 **Locked.** `test_regression__csv_paste_helper_names_debit_credit_and_net_amount`, `test_regression__csv_guides_name_chase_post_date_and_schwab_withdrawal`.
+
+## #556 — Sign-in and first-run empty name CSV, not bank-only (2026-09-01)
+
+**Context.** Home and the connect panel already offer paste-a-CSV (#549/#554). Sign-in still said connect banks, cards, and brokerages to get started. Coach/Goals/Inbox/Calendar first-run still said Connect an account to get started above a CSV button.
+
+**Decision.** Copy-only. Shared get-started line: connect a bank or paste a CSV. Sign-in demo footnote uses it. Route-empty heading uses it. Coach/Goals/Calendar/Inbox first-run body and footnotes name bank or CSV, not connect-only. Inbox still-need-a-category claim unchanged. Do not change buttons, Plaid, or session copy.
+
+**Locked.** `test_regression__sign_in_and_route_empty_offer_csv_not_bank_only`.
+
