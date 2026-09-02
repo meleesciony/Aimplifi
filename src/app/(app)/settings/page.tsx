@@ -44,6 +44,7 @@ import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { isDemoUser } from '@/lib/demo-user';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
+import { SETTINGS_CONNECTIONS_BODY, SETTINGS_IMPORT_CSV_LABEL } from '@/lib/copy/settings-connections-copy';
 import { accountLabel } from '@/lib/engine/account/display-name';
 
 export const metadata = { title: "Settings" };
@@ -307,19 +308,22 @@ export default async function SettingsPage() {
           <CardTitle className="text-base">Connect a bank or brokerage</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
-          <p>
-            Connect with Plaid right here, or use the Accounts page for SimpleFIN (a few
-            dollars/year, no business gate) and for managing existing connections. Access tokens
-            are encrypted at rest (AES-256-GCM); only account masks (last 4) are ever stored.
-          </p>
+          <p>{SETTINGS_CONNECTIONS_BODY}</p>
           <ConnectAccountsButton />
-          <div>
+          <div className="flex flex-wrap gap-2">
             <Link
               href="/accounts"
               className={buttonVariants({ variant: 'outline', size: 'sm' })}
               data-testid="settings-manage-connections"
             >
               Manage connections on Accounts
+            </Link>
+            <Link
+              href="/transactions/import"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              data-testid="settings-import-csv"
+            >
+              {SETTINGS_IMPORT_CSV_LABEL}
             </Link>
           </div>
         </CardContent>

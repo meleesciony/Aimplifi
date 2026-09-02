@@ -2109,3 +2109,12 @@ invent an auto-file quality claim.
 **Decision.** Step 1 uses the same bank-or-CSV wording as the rest of first-run. Steps 2 and 3 unchanged. No new onboarding step.
 
 **Locked.** `test_regression__home_step_1_names_bank_or_csv_not_bank_only`.
+
+## #576 — Settings Bank connections names CSV (2026-09-02)
+
+**Context.** Home Step 1 and the Cards empty state already offer a bank connection or a CSV. Settings Bank connections described Plaid and SimpleFIN only, so a household that prefers not to connect had no path on that card.
+
+**Decision.** The existing Settings connections card names paste a CSV and links to Transactions Import. Plaid and SimpleFIN stay. No new connect flow.
+
+**Locked.** `test_regression__settings_connections_offer_csv_not_plaid_only`.
+

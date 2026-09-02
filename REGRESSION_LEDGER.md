@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | Settings Bank connections omitted CSV | card described Plaid/SimpleFIN only | copy must not sell a connect-only start | `test_regression__settings_connections_offer_csv_not_plaid_only` |
 | 2026-09-02 | Home Step 1 said Connect your bank | first-run already offers CSV | copy must not sell a bank-only start | `test_regression__home_step_1_names_bank_or_csv_not_bank_only` |
 | 2026-09-02 | Bank CSV amounts like 4.50 DR / 2500 CR failed as malformed | amount cell had no CR/DR sign marks | classify-any-source: register CR/DR is the sign | `test_regression__csv_accepts_cr_dr_amount_suffixes` |
 | 2026-09-02 | Excel/QuickBooks CSV amounts like 4.50- failed as malformed | amount cell required a leading minus or parentheses | classify-any-source: a trailing minus is money out | `test_regression__csv_accepts_trailing_minus_amounts` |
