@@ -135,6 +135,18 @@ describe('parseTransactionCsv', () => {
     expect(missing.errors[0].message).toMatch(/Debit plus Credit/);
   });
 
+  it('test_regression__csv_accepts_withdrawal_paren_and_deposit_plus_headers', () => {
+    const schwab = [
+      'Date,Description,Withdrawal (-),Deposit (+)',
+      '2026-06-01,Coffee,4.50,',
+      '2026-06-02,Payroll,,2500.00',
+    ].join('\n');
+    const parsed = parseTransactionCsv(schwab);
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows[0]).toMatchObject({ description: 'Coffee', amountCents: -450 });
+    expect(parsed.rows[1]).toMatchObject({ description: 'Payroll', amountCents: 250000 });
+  });
+
   it('treats a fully blank file as an error', () => {
     expect(parseTransactionCsv('\n\n  \n').errors[0].message).toMatch(/empty/i);
   });

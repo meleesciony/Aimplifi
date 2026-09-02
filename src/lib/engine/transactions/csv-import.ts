@@ -143,12 +143,18 @@ export function parseTransactionCsv(
   if (headerIdx === -1) return { rows: [], errors: [{ line: 1, message: 'File is empty' }] };
 
   const header = parseCsvLine(rawLines[headerIdx]).map((h) => h.toLowerCase());
-  const find = (aliases: string[]) => header.findIndex((h) => aliases.includes(h));
+  const find = (aliases: string[], looseFirstToken = false) =>
+    header.findIndex((h) => {
+      if (aliases.includes(h)) return true;
+      if (!looseFirstToken) return false;
+      const first = h.replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/)[0] ?? '';
+      return aliases.includes(first);
+    });
   const dateCol = find(DATE_ALIASES);
   const descCol = find(DESCRIPTION_ALIASES);
   const amountCol = find(AMOUNT_ALIASES);
-  const debitCol = find(DEBIT_ALIASES);
-  const creditCol = find(CREDIT_ALIASES);
+  const debitCol = find(DEBIT_ALIASES, true);
+  const creditCol = find(CREDIT_ALIASES, true);
   const catCol = header.indexOf('category');
   const canComposeAmount = debitCol !== -1 && creditCol !== -1;
 

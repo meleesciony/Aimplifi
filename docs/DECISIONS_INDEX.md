@@ -545,3 +545,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #549 — Empty Home offers bank or CSV, not a 30-second Cash-Needed promise (2026-09-01) → docs/DECISIONS.md
 - #550 — CSV import accepts Withdrawal/Deposit and names amount alternatives (2026-09-01) → docs/DECISIONS.md
 - #551 — Signup and reset hash the trimmed password (2026-09-01) → docs/DECISIONS.md
+- #552 — CSV Debit/Credit headers may carry a unit in parentheses (2026-09-01) → docs/DECISIONS.md

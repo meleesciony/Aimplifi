@@ -1914,3 +1914,11 @@ invent an auto-file quality claim.
 **Decision.** `passwordToStore` trims when trim is non-empty. `hashPassword` hashes that. `validateSignup` length-checks that. Sign-in `credentialsMatch` unchanged. All-space passwords stay raw so we never hash empty.
 
 **Locked.** `test_regression__signup_password_strips_autofill_whitespace`.
+
+## #552 — CSV Debit/Credit headers may carry a unit in parentheses (2026-09-01)
+
+**Context.** #550 accepted columns named Withdrawal and Deposit. Schwab checking exports `Withdrawal (-)` and `Deposit (+)`. Exact header match failed, so a paste the bank guide points at still said missing amount.
+
+**Decision.** Debit/Credit/Withdrawal/Deposit match on the first token after stripping punctuation (`Withdrawal (-)` → withdrawal). Date, description, and amount stay exact aliases. Signed amount files unchanged.
+
+**Locked.** `test_regression__csv_accepts_withdrawal_paren_and_deposit_plus_headers`.
