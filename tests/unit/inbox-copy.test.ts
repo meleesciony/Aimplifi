@@ -24,12 +24,7 @@ function assertHonest(s: string) {
 
 describe('Inbox copy does not promise auto-file quality (DECISIONS #536)', () => {
   it('test_regression__inbox_copy_does_not_promise_only_ambiguous_land_here', () => {
-    expect(INBOX_PAGE_SUBTITLE).toMatch(/still need a category/i);
     expect(INBOX_PAGE_SUBTITLE).toMatch(/later label/i);
-    expect(INBOX_NAV_DESCRIPTION).toMatch(/still need a category/i);
-    expect(INBOX_EMPTY_TITLE).toMatch(/still need a category/i);
-    expect(INBOX_EMPTY_DESCRIPTION).toMatch(/still need a category/i);
-    expect(INBOX_EMPTY_FOOTNOTE).toMatch(/still need a category/i);
     assertHonest(INBOX_PAGE_SUBTITLE);
     assertHonest(INBOX_NAV_DESCRIPTION);
     assertHonest(INBOX_EMPTY_TITLE);
@@ -47,5 +42,26 @@ describe('Inbox copy does not promise auto-file quality (DECISIONS #536)', () =>
     const empty = readFileSync(resolve('src/components/onboarding/route-empty.tsx'), 'utf8');
     expect(empty).toContain('INBOX_EMPTY_TITLE');
     expect(empty).not.toMatch(/genuinely ambiguous/);
+  });
+});
+
+describe('Inbox copy is merchant-group review, not Needs a category (DECISIONS #564)', () => {
+  it('test_regression__inbox_copy_is_merchant_groups_not_needs_a_category', () => {
+    for (const s of [
+      INBOX_PAGE_SUBTITLE,
+      INBOX_NAV_DESCRIPTION,
+      INBOX_EMPTY_TITLE,
+      INBOX_EMPTY_DESCRIPTION,
+      INBOX_EMPTY_FOOTNOTE,
+    ]) {
+      expect(s).toMatch(/merchant groups/i);
+      expect(s).toMatch(/review/i);
+    }
+    expect(INBOX_PAGE_SUBTITLE).toMatch(/Activity/);
+    expect(INBOX_PAGE_SUBTITLE).toMatch(/Needs a category/);
+    expect(INBOX_EMPTY_DESCRIPTION).toMatch(/Activity/);
+    expect(INBOX_EMPTY_FOOTNOTE).toMatch(/Activity/);
+    expect(INBOX_NAV_DESCRIPTION).not.toMatch(/still need a category/i);
+    expect(INBOX_EMPTY_TITLE).not.toMatch(/still need a category/i);
   });
 });

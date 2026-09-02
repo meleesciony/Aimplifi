@@ -2011,3 +2011,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__csv_paste_helper_names_run_date_and_two_digit_years`.
 
+## #564 — Inbox copy is merchant-group review, not Needs a category (2026-09-01)
+
+**Context.** Filing the unclassified row queue moved to Activity (`/transactions?unclassified=1`). Inbox is merchant groups in `needsReview`. Nav, subtitle, and first-run empty still said Inbox was "transactions that still need a category".
+
+**Decision.** Inbox copy names merchant groups flagged for review. Subtitle and empty copy name Activity as the Needs a category list. Bank-or-CSV first-run copy stays. Do not restore the auto-file quality promise.
+
+**Locked.** `test_regression__inbox_copy_is_merchant_groups_not_needs_a_category`.
+
