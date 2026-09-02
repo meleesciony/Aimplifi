@@ -239,7 +239,7 @@ describe('merchant-group triage (Phase 3b)', () => {
     // Merchantless fallback keys by CANONICAL — same scope the file action uses
     // (DECISIONS #585), so card count ≡ action scope.
     expect(groups[1].key).toBe(merchantlessCanonKey('Local One'));
-    expect(groups[1].ruleEligible).toBe(false); // no merchantId → no rule offer
+    expect(groups[1].ruleEligible).toBe(true); // a real payee — Inbox file mints a durable rule (#586)
   });
 
   it('test_regression__skip_rotates_front_card_without_dropping_it', () => {
@@ -338,8 +338,8 @@ describe('merchant-group triage (Phase 3b)', () => {
       ],
     });
     const res = await fileMerchantGroup({ anchorTransactionId: `grp-m1-${process.pid}`, categoryId: 'coffee' });
-    expect(res.affected).toBe(1); // ONLY the anchor's descriptor — pre-fix this was every merchantless row
-    expect(res.ruleId).toBeNull(); // no merchant → nothing durable to hang a rule on
+    expect(res.affected).toBe(1); // ONLY the anchor's canonical — never every merchantless row
+    expect(res.ruleId).not.toBeNull(); // durable rule hangs on this payee (#586)
     const other = await prisma.transaction.findUniqueOrThrow({ where: { id: `grp-m2-${process.pid}` } });
     expect(other.needsReview).toBe(true);
     expect(other.categoryId).toBe('uncategorized');
@@ -372,7 +372,7 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(d2.categoryId).toBe('uncategorized');
   });
 
-  it('test_regression__household_can_file_inbox_merchant_group_in_one_go', async () => {
+  it('test_regression__inbox_file_saves_rule_for_next_same_payee', async () => {
     // Store-number variants of one unknown CSV payee used to sit on separate
     // Inbox cards; one tap filed only the exact descriptor. They share a
     // canonical, so they are one merchant group (DECISIONS #585).
@@ -393,9 +393,24 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(card!.count).toBe(2);
     const res = await fileMerchantGroup({ anchorTransactionId: `grp-c1-${process.pid}`, categoryId: 'shopping' });
     expect(res.affected).toBe(2);
+    expect(res.ruleId).not.toBeNull();
     const c2 = await prisma.transaction.findUniqueOrThrow({ where: { id: `grp-c2-${process.pid}` } });
     expect(c2.needsReview).toBe(false);
     expect(c2.categoryId).toBe('shopping');
+    // The next same-payee descriptor (store-number variant) auto-files — it
+    // does not land back in Inbox (DECISIONS #586).
+    const next = categorize(
+      { rawDescriptor: 'BLUE HERON POTTERY #03', amountCents: -1500, date: '2026-07-01', accountId: 'any' },
+      await loadUserRules(USER),
+    );
+    expect(next.needsReview).toBe(false);
+    expect(next.categoryId).toBe('shopping');
+    expect(next.source).toBe('user-rule');
+    const other = categorize(
+      { rawDescriptor: 'QQQZX PAYEE LLC', amountCents: -800, date: '2026-07-01', accountId: 'any' },
+      await loadUserRules(USER),
+    );
+    expect(other.needsReview).toBe(true);
   });
 
   it('test_regression__conditional_rule_satisfies_dedupe (cycle-2 P2): a banded rule must not suppress the unconditional mint', async () => {

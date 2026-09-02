@@ -579,3 +579,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #583 — Household can change how often a typed reserve comes around (2026-09-02) → docs/DECISIONS.md
 - #584 — Household can record that a repeating bill paid this cycle (2026-09-02) → docs/DECISIONS.md
 - #585 — Household can file an Inbox merchant group in one go (2026-09-02) → docs/DECISIONS.md
+- #586 — Inbox file saves a rule for the next same payee (2026-09-02) → docs/DECISIONS.md

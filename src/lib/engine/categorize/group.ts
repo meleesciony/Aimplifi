@@ -97,6 +97,15 @@ export interface TriageGroup {
   >;
 }
 
+
+/** A durable Inbox rule hangs on a real payee, never an aggregate or a masked bank name. */
+export function isDurablePayeeCanonical(canonical: string): boolean {
+  const t = canonical.trim();
+  if (t === '' || t === '.' || /^[.*•·]+$/.test(t)) return false;
+  if (t.toLowerCase() === 'unknown merchant') return false;
+  return true;
+}
+
 export function merchantlessCanonKey(canonical: string): string {
   return `canon:${canonical.normalize('NFC').trim().toLowerCase()}`;
 }
@@ -154,7 +163,7 @@ export function groupReviewRows(rows: ReviewRow[]): TriageGroup[] {
       merchantCanonical: first.merchantCanonical,
       merchantId: first.merchantId,
       aggregate: first.aggregate,
-      ruleEligible: !first.aggregate && first.merchantId !== null,
+      ruleEligible: !first.aggregate && isDurablePayeeCanonical(first.merchantCanonical),
       count: members.length,
       totalCents: members.reduce((s, m) => s + m.amountCents, 0),
       newestDate: members.reduce((a, m) => (m.date > a ? m.date : a), first.date),

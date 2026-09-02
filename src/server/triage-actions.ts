@@ -8,8 +8,8 @@
  */
 import { revalidatePath } from 'next/cache';
 import type { Prisma } from '@/generated/prisma/client';
-import { prisma, serializableTx } from '@/lib/db';
-import { selectConfidentGroups } from '@/lib/engine/categorize/group';
+import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
+import { isDurablePayeeCanonical, selectConfidentGroups } from '@/lib/engine/categorize/group';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { auditLog, requireUserId } from '@/server/authz';
 import { assertOwnedCategory } from '@/server/category-meta';
@@ -27,6 +27,27 @@ function revalidateAfterCategoryWrite() {
   revalidatePath('/dashboard');
 }
 
+
+
+async function ensureMerchantForCanonical(
+  tx: Prisma.TransactionClient,
+  canonical: string,
+  categoryId: string,
+): Promise<string> {
+  try {
+    const m = await tx.merchant.upsert({
+      where: { canonical },
+      create: { canonical, defaultCategoryId: categoryId },
+      update: {},
+    });
+    return m.id;
+  } catch (e) {
+    if (!isUniqueViolation(e)) throw e;
+    const existing = await tx.merchant.findUnique({ where: { canonical }, select: { id: true } });
+    if (!existing) throw e;
+    return existing.id;
+  }
+}
 
 /** Aggregate pseudo-merchants (Zelle/checks/ATM) never get merchant-wide rules. */
 function assertRuleEligible(rawDescriptor: string): void {
@@ -352,8 +373,9 @@ export async function fileMerchantGroup(input: {
   await assertOwnedCategory(userId, input.categoryId); // system id or a custom this user owns (#111)
   const txn = await ownedTransaction(userId, input.anchorTransactionId);
 
-  const aggregate = normalizeMerchant(txn.rawDescriptor).aggregate;
-  const ruleEligible = !aggregate && !!txn.merchantId;
+  const normalized = normalizeMerchant(txn.rawDescriptor);
+  const aggregate = normalized.aggregate;
+  const ruleEligible = !aggregate && isDurablePayeeCanonical(normalized.canonical);
 
   // EVERYTHING inside one SERIALIZABLE transaction (Phase-3 checker P1 +
   // cycle-2 P1): the target fetch, the needsReview re-assert, and the rule
@@ -373,7 +395,7 @@ export async function fileMerchantGroup(input: {
   // user confirm/undo; a retry reuses it, and the mid-apply race direction
   // equals the pre-H.8 behavior).
   const keepsReconciled = await getReconciliationTxnKeep(userId);
-  const { correctionIds, ruleId, minted, affected } = await serializableTx(async (tx) => {
+  const { correctionIds, ruleId, minted, affected, ruleMerchantId } = await serializableTx(async (tx) => {
     const merchantlessByCanonical = !aggregate && txn.merchantId === null;
     const canon = merchantlessByCanonical
       ? normalizeMerchant(txn.rawDescriptor).canonical.normalize('NFC').trim().toLowerCase()
@@ -411,7 +433,7 @@ export async function fileMerchantGroup(input: {
       return n.canonical.normalize('NFC').trim().toLowerCase() === canon;
     });
     if (targets.length === 0) {
-      return { correctionIds: [] as string[], ruleId: null as string | null, minted: false, affected: 0 };
+      return { correctionIds: [] as string[], ruleId: null as string | null, minted: false, affected: 0, ruleMerchantId: null as string | null };
     }
 
     const ids: string[] = [];
@@ -423,13 +445,20 @@ export async function fileMerchantGroup(input: {
     }
     let createdRuleId: string | null = null;
     let mintedRule = false;
+    let ruleMerchantId: string | null = txn.merchantId;
     if (ruleEligible) {
+      // Merchantless CSV/manual rows have no merchantId. Hang the durable rule
+      // on the canonical payee so the next same-payee ingest auto-files
+      // (DECISIONS #586). Aggregates never reach here.
+      if (!ruleMerchantId) {
+        ruleMerchantId = await ensureMerchantForCanonical(tx, normalized.canonical, input.categoryId);
+      }
       // Dedupe: an identical live UNCONDITIONAL rule is reused, never duplicated
       // (checker: duplicate equal-priority rules survive undo; cycle-2: a
       // conditional variant must NOT satisfy the dedupe).
       const { ruleId: rid, minted } = await ensureUnconditionalRule(tx, {
         userId,
-        merchantId: txn.merchantId!,
+        merchantId: ruleMerchantId,
         categoryId: input.categoryId,
         createdFrom: ids[0],
       });
@@ -448,13 +477,14 @@ export async function fileMerchantGroup(input: {
         confidenceBps: 9900,
         reviewPinned: false,
         ...stampIsTransferOnTransferLeaf(input.categoryId),
+        ...(merchantlessByCanonical && ruleMerchantId ? { merchantId: ruleMerchantId } : {}),
       },
     });
     await tx.categoryPrediction.updateMany({
       where: { transactionId: { in: targets.map((t) => t.id) }, userId },
       data: { actualCategoryId: input.categoryId, labeledAt: new Date() },
     });
-    return { correctionIds: ids, ruleId: createdRuleId, minted: mintedRule, affected: updated.count };
+    return { correctionIds: ids, ruleId: createdRuleId, minted: mintedRule, affected: updated.count, ruleMerchantId };
   });
   if (affected === 0) return { correctionIds: [], ruleId: null, affected: 0 };
   await auditLog(userId, 'group.file', {
@@ -465,7 +495,7 @@ export async function fileMerchantGroup(input: {
   });
   if (ruleId) {
     // Provenance-honest audit (cycle-3 P2): a reused rule never logs 'rule.create'.
-    await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', { ruleId, merchantId: txn.merchantId, categoryId: input.categoryId });
+    await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', { ruleId, merchantId: ruleMerchantId, categoryId: input.categoryId });
   }
 
   revalidateAfterCategoryWrite();

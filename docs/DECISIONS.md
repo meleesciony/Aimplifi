@@ -2191,3 +2191,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__household_can_file_inbox_merchant_group_in_one_go`.
 
+## #586 — Inbox file saves a rule for the next same payee (2026-09-02)
+
+**Context.** Filing an Inbox merchant group filed the queued rows. Merchantless CSV/manual rows had no merchantId, so no durable rule was minted. The next same-payee CSV landed back in Inbox.
+
+**Decision.** Filing a non-aggregate real payee mints (or reuses) the unconditional merchant rule, upserting a Merchant on the canonical when the rows were merchantless. The next same-canonical ingest auto-files. Aggregates and masked bank names still mint no rule. Different canonicals stay separate. Demo cannot learn (existing rule-load fence). No CSV parser change.
+
+**Locked.** `test_regression__inbox_file_saves_rule_for_next_same_payee`.
+
