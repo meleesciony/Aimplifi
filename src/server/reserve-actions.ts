@@ -236,6 +236,59 @@ export async function updateReserveCost(
   return { ok: true };
 }
 
+/**
+ * Change how often a typed reserve's cost comes around. Name, true cost,
+ * and convert pairing stay put. Converted (bill-paired) reserves are
+ * refused — the swap is exact, so the rhythm stays with the bill.
+ * Demo cannot learn.
+ */
+export async function updateReserveCadence(
+  goalId: string,
+  formData: FormData,
+): Promise<ReserveFormResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const id = typeof goalId === 'string' ? goalId.trim() : '';
+  if (!id) {
+    return { ok: false, error: "That reserve isn't on your plan, so nothing changed." };
+  }
+
+  const row = await prisma.goal.findFirst({
+    where: { id, userId, kind: RESERVE_KIND },
+    select: { targetCents: true, merchantCanonical: true },
+  });
+  if (!row) {
+    return { ok: false, error: "That reserve isn't on your plan, so nothing changed." };
+  }
+  if (row.merchantCanonical) {
+    return {
+      ok: false,
+      error: 'This reserve is paired with a bill, so how often it comes around stays with that bill. Remove it to start over.',
+    };
+  }
+
+  const cadence = String(formData.get('cadence') ?? '').trim();
+  const errors: NonNullable<ReserveFormResult['errors']> = {};
+  if (!isReserveCadence(cadence)) {
+    errors.cadence = 'Choose how often that cost comes around.';
+  } else if (monthlyRateCents(row.targetCents, cadence) === 0) {
+    errors.cadence = 'Spread over that period this comes to less than a cent a month — pick a shorter rhythm, or change the cost.';
+  }
+  if (errors.cadence) return { ok: false, errors };
+
+  const updated = await prisma.goal.updateMany({
+    where: { id, userId, kind: RESERVE_KIND, merchantCanonical: null },
+    data: { cadence },
+  });
+  if (updated.count === 0) {
+    return { ok: false, error: "That reserve isn't on your plan, so nothing changed." };
+  }
+  await auditLog(userId, 'reserve.updateCadence', { goalId: id, cadence });
+  revalidateReserveSurfaces();
+  return { ok: true };
+}
+
 export async function deleteReserve(goalId: string): Promise<void> {
   const userId = await requireUserId();
   // The shared-demo fence, same rule as every reserve write (critic P2-3): the

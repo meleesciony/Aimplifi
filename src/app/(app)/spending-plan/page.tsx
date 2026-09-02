@@ -23,6 +23,7 @@ import { ReserveForm } from '@/components/finance/reserve-form';
 import { DeleteReserveButton } from '@/components/finance/delete-reserve-button';
 import { ReserveNameControl } from '@/components/finance/rename-reserve-form';
 import { ReserveCostControl } from '@/components/finance/reserve-cost-form';
+import { ReserveCadenceControl } from '@/components/finance/reserve-cadence-form';
 import { BillNameControl } from '@/components/finance/rename-bill-form';
 
 export const metadata = { title: "Spending plan" };
@@ -402,11 +403,10 @@ export default async function SpendingPlanPage() {
                       {formatCents(cents(r.trueCostCents))} {RESERVE_CADENCE_WORDS[r.cadence]}
                     </span>
                   ) : (
-                    <ReserveCostControl
-                      reserveId={r.id}
-                      trueCostCents={r.trueCostCents}
-                      cadence={r.cadence}
-                    />
+                    <span className="mt-0.5 flex flex-wrap items-baseline gap-x-1 text-xs" data-testid="reserve-row-basis">
+                      <ReserveCostControl reserveId={r.id} trueCostCents={r.trueCostCents} />
+                      <ReserveCadenceControl reserveId={r.id} cadence={r.cadence} />
+                    </span>
                   )}
                 </dt>
                 <dd className="flex shrink-0 items-center gap-2">

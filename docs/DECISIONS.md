@@ -2167,3 +2167,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__household_can_change_a_reserve_true_cost`.
 
+## #583 — Household can change how often a typed reserve comes around (2026-09-02)
+
+**Context.** A typed reserve on Spending plan could be created, renamed, have its true cost changed, or deleted. How often that cost comes around was locked at create. A household that typed yearly dues as monthly (or whose rhythm actually changed) had to delete and start over, which also dropped the monthly share from Fixed until they retyped it.
+
+**Decision.** Tapping the cadence words on a typed reserve opens the same how-often choices as create. The write changes only `cadence`. Name, true cost, monthlyContribution (null), and convert pairing stay put. Blank, unknown, and sub-cent-a-month rhythms are refused in words. Converted bill-paired reserves cannot change cadence through this path — the swap stays exact. Demo cannot learn.
+
+**Locked.** `test_regression__household_can_change_typed_reserve_cadence`.
+
