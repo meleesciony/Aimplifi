@@ -26,6 +26,7 @@ import { ReserveCostControl } from '@/components/finance/reserve-cost-form';
 import { ReserveCadenceControl } from '@/components/finance/reserve-cadence-form';
 import { BillNameControl } from '@/components/finance/rename-bill-form';
 import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-button';
+import { PutBillBackOnPlanButton } from '@/components/finance/put-bill-back-on-plan-button';
 
 export const metadata = { title: "Spending plan" };
 
@@ -373,6 +374,25 @@ export default async function SpendingPlanPage() {
             </p>
           </>
         )}
+        {p.billsTakenOff.length > 0 ? (
+          <div className="mt-3" data-testid="bills-taken-off">
+            <p className="text-xs text-muted-foreground">Taken off the plan</p>
+            <dl className="mt-1 divide-y text-sm">
+              {p.billsTakenOff.map((b) => (
+                <div
+                  key={b.billKey}
+                  className="flex items-center justify-between gap-3 py-2"
+                  data-testid="bill-taken-off-row"
+                >
+                  <dt className="min-w-0 text-muted-foreground">{b.label}</dt>
+                  <dd className="shrink-0">
+                    <PutBillBackOnPlanButton billKey={b.billKey} billName={b.label} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null}
       </section>
 
       {/* C.23 / H.4 — the owner's third source of fixed money, in his words:

@@ -2247,3 +2247,11 @@ invent an auto-file quality claim.
 **Decision.** A household can take an unnamed repeating bill off the spending plan. Overlay only: store BillOffPlan { userId, billKey }. getSpendingPlan filters scheduledFixed by those keys so the bill leaves the Fixed list AND the Fixed figure. Transactions stay. Payee bills stay on the #591 NOT_BILL path. Loan payments stay on the plan. Demo cannot learn. No CSV parser change.
 
 **Locked.** `test_regression__household_can_take_an_unnamed_repeating_bill_off_the_spending_plan`.
+
+## #593 — Put a repeating bill back on the spending plan (2026-09-02)
+
+**Context.** #591/#592 take-off removes a repeating bill from the Fixed list AND figure. Payee bills store RecurringOverride NOT_BILL (undo exists only on /recurring RecurringInstructions). Unnamed bills store BillOffPlan (no undo anywhere). The row vanishes from Spending plan, taking the undo with it — a demoted series must not vanish with its own undo.
+
+**Decision.** Spending plan lists bills taken off (BillOffPlan or NOT_BILL) with a confirmed Put-back control. Unnamed: delete BillOffPlan. Payee: clearRecurringVerdict so NOT_BILL is withdrawn (same undo Recurring uses); also delete BillOffPlan if that key exists. Overlay only. Transactions stay. Loan payments were never take-off-able and are not listed. Empty list renders nothing. Demo cannot learn. No CSV parser change.
+
+**Locked.** `test_regression__household_can_put_a_repeating_bill_back_on_the_spending_plan`.

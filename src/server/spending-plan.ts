@@ -27,7 +27,7 @@
  */
 import { prisma } from '@/lib/db';
 import { excludeOffPlanBills } from '@/lib/engine/spending-plan/bill-rename';
-import { getBillOffPlanKeys, getBillRenames } from '@/server/bill-names';
+import { getBillOffPlanKeys, getBillRenames, getBillsTakenOffPlan } from '@/server/bill-names';
 import {
   computeSpendingPlan,
   daysInMonth,
@@ -135,6 +135,12 @@ export interface SpendingPlanWithNotes extends SpendingPlan {
    * declarations all resolved.
    */
   refusedReserves: RefusedReserve[];
+  /**
+   * Repeating bills the household took off the plan (BillOffPlan overlay or
+   * RecurringOverride NOT_BILL). The page renders this list and computes
+   * nothing — one authority with the Fixed filter. Empty = render nothing.
+   */
+  billsTakenOff: { billKey: string; label: string }[];
   /**
    * C.23 / DECISIONS #431 — the Fixed-costs SETUP proposal, computed HERE with
    * the same `scheduledFixed` array, the same category sets and the same
@@ -252,7 +258,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const scheduledIncome = snap.scheduled
     .filter((s) => s.amountCents > 0 && incomeAccountIds.has(s.accountId))
     .map((s) => ({ amountCents: s.amountCents, cadence: s.cadence }));
-  const [scheduledDetected, offPlanKeys] = await Promise.all([
+  const [scheduledDetected, offPlanKeys, billsTakenOff] = await Promise.all([
     countedExpenseSeriesForPlan(
       userId,
       snap,
@@ -261,6 +267,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
       terminalOf,
     ),
     getBillOffPlanKeys(userId),
+    getBillsTakenOffPlan(userId),
   ]);
   // Overlay only: drop unnamed (or any keyed) bills taken off the plan so the
   // Fixed list AND the Fixed figure lose those cents. One filter, one loader.
@@ -614,6 +621,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     // swallowed: a refused reserve is money the reader told us about and the
     // plan then spent as though it were free.
     refusedReserves: reserves.refused,
+    billsTakenOff,
     disclosures: await buildDisclosures(userId, snap, computed, endOfMonth, {
       // The three facts that separate one $0 card-payments line from another (L.29).
       // Each is about a different way of not owing money this month, and each is
