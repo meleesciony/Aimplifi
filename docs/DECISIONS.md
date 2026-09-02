@@ -2084,3 +2084,11 @@ invent an auto-file quality claim.
 **Decision.** Skip those rows with no error and no imported transaction when the date cell is blank and the description (trimmed, case-insensitive) is a summary label. A dated merchant still imports (date + Total Wine). A blank date plus an ordinary merchant name still errors. Do not invent a transaction from the footer amount. Fully blank data rows stay skipped.
 
 **Locked.** `test_regression__csv_skips_bank_footer_totals` + `test_regression__csv_skips_bank_footer_summary_rows`.
+
+## #573 — CSV import accepts trailing-minus amounts (2026-09-02)
+
+**Context.** Excel and QuickBooks often write money out as `4.50-` or `$1,250.00-`. Import already unwraps accounting parentheses. A trailing minus still failed as a malformed amount.
+
+**Decision.** After stripping `$`, commas, and spaces, a trailing minus on an otherwise numeric cell is money out (Pulse negative). A leading minus is unchanged. `centsFromDollarString` stays strict.
+
+**Locked.** `test_regression__csv_accepts_trailing_minus_amounts`.

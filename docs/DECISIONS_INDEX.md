@@ -566,3 +566,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #570 — CSV import finds the header under a bank preamble (2026-09-02) → docs/DECISIONS.md
 - #571 — CSV import accepts accounting parentheses amounts (2026-09-02) → docs/DECISIONS.md
 - #572 — CSV import skips bank footer totals (2026-09-02) → docs/DECISIONS.md
+- #573 — CSV import accepts trailing-minus amounts (2026-09-02) → docs/DECISIONS.md

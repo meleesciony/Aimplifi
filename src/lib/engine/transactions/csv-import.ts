@@ -12,7 +12,7 @@
  *      amount       ← amount | net amount | transaction amount | Amount (USD)
  *                    OR Debit+Credit / Outflow+Inflow / Withdrawal+Deposit (unsigned; debit/outflow/withdrawal = money out)
  *      category     ← category   (OPTIONAL; slug, display name, or Simplifi alias)
- *  - Amount is SIGNED in Pulse convention: NEGATIVE = money out, POSITIVE = in
+ *  - Amount is SIGNED in Pulse convention: NEGATIVE = money out, POSITIVE = in. Accounting parentheses and a trailing minus (4.50-) are money out.
  *    (matches Mint/most US bank exports). "$" and thousands commas are stripped. Accounting parentheses ((4.50) or ($4.50)) mean money out.
  *  - Dates accepted as YYYY-MM-DD or US MM/DD/YYYY, MM/DD/YY, MM-DD-YYYY, MM-DD-YY; a trailing time is dropped (calendar date only). Two-digit years: 00–69 → 2000–2069, 70–99 → 1970–1999.
  *  - Category may be a slug ("dining"), a display name ("Dining Out"), or a
@@ -120,6 +120,10 @@ function normalizeAmountCell(raw: string): { digits: string; parenthesized: bool
   const s = raw.replace(/[$,\s]/g, '');
   const paren = /^\((.*)\)$/.exec(s);
   if (paren) return { digits: paren[1], parenthesized: true };
+  // Excel/QuickBooks trailing minus is money out (DECISIONS #573).
+  if (/^\d+(?:\.\d{1,2})?-$/.test(s)) {
+    return { digits: s.slice(0, -1), parenthesized: true };
+  }
   return { digits: s, parenthesized: false };
 }
 
