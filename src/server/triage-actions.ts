@@ -304,9 +304,9 @@ export async function makeRuleFromCorrection(correctionId: string): Promise<{ ru
 
 /**
  * Batch: apply a category to every review-queued transaction of the same
- * merchant. Does NOT create a rule — durable rules always go through the
- * explicit "Always / Just this once" consent prompt (critic finding F3);
- * the client offers it after the batch, wired to the first correction.
+ * merchant. Merchant-attached batches do NOT mint a rule here — Always is
+ * a second tap. Merchantless all-similar IS the group file: it files the
+ * canonical group and mints the durable rule (same as File-all).
  */
 export async function applyToAllSimilar(input: {
   transactionId: string;
@@ -315,7 +315,14 @@ export async function applyToAllSimilar(input: {
   const userId = await requireUserId();
   await assertOwnedCategory(userId, input.categoryId); // system id or a custom this user owns (#111)
   const txn = await ownedTransaction(userId, input.transactionId);
-  if (!txn.merchantId) return applyCategory({ ...input });
+  // Merchantless used to fall through to applyCategory (one row, no rule).
+  // File the Inbox group and mint the same durable rule File-all does.
+  if (!txn.merchantId) {
+    return fileMerchantGroup({
+      anchorTransactionId: input.transactionId,
+      categoryId: input.categoryId,
+    });
+  }
 
   // SAME scope definition the button's count used (shared helper, can't drift)
   const aggregate = normalizeMerchant(txn.rawDescriptor).aggregate;

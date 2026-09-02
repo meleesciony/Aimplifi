@@ -25,7 +25,7 @@ import {
 } from '@/lib/engine/categorize/group';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { getReviewCount, getTriageGroups } from '@/server/triage';
-import { applyCategory, fileMerchantGroup, makeRuleFromCorrection, recategorize } from '@/server/triage-actions';
+import { applyCategory, applyToAllSimilar, fileMerchantGroup, makeRuleFromCorrection, recategorize } from '@/server/triage-actions';
 import { loadUserRules } from '@/server/rules';
 import { prisma } from '@/lib/db';
 
@@ -450,6 +450,41 @@ describe('merchant-group triage (Phase 3b)', () => {
     );
     expect(other.needsReview).toBe(true);
   });
+
+  it('test_regression__all_similar_of_merchantless_payee_files_group_and_saves_rule', async () => {
+    // applyToAllSimilar used to fall through to applyCategory on merchantless
+    // rows: one descriptor filed, siblings stayed in review, no rule.
+    const a = 'MAPLE RIDGE POTTERY #12';
+    const b = 'MAPLE RIDGE POTTERY #99';
+    expect(normalizeMerchant(a).canonical).toBe(normalizeMerchant(b).canonical);
+    const acct = await prisma.account.findFirstOrThrow({ where: { userId: USER, providerRef: 'grp-chk' } });
+    await prisma.transaction.createMany({
+      data: [
+        { id: `grp-as1-${process.pid}`, accountId: acct.id, date: '2026-06-09', amountCents: -1100, rawDescriptor: a, merchantId: null, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+        { id: `grp-as2-${process.pid}`, accountId: acct.id, date: '2026-06-08', amountCents: -2100, rawDescriptor: b, merchantId: null, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+      ],
+    });
+    const res = await applyToAllSimilar({ transactionId: `grp-as1-${process.pid}`, categoryId: 'shopping' });
+    expect(res.affected).toBe(2);
+    expect(res.ruleId).not.toBeNull();
+    const as2 = await prisma.transaction.findUniqueOrThrow({ where: { id: `grp-as2-${process.pid}` } });
+    expect(as2.needsReview).toBe(false);
+    expect(as2.categoryId).toBe('shopping');
+    const next = categorize(
+      { rawDescriptor: 'MAPLE RIDGE POTTERY #03', amountCents: -900, date: '2026-07-01', accountId: 'any' },
+      await loadUserRules(USER),
+    );
+    expect(next.needsReview).toBe(false);
+    expect(next.categoryId).toBe('shopping');
+    expect(next.source).toBe('user-rule');
+    const other = categorize(
+      { rawDescriptor: 'QQQZX PAYEE LLC', amountCents: -800, date: '2026-07-01', accountId: 'any' },
+      await loadUserRules(USER),
+    );
+    expect(other.needsReview).toBe(true);
+  });
+
+
 
 
 

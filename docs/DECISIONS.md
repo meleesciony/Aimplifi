@@ -2207,3 +2207,11 @@ invent an auto-file quality claim.
 **Decision.** A one-row Inbox pick of a rule-eligible merchantless payee mints (or reuses) the same unconditional merchant rule as File-all, upserting a Merchant on the canonical. Always after a one-row pick of a merchantless payee does the same. Aggregates and masked bank names still mint no rule. Demo cannot learn. No CSV parser change.
 
 **Locked.** `test_regression__one_row_inbox_pick_of_merchantless_payee_saves_rule`.
+
+## #588 — All-similar of a merchantless payee files the group and saves the rule (2026-09-02)
+
+**Context.** File-all and a one-row Inbox pick of a merchantless payee mint the durable rule. applyToAllSimilar still fell through to applyCategory when merchantId was null: one row filed, store-number siblings stayed in review, no rule.
+
+**Decision.** All-similar of a merchantless payee is the group file: it files every queued merchantless row of that canonical and mints (or reuses) the unconditional merchant rule. Aggregates and masked bank names still mint no rule. Different canonicals stay separate. Demo cannot learn. No CSV parser change.
+
+**Locked.** `test_regression__all_similar_of_merchantless_payee_files_group_and_saves_rule`.
