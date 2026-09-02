@@ -7,5 +7,8 @@
 export const EMPTY_DASHBOARD_DESCRIPTION =
   'Connect a bank or paste a CSV. You will see spending and net worth. If you have cards, you will see how much to set aside to pay them in full.';
 
+export const CONNECT_ONBOARDING_HEADING =
+  'Connect a bank (about a minute), or paste a CSV below:';
+
 export const CONNECT_ONBOARDING_FOOTNOTE =
   'Your data is private to this household. A bank connection is optional. Paste a CSV if you prefer.';

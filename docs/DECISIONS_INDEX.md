@@ -547,3 +547,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #551 — Signup and reset hash the trimmed password (2026-09-01) → docs/DECISIONS.md
 - #552 — CSV Debit/Credit headers may carry a unit in parentheses (2026-09-01) → docs/DECISIONS.md
 - #553 — CSV import accepts Post Date and Trans Date (2026-09-01) → docs/DECISIONS.md
+- #554 — Empty Home connect heading names CSV, not only a bank (2026-09-01) → docs/DECISIONS.md

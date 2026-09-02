@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { ConnectSimplefin } from '@/components/finance/connect-simplefin';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
-import { CONNECT_ONBOARDING_FOOTNOTE } from '@/lib/copy/onboarding-empty-copy';
+import { CONNECT_ONBOARDING_FOOTNOTE, CONNECT_ONBOARDING_HEADING } from '@/lib/copy/onboarding-empty-copy';
 
 // A brand-new user has never synced anything — the same shape
 // classifyFreshness(null, today) returns. connected=false means ConnectSimplefin
@@ -23,7 +23,7 @@ export function ConnectOnboardingPanel({ footnote = DEFAULT_FOOTNOTE }: { footno
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <p className="text-sm font-medium">Connect a bank — takes about a minute:</p>
+        <p className="text-sm font-medium">{CONNECT_ONBOARDING_HEADING}</p>
         {/* orphaned={null}: this panel renders only for a first-run user with nothing
             connected — a user whose SimpleFIN accounts outlived their connection has data
             and therefore never sees the onboarding empty state; /accounts carries the

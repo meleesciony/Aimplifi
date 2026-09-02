@@ -1930,3 +1930,11 @@ invent an auto-file quality claim.
 **Decision.** Date aliases add post date, posting date, trans date. Transaction Date and Posted Date stay. Amount aliases unchanged.
 
 **Locked.** `test_regression__csv_accepts_post_date_and_trans_date_headers`.
+
+## #554 — Empty Home connect heading names CSV, not only a bank (2026-09-01)
+
+**Context.** #549 fixed the welcome and footnote. The connect panel heading still said "Connect a bank — takes about a minute" above a CSV button, so first-run still sold bank as the only path.
+
+**Decision.** Copy-only. Heading: connect a bank (about a minute), or paste a CSV below. Buttons unchanged.
+
+**Locked.** `test_regression__empty_home_offers_csv_without_cash_needed_countdown`.

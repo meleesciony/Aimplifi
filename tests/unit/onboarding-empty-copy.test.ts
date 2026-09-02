@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   CONNECT_ONBOARDING_FOOTNOTE,
+  CONNECT_ONBOARDING_HEADING,
   EMPTY_DASHBOARD_DESCRIPTION,
 } from '@/lib/copy/onboarding-empty-copy';
 
@@ -28,6 +29,9 @@ describe('Empty Home sells bank or CSV, not a 30-second Cash-Needed promise (DEC
 
     const panel = readFileSync(resolve('src/components/onboarding/connect-onboarding-panel.tsx'), 'utf8');
     expect(panel).toContain('CONNECT_ONBOARDING_FOOTNOTE');
+    expect(panel).toContain('CONNECT_ONBOARDING_HEADING');
     expect(panel).toContain('onboard-import');
+    expect(CONNECT_ONBOARDING_HEADING).toMatch(/paste a CSV/i);
+    expect(CONNECT_ONBOARDING_HEADING).not.toMatch(/takes about a minute/);
   });
 });
