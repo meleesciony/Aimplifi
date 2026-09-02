@@ -19,6 +19,7 @@ import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import {
   clearRecurringVerdict,
   markMerchantNotABill,
+  recordRepeatingBillPaidThisCycle,
 } from '@/server/recurring-override-actions';
 import { PROJECTIONS_STALE_PARAM } from '@/components/finance/transaction-detail-params';
 import type { VerdictEffect } from '@/lib/engine/recurring/override';
@@ -105,6 +106,35 @@ export function NotABillButton({ merchantCanonical }: { merchantCanonical: strin
         onClick={() => run(() => markMerchantNotABill({ merchantCanonical }))}
       >
         Not recurring
+      </Button>
+      {error && (
+        <p role="alert" className="text-[11px] text-rose-600 dark:text-rose-400">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+
+/**
+ * "I paid the upcoming occurrence" — advances next date. Expense rows only.
+ */
+export function PaidThisCycleButton({ merchantCanonical }: { merchantCanonical: string }) {
+  const { busy, error, run } = useVerdictRunner();
+  return (
+    <div className="text-right">
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={busy}
+        data-testid="recurring-paid-this-cycle"
+        data-merchant={merchantCanonical}
+        aria-label={`Record that ${merchantCanonical} paid this cycle`}
+        className="tap-target h-auto px-1.5 py-0.5 text-[11px] text-muted-foreground"
+        onClick={() => run(() => recordRepeatingBillPaidThisCycle({ merchantCanonical }))}
+      >
+        Paid this cycle
       </Button>
       {error && (
         <p role="alert" className="text-[11px] text-rose-600 dark:text-rose-400">

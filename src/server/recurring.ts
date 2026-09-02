@@ -18,6 +18,7 @@ import {
 } from '@/lib/engine/recurring/detect';
 import { confirmedPauseState } from '@/lib/engine/income/pause';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
+import { getRecurringPaidThrough } from '@/server/recurring-paid-through';
 import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurring/summary';
 import { upcomingRenewals, type UpcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { categoryName } from '@/lib/engine/categorize/categories';
@@ -69,7 +70,11 @@ export async function getRecurring(userId: string): Promise<RecurringData> {
       isTransfer: t.isTransfer,
     }));
 
-  const series = detectRecurring(txns, isoDate(today), await getRecurringOverrides(userId));
+  const [overrides, paidThrough] = await Promise.all([
+    getRecurringOverrides(userId),
+    getRecurringPaidThrough(userId),
+  ]);
+  const series = detectRecurring(txns, isoDate(today), overrides, paidThrough);
   const summary = summarizeRecurring(series, today);
   const renewals = upcomingRenewals(summary.items, today);
 
@@ -212,6 +217,7 @@ export async function refreshRecurringForUser(
     ) as RecurringTxn[],
     today,
     await getRecurringOverrides(userId),
+    await getRecurringPaidThrough(userId),
   );
 
   // RecurringSeries.merchantId is required; resolve canonical → Merchant.id. Series

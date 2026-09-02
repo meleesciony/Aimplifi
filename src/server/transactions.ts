@@ -128,6 +128,7 @@ import {
 } from '@/lib/engine/transactions/actions';
 import { findOffsettingInflow, reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
+import { getRecurringPaidThrough } from '@/server/recurring-paid-through';
 
 /** Merchant Pattern Lens view (AI plan §Later #19, DECISIONS #250): rendered
  *  narration for the merchant the register is filtered to. Null when the
@@ -557,6 +558,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
         // declared a bill is captioned as one here, and one he demoted loses the
         // caption instead of keeping it on the single page that re-detects locally.
         await getRecurringOverrides(userId),
+        await getRecurringPaidThrough(userId),
       );
       // Expense series only: the profile describes CHARGES, so an income
       // series' cadence (a deposit schedule) must never caption it.

@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | Repeating bill next date could not be marked paid | nextExpectedAt only from last real charge | a household records that a repeating bill paid this cycle; no invented txn | `test_regression__household_can_record_repeating_bill_paid_this_cycle` |
 | 2026-09-02 | Typed reserve cadence could not change after create | cadence locked at create | a household changes how often a typed reserve comes around; convert pairing stays put | `test_regression__household_can_change_typed_reserve_cadence` |
 | 2026-09-02 | Typed reserve cost could not change after create | only create-rename-delete | a household changes a reserve true cost; convert pairing stays put | `test_regression__household_can_change_a_reserve_true_cost` |
 | 2026-09-02 | Savings goal on Goals could not be renamed after create | only create-then-delete | a household names a savings goal; dollars stay put | `test_regression__household_can_rename_a_savings_goal` |

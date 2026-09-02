@@ -75,6 +75,7 @@ import { cashNeededFromSnapshot, personalCardDuplicates } from '@/server/finance
 import { getCategoryMeta } from '@/server/category-meta';
 import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
+import { getRecurringPaidThrough } from '@/server/recurring-paid-through';
 import { getReconciliationBoundary } from '@/server/reconciliation';
 import { getProvider } from '@/lib/providers/demo';
 import { formatISODate, isoDate, type ISODate } from '@/lib/dates';
@@ -677,7 +678,8 @@ async function countedExpenseSeriesForPlan(
       : null),
   }));
   const overrides = await getRecurringOverrides(userId);
-  const series = detectRecurring(txns, today, overrides);
+  const paidThrough = await getRecurringPaidThrough(userId);
+  const series = detectRecurring(txns, today, overrides, paidThrough);
   const superseded = new Set(terminalOf.keys());
   const cashAccountIds = new Set(
     snap.accounts

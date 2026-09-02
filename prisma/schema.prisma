@@ -109,6 +109,7 @@ model User {
   nudgeDismissals     NudgeDismissal[]
   incomePauseConfirmations IncomePauseConfirmation[]
   recurringOverrides  RecurringOverride[]
+  recurringPaidThrough RecurringPaidThrough[]
   selfAuditSnapshots  SelfAuditSnapshot[]
   passwordResetTokens PasswordResetToken[]
   accountReconciliations AccountReconciliation[]
@@ -1086,6 +1087,21 @@ model IncomePauseConfirmation {
 // closed sets and the match key), so all five detecting surfaces honour it at once.
 // One row per user×merchant; deleting the row is the undo, so there is no state to
 // unwind. The shared demo user never writes here (same fence as IncomePauseConfirmation).
+model RecurringPaidThrough {
+  id                String   @id @default(cuid())
+  userId            String
+  merchantCanonical String
+  /// YYYY-MM-DD — the occurrence the household marked paid. Detection still
+  /// reads lastSeenAt from real charges; this overlay only advances the next
+  /// projected date. Never a transaction and never a balance.
+  paidThrough       String
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, merchantCanonical])
+  @@index([userId])
+}
+
 model RecurringOverride {
   id                String   @id @default(cuid())
   userId            String

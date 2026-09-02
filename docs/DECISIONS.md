@@ -2175,3 +2175,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__household_can_change_typed_reserve_cadence`.
 
+## #584 — Household can record that a repeating bill paid this cycle (2026-09-02)
+
+**Context.** Recurring projected the next occurrence from the last real charge. A household that paid outside the feed (cash, another account, a charge that had not landed) still saw that date as due on Recurring, Calendar, and cash-needed, with no write that meant "this cycle paid."
+
+**Decision.** On an active expense series, Recurring offers Paid this cycle. The write stores the currently projected occurrence date as paid-through. Detection still reads lastSeenAt from real charges. The overlay only advances nextExpectedAt (and therefore ScheduledTransaction.nextDate) past that occurrence. Amount, cadence, lastSeenAt, and the monthly Fixed rate stay put. No transaction is invented. Income, inactive, irregular, and already-marked rows are refused in words. Demo cannot learn. Refresh is part of the write.
+
+**Locked.** `test_regression__household_can_record_repeating_bill_paid_this_cycle`.
+

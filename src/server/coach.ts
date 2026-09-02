@@ -70,6 +70,7 @@ import { computeCardClearedStreak, type CardClearedStreakResult } from '@/lib/en
 import { computeNoCreepStreak, type NoCreepStreakResult } from '@/lib/engine/recurring/creep-streak';
 import { getConfirmedIncomePauses } from '@/server/income-pause';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
+import { getRecurringPaidThrough } from '@/server/recurring-paid-through';
 import { radarFromSnapshot } from '@/server/radar';
 import { generateMoneyReview, type MoneyReview } from '@/lib/engine/fi/coach-copy';
 import { buildReviewCandidates, selectReview, type ReviewRole } from '@/lib/engine/fi/money-review';
@@ -479,6 +480,7 @@ export async function getCoachData(
   // override set detectRecurring just read — a second fetch is how the two
   // halves of one page would disagree about a demoted bill.
   const overrides = await getRecurringOverrides(userId);
+  const paidThrough = await getRecurringPaidThrough(userId);
   const series = detectRecurring(
     txns.filter((t) => t.status === 'POSTED' && !t.isSplitParent && spendingIds.has(t.accountId)),
     today,
@@ -486,6 +488,7 @@ export async function getCoachData(
     // "you could cancel this subscription" about a series he has already told the
     // app is not a bill would be the app arguing with him from a stale basis.
     overrides,
+    paidThrough,
   );
   // W.10 — BOTH dials, because these figures are grown at the return assumption and then
   // deflated by the inflation assumption. They render one scroll below the FI card that W.2

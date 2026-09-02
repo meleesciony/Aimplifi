@@ -21,6 +21,7 @@ import { recurringPanelSentences } from '@/lib/engine/recurring/panel';
 import { RecurringChargesPanel } from '@/components/finance/recurring-charges-panel';
 import {
   NotABillButton,
+  PaidThisCycleButton,
   RecurringInstructions,
 } from '@/components/finance/recurring-verdict-controls';
 
@@ -158,6 +159,18 @@ function Row({
           {/* THE LEVER, on the row where a false detection is actually visible
               (O.13f). Three haircuts a quarter apart read as a bill here and
               nowhere else, so this is where the reader gets to say otherwise. */}
+          {!item.isIncome && item.active ? (
+            item.paidThisCycle ? (
+              <div
+                className="text-[11px] text-muted-foreground"
+                data-testid="recurring-paid-this-cycle-status"
+              >
+                Paid this cycle
+              </div>
+            ) : (
+              <PaidThisCycleButton merchantCanonical={item.merchantCanonical} />
+            )
+          ) : null}
           <NotABillButton merchantCanonical={item.merchantCanonical} />
         </div>
       </div>

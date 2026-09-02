@@ -29,6 +29,7 @@ import {
   VERDICT_NO_PAYEE,
   VERDICT_UNKNOWN_ROW,
   isDeclarableCadence,
+  overrideKey,
 } from '@/lib/engine/recurring/override';
 import {
   OVERRIDE_BAD_CADENCE,
@@ -39,7 +40,9 @@ import {
   seriesKeyForRow,
   setRecurringOverride,
 } from '@/server/recurring-overrides';
-import { refreshRecurringForUser } from '@/server/recurring';
+import { refreshRecurringForUser, getRecurring } from '@/server/recurring';
+import { setRecurringPaidThrough } from '@/server/recurring-paid-through';
+import { paidThisCycleRefusal } from '@/lib/engine/recurring/paid-through';
 
 // NOTE: a `'use server'` file may export nothing but async functions — the two
 // refusal sentences this file returns therefore live in the engine leaf beside the
@@ -176,3 +179,38 @@ export async function clearRecurringVerdict(input: {
   revalidateProjections();
   return { ok: true, projectionsRefreshed };
 }
+
+/**
+ * Record that the currently projected occurrence of a repeating bill paid.
+ * Advances the next date. Does not write a transaction or move a balance.
+ * Demo cannot learn. Refresh is part of the write, same as a bill verdict.
+ */
+export async function recordRepeatingBillPaidThisCycle(input: {
+  merchantCanonical: string;
+}): Promise<RecurringVerdictResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: OVERRIDE_DEMO_BLOCKED };
+  const canonical = String(input.merchantCanonical ?? '').trim();
+  if (!canonical) return { ok: false, error: OVERRIDE_BAD_MERCHANT };
+
+  const data = await getRecurring(userId);
+  const item =
+    data.summary.items.find((s) => overrideKey(s.merchantCanonical) === overrideKey(canonical)) ??
+    null;
+  if (!item) {
+    return { ok: false, error: paidThisCycleRefusal(null)! };
+  }
+  const refusal = paidThisCycleRefusal(item);
+  if (refusal) return { ok: false, error: refusal };
+
+  const saved = await setRecurringPaidThrough(userId, item.merchantCanonical, item.nextExpectedAt);
+  if (!saved.ok) return { ok: false, error: saved.error };
+  await auditLog(userId, 'recurring.paidThisCycle', {
+    merchantCanonical: item.merchantCanonical,
+    paidThrough: item.nextExpectedAt,
+  });
+  const projectionsRefreshed = await refreshProjections(userId);
+  revalidateProjections();
+  return { ok: true, projectionsRefreshed };
+}
+

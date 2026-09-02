@@ -18,6 +18,11 @@ import {
   buildOverrideMap,
   overrideKey,
 } from '@/lib/engine/recurring/override';
+import {
+  type RecurringPaidThroughInput,
+  NO_RECURRING_PAID_THROUGH,
+  buildPaidThroughMap,
+} from '@/lib/engine/recurring/paid-through';
 
 export interface RecurringTxn {
   id: string;
@@ -89,6 +94,12 @@ export interface RecurringSeriesResult {
    * constructor state which kind it is building.
    */
   declaredByUser: boolean;
+  /**
+   * TRUE when `nextExpectedAt` was advanced because the household marked this
+   * cycle paid, not because a charge landed. Surfaces must not say the app
+   * observed a payment it never saw.
+   */
+  paidThisCycle?: boolean;
 }
 
 
@@ -173,6 +184,23 @@ export function nextDate(last: ISODate, cadence: Cadence): ISODate {
     default:
       return addMonthsClamped(last, 1);
   }
+}
+
+/**
+ * Advance a projected next date until it is AFTER a household mark that this
+ * cycle paid. IRREGULAR has no rhythm. Capped so a garbage date cannot hang.
+ */
+function nextExpectedAfterPaidThrough(
+  nextExpectedAt: ISODate,
+  cadence: Cadence,
+  paidThrough: ISODate | null,
+): ISODate {
+  if (!paidThrough || cadence === 'IRREGULAR') return nextExpectedAt;
+  let n = nextExpectedAt;
+  for (let i = 0; i < 36 && compareDates(n, paidThrough) <= 0; i++) {
+    n = nextDate(n, cadence);
+  }
+  return n;
 }
 
 /**
@@ -290,6 +318,7 @@ function buildSeries(args: {
     possiblyUnused: isSubscription && categoryId === 'fitness',
     accountId: last.accountId,
     declaredByUser: args.declaredByUser,
+    paidThisCycle: false,
   };
 }
 
@@ -405,6 +434,7 @@ export function detectRecurring(
   transactions: readonly RecurringTxn[],
   today: ISODate,
   overrides: readonly RecurringOverrideInput[],
+  paidThrough: readonly RecurringPaidThroughInput[] = NO_RECURRING_PAID_THROUGH,
 ): RecurringSeriesResult[] {
   const byMerchant = new Map<string, MerchantGroup>();
   for (const t of transactions) {
@@ -444,7 +474,18 @@ export function detectRecurring(
     }
   }
 
-  return results.sort((a, b) => a.merchantCanonical.localeCompare(b.merchantCanonical));
+  const paidMap = buildPaidThroughMap(paidThrough);
+  return results
+    .map((s) => {
+      const paid = paidMap.get(overrideKey(s.merchantCanonical)) ?? null;
+      const advanced = nextExpectedAfterPaidThrough(s.nextExpectedAt, s.cadence, paid);
+      return {
+        ...s,
+        nextExpectedAt: advanced,
+        paidThisCycle: advanced !== s.nextExpectedAt,
+      };
+    })
+    .sort((a, b) => a.merchantCanonical.localeCompare(b.merchantCanonical));
 }
 
 /** The cadences a detected series is projected under. IRREGULAR never reaches
