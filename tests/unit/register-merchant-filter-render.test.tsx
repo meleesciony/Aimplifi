@@ -429,3 +429,15 @@ describe('Needs a category chip is a real link (DECISIONS #532)', () => {
     cleanup();
   });
 });
+
+describe('Activity period names calendar years (DECISIONS #566)', () => {
+  it('test_regression__activity_period_lists_calendar_years', () => {
+    renderBar({}, 0, null);
+    const period = screen.getByTestId('txn-filter-period') as HTMLSelectElement;
+    const labels = Array.from(period.options).map((o) => o.textContent);
+    expect(labels).toContain('Last year');
+    expect(labels).toContain('2024');
+    expect(labels).toContain('2026');
+    expect(labels).not.toContain('2025');
+  });
+});

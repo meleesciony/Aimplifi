@@ -12,6 +12,9 @@ import { formatISODate, isoDate } from '@/lib/dates';
 import {
   PERIOD_PRESETS,
   PERIOD_PRESET_LABELS,
+  calendarYearWindow,
+  calendarYearsForPicker,
+  matchCalendarYear,
   matchPeriodPreset,
   presetWindow,
   type PeriodPreset,
@@ -272,24 +275,40 @@ export function TransactionFilters({
             server's business date, so a preset and the totals agree on
             "today". */}
         {(() => {
-          const active = matchPeriodPreset(current.from, current.to, isoDate(today));
+          const todayIso = isoDate(today);
+          const active = matchPeriodPreset(current.from, current.to, todayIso);
+          const namedYear = active === 'custom' ? matchCalendarYear(current.from, current.to) : null;
+          const value =
+            active !== 'custom' ? active : namedYear != null ? `year:${namedYear}` : 'custom';
+          const years = calendarYearsForPicker(todayIso, oldestDate ?? null);
           return (
             <select
               aria-label="Period"
-              value={active}
+              value={value}
               onChange={(e) => {
-                const preset = e.target.value as PeriodPreset | 'custom';
-                if (preset === 'custom') return; // names the state, sets nothing
-                const w = presetWindow(preset, isoDate(today));
+                const picked = e.target.value;
+                if (picked === 'custom') return;
+                if (picked.startsWith('year:')) {
+                  const year = Number(picked.slice(5));
+                  const w = calendarYearWindow(year);
+                  commit({ from: w.from ?? '', to: w.to ?? '' });
+                  return;
+                }
+                const w = presetWindow(picked as PeriodPreset, todayIso);
                 commit({ from: w.from ?? '', to: w.to ?? '' });
               }}
               data-testid="txn-filter-period"
               className={selectClass}
             >
-              {active === 'custom' && <option value="custom">Custom</option>}
+              {value === 'custom' && <option value="custom">Custom</option>}
               {PERIOD_PRESETS.map((p) => (
                 <option key={p} value={p}>
                   {PERIOD_PRESET_LABELS[p]}
+                </option>
+              ))}
+              {years.map((y) => (
+                <option key={y} value={`year:${y}`}>
+                  {y}
                 </option>
               ))}
             </select>

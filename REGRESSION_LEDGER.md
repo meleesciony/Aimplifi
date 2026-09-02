@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-01 | Could not pick calendar 2024 or full 2026 of expenses | Period named Last year and YTD only | a full-year expense view is a named Jan–Dec on Activity | `test_regression__activity_period_names_calendar_years_2024_2025_2026` |
 | 2026-09-01 | Failed CSV date error omitted two-digit years | error string lagged parser #562 | classify-any-source: the error must name the dates we accept | `test_regression__csv_unrecognized_date_error_names_two_digit_year` |
 | 2026-09-01 | Inbox claimed it was the Needs a category queue | copy lagged the Activity move | one work queue: unclassified rows on Activity; Inbox is merchant-group review | `test_regression__inbox_copy_is_merchant_groups_not_needs_a_category` |
 | 2026-09-01 | Paste helper omitted Run Date and two-digit years | copy lagged parser #561/#562 | classify-any-source: the helper names the headers and dates we accept | `test_regression__csv_paste_helper_names_run_date_and_two_digit_years` |

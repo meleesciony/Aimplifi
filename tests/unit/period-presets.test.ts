@@ -9,6 +9,9 @@ import { describe, expect, it } from 'vitest';
 import { isoDate } from '@/lib/dates';
 import {
   PERIOD_PRESETS,
+  calendarYearWindow,
+  calendarYearsForPicker,
+  matchCalendarYear,
   matchPeriodPreset,
   presetWindow,
 } from '@/lib/engine/transactions/presets';
@@ -118,5 +121,18 @@ describe('matchPeriodPreset — the dropdown always names the actual window', ()
 
   it('reads all-time when neither bound is set', () => {
     expect(matchPeriodPreset('', '', TODAY)).toBe('all-time');
+  });
+});
+
+describe('calendar year windows (DECISIONS #566)', () => {
+  it('test_regression__activity_period_names_calendar_years_2024_2025_2026', () => {
+    expect(calendarYearWindow(2024)).toEqual({ from: '2024-01-01', to: '2024-12-31' });
+    expect(calendarYearWindow(2025)).toEqual({ from: '2025-01-01', to: '2025-12-31' });
+    expect(calendarYearWindow(2026)).toEqual({ from: '2026-01-01', to: '2026-12-31' });
+    expect(matchCalendarYear('2024-01-01', '2024-12-31')).toBe(2024);
+    expect(matchCalendarYear('2026-01-01', '2026-08-04')).toBeNull();
+    expect(matchPeriodPreset('2025-01-01', '2025-12-31', TODAY)).toBe('last-year');
+    expect(calendarYearsForPicker(TODAY, '2024-03-01')).toEqual([2024, 2026]);
+    expect(calendarYearsForPicker(isoDate('2026-09-01'), null)).toEqual([2024, 2026]);
   });
 });

@@ -2027,3 +2027,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__csv_unrecognized_date_error_names_two_digit_year`.
 
+## #566 — Activity period names calendar years (2026-09-01)
+
+**Context.** A household asked how to see a full year of expenses for 2024, 2025, and 2026. Activity already had Last year (the completed calendar year), Year to date (Jan 1 through today), and From/To dates. It did not name 2024 or a full Jan–Dec 2026. Reports trailing Last 12 months is rolling, not a calendar year. Spending plan is this month's plan.
+
+**Decision.** Activity Period lists named calendar years (full Jan 1–Dec 31) in addition to Last year. Last year still names the completed year. The current year option is the full civil year, not YTD. Type Expense plus the Out total is the year of expenses. From/To custom dates stay. Reports and Spending plan unchanged.
+
+**Locked.** `test_regression__activity_period_names_calendar_years_2024_2025_2026` + `test_regression__activity_period_lists_calendar_years`.
+

@@ -559,3 +559,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #563 — CSV paste helper names Run Date and two-digit years (2026-09-01) → docs/DECISIONS.md
 - #564 — Inbox copy is merchant-group review, not Needs a category (2026-09-01) → docs/DECISIONS.md
 - #565 — Unrecognized CSV date error names two-digit years (2026-09-01) → docs/DECISIONS.md
+- #566 — Activity period names calendar years (2026-09-01) → docs/DECISIONS.md

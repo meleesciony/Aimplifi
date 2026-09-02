@@ -120,3 +120,41 @@ export function matchPeriodPreset(
   }
   return 'custom';
 }
+
+/**
+ * Inclusive Jan 1–Dec 31 of one civil year. Calendar date via isoDate; no
+ * timezone math. 2024 is a leap year; Dec 31 is valid either way.
+ */
+export function calendarYearWindow(year: number): PeriodWindow {
+  const y = String(year).padStart(4, '0');
+  return { from: isoDate(`${y}-01-01`), to: isoDate(`${y}-12-31`) };
+}
+
+/** Full calendar year the from/to pair IS, or null. */
+export function matchCalendarYear(from: string, to: string): number | null {
+  if (!from || !to) return null;
+  const year = Number(from.slice(0, 4));
+  if (!Number.isInteger(year) || year < 1000 || year > 9999) return null;
+  const w = calendarYearWindow(year);
+  if ((w.from ?? '') === from && (w.to ?? '') === to) return year;
+  return null;
+}
+
+/**
+ * Named calendar years on the Activity period picker, besides Last year.
+ * Last year already names the completed calendar year. This list is the
+ * current year (full Jan–Dec, not YTD) and earlier years back through the
+ * older of (oldest row, two years ago).
+ */
+export function calendarYearsForPicker(today: ISODate, oldestDate: string | null): number[] {
+  const thisYear = Number(today.slice(0, 4));
+  const lastCompleted = thisYear - 1;
+  const oldestYear = oldestDate && /^\d{4}/.test(oldestDate) ? Number(oldestDate.slice(0, 4)) : thisYear - 2;
+  const start = Math.min(Number.isFinite(oldestYear) ? oldestYear : thisYear - 2, thisYear - 2);
+  const years: number[] = [];
+  for (let y = start; y <= thisYear; y++) {
+    if (y === lastCompleted) continue;
+    years.push(y);
+  }
+  return years;
+}
