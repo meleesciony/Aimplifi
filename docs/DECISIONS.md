@@ -1882,3 +1882,11 @@ invent an auto-file quality claim.
 **Decision.** No connected account: name + checking/savings/credit on the import form. Import creates that manual spending account at $0 and files the rows there (history, not a balance claim). Unknown `accountId` still 404s. Guides intro is "any bank" when none are connected. Generic export step names Debit plus Credit and Net Amount.
 
 **Locked.** `test_regression__csv_first_run_names_a_spending_account`, `test_regression__csv_guides_intro_is_any_bank_when_none_connected`, `test_regression__csv_import_creates_checking_when_none_exist`.
+
+## #548 — File transactions goes to Needs a category, not Inbox (2026-09-01)
+
+**Context.** #543/#545 moved Home/Reports/Spending Uncategorized to Activity. Spending plan still said File transactions → Inbox. Rules said Inbox "groups what still needs a category." Inbox is needsReview merchant groups.
+
+**Decision.** Copy and href only. Spending plan File transactions opens `/transactions?unclassified=1`. Rules: Needs a category lists uncategorized rows; Inbox is merchants the auto-file was unsure about. Do not delete Inbox.
+
+**Locked.** `test_regression__file_transactions_opens_needs_a_category_not_inbox`.

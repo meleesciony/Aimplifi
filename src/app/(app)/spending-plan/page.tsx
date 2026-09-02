@@ -7,6 +7,7 @@ import { PlanRowActionLink } from '@/components/finance/plan-row-action-link';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { traceSafeToSpend } from '@/lib/engine/glass-box/trace';
 import { REVIEW_FIXED_HREF } from '@/lib/engine/spending-plan/fixed-review';
+import { HOME_NEEDS_FILE_HREF } from '@/lib/copy/home-needs-file-copy';
 import { monthKey } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
 import { cents } from '@/lib/money';
@@ -474,7 +475,7 @@ export default async function SpendingPlanPage() {
         <h2 className="mb-2 text-sm font-semibold">Using Aimplifi</h2>
         <ol className="list-decimal space-y-1.5 pl-4 text-xs text-muted-foreground">
           <li>
-            <Link href="/triage" className="underline underline-offset-2 hover:text-foreground">
+            <Link href={HOME_NEEDS_FILE_HREF} className="underline underline-offset-2 hover:text-foreground">
               File transactions
             </Link>{' '}
             so income, transfers, and bills land in the right buckets.

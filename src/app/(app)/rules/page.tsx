@@ -21,6 +21,7 @@ import { getCategoryMeta } from '@/server/category-meta';
 import { getRuleSourceTransaction, listKeywordRules } from '@/server/keyword-rules';
 import { listRuleInventory } from '@/server/rule-inventory';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
+import { HOME_NEEDS_FILE_HREF } from '@/lib/copy/home-needs-file-copy';
 
 export const metadata = { title: 'Rules' };
 
@@ -206,11 +207,15 @@ export default async function RulesPage({
         <Link href="/transactions" className="underline underline-offset-2 hover:text-foreground">
           The transaction list
         </Link>{' '}
-        still lets you file one row at a time, and{' '}
-        <Link href="/triage" className="underline underline-offset-2 hover:text-foreground">
-          the inbox
+        still lets you file one row at a time.{' '}
+        <Link href={HOME_NEEDS_FILE_HREF} className="underline underline-offset-2 hover:text-foreground">
+          Needs a category
         </Link>{' '}
-        groups what still needs a category.
+        lists rows with no category.{' '}
+        <Link href="/triage" className="underline underline-offset-2 hover:text-foreground">
+          Inbox
+        </Link>{' '}
+        groups merchants the auto-file was unsure about.
       </p>
     </div>
   );
