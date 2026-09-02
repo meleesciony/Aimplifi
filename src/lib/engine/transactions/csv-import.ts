@@ -14,7 +14,7 @@
  *      category     ← category   (OPTIONAL; slug, display name, or Simplifi alias)
  *  - Amount is SIGNED in Pulse convention: NEGATIVE = money out, POSITIVE = in
  *    (matches Mint/most US bank exports). "$" and thousands commas are stripped.
- *  - Dates accepted as YYYY-MM-DD or US MM/DD/YYYY.
+ *  - Dates accepted as YYYY-MM-DD or US MM/DD/YYYY; a trailing time is dropped (calendar date only).
  *  - Category may be a slug ("dining"), a display name ("Dining Out"), or a
  *    Simplifi alias ("Restaurants" → dining). Unknown or blank → auto-categorized.
  *    On a duplicate of an existing row, the file category is applied to that row.
@@ -85,11 +85,13 @@ export function parseCsvLine(line: string): string[] {
   return fields.map((f) => f.trim());
 }
 
-/** YYYY-MM-DD or US MM/DD/YYYY → ISODate. Throws on anything else. */
+/** YYYY-MM-DD or US MM/DD/YYYY → ISODate. A trailing time is dropped. Throws on anything else. */
 export function normalizeImportDate(raw: string): ISODate {
   const s = raw.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return isoDate(s);
-  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  const clock = '(?:[ T]\\d{1,2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?(?:Z|[+-]\\d{2}:?\\d{2})?(?:\\s*[AaPp][Mm])?)?';
+  const iso = new RegExp(`^(\\d{4}-\\d{2}-\\d{2})${clock}$`).exec(s);
+  if (iso) return isoDate(iso[1]);
+  const us = new RegExp(`^(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})${clock}$`).exec(s);
   if (us) {
     const [, m, d, y] = us;
     return isoDate(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);

@@ -38,6 +38,13 @@ describe('normalizeImportDate', () => {
     expect(() => normalizeImportDate('09-06-2026')).toThrow();
     expect(() => normalizeImportDate('June 9')).toThrow();
   });
+  it('test_regression__csv_date_drops_excel_and_sheets_trailing_time', () => {
+    expect(normalizeImportDate('2026-06-09 00:00:00')).toBe('2026-06-09');
+    expect(normalizeImportDate('2026-06-09T12:34:56')).toBe('2026-06-09');
+    expect(normalizeImportDate('2026-06-09T12:34:56.000Z')).toBe('2026-06-09');
+    expect(normalizeImportDate('6/9/2026 12:00:00 AM')).toBe('2026-06-09');
+    expect(normalizeImportDate('12/31/2025 23:59:59')).toBe('2025-12-31');
+  });
 });
 
 describe('parseTransactionCsv', () => {
@@ -175,6 +182,19 @@ describe('parseTransactionCsv', () => {
     const dotted = parseTransactionCsv('Trans. Date,Payee,Amount\n2026-09-01,Rent,-100.00');
     expect(dotted.errors).toEqual([]);
     expect(dotted.rows[0]).toMatchObject({ date: '2026-09-01', description: 'Rent', amountCents: -10000 });
+  });
+
+
+  it('test_regression__csv_file_accepts_excel_datetime_cells', () => {
+    const csv = [
+      'Date,Payee,Amount',
+      '2026-06-09 00:00:00,Coffee,-4.50',
+      '6/10/2026 12:00:00 AM,Payroll,2500.00',
+    ].join('\n');
+    const { rows, errors } = parseTransactionCsv(csv);
+    expect(errors).toEqual([]);
+    expect(rows[0]).toMatchObject({ date: '2026-06-09', description: 'Coffee', amountCents: -450 });
+    expect(rows[1]).toMatchObject({ date: '2026-06-10', amountCents: 250000 });
   });
 
   it('treats a fully blank file as an error', () => {

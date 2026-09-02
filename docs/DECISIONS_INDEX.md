@@ -551,3 +551,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #555 — CSV paste helper and bank guides name Post Date and Withdrawal/Deposit (2026-09-01) → docs/DECISIONS.md
 - #556 — Sign-in and first-run empty name CSV, not bank-only (2026-09-01) → docs/DECISIONS.md
 - #557 — CSV import accepts Merchant, Amount (USD), and Trans. Date (2026-09-01) → docs/DECISIONS.md
+- #558 — CSV import drops a trailing time from Excel and Sheets dates (2026-09-01) → docs/DECISIONS.md

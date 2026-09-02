@@ -1963,3 +1963,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__csv_accepts_merchant_amount_usd_and_trans_dot_date`.
 
+## #558 — CSV import drops a trailing time from Excel and Sheets dates (2026-09-01)
+
+**Context.** Excel and Google Sheets often export Date as `2026-09-01 00:00:00` or `9/1/2026 12:00:00 AM`. The parser required a bare calendar date, so every row failed unrecognized date even when Amount and Payee were valid.
+
+**Decision.** `normalizeImportDate` keeps the calendar date and drops an optional trailing time (space or T, seconds, fractional seconds, Z/offset, AM/PM). Still a calendar date via `isoDate` — no timezone math, no `Date`. Hyphenated US MM-DD-YYYY unchanged (still rejected).
+
+**Locked.** `test_regression__csv_date_drops_excel_and_sheets_trailing_time`, `test_regression__csv_file_accepts_excel_datetime_cells`.
+
