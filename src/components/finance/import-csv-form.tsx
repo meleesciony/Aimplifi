@@ -6,7 +6,7 @@
  * inline without leaving the page.
  */
 import Link from 'next/link';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,69 +17,87 @@ import { CSV_IMPORT_CATEGORY_HELP, CSV_IMPORT_COLUMNS_HELP, CSV_IMPORT_NEW_ACCOU
 const fieldClass =
   'w-full rounded-md border border-input bg-background px-3 text-sm text-foreground';
 
+function NewAccountFields({ firstRun }: { firstRun: boolean }) {
+  return (
+    <div className="space-y-3" data-testid="import-new-account">
+      <label className="block space-y-1">
+        <span className="text-sm font-medium">Account name</span>
+        <input
+          name="newAccountName"
+          required
+          defaultValue={firstRun ? 'Checking' : undefined}
+          maxLength={60}
+          data-testid="import-new-account-name"
+          className={`h-9 ${fieldClass}`}
+        />
+      </label>
+      <label className="block space-y-1">
+        <span className="text-sm font-medium">Account type</span>
+        <select
+          name="newAccountType"
+          defaultValue="CHECKING"
+          data-testid="import-new-account-type"
+          className={`h-9 ${fieldClass}`}
+        >
+          <option value="CHECKING">Checking</option>
+          <option value="SAVINGS">Savings</option>
+          <option value="CREDIT">Credit card</option>
+        </select>
+      </label>
+      <label className="block space-y-1">
+        <span className="text-sm font-medium">Current balance</span>
+        <input
+          name="newAccountBalance"
+          inputMode="decimal"
+          placeholder="0.00"
+          data-testid="import-new-account-balance"
+          className={`h-9 ${fieldClass}`}
+        />
+      </label>
+      <p className="text-xs text-muted-foreground">{CSV_IMPORT_NEW_ACCOUNT_BALANCE_HELP}</p>
+      <p className="text-xs text-muted-foreground">
+        {firstRun
+          ? 'No account yet. Import creates this one and files the rows there. No bank connection required.'
+          : 'Import creates this account and files the rows there.'}
+      </p>
+    </div>
+  );
+}
+
 export function ImportCsvForm({ accounts }: { accounts: { id: string; name: string }[] }) {
   const [result, action, pending] = useActionState<ImportResult | null, FormData>(
     importTransactionsCsv,
     null,
   );
+  const [into, setInto] = useState(accounts[0]?.id ?? '');
 
   return (
     <Card>
       <CardContent className="pt-5">
         <form action={action} className="space-y-4" data-testid="import-csv-form">
           {accounts.length === 0 ? (
-            <div className="space-y-3" data-testid="import-new-account">
+            <NewAccountFields firstRun />
+          ) : (
+            <div className="space-y-3">
               <label className="block space-y-1">
-                <span className="text-sm font-medium">Account name</span>
-                <input
-                  name="newAccountName"
-                  required
-                  defaultValue="Checking"
-                  maxLength={60}
-                  data-testid="import-new-account-name"
-                  className={`h-9 ${fieldClass}`}
-                />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-sm font-medium">Account type</span>
+                <span className="text-sm font-medium">Into account</span>
                 <select
-                  name="newAccountType"
-                  defaultValue="CHECKING"
-                  data-testid="import-new-account-type"
+                  name="accountId"
+                  value={into}
+                  onChange={(e) => setInto(e.target.value)}
+                  data-testid="import-account"
                   className={`h-9 ${fieldClass}`}
                 >
-                  <option value="CHECKING">Checking</option>
-                  <option value="SAVINGS">Savings</option>
-                  <option value="CREDIT">Credit card</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                  <option value="">New account</option>
                 </select>
               </label>
-              <label className="block space-y-1">
-                <span className="text-sm font-medium">Current balance</span>
-                <input
-                  name="newAccountBalance"
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  data-testid="import-new-account-balance"
-                  className={`h-9 ${fieldClass}`}
-                />
-              </label>
-              <p className="text-xs text-muted-foreground">{CSV_IMPORT_NEW_ACCOUNT_BALANCE_HELP}</p>
-              <p className="text-xs text-muted-foreground">
-                No account yet. Import creates this one and files the rows there. No
-                bank connection required.
-              </p>
+              {into === '' ? <NewAccountFields firstRun={false} /> : null}
             </div>
-          ) : (
-            <label className="block space-y-1">
-              <span className="text-sm font-medium">Into account</span>
-              <select name="accountId" required data-testid="import-account" className={`h-9 ${fieldClass}`}>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </label>
           )}
 
           <label className="block space-y-1">

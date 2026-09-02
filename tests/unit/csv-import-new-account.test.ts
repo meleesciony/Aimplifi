@@ -59,6 +59,7 @@ describe('CSV guides do not pretend we saw a bank (DECISIONS #547)', () => {
     expect(form).toContain('newAccountType');
     expect(form).toContain('newAccountBalance');
     expect(form).toContain('CSV_IMPORT_NEW_ACCOUNT_BALANCE_HELP');
+    expect(form).toContain('New account');
 
     const guides = readFileSync(resolve('src/components/finance/csv-import-guides.tsx'), 'utf8');
     expect(guides).toContain('csvImportGuidesIntro');
@@ -130,6 +131,36 @@ describe('importTransactionsCsv first-run creates the account (DECISIONS #547)',
     expect(r.ok).toBe(false);
     expect(r.imported).toBe(0);
     expect(r.errors[0]).toMatch(/Account not found/);
+  });
+
+  it('test_regression__csv_import_creates_a_second_account', async () => {
+    await prisma.transaction.deleteMany({ where: { account: { userId: USER } } });
+    await prisma.account.deleteMany({ where: { userId: USER } });
+    await prisma.account.create({
+      data: {
+        userId: USER,
+        provider: 'manual',
+        name: 'Everyday checking',
+        type: 'CHECKING',
+        currentBalanceCents: 0,
+        currency: 'USD',
+      },
+    });
+    const fd = new FormData();
+    fd.set('newAccountName', 'Visa');
+    fd.set('newAccountType', 'CREDIT');
+    fd.set('newAccountBalance', '250.00');
+    fd.set('csv', ONE_ROW);
+    const r = await importTransactionsCsv(null, fd);
+    expect(r.ok).toBe(true);
+    expect(r.imported).toBe(1);
+    const accts = await prisma.account.findMany({ where: { userId: USER }, orderBy: { name: 'asc' } });
+    expect(accts).toHaveLength(2);
+    const visa = accts.find((a) => a.name === 'Visa');
+    expect(visa).toMatchObject({ type: 'CREDIT', currentBalanceCents: 25000, provider: 'manual' });
+    const txns = await prisma.transaction.findMany({ where: { accountId: visa!.id } });
+    expect(txns).toHaveLength(1);
+    expect(txns[0].amountCents).toBe(-450);
   });
 });
 

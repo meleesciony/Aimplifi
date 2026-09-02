@@ -2050,3 +2050,11 @@ invent an auto-file quality claim.
 **Decision.** First-run import accepts an optional current-balance field. Integer cents via `parseDollarInput`. Blank stays 0. Never sum the CSV into `currentBalanceCents`. Negative and malformed amounts fail the import.
 
 **Locked.** `test_regression__csv_first_run_records_typed_balance_not_csv_sum` + `test_regression__csv_import_stores_typed_balance_not_file_sum`.
+
+## #569 — CSV import can create another account (2026-09-01)
+
+**Context.** First-run CSV can create a spending account with a typed balance. Once any account exists, Import only listed those accounts. A credit-card CSV had to be filed into checking.
+
+**Decision.** The existing Into account picker includes New account. That path is the same name, type, and current-balance fields as first-run. Empty `accountId` still creates (the server already did). Filing into an existing account is unchanged.
+
+**Locked.** `test_regression__csv_import_creates_a_second_account`.
