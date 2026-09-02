@@ -6,6 +6,7 @@
  * src/lib/engine/transactions/csv-export-guide.ts (web-verified, unit-tested).
  */
 import { GENERIC_CSV_GUIDE, csvExportGuideFor, type CsvExportGuide } from '@/lib/engine/transactions/csv-export-guide';
+import { csvImportGuidesIntro } from '@/lib/copy/csv-import-copy';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export function CsvImportGuides({ institutions }: { institutions: string[] }) {
@@ -25,9 +26,8 @@ export function CsvImportGuides({ institutions }: { institutions: string[] }) {
   return (
     <div className="space-y-3">
       <h2 className="text-sm font-semibold">How to export from your bank</h2>
-      <p className="text-xs text-muted-foreground">
-        These routes are the banks we see on your accounts. Banks that only offer PDF
-        statements can&apos;t backfill via CSV — the synced feed is their history.
+      <p className="text-xs text-muted-foreground" data-testid="csv-import-guides-intro">
+        {csvImportGuidesIntro(institutions.length)}
       </p>
       {cards.map((g) => (
         <Card key={g.institution}>

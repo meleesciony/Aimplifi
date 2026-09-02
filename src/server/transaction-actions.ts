@@ -11,6 +11,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma, serializableTx } from '@/lib/db';
 import { type PreparedTxn, prepareManualTransaction } from '@/lib/engine/transactions/manual';
 import {
+  parseCsvImportNewAccount,
   parseTransactionCsv,
   planCsvCategoryApply,
   planCsvDedupe,
@@ -205,6 +206,7 @@ export async function createManualTransaction(
   await refreshRecurringBestEffort(userId);
 
   revalidatePath('/transactions');
+  revalidatePath('/transactions/import');
   revalidatePath('/triage');
   // Return success; the client navigates to /transactions (a full navigation, so
   // the register can't show stale state) — NOT a server redirect, so the form
@@ -253,10 +255,39 @@ export async function importTransactionsCsv(
     return { ok: false, imported: 0, duplicates: 0, recategorized: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: [DEMO_ENTRY_BLOCKED] };
   }
 
-  const accountId = String(formData.get('accountId') ?? '');
-  const account = await prisma.account.findFirst({ where: { id: accountId, userId } });
+  let accountId = String(formData.get('accountId') ?? '').trim();
+  let account = accountId
+    ? await prisma.account.findFirst({ where: { id: accountId, userId } })
+    : null;
   if (!account) {
-    return { ok: false, imported: 0, duplicates: 0, recategorized: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: ['Account not found'] };
+    if (accountId) {
+      return { ok: false, imported: 0, duplicates: 0, recategorized: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: ['Account not found'] };
+    }
+    const parsed = parseCsvImportNewAccount(
+      String(formData.get('newAccountName') ?? ''),
+      String(formData.get('newAccountType') ?? ''),
+    );
+    if (!parsed.ok) {
+      return { ok: false, imported: 0, duplicates: 0, recategorized: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: [parsed.error] };
+    }
+    account = await prisma.account.create({
+      data: {
+        userId,
+        provider: 'manual',
+        name: parsed.name,
+        type: parsed.type,
+        currentBalanceCents: 0,
+        currency: 'USD',
+        mask: null,
+      },
+    });
+    accountId = account.id;
+    await auditLog(userId, 'account.manual.create', {
+      id: account.id,
+      type: parsed.type,
+      currentBalanceCents: 0,
+      via: 'csv-import',
+    });
   }
   // Critic P2-2 residual: the picker only offers register accounts, but crafted
   // FormData could name any account — fence the WRITE to the same basis

@@ -12,3 +12,9 @@ export const CSV_IMPORT_CATEGORY_HELP =
 export const CSV_IMPORT_COLUMNS_HELP =
   'Need date (or Trade Date), a payee, and money: amount or Net Amount, or Debit plus Credit. Optional category. Signed amount is negative for money out. Debit is money out. Dates as YYYY-MM-DD or MM/DD/YYYY.';
 
+export function csvImportGuidesIntro(connectedInstitutionCount: number): string {
+  if (connectedInstitutionCount === 0) {
+    return 'Paste a CSV from any bank. If a bank only offers PDF statements, CSV cannot backfill it.';
+  }
+  return "These routes are the banks we see on your accounts. Banks that only offer PDF statements can't backfill via CSV — the synced feed is their history.";
+}

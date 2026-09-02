@@ -27,16 +27,49 @@ export function ImportCsvForm({ accounts }: { accounts: { id: string; name: stri
     <Card>
       <CardContent className="pt-5">
         <form action={action} className="space-y-4" data-testid="import-csv-form">
-          <label className="block space-y-1">
-            <span className="text-sm font-medium">Into account</span>
-            <select name="accountId" required data-testid="import-account" className={`h-9 ${fieldClass}`}>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          {accounts.length === 0 ? (
+            <div className="space-y-3" data-testid="import-new-account">
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Account name</span>
+                <input
+                  name="newAccountName"
+                  required
+                  defaultValue="Checking"
+                  maxLength={60}
+                  data-testid="import-new-account-name"
+                  className={`h-9 ${fieldClass}`}
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Account type</span>
+                <select
+                  name="newAccountType"
+                  defaultValue="CHECKING"
+                  data-testid="import-new-account-type"
+                  className={`h-9 ${fieldClass}`}
+                >
+                  <option value="CHECKING">Checking</option>
+                  <option value="SAVINGS">Savings</option>
+                  <option value="CREDIT">Credit card</option>
+                </select>
+              </label>
+              <p className="text-xs text-muted-foreground">
+                No account yet. Import creates this one and files the rows there. No
+                bank connection required.
+              </p>
+            </div>
+          ) : (
+            <label className="block space-y-1">
+              <span className="text-sm font-medium">Into account</span>
+              <select name="accountId" required data-testid="import-account" className={`h-9 ${fieldClass}`}>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <label className="block space-y-1">
             <span className="text-sm font-medium">Paste CSV</span>

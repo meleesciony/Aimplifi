@@ -1874,3 +1874,11 @@ invent an auto-file quality claim.
 **Decision.** Copy-only on the paste helper. Name Trade Date, Net Amount, and Debit plus Credit. Signed amount files stay valid. Placeholder example stays the signed three-column shape. Do not name Simplifi.
 
 **Locked.** `test_regression__csv_paste_helper_names_debit_credit_and_net_amount`.
+
+## #547 — First-run CSV import creates the spending account (2026-09-01)
+
+**Context.** Empty-home onboarding offers "Import a CSV from your bank" with no bank connection. `/transactions/import` rendered a required account `<select>` with zero options, so the form could not submit. The generic export guide still said columns must be date/description/amount after #544.
+
+**Decision.** No connected account: name + checking/savings/credit on the import form. Import creates that manual spending account at $0 and files the rows there (history, not a balance claim). Unknown `accountId` still 404s. Guides intro is "any bank" when none are connected. Generic export step names Debit plus Credit and Net Amount.
+
+**Locked.** `test_regression__csv_first_run_names_a_spending_account`, `test_regression__csv_guides_intro_is_any_bank_when_none_connected`, `test_regression__csv_import_creates_checking_when_none_exist`.

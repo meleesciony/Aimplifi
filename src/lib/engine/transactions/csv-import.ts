@@ -407,3 +407,25 @@ export function prepareImportedTransaction(
     spendClassStamp: result.spendClassStamp,
   };
 }
+
+/** Spending-account types a first-run CSV import may create. */
+export const CSV_IMPORT_NEW_ACCOUNT_TYPES = ['CHECKING', 'SAVINGS', 'CREDIT'] as const;
+export type CsvImportNewAccountType = (typeof CSV_IMPORT_NEW_ACCOUNT_TYPES)[number];
+
+/**
+ * First-run import: the onboarding CSV path has no account picker yet.
+ * Name + spending type only. Balance stays 0 — the file is history, not a
+ * statement of current cash (DECISIONS #24).
+ */
+export function parseCsvImportNewAccount(
+  name: string,
+  type: string,
+): { ok: true; name: string; type: CsvImportNewAccountType } | { ok: false; error: string } {
+  const n = name.trim();
+  if (!n) return { ok: false, error: 'Name the account these rows belong to.' };
+  if (n.length > 60) return { ok: false, error: 'Name must be 60 characters or fewer.' };
+  if (!(CSV_IMPORT_NEW_ACCOUNT_TYPES as readonly string[]).includes(type)) {
+    return { ok: false, error: 'Pick checking, savings, or credit.' };
+  }
+  return { ok: true, name: n, type: type as CsvImportNewAccountType };
+}
