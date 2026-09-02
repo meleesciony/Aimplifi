@@ -1955,3 +1955,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__sign_in_and_route_empty_offer_csv_not_bank_only`.
 
+## #557 — CSV import accepts Merchant, Amount (USD), and Trans. Date (2026-09-01)
+
+**Context.** Card and brokerage exports often use Merchant (not Payee), Amount (USD), and Trans. Date with a period. Exact header match failed those files even when the cells were valid signed amounts and ISO dates.
+
+**Decision.** Description aliases add merchant. Header match collapses punctuation to spaces so Trans. Date matches trans date. Amount match also uses the first token after that collapse so Amount (USD) is amount. Signed amount cells and Debit/Credit composition unchanged.
+
+**Locked.** `test_regression__csv_accepts_merchant_amount_usd_and_trans_dot_date`.
+

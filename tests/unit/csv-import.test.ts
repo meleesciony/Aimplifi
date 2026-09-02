@@ -163,6 +163,20 @@ describe('parseTransactionCsv', () => {
     expect(trans.rows[0]).toMatchObject({ date: '2026-06-01', description: 'Rent', amountCents: -10000 });
   });
 
+  it('test_regression__csv_accepts_merchant_amount_usd_and_trans_dot_date', () => {
+    const merchant = parseTransactionCsv('Date,Merchant,Amount\n2026-09-01,Coffee,-4.50');
+    expect(merchant.errors).toEqual([]);
+    expect(merchant.rows[0]).toMatchObject({ date: '2026-09-01', description: 'Coffee', amountCents: -450 });
+
+    const usd = parseTransactionCsv('Date,Description,Amount (USD)\n2026-09-01,Coffee,-4.50');
+    expect(usd.errors).toEqual([]);
+    expect(usd.rows[0]).toMatchObject({ description: 'Coffee', amountCents: -450 });
+
+    const dotted = parseTransactionCsv('Trans. Date,Payee,Amount\n2026-09-01,Rent,-100.00');
+    expect(dotted.errors).toEqual([]);
+    expect(dotted.rows[0]).toMatchObject({ date: '2026-09-01', description: 'Rent', amountCents: -10000 });
+  });
+
   it('treats a fully blank file as an error', () => {
     expect(parseTransactionCsv('\n\n  \n').errors[0].message).toMatch(/empty/i);
   });

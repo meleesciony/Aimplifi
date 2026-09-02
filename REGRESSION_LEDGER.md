@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-01 | Merchant / Amount (USD) / Trans. Date CSV failed as exported | exact header match; punctuation not collapsed | classify-any-source means the bank export as exported | `test_regression__csv_accepts_merchant_amount_usd_and_trans_dot_date` |
 | 2026-09-01 | Capital One / Vanguard CSV failed unless rewritten to amount | parser required a column named amount | classify-any-source means the bank export as exported | `test_regression__csv_any_source_accepts_debit_credit_and_net_amount` |
 | 2026-09-01 | Home said merchants need filing and sent the reader to Inbox | chip used getReviewCount (inbox groups) and /triage | Home work queue is Needs a category, same as Activity | `test_regression__home_needs_file_href_is_unclassified_not_inbox` |
 | 2026-09-01 | Activity still showed TST* / SQ * as the payee | stripPayeeNoise skipped processor prefixes that ingest already drops | payee cleanup is general, not one household | `test_regression__tst_and_sq_prefixes_are_not_the_payee` |

@@ -8,8 +8,8 @@
  * Contract (kept deliberately simple and unambiguous):
  *  - A header row is required. Recognized columns (case-insensitive, aliased):
  *      date         ← date | transaction date | posted date | post date | posting date | trade date | trans date
- *      description  ← description | payee | memo | name | transaction description
- *      amount       ← amount | net amount | transaction amount
+ *      description  ← description | payee | memo | name | merchant | transaction description
+ *      amount       ← amount | net amount | transaction amount | Amount (USD)
  *                    OR Debit+Credit / Outflow+Inflow / Withdrawal+Deposit (unsigned; debit/outflow/withdrawal = money out)
  *      category     ← category   (OPTIONAL; slug, display name, or Simplifi alias)
  *  - Amount is SIGNED in Pulse convention: NEGATIVE = money out, POSITIVE = in
@@ -27,7 +27,7 @@ import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
 import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 
-const DESCRIPTION_ALIASES = ['description', 'payee', 'memo', 'name', 'transaction description'];
+const DESCRIPTION_ALIASES = ['description', 'payee', 'memo', 'name', 'merchant', 'transaction description'];
 const DATE_ALIASES = ['date', 'transaction date', 'posted date', 'post date', 'posting date', 'trade date', 'trans date'];
 const AMOUNT_ALIASES = ['amount', 'net amount', 'transaction amount'];
 const DEBIT_ALIASES = ['debit', 'outflow', 'withdrawal', 'withdrawals'];
@@ -145,14 +145,15 @@ export function parseTransactionCsv(
   const header = parseCsvLine(rawLines[headerIdx]).map((h) => h.toLowerCase());
   const find = (aliases: string[], looseFirstToken = false) =>
     header.findIndex((h) => {
-      if (aliases.includes(h)) return true;
+      const norm = h.replace(/[^a-z0-9]+/g, ' ').trim();
+      if (aliases.includes(h) || aliases.includes(norm)) return true;
       if (!looseFirstToken) return false;
-      const first = h.replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/)[0] ?? '';
+      const first = norm.split(/\s+/)[0] ?? '';
       return aliases.includes(first);
     });
   const dateCol = find(DATE_ALIASES);
   const descCol = find(DESCRIPTION_ALIASES);
-  const amountCol = find(AMOUNT_ALIASES);
+  const amountCol = find(AMOUNT_ALIASES, true);
   const debitCol = find(DEBIT_ALIASES, true);
   const creditCol = find(CREDIT_ALIASES, true);
   const catCol = header.indexOf('category');
