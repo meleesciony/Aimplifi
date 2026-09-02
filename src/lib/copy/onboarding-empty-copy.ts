@@ -20,3 +20,5 @@ export const GET_STARTED_DESCRIPTION =
 export const SIGN_IN_DEMO_FOOTNOTE =
   'The demo uses a realistic seeded dataset — fictional accounts, no sign-up. Create an account to track your own money. Connect a bank or paste a CSV to get started.';
 
+/** Home Step 1. CSV is a first-run path; the label must not be bank-only. */
+export const ONBOARDING_STEP_1_LABEL = 'Connect a bank or paste a CSV';

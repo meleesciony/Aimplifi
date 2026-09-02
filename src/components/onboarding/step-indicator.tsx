@@ -18,8 +18,10 @@
  * routing: each surface already knows which step it is from data it already
  * has (accountCount, needsOnboarding()).
  */
+import { ONBOARDING_STEP_1_LABEL } from '@/lib/copy/onboarding-empty-copy';
+
 const STEP_LABELS = [
-  'Connect your bank',
+  ONBOARDING_STEP_1_LABEL,
   'See your Cash-Needed number',
   'Confirm your payment account',
 ] as const;

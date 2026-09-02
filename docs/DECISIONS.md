@@ -2101,3 +2101,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__csv_accepts_cr_dr_amount_suffixes`.
 
+
+## #575 — Home Step 1 names bank or CSV (2026-09-02)
+
+**Context.** Empty Home and other first-run pages already offer a bank connection or a CSV. Step 1 of 3 still said Connect your bank, so the guided sequence contradicted the page.
+
+**Decision.** Step 1 uses the same bank-or-CSV wording as the rest of first-run. Steps 2 and 3 unchanged. No new onboarding step.
+
+**Locked.** `test_regression__home_step_1_names_bank_or_csv_not_bank_only`.

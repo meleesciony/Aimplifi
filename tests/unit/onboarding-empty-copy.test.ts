@@ -10,6 +10,7 @@ import {
   CONNECT_ONBOARDING_HEADING,
   EMPTY_DASHBOARD_DESCRIPTION,
   GET_STARTED_DESCRIPTION,
+  ONBOARDING_STEP_1_LABEL,
   SIGN_IN_DEMO_FOOTNOTE,
 } from '@/lib/copy/onboarding-empty-copy';
 import { INBOX_EMPTY_DESCRIPTION, INBOX_EMPTY_FOOTNOTE } from '@/lib/copy/inbox-copy';
@@ -62,5 +63,16 @@ describe('Sign-in and first-run empty name CSV, not bank-only (DECISIONS #556)',
     expect(INBOX_EMPTY_DESCRIPTION).not.toMatch(/Once accounts are connected/);
     expect(INBOX_EMPTY_FOOTNOTE).toMatch(/paste a CSV/);
     expect(INBOX_EMPTY_FOOTNOTE).not.toMatch(/Connect once,/);
+  });
+});
+
+describe('Home Step 1 names bank or CSV (DECISIONS #575)', () => {
+  it('test_regression__home_step_1_names_bank_or_csv_not_bank_only', () => {
+    expect(ONBOARDING_STEP_1_LABEL).toMatch(/paste a CSV/i);
+    expect(ONBOARDING_STEP_1_LABEL).not.toMatch(/Connect your bank/);
+
+    const steps = readFileSync(resolve('src/components/onboarding/step-indicator.tsx'), 'utf8');
+    expect(steps).toContain('ONBOARDING_STEP_1_LABEL');
+    expect(steps).not.toMatch(/Connect your bank/);
   });
 });
