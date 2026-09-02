@@ -1890,3 +1890,11 @@ invent an auto-file quality claim.
 **Decision.** Copy and href only. Spending plan File transactions opens `/transactions?unclassified=1`. Rules: Needs a category lists uncategorized rows; Inbox is merchants the auto-file was unsure about. Do not delete Inbox.
 
 **Locked.** `test_regression__file_transactions_opens_needs_a_category_not_inbox`.
+
+## #549 — Empty Home offers bank or CSV, not a 30-second Cash-Needed promise (2026-09-01)
+
+**Context.** #547 made first-run CSV create the account. Empty Home still said Aimplifi will tell you exactly how much to pay every card in full, and the footnote promised a payment-account ask in 30 seconds then Cash-Needed with zero navigation. That is only the bank-link + cards path. A CSV household with no cards was sold a number the empty state cannot keep.
+
+**Decision.** Copy-only. Welcome: connect a bank or paste a CSV; spending and net worth; cards get a pay-in-full figure if you have them. Footnote: private household, bank link optional. Do not change the post-account Step 2/3 Cash-Needed wiring.
+
+**Locked.** `test_regression__empty_home_offers_csv_without_cash_needed_countdown`.

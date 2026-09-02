@@ -12,6 +12,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConnectOnboardingPanel } from '@/components/onboarding/connect-onboarding-panel';
 import { StepIndicator } from '@/components/onboarding/step-indicator';
+import { EMPTY_DASHBOARD_DESCRIPTION } from '@/lib/copy/onboarding-empty-copy';
 
 export function EmptyDashboard() {
   return (
@@ -23,9 +24,8 @@ export function EmptyDashboard() {
             heading those pages render, so it must be the page's <h1>, not the
             CardTitle default of <h2> (production-readiness backlog, 2026-06-24). */}
         <CardTitle as="h1" className="text-xl">Welcome to Aimplifi 👋</CardTitle>
-        <CardDescription>
-          Add your accounts and Aimplifi will tell you exactly how much you need, and by when, to pay
-          every card in full — plus your net worth, spending, and savings rate.
+        <CardDescription data-testid="empty-dashboard-description">
+          {EMPTY_DASHBOARD_DESCRIPTION}
         </CardDescription>
       </CardHeader>
       <CardContent>

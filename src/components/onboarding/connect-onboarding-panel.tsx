@@ -10,14 +10,14 @@ import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { ConnectSimplefin } from '@/components/finance/connect-simplefin';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
+import { CONNECT_ONBOARDING_FOOTNOTE } from '@/lib/copy/onboarding-empty-copy';
 
 // A brand-new user has never synced anything — the same shape
 // classifyFreshness(null, today) returns. connected=false means ConnectSimplefin
 // never reads it anyway, but the type wants a real FreshnessResult.
 const NEVER_SYNCED = { level: 'unknown' as const, daysSince: null, referenceDate: null };
 
-const DEFAULT_FOOTNOTE =
-  'Your data is private to your account. Next, Aimplifi will ask which account pays your cards (30 seconds) — then show your Cash-Needed number, zero navigation required.';
+const DEFAULT_FOOTNOTE = CONNECT_ONBOARDING_FOOTNOTE;
 
 export function ConnectOnboardingPanel({ footnote = DEFAULT_FOOTNOTE }: { footnote?: string }) {
   return (
