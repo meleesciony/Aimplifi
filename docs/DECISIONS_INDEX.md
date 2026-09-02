@@ -543,3 +543,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #547 — First-run CSV import creates the spending account (2026-09-01) → docs/DECISIONS.md
 - #548 — File transactions goes to Needs a category, not Inbox (2026-09-01) → docs/DECISIONS.md
 - #549 — Empty Home offers bank or CSV, not a 30-second Cash-Needed promise (2026-09-01) → docs/DECISIONS.md
+- #550 — CSV import accepts Withdrawal/Deposit and names amount alternatives (2026-09-01) → docs/DECISIONS.md

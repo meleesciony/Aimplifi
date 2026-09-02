@@ -10,7 +10,7 @@
  *      date         ← date | transaction date | posted date | trade date
  *      description  ← description | payee | memo | name | transaction description
  *      amount       ← amount | net amount | transaction amount
- *                    OR Debit+Credit / Outflow+Inflow (unsigned; debit/outflow = money out)
+ *                    OR Debit+Credit / Outflow+Inflow / Withdrawal+Deposit (unsigned; debit/outflow/withdrawal = money out)
  *      category     ← category   (OPTIONAL; slug, display name, or Simplifi alias)
  *  - Amount is SIGNED in Pulse convention: NEGATIVE = money out, POSITIVE = in
  *    (matches Mint/most US bank exports). "$" and thousands commas are stripped.
@@ -30,8 +30,8 @@ import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 const DESCRIPTION_ALIASES = ['description', 'payee', 'memo', 'name', 'transaction description'];
 const DATE_ALIASES = ['date', 'transaction date', 'posted date', 'trade date'];
 const AMOUNT_ALIASES = ['amount', 'net amount', 'transaction amount'];
-const DEBIT_ALIASES = ['debit', 'outflow'];
-const CREDIT_ALIASES = ['credit', 'inflow'];
+const DEBIT_ALIASES = ['debit', 'outflow', 'withdrawal', 'withdrawals'];
+const CREDIT_ALIASES = ['credit', 'inflow', 'deposit', 'deposits'];
 
 const CATEGORY_BY_NAME = new Map(CATEGORIES.map((c) => [c.name.toLowerCase(), c.id]));
 
@@ -155,7 +155,9 @@ export function parseTransactionCsv(
   const missing: string[] = [];
   if (dateCol === -1) missing.push('date');
   if (descCol === -1) missing.push('description');
-  if (amountCol === -1 && !canComposeAmount) missing.push('amount');
+  if (amountCol === -1 && !canComposeAmount) {
+    missing.push('amount (or Net Amount, or Debit plus Credit)');
+  }
   if (missing.length) {
     return {
       rows: [],

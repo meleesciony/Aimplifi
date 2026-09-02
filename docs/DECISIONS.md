@@ -1898,3 +1898,11 @@ invent an auto-file quality claim.
 **Decision.** Copy-only. Welcome: connect a bank or paste a CSV; spending and net worth; cards get a pay-in-full figure if you have them. Footnote: private household, bank link optional. Do not change the post-account Step 2/3 Cash-Needed wiring.
 
 **Locked.** `test_regression__empty_home_offers_csv_without_cash_needed_countdown`.
+
+## #550 — CSV import accepts Withdrawal/Deposit and names amount alternatives (2026-09-01)
+
+**Context.** #544 taught Debit+Credit and Net Amount. Quicken-style Withdrawal/Deposit still failed. A file with no money column said only "amount", which hid the alternatives the parser already accepts.
+
+**Decision.** Debit aliases also: outflow, withdrawal, withdrawals. Credit aliases also: inflow, deposit, deposits. Missing-column error names amount, Net Amount, or Debit plus Credit. Signed amount files unchanged.
+
+**Locked.** `test_regression__csv_accepts_withdrawal_deposit_and_names_amount_alternatives`.
