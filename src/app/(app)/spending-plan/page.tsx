@@ -25,6 +25,7 @@ import { ReserveNameControl } from '@/components/finance/rename-reserve-form';
 import { ReserveCostControl } from '@/components/finance/reserve-cost-form';
 import { ReserveCadenceControl } from '@/components/finance/reserve-cadence-form';
 import { BillNameControl } from '@/components/finance/rename-bill-form';
+import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-button';
 
 export const metadata = { title: "Spending plan" };
 
@@ -320,11 +321,16 @@ export default async function SpendingPlanPage() {
                       </span>
                     ) : null}
                   </dt>
-                  <dd
-                    className="shrink-0 tabular-nums"
-                    data-testid="fixed-composition-amount"
-                  >
-                    {formatCents(cents(l.amountCents))}
+                  <dd className="flex shrink-0 items-center gap-2">
+                    <span className="tabular-nums" data-testid="fixed-composition-amount">
+                      {formatCents(cents(l.amountCents))}
+                    </span>
+                    {l.kind === 'recurring-bill' &&
+                    l.billKey &&
+                    !l.loanPayment &&
+                    !l.billKey.startsWith('unnamed:') ? (
+                      <TakeBillOffPlanButton billKey={l.billKey} billName={l.label} />
+                    ) : null}
                   </dd>
                 </div>
               ))}

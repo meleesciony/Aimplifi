@@ -2231,3 +2231,11 @@ invent an auto-file quality claim.
 **Decision.** Spend-class all-similar of a non-aggregate real payee writes every merchantless row of that canonical. Aggregates and masked bank names still write one row. Synced m: rows of the same bank text stay separate. Demo cannot learn. No CSV parser change.
 
 **Locked.** `test_regression__household_can_change_spend_class_for_all_similar_merchantless_payee`.
+
+## #591 — Take a repeating bill off the spending plan (2026-09-02)
+
+**Context.** A household could name a repeating bill on Spending plan but could not take it off from that page. The NOT_BILL write already existed on Recurring / a transaction. The plan still listed the bill until they hunted that other surface.
+
+**Decision.** Spending plan offers a confirmed Take-off control on a repeating bill that has a payee. It stores NOT_BILL for that canonical so detection stops projecting it. Transactions stay. Loan payments stay on the plan (that is how the mortgage is listed). Unnamed bills with no payee cannot be taken off from here. Demo cannot learn. Overlay only. No CSV parser change.
+
+**Locked.** `test_regression__household_can_take_a_repeating_bill_off_the_spending_plan`.

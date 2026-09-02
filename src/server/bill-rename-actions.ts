@@ -14,6 +14,7 @@ import {
   billRenameKey,
 } from '@/lib/engine/spending-plan/bill-rename';
 import { getSpendingPlan } from '@/server/spending-plan';
+import { markMerchantNotABill } from '@/server/recurring-override-actions';
 
 export interface BillRenameResult {
   ok: boolean;
@@ -66,5 +67,44 @@ export async function renameBill(
   });
   await auditLog(userId, 'bill.rename', { billKey: key, name: trimmed });
   revalidateBillNameSurfaces();
+  return { ok: true };
+}
+
+export type TakeBillOffPlanResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Take a repeating bill off the spending plan. Stores NOT_BILL for that
+ * payee so detection stops projecting it. Transactions stay. Loan payments
+ * and unnamed (no payee) bills are refused. Demo cannot learn.
+ */
+export async function takeRepeatingBillOffPlan(
+  billKey: string,
+): Promise<TakeBillOffPlanResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const key = typeof billKey === 'string' ? billKey.trim() : '';
+  if (!key || key.length > MAX_BILL_KEY) {
+    return { ok: false, error: "That bill isn't on your plan, so nothing changed." };
+  }
+
+  const plan = await getSpendingPlan(userId);
+  const line = plan.fixedList.lines.find(
+    (l) => l.kind === 'recurring-bill' && l.billKey === key,
+  );
+  if (!line) {
+    return { ok: false, error: "That bill isn't on your plan, so nothing changed." };
+  }
+  if (line.loanPayment) {
+    return { ok: false, error: 'A loan payment stays on the plan. That is how it is listed.' };
+  }
+  const row = plan.fixedLineItems.find((r) => billRenameKey(r) === key);
+  const canonical = (row?.merchantCanonical ?? '').trim();
+  if (!row || !canonical) {
+    return { ok: false, error: 'This bill has no payee, so it cannot be taken off from here.' };
+  }
+
+  const res = await markMerchantNotABill({ merchantCanonical: canonical });
+  if (!res.ok) return { ok: false, error: res.error };
   return { ok: true };
 }
