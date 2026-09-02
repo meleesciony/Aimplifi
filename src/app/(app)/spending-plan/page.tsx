@@ -327,8 +327,7 @@ export default async function SpendingPlanPage() {
                     </span>
                     {l.kind === 'recurring-bill' &&
                     l.billKey &&
-                    !l.loanPayment &&
-                    !l.billKey.startsWith('unnamed:') ? (
+                    !l.loanPayment ? (
                       <TakeBillOffPlanButton billKey={l.billKey} billName={l.label} />
                     ) : null}
                   </dd>

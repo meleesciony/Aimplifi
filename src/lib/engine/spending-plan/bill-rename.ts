@@ -14,9 +14,9 @@ export const MAX_BILL_NAME = 60;
 export const MAX_BILL_KEY = 200;
 
 export interface BillRenameRef {
-  merchantCanonical: string | null;
-  categoryId: string | null;
-  cadence: string | null;
+  merchantCanonical?: string | null;
+  categoryId?: string | null;
+  cadence?: string | null;
 }
 
 export function billRenameKey(row: BillRenameRef): string {
@@ -52,4 +52,17 @@ export function namedBillLabel(
   if (canonical) return canonical;
   if (row.categoryId) return `${UNNAMED_BILL_LABEL} (${nameOfCategory(row.categoryId)})`;
   return UNNAMED_BILL_LABEL;
+}
+
+/**
+ * Drop repeating bills whose billRenameKey is in the off-plan overlay.
+ * getSpendingPlan applies this to scheduledFixed after detection so the
+ * Fixed list and the Fixed figure cannot disagree.
+ */
+export function excludeOffPlanBills<T extends BillRenameRef>(
+  items: readonly T[],
+  offPlanKeys: ReadonlySet<string>,
+): T[] {
+  if (offPlanKeys.size === 0) return items.slice();
+  return items.filter((item) => !offPlanKeys.has(billRenameKey(item)));
 }

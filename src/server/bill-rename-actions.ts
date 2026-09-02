@@ -73,9 +73,10 @@ export async function renameBill(
 export type TakeBillOffPlanResult = { ok: true } | { ok: false; error: string };
 
 /**
- * Take a repeating bill off the spending plan. Stores NOT_BILL for that
- * payee so detection stops projecting it. Transactions stay. Loan payments
- * and unnamed (no payee) bills are refused. Demo cannot learn.
+ * Take a repeating bill off the spending plan. Payee bills store NOT_BILL so
+ * detection stops projecting them. Unnamed bills (no merchantCanonical) store
+ * a billKey overlay — detection cannot match them. Transactions stay. Loan
+ * payments are refused. Demo cannot learn.
  */
 export async function takeRepeatingBillOffPlan(
   billKey: string,
@@ -99,12 +100,22 @@ export async function takeRepeatingBillOffPlan(
     return { ok: false, error: 'A loan payment stays on the plan. That is how it is listed.' };
   }
   const row = plan.fixedLineItems.find((r) => billRenameKey(r) === key);
-  const canonical = (row?.merchantCanonical ?? '').trim();
-  if (!row || !canonical) {
-    return { ok: false, error: 'This bill has no payee, so it cannot be taken off from here.' };
+  if (!row) {
+    return { ok: false, error: "That bill isn't on your plan, so nothing changed." };
+  }
+  const canonical = (row.merchantCanonical ?? '').trim();
+  if (canonical) {
+    const res = await markMerchantNotABill({ merchantCanonical: canonical });
+    if (!res.ok) return { ok: false, error: res.error };
+    return { ok: true };
   }
 
-  const res = await markMerchantNotABill({ merchantCanonical: canonical });
-  if (!res.ok) return { ok: false, error: res.error };
+  await prisma.billOffPlan.upsert({
+    where: { userId_billKey: { userId, billKey: key } },
+    create: { userId, billKey: key },
+    update: {},
+  });
+  await auditLog(userId, 'bill.takeOffPlan', { billKey: key });
+  revalidateBillNameSurfaces();
   return { ok: true };
 }

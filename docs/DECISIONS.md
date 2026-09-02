@@ -2239,3 +2239,11 @@ invent an auto-file quality claim.
 **Decision.** Spending plan offers a confirmed Take-off control on a repeating bill that has a payee. It stores NOT_BILL for that canonical so detection stops projecting it. Transactions stay. Loan payments stay on the plan (that is how the mortgage is listed). Unnamed bills with no payee cannot be taken off from here. Demo cannot learn. Overlay only. No CSV parser change.
 
 **Locked.** `test_regression__household_can_take_a_repeating_bill_off_the_spending_plan`.
+
+## #592 — Take an unnamed repeating bill off the spending plan (2026-09-02)
+
+**Context.** #591 shipped take-off for bills with a merchantCanonical via markMerchantNotABill (NOT_BILL). Unnamed bills have billKey like `unnamed:${category}:${cadence}` because merchantCanonical is null/empty. takeRepeatingBillOffPlan refused them, and the Spending plan page hid TakeBillOffPlanButton when billKey.startsWith('unnamed:').
+
+**Decision.** A household can take an unnamed repeating bill off the spending plan. Overlay only: store BillOffPlan { userId, billKey }. getSpendingPlan filters scheduledFixed by those keys so the bill leaves the Fixed list AND the Fixed figure. Transactions stay. Payee bills stay on the #591 NOT_BILL path. Loan payments stay on the plan. Demo cannot learn. No CSV parser change.
+
+**Locked.** `test_regression__household_can_take_an_unnamed_repeating_bill_off_the_spending_plan`.

@@ -1,7 +1,7 @@
 /**
- * Per-user repeating-bill display names. Overlay only — detection identity
- * is untouched. One loader so the plan page and Settings Fixed card cannot
- * disagree.
+ * Per-user repeating-bill overlays. Names and off-plan keys. Overlay only —
+ * detection identity is untouched. One loader per overlay so the plan figure
+ * and the Fixed list cannot disagree.
  */
 import { prisma } from '@/lib/db';
 
@@ -16,4 +16,13 @@ export async function getBillRenames(userId: string): Promise<Map<string, string
     if (name) m.set(r.billKey, name);
   }
   return m;
+}
+
+/** billKeys the household took off the spending plan. Overlay only. */
+export async function getBillOffPlanKeys(userId: string): Promise<Set<string>> {
+  const rows = await prisma.billOffPlan.findMany({
+    where: { userId },
+    select: { billKey: true },
+  });
+  return new Set(rows.map((r) => r.billKey));
 }
