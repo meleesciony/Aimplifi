@@ -123,6 +123,8 @@ export interface ReserveDeclaration {
   /** The whole cost, once per `cadence` period. Positive integer cents. */
   trueCostCents: number;
   cadence: string | null;
+  /** True when convert paired this reserve to a bill. Cost then stays with the bill. */
+  pairedToBill?: boolean;
 }
 
 /** A reserve the plan can count. `monthlyCents` is derived, never stored. */
@@ -132,6 +134,8 @@ export interface ReserveLine {
   trueCostCents: number;
   cadence: ReserveCadence;
   monthlyCents: number;
+  /** True when convert paired this reserve to a bill. Cost then stays with the bill. */
+  pairedToBill?: boolean;
 }
 
 /** A declaration that could not be counted, and why. */
@@ -197,6 +201,7 @@ export function resolveReserves(
       trueCostCents: d.trueCostCents,
       cadence: d.cadence,
       monthlyCents,
+      pairedToBill: d.pairedToBill === true,
     });
   }
   lines.sort((a, b) => b.monthlyCents - a.monthlyCents || a.name.localeCompare(b.name));

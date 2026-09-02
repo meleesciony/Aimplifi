@@ -2159,3 +2159,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__household_can_rename_a_savings_goal`.
 
+## #582 — Household can change a reserve's true cost (2026-09-02)
+
+**Context.** A typed reserve on Spending plan could be created, renamed, or deleted. Changing the whole cost meant delete-and-recreate, so a household that mistyped $1,200 as $12,000 (or whose dues went up) had no write for the dollars.
+
+**Decision.** Tapping the true-cost line on a typed reserve opens a cost field. The write changes only `targetCents`. Name, cadence, monthlyContribution (null), and convert pairing stay put. Blank, zero, over-cap, and sub-cent-a-month costs are refused in words. Converted bill-paired reserves cannot change cost through this path — the swap stays exact. Demo cannot learn.
+
+**Locked.** `test_regression__household_can_change_a_reserve_true_cost`.
+

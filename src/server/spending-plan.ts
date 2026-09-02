@@ -395,6 +395,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
       name: g.name,
       trueCostCents: g.targetCents,
       cadence: g.cadence,
+      pairedToBill: Boolean(g.merchantCanonical),
     }));
   const reserves = resolveReserves(reserveDeclarations);
   const fixedSeriesCount = (status: SeriesProjectionStatus): number =>

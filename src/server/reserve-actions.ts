@@ -181,6 +181,61 @@ export async function renameReserve(
   return { ok: true };
 }
 
+/**
+ * Change a typed reserve's true cost. Name, cadence, and convert pairing
+ * stay put. Converted (bill-paired) reserves are refused — the swap is
+ * exact, so the cost stays with the bill. Demo cannot learn.
+ */
+export async function updateReserveCost(
+  goalId: string,
+  formData: FormData,
+): Promise<ReserveFormResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const id = typeof goalId === 'string' ? goalId.trim() : '';
+  if (!id) {
+    return { ok: false, error: "That reserve isn't on your plan, so nothing changed." };
+  }
+
+  const row = await prisma.goal.findFirst({
+    where: { id, userId, kind: RESERVE_KIND },
+    select: { cadence: true, merchantCanonical: true },
+  });
+  if (!row) {
+    return { ok: false, error: "That reserve isn't on your plan, so nothing changed." };
+  }
+  if (row.merchantCanonical) {
+    return {
+      ok: false,
+      error: 'This reserve is paired with a bill, so the cost stays with that bill. Remove it to start over.',
+    };
+  }
+
+  const amount = String(formData.get('amount') ?? '').trim();
+  const errors: NonNullable<ReserveFormResult['errors']> = {};
+  const trueCostCents = parseDollarInput(amount);
+  if (trueCostCents === null || trueCostCents <= 0) {
+    errors.amount = 'Enter the whole cost, above $0 — like 1200 or $1,200.';
+  } else if (trueCostCents > MAX_RESERVE_COST_CENTS) {
+    errors.amount = 'That is larger than this field can hold — enter the cost of one item.';
+  } else if (isReserveCadence(row.cadence) && monthlyRateCents(trueCostCents, row.cadence) === 0) {
+    errors.amount = 'Spread over that period this comes to less than a cent a month — enter the whole cost.';
+  }
+  if (errors.amount) return { ok: false, errors };
+
+  const updated = await prisma.goal.updateMany({
+    where: { id, userId, kind: RESERVE_KIND, merchantCanonical: null },
+    data: { targetCents: trueCostCents! },
+  });
+  if (updated.count === 0) {
+    return { ok: false, error: "That reserve isn't on your plan, so nothing changed." };
+  }
+  await auditLog(userId, 'reserve.updateCost', { goalId: id, trueCostCents });
+  revalidateReserveSurfaces();
+  return { ok: true };
+}
+
 export async function deleteReserve(goalId: string): Promise<void> {
   const userId = await requireUserId();
   // The shared-demo fence, same rule as every reserve write (critic P2-3): the

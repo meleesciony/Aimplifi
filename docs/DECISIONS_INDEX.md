@@ -575,3 +575,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #579 — Household can name each spending-plan envelope (2026-09-02) → docs/DECISIONS.md
 - #580 — Household can name a repeating bill (2026-09-02) → docs/DECISIONS.md
 - #581 — Household can rename a savings goal (2026-09-02) → docs/DECISIONS.md
+- #582 — Household can change a reserve's true cost (2026-09-02) → docs/DECISIONS.md
