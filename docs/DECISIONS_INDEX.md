@@ -571,3 +571,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #575 — Home Step 1 names bank or CSV (2026-09-02) → docs/DECISIONS.md
 - #576 — Settings Bank connections names CSV (2026-09-02) → docs/DECISIONS.md
 - #577 — Activity register heading matches the nav (2026-09-02) → docs/DECISIONS.md
+- #578 — Reports nav names trailing months or a year (2026-09-02) → docs/DECISIONS.md

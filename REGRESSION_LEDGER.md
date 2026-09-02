@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | Reports nav said six months plus this month | page already names calendar years | menu copy must match the page | `test_regression__reports_nav_names_trailing_months_or_a_year` |
 | 2026-09-02 | Activity register said Transactions | nav already said Activity | copy must not rename a page between the tap and the heading | `test_regression__activity_register_heading_matches_nav` |
 | 2026-09-02 | Settings Bank connections omitted CSV | card described Plaid/SimpleFIN only | copy must not sell a connect-only start | `test_regression__settings_connections_offer_csv_not_plaid_only` |
 | 2026-09-02 | Home Step 1 said Connect your bank | first-run already offers CSV | copy must not sell a bank-only start | `test_regression__home_step_1_names_bank_or_csv_not_bank_only` |

@@ -2126,3 +2126,11 @@ invent an auto-file quality claim.
 **Decision.** The register heading and document title use Activity, the same word as the nav. The URL stays /transactions. Import and Add labels unchanged.
 
 **Locked.** `test_regression__activity_register_heading_matches_nav`.
+
+## #578 — Reports nav names trailing months or a year (2026-09-02)
+
+**Context.** Reports already lets a household pick trailing 6/12/24 months or a named calendar year. The nav still said six months plus this month by category, so the menu contradicted the page.
+
+**Decision.** The Reports menu blurb matches the page: trailing months or a named year, plus spending by category.
+
+**Locked.** `test_regression__reports_nav_names_trailing_months_or_a_year`.

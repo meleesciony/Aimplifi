@@ -24,6 +24,7 @@
  */
 
 import { ACTIVITY_PAGE_TITLE } from '@/lib/copy/activity-copy';
+import { REPORTS_NAV_DESCRIPTION } from '@/lib/copy/reports-copy';
 import {
   BarChart3,
   Calendar,
@@ -170,7 +171,7 @@ export const NAV_DESTINATIONS: readonly NavDestination[] = [
   {
     href: '/reports',
     label: 'Reports',
-    description: 'Six months of income against spending, plus this month by category.',
+    description: REPORTS_NAV_DESCRIPTION,
     keywords: ['history', 'chart', 'income', 'expenses', 'six months', 'past', 'graph'],
     group: 'money',
     icon: BarChart3,
