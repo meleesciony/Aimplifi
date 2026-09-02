@@ -22,6 +22,7 @@ import {
   MAX_RESERVE_NAME,
   MAX_RESERVES_PER_USER,
   RESERVE_KIND,
+  reserveNameError,
 } from '@/lib/engine/spending-plan/reserves';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
@@ -86,10 +87,8 @@ export async function createReserve(
   const cadence = String(formData.get('cadence') ?? '').trim();
 
   const errors: NonNullable<ReserveFormResult['errors']> = {};
-  if (!name) errors.name = 'Give the reserve a name — "Home repair", "Gym dues".';
-  else if (name.length > MAX_RESERVE_NAME) {
-    errors.name = `Keep the name under ${MAX_RESERVE_NAME} characters.`;
-  }
+  const nameErr = reserveNameError(name);
+  if (nameErr) errors.name = nameErr;
   const trueCostCents = parseDollarInput(amount);
   if (trueCostCents === null || trueCostCents <= 0) {
     errors.amount = 'Enter the whole cost, above $0 — like 1200 or $1,200.';
@@ -147,6 +146,37 @@ export async function createReserve(
   });
   if (!written.ok) return written;
   await auditLog(userId, 'reserve.create', { name, cadence });
+  revalidateReserveSurfaces();
+  return { ok: true };
+}
+
+
+/**
+ * Rename a reserve already on the plan. The dollars and cadence stay put —
+ * this write is a NAME, never a money figure. Converted reserves keep the
+ * merchant's spelling until the household types their own.
+ *
+ * Same fences as create: demo cannot learn, only `kind = reserve` rows of
+ * the caller, empty / over-cap names refused in words.
+ */
+export async function renameReserve(
+  goalId: string,
+  formData: FormData,
+): Promise<ReserveFormResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+  const name = String(formData.get('name') ?? '').trim();
+  const nameErr = reserveNameError(name);
+  if (nameErr) return { ok: false, errors: { name: nameErr } };
+
+  const updated = await prisma.goal.updateMany({
+    where: { id: goalId, userId, kind: RESERVE_KIND },
+    data: { name },
+  });
+  if (updated.count === 0) {
+    return { ok: false, error: "That reserve isn't on your plan, so nothing changed." };
+  }
+  await auditLog(userId, 'reserve.rename', { goalId, name });
   revalidateReserveSurfaces();
   return { ok: true };
 }

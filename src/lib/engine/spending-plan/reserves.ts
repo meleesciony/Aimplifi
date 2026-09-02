@@ -85,6 +85,22 @@ export function isReserveCadence(value: unknown): value is ReserveCadence {
 export const MAX_RESERVE_NAME = 60;
 
 /**
+ * Shared name check for create and rename. Trim first: surrounding
+ * spaces are not a name, and a 61-char padded string is still too long
+ * after trim. Empty and over-cap are the only refusals — the dollars
+ * stay on a different field.
+ */
+export function reserveNameError(raw: string): string | undefined {
+  const name = raw.trim();
+  if (!name) return 'Give the reserve a name — "Home repair", "Gym dues".';
+  if (name.length > MAX_RESERVE_NAME) {
+    return `Keep the name under ${MAX_RESERVE_NAME} characters.`;
+  }
+  return undefined;
+}
+
+
+/**
  * The largest cost this field can hold: `Goal.targetCents` is a Prisma `Int`,
  * i.e. Postgres `integer`, so 2,147,483,647 cents — $21,474,836.47. Named rather
  * than inlined because the reason is the COLUMN, not a product judgement about

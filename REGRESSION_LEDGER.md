@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | Spending-plan reserve could not be renamed after create | convert kept merchant spelling; only create-then-delete | a household names each envelope; dollars stay put | `test_regression__spending_plan_can_name_each_envelope` |
 | 2026-09-02 | Reports nav said six months plus this month | page already names calendar years | menu copy must match the page | `test_regression__reports_nav_names_trailing_months_or_a_year` |
 | 2026-09-02 | Activity register said Transactions | nav already said Activity | copy must not rename a page between the tap and the heading | `test_regression__activity_register_heading_matches_nav` |
 | 2026-09-02 | Settings Bank connections omitted CSV | card described Plaid/SimpleFIN only | copy must not sell a connect-only start | `test_regression__settings_connections_offer_csv_not_plaid_only` |

@@ -21,6 +21,7 @@ import { UNNAMED_BILL_LABEL } from '@/lib/engine/spending-plan/fixed-line-items'
 import { RESERVE_CADENCE_WORDS } from '@/lib/engine/spending-plan/reserves';
 import { ReserveForm } from '@/components/finance/reserve-form';
 import { DeleteReserveButton } from '@/components/finance/delete-reserve-button';
+import { ReserveNameControl } from '@/components/finance/rename-reserve-form';
 
 export const metadata = { title: "Spending plan" };
 
@@ -389,9 +390,7 @@ export default async function SpendingPlanPage() {
                 data-testid="reserve-row"
               >
                 <dt className="min-w-0 text-muted-foreground">
-                  <span className="text-foreground" data-testid="reserve-row-name">
-                    {r.name}
-                  </span>
+                  <ReserveNameControl reserveId={r.id} name={r.name} />
                   <span className="mt-0.5 block text-xs" data-testid="reserve-row-basis">
                     {formatCents(cents(r.trueCostCents))} {RESERVE_CADENCE_WORDS[r.cadence]}
                   </span>

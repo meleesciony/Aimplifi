@@ -2134,3 +2134,12 @@ invent an auto-file quality claim.
 **Decision.** The Reports menu blurb matches the page: trailing months or a named year, plus spending by category.
 
 **Locked.** `test_regression__reports_nav_names_trailing_months_or_a_year`.
+
+## #579 — Household can name each spending-plan envelope (2026-09-02)
+
+**Context.** A reserve on the spending plan could be created with a name, then only deleted. Converted bills kept the merchant spelling. There was no way to name an envelope already sitting on the plan.
+
+**Decision.** Tapping a reserve name on Spending plan opens a rename field. The write changes only the name. Dollars, cadence, and convert pairing stay put. Blank and over-cap names are refused in words. Savings goals cannot be renamed through this path. Demo cannot learn.
+
+**Locked.** `test_regression__spending_plan_can_name_each_envelope`.
+
