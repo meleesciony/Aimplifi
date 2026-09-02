@@ -7,7 +7,7 @@
  *
  * Contract (kept deliberately simple and unambiguous):
  *  - A header row is required. Recognized columns (case-insensitive, aliased):
- *      date         ← date | transaction date | posted date | trade date
+ *      date         ← date | transaction date | posted date | post date | posting date | trade date | trans date
  *      description  ← description | payee | memo | name | transaction description
  *      amount       ← amount | net amount | transaction amount
  *                    OR Debit+Credit / Outflow+Inflow / Withdrawal+Deposit (unsigned; debit/outflow/withdrawal = money out)
@@ -28,7 +28,7 @@ import { type RuleLike, categorize } from '@/lib/engine/categorize/pipeline';
 import type { PredictionSource } from '@/lib/engine/categorize/provenance';
 
 const DESCRIPTION_ALIASES = ['description', 'payee', 'memo', 'name', 'transaction description'];
-const DATE_ALIASES = ['date', 'transaction date', 'posted date', 'trade date'];
+const DATE_ALIASES = ['date', 'transaction date', 'posted date', 'post date', 'posting date', 'trade date', 'trans date'];
 const AMOUNT_ALIASES = ['amount', 'net amount', 'transaction amount'];
 const DEBIT_ALIASES = ['debit', 'outflow', 'withdrawal', 'withdrawals'];
 const CREDIT_ALIASES = ['credit', 'inflow', 'deposit', 'deposits'];

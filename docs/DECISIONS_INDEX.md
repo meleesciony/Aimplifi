@@ -546,3 +546,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #550 — CSV import accepts Withdrawal/Deposit and names amount alternatives (2026-09-01) → docs/DECISIONS.md
 - #551 — Signup and reset hash the trimmed password (2026-09-01) → docs/DECISIONS.md
 - #552 — CSV Debit/Credit headers may carry a unit in parentheses (2026-09-01) → docs/DECISIONS.md
+- #553 — CSV import accepts Post Date and Trans Date (2026-09-01) → docs/DECISIONS.md

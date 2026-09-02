@@ -147,6 +147,22 @@ describe('parseTransactionCsv', () => {
     expect(parsed.rows[1]).toMatchObject({ description: 'Payroll', amountCents: 250000 });
   });
 
+  it('test_regression__csv_accepts_post_date_and_trans_date_headers', () => {
+    const chase = [
+      'Post Date,Description,Amount',
+      '06/01/2026,Coffee,-4.50',
+      '2026-06-02,Payroll,2500.00',
+    ].join('\n');
+    const parsed = parseTransactionCsv(chase);
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows[0]).toMatchObject({ date: '2026-06-01', description: 'Coffee', amountCents: -450 });
+    expect(parsed.rows[1]).toMatchObject({ date: '2026-06-02', amountCents: 250000 });
+
+    const trans = parseTransactionCsv('Trans Date,Payee,Amount\n2026-06-01,Rent,-100.00');
+    expect(trans.errors).toEqual([]);
+    expect(trans.rows[0]).toMatchObject({ date: '2026-06-01', description: 'Rent', amountCents: -10000 });
+  });
+
   it('treats a fully blank file as an error', () => {
     expect(parseTransactionCsv('\n\n  \n').errors[0].message).toMatch(/empty/i);
   });

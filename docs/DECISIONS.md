@@ -1922,3 +1922,11 @@ invent an auto-file quality claim.
 **Decision.** Debit/Credit/Withdrawal/Deposit match on the first token after stripping punctuation (`Withdrawal (-)` → withdrawal). Date, description, and amount stay exact aliases. Signed amount files unchanged.
 
 **Locked.** `test_regression__csv_accepts_withdrawal_paren_and_deposit_plus_headers`.
+
+## #553 — CSV import accepts Post Date and Trans Date (2026-09-01)
+
+**Context.** Chase and similar checking exports use Post Date (and sometimes Trans Date). The parser accepted Posted Date and Transaction Date only, so a Chase-style paste without a column literally named date failed even though Amount was signed and valid.
+
+**Decision.** Date aliases add post date, posting date, trans date. Transaction Date and Posted Date stay. Amount aliases unchanged.
+
+**Locked.** `test_regression__csv_accepts_post_date_and_trans_date_headers`.
