@@ -751,7 +751,7 @@ export function TransactionList({
             </div>
             <ul className="divide-y rounded-md border">
               {g.items.map((t) => {
-                const canAlways = Boolean(t.ruleEligible && t.merchantId);
+                const canAlways = Boolean(t.ruleEligible && (t.merchantId || t.merchantCount));
                 const open = openId === t.id;
                 const taxOpen = taxOpenId === t.id;
                 const actionsOpen = actionOpenId === t.id;
@@ -1403,7 +1403,7 @@ export function TransactionList({
                               excluded={t.excludeFromTotals}
                               busy={actionBusy}
                               spendClassCurrent={t.spendClass}
-                              spendClassBulkCount={t.ruleEligible ? t.merchantCount : undefined}
+                              spendClassBulkCount={t.ruleEligible && t.merchantId ? t.merchantCount : undefined}
                               spendClassMerchantName={t.merchantName}
                               handlers={{
                                 onCategory: () => openCategoryPicker(t, actionTop),

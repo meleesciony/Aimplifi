@@ -582,3 +582,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #586 — Inbox file saves a rule for the next same payee (2026-09-02) → docs/DECISIONS.md
 - #587 — One-row Inbox pick of a merchantless payee still saves the rule (2026-09-02) → docs/DECISIONS.md
 - #588 — All-similar of a merchantless payee files the group and saves the rule (2026-09-02) → docs/DECISIONS.md
+- #589 — Merchant-wide recategorize of a merchantless payee files the group (2026-09-02) → docs/DECISIONS.md

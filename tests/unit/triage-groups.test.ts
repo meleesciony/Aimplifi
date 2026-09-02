@@ -484,6 +484,41 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(other.needsReview).toBe(true);
   });
 
+  it('test_regression__household_can_recategorize_merchantless_payee_across_the_merchant', async () => {
+    // Merchant-wide recategorize required merchantId, so a CSV payee with
+    // store-number variants fell through to one row. The household asked
+    // to recategorize the payee and only one descriptor moved.
+    const a = 'PINE HOLLOW POTTERY #12';
+    const b = 'PINE HOLLOW POTTERY #99';
+    expect(normalizeMerchant(a).canonical).toBe(normalizeMerchant(b).canonical);
+    const acct = await prisma.account.findFirstOrThrow({ where: { userId: USER, providerRef: 'grp-chk' } });
+    await prisma.transaction.createMany({
+      data: [
+        { id: `grp-rc1-${process.pid}`, accountId: acct.id, date: '2026-06-09', amountCents: -1100, rawDescriptor: a, merchantId: null, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
+        { id: `grp-rc2-${process.pid}`, accountId: acct.id, date: '2026-06-08', amountCents: -2100, rawDescriptor: b, merchantId: null, categoryId: 'dining', confidenceBps: 9000, needsReview: false },
+      ],
+    });
+    const res = await recategorize({
+      transactionId: `grp-rc1-${process.pid}`,
+      categoryId: 'shopping',
+      scope: 'merchant',
+    });
+    expect(res.affected).toBe(2);
+    expect(res.ruleId).not.toBeNull();
+    const rc2 = await prisma.transaction.findUniqueOrThrow({ where: { id: `grp-rc2-${process.pid}` } });
+    expect(rc2.needsReview).toBe(false);
+    expect(rc2.categoryId).toBe('shopping');
+    const next = categorize(
+      { rawDescriptor: 'PINE HOLLOW POTTERY #03', amountCents: -900, date: '2026-07-01', accountId: 'any' },
+      await loadUserRules(USER),
+    );
+    expect(next.needsReview).toBe(false);
+    expect(next.categoryId).toBe('shopping');
+    expect(next.source).toBe('user-rule');
+  });
+
+
+
 
 
 

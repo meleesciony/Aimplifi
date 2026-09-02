@@ -6,6 +6,7 @@
  */
 import { prisma } from '@/lib/db';
 import { isRuleEligibleMerchant } from '@/lib/engine/categorize/assign';
+import { isDurablePayeeCanonical } from '@/lib/engine/categorize/group';
 import { buildMerchantProfile } from '@/lib/engine/merchant/profile';
 import { type MerchantLensCopy, merchantLensCopy, thinHistoryNote } from '@/lib/engine/merchant/lens-copy';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
@@ -418,8 +419,17 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   // How many transactions share each merchant — drives the "apply to N" count
   // on the register's "Always" action (DECISIONS #42).
   const merchantCounts = new Map<string, number>();
+  const merchantlessCanonCounts = new Map<string, number>();
   for (const t of txns) {
-    if (t.merchantId) merchantCounts.set(t.merchantId, (merchantCounts.get(t.merchantId) ?? 0) + 1);
+    if (t.merchantId) {
+      merchantCounts.set(t.merchantId, (merchantCounts.get(t.merchantId) ?? 0) + 1);
+    } else {
+      const n = normalizeMerchant(t.rawDescriptor);
+      if (!n.aggregate && isDurablePayeeCanonical(n.canonical)) {
+        const k = n.canonical.normalize('NFC').trim().toLowerCase();
+        merchantlessCanonCounts.set(k, (merchantlessCanonCounts.get(k) ?? 0) + 1);
+      }
+    }
   }
 
   // Category provenance (Why-This-Category §3.1): the persisted prediction row is
@@ -477,7 +487,13 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     needsReview: t.needsReview,
     merchantId: t.merchantId,
     ruleEligible: isRuleEligibleMerchant(t.rawDescriptor),
-    merchantCount: t.merchantId ? merchantCounts.get(t.merchantId) : undefined,
+    merchantCount: t.merchantId
+      ? merchantCounts.get(t.merchantId)
+      : (() => {
+          const n = normalizeMerchant(t.rawDescriptor);
+          if (n.aggregate || !isDurablePayeeCanonical(n.canonical)) return undefined;
+          return merchantlessCanonCounts.get(n.canonical.normalize('NFC').trim().toLowerCase());
+        })(),
     // Resolve from the RAW stored facts (not the 'uncategorized' display
     // fallback above): the P1-3 divergence guard compares the prediction's
     // predictedCategoryId against the transaction's live categoryId, so both

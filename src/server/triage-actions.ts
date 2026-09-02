@@ -620,8 +620,9 @@ export async function acceptAllConfident(): Promise<AcceptAllResult> {
  *   'merchant' → re-file EVERY transaction of this merchant (already-categorized
  *                included) AND create a durable priority-100 rule, so past and
  *                future are fixed in one action.
- * 'merchant' falls back to 'one' when the row has no merchant or is an aggregate
- * pseudo-merchant (Zelle/checks) — those never carry merchant-wide rules (#23).
+ * 'merchant' falls back to 'one' for aggregates (Zelle/checks) and masked
+ * bank names — those never carry merchant-wide rules. Merchantless CSV/manual
+ * rows of a real payee recategorize across that canonical, not one row.
  * Every write is ownership-scoped and audit-logged.
  */
 export async function recategorize(input: {
@@ -635,10 +636,11 @@ export async function recategorize(input: {
   await assertOwnedCategory(userId, input.categoryId); // system id or a custom this user owns (#111)
   const txn = await ownedTransaction(userId, input.transactionId);
 
+  const normalized = normalizeMerchant(txn.rawDescriptor);
   const merchantWide =
     input.scope === 'merchant' &&
-    !!txn.merchantId &&
-    !normalizeMerchant(txn.rawDescriptor).aggregate;
+    !normalized.aggregate &&
+    isDurablePayeeCanonical(normalized.canonical);
 
   if (!merchantWide) {
     // Single row: reuse the triage single-apply path (correction + update, no rule).
@@ -660,28 +662,45 @@ export async function recategorize(input: {
   // tx for the fileMerchantGroup reason above; the spend-class twin of this
   // gesture (#397) has carried the same filter since it shipped.
   const keepsReconciled = await getReconciliationTxnKeep(userId);
-  const { correctionIds, ruleId, minted, affected } = await serializableTx(async (tx) => {
+  const { correctionIds, ruleId, minted, affected, ruleMerchantId } = await serializableTx(async (tx) => {
+    const merchantlessByCanonical = txn.merchantId === null;
+    const canon = merchantlessByCanonical
+      ? normalized.canonical.normalize('NFC').trim().toLowerCase()
+      : null;
     const targets = (
       await tx.transaction.findMany({
         where: similarTransactionsWhere(
           userId,
           { merchantId: txn.merchantId, rawDescriptor: txn.rawDescriptor, aggregate: false },
-          { onlyNeedsReview: false },
+          merchantlessByCanonical
+            ? { onlyNeedsReview: false, merchantlessByCanonical: true }
+            : { onlyNeedsReview: false },
         ),
       })
-    ).filter((t) => keepsReconciled(t.accountId, t.date));
+    ).filter((row) => {
+      if (!keepsReconciled(row.accountId, row.date)) return false;
+      if (!canon) return true;
+      if (row.merchantId !== null) return false;
+      const n = normalizeMerchant(row.rawDescriptor);
+      if (n.aggregate) return false;
+      return n.canonical.normalize('NFC').trim().toLowerCase() === canon;
+    });
     const ids: string[] = [];
     let firstCorrectionId: string | null = null;
-    for (const t of targets) {
+    for (const row of targets) {
       const c = await tx.correction.create({
-        data: { userId, transactionId: t.id, fromCategoryId: t.categoryId, toCategoryId: input.categoryId },
+        data: { userId, transactionId: row.id, fromCategoryId: row.categoryId, toCategoryId: input.categoryId },
       });
       ids.push(c.id);
       if (!firstCorrectionId) firstCorrectionId = c.id;
     }
+    let ruleMerchantId: string | null = txn.merchantId;
+    if (!ruleMerchantId) {
+      ruleMerchantId = await ensureMerchantForCanonical(tx, normalized.canonical, input.categoryId);
+    }
     const { ruleId: rid, minted: ruleMinted } = await ensureUnconditionalRule(tx, {
       userId,
-      merchantId: txn.merchantId!,
+      merchantId: ruleMerchantId,
       categoryId: input.categoryId,
       createdFrom: firstCorrectionId,
     });
@@ -689,27 +708,28 @@ export async function recategorize(input: {
       await tx.correction.update({ where: { id: firstCorrectionId }, data: { becameRuleId: rid } });
     }
     await tx.transaction.updateMany({
-      where: { id: { in: targets.map((t) => t.id) } },
+      where: { id: { in: targets.map((row) => row.id) } },
       data: {
         categoryId: input.categoryId,
         needsReview: false,
         confidenceBps: 9900,
         reviewPinned: false,
         ...stampIsTransferOnTransferLeaf(input.categoryId),
+        ...(merchantlessByCanonical && ruleMerchantId ? { merchantId: ruleMerchantId } : {}),
       },
     });
     await tx.categoryPrediction.updateMany({
-      where: { transactionId: { in: targets.map((t) => t.id) }, userId },
+      where: { transactionId: { in: targets.map((row) => row.id) }, userId },
       data: { actualCategoryId: input.categoryId, labeledAt: new Date() },
     });
-    return { correctionIds: ids, ruleId: rid, minted: ruleMinted, affected: targets.length };
+    return { correctionIds: ids, ruleId: rid, minted: ruleMinted, affected: targets.length, ruleMerchantId };
   });
 
   // Provenance-honest audit (cycle-3 P2): pre-fix this always logged 'rule.create'
   // even when the dedupe reused an existing rule.
   await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', {
     ruleId,
-    merchantId: txn.merchantId,
+    merchantId: ruleMerchantId,
     categoryId: input.categoryId,
     affected,
     via: 'register',
