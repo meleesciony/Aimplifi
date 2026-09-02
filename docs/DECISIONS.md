@@ -2035,3 +2035,10 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__activity_period_names_calendar_years_2024_2025_2026` + `test_regression__activity_period_lists_calendar_years`.
 
+## #567 — Reports range names calendar years (2026-09-01)
+
+**Context.** Activity Period already names 2024 / Last year / 2026. Reports still answered trailing Last 6/12/24 months on the chart and this month on the category table. A household looking at Reports could not see a civil year's spending.
+
+**Decision.** The existing Reports range picker lists 2024, 2025, and 2026 (current year and the two before it). Trailing Last 6/12/24 months stay the default. A named year sets both the income-vs-spending chart and the category table to Jan–Dec of that year, stopping at today. Interest/fees and Giving YTD stay the current calendar year through today. Activity Period and Spending plan unchanged.
+
+**Locked.** `test_regression__reports_range_names_calendar_years_2024_2025_2026` + `test_regression__reports_range_lists_calendar_years` + `test_regression__reports_year_names_the_category_window`.

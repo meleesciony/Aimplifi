@@ -5,13 +5,18 @@
  * The series length is a READER CHOICE (owner request 2026-08-04: "why are we
  * only pulling 6 months of data? … need a way to view last month, last
  * quarter, last year"): 6 months stays the default, and the same chart can be
- * widened to 12 or 24 months — the vocabulary lives in the engine
- * (engine/reports/chart-range.ts) so the client view's selector and this
- * assembler read the same values without the client importing a server module.
+ * widened to 12 or 24 months — or a named calendar year (DECISIONS #567). The
+ * vocabulary lives in the engine (engine/reports/chart-range.ts) so the client
+ * view's selector and this assembler read the same values without the client
+ * importing a server module. A named year also sets the category table's
+ * window (Jan–Dec of that year, clamped to today); trailing months still leave
+ * the category table as this month.
  */
 import type { ReportChartMonths } from '@/lib/engine/reports/chart-range';
+import { reportCalendarYears } from '@/lib/engine/reports/chart-range';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
 import {
+  asOfWindow,
   spendingByCategory,
   spentSoFarWindow,
   type SpendingBreakdown,
@@ -71,6 +76,14 @@ export interface ReportsData {
    * all selected by this same object.
    */
   window: SpendWindow;
+  /**
+   * Named calendar year on the range picker (DECISIONS #567), or null when
+   * the page is on a trailing 6/12/24-month chart. When set, `window` is
+   * Jan–Dec of that year (clamped to today) and `months` is that year's bars.
+   */
+  year: number | null;
+  /** Current year and the two before it — the years the picker lists. */
+  calendarYears: readonly number[];
   /**
    * The register link for each category figure, keyed by category id — `null`
    * where the O.5/O.6 fence refuses one.
@@ -178,7 +191,10 @@ export async function getReports(
   // TopSpending card (rows never read, measured 89% of its reports payload).
   // A second lean assembler would be a second copy of this composition, which
   // is exactly the drift shape the repo's panels exist to prevent.
-  { includeMonthFlows = true }: { includeMonthFlows?: boolean } = {},
+  {
+    includeMonthFlows = true,
+    year = null,
+  }: { includeMonthFlows?: boolean; year?: number | null } = {},
 ): Promise<ReportsData> {
   const provider = getProvider();
   const today = provider.today(userId);
@@ -224,12 +240,18 @@ export async function getReports(
   // in the same chart whose expense bar had just stopped counting a
   // future-dated charge — one bar honest, its neighbour not.
   const happened = snap.transactions.filter((t) => t.date <= today);
-  const window = spentSoFarWindow(ym, today);
+  const calendarYears = reportCalendarYears(today);
+  const pickedYear = year != null && calendarYears.includes(year) ? year : null;
+  const window =
+    pickedYear != null
+      ? asOfWindow({ fromYm: `${pickedYear}-01`, toYm: `${pickedYear}-12` }, today)
+      : spentSoFarWindow(ym, today);
 
-  const series = monthlyFlows(happened, excludedFlowIds)
+  const flows = monthlyFlows(happened, excludedFlowIds)
     .map((f) => ({ month: f.month, incomeCents: f.incomeCents, expensesCents: f.expensesCents }))
-    .sort((a, b) => (a.month < b.month ? -1 : 1))
-    .slice(-months);
+    .sort((a, b) => (a.month < b.month ? -1 : 1));
+  const prefix = pickedYear != null ? `${pickedYear}-` : null;
+  const series = prefix ? flows.filter((f) => f.month.startsWith(prefix)) : flows.slice(-months);
 
   const breakdown = spendingByCategory(snap.transactions, window, meta, excludedFlowIds, handoverKeys);
   // Named once and handed to BOTH builders: two panels that disagree about a
@@ -299,6 +321,8 @@ export async function getReports(
   return {
     ym,
     window,
+    year: pickedYear,
+    calendarYears,
     categoryHrefs,
     notCountedYetCents,
     months: series,

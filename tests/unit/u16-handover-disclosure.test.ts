@@ -139,11 +139,13 @@ describe('U.16 — the copy says only what is true in every shape', () => {
     expect(s).toContain('2 transactions in this figure fall');
     // regression__u16_answer_note_promises_no_surface_it_cannot_deliver: the
     // first draft ended "Spending in Reports lists those rows and marks them."
-    // /reports' category table is ALWAYS the current month (`spentSoFarWindow`,
-    // and its only URL parameter sets the CHART range), while an Ask timeframe
-    // is whatever the reader said — "last month", "last quarter". So the pointer
-    // was false for every answer that was not about this month, and it sent the
-    // reader to a page that could not show them the rows it promised.
+    // /reports' category table is this month by default (`spentSoFarWindow`).
+    // `?months=` still only sets the trailing chart range. `?year=` (DECISIONS
+    // #567) is the one URL that widens the category table to a calendar year.
+    // An Ask timeframe is still whatever the reader said — "last month", "last
+    // quarter" — so a pointer at Reports was false for every answer that was
+    // not about this month (or that named year), and it sent the reader to a
+    // page that could not show them the rows it promised.
     expect(s).not.toMatch(/Reports/);
     expect(handoverDayAnswerNote(1)).toContain('1 transaction in this figure falls');
   });

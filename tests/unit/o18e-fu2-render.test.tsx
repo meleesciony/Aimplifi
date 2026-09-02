@@ -79,6 +79,8 @@ const trendsFigureless = (exclusions = true): SpendingTrendsData => ({
 const reportsFigureless = (exclusions = true): ReportsData => ({
   ym: '2026-06',
   window: { fromYm: '2026-06', toYm: '2026-06', asOf: '2026-06-10' },
+  year: null,
+  calendarYears: [],
   categoryHrefs: {},
   notCountedYetCents: 0,
   months: [{ month: '2026-06', incomeCents: 0, expensesCents: 0 }],

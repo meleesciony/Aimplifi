@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { ReportsView } from '@/components/finance/reports-view';
-import { REPORT_CHART_MONTHS, type ReportChartMonths } from '@/lib/engine/reports/chart-range';
+import { REPORT_CHART_MONTHS, parseReportYear, type ReportChartMonths } from '@/lib/engine/reports/chart-range';
 import { getReports } from '@/server/reports';
+import { getProvider } from '@/lib/providers/demo';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { prisma } from '@/lib/db';
 
@@ -19,10 +20,14 @@ export default async function ReportsPage({
   const userId = session.user.id;
   if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
-  // Trailing-series length (owner request 2026-08-04). Validated against the
-  // same vocabulary the selector renders, so an edited URL can only ever pick a
-  // window the page knows how to draw; anything else reads as the default.
+  // Trailing-series length, or a named calendar year (DECISIONS #567). Validated
+  // against the same vocabulary the selector renders, so an edited URL can only
+  // ever pick a window the page knows how to draw; anything else reads as the
+  // default (last 6 months + this month's category table).
   const sp = await searchParams;
+  const today = getProvider().today(userId);
+  const yearRaw = Array.isArray(sp.year) ? (sp.year[0] ?? '') : (sp.year ?? '');
+  const year = parseReportYear(yearRaw, today);
   const monthsRaw = Array.isArray(sp.months) ? (sp.months[0] ?? '') : (sp.months ?? '');
   const monthsParsed = Number(monthsRaw);
   const months: ReportChartMonths = (REPORT_CHART_MONTHS as readonly number[]).includes(monthsParsed)
@@ -36,7 +41,7 @@ export default async function ReportsPage({
   // beside the figure it points at, where the window that decides its `to` date
   // lives.
   const [data, withheld] = await Promise.all([
-    getReports(userId, months),
+    getReports(userId, months, { year }),
     getWithheldAccountSummary(userId),
   ]);
   // withheld threads into the view (the #141/#145 convention; a plain {count,currencies}

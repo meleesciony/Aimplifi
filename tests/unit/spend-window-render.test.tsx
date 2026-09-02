@@ -257,6 +257,8 @@ describe('C.26 — /reports itself, the surface the finding is about (critic cyc
   const reportsData = (notCountedYetCents: number, empty = false): ReportsData => ({
     ym: '2026-06',
     window: { fromYm: '2026-06', toYm: '2026-06', asOf: '2026-06-10' },
+    year: null,
+    calendarYears: [],
     categoryHrefs: { groceries: '/transactions?category=groceries&from=2026-06-01&to=2026-06-10' },
     notCountedYetCents,
     months: [{ month: '2026-06', incomeCents: 50_000, expensesCents: empty ? 0 : 12_000 }],
@@ -320,5 +322,41 @@ describe('C.26 — /reports itself, the surface the finding is about (critic cyc
     expect(screen.queryByTestId('reports-not-counted-yet')).toBeNull();
     expect(screen.getByTestId('reports-category-total').textContent).not.toMatch(/so far/);
     expect(screen.getByTestId('category-link-groceries').getAttribute('aria-label')).not.toMatch(/so far/);
+  });
+
+  it('test_regression__reports_range_lists_calendar_years', () => {
+    render(
+      <ReportsView
+        data={{ ...reportsData(0), calendarYears: [2024, 2025, 2026] }}
+        withheld={withheld}
+        months={6}
+      />,
+    );
+    const range = screen.getByTestId('reports-range') as HTMLSelectElement;
+    const labels = Array.from(range.options).map((o) => o.textContent);
+    expect(labels).toContain('Last 6 months');
+    expect(labels).toContain('Last 12 months');
+    expect(labels).toContain('Last 24 months');
+    expect(labels).toContain('2024');
+    expect(labels).toContain('2025');
+    expect(labels).toContain('2026');
+  });
+
+  it('test_regression__reports_year_names_the_category_window', () => {
+    const data = reportsData(0);
+    render(
+      <ReportsView
+        data={{
+          ...data,
+          year: 2025,
+          calendarYears: [2024, 2025, 2026],
+          window: { fromYm: '2025-01', toYm: '2025-12', asOf: '2026-06-10' },
+        }}
+        withheld={withheld}
+        months={6}
+      />,
+    );
+    expect(screen.getByTestId('reports-category-total').textContent).toMatch(/2025/);
+    expect(screen.getByTestId('reports-range')).toHaveProperty('value', 'year:2025');
   });
 });

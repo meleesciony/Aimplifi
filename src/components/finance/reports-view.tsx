@@ -2,9 +2,10 @@
 
 /**
  * Reports view (DECISIONS #67): income vs. expense over a trailing window the
- * reader picks (6 / 12 / 24 months) + this month's spending by category with
- * parent-group rollup. Recharts for the bars; inline bars for the category
- * breakdown (crisp, no axis clutter).
+ * reader picks (6 / 12 / 24 months) or a named calendar year (DECISIONS #567),
+ * plus spending by category. Trailing months leave the category table as this
+ * month; a named year sets it to Jan–Dec of that year (clamped to today).
+ * Recharts for the bars; inline bars for the category breakdown.
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -52,6 +53,10 @@ export function ReportsView({
   months: ReportChartMonths;
 }) {
   const router = useRouter();
+  const year = data.year ?? null;
+  const calendarYears = data.calendarYears ?? [];
+  const categoryWindowShort = year != null ? String(year) : monthLabel(data.ym);
+  const categoryWindowLong = year != null ? String(year) : formatMonth(data.ym);
   // C.26 (critic cycle 1, P1-1): the linkable fence and the C.25 refusals both
   // moved into `getReports`, with the window, because all three decide the same
   // thing — whether this figure may become a link and where it points — and a
@@ -86,9 +91,14 @@ export function ReportsView({
    * sentence stays silent.
    */
   const currentMonthBar = data.months.find((m) => m.month === data.ym);
-  const basisGapCents = currentMonthBar
-    ? data.breakdown.totalCents - currentMonthBar.expensesCents
-    : 0;
+  const yearExpenseBars =
+    year != null ? data.months.reduce((s, m) => s + m.expensesCents, 0) : null;
+  const basisGapCents =
+    year != null
+      ? data.breakdown.totalCents - (yearExpenseBars ?? 0)
+      : currentMonthBar
+        ? data.breakdown.totalCents - currentMonthBar.expensesCents
+        : 0;
   /**
    * The chart draws no bar at all for the current month while the card below
    * still prints a total for it.
@@ -101,7 +111,8 @@ export function ReportsView({
    * page can show: one surface says the month has a total, the other says the
    * month does not exist.
    */
-  const currentMonthMissingFromChart = !currentMonthBar && data.breakdown.totalCents !== 0;
+  const currentMonthMissingFromChart =
+    year == null && !currentMonthBar && data.breakdown.totalCents !== 0;
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [autoOpenFlow, setAutoOpenFlow] = useState<'income' | 'expense' | null>(null);
   /**
@@ -213,7 +224,7 @@ export function ReportsView({
             // the FIGURE's, not the month's — "in Jun" was false on a figure
             // that stops at today, and this string is the whole label a screen
             // reader hears (it replaces the visible text).
-            aria-label={`${c.name} · ${c.group}: ${formatCents(cents(c.amountCents))} in ${windowLabelSoFar(monthLabel(data.ym), data.notCountedYetCents)} — view these transactions`}
+            aria-label={`${c.name} · ${c.group}: ${formatCents(cents(c.amountCents))} in ${windowLabelSoFar(categoryWindowShort, data.notCountedYetCents)} — view these transactions`}
             // Owner-reported 2026-07-31 ("you didn't fix this and all bar
             // charts"): the BAR was a sibling of this anchor, so the widest,
             // most obviously chart-like thing on the card was the one part of
@@ -260,7 +271,7 @@ export function ReportsView({
         <CategoryBreakdownPanel
           breakdown={data.breakdowns[c.categoryId]}
           categoryName={c.name}
-          windowLabel={formatMonth(data.ym)}
+          windowLabel={categoryWindowLong}
           registerHref={href}
           testIdPrefix="reports-breakdown"
         />
@@ -285,25 +296,31 @@ export function ReportsView({
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold">Income vs. spending</h2>
-            {/* Trailing-window picker (owner request 2026-08-04: "why are we
-                only pulling 6 months of data?"). The chart always showed six
-                months because nothing could ask for more; the selector commits
-                `?months=` and the page re-derives the series at that length.
-                The choice is limited to what history can actually feed — a
-                reader whose bank was linked last month can still pick 24, and
-                the chart simply draws the months that exist (monthlyFlows emits
-                only months with qualifying rows), so a wider pick degrades to
-                the truth instead of an error. */}
+            {/* Trailing-window picker (owner request 2026-08-04) plus named
+                calendar years (DECISIONS #567). `?months=` keeps the category
+                table on this month; `?year=` sets both the chart and the
+                category table to that civil year. monthlyFlows emits only
+                months with qualifying rows, so a year with a short history
+                draws the months that exist. */}
             <select
-              aria-label="Chart range"
-              value={months}
-              onChange={(e) => router.push(`/reports?months=${e.target.value}`)}
+              aria-label="Range"
+              value={year != null ? `year:${year}` : String(months)}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v.startsWith('year:')) router.push(`/reports?year=${v.slice(5)}`);
+                else router.push(`/reports?months=${v}`);
+              }}
               data-testid="reports-range"
               className="h-7 rounded-md border border-input bg-background px-1.5 text-xs text-foreground"
             >
               {REPORT_CHART_MONTHS.map((m) => (
-                <option key={m} value={m}>
+                <option key={m} value={String(m)}>
                   Last {m} months
+                </option>
+              ))}
+              {calendarYears.map((y) => (
+                <option key={y} value={`year:${y}`}>
+                  {y}
                 </option>
               ))}
             </select>
@@ -331,7 +348,7 @@ export function ReportsView({
                   tickLine={false}
                   axisLine={false}
                   fontSize={11}
-                  interval={months === 6 ? 0 : months === 12 ? 1 : 2}
+                  interval={year != null || months === 12 ? 1 : months === 6 ? 0 : 2}
                 />
                 <Tooltip
                   cursor={{ fillOpacity: 0.06 }}
@@ -419,9 +436,9 @@ export function ReportsView({
             {basisGapCents !== 0 && (
               <p className="mt-1 text-xs text-muted-foreground" data-testid="reports-basis-gap">
                 This chart and “Spending by category” below count on different rules — each
-                says which underneath. For {formatMonth(data.ym)} the list below is{' '}
+                says which underneath. For {year != null ? String(year) : formatMonth(data.ym)} the list below is{' '}
                 {formatCents(cents(Math.abs(basisGapCents)))}{' '}
-                {basisGapCents > 0 ? 'higher' : 'lower'} than this month’s bar.
+                {basisGapCents > 0 ? 'higher' : 'lower'} than {year != null ? 'this range’s bars' : 'this month’s bar'}.
               </p>
             )}
             {currentMonthMissingFromChart && (
@@ -541,7 +558,7 @@ export function ReportsView({
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-sm font-semibold">Spending by category</h2>
           <span className="text-xs text-muted-foreground" data-testid="reports-category-total">
-            {monthLabel(data.ym)}
+            {categoryWindowShort}
             {data.notCountedYetCents > 0 ? ' so far' : ''} ·{' '}
             {formatCents(cents(data.breakdown.totalCents))} total
           </span>
@@ -592,8 +609,8 @@ export function ReportsView({
         {top.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
             {data.notCountedYetCents > 0
-              ? 'Nothing counted yet this month — see above.'
-              : 'No spending this month yet.'}
+              ? `Nothing counted yet ${year != null ? `in ${year}` : 'this month'} — see above.`
+              : `No spending ${year != null ? `in ${year}` : 'this month'} yet.`}
           </p>
         ) : (
           <div className="space-y-2.5" data-testid="category-breakdown">
