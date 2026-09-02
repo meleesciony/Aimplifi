@@ -2019,3 +2019,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__inbox_copy_is_merchant_groups_not_needs_a_category`.
 
+## #565 — Unrecognized CSV date error names two-digit years (2026-09-01)
+
+**Context.** The parser accepts MM/DD/YY. The throw for an unrecognized date still said use YYYY-MM-DD or MM/DD/YYYY, so a household with a failed row would think two-digit years were invalid.
+
+**Decision.** The unrecognized-date error names YYYY-MM-DD, MM/DD/YYYY, or MM/DD/YY. Parser and year pivot unchanged.
+
+**Locked.** `test_regression__csv_unrecognized_date_error_names_two_digit_year`.
+

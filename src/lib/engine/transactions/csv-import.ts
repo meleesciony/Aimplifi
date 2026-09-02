@@ -98,7 +98,7 @@ export function normalizeImportDate(raw: string): ISODate {
     if (year < 100) year += year >= 70 ? 1900 : 2000;
     return isoDate(`${String(year).padStart(4, '0')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
   }
-  throw new Error(`unrecognized date "${raw}" (use YYYY-MM-DD or MM/DD/YYYY)`);
+  throw new Error(`unrecognized date "${raw}" (use YYYY-MM-DD, MM/DD/YYYY, or MM/DD/YY)`);
 }
 
 function resolveCategory(raw: string, customByName: ReadonlyMap<string, string>): string | null {

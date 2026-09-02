@@ -37,6 +37,10 @@ describe('normalizeImportDate', () => {
   it('rejects unrecognized formats', () => {
     expect(() => normalizeImportDate('June 9')).toThrow();
   });
+  it('test_regression__csv_unrecognized_date_error_names_two_digit_year', () => {
+    expect(() => normalizeImportDate('June 9')).toThrow(/MM\/DD\/YY/);
+    expect(() => normalizeImportDate('June 9')).toThrow(/YYYY-MM-DD/);
+  });
   it('test_regression__csv_date_accepts_us_two_digit_year', () => {
     expect(normalizeImportDate('9/1/26')).toBe('2026-09-01');
     expect(normalizeImportDate('6-9-26')).toBe('2026-06-09');
