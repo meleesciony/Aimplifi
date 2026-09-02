@@ -39,6 +39,8 @@ import {
   type FixedCategoryAmount,
 } from '@/lib/engine/spending-plan/fixed-category-amounts';
 import { reserveBasisNote } from '@/lib/engine/spending-plan/reserves';
+import { billRenameKey, namedBillLabel } from '@/lib/engine/spending-plan/bill-rename';
+export { UNNAMED_BILL_LABEL } from '@/lib/engine/spending-plan/bill-rename';
 
 /** Where a line's money came from — the three sources genuinely differ in kind.
  *  `'reserve'` is the one with no transaction behind it: the reader declared it
@@ -49,6 +51,11 @@ export interface FixedListLine {
   key: string;
   /** What the reader sees. Never a guess — see `label` handling below. */
   label: string;
+  /**
+   * Recurring-bill overlay key. Absent on category and reserve lines.
+   * Identity for a household name; not a money figure.
+   */
+  billKey?: string;
   amountCents: number;
   kind: FixedLineKind;
   /** MONTHLY-rate lines say so: a quarterly premium is listed at a third of its
@@ -118,9 +125,6 @@ export interface FixedListResult {
   note: string;
 }
 
-/** A line whose payee the detector never named. Not rendered as a category
- *  name: "Housing" beside one bill's rate reads as the whole housing budget. */
-export const UNNAMED_BILL_LABEL = 'A recurring bill we detected';
 
 /**
  * The qualifier for a BILL line. Only the three smoothed long rhythms get one —
@@ -141,15 +145,12 @@ export function billBasisNote(cadence: string | null): string | null {
   return null;
 }
 
-function labelFor(row: FixedUnionRow, nameOfCategory: (id: string) => string): string {
-  if (row.merchantCanonical !== null && row.merchantCanonical !== '') {
-    return row.merchantCanonical;
-  }
-  // The category is context, never the name — and only when it exists.
-  if (row.categoryId !== null && row.categoryId !== '') {
-    return `${UNNAMED_BILL_LABEL} (${nameOfCategory(row.categoryId)})`;
-  }
-  return UNNAMED_BILL_LABEL;
+function labelFor(
+  row: FixedUnionRow,
+  nameOfCategory: (id: string) => string,
+  names: ReadonlyMap<string, string>,
+): string {
+  return namedBillLabel(row, names, nameOfCategory);
 }
 
 /**
@@ -172,8 +173,11 @@ export function buildFixedList(input: {
   >;
   rollupRows: readonly FixedCategoryAmount[];
   nameOfCategory: (id: string) => string;
+  /** Household names for repeating bills. Absent/empty = detector labels. */
+  billNames?: ReadonlyMap<string, string>;
 }): FixedListResult {
   const { plan } = input;
+  const billNames = input.billNames ?? new Map<string, string>();
   const categoryLines: FixedListLine[] = input.rollupRows.map((r) => ({
     key: `category:${r.categoryId}`,
     label: r.name,
@@ -186,7 +190,8 @@ export function buildFixedList(input: {
   }));
   const billLines: FixedListLine[] = plan.fixedLineItems.map((r) => ({
     key: `bill:${r.key}`,
-    label: labelFor(r, input.nameOfCategory),
+    label: labelFor(r, input.nameOfCategory, billNames),
+    billKey: billRenameKey(r),
     amountCents: r.monthlyRateCents,
     kind: 'recurring-bill' as const,
     cadence: r.cadence,

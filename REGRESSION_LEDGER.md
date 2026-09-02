@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | Repeating bill printed A recurring bill we detected with no name control | labelFor had no overlay; unnamed series had no write path | a household names a repeating bill; dollars stay put | `test_regression__household_can_name_a_repeating_bill` |
 | 2026-09-02 | Spending-plan reserve could not be renamed after create | convert kept merchant spelling; only create-then-delete | a household names each envelope; dollars stay put | `test_regression__spending_plan_can_name_each_envelope` |
 | 2026-09-02 | Reports nav said six months plus this month | page already names calendar years | menu copy must match the page | `test_regression__reports_nav_names_trailing_months_or_a_year` |
 | 2026-09-02 | Activity register said Transactions | nav already said Activity | copy must not rename a page between the tap and the heading | `test_regression__activity_register_heading_matches_nav` |

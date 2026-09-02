@@ -26,6 +26,7 @@
  * pattern against a stock.
  */
 import { prisma } from '@/lib/db';
+import { getBillRenames } from '@/server/bill-names';
 import {
   computeSpendingPlan,
   daysInMonth,
@@ -598,6 +599,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
       plan,
       rollupRows: categoryFixed.rows,
       nameOfCategory: (id) => categoryName(id, categoryMeta),
+      billNames: await getBillRenames(userId),
     }),
     // Declarations that could not be counted (C.23/H.4). Surfaced rather than
     // swallowed: a refused reserve is money the reader told us about and the

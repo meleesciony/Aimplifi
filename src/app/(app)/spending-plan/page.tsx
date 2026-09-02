@@ -22,6 +22,7 @@ import { RESERVE_CADENCE_WORDS } from '@/lib/engine/spending-plan/reserves';
 import { ReserveForm } from '@/components/finance/reserve-form';
 import { DeleteReserveButton } from '@/components/finance/delete-reserve-button';
 import { ReserveNameControl } from '@/components/finance/rename-reserve-form';
+import { BillNameControl } from '@/components/finance/rename-bill-form';
 
 export const metadata = { title: "Spending plan" };
 
@@ -279,7 +280,11 @@ export default async function SpendingPlanPage() {
                   data-testid="fixed-composition-row"
                 >
                   <dt className="min-w-0 text-muted-foreground">
-                    <span data-testid="fixed-composition-label">{l.label}</span>
+                    {l.kind === 'recurring-bill' && l.billKey ? (
+                      <BillNameControl billKey={l.billKey} name={l.label} />
+                    ) : (
+                      <span data-testid="fixed-composition-label">{l.label}</span>
+                    )}
                     {/* The chip is withheld when the label already carries the
                         word — an unnamed bill reads "A recurring bill we
                         detected" and does not need "REPEATING BILL" stamped

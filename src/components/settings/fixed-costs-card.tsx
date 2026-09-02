@@ -8,6 +8,7 @@ import type { SpendingPlanWithNotes } from '@/server/spending-plan';
 import { ReserveForm } from '@/components/finance/reserve-form';
 import { ConvertToReserveButton } from '@/components/finance/convert-to-reserve-button';
 import { HoldingAccountPicker } from '@/components/finance/holding-account-picker';
+import { BillNameControl } from '@/components/finance/rename-bill-form';
 
 /**
  * THE FIXED-COSTS SETTINGS CARD (C.23 / DECISIONS #431).
@@ -98,7 +99,11 @@ export function FixedCostsCard({
               {fixedList.lines.map((l) => (
                 <div key={l.key} className="flex items-center justify-between gap-3 py-2" data-testid="fixed-costs-basis-row">
                   <dt className="min-w-0 text-muted-foreground">
-                    <span data-testid="fixed-costs-basis-label">{l.label}</span>
+                    {l.kind === 'recurring-bill' && l.billKey && canWrite ? (
+                      <BillNameControl billKey={l.billKey} name={l.label} labelTestId="fixed-costs-basis-label" />
+                    ) : (
+                      <span data-testid="fixed-costs-basis-label">{l.label}</span>
+                    )}
                     {/* Same chip rules as the plan page (the L.30 shape): a
                         chip that repeats its neighbour is clutter, not
                         disclosure. */}

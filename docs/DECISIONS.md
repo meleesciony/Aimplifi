@@ -2143,3 +2143,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__spending_plan_can_name_each_envelope`.
 
+## #580 — Household can name a repeating bill (2026-09-02)
+
+**Context.** A repeating bill with no payee from detection printed "A recurring bill we detected" on Spending plan. There was no way to give that line a household name. Detector identity (exclusion, convert) was not a label.
+
+**Decision.** Tapping a repeating-bill name on Spending plan (and Settings Fixed costs) opens a rename field. The write is a per-user overlay. Dollars, cadence, and merchantCanonical stay put. Blank and over-cap names are refused in words. Demo cannot learn.
+
+**Locked.** `test_regression__household_can_name_a_repeating_bill`.
+
