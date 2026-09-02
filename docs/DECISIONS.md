@@ -2058,3 +2058,12 @@ invent an auto-file quality claim.
 **Decision.** The existing Into account picker includes New account. That path is the same name, type, and current-balance fields as first-run. Empty `accountId` still creates (the server already did). Filing into an existing account is unchanged.
 
 **Locked.** `test_regression__csv_import_creates_a_second_account`.
+
+## #570 — CSV import finds the header under a bank preamble (2026-09-02)
+
+**Context.** Many bank and Excel exports print an account name or date range above the real header, or start with a UTF-8 BOM. The importer treated the first non-blank line as the header, so those files failed as missing columns.
+
+**Decision.** Import uses the first line that actually has date, payee, and amount (or Debit/Credit / Withdrawal/Deposit). A UTF-8 BOM is ignored. A file with no such header still errors on the first non-blank line, same as before.
+
+**Locked.** `test_regression__csv_skips_bank_preamble_to_header` + `test_regression__csv_accepts_utf8_bom_header`.
+

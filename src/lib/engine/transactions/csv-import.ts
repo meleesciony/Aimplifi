@@ -6,7 +6,7 @@
  * (normalize → rules → categorize), exactly like Plaid and manual entry.
  *
  * Contract (kept deliberately simple and unambiguous):
- *  - A header row is required. Recognized columns (case-insensitive, aliased):
+ *  - A header row is required. Title/account/date-range rows above it are skipped. A leading UTF-8 BOM is ignored. Recognized columns (case-insensitive, aliased):
  *      date         ← date | transaction date | posted date | post date | posting date | trade date | trans date | run date
  *      description  ← description | payee | memo | name | merchant | transaction description
  *      amount       ← amount | net amount | transaction amount | Amount (USD)
@@ -132,6 +132,37 @@ function composedDebitCreditCents(debitRaw: string, creditRaw: string): number {
   return creditAbs - debitAbs;
 }
 
+function stripBom(s: string): string {
+  return s.replace(/^\uFEFF/, '');
+}
+
+function findHeaderAlias(header: readonly string[], aliases: readonly string[], looseFirstToken = false): number {
+  return header.findIndex((h) => {
+    const norm = h.replace(/[^a-z0-9]+/g, ' ').trim();
+    if (aliases.includes(h) || aliases.includes(norm)) return true;
+    if (!looseFirstToken) return false;
+    const first = norm.split(/\s+/)[0] ?? '';
+    return aliases.includes(first);
+  });
+}
+
+function csvColumnLayout(header: readonly string[]) {
+  const dateCol = findHeaderAlias(header, DATE_ALIASES);
+  const descCol = findHeaderAlias(header, DESCRIPTION_ALIASES);
+  const amountCol = findHeaderAlias(header, AMOUNT_ALIASES, true);
+  const debitCol = findHeaderAlias(header, DEBIT_ALIASES, true);
+  const creditCol = findHeaderAlias(header, CREDIT_ALIASES, true);
+  const catCol = header.indexOf('category');
+  const canComposeAmount = debitCol !== -1 && creditCol !== -1;
+  const missing: string[] = [];
+  if (dateCol === -1) missing.push('date');
+  if (descCol === -1) missing.push('description');
+  if (amountCol === -1 && !canComposeAmount) {
+    missing.push('amount (or Net Amount, or Debit plus Credit, or Withdrawal/Deposit)');
+  }
+  return { dateCol, descCol, amountCol, debitCol, creditCol, catCol, canComposeAmount, missing };
+}
+
 /**
  * @param customByName lowercased custom-category name → id, so a CSV "category"
  * column naming one of the user's own categories ("Golf") resolves to it
@@ -141,40 +172,38 @@ export function parseTransactionCsv(
   text: string,
   customByName: ReadonlyMap<string, string> = new Map(),
 ): ParsedCsv {
-  const rawLines = text.split(/\r\n|\r|\n/);
-  // index of the first non-blank line = header
-  const headerIdx = rawLines.findIndex((l) => l.trim() !== '');
-  if (headerIdx === -1) return { rows: [], errors: [{ line: 1, message: 'File is empty' }] };
+  const rawLines = stripBom(text).split(/\r\n|\r|\n/);
+  const firstNonBlank = rawLines.findIndex((l) => l.trim() !== '');
+  if (firstNonBlank === -1) return { rows: [], errors: [{ line: 1, message: 'File is empty' }] };
 
-  const header = parseCsvLine(rawLines[headerIdx]).map((h) => h.toLowerCase());
-  const find = (aliases: string[], looseFirstToken = false) =>
-    header.findIndex((h) => {
-      const norm = h.replace(/[^a-z0-9]+/g, ' ').trim();
-      if (aliases.includes(h) || aliases.includes(norm)) return true;
-      if (!looseFirstToken) return false;
-      const first = norm.split(/\s+/)[0] ?? '';
-      return aliases.includes(first);
-    });
-  const dateCol = find(DATE_ALIASES);
-  const descCol = find(DESCRIPTION_ALIASES);
-  const amountCol = find(AMOUNT_ALIASES, true);
-  const debitCol = find(DEBIT_ALIASES, true);
-  const creditCol = find(CREDIT_ALIASES, true);
-  const catCol = header.indexOf('category');
-  const canComposeAmount = debitCol !== -1 && creditCol !== -1;
-
-  const missing: string[] = [];
-  if (dateCol === -1) missing.push('date');
-  if (descCol === -1) missing.push('description');
-  if (amountCol === -1 && !canComposeAmount) {
-    missing.push('amount (or Net Amount, or Debit plus Credit, or Withdrawal/Deposit)');
+  // Bank exports often print a title, account, or date-range above the
+  // real header. Use the first line that actually has date + payee + amount
+  // columns (DECISIONS #570). Cap the scan so a headerless dump cannot
+  // walk the whole file.
+  let headerIdx = -1;
+  let layout: ReturnType<typeof csvColumnLayout> | null = null;
+  let seen = 0;
+  for (let i = firstNonBlank; i < rawLines.length; i++) {
+    if (rawLines[i].trim() === '') continue;
+    seen += 1;
+    const header = parseCsvLine(stripBom(rawLines[i])).map((h) => stripBom(h).toLowerCase());
+    const next = csvColumnLayout(header);
+    if (next.missing.length === 0) {
+      headerIdx = i;
+      layout = next;
+      break;
+    }
+    if (seen >= 40) break;
   }
-  if (missing.length) {
+  if (headerIdx === -1 || layout == null) {
+    const header = parseCsvLine(stripBom(rawLines[firstNonBlank])).map((h) => stripBom(h).toLowerCase());
+    const failed = csvColumnLayout(header);
     return {
       rows: [],
-      errors: [{ line: headerIdx + 1, message: `Missing required column(s): ${missing.join(', ')}` }],
+      errors: [{ line: firstNonBlank + 1, message: `Missing required column(s): ${failed.missing.join(', ')}` }],
     };
   }
+  const { dateCol, descCol, amountCol, debitCol, creditCol, catCol } = layout;
 
   const rows: ParsedCsvRow[] = [];
   const errors: CsvRowError[] = [];
