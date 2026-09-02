@@ -35,6 +35,7 @@ import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { overrideKey } from '@/lib/engine/recurring/override';
 import { createReserveFromSeries, deleteReserve } from '@/server/reserve-actions';
+import { getSpendingPlan } from '@/server/spending-plan';
 import { clearRecurringOverride, getRecurringOverrides, setRecurringOverride } from '@/server/recurring-overrides';
 import { deleteGoal } from '@/server/goal-actions';
 
@@ -130,6 +131,13 @@ async function seedLegacyCollision(decision: 'BILL' | 'NOT_BILL' = 'BILL'): Prom
 describe('the convert write resolves the folded-key collision in the SAME transaction (critic P1-3)', () => {
   it('replaces a case-differing legacy row instead of minting a second, contradictory one', async () => {
     await seedLegacyCollision('BILL');
+
+    const plan = await getSpendingPlan(USER);
+    const convertible = plan.fixedSetup.bills.find(
+      (b) => b.convertibleToReserve && b.inBasis && b.merchantCanonical,
+    );
+    expect(convertible, 'annual series must be convertible in-basis on the spending plan').toBeTruthy();
+    expect(convertible!.merchantCanonical).toBe(CANONICAL);
 
     const result = await createReserveFromSeries(CANONICAL);
     expect(result).toEqual({ ok: true });

@@ -2255,3 +2255,11 @@ invent an auto-file quality claim.
 **Decision.** Spending plan lists bills taken off (BillOffPlan or NOT_BILL) with a confirmed Put-back control. Unnamed: delete BillOffPlan. Payee: clearRecurringVerdict so NOT_BILL is withdrawn (same undo Recurring uses); also delete BillOffPlan if that key exists. Overlay only. Transactions stay. Loan payments were never take-off-able and are not listed. Empty list renders nothing. Demo cannot learn. No CSV parser change.
 
 **Locked.** `test_regression__household_can_put_a_repeating_bill_back_on_the_spending_plan`.
+
+## #594 — Turn a repeating bill into a reserve from the spending plan (2026-09-02)
+
+**Context.** ConvertToReserveButton → createReserveFromSeries already lives on Settings FixedCostsCard. Spending plan lists the same recurring-bill lines with take-off but no convert. `p.fixedSetup.bills` already carries `convertibleToReserve` and `merchantCanonical` from `proposeFixedSetup` (same loader). The server re-derives convertibility.
+
+**Decision.** A household can turn a repeating bill into a reserve from the spending plan. On Spending plan Fixed composition, a convertible repeating bill (`convertibleToReserve && merchantCanonical`) shows ConvertToReserveButton with that canonical, only when `canEditFigures`. Loan payments and unnamed (no canonical) stay unoffered. Reuse the existing button. Do not duplicate createReserveFromSeries. No CSV. Integer cents. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_turn_a_repeating_bill_into_a_reserve_from_the_spending_plan`.

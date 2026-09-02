@@ -26,6 +26,7 @@ import { ReserveCostControl } from '@/components/finance/reserve-cost-form';
 import { ReserveCadenceControl } from '@/components/finance/reserve-cadence-form';
 import { BillNameControl } from '@/components/finance/rename-bill-form';
 import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-button';
+import { ConvertToReserveButton } from '@/components/finance/convert-to-reserve-button';
 import { PutBillBackOnPlanButton } from '@/components/finance/put-bill-back-on-plan-button';
 
 export const metadata = { title: "Spending plan" };
@@ -331,6 +332,14 @@ export default async function SpendingPlanPage() {
                     !l.loanPayment ? (
                       <TakeBillOffPlanButton billKey={l.billKey} billName={l.label} />
                     ) : null}
+                    {canEditFigures &&
+                    l.kind === 'recurring-bill' &&
+                    (() => {
+                      const convertBill = p.fixedSetup.bills.find((b) => b.merchantCanonical === l.billKey);
+                      return convertBill?.convertibleToReserve && convertBill.merchantCanonical ? (
+                        <ConvertToReserveButton merchantCanonical={convertBill.merchantCanonical} />
+                      ) : null;
+                    })()}
                   </dd>
                 </div>
               ))}
