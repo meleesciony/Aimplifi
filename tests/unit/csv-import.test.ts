@@ -35,8 +35,13 @@ describe('normalizeImportDate', () => {
     expect(normalizeImportDate('12/31/2025')).toBe('2025-12-31');
   });
   it('rejects unrecognized formats', () => {
-    expect(() => normalizeImportDate('09-06-2026')).toThrow();
     expect(() => normalizeImportDate('June 9')).toThrow();
+  });
+  it('test_regression__csv_date_accepts_us_hyphen_mm_dd_yyyy', () => {
+    expect(normalizeImportDate('09-06-2026')).toBe('2026-09-06');
+    expect(normalizeImportDate('6-9-2026')).toBe('2026-06-09');
+    expect(normalizeImportDate('09-06-2026 00:00:00')).toBe('2026-09-06');
+    expect(normalizeImportDate('2026-06-09')).toBe('2026-06-09');
   });
   it('test_regression__csv_date_drops_excel_and_sheets_trailing_time', () => {
     expect(normalizeImportDate('2026-06-09 00:00:00')).toBe('2026-06-09');

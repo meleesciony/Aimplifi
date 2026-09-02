@@ -1971,3 +1971,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__csv_date_drops_excel_and_sheets_trailing_time`, `test_regression__csv_file_accepts_excel_datetime_cells`.
 
+## #559 — CSV import accepts US hyphen dates MM-DD-YYYY (2026-09-01)
+
+**Context.** #558 dropped trailing time but still rejected `09-06-2026`. Quicken and some bank/Excel exports use hyphens in US month-day-year order. ISO `2026-09-06` already worked; the hyphen US form failed every row.
+
+**Decision.** After the ISO YYYY-MM-DD match, US dates accept `/` or `-` as the separator (MM-DD-YYYY). Calendar date via `isoDate`. No DD-MM-YYYY. No timezone math.
+
+**Locked.** `test_regression__csv_date_accepts_us_hyphen_mm_dd_yyyy`.
+
