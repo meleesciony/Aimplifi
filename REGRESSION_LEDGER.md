@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-01 | Missing-amount CSV error omitted Withdrawal/Deposit | error string lagged the parser | classify-any-source: the error must name the headers we accept | `test_regression__csv_accepts_withdrawal_deposit_and_names_amount_alternatives` |
 | 2026-09-01 | Hyphen US CSV dates (09-06-2026) failed every row | parser accepted slashes only after ISO | classify-any-source; US month-day-year with hyphen | `test_regression__csv_date_accepts_us_hyphen_mm_dd_yyyy` |
 | 2026-09-01 | Excel/Sheets CSV dates with a time failed every row | parser required a bare YYYY-MM-DD or MM/DD/YYYY | classify-any-source; business dates are calendar dates | `test_regression__csv_date_drops_excel_and_sheets_trailing_time` |
 | 2026-09-01 | Merchant / Amount (USD) / Trans. Date CSV failed as exported | exact header match; punctuation not collapsed | classify-any-source means the bank export as exported | `test_regression__csv_accepts_merchant_amount_usd_and_trans_dot_date` |

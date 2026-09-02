@@ -145,6 +145,7 @@ describe('parseTransactionCsv', () => {
     expect(missing.rows).toEqual([]);
     expect(missing.errors[0].message).toMatch(/Net Amount/);
     expect(missing.errors[0].message).toMatch(/Debit plus Credit/);
+    expect(missing.errors[0].message).toMatch(/Withdrawal\/Deposit/);
   });
 
   it('test_regression__csv_accepts_withdrawal_paren_and_deposit_plus_headers', () => {

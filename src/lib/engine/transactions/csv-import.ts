@@ -165,7 +165,7 @@ export function parseTransactionCsv(
   if (dateCol === -1) missing.push('date');
   if (descCol === -1) missing.push('description');
   if (amountCol === -1 && !canComposeAmount) {
-    missing.push('amount (or Net Amount, or Debit plus Credit)');
+    missing.push('amount (or Net Amount, or Debit plus Credit, or Withdrawal/Deposit)');
   }
   if (missing.length) {
     return {

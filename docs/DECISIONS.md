@@ -1979,3 +1979,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__csv_date_accepts_us_hyphen_mm_dd_yyyy`.
 
+## #560 — Missing-amount CSV error names Withdrawal/Deposit (2026-09-01)
+
+**Context.** Parser already accepts Withdrawal/Deposit (#550/#552). A file without any money column still said "amount (or Net Amount, or Debit plus Credit)", so a Quicken/Schwab household that looked at the error would not see the headers their export actually uses.
+
+**Decision.** Copy-only on the missing-column error: also name Withdrawal/Deposit. Parser match unchanged.
+
+**Locked.** `test_regression__csv_accepts_withdrawal_deposit_and_names_amount_alternatives`.
+
