@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | CSV store-number variants of one payee could not file as one Inbox group | merchantless keyed by exact descriptor | a household files an Inbox merchant group in one go | `test_regression__household_can_file_inbox_merchant_group_in_one_go` |
 | 2026-09-02 | Repeating bill next date could not be marked paid | nextExpectedAt only from last real charge | a household records that a repeating bill paid this cycle; no invented txn | `test_regression__household_can_record_repeating_bill_paid_this_cycle` |
 | 2026-09-02 | Typed reserve cadence could not change after create | cadence locked at create | a household changes how often a typed reserve comes around; convert pairing stays put | `test_regression__household_can_change_typed_reserve_cadence` |
 | 2026-09-02 | Typed reserve cost could not change after create | only create-rename-delete | a household changes a reserve true cost; convert pairing stays put | `test_regression__household_can_change_a_reserve_true_cost` |

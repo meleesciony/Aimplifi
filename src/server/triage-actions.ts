@@ -374,17 +374,25 @@ export async function fileMerchantGroup(input: {
   // equals the pre-H.8 behavior).
   const keepsReconciled = await getReconciliationTxnKeep(userId);
   const { correctionIds, ruleId, minted, affected } = await serializableTx(async (tx) => {
+    const merchantlessByCanonical = !aggregate && txn.merchantId === null;
+    const canon = merchantlessByCanonical
+      ? normalizeMerchant(txn.rawDescriptor).canonical.normalize('NFC').trim().toLowerCase()
+      : null;
     const targets = (
       await tx.transaction.findMany({
         // SAME scope + SAME spending-account/currency filter the group card was
         // built from (groupKey ↔ similarTransactionsWhere, DECISIONS #23; checker:
         // the action must never file more account types than the card counted).
         where: {
-          ...similarTransactionsWhere(userId, {
-            merchantId: txn.merchantId,
-            rawDescriptor: txn.rawDescriptor,
-            aggregate,
-          }),
+          ...similarTransactionsWhere(
+            userId,
+            {
+              merchantId: txn.merchantId,
+              rawDescriptor: txn.rawDescriptor,
+              aggregate,
+            },
+            merchantlessByCanonical ? { merchantlessByCanonical: true } : {},
+          ),
           account: {
             userId,
             type: { in: [...SPENDING_ACCOUNT_TYPES] },
@@ -392,7 +400,16 @@ export async function fileMerchantGroup(input: {
           },
         },
       })
-    ).filter((t) => keepsReconciled(t.accountId, t.date));
+    ).filter((t) => {
+      if (!keepsReconciled(t.accountId, t.date)) return false;
+      if (!canon) return true;
+      // Merchantless Inbox group is canonical, never every null-merchant row
+      // and never a synced m: card of the same bank text (cycle-2 P2).
+      if (t.merchantId !== null) return false;
+      const n = normalizeMerchant(t.rawDescriptor);
+      if (n.aggregate) return false;
+      return n.canonical.normalize('NFC').trim().toLowerCase() === canon;
+    });
     if (targets.length === 0) {
       return { correctionIds: [] as string[], ruleId: null as string | null, minted: false, affected: 0 };
     }

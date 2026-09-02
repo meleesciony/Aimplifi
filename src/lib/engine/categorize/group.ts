@@ -14,8 +14,9 @@
  *   - aggregate pseudo-merchants (Zelle/checks/ATM/Venmo): EXACT rawDescriptor
  *     — "6 payments to J. Park", never "all Zelle";
  *   - real merchants: merchantId;
- *   - merchantless rows: the canonical string (defensive — ingest always
- *     upserts a Merchant, but a null merchantId must not crash the queue).
+ *   - merchantless rows (CSV/manual): canonical payee, so store-number
+ *     variants of one unknown merchant are one Inbox decision (DECISIONS #585).
+ *     Aggregates stay exact-descriptor. Merchant-attached rows stay on m:.
  */
 
 export interface ReviewRow {
@@ -96,14 +97,18 @@ export interface TriageGroup {
   >;
 }
 
+export function merchantlessCanonKey(canonical: string): string {
+  return `canon:${canonical.normalize('NFC').trim().toLowerCase()}`;
+}
+
 export function groupKey(row: Pick<ReviewRow, 'merchantId' | 'rawDescriptor' | 'merchantCanonical' | 'aggregate'>): string {
   if (row.aggregate) return `agg:${row.rawDescriptor}`;
   if (row.merchantId) return `m:${row.merchantId}`;
-  // Merchantless rows key by EXACT descriptor — the same scope the file action
-  // uses (similarTransactionsWhere), so the card's count can never exceed what
-  // one tap actually files (Phase-3 checker P0: a canonical-keyed card over a
-  // descriptor-scoped action either under-files or, worse pre-fix, mass-files).
-  return `raw:${row.rawDescriptor}`;
+  // Merchantless CSV/manual rows of one payee (store-number variants) are one
+  // card. fileMerchantGroup uses the same canonical scope, so count ≡ write
+  // (DECISIONS #585). Different canonicals stay separate (P0). m: cards stay
+  // separate from canon: cards (cycle-2 P2).
+  return merchantlessCanonKey(row.merchantCanonical);
 }
 
 /**

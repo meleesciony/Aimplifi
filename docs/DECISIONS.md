@@ -2183,3 +2183,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__household_can_record_repeating_bill_paid_this_cycle`.
 
+## #585 — Household can file an Inbox merchant group in one go (2026-09-02)
+
+**Context.** Inbox already files a synced merchant's queued rows in one tap (`m:` cards). CSV/manual rows have no merchantId, so store-number variants of one payee sat on separate `raw:` cards. Filing one left the others in review — a household could not file that merchant group in one go.
+
+**Decision.** Merchantless non-aggregate Inbox cards key on canonical payee (`canon:`). One File-all tap files every queued merchantless row of that canonical. Different canonicals stay separate. Synced `m:` rows of the same bank text stay on their own card and are not co-filed. Aggregates stay exact-descriptor. No invented transaction. Demo cannot learn (existing triage fence).
+
+**Locked.** `test_regression__household_can_file_inbox_merchant_group_in_one_go`.
+

@@ -17,6 +17,7 @@ import {
   groupReviewRows,
   inboxMerchantHeading,
   isConfidentGroup,
+  merchantlessCanonKey,
   rotateSkippedGroup,
   selectConfidentGroups,
   summarizeConfident,
@@ -235,9 +236,9 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(groups[0].rows.map((r) => r.id)).toEqual(['b1', 'b2']); // newest-first preserved
     // O.12e: per-row ladder rungs survive grouping even when the card is mixed.
     expect(groups[0].rows.map((r) => r.suggestedCategoryId)).toEqual(['coffee', 'dining']);
-    // Merchantless fallback keys by EXACT DESCRIPTOR — the same scope the file
-    // action uses, so card count ≡ action scope (checker P0).
-    expect(groups[1].key).toBe('raw:LOCAL ONE');
+    // Merchantless fallback keys by CANONICAL — same scope the file action uses
+    // (DECISIONS #585), so card count ≡ action scope.
+    expect(groups[1].key).toBe(merchantlessCanonKey('Local One'));
     expect(groups[1].ruleEligible).toBe(false); // no merchantId → no rule offer
   });
 
@@ -358,7 +359,7 @@ describe('merchant-group triage (Phase 3b)', () => {
     // The partition the scope must honor: d1 on its own raw: card, d2 inside the
     // merchant's m: card (count ≡ what one tap files — DECISIONS #23).
     const groups = await getTriageGroups(USER);
-    const rawCard = groups.find((g) => g.key === 'raw:CORNER STORE 55');
+    const rawCard = groups.find((g) => g.key === merchantlessCanonKey(normalizeMerchant('CORNER STORE 55').canonical));
     expect(rawCard).toBeDefined();
     expect(rawCard!.count).toBe(1);
     const seawolf = groups.find((g) => g.merchantId === MERCH_SEAWOLF)!;
@@ -371,10 +372,10 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(d2.categoryId).toBe('uncategorized');
   });
 
-  it('test_regression__scope_is_descriptor_not_canonical (cycle-2 gate gap): same-canonical merchantless rows stay separate', async () => {
-    // Precondition asserted so a normalizer change fails LOUDLY, not vacuously:
-    // both descriptors converge to one canonical, yet they are separate cards and
-    // separate scopes (store-number variants of an unknown local merchant).
+  it('test_regression__household_can_file_inbox_merchant_group_in_one_go', async () => {
+    // Store-number variants of one unknown CSV payee used to sit on separate
+    // Inbox cards; one tap filed only the exact descriptor. They share a
+    // canonical, so they are one merchant group (DECISIONS #585).
     const a = 'BLUE HERON POTTERY #12';
     const b = 'BLUE HERON POTTERY #99';
     expect(normalizeMerchant(a).canonical).toBe(normalizeMerchant(b).canonical);
@@ -386,13 +387,15 @@ describe('merchant-group triage (Phase 3b)', () => {
         { id: `grp-c2-${process.pid}`, accountId: acct.id, date: '2026-06-08', amountCents: -2000, rawDescriptor: b, merchantId: null, categoryId: 'uncategorized', confidenceBps: 5000, needsReview: true },
       ],
     });
-    // A canonical-scoped where (or canonical-keyed card) would merge these; the
-    // existing P0 lock could not tell — its fixtures differed in BOTH canonical
-    // and descriptor (cycle-2 gate gap).
+    const groups = await getTriageGroups(USER);
+    const card = groups.find((g) => g.key === merchantlessCanonKey(normalizeMerchant(a).canonical));
+    expect(card).toBeDefined();
+    expect(card!.count).toBe(2);
     const res = await fileMerchantGroup({ anchorTransactionId: `grp-c1-${process.pid}`, categoryId: 'shopping' });
-    expect(res.affected).toBe(1);
+    expect(res.affected).toBe(2);
     const c2 = await prisma.transaction.findUniqueOrThrow({ where: { id: `grp-c2-${process.pid}` } });
-    expect(c2.needsReview).toBe(true);
+    expect(c2.needsReview).toBe(false);
+    expect(c2.categoryId).toBe('shopping');
   });
 
   it('test_regression__conditional_rule_satisfies_dedupe (cycle-2 P2): a banded rule must not suppress the unconditional mint', async () => {

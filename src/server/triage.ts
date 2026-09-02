@@ -54,7 +54,7 @@ export interface TriageItem {
 export function similarTransactionsWhere(
   userId: string,
   txn: { merchantId: string | null; rawDescriptor: string; aggregate: boolean },
-  opts: { onlyNeedsReview?: boolean } = {},
+  opts: { onlyNeedsReview?: boolean; merchantlessByCanonical?: boolean } = {},
 ) {
   // Triage batches only the REVIEW queue (default). The register recategorizes
   // EVERY matching transaction — already-filed ones included — so it passes
@@ -79,7 +79,9 @@ export function similarTransactionsWhere(
   const scope = txn.aggregate
     ? { rawDescriptor: txn.rawDescriptor }
     : txn.merchantId === null
-      ? { rawDescriptor: txn.rawDescriptor, merchantId: null }
+      ? opts.merchantlessByCanonical
+        ? { merchantId: null }
+        : { rawDescriptor: txn.rawDescriptor, merchantId: null }
       : { merchantId: txn.merchantId };
   // Currency guard (DECISIONS #135): the "apply to N similar" scope touches supported accounts only.
   const account = { userId, OR: [{ currency: null }, { currency: 'USD' }] };
