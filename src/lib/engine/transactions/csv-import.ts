@@ -20,7 +20,7 @@
  *    On a duplicate of an existing row, the file category is applied to that row.
  */
 import { type ISODate, isoDate } from '@/lib/dates';
-import { centsFromDollarString } from '@/lib/money';
+import { centsFromDollarString, parseDollarInput } from '@/lib/money';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { simplifiAliasToCategoryId } from '@/lib/engine/categorize/simplifi-aliases';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
@@ -427,18 +427,29 @@ export type CsvImportNewAccountType = (typeof CSV_IMPORT_NEW_ACCOUNT_TYPES)[numb
 
 /**
  * First-run import: the onboarding CSV path has no account picker yet.
- * Name + spending type only. Balance stays 0 — the file is history, not a
- * statement of current cash (DECISIONS #24).
+ * Name + spending type. Balance is what the household types today — never
+ * summed from the file (DECISIONS #24). Blank stays 0.
  */
 export function parseCsvImportNewAccount(
   name: string,
   type: string,
-): { ok: true; name: string; type: CsvImportNewAccountType } | { ok: false; error: string } {
+  balanceRaw = '',
+):
+  | { ok: true; name: string; type: CsvImportNewAccountType; currentBalanceCents: number }
+  | { ok: false; error: string } {
   const n = name.trim();
   if (!n) return { ok: false, error: 'Name the account these rows belong to.' };
   if (n.length > 60) return { ok: false, error: 'Name must be 60 characters or fewer.' };
   if (!(CSV_IMPORT_NEW_ACCOUNT_TYPES as readonly string[]).includes(type)) {
     return { ok: false, error: 'Pick checking, savings, or credit.' };
   }
-  return { ok: true, name: n, type: type as CsvImportNewAccountType };
+  const b = balanceRaw.trim();
+  let currentBalanceCents = 0;
+  if (b) {
+    const parsed = parseDollarInput(b);
+    if (parsed == null) return { ok: false, error: 'Current balance must be a dollar amount.' };
+    if (parsed < 0) return { ok: false, error: 'Current balance cannot be negative.' };
+    currentBalanceCents = parsed;
+  }
+  return { ok: true, name: n, type: type as CsvImportNewAccountType, currentBalanceCents };
 }

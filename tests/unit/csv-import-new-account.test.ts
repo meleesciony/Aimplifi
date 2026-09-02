@@ -31,11 +31,13 @@ describe('parseCsvImportNewAccount (DECISIONS #547)', () => {
       ok: true,
       name: 'Checking',
       type: 'CHECKING',
+      currentBalanceCents: 0,
     });
     expect(parseCsvImportNewAccount('  Visa  ', 'CREDIT')).toEqual({
       ok: true,
       name: 'Visa',
       type: 'CREDIT',
+      currentBalanceCents: 0,
     });
     expect(parseCsvImportNewAccount('', 'CHECKING').ok).toBe(false);
     expect(parseCsvImportNewAccount('Checking', 'INVESTMENT').ok).toBe(false);
@@ -55,6 +57,8 @@ describe('CSV guides do not pretend we saw a bank (DECISIONS #547)', () => {
     expect(form).toContain('import-new-account');
     expect(form).toContain('newAccountName');
     expect(form).toContain('newAccountType');
+    expect(form).toContain('newAccountBalance');
+    expect(form).toContain('CSV_IMPORT_NEW_ACCOUNT_BALANCE_HELP');
 
     const guides = readFileSync(resolve('src/components/finance/csv-import-guides.tsx'), 'utf8');
     expect(guides).toContain('csvImportGuidesIntro');
@@ -101,6 +105,23 @@ describe('importTransactionsCsv first-run creates the account (DECISIONS #547)',
     expect(txns[0].amountCents).toBe(-450);
   });
 
+  it('test_regression__csv_import_stores_typed_balance_not_file_sum', async () => {
+    await prisma.transaction.deleteMany({ where: { account: { userId: USER } } });
+    await prisma.account.deleteMany({ where: { userId: USER } });
+    const fd = new FormData();
+    fd.set('newAccountName', 'Everyday checking');
+    fd.set('newAccountType', 'CHECKING');
+    fd.set('newAccountBalance', '100.00');
+    fd.set('csv', ONE_ROW);
+    const r = await importTransactionsCsv(null, fd);
+    expect(r.ok).toBe(true);
+    const accts = await prisma.account.findMany({ where: { userId: USER } });
+    expect(accts).toHaveLength(1);
+    expect(accts[0].currentBalanceCents).toBe(10000);
+    const txns = await prisma.transaction.findMany({ where: { accountId: accts[0].id } });
+    expect(txns[0].amountCents).toBe(-450);
+  });
+
   it('still refuses a crafted unknown accountId', async () => {
     const fd = new FormData();
     fd.set('accountId', 'no-such-account');
@@ -109,5 +130,24 @@ describe('importTransactionsCsv first-run creates the account (DECISIONS #547)',
     expect(r.ok).toBe(false);
     expect(r.imported).toBe(0);
     expect(r.errors[0]).toMatch(/Account not found/);
+  });
+});
+
+describe('CSV first-run records a typed balance, not a CSV sum (DECISIONS #568)', () => {
+  it('test_regression__csv_first_run_records_typed_balance_not_csv_sum', () => {
+    expect(parseCsvImportNewAccount('Checking', 'CHECKING', '')).toEqual({
+      ok: true,
+      name: 'Checking',
+      type: 'CHECKING',
+      currentBalanceCents: 0,
+    });
+    expect(parseCsvImportNewAccount('Checking', 'CHECKING', '$1,234.56')).toEqual({
+      ok: true,
+      name: 'Checking',
+      type: 'CHECKING',
+      currentBalanceCents: 123456,
+    });
+    expect(parseCsvImportNewAccount('Checking', 'CHECKING', '-10').ok).toBe(false);
+    expect(parseCsvImportNewAccount('Checking', 'CHECKING', 'nope').ok).toBe(false);
   });
 });

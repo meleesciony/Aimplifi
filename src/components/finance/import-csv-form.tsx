@@ -12,7 +12,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { type ImportResult, importTransactionsCsv } from '@/server/transaction-actions';
-import { CSV_IMPORT_CATEGORY_HELP, CSV_IMPORT_COLUMNS_HELP } from '@/lib/copy/csv-import-copy';
+import { CSV_IMPORT_CATEGORY_HELP, CSV_IMPORT_COLUMNS_HELP, CSV_IMPORT_NEW_ACCOUNT_BALANCE_HELP } from '@/lib/copy/csv-import-copy';
 
 const fieldClass =
   'w-full rounded-md border border-input bg-background px-3 text-sm text-foreground';
@@ -53,6 +53,17 @@ export function ImportCsvForm({ accounts }: { accounts: { id: string; name: stri
                   <option value="CREDIT">Credit card</option>
                 </select>
               </label>
+              <label className="block space-y-1">
+                <span className="text-sm font-medium">Current balance</span>
+                <input
+                  name="newAccountBalance"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  data-testid="import-new-account-balance"
+                  className={`h-9 ${fieldClass}`}
+                />
+              </label>
+              <p className="text-xs text-muted-foreground">{CSV_IMPORT_NEW_ACCOUNT_BALANCE_HELP}</p>
               <p className="text-xs text-muted-foreground">
                 No account yet. Import creates this one and files the rows there. No
                 bank connection required.

@@ -2042,3 +2042,11 @@ invent an auto-file quality claim.
 **Decision.** The existing Reports range picker lists 2024, 2025, and 2026 (current year and the two before it). Trailing Last 6/12/24 months stay the default. A named year sets both the income-vs-spending chart and the category table to Jan–Dec of that year, stopping at today. Interest/fees and Giving YTD stay the current calendar year through today. Activity Period and Spending plan unchanged.
 
 **Locked.** `test_regression__reports_range_names_calendar_years_2024_2025_2026` + `test_regression__reports_range_lists_calendar_years` + `test_regression__reports_year_names_the_category_window`.
+
+## #568 — First-run CSV records a typed current balance (2026-09-01)
+
+**Context.** First-run CSV created a spending account at $0. Home then showed $0 as today's live net worth even when the file had real history. The file is not a statement of current cash (#24). A household can still type today's balance.
+
+**Decision.** First-run import accepts an optional current-balance field. Integer cents via `parseDollarInput`. Blank stays 0. Never sum the CSV into `currentBalanceCents`. Negative and malformed amounts fail the import.
+
+**Locked.** `test_regression__csv_first_run_records_typed_balance_not_csv_sum` + `test_regression__csv_import_stores_typed_balance_not_file_sum`.

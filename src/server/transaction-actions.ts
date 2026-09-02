@@ -266,6 +266,7 @@ export async function importTransactionsCsv(
     const parsed = parseCsvImportNewAccount(
       String(formData.get('newAccountName') ?? ''),
       String(formData.get('newAccountType') ?? ''),
+      String(formData.get('newAccountBalance') ?? ''),
     );
     if (!parsed.ok) {
       return { ok: false, imported: 0, duplicates: 0, recategorized: 0, repeatedRows: 0, skipped: 0, historyReachesDate: null, errors: [parsed.error] };
@@ -276,7 +277,7 @@ export async function importTransactionsCsv(
         provider: 'manual',
         name: parsed.name,
         type: parsed.type,
-        currentBalanceCents: 0,
+        currentBalanceCents: parsed.currentBalanceCents,
         currency: 'USD',
         mask: null,
       },
@@ -285,7 +286,7 @@ export async function importTransactionsCsv(
     await auditLog(userId, 'account.manual.create', {
       id: account.id,
       type: parsed.type,
-      currentBalanceCents: 0,
+      currentBalanceCents: parsed.currentBalanceCents,
       via: 'csv-import',
     });
   }

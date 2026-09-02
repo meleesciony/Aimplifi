@@ -561,3 +561,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #565 — Unrecognized CSV date error names two-digit years (2026-09-01) → docs/DECISIONS.md
 - #566 — Activity period names calendar years (2026-09-01) → docs/DECISIONS.md
 - #567 — Reports range names calendar years (2026-09-01) → docs/DECISIONS.md
+- #568 — First-run CSV records a typed current balance (2026-09-01) → docs/DECISIONS.md

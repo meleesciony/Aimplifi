@@ -18,3 +18,7 @@ export function csvImportGuidesIntro(connectedInstitutionCount: number): string 
   }
   return "These routes are the banks we see on your accounts. Banks that only offer PDF statements can't backfill via CSV — the synced feed is their history.";
 }
+
+export const CSV_IMPORT_NEW_ACCOUNT_BALANCE_HELP =
+  "Today's balance as the bank shows it. Not summed from this file.";
+
