@@ -556,3 +556,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #560 — Missing-amount CSV error names Withdrawal/Deposit (2026-09-01) → docs/DECISIONS.md
 - #561 — CSV import accepts Run Date (2026-09-01) → docs/DECISIONS.md
 - #562 — CSV import accepts US two-digit years (2026-09-01) → docs/DECISIONS.md
+- #563 — CSV paste helper names Run Date and two-digit years (2026-09-01) → docs/DECISIONS.md

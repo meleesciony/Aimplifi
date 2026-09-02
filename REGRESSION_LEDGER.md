@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-01 | Paste helper omitted Run Date and two-digit years | copy lagged parser #561/#562 | classify-any-source: the helper names the headers and dates we accept | `test_regression__csv_paste_helper_names_run_date_and_two_digit_years` |
 | 2026-09-01 | CSV dates like 9/1/26 failed every row | US parser required a four-digit year | classify-any-source; Excel/bank two-digit years | `test_regression__csv_date_accepts_us_two_digit_year` |
 | 2026-09-01 | Fidelity-style Run Date CSV failed missing date | date aliases omitted run date | classify-any-source means the brokerage export as exported | `test_regression__csv_accepts_run_date_header` |
 | 2026-09-01 | Missing-amount CSV error omitted Withdrawal/Deposit | error string lagged the parser | classify-any-source: the error must name the headers we accept | `test_regression__csv_accepts_withdrawal_deposit_and_names_amount_alternatives` |

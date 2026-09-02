@@ -101,7 +101,7 @@ export const GENERIC_CSV_GUIDE: CsvExportGuide = {
     'Sign in on a computer and open the account.',
     'Look for "Download" or "Export" near the transaction list — often a small icon.',
     'Choose CSV (or spreadsheet) format and a date range.',
-    'Open the file: it needs a date (Date, Post Date, or Trade Date), a payee, and money — amount or Net Amount, or Debit/Credit or Withdrawal/Deposit.',
+    'Open the file: it needs a date (Date, Post Date, Trade Date, or Run Date), a payee, and money — amount or Net Amount, or Debit/Credit or Withdrawal/Deposit.',
     'Paste the contents here.',
   ],
   note: "If your bank only offers PDF statements, CSV backfill isn't available for it — the synced feed is your history there. For guidance on any bank: search \"<bank name> download transactions CSV\".",

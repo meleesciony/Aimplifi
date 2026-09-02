@@ -56,3 +56,12 @@ describe('Bank export guides name Post Date and Withdrawal (-) (DECISIONS #555)'
     expect(GENERIC_CSV_GUIDE.steps.join(' ')).toMatch(/Withdrawal\/Deposit/);
   });
 });
+
+describe('CSV paste helper names Run Date and two-digit years (DECISIONS #563)', () => {
+  it('test_regression__csv_paste_helper_names_run_date_and_two_digit_years', async () => {
+    expect(CSV_IMPORT_COLUMNS_HELP).toMatch(/Run Date/);
+    expect(CSV_IMPORT_COLUMNS_HELP).toMatch(/MM\/DD\/YY/);
+    const { GENERIC_CSV_GUIDE } = await import('@/lib/engine/transactions/csv-export-guide');
+    expect(GENERIC_CSV_GUIDE.steps.join(' ')).toMatch(/Run Date/);
+  });
+});

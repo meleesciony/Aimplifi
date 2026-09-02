@@ -2003,3 +2003,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__csv_date_accepts_us_two_digit_year`.
 
+## #563 — CSV paste helper names Run Date and two-digit years (2026-09-01)
+
+**Context.** The parser already accepts Run Date and US two-digit years (`9/1/26`). The paste helper and generic bank guide still listed Date / Post Date / Trade Date and four-digit MM/DD/YYYY only, so a household with a brokerage export or Excel-style year would think the file was wrong.
+
+**Decision.** Paste helper and generic CSV guide name Run Date. Date formats named are YYYY-MM-DD, MM/DD/YYYY, or MM/DD/YY. Parser aliases and year pivot unchanged.
+
+**Locked.** `test_regression__csv_paste_helper_names_run_date_and_two_digit_years`.
+
