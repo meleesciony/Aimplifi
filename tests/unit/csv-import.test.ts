@@ -176,6 +176,12 @@ describe('parseTransactionCsv', () => {
     expect(trans.rows[0]).toMatchObject({ date: '2026-06-01', description: 'Rent', amountCents: -10000 });
   });
 
+  it('test_regression__csv_accepts_run_date_header', () => {
+    const parsed = parseTransactionCsv('Run Date,Description,Amount\n2026-09-01,VTSAX Purchase,-100.00');
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows[0]).toMatchObject({ date: '2026-09-01', description: 'VTSAX Purchase', amountCents: -10000 });
+  });
+
   it('test_regression__csv_accepts_merchant_amount_usd_and_trans_dot_date', () => {
     const merchant = parseTransactionCsv('Date,Merchant,Amount\n2026-09-01,Coffee,-4.50');
     expect(merchant.errors).toEqual([]);

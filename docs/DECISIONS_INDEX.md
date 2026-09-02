@@ -554,3 +554,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #558 — CSV import drops a trailing time from Excel and Sheets dates (2026-09-01) → docs/DECISIONS.md
 - #559 — CSV import accepts US hyphen dates MM-DD-YYYY (2026-09-01) → docs/DECISIONS.md
 - #560 — Missing-amount CSV error names Withdrawal/Deposit (2026-09-01) → docs/DECISIONS.md
+- #561 — CSV import accepts Run Date (2026-09-01) → docs/DECISIONS.md

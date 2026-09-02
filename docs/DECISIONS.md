@@ -1987,3 +1987,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__csv_accepts_withdrawal_deposit_and_names_amount_alternatives`.
 
+## #561 — CSV import accepts Run Date (2026-09-01)
+
+**Context.** Brokerage exports (Fidelity-style) use Run Date, not Date or Trade Date. Exact header match failed those files even when Amount and Description were valid.
+
+**Decision.** Date aliases add run date. Amount and description aliases unchanged.
+
+**Locked.** `test_regression__csv_accepts_run_date_header`.
+
