@@ -570,3 +570,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #574 — CSV import accepts CR/DR amount marks (2026-09-02) → docs/DECISIONS.md
 - #575 — Home Step 1 names bank or CSV (2026-09-02) → docs/DECISIONS.md
 - #576 — Settings Bank connections names CSV (2026-09-02) → docs/DECISIONS.md
+- #577 — Activity register heading matches the nav (2026-09-02) → docs/DECISIONS.md

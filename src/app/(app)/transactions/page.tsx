@@ -18,6 +18,7 @@ import { getTransactions, getWithheldAccountSummary } from '@/server/transaction
 import { getVisibleGroups } from '@/server/categories';
 import { isDemoUser } from '@/lib/demo-user';
 import { getProvider } from '@/lib/providers/demo';
+import { ACTIVITY_PAGE_TITLE } from '@/lib/copy/activity-copy';
 
 // The `?type=` vocabulary is owned by `links.ts` (O.16) so the return-trip
 // builder and this reader cannot drift into accepting different values.
@@ -38,7 +39,7 @@ function isoDateOrEmpty(v: string): string {
   }
 }
 
-export const metadata = { title: "Transactions" };
+export const metadata = { title: ACTIVITY_PAGE_TITLE };
 
 export default async function TransactionsPage({
   searchParams,
@@ -120,7 +121,7 @@ export default async function TransactionsPage({
           page — both lists below write the same saved offset. */}
       <RegisterScrollRestorer />
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Transactions</h1>
+        <h1 className="text-xl font-semibold">{ACTIVITY_PAGE_TITLE}</h1>
         <div className="flex gap-2">
           {/* O.13a: the register is where the owner notices a descriptor whose text
               changes every time, so it is where the rule builder has to be reachable

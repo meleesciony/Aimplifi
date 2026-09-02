@@ -2118,3 +2118,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__settings_connections_offer_csv_not_plaid_only`.
 
+
+## #577 — Activity register heading matches the nav (2026-09-02)
+
+**Context.** The nav label is Activity. The register page heading and document title still said Transactions, so a household tapping Activity landed on a differently named page.
+
+**Decision.** The register heading and document title use Activity, the same word as the nav. The URL stays /transactions. Import and Add labels unchanged.
+
+**Locked.** `test_regression__activity_register_heading_matches_nav`.

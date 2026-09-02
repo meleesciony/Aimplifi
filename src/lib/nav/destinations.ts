@@ -23,6 +23,7 @@
  * same reason.
  */
 
+import { ACTIVITY_PAGE_TITLE } from '@/lib/copy/activity-copy';
 import {
   BarChart3,
   Calendar,
@@ -198,7 +199,7 @@ export const NAV_DESTINATIONS: readonly NavDestination[] = [
   },
   {
     href: '/transactions',
-    label: 'Activity',
+    label: ACTIVITY_PAGE_TITLE,
     // "spending accounts", not "all accounts" (2026-08-11): the register's
     // basis is checking + savings + cards only (#62).
     description: 'Every transaction across your spending accounts. Search, filter, split, or add one by hand.',
