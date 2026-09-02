@@ -1938,3 +1938,11 @@ invent an auto-file quality claim.
 **Decision.** Copy-only. Heading: connect a bank (about a minute), or paste a CSV below. Buttons unchanged.
 
 **Locked.** `test_regression__empty_home_offers_csv_without_cash_needed_countdown`.
+
+## #555 — CSV paste helper and bank guides name Post Date and Withdrawal/Deposit (2026-09-01)
+
+**Context.** Parser already accepts Post Date (#553) and Withdrawal/Deposit (#550/#552). The paste helper still said Trade Date and Debit plus Credit only. Chase and Schwab guide notes did not name the headers those exports use.
+
+**Decision.** Copy-only. Paste helper names Post Date, Trade Date, Debit/Credit, Withdrawal/Deposit. Chase note: Post Date + signed Amount. Schwab note: Withdrawal (-) and Deposit (+). Generic export step matches. Do not invent unverified bank steps.
+
+**Locked.** `test_regression__csv_paste_helper_names_debit_credit_and_net_amount`, `test_regression__csv_guides_name_chase_post_date_and_schwab_withdrawal`.

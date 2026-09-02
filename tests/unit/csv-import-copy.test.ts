@@ -30,8 +30,10 @@ describe('CSV import is any source, not a Simplifi matcher (DECISIONS #540)', ()
 
 describe('CSV paste helper names Debit/Credit and Net Amount (DECISIONS #546)', () => {
   it('test_regression__csv_paste_helper_names_debit_credit_and_net_amount', () => {
-    expect(CSV_IMPORT_COLUMNS_HELP).toMatch(/Debit plus Credit/);
+    expect(CSV_IMPORT_COLUMNS_HELP).toMatch(/Debit\/Credit/);
+    expect(CSV_IMPORT_COLUMNS_HELP).toMatch(/Withdrawal\/Deposit/);
     expect(CSV_IMPORT_COLUMNS_HELP).toMatch(/Net Amount/);
+    expect(CSV_IMPORT_COLUMNS_HELP).toMatch(/Post Date/);
     expect(CSV_IMPORT_COLUMNS_HELP).toMatch(/Trade Date/);
     expect(CSV_IMPORT_COLUMNS_HELP).not.toMatch(/Simplifi/i);
 
@@ -43,3 +45,14 @@ describe('CSV paste helper names Debit/Credit and Net Amount (DECISIONS #546)', 
   });
 });
 
+describe('Bank export guides name Post Date and Withdrawal (-) (DECISIONS #555)', () => {
+  it('test_regression__csv_guides_name_chase_post_date_and_schwab_withdrawal', async () => {
+    const { CSV_EXPORT_GUIDES, GENERIC_CSV_GUIDE } = await import('@/lib/engine/transactions/csv-export-guide');
+    const chase = CSV_EXPORT_GUIDES.find((g) => g.institution === 'Chase');
+    const schwab = CSV_EXPORT_GUIDES.find((g) => g.institution === 'Charles Schwab');
+    expect(chase?.note).toMatch(/Post Date/);
+    expect(schwab?.note).toMatch(/Withdrawal/);
+    expect(GENERIC_CSV_GUIDE.steps.join(' ')).toMatch(/Post Date/);
+    expect(GENERIC_CSV_GUIDE.steps.join(' ')).toMatch(/Withdrawal\/Deposit/);
+  });
+});

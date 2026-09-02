@@ -31,7 +31,7 @@ export const CSV_EXPORT_GUIDES: readonly CsvExportGuide[] = [
       'Choose "Spreadsheet (Excel, CSV)" as the file type.',
       'Pick the date range and click Download.',
     ],
-    note: "Chase's CSV export covers a recent window of activity only — older months are PDF statements, not CSV.",
+    note: "Chase's export often uses Post Date and a signed Amount. Paste it as exported. (Recent activity only — older months are PDF statements.)",
   },
   {
     institution: 'Capital One',
@@ -61,7 +61,7 @@ export const CSV_EXPORT_GUIDES: readonly CsvExportGuide[] = [
       'Pick the account and set the date range, then click Search.',
       'Click Export, choose CSV, and save the file.',
     ],
-    note: 'CSV downloads are capped at 10,000 rows — split very long date ranges into smaller pieces.',
+    note: "Schwab checking exports Withdrawal (-) and Deposit (+). Paste it as exported. CSV downloads are capped at 10,000 rows — split very long date ranges into smaller pieces.",
   },
   {
     institution: 'Vanguard',
@@ -101,7 +101,7 @@ export const GENERIC_CSV_GUIDE: CsvExportGuide = {
     'Sign in on a computer and open the account.',
     'Look for "Download" or "Export" near the transaction list — often a small icon.',
     'Choose CSV (or spreadsheet) format and a date range.',
-    'Open the file: it needs a date, a payee, and money — amount or Net Amount, or Debit plus Credit.',
+    'Open the file: it needs a date (Date, Post Date, or Trade Date), a payee, and money — amount or Net Amount, or Debit/Credit or Withdrawal/Deposit.',
     'Paste the contents here.',
   ],
   note: "If your bank only offers PDF statements, CSV backfill isn't available for it — the synced feed is your history there. For guidance on any bank: search \"<bank name> download transactions CSV\".",

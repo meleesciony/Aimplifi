@@ -48,7 +48,7 @@ describe('CSV guides do not pretend we saw a bank (DECISIONS #547)', () => {
     expect(csvImportGuidesIntro(0)).toMatch(/any bank/i);
     expect(csvImportGuidesIntro(0)).not.toMatch(/we see on your accounts/i);
     expect(csvImportGuidesIntro(1)).toMatch(/we see on your accounts/i);
-    expect(GENERIC_CSV_GUIDE.steps.join(' ')).toMatch(/Debit plus Credit/);
+    expect(GENERIC_CSV_GUIDE.steps.join(' ')).toMatch(/Debit\/Credit/);
     expect(GENERIC_CSV_GUIDE.steps.join(' ')).not.toMatch(/columns should say date, description, and amount/);
 
     const form = readFileSync(resolve('src/components/finance/import-csv-form.tsx'), 'utf8');
