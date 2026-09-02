@@ -413,6 +413,46 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(other.needsReview).toBe(true);
   });
 
+  it('test_regression__one_row_inbox_pick_of_merchantless_payee_saves_rule', async () => {
+    // File-all already mints (#586). A singles/one-row pick of a merchantless
+    // payee used applyCategory without a merchantId, so no rule. The next same
+    // payee landed back in Inbox (DECISIONS #587).
+    const acct = await prisma.account.findFirstOrThrow({ where: { userId: USER, providerRef: 'grp-chk' } });
+    await prisma.transaction.create({
+      data: {
+        id: `grp-or1-${process.pid}`,
+        accountId: acct.id,
+        date: '2026-06-01',
+        amountCents: -2200,
+        rawDescriptor: 'CEDAR GROVE POTTERY #12',
+        merchantId: null,
+        categoryId: 'uncategorized',
+        confidenceBps: 5000,
+        needsReview: true,
+      },
+    });
+    const filed = await applyCategory({
+      transactionId: `grp-or1-${process.pid}`,
+      categoryId: 'shopping',
+      always: true,
+    });
+    expect(filed.ruleId).not.toBeNull();
+    const next = categorize(
+      { rawDescriptor: 'CEDAR GROVE POTTERY #99', amountCents: -900, date: '2026-07-01', accountId: 'any' },
+      await loadUserRules(USER),
+    );
+    expect(next.needsReview).toBe(false);
+    expect(next.categoryId).toBe('shopping');
+    expect(next.source).toBe('user-rule');
+    const other = categorize(
+      { rawDescriptor: 'QQQZX PAYEE LLC', amountCents: -800, date: '2026-07-01', accountId: 'any' },
+      await loadUserRules(USER),
+    );
+    expect(other.needsReview).toBe(true);
+  });
+
+
+
   it('test_regression__conditional_rule_satisfies_dedupe (cycle-2 P2): a banded rule must not suppress the unconditional mint', async () => {
     // An amount-banded rule for the same merchant→category exists (no app path
     // writes conditions today, but the schema + pipeline enforce them — latent).

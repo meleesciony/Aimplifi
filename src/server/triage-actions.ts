@@ -194,18 +194,25 @@ export async function applyCategory(input: {
     });
     let createdRuleId: string | null = null;
     let ruleMinted = false;
-    if (input.always && fresh.merchantId) {
+    let stampedMerchantId: string | null = fresh.merchantId;
+    if (input.always) {
       assertRuleEligible(fresh.rawDescriptor);
-      const r = await ensureUnconditionalRule(tx, {
-        userId,
-        merchantId: fresh.merchantId,
-        categoryId: input.categoryId,
-        createdFrom: created.id,
-      });
-      createdRuleId = r.ruleId;
-      ruleMinted = r.minted;
-      if (r.minted) {
-        await tx.correction.update({ where: { id: created.id }, data: { becameRuleId: r.ruleId } });
+      const n = normalizeMerchant(fresh.rawDescriptor);
+      if (isDurablePayeeCanonical(n.canonical)) {
+        if (!stampedMerchantId) {
+          stampedMerchantId = await ensureMerchantForCanonical(tx, n.canonical, input.categoryId);
+        }
+        const r = await ensureUnconditionalRule(tx, {
+          userId,
+          merchantId: stampedMerchantId,
+          categoryId: input.categoryId,
+          createdFrom: created.id,
+        });
+        createdRuleId = r.ruleId;
+        ruleMinted = r.minted;
+        if (r.minted) {
+          await tx.correction.update({ where: { id: created.id }, data: { becameRuleId: r.ruleId } });
+        }
       }
     }
     await tx.transaction.update({
@@ -216,6 +223,7 @@ export async function applyCategory(input: {
         confidenceBps: 9900,
         reviewPinned: false,
         ...stampIsTransferOnTransferLeaf(input.categoryId),
+        ...(fresh.merchantId === null && stampedMerchantId ? { merchantId: stampedMerchantId } : {}),
       },
     });
     // Ground truth for the accuracy metric (DECISIONS #37): the user just confirmed
@@ -225,7 +233,7 @@ export async function applyCategory(input: {
       where: { transactionId: fresh.id, userId },
       data: { actualCategoryId: input.categoryId, labeledAt: new Date() },
     });
-    return { correction: created, ruleId: createdRuleId, minted: ruleMinted, merchantId: fresh.merchantId };
+    return { correction: created, ruleId: createdRuleId, minted: ruleMinted, merchantId: stampedMerchantId };
   });
 
   if (ruleId) {
@@ -264,18 +272,29 @@ export async function makeRuleFromCorrection(correctionId: string): Promise<{ ru
       where: { id: correction.transactionId, account: { userId } },
     });
     if (!txn) throw new Error('Transaction not found');
-    if (!txn.merchantId) return { ruleId: null, minted: false, merchantId: null, categoryId: null };
     assertRuleEligible(txn.rawDescriptor);
+    const n = normalizeMerchant(txn.rawDescriptor);
+    if (!isDurablePayeeCanonical(n.canonical)) {
+      return { ruleId: null, minted: false, merchantId: null, categoryId: null };
+    }
+    let merchantId = txn.merchantId;
+    if (!merchantId) {
+      merchantId = await ensureMerchantForCanonical(tx, n.canonical, correction.toCategoryId);
+      await tx.transaction.update({
+        where: { id: txn.id },
+        data: { merchantId },
+      });
+    }
     const r = await ensureUnconditionalRule(tx, {
       userId,
-      merchantId: txn.merchantId,
+      merchantId,
       categoryId: correction.toCategoryId,
       createdFrom: correction.id,
     });
     if (r.minted) {
       await tx.correction.update({ where: { id: correction.id }, data: { becameRuleId: r.ruleId } });
     }
-    return { ruleId: r.ruleId, minted: r.minted, merchantId: txn.merchantId, categoryId: correction.toCategoryId };
+    return { ruleId: r.ruleId, minted: r.minted, merchantId, categoryId: correction.toCategoryId };
   });
   if (ruleId && merchantId) {
     await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', { ruleId, merchantId, categoryId });

@@ -2199,3 +2199,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__inbox_file_saves_rule_for_next_same_payee`.
 
+
+## #587 — One-row Inbox pick of a merchantless payee still saves the rule (2026-09-02)
+
+**Context.** File-all of a merchantless Inbox group mints the durable rule (#586). A one-row pick (singles drill-down) called applyCategory without a merchantId, so no rule. Tapping Always after the pick also no-oped. The next same payee landed back in Inbox.
+
+**Decision.** A one-row Inbox pick of a rule-eligible merchantless payee mints (or reuses) the same unconditional merchant rule as File-all, upserting a Merchant on the canonical. Always after a one-row pick of a merchantless payee does the same. Aggregates and masked bank names still mint no rule. Demo cannot learn. No CSV parser change.
+
+**Locked.** `test_regression__one_row_inbox_pick_of_merchantless_payee_saves_rule`.

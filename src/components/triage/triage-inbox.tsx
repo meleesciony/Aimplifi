@@ -310,12 +310,19 @@ export function TriageInbox({
     const rollback = groups;
     removeRowLocally(row.id);
     runAction(rollback, async () => {
-      const result = await applyCategory({ transactionId: row.id, categoryId });
+      // Merchantless Inbox groups already promise a durable rule on the card
+      // (DECISIONS #586/#587). File-all mints it; a one-row pick must too.
+      const mintWithFile = group.ruleEligible && group.merchantId === null;
+      const result = await applyCategory({
+        transactionId: row.id,
+        categoryId,
+        ...(mintWithFile ? { always: true } : {}),
+      });
       setUndoStack((s) => [
         ...s,
         { kind: 'corrections', correctionIds: result.correctionIds, label: group.merchantCanonical },
       ]);
-      if (group.ruleEligible) {
+      if (group.ruleEligible && !result.ruleId) {
         setRulePrompt({
           correctionId: result.correctionIds[0],
           merchant: group.merchantCanonical,
