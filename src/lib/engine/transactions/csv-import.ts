@@ -14,7 +14,7 @@
  *      category     ← category   (OPTIONAL; slug, display name, or Simplifi alias)
  *  - Amount is SIGNED in Pulse convention: NEGATIVE = money out, POSITIVE = in
  *    (matches Mint/most US bank exports). "$" and thousands commas are stripped.
- *  - Dates accepted as YYYY-MM-DD or US MM/DD/YYYY or MM-DD-YYYY; a trailing time is dropped (calendar date only).
+ *  - Dates accepted as YYYY-MM-DD or US MM/DD/YYYY, MM/DD/YY, MM-DD-YYYY, MM-DD-YY; a trailing time is dropped (calendar date only). Two-digit years: 00–69 → 2000–2069, 70–99 → 1970–1999.
  *  - Category may be a slug ("dining"), a display name ("Dining Out"), or a
  *    Simplifi alias ("Restaurants" → dining). Unknown or blank → auto-categorized.
  *    On a duplicate of an existing row, the file category is applied to that row.
@@ -85,16 +85,18 @@ export function parseCsvLine(line: string): string[] {
   return fields.map((f) => f.trim());
 }
 
-/** YYYY-MM-DD or US MM/DD/YYYY or MM-DD-YYYY → ISODate. A trailing time is dropped. Throws on anything else. */
+/** YYYY-MM-DD or US MM/DD/YYYY, MM/DD/YY, MM-DD-YYYY, MM-DD-YY → ISODate. A trailing time is dropped. Throws on anything else. */
 export function normalizeImportDate(raw: string): ISODate {
   const s = raw.trim();
   const clock = '(?:[ T]\\d{1,2}:\\d{2}(?::\\d{2}(?:\\.\\d+)?)?(?:Z|[+-]\\d{2}:?\\d{2})?(?:\\s*[AaPp][Mm])?)?';
   const iso = new RegExp(`^(\\d{4}-\\d{2}-\\d{2})${clock}$`).exec(s);
   if (iso) return isoDate(iso[1]);
-  const us = new RegExp(`^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4})${clock}$`).exec(s);
+  const us = new RegExp(`^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{4}|\\d{2})${clock}$`).exec(s);
   if (us) {
-    const [, m, d, y] = us;
-    return isoDate(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
+    const [, m, d, yRaw] = us;
+    let year = Number(yRaw);
+    if (year < 100) year += year >= 70 ? 1900 : 2000;
+    return isoDate(`${String(year).padStart(4, '0')}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
   }
   throw new Error(`unrecognized date "${raw}" (use YYYY-MM-DD or MM/DD/YYYY)`);
 }

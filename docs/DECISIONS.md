@@ -1995,3 +1995,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__csv_accepts_run_date_header`.
 
+## #562 — CSV import accepts US two-digit years (2026-09-01)
+
+**Context.** Some bank and Excel exports write `9/1/26` instead of `9/1/2026`. The US parser required a four-digit year, so those rows failed unrecognized date.
+
+**Decision.** US MM/DD and MM-DD dates accept a two-digit year. 00–69 → 2000–2069, 70–99 → 1970–1999. Four-digit years and ISO YYYY-MM-DD unchanged. Calendar date via `isoDate`. No timezone math.
+
+**Locked.** `test_regression__csv_date_accepts_us_two_digit_year`.
+
