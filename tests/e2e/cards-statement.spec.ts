@@ -48,6 +48,7 @@ test('add a statement to a manual card from Cards without opening Accounts', asy
   await unknown.getByTestId('cs-save').click();
 
   await expect(page.getByTestId('cards-unknown-due')).toHaveCount(0, { timeout: 20000 });
-  await expect(page.getByText('E2E Cards Stmt')).toBeVisible();
+  await expect(page.getByTestId('card-row-name')).toHaveText('E2E Cards Stmt');
+  await expect(page.getByTestId('do-this-first')).toContainText('E2E Cards Stmt');
   await expect(page.getByTestId('card-row-statement-add')).toHaveCount(0);
 });
