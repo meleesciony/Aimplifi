@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-03 | Home recent-charge in/out was display-only | direction flip lived only on transaction detail | a household can flip a Home recent charge in or out without opening detail | `test_regression__household_can_flip_a_home_recent_charge_in_or_out_without_opening_detail` |
 | 2026-09-03 | Home recent-charge amount was display-only | amount write lived only on transaction detail | a household can change a Home recent-charge amount without opening detail | `test_regression__household_can_change_a_home_recent_charge_amount_without_opening_detail` |
 | 2026-09-03 | Home recent-charge date was display-only | date write lived only on transaction detail | a household can change a Home recent-charge date without opening detail | `test_regression__household_can_change_a_home_recent_charge_date_without_opening_detail` |
 | 2026-09-03 | already-filed Home recent-charge category was display-only | HomeFileCategoryControl mounted only on needsFile rows | a household can change the category of an already-filed Home recent charge | `test_regression__household_can_change_the_category_of_an_already_filed_home_recent_charge` |

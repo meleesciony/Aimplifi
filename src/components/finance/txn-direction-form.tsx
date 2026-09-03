@@ -16,9 +16,13 @@ import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 export function TxnDirectionControl({
   transactionId,
   amountCents,
+  compact = false,
+  flipTestId = 'txn-direction-flip',
 }: {
   transactionId: string;
   amountCents: number;
+  compact?: boolean;
+  flipTestId?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TxnAmountResult | null>(null);
@@ -43,6 +47,30 @@ export function TxnDirectionControl({
     }
   }
 
+  if (compact) {
+    return (
+      <div className="space-y-1">
+        <Button
+          type="button"
+          size="xs"
+          variant="outline"
+          className="shrink-0"
+          disabled={busy}
+          onClick={onFlip}
+          aria-label={next}
+          data-testid={flipTestId}
+        >
+          {busy ? 'Saving…' : isIn ? 'In' : 'Out'}
+        </Button>
+        {result?.error ? (
+          <p className="text-xs text-red-500" role="alert" data-testid="txn-direction-form-error">
+            {result.error}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="mt-1 space-y-1">
       <div className="flex flex-wrap items-center gap-2">
@@ -55,7 +83,7 @@ export function TxnDirectionControl({
           variant="outline"
           disabled={busy}
           onClick={onFlip}
-          data-testid="txn-direction-flip"
+          data-testid={flipTestId}
         >
           {busy ? 'Saving…' : next}
         </Button>

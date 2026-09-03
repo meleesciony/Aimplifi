@@ -10,6 +10,7 @@ import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { HomeFileCategoryControl } from '@/components/finance/home-file-category-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
+import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 
 /**
  * Home strip: latest spending rows, with needs-file rows highlighted.
@@ -112,6 +113,16 @@ export function RecentTransactionsCard({
                       idleClassName={`text-left text-sm tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
                         r.amountCents < 0 ? 'text-foreground' : 'text-positive-600 dark:text-positive-400'
                       }`}
+                    />
+                  </span>
+                ) : null}
+                {canRenamePayee ? (
+                  <span className="shrink-0">
+                    <TxnDirectionControl
+                      transactionId={r.id}
+                      amountCents={r.amountCents}
+                      compact
+                      flipTestId="home-recent-direction"
                     />
                   </span>
                 ) : null}

@@ -2560,3 +2560,12 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnAmountControl. rematch already in the action. Demo fenced. Integer cents. Sign stays with the row. C.15 Link still carries formatCents (sr-only) and a visible shrink-0 open affordance; visible dollars are the amount control, also shrink-0; do not show two figures; 380px must not collapse the dollars (f530612). Mount the control only when canRenamePayee. Optional triggerTestId defaults to `detail-amount`; Home passes `home-recent-amount`. Optional idleClassName so Home stays text-sm tabular-nums. No heading tweak. No CSV. No savings-rate percent. Sign-in stays /sign-in. Do not invent a transfer toggle.
 
 **Locked.** `test_regression__household_can_change_a_home_recent_charge_amount_without_opening_detail`.
+
+
+## #630 — Household can flip a Home recent charge in or out without opening detail (2026-09-03)
+
+**Context.** Flip already exists on transaction detail: TxnDirectionControl + flipTransactionDirection (magnitude stays, sign flips, rematchAfterTxnWrite already shipped as #619). Home's Recent transactions card implied direction by amount color only, so a household standing on Home could not flip a charge in or out without opening detail.
+
+**Decision.** Reuse TxnDirectionControl compact; rematch already in the action; demo fenced; magnitude stays; C.15 Link unchanged; shrink-0 so 380px does not eat the dollars. No heading tweak. No CSV. Optional `compact` (default false) and `flipTestId` (default `txn-direction-flip`) so detail is unchanged; Home passes `home-recent-direction`. Mount only when canRenamePayee, as a sibling of the row Link next to TxnAmountControl. Integer cents (`flippedTxnAmountCents`). Sign-in stays /sign-in. Do not invent a transfer toggle.
+
+**Locked.** `test_regression__household_can_flip_a_home_recent_charge_in_or_out_without_opening_detail`.
