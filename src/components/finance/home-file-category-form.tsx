@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * File a category from a Home recent charge that still needs one.
+ * File or change a category from a Home recent charge.
  * Same mutation recipe as PayeeNameControl. One applyCategory call; this row only.
  */
 import { useState } from 'react';
@@ -16,9 +16,15 @@ const selectCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-fore
 export function HomeFileCategoryControl({
   transactionId,
   categoryGroups,
+  categoryId,
+  categoryName,
+  needsFile,
 }: {
   transactionId: string;
   categoryGroups: { group: string; categories: { id: string; name: string }[] }[];
+  categoryId: string | null;
+  categoryName: string;
+  needsFile: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -46,18 +52,41 @@ export function HomeFileCategoryControl({
   }
 
   if (!editing) {
+    if (needsFile) {
+      return (
+        <button
+          type="button"
+          className="shrink-0 text-left text-xs font-medium text-warning-700 underline decoration-warning-700/50 decoration-dotted underline-offset-4 hover:decoration-foreground dark:text-warning-400"
+          data-testid="home-file-category-trigger"
+          aria-label="File a category for this charge"
+          onClick={() => setEditing(true)}
+        >
+          Needs category
+        </button>
+      );
+    }
     return (
       <button
         type="button"
-        className="shrink-0 text-left text-xs font-medium text-warning-700 underline decoration-warning-700/50 decoration-dotted underline-offset-4 hover:decoration-foreground dark:text-warning-400"
+        className="shrink-0 text-left text-xs text-muted-foreground underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground"
         data-testid="home-file-category-trigger"
-        aria-label="File a category for this charge"
+        aria-label={`Change category ${categoryName}`}
         onClick={() => setEditing(true)}
       >
-        Needs category
+        {categoryName}
       </button>
     );
   }
+
+  const visibleIds = new Set(
+    categoryGroups.flatMap((g) =>
+      expandSimplifiAliasRows(g.categories)
+        .filter((c) => c.id !== 'uncategorized')
+        .map((c) => c.id),
+    ),
+  );
+  const selectDefault =
+    !needsFile && categoryId && visibleIds.has(categoryId) ? categoryId : '';
 
   return (
     <form onSubmit={onSubmit} className="min-w-0 space-y-1" data-testid="home-file-category-form">
@@ -69,6 +98,7 @@ export function HomeFileCategoryControl({
           id={`home-file-category-${transactionId}`}
           name="categoryId"
           required
+          defaultValue={selectDefault}
           className={`max-w-48 ${selectCls}`}
           data-testid="home-file-category-select"
         >

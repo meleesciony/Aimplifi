@@ -2535,3 +2535,12 @@ invent an auto-file quality claim.
 **Decision.** Reuse applyCategory once (`{ transactionId, categoryId }`). Native select scroll/click, same as detail — not the register picker. Do not pass always (no match-count on Home; files this row only). Do not pass expectUnfiled. Do not mint a rule. The file control is a sibling of the C.15 row Link, not inside it, so dashboard-recent-row still holds the amount and clicks through to detail with back=_dashboard. Already-filed Home rows stay display-only. Do not change the Dashboard h1 or the “Recent transactions” heading. No CSV. No savings-rate percent. Sign-in stays /sign-in. Demo already files from Inbox and Activity (applyCategory has no isDemoUser block). Payee rename stays demo-fenced.
 
 **Locked.** `test_regression__household_can_file_a_category_from_a_home_recent_charge_that_needs_one`.
+
+
+## #627 — Household can change the category of an already-filed Home recent charge (2026-09-03)
+
+**Context.** #626 shipped HomeFileCategoryControl for needsFile rows only. Already-filed rows still printed `r.categoryName` as static text inside the C.15 row Link, so a household standing on Home could not change the category of a charge that already had one. Same writer: applyCategory (`{ transactionId, categoryId }`).
+
+**Decision.** Extend HomeFileCategoryControl; mount it for every recent row as a sibling of the C.15 row Link. applyCategory once. Do not pass always. Do not pass expectUnfiled. Do not mint a rule. Already-filed idle shows the current name; needs-file path unchanged (warning “Needs category” trigger, empty default). Native select scroll/click. The row Link still holds the amount and date and clicks through to detail with back=_dashboard. Do not change the Dashboard h1 or the “Recent transactions” heading. No CSV. No savings-rate percent. Sign-in stays /sign-in. Demo already files from Inbox and Activity (applyCategory has no isDemoUser block). Payee rename stays demo-fenced.
+
+**Locked.** `test_regression__household_can_change_the_category_of_an_already_filed_home_recent_charge`.

@@ -87,12 +87,13 @@ export function RecentTransactionsCard({
                   </p>
                 </div>
                 {/* idle home-file-category-trigger is a sibling of the C.15 row Link */}
-                {r.needsFile ? (
-                  <HomeFileCategoryControl
-                    transactionId={r.id}
-                    categoryGroups={categoryGroups}
-                  />
-                ) : null}
+                <HomeFileCategoryControl
+                  transactionId={r.id}
+                  categoryGroups={categoryGroups}
+                  categoryId={r.categoryId}
+                  categoryName={r.categoryName}
+                  needsFile={r.needsFile}
+                />
                 <Link
                   /* C.15 (audit F3): this was a bare /transactions/<id> — the
                      reader landed on a detail page whose way back said "Activity".
@@ -107,12 +108,6 @@ export function RecentTransactionsCard({
                 >
                   <p className="truncate text-xs text-muted-foreground">
                     {r.date}
-                    {r.needsFile ? null : (
-                      <>
-                        {' · '}
-                        {r.categoryName}
-                      </>
-                    )}
                   </p>
                   <span
                     className={`shrink-0 tabular-nums ${

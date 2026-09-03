@@ -18,6 +18,7 @@ export interface DashboardRecentTxn {
   /** True when a household overlay name exists for this payee. */
   payeeRenamed: boolean;
   categoryName: string;
+  categoryId: string | null;
   amountCents: number;
   /** True when the row still needs a human filing decision. */
   needsFile: boolean;
@@ -101,6 +102,7 @@ export async function getDashboardRecent(
       merchantName: registerDisplayName(t, payeeNames),
       payeeRenamed: Boolean(payeeNames.get(payeeRenameKey(t))?.trim()),
       categoryName: labelFor(catId, meta, t.category?.name),
+      categoryId: catId,
       amountCents: t.amountCents,
       needsFile,
       onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)),
