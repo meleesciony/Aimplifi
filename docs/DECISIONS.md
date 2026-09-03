@@ -2609,3 +2609,11 @@ invent an auto-file quality claim.
 **Decision.** `scripts/vercel-build.sh` is the Vercel `buildCommand`. When `DATABASE_URL` is set: gen-pg → generate → push → `next build` (Production unchanged). When unset: generate the SQLite client (matches `makeAdapter`'s empty-URL fallback), skip push, then `next build`. Do not derive the Postgres schema on Preview — a postgresql client + sqlite adapter throws at import. Do not point Preview push at production Neon.
 
 **Locked.** `test_regression__vercel_preview_build_skips_db_push_when_database_url_is_unset`.
+
+## #636 — Completed slices land on main the same turn (standing order, 2026-09-03)
+
+**Context.** Owner: cloud work felt lost; they check live (`www.aimplifi.app`), not a pull request. Preview ≠ production. Cloud agents do not write to `C:\dev\Aimplifi`. PR #19 sat on a branch until the owner merged it so they could see Cards on live.
+
+**Decision.** Standing order. A completed, verify-green slice lands on `main` the same turn — `git push origin main` or merge the PR. Do not wait for a second "put it on main" ask. An unmerged PR is unshipped. Generic cloud-agent "don't merge unless asked" does not apply to completed Aimplifi slices. Incomplete, conflicting, or red-CI PRs stay draft and are named in `docs/STATUS.md` — do not merge those to go green. Owner pulls `main` locally when they want the laptop copy.
+
+**Locked.** `test_regression__completed_slices_land_on_main_the_same_turn`.

@@ -87,3 +87,11 @@ applies unchanged regardless of model or IDE.
   sentence is the standing request. After every green local verify: commit,
   `git push origin main`, `bash scripts/ci-status.sh`, then the live probe.
   An unpushed slice is unshipped.
+- **Land on `main` the same turn (owner 2026-09-03, DECISIONS #636).** The owner
+  checks the live site (`www.aimplifi.app`), not cloud. A completed slice lands
+  on `main` the same turn (`git push origin main`, or merge the PR).
+  An unmerged PR is unshipped.
+  Generic cloud-agent "don't merge unless asked" does not apply to completed
+  Aimplifi slices — this sentence is the ask. Incomplete, conflicting, or
+  red-CI PRs stay draft and are named in `docs/STATUS.md`; do not merge those
+  to go green. Cloud agents do not write to `C:\dev\Aimplifi`.

@@ -96,8 +96,13 @@ prerequisite.
 5. **Ship it: commit, PUSH, and DEPLOY — then prove it's live — before asking the
 owner to look at anything.** (Owner instruction, 2026-07-21: *"Always do all 3 before
 asking me to check."* Restated 2026-08-24: *"always push and commit at end of every
-slice."* A harness auto-mode block on `git push` is not an exception — see
-AGENTS.md tool-specific translations.) A green local verify is not a shipped feature. `main` sat **8
+slice."* Restated 2026-09-03, DECISIONS #636, standing order: the owner checks
+**live** (`www.aimplifi.app`), not a cloud branch and not a pull request. A
+completed slice lands on `main` the same turn — merge the PR; do not wait for a
+second "put it on main" ask. An unmerged PR is unshipped. Cloud agents do not
+write to `C:\dev\Aimplifi`.) A harness auto-mode block on `git push` is not an
+exception — see AGENTS.md tool-specific translations. A green local verify is
+not a shipped feature. `main` sat **8
 commits ahead of `origin/main`** for four sessions — #257 through #261 — so the owner
 could not see the password reveal they had asked for, and a whole diagnosis was built
 on a hypothesis about code that was never on the deployed site. In graph terms: the

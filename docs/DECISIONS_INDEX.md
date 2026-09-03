@@ -629,3 +629,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #633 — Household can rename a card from the Cards page without opening Accounts (2026-09-03) → docs/DECISIONS.md
 - #634 — Household can add a card statement from the Cards page without opening Accounts (2026-09-03) → docs/DECISIONS.md
 - #635 — Preview build skips prisma db push when DATABASE_URL is unset (2026-09-03) → docs/DECISIONS.md
+- #636 — Completed slices land on main the same turn (standing order, 2026-09-03) → docs/DECISIONS.md

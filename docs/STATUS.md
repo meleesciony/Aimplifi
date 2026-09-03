@@ -11,6 +11,19 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ⚠️ OPEN 2026-09-03 — five draft PRs are not on main (DECISIONS #636)
+
+Standing order is land completed slices on `main`. These drafts are **not**
+merged: they conflict, failed verify, or are months stale / env-only.
+
+- #18 Settings unnamed-bill reserve — CONFLICTING, verify FAILURE
+- #16 coach P2.2 memory-dividend — 2026-08-22, Preview fail (pre-#635)
+- #14 Cloud Agent env setup — env/docs only; the repo env file was reverted
+- #6 O.20j converse leak measure — 2026-08-20, measure-only
+- #1 #171–#174 MoM drill-down — 2026-07-09, ~850 lines, no verify run on the PR
+
+Do not merge these to satisfy #636. Rebase + re-verify first, one PR at a time.
+
 ## ✅ BUILT 2026-08-31 — Tax-advantaged contribution-room Settings rung (DECISIONS #529)
 
 **The report.** Standing leftover after #528: tax-advantaged

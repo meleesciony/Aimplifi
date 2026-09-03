@@ -13,5 +13,11 @@ Then follow CLAUDE.md rule 5: start `bash scripts/ci-status.sh` after the
 push, prove the Vercel deploy reached READY, and fetch a live marker. A
 green local verify is not shipped.
 
+Owner standing order (2026-09-03, DECISIONS #636): land completed slices
+on `main` the same turn. The owner checks www.aimplifi.app, not a pull
+request. An unmerged PR is unshipped. Merge the PR in the same turn; do
+not wait to be asked again. Do not merge a PR that is conflicting or
+whose verify is red. Cloud agents do not write to `C:\dev\Aimplifi`.
+
 Do not force-push `main`. Do not skip hooks. Do not commit secrets, `.next`,
 or `test-results`.
