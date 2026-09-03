@@ -7,6 +7,7 @@ import { categoryName } from '@/lib/engine/categorize/categories';
 import { payeeRenameKey, registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { isUnclassifiedTxn, SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
+import { accountLabel } from '@/lib/engine/account/display-name';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getPayeeRenames } from '@/server/payee-names';
 import { getReconciliationBoundary } from '@/server/reconciliation';
@@ -20,6 +21,8 @@ export interface DashboardRecentTxn {
   categoryName: string;
   categoryId: string | null;
   amountCents: number;
+  accountId: string;
+  accountName: string;
   /** True when the row still needs a human filing decision. */
   needsFile: boolean;
   /**
@@ -70,6 +73,7 @@ export async function getDashboardRecent(
       include: {
         merchant: true,
         category: { select: { name: true } },
+        account: { select: { name: true, displayName: true } },
       },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
       // Over-fetch so reconciliation drops still leave a full strip.
@@ -104,6 +108,8 @@ export async function getDashboardRecent(
       categoryName: labelFor(catId, meta, t.category?.name),
       categoryId: catId,
       amountCents: t.amountCents,
+      accountId: t.accountId,
+      accountName: accountLabel(t.account),
       needsFile,
       onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)),
     });

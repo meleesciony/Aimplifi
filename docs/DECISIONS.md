@@ -2569,3 +2569,11 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnDirectionControl compact; rematch already in the action; demo fenced; magnitude stays; C.15 Link unchanged; shrink-0 so 380px does not eat the dollars. No heading tweak. No CSV. Optional `compact` (default false) and `flipTestId` (default `txn-direction-flip`) so detail is unchanged; Home passes `home-recent-direction`. Mount only when canRenamePayee, as a sibling of the row Link next to TxnAmountControl. Integer cents (`flippedTxnAmountCents`). Sign-in stays /sign-in. Do not invent a transfer toggle.
 
 **Locked.** `test_regression__household_can_flip_a_home_recent_charge_in_or_out_without_opening_detail`.
+
+## #631 — Household can change which account a Home recent charge belongs to without opening detail (2026-09-03)
+
+**Context.** Account write already exists on transaction detail: TxnAccountControl + updateTransactionAccount (demo fenced, splits refuse, rematchAfterTxnWrite already shipped as #622). Home's Recent transactions card did not print or write account at all (`DashboardRecentTxn` had no accountId/accountName), so a household standing on Home could not change which account a charge belongs to without opening detail.
+
+**Decision.** Reuse TxnAccountControl; listTxnMoveAccounts one author (empty current id = drop superseded predecessors; a row sitting on a superseded predecessor is prepended in the control so it can still name where it is); rematch already in the action; demo fenced; C.15 unchanged; compact so 380px does not eat dollars. No heading tweak. No CSV. Optional triggerTestId defaults to `detail-account`; Home passes `home-recent-account`. Mount only when canRenamePayee, as a sibling of the row Link. Sign-in stays /sign-in. Do not invent a transfer toggle.
+
+**Locked.** `test_regression__household_can_change_which_account_a_home_recent_charge_belongs_to`.

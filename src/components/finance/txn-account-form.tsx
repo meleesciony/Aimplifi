@@ -20,15 +20,20 @@ export function TxnAccountControl({
   accountId,
   accountName,
   accounts,
+  triggerTestId = 'detail-account',
 }: {
   transactionId: string;
   accountId: string;
   accountName: string;
   accounts: readonly { id: string; name: string }[];
+  triggerTestId?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TxnAccountResult | null>(null);
+  const options = accounts.some((a) => a.id === accountId)
+    ? accounts
+    : [{ id: accountId, name: accountName }, ...accounts];
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -54,7 +59,7 @@ export function TxnAccountControl({
       <button
         type="button"
         className="text-left underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground"
-        data-testid="detail-account"
+        data-testid={triggerTestId}
         aria-label={`Change account ${accountName}`}
         onClick={() => setEditing(true)}
       >
@@ -79,7 +84,7 @@ export function TxnAccountControl({
           className={inputCls}
           data-testid="txn-account-select"
         >
-          {accounts.map((a) => (
+          {options.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
             </option>

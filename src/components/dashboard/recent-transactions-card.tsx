@@ -11,6 +11,7 @@ import { HomeFileCategoryControl } from '@/components/finance/home-file-category
 import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
+import { TxnAccountControl } from '@/components/finance/txn-account-form';
 
 /**
  * Home strip: latest spending rows, with needs-file rows highlighted.
@@ -20,10 +21,12 @@ export function RecentTransactionsCard({
   recent,
   canRenamePayee,
   categoryGroups,
+  accounts,
 }: {
   recent: DashboardRecentResult;
   canRenamePayee: boolean;
   categoryGroups: { group: string; categories: { id: string; name: string }[] }[];
+  accounts: readonly { id: string; name: string }[];
 }) {
   const { rows, needsFileCount } = recent;
   return (
@@ -104,6 +107,17 @@ export function RecentTransactionsCard({
                 ) : (
                   <span className="truncate text-xs text-muted-foreground">{r.date}</span>
                 )}
+                {canRenamePayee ? (
+                  <span className="min-w-0 max-w-[7rem] truncate text-xs">
+                    <TxnAccountControl
+                      transactionId={r.id}
+                      accountId={r.accountId}
+                      accountName={r.accountName}
+                      accounts={accounts}
+                      triggerTestId="home-recent-account"
+                    />
+                  </span>
+                ) : null}
                 {canRenamePayee ? (
                   <span className="shrink-0">
                     <TxnAmountControl

@@ -26,6 +26,7 @@ import { DEMO_USER_ID, isDemoUser } from '@/lib/demo-user';
 import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
 import { getDashboardRecent } from '@/server/dashboard-recent';
+import { listTxnMoveAccounts } from '@/server/txn-move-accounts';
 import { getVisibleGroups } from '@/server/categories';
 import { getFeedDroppedAccounts, getWithheldAccountSummary } from '@/server/transactions';
 import { getConnectionAlerts, getDataFreshness } from '@/server/connection-health';
@@ -63,7 +64,7 @@ export default async function DashboardPage({
 
   const requestedScope = (await searchParams).scope === 'household' ? 'household' : 'mine';
 
-  const [data, coach, plan, recent, reports, trends, withheld, feedDropped, freshness, connectionAlerts, radar, nudgeDismissedKeys, categoryGroups] =
+  const [data, coach, plan, recent, reports, trends, withheld, feedDropped, freshness, connectionAlerts, radar, nudgeDismissedKeys, categoryGroups, accounts] =
     await Promise.all([
       getDashboardData(session.user.id, requestedScope),
       getCoachData(session.user.id),
@@ -82,6 +83,7 @@ export default async function DashboardPage({
       getCashFlowRadar(session.user.id),
       getNudgeDismissedKeys(session.user.id),
       getVisibleGroups(session.user.id),
+      listTxnMoveAccounts(session.user.id, ''),
     ]);
 
   const frozenDueRows = frozenNothingDueRows({
@@ -180,7 +182,7 @@ export default async function DashboardPage({
         cardIdentity={cardIdentity}
       />
 
-      <RecentTransactionsCard recent={recent} canRenamePayee={!isDemoUser(session.user.id)} categoryGroups={categoryGroups} />
+      <RecentTransactionsCard recent={recent} canRenamePayee={!isDemoUser(session.user.id)} categoryGroups={categoryGroups} accounts={accounts} />
 
       <TodayFeedCard
         feed={nudgeFeed}
