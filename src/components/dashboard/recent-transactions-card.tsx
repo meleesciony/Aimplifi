@@ -92,6 +92,16 @@ export function RecentTransactionsCard({
                       </span>
                     )}
                   </p>
+                  {canRenamePayee ? (
+                    <span className="shrink-0">
+                      <TxnDescriptorControl
+                        transactionId={r.id}
+                        descriptor={r.rawDescriptor}
+                        compact
+                        triggerTestId="home-recent-descriptor"
+                      />
+                    </span>
+                  ) : null}
                 </div>
                 {/* idle home-file-category-trigger is a sibling of the C.15 row Link */}
                 <HomeFileCategoryControl
@@ -116,16 +126,6 @@ export function RecentTransactionsCard({
                       accountName={r.accountName}
                       accounts={accounts}
                       triggerTestId="home-recent-account"
-                    />
-                  </span>
-                ) : null}
-                {canRenamePayee ? (
-                  <span className="shrink-0">
-                    <TxnDescriptorControl
-                      transactionId={r.id}
-                      descriptor={r.rawDescriptor}
-                      compact
-                      triggerTestId="home-recent-descriptor"
                     />
                   </span>
                 ) : null}
