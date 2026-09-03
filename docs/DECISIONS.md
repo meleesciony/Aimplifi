@@ -2499,3 +2499,12 @@ invent an auto-file quality claim.
 **Decision.** After an account save, the same rematch writer (`rematchAfterTxnWrite`) runs against the new accountId. A matching rule files the row. A settled category stays unless a rule now matches. Splits still refuse the move. Amount, date, and descriptor stay put. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_account_edit_re_matches_the_row`.
+
+
+## #623 — Household can record how much is already saved toward a savings goal (2026-09-03)
+
+**Context.** Name, target, monthly, and target date already have writes on /goals. savedCents was still a printed figure defaulting to 0 on create, with no write — a household that already had $2,500 toward a $10,000 trip could not record it.
+
+**Decision.** Tapping the already-saved amount on a savings goal opens a saved field. The write changes only `savedCents`. Name, target, monthly contribution, and target date stay put. Zero is valid (new goals start at 0). Blank, garbage, and negative refuse in words. Do not cap at target. Reserves and debt-free rows cannot change saved through this path. Demo cannot learn. Integer cents. No savings-rate percent. No CSV. Sign-in stays /sign-in. This is not a transaction write — do not rematch.
+
+**Locked.** `test_regression__household_can_record_how_much_is_already_saved_toward_a_savings_goal`.

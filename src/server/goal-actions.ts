@@ -23,7 +23,7 @@ export interface GoalFormResult {
   /** Whole-form refusal (demo fence, missing row). Not a field typo. */
   error?: string;
   /** Per-field messages when validation failed — rendered inline by GoalForm. */
-  errors?: { name?: string; target?: string; monthly?: string; targetDate?: string };
+  errors?: { name?: string; target?: string; monthly?: string; targetDate?: string; saved?: string };
 }
 
 /**
@@ -300,6 +300,45 @@ export async function updateGoalTarget(
     return { ok: false, error: "That goal isn't on your list, so nothing changed." };
   }
   await auditLog(userId, 'goal.updateTarget', { goalId: id, targetCents });
+  revalidatePath('/goals');
+  revalidatePath('/coach');
+  return { ok: true };
+}
+
+/**
+ * Change a savings goal's already-saved amount already on /goals. Name,
+ * target, monthly contribution, and target date stay put. Reserves and
+ * debt-free rows are refused. Demo cannot learn. Zero is valid.
+ */
+export async function updateGoalSaved(
+  goalId: string,
+  formData: FormData,
+): Promise<GoalFormResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const id = typeof goalId === 'string' ? goalId.trim() : '';
+  if (!id) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+
+  const saved = String(formData.get('saved') ?? '').trim();
+  const savedCents = parseDollarInput(saved);
+  if (savedCents === null || savedCents < 0) {
+    return {
+      ok: false,
+      errors: { saved: 'Enter an amount of $0 or more — like 2500 or $2,500.' },
+    };
+  }
+
+  const updated = await prisma.goal.updateMany({
+    where: { id, userId, kind: null },
+    data: { savedCents },
+  });
+  if (updated.count === 0) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+  await auditLog(userId, 'goal.updateSaved', { goalId: id, savedCents });
   revalidatePath('/goals');
   revalidatePath('/coach');
   return { ok: true };

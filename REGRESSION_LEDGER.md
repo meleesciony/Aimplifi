@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-03 | a savings goal’s already-saved amount on Goals was display-only | savedCents printed with no write | a household can record how much is already saved toward a savings goal | `test_regression__household_can_record_how_much_is_already_saved_toward_a_savings_goal` |
 | 2026-09-03 | changing a transaction’s account did not re-match the row | account write left category/merchant put | after a household changes a transaction’s account, the row re-matches | `test_regression__household_account_edit_re_matches_the_row` |
 | 2026-09-03 | changing a transaction’s date did not re-match the row | date write left category/merchant put | after a household changes a transaction’s date, the row re-matches | `test_regression__household_date_edit_re_matches_the_row` |
 | 2026-09-03 | changing a transaction’s amount did not re-match the row | amount write left category/merchant put | after a household changes a transaction’s amount, the row re-matches | `test_regression__household_amount_edit_re_matches_the_row` |
