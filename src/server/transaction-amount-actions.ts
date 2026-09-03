@@ -18,6 +18,7 @@ import {
   signedTxnAmountCents,
   txnAmountError,
 } from '@/lib/engine/transactions/amount';
+import { rematchAfterTxnWrite, rematchUpdateData } from '@/server/txn-rematch';
 
 export interface TxnAmountResult {
   ok: boolean;
@@ -127,6 +128,13 @@ export async function flipTransactionDirection(
     select: {
       id: true,
       amountCents: true,
+      rawDescriptor: true,
+      date: true,
+      accountId: true,
+      merchantId: true,
+      categoryId: true,
+      needsReview: true,
+      taxClass: true,
       isSplitParent: true,
       splitParentId: true,
     },
@@ -149,14 +157,32 @@ export async function flipTransactionDirection(
     };
   }
 
+  const rematch = await rematchAfterTxnWrite({
+    userId,
+    rawDescriptor: row.rawDescriptor,
+    amountCents,
+    date: row.date,
+    accountId: row.accountId,
+    merchantId: row.merchantId,
+    categoryId: row.categoryId,
+    needsReview: row.needsReview,
+    isSplitParent: row.isSplitParent,
+    taxClass: row.taxClass,
+  });
+
   await prisma.transaction.update({
     where: { id: row.id },
-    data: { amountCents },
+    data: {
+      amountCents,
+      ...rematchUpdateData(rematch),
+    },
   });
   await auditLog(userId, 'transaction.flipDirection', {
     transactionId: id,
     fromCents: row.amountCents,
     toCents: amountCents,
+    rematched: rematch.applyCategory,
+    matchedRule: rematch.matchedRule,
   });
   await refreshRecurringBestEffort(userId);
   revalidateTxnAmountSurfaces();

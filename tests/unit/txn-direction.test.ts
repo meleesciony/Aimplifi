@@ -62,6 +62,7 @@ describe('flipTransactionDirection — integer cents, splits refuse', () => {
   }, 60_000);
 
   afterAll(async () => {
+    await prisma.categorizationRule.deleteMany({ where: { userId: USER } });
     await prisma.transaction.deleteMany({ where: { account: { userId: USER } } });
     await prisma.account.deleteMany({ where: { userId: USER } });
     await prisma.user.deleteMany({ where: { id: USER } });
@@ -93,6 +94,41 @@ describe('flipTransactionDirection — integer cents, splits refuse', () => {
       expect(back.ok).toBe(true);
       const restored = await prisma.transaction.findUniqueOrThrow({ where: { id: row.id } });
       expect(restored.amountCents).toBe(-550);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('test_regression__household_flip_re_matches_the_row', async () => {
+    const { flipTransactionDirection } = await import('@/server/transaction-amount-actions');
+    const authz = await import('@/server/authz');
+    const spy = vi.spyOn(authz, 'requireUserId').mockResolvedValue(USER);
+    try {
+      await prisma.categorizationRule.create({
+        data: {
+          userId: USER,
+          categoryId: 'paycheck',
+          priority: 110,
+          matchKeywords: 'paypal',
+        },
+      });
+      const row = await prisma.transaction.create({
+        data: {
+          accountId,
+          date: '2026-06-10',
+          rawDescriptor: 'PAYPAL INST XFER',
+          amountCents: -25_000,
+          categoryId: 'groceries',
+          needsReview: false,
+        },
+      });
+      const res = await flipTransactionDirection(row.id);
+      expect(res.ok).toBe(true);
+      const updated = await prisma.transaction.findUniqueOrThrow({ where: { id: row.id } });
+      expect(updated.amountCents).toBe(25_000);
+      expect(updated.categoryId).toBe('paycheck');
+      expect(updated.rawDescriptor).toBe('PAYPAL INST XFER');
+      expect(updated.needsReview).toBe(false);
     } finally {
       spy.mockRestore();
     }

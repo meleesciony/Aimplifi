@@ -2463,3 +2463,12 @@ invent an auto-file quality claim.
 **Decision.** After a bank-text save, the same `categorize()` pipeline ingest uses re-matches the row. A matching rule files it (category, confidence, needsReview, merchant join). A settled category stays unless a rule now matches — the backfill rail: never clobber a settled row with a guess. Split parents are not re-filed. Amount and date stay put. Tax/spend stamps follow the pipeline (never overwrite a tag the household already set). Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_bank_text_edit_re_matches_the_row`.
+
+
+## #619 — After a household flips a transaction in or out, the row re-matches (2026-09-03)
+
+**Context.** #618 re-matches after a bank-text edit. Flip (#616) and amount/date writes still left category and merchant put, even though sign is a `categorize()` input. Marking a refund as money in did not re-run matching.
+
+**Decision.** After an in/out flip, the same rematch writer bank-text uses (`rematchAfterTxnWrite`) runs against the new signed cents. A matching rule files the row. A settled category stays unless a rule now matches. Splits still refuse the flip. Amount magnitude, date, and descriptor stay put except for the sign write. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_flip_re_matches_the_row`.
