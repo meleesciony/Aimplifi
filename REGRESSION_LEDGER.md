@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-03 | Home recent-charge payee was display-only | payee rename lived only on transaction detail and Inbox | a household can rename a payee from Home’s recent charges without writing a rule | `test_regression__household_can_rename_a_payee_on_home_recent_charges_without_writing_a_rule` |
 | 2026-09-03 | Inbox merchant heading was display-only | payee rename lived only on transaction detail | a household can rename a payee on an Inbox merchant group without writing a rule | `test_regression__household_can_rename_a_payee_on_an_inbox_merchant_group_without_writing_a_rule` |
 | 2026-09-03 | a savings goal’s already-saved amount on Goals was display-only | savedCents printed with no write | a household can record how much is already saved toward a savings goal | `test_regression__household_can_record_how_much_is_already_saved_toward_a_savings_goal` |
 | 2026-09-03 | changing a transaction’s account did not re-match the row | account write left category/merchant put | after a household changes a transaction’s account, the row re-matches | `test_regression__household_account_edit_re_matches_the_row` |

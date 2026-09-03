@@ -6,12 +6,19 @@ import type { DashboardRecentResult } from '@/server/dashboard-recent';
 import { SURFACE_CARD_CLASS } from '@/components/finance/surface-card-styles';
 import { namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/links';
 import { HOME_NEEDS_FILE_HREF, homeNeedsFileLabel } from '@/lib/copy/home-needs-file-copy';
+import { PayeeNameControl } from '@/components/finance/payee-name-form';
 
 /**
  * Home strip: latest spending rows, with needs-file rows highlighted.
  * Deep-links to the transaction detail / Needs a category — categorization is the product loop.
  */
-export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResult }) {
+export function RecentTransactionsCard({
+  recent,
+  canRenamePayee,
+}: {
+  recent: DashboardRecentResult;
+  canRenamePayee: boolean;
+}) {
   const { rows, needsFileCount } = recent;
   return (
     <section data-testid="dashboard-recent-transactions" className={SURFACE_CARD_CLASS}>
@@ -45,23 +52,22 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
         <ul className="mt-3 divide-y" data-testid="dashboard-recent-list">
           {rows.map((r) => (
             <li key={r.id}>
-              <Link
-                /* C.15 (audit F3): this was a bare /transactions/<id> — the
-                   reader landed on a detail page whose way back said "Activity".
-                   The return now names the dashboard he came from. */
-                href={withForwardedReturn(
-                  `/transactions/${encodeURIComponent(r.id)}`,
-                  namedPageBack('dashboard', null),
-                )}
+              <div
                 className={`flex items-center justify-between gap-3 py-2.5 text-sm transition hover:bg-muted/40 ${
                   r.needsFile ? 'bg-warning-50/80 dark:bg-warning-950/30' : ''
                 }`}
-                data-testid="dashboard-recent-row"
-                data-needs-file={r.needsFile ? 'true' : 'false'}
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium text-foreground">
-                    {r.merchantName}
+                    {canRenamePayee ? (
+                      <PayeeNameControl
+                        transactionId={r.id}
+                        name={r.merchantName}
+                        hasOverlay={r.payeeRenamed}
+                      />
+                    ) : (
+                      r.merchantName
+                    )}
                     {/* U.30 — same marker, same vocabulary, as every panel since
                         U.16/U.20/U.24: a fact about the row's DATE, not a claim
                         that it is the duplicate. This is the first screen a
@@ -76,6 +82,19 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
                       </span>
                     )}
                   </p>
+                </div>
+                <Link
+                  /* C.15 (audit F3): this was a bare /transactions/<id> — the
+                     reader landed on a detail page whose way back said "Activity".
+                     The return now names the dashboard he came from. */
+                  href={withForwardedReturn(
+                    `/transactions/${encodeURIComponent(r.id)}`,
+                    namedPageBack('dashboard', null),
+                  )}
+                  className="flex min-w-0 flex-1 items-center justify-end gap-3"
+                  data-testid="dashboard-recent-row"
+                  data-needs-file={r.needsFile ? 'true' : 'false'}
+                >
                   <p className="truncate text-xs text-muted-foreground">
                     {r.date}
                     {' · '}
@@ -85,15 +104,15 @@ export function RecentTransactionsCard({ recent }: { recent: DashboardRecentResu
                       r.categoryName
                     )}
                   </p>
-                </div>
-                <span
-                  className={`shrink-0 tabular-nums ${
-                    r.amountCents < 0 ? 'text-foreground' : 'text-positive-600 dark:text-positive-400'
-                  }`}
-                >
-                  {formatCents(cents(r.amountCents))}
-                </span>
-              </Link>
+                  <span
+                    className={`shrink-0 tabular-nums ${
+                      r.amountCents < 0 ? 'text-foreground' : 'text-positive-600 dark:text-positive-400'
+                    }`}
+                  >
+                    {formatCents(cents(r.amountCents))}
+                  </span>
+                </Link>
+              </div>
             </li>
           ))}
         </ul>

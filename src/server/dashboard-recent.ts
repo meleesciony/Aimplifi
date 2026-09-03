@@ -4,7 +4,7 @@
  */
 import { prisma } from '@/lib/db';
 import { categoryName } from '@/lib/engine/categorize/categories';
-import { registerDisplayName } from '@/lib/engine/transactions/display-name';
+import { payeeRenameKey, registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { isUnclassifiedTxn, SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import { getCategoryMeta } from '@/server/category-meta';
@@ -15,6 +15,8 @@ export interface DashboardRecentTxn {
   id: string;
   date: string;
   merchantName: string;
+  /** True when a household overlay name exists for this payee. */
+  payeeRenamed: boolean;
   categoryName: string;
   amountCents: number;
   /** True when the row still needs a human filing decision. */
@@ -97,6 +99,7 @@ export async function getDashboardRecent(
       id: t.id,
       date: t.date,
       merchantName: registerDisplayName(t, payeeNames),
+      payeeRenamed: Boolean(payeeNames.get(payeeRenameKey(t))?.trim()),
       categoryName: labelFor(catId, meta, t.category?.name),
       amountCents: t.amountCents,
       needsFile,

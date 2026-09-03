@@ -2518,3 +2518,11 @@ invent an auto-file quality claim.
 
 **Locked.** `test_regression__household_can_rename_a_payee_on_an_inbox_merchant_group_without_writing_a_rule`.
 
+
+## #625 — Household can rename a payee from Home’s recent charges without writing a rule (2026-09-03)
+
+**Context.** Payee rename already existed on transaction detail and Inbox (PayeeNameControl + renamePayee: overlay PayeeRename, no CategorizationRule, no Merchant.canonical write). Home’s Recent transactions card printed merchantName as static text inside a whole-row Link, so a household standing on Home could not rename a payee they were looking at. An overlay from detail/Inbox already showed as text via registerDisplayName — there was still no write from Home.
+
+**Decision.** Reuse PayeeNameControl. getDashboardRecent adds payeeRenamed from the existing PayeeRename map. Home mounts the control when canRenamePayee (false for demo). No second writer. The name control is a sibling of the row Link, not inside it, so C.15 still clicks dashboard-recent-row through to detail with back=_dashboard. Do not change the Dashboard h1 or the “Recent transactions” heading. Demo cannot learn. Overlay already shown via registerDisplayName. No CSV. No savings-rate percent. Sign-in stays /sign-in. Do not rematch.
+
+**Locked.** `test_regression__household_can_rename_a_payee_on_home_recent_charges_without_writing_a_rule`.

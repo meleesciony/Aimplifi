@@ -22,7 +22,7 @@ import { StepIndicator } from '@/components/onboarding/step-indicator';
 import { OnboardingNudge } from '@/components/settings/onboarding-nudge';
 import { PAYMENT_ACCOUNT_TYPES, needsOnboarding } from '@/lib/engine/settings/dials';
 import { prisma } from '@/lib/db';
-import { DEMO_USER_ID } from '@/lib/demo-user';
+import { DEMO_USER_ID, isDemoUser } from '@/lib/demo-user';
 import { getCoachData } from '@/server/coach';
 import { getDashboardData } from '@/server/finance';
 import { getDashboardRecent } from '@/server/dashboard-recent';
@@ -178,7 +178,7 @@ export default async function DashboardPage({
         cardIdentity={cardIdentity}
       />
 
-      <RecentTransactionsCard recent={recent} />
+      <RecentTransactionsCard recent={recent} canRenamePayee={!isDemoUser(session.user.id)} />
 
       <TodayFeedCard
         feed={nudgeFeed}
