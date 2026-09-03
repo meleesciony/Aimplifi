@@ -96,7 +96,9 @@ export function RecentTransactionsCard({
                   needsFile={r.needsFile}
                 />
                 {canRenamePayee ? (
-                  <TxnDateControl transactionId={r.id} date={r.date} triggerTestId="home-recent-date" />
+                  <span className="min-w-0 truncate">
+                    <TxnDateControl transactionId={r.id} date={r.date} triggerTestId="home-recent-date" />
+                  </span>
                 ) : (
                   <span className="truncate text-xs text-muted-foreground">{r.date}</span>
                 )}
@@ -108,7 +110,7 @@ export function RecentTransactionsCard({
                     `/transactions/${encodeURIComponent(r.id)}`,
                     namedPageBack('dashboard', null),
                   )}
-                  className="flex min-w-0 flex-1 items-center justify-end gap-3"
+                  className="flex shrink-0 items-center justify-end"
                   data-testid="dashboard-recent-row"
                   data-needs-file={r.needsFile ? 'true' : 'false'}
                 >
