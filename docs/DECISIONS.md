@@ -2391,3 +2391,12 @@ invent an auto-file quality claim.
 **Decision.** Tapping Clear rhythm deletes the `BillCadence` row (not a fake monthly). Name, amount, and detection stay put. Save cadence still refuses blank and unknown. A bill with no overlay has nothing to clear. Loans never carry an overlay. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_clear_a_repeating_bill_cadence_back_to_what_the_app_detected`.
+
+
+## #611 — Household can change a transaction’s amount (2026-09-02)
+
+**Context.** Payee rename shipped on the transaction detail page. Amount was still a printed figure (`detail-amount`). A bank or CSV row with the wrong dollars had no write, so cash-visibility figures could not be corrected without deleting the row.
+
+**Decision.** Tapping the amount on a transaction opens a dollars field. The write is `Transaction.amountCents` (integer cents), not an overlay. Magnitude comes from what they type; the existing sign stays so an outflow stays an outflow. Date, payee, category, descriptor, merchantId, rules, and account balance stay put. Split parents and split parts refuse (the parts carry the money). Blank, zero, and over-cap refuse. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_change_a_transaction_amount`.

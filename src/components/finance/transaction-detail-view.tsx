@@ -78,6 +78,7 @@ import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { provenanceBadgeView } from '@/components/finance/provenance-badge';
 import { SpendClassBadge } from '@/components/finance/spend-class-badge';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
+import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import {
   outOfScopeExplanation,
   outOfScopeReason,
@@ -645,12 +646,16 @@ export function TransactionDetailView({
             )}
           </div>
         </div>
-        <div
-          className={`mt-1 text-2xl tabular-nums ${row.amountCents > 0 ? 'text-positive-500' : ''}`}
-          data-testid="detail-amount"
-        >
-          {formatCents(cents(row.amountCents), { signDisplay: 'always' })}
-        </div>
+        {detail.isSplitParent || detail.splitParentId ? (
+          <div
+            className={`mt-1 text-2xl tabular-nums ${row.amountCents > 0 ? 'text-positive-500' : ''}`}
+            data-testid="detail-amount"
+          >
+            {formatCents(cents(row.amountCents), { signDisplay: 'always' })}
+          </div>
+        ) : (
+          <TxnAmountControl transactionId={row.id} amountCents={row.amountCents} />
+        )}
       </div>
 
       {/* The provenance line — SIMPLIFI_PARITY row 16, and the reason a rule is

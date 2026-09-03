@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | a transaction’s dollars on the detail page were display-only | amount was a printed figure with no write | a household can change a transaction’s amount | `test_regression__household_can_change_a_transaction_amount` |
 | 2026-09-02 | Settings Fixed costs printed a repeating bill cadence with no write | cadence overlay lived only on the spending plan | a household can change a repeating bill’s cadence from Settings Fixed costs | `test_regression__household_can_change_a_repeating_bill_cadence_from_settings_fixed_costs` |
 | 2026-09-02 | a repeating bill cadence overlay could not be cleared back to detection | save refused blank; no delete path | a household can clear a repeating bill’s cadence back to what the app detected | `test_regression__household_can_clear_a_repeating_bill_cadence_back_to_what_the_app_detected` |
 | 2026-09-02 | a repeating bill cadence on the spending plan was detection-only | Fixed list printed cadence with no write | a household can change how often a repeating bill comes around | `test_regression__household_can_change_how_often_a_repeating_bill_comes_around` |

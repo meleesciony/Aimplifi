@@ -604,3 +604,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #608 — Household can change how often a repeating bill comes around (2026-09-02) → docs/DECISIONS.md
 - #609 — Household can change a repeating bill’s cadence from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
 - #610 — Household can clear a repeating bill’s cadence back to what the app detected (2026-09-02) → docs/DECISIONS.md
+- #611 — Household can change a transaction’s amount (2026-09-02) → docs/DECISIONS.md
