@@ -23,6 +23,8 @@ export interface DashboardRecentTxn {
   amountCents: number;
   accountId: string;
   accountName: string;
+  /** Bank text a rule matches. Amount and merchantId stay put. */
+  rawDescriptor: string;
   /** True when the row still needs a human filing decision. */
   needsFile: boolean;
   /**
@@ -110,6 +112,7 @@ export async function getDashboardRecent(
       amountCents: t.amountCents,
       accountId: t.accountId,
       accountName: accountLabel(t.account),
+      rawDescriptor: t.rawDescriptor,
       needsFile,
       onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)),
     });

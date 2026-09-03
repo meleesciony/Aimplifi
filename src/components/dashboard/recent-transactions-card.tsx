@@ -12,6 +12,7 @@ import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { TxnAccountControl } from '@/components/finance/txn-account-form';
+import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
 
 /**
  * Home strip: latest spending rows, with needs-file rows highlighted.
@@ -115,6 +116,16 @@ export function RecentTransactionsCard({
                       accountName={r.accountName}
                       accounts={accounts}
                       triggerTestId="home-recent-account"
+                    />
+                  </span>
+                ) : null}
+                {canRenamePayee ? (
+                  <span className="shrink-0">
+                    <TxnDescriptorControl
+                      transactionId={r.id}
+                      descriptor={r.rawDescriptor}
+                      compact
+                      triggerTestId="home-recent-descriptor"
                     />
                   </span>
                 ) : null}

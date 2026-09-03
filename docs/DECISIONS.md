@@ -2577,3 +2577,11 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnAccountControl; listTxnMoveAccounts one author (empty current id = drop superseded predecessors; a row sitting on a superseded predecessor is prepended in the control so it can still name where it is); rematch already in the action; demo fenced; C.15 unchanged; compact so 380px does not eat dollars. No heading tweak. No CSV. Optional triggerTestId defaults to `detail-account`; Home passes `home-recent-account`. Mount only when canRenamePayee, as a sibling of the row Link. Sign-in stays /sign-in. Do not invent a transfer toggle.
 
 **Locked.** `test_regression__household_can_change_which_account_a_home_recent_charge_belongs_to`.
+
+## #632 — Household can change the bank text on a Home recent charge without opening detail (2026-09-03)
+
+**Context.** Bank-text write already exists on transaction detail: TxnDescriptorControl + updateTransactionDescriptor (demo fenced, rematchAfterTxnWrite already shipped as #618). Home's Recent transactions card did not print or write rawDescriptor (`DashboardRecentTxn` had no rawDescriptor), so a household standing on Home could not change the bank text a rule matches without opening detail. PayeeNameControl is the overlay display name — not the bank text.
+
+**Decision.** Reuse TxnDescriptorControl compact; rematch already in the action; demo fenced; compact idle is "Bank text" not the full descriptor so 380px does not eat dollars; C.15 unchanged. Payee rename stays the overlay; this is rawDescriptor. No heading tweak. No CSV. Optional `triggerTestId` defaults to `detail-raw-descriptor`; Home passes `home-recent-descriptor`. Optional `compact` (default false): compact idle shows the short label "Bank text"; detail keeps the full descriptor. Mount only when canRenamePayee, as a sibling of the row Link. Amount and merchantId stay put. Sign-in stays /sign-in. Do not invent a transfer toggle.
+
+**Locked.** `test_regression__household_can_change_the_bank_text_on_a_home_recent_charge_without_opening_detail`.

@@ -18,9 +18,13 @@ const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreg
 export function TxnDescriptorControl({
   transactionId,
   descriptor,
+  triggerTestId = 'detail-raw-descriptor',
+  compact = false,
 }: {
   transactionId: string;
   descriptor: string;
+  triggerTestId?: string;
+  compact?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -52,12 +56,16 @@ export function TxnDescriptorControl({
     return (
       <button
         type="button"
-        className="break-all font-mono text-foreground underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground"
-        data-testid="detail-raw-descriptor"
+        className={
+          compact
+            ? 'shrink-0 text-xs text-foreground underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground'
+            : 'break-all font-mono text-foreground underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground'
+        }
+        data-testid={triggerTestId}
         aria-label={`Change bank text ${descriptor}`}
         onClick={() => setEditing(true)}
       >
-        {descriptor}
+        {compact ? 'Bank text' : descriptor}
       </button>
     );
   }

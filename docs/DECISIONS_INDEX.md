@@ -625,3 +625,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #629 — Household can change a Home recent-charge amount without opening detail (2026-09-03) → docs/DECISIONS.md
 - #630 — Household can flip a Home recent charge in or out without opening detail (2026-09-03) → docs/DECISIONS.md
 - #631 — Household can change which account a Home recent charge belongs to without opening detail (2026-09-03) → docs/DECISIONS.md
+- #632 — Household can change the bank text on a Home recent charge without opening detail (2026-09-03) → docs/DECISIONS.md
