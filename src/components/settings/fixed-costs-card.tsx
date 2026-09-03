@@ -7,6 +7,7 @@ import { holdingAccountClause, type SetupBillProposal } from '@/lib/engine/spend
 import type { SpendingPlanWithNotes } from '@/server/spending-plan';
 import { ReserveForm } from '@/components/finance/reserve-form';
 import { ConvertToReserveButton } from '@/components/finance/convert-to-reserve-button';
+import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-button';
 import { HoldingAccountPicker } from '@/components/finance/holding-account-picker';
 import { BillNameControl } from '@/components/finance/rename-bill-form';
 
@@ -130,8 +131,13 @@ export function FixedCostsCard({
                       </span>
                     ) : null}
                   </dt>
-                  <dd className="shrink-0 tabular-nums" data-testid="fixed-costs-basis-amount">
-                    {formatCents(cents(l.amountCents))}
+                  <dd className="flex shrink-0 items-center gap-2">
+                    <span className="tabular-nums" data-testid="fixed-costs-basis-amount">
+                      {formatCents(cents(l.amountCents))}
+                    </span>
+                    {l.kind === 'recurring-bill' && l.billKey && !l.loanPayment && canWrite ? (
+                      <TakeBillOffPlanButton billKey={l.billKey} billName={l.label} />
+                    ) : null}
                   </dd>
                 </div>
               ))}

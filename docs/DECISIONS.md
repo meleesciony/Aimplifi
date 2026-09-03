@@ -2279,3 +2279,11 @@ invent an auto-file quality claim.
 **Decision.** Settings Fixed costs offers Make-it-a-reserve for a convertible named no-payee bill the same as Spending plan. Gate is `convertibleToReserve && canWrite && b.billKey`. ConvertToReserveButton identity is `b.billKey` (unnamed keys are `unnamed:…`). Row label uses the overlay name (`convertInput.name`) so the household can tell which row. Payee convert unchanged. Demo still canWrite-gated. Do not duplicate createReserveFromSeries. Overlay only. Integer cents. No CSV. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_turn_a_named_no_payee_bill_into_a_reserve_from_settings_fixed_costs`.
+
+## #597 — Take a repeating bill off the plan from Settings Fixed costs (2026-09-02)
+
+**Context.** Spending plan already takes a repeating bill off the plan (#591/#592). Settings Fixed costs is the same Fixed basis list but had no take-off. Convert on Settings only covers quarterly/semiannual/annual series. A monthly repeating bill could be renamed there and not taken off.
+
+**Decision.** Settings Fixed costs offers the same confirmed Take-off control on a repeating bill (payee or unnamed) that is not a loan payment. Reuse TakeBillOffPlanButton. Do not duplicate takeRepeatingBillOffPlan. Demo still canWrite-gated. Put-back stays on Spending plan. Overlay only. Transactions stay. No CSV. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_take_a_repeating_bill_off_the_plan_from_settings_fixed_costs`.
