@@ -2508,3 +2508,13 @@ invent an auto-file quality claim.
 **Decision.** Tapping the already-saved amount on a savings goal opens a saved field. The write changes only `savedCents`. Name, target, monthly contribution, and target date stay put. Zero is valid (new goals start at 0). Blank, garbage, and negative refuse in words. Do not cap at target. Reserves and debt-free rows cannot change saved through this path. Demo cannot learn. Integer cents. No savings-rate percent. No CSV. Sign-in stays /sign-in. This is not a transaction write — do not rematch.
 
 **Locked.** `test_regression__household_can_record_how_much_is_already_saved_toward_a_savings_goal`.
+
+
+## #624 — Household can rename a payee on an Inbox merchant group without writing a rule (2026-09-03)
+
+**Context.** Payee rename already existed on transaction detail (PayeeNameControl + renamePayee: overlay PayeeRename, no CategorizationRule, no Merchant.canonical write). Inbox group cards printed inboxMerchantHeading as a static span, so a household standing on Inbox could not rename the merchant they were filing, and a rename from detail did not even show on the Inbox heading.
+
+**Decision.** getTriageGroups also loads getPayeeRenames. Each group derives overlay via payeeRenameKey / registerDisplayName on the anchor row. The current Inbox card heading mounts the existing PayeeNameControl when the group is ruleEligible and canRenamePayee (false for demo). Aggregates/Zelle/checks never get a merchant-wide rename — same fence as rules. Masked-bank disclosure keys off the bank heading, not the overlay. No second writer. Grouping, filing, skip, and suggestions stay put. Do not change the page h1 or INBOX_PAGE_SUBTITLE. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in. Do not touch Goals.
+
+**Locked.** `test_regression__household_can_rename_a_payee_on_an_inbox_merchant_group_without_writing_a_rule`.
+

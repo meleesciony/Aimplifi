@@ -5,7 +5,7 @@
  */
 import { prisma } from '@/lib/db';
 import { categoryName } from '@/lib/engine/categorize/categories';
-import { type ReviewRow, type TriageGroup, groupKey, groupReviewRows } from '@/lib/engine/categorize/group';
+import { type ReviewRow, type TriageGroup, groupKey, groupReviewRows, inboxMerchantHeading } from '@/lib/engine/categorize/group';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { categorize, suggestAlternatives } from '@/lib/engine/categorize/pipeline';
 import { deriveCorrectionHints, type LearnedCorrectionInput } from '@/lib/engine/categorize/learn';
@@ -25,6 +25,8 @@ import { loadCorrectionInputs, loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { getCategoryMeta } from '@/server/category-meta';
 import { accountLabel } from '@/lib/engine/account/display-name';
+import { payeeRenameKey, registerDisplayName } from '@/lib/engine/transactions/display-name';
+import { getPayeeRenames } from '@/server/payee-names';
 
 export interface TriageItem {
   id: string;
@@ -268,6 +270,12 @@ export interface TriageGroupView extends Omit<TriageGroup, 'rows'> {
   /** 3 quick-pick alternatives (pipeline pool + staples), never the suggestion. */
   alternativeIds: string[];
   alternativeNames: string[];
+  /** Overlay if the household renamed this payee; else the inbox heading. */
+  payeeName: string;
+  /** True when a PayeeRename overlay is present. */
+  payeeRenamed: boolean;
+  /** Anchor row id — renamePayee needs a transaction id. */
+  payeeTransactionId: string;
 }
 
 /**
@@ -278,7 +286,7 @@ export interface TriageGroupView extends Omit<TriageGroup, 'rows'> {
  * (which suggested 'Shopping' on 144/144 baseline cards).
  */
 export async function getTriageGroups(userId: string): Promise<TriageGroupView[]> {
-  const [txns, rules, meta, tuning, corrections] = await Promise.all([
+  const [txns, rules, meta, tuning, corrections, payeeNames] = await Promise.all([
     prisma.transaction.findMany({
       // Currency guard (DECISIONS #135): withheld non-USD rows never enter the inbox.
       // Transfer guard (#165): same exclusion as getTriageItems — queue and badge agree.
@@ -299,6 +307,7 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
     getCategoryMeta(userId),
     getThresholdTuning(userId), // suggestions use the same tuned boundary ingest does (#190)
     loadCorrectionInputs(userId), // personalized swipe-left alternatives (#207)
+    getPayeeRenames(userId), // overlay names on the group heading (#624)
   ]);
 
   const reviewRows: ReviewRow[] = txns.map((t) => {
@@ -394,9 +403,19 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
         },
       };
     });
+    const overlaySource = {
+      merchant: { canonical: g.merchantCanonical },
+      rawDescriptor: (anchor ?? g.rows[0])?.rawDescriptor ?? '',
+    };
+    const overlay = payeeNames.get(payeeRenameKey(overlaySource))?.trim();
     return {
       ...g,
       rows,
+      payeeName: overlay
+        ? registerDisplayName(overlaySource, payeeNames)
+        : inboxMerchantHeading(g.merchantCanonical),
+      payeeRenamed: Boolean(overlay),
+      payeeTransactionId: g.anchorTransactionId,
       suggestedCategoryName: g.suggestedCategoryId ? categoryName(g.suggestedCategoryId, meta) : null,
       providerSuggestedCategoryName: g.providerSuggestedCategoryId
         ? categoryName(g.providerSuggestedCategoryId, meta)

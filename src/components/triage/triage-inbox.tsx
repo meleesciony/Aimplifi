@@ -48,6 +48,7 @@ import { namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/li
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { cents, centsFromDollarString, formatCents } from '@/lib/money';
 import type { TriageGroupView } from '@/server/triage';
+import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import {
   acceptAllConfident,
@@ -92,11 +93,14 @@ export function TriageInbox({
   initialGroups,
   categories,
   today,
+  canRenamePayee,
 }: {
   initialGroups: TriageGroupView[];
   categories: { id: string; name: string; group?: string }[];
   /** Business today — relative age of old charges (#374). */
   today: ISODate;
+  /** False for demo — overlay writer already refuses, this hides the control. */
+  canRenamePayee: boolean;
 }) {
   const [groups, setGroups] = useState(initialGroups);
   const [mode, setMode] = useState<'idle' | 'picker' | 'split' | 'singles'>('idle');
@@ -948,7 +952,8 @@ export function TriageInbox({
 
   const one = top.count === 1;
   const anchorRow = top.rows[0];
-  const heading = inboxMerchantHeading(top.merchantCanonical);
+  const bankHeading = inboxMerchantHeading(top.merchantCanonical);
+  const heading = top.payeeName || bankHeading;
   const ageHint = formatRelativeDays(today, isoDate(top.newestDate));
   const rowsWithChip = top.rows.filter((r) => r.rowSuggestion !== null).length;
   // L.12: when our own pipeline produced no suggestion, fall back to Plaid's persisted
@@ -1041,7 +1046,15 @@ export function TriageInbox({
         <CardContent className="space-y-2 pt-4">
           <div className="flex items-baseline justify-between gap-2">
             <span className="font-medium" data-testid="triage-merchant-heading">
-              {heading}
+              {top.ruleEligible && canRenamePayee ? (
+                <PayeeNameControl
+                  transactionId={top.payeeTransactionId || anchorRow.id}
+                  name={top.payeeName || heading}
+                  hasOverlay={top.payeeRenamed}
+                />
+              ) : (
+                heading
+              )}
             </span>
             <span className="text-lg font-semibold tabular-nums">
               {formatCents(cents(top.totalCents), { signDisplay: 'always' })}
@@ -1062,7 +1075,7 @@ export function TriageInbox({
           </p>
           <p className="text-[11px] text-muted-foreground">
             As on your statement
-            {heading !== top.merchantCanonical ? ' (name masked by the bank)' : ''}:
+            {bankHeading !== top.merchantCanonical ? ' (name masked by the bank)' : ''}:
           </p>
           {top.variants.slice(0, 3).map((v) => (
             <p key={v} className="break-all font-mono text-xs text-muted-foreground">

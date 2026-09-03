@@ -617,3 +617,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #621 — After a household changes a transaction’s date, the row re-matches (2026-09-03) → docs/DECISIONS.md
 - #622 — After a household changes a transaction’s account, the row re-matches (2026-09-03) → docs/DECISIONS.md
 - #623 — Household can record how much is already saved toward a savings goal (2026-09-03) → docs/DECISIONS.md
+- #624 — Household can rename a payee on an Inbox merchant group without writing a rule (2026-09-03) → docs/DECISIONS.md

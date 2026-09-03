@@ -12,6 +12,7 @@ import { getTriageGroups } from '@/server/triage';
 import { getVisibleCategories } from '@/server/categories';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { INBOX_PAGE_SUBTITLE } from '@/lib/copy/inbox-copy';
+import { isDemoUser } from '@/lib/demo-user';
 
 export const metadata = { title: "Review" };
 
@@ -49,6 +50,7 @@ export default async function TriagePage() {
           initialGroups={groups}
           categories={categories}
           today={businessToday(session.user.id)}
+          canRenamePayee={!isDemoUser(session.user.id)}
         />
       </div>
     </div>
