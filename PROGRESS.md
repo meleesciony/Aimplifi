@@ -13,7 +13,9 @@
 
 **Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **8,183 passed + 1 expected fail + 1 skipped / 537 files + 1 skipped**. E2E mobile-380: `transaction-return-c15` 3/3, `phase1-cash-needed` 2/2 (port 3100 freed of stale `next-server` 13550 first).
 
-**Next.** Browser walkthrough, then land on `main` (#636).
+**Walkthrough.** Demo Home recents at 380px: dollars in one column, no In/Out chips. Signed-in Costco -$212.40: payee left, amount, Open, second line **Money out**. C.15 Open reached detail.
+
+**Next.** Land on `main` (#636), then CI + live probe.
 
 ## 2026-09-03 — Cards add-card from Cards page (DECISIONS #637)
 

@@ -11,6 +11,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-03 — Home recent charges line up; compact direction says Money out (DECISIONS #638)
+
+**The report.** Owner: Home Recent transactions were not lined up, and compact “Out” did not say what it meant. Beauty later, after the feature set.
+
+**Shipped.** 3-column grid (payee / dollars / Open). Meta wraps on a second line. Compact direction uses Money in / Money out, same as detail. Writes stay siblings of the C.15 Open Link. Amounts stay `shrink-0`. Wave M.4 restated, not started.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **8,183 passed + 1 expected fail + 1 skipped / 537 files + 1 skipped**. E2E mobile-380: `transaction-return-c15` 3/3, `phase1-cash-needed` 2/2.
+
+**Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.** Residual P2s: silent toggle, aria-label vs visible name, demo empty third track, source-string lock only.
+
+**Ship.** Pending land on `main` (#636).
+
 ## ⚠️ OPEN 2026-09-03 — beauty pass after the feature set (Wave M.4)
 
 Owner, 2026-09-03: after the feature set is complete, make the app beautiful on desktop and mobile. That work is already Wave M.4 (slice 1 foundation shipped 2026-07-22). Do not start a redesign this slice. Home Recent transactions alignment + “Money out” (#638) is a surgical layout/copy fix only.
