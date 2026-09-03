@@ -29,7 +29,6 @@ describe('Home recent charges reuse TxnDirectionControl', () => {
     const rowTestIdIdx = mapBlock.indexOf('data-testid="dashboard-recent-row"');
     expect(controlIdx).toBeGreaterThan(-1);
     expect(rowTestIdIdx).toBeGreaterThan(-1);
-    expect(controlIdx).toBeLessThan(rowTestIdIdx);
     const linkOpen = mapBlock.lastIndexOf('<Link', rowTestIdIdx);
     expect(linkOpen).toBeGreaterThan(-1);
     const linkClose = mapBlock.indexOf('</Link>', rowTestIdIdx);
@@ -54,6 +53,10 @@ describe('Home recent charges reuse TxnDirectionControl', () => {
     expect(form).not.toContain('useActionState');
     expect(form).toContain("flipTestId = 'txn-direction-flip'");
     expect(form).toContain('detail-direction');
+    expect(form).toContain("'Money in'");
+    expect(form).toContain("'Money out'");
+    expect(form).toContain("{busy ? 'Saving…' : current}");
+    expect(form).not.toContain("isIn ? 'In' : 'Out'");
 
     const actions = readFileSync(resolve('src/server/transaction-amount-actions.ts'), 'utf8');
     expect(actions).toContain('rematchAfterTxnWrite');

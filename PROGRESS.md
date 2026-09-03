@@ -5,6 +5,16 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-09-03 — Home recent row alignment + Money out (DECISIONS #638)
+
+**Picked up.** Owner: Home Recent transactions not lined up; “what does Out mean?” Beauty later, after the feature set.
+
+**Closed.** 3-column grid (payee / dollars / Open); meta wraps on a second line. Compact direction uses Money in / Money out. Wave M.4 restated, not started.
+
+**Gate.** Pending `bash scripts/verify.sh`.
+
+**Next.** Verify, critic, e2e, land on `main` (#636).
+
 ## 2026-09-03 — Cards add-card from Cards page (DECISIONS #637)
 
 **Picked up.** Owner: "continue." #634 closed statement add on Cards.

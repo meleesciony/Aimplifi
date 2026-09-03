@@ -60,7 +60,7 @@ export function TxnDirectionControl({
           aria-label={next}
           data-testid={flipTestId}
         >
-          {busy ? 'Saving…' : isIn ? 'In' : 'Out'}
+          {busy ? 'Saving…' : current}
         </Button>
         {result?.error ? (
           <p className="text-xs text-red-500" role="alert" data-testid="txn-direction-form-error">

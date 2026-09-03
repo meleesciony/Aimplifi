@@ -63,7 +63,7 @@ export function RecentTransactionsCard({
           {rows.map((r) => (
             <li key={r.id}>
               <div
-                className={`flex items-center justify-between gap-3 py-2.5 text-sm transition hover:bg-muted/40 ${
+                className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-1 py-2.5 text-sm transition hover:bg-muted/40 ${
                   r.needsFile ? 'bg-warning-50/80 dark:bg-warning-950/30' : ''
                 }`}
               >
@@ -92,62 +92,16 @@ export function RecentTransactionsCard({
                       </span>
                     )}
                   </p>
-                  {canRenamePayee ? (
-                    <span className="shrink-0">
-                      <TxnDescriptorControl
-                        transactionId={r.id}
-                        descriptor={r.rawDescriptor}
-                        compact
-                        triggerTestId="home-recent-descriptor"
-                      />
-                    </span>
-                  ) : null}
                 </div>
-                {/* idle home-file-category-trigger is a sibling of the C.15 row Link */}
-                <HomeFileCategoryControl
-                  transactionId={r.id}
-                  categoryGroups={categoryGroups}
-                  categoryId={r.categoryId}
-                  categoryName={r.categoryName}
-                  needsFile={r.needsFile}
-                />
                 {canRenamePayee ? (
-                  <span className="min-w-0 truncate">
-                    <TxnDateControl transactionId={r.id} date={r.date} triggerTestId="home-recent-date" />
-                  </span>
-                ) : (
-                  <span className="truncate text-xs text-muted-foreground">{r.date}</span>
-                )}
-                {canRenamePayee ? (
-                  <span className="min-w-0 max-w-[7rem] truncate text-xs">
-                    <TxnAccountControl
-                      transactionId={r.id}
-                      accountId={r.accountId}
-                      accountName={r.accountName}
-                      accounts={accounts}
-                      triggerTestId="home-recent-account"
-                    />
-                  </span>
-                ) : null}
-                {canRenamePayee ? (
-                  <span className="shrink-0">
+                  <span className="shrink-0 justify-self-end">
                     <TxnAmountControl
                       transactionId={r.id}
                       amountCents={r.amountCents}
                       triggerTestId="home-recent-amount"
-                      idleClassName={`text-left text-sm tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
+                      idleClassName={`text-right text-sm tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
                         r.amountCents < 0 ? 'text-foreground' : 'text-positive-600 dark:text-positive-400'
                       }`}
-                    />
-                  </span>
-                ) : null}
-                {canRenamePayee ? (
-                  <span className="shrink-0">
-                    <TxnDirectionControl
-                      transactionId={r.id}
-                      amountCents={r.amountCents}
-                      compact
-                      flipTestId="home-recent-direction"
                     />
                   </span>
                 ) : null}
@@ -159,7 +113,7 @@ export function RecentTransactionsCard({
                     `/transactions/${encodeURIComponent(r.id)}`,
                     namedPageBack('dashboard', null),
                   )}
-                  className="flex shrink-0 items-center justify-end"
+                  className="flex shrink-0 items-center justify-end justify-self-end"
                   data-testid="dashboard-recent-row"
                   data-needs-file={r.needsFile ? 'true' : 'false'}
                 >
@@ -178,6 +132,54 @@ export function RecentTransactionsCard({
                     </span>
                   )}
                 </Link>
+                <div className="col-span-3 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                  {/* idle home-file-category-trigger is a sibling of the C.15 row Link */}
+                  <HomeFileCategoryControl
+                    transactionId={r.id}
+                    categoryGroups={categoryGroups}
+                    categoryId={r.categoryId}
+                    categoryName={r.categoryName}
+                    needsFile={r.needsFile}
+                  />
+                  {canRenamePayee ? (
+                    <span className="min-w-0 truncate">
+                      <TxnDateControl transactionId={r.id} date={r.date} triggerTestId="home-recent-date" />
+                    </span>
+                  ) : (
+                    <span className="truncate text-xs text-muted-foreground">{r.date}</span>
+                  )}
+                  {canRenamePayee ? (
+                    <span className="min-w-0 max-w-[7rem] truncate">
+                      <TxnAccountControl
+                        transactionId={r.id}
+                        accountId={r.accountId}
+                        accountName={r.accountName}
+                        accounts={accounts}
+                        triggerTestId="home-recent-account"
+                      />
+                    </span>
+                  ) : null}
+                  {canRenamePayee ? (
+                    <span className="shrink-0">
+                      <TxnDescriptorControl
+                        transactionId={r.id}
+                        descriptor={r.rawDescriptor}
+                        compact
+                        triggerTestId="home-recent-descriptor"
+                      />
+                    </span>
+                  ) : null}
+                  {canRenamePayee ? (
+                    <span className="shrink-0">
+                      <TxnDirectionControl
+                        transactionId={r.id}
+                        amountCents={r.amountCents}
+                        compact
+                        flipTestId="home-recent-direction"
+                      />
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </li>
           ))}

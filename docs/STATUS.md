@@ -11,6 +11,10 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ⚠️ OPEN 2026-09-03 — beauty pass after the feature set (Wave M.4)
+
+Owner, 2026-09-03: after the feature set is complete, make the app beautiful on desktop and mobile. That work is already Wave M.4 (slice 1 foundation shipped 2026-07-22). Do not start a redesign this slice. Home Recent transactions alignment + “Money out” (#638) is a surgical layout/copy fix only.
+
 ## ⚠️ OPEN 2026-09-03 — five draft PRs are not on main (DECISIONS #636)
 
 Standing order is land completed slices on `main`. These drafts are **not**

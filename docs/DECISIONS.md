@@ -2625,3 +2625,11 @@ invent an auto-file quality claim.
 **Decision.** Reuse `addManualAccount`. New `CardAddControl` on Cards empty and on the populated page. Type locked to CREDIT — no type picker. Demo not mounted. Partner cards are not created here (the write is the viewer’s own row). Balance still refuses $0 (existing parser). Name and amount are labelled; the amount is “Current balance owed”. The “No due date yet” body no longer names Accounts or claims a bank will send a statement for a hand-added card — a hand-added card takes a statement on this row; a linked card waits for the bank. Engine types unchanged. Accounts list unchanged. No heading tweak. No CSV. Sign-in stays /sign-in. `addManualAccount` also revalidates `/cards`.
 
 **Locked.** `test_regression__household_can_add_a_card_from_the_cards_page_without_opening_accounts`.
+
+## #638 — Home recent charges line up; compact direction says Money out (2026-09-03)
+
+**Context.** Owner, from iOS: Home Recent transactions were not lined up, and compact “Out” did not say what it meant. They also asked that after the feature set is complete, the app become beautiful on desktop and mobile. That beauty pass is already Wave M.4 — recorded, not started.
+
+**Decision.** Keep every Home write. Restyle the row as a 3-column grid: payee, dollars (`justify-self-end`, `tabular-nums`), Open. Category, date, account, bank text, and direction sit on a wrapping second line (`col-span-3`). Compact `TxnDirectionControl` uses the same words as detail — Money in / Money out — not In / Out. C.15 `dashboard-recent-row` stays the Open/`formatCents` Link; writes stay siblings. Amounts stay `shrink-0` (f530612 / 380px). No transfer toggle. No heading change. No app-wide restyle.
+
+**Locked.** `test_regression__home_recent_charges_line_up_and_name_money_out`.

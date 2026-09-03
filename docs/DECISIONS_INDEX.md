@@ -631,3 +631,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #635 — Preview build skips prisma db push when DATABASE_URL is unset (2026-09-03) → docs/DECISIONS.md
 - #636 — Completed slices land on main the same turn (standing order, 2026-09-03) → docs/DECISIONS.md
 - #637 — Household can add a card from the Cards page without opening Accounts (2026-09-03) → docs/DECISIONS.md
+- #638 — Home recent charges line up; compact direction says Money out (2026-09-03) → docs/DECISIONS.md

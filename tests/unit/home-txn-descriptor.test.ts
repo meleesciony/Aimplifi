@@ -31,7 +31,6 @@ describe('Home recent charges reuse TxnDescriptorControl', () => {
     const rowTestIdIdx = mapBlock.indexOf('data-testid="dashboard-recent-row"');
     expect(controlIdx).toBeGreaterThan(-1);
     expect(rowTestIdIdx).toBeGreaterThan(-1);
-    expect(controlIdx).toBeLessThan(rowTestIdIdx);
     const linkOpen = mapBlock.lastIndexOf('<Link', rowTestIdIdx);
     expect(linkOpen).toBeGreaterThan(-1);
     const linkClose = mapBlock.indexOf('</Link>', rowTestIdIdx);
