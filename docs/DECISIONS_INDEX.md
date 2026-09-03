@@ -595,3 +595,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #599 — Household can change a savings goal's target without deleting it (2026-09-02) → docs/DECISIONS.md
 - #600 — Household can change a savings goal's monthly contribution without deleting it (2026-09-02) → docs/DECISIONS.md
 - #601 — Household can change a savings goal's target date without deleting it (2026-09-02) → docs/DECISIONS.md
+- #602 — Household can clear a savings goal's monthly contribution without deleting it (2026-09-02) → docs/DECISIONS.md

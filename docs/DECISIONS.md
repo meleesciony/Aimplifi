@@ -2319,3 +2319,11 @@ invent an auto-file quality claim.
 **Decision.** Tapping the date on a savings goal (or Set date when none is set) opens a month field. The write changes only `targetDate`. Name, target, saved, and monthly contribution stay put. Month `YYYY-MM` stores as the first of that month. Blank and unparseable dates are refused in words. Does not re-solve monthly from the date. Reserves and debt-free rows cannot change target date through this path. Demo cannot learn. No savings-rate percent. No CSV. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_change_a_savings_goal_target_date_without_deleting_it`.
+
+## #602 — Household can clear a savings goal's monthly contribution without deleting it (2026-09-02)
+
+**Context.** #600 shipped a monthly write on /goals that refused blank and zero. A household that no longer wanted a monthly contribution still had to delete the goal. Clearing is not the same write as changing the dollars.
+
+**Decision.** Tapping Clear monthly on a savings goal that has a monthly contribution writes `monthlyContributionCents` to null (not zero). Name, target, saved, and target date stay put. Save monthly still refuses blank and zero. A goal with no monthly has nothing to clear. Reserves and debt-free rows cannot clear monthly through this path. Demo cannot learn. Integer cents. No savings-rate percent. No CSV. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_clear_a_savings_goal_monthly_contribution_without_deleting_it`.
