@@ -9,11 +9,11 @@
 
 **Picked up.** Owner: Home Recent transactions not lined up; “what does Out mean?” Beauty later, after the feature set.
 
-**Closed.** 3-column grid (payee / dollars / Open); meta wraps on a second line. Compact direction uses Money in / Money out. Wave M.4 restated, not started.
+**Closed.** 3-column grid (payee / dollars / Open); meta wraps on a second line. Compact direction uses Money in / Money out. Wave M.4 restated, not started. Critic cycle 1 PASS (0 P0, 0 P1). Residual P2s: silent toggle, aria-label vs visible name, demo empty third track, source-string lock only.
 
-**Gate.** Pending `bash scripts/verify.sh`.
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **8,183 passed + 1 expected fail + 1 skipped / 537 files + 1 skipped**. E2E mobile-380: `transaction-return-c15` 3/3, `phase1-cash-needed` 2/2 (port 3100 freed of stale `next-server` 13550 first).
 
-**Next.** Verify, critic, e2e, land on `main` (#636).
+**Next.** Browser walkthrough, then land on `main` (#636).
 
 ## 2026-09-03 — Cards add-card from Cards page (DECISIONS #637)
 
