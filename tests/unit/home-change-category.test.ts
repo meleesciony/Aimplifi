@@ -35,7 +35,8 @@ describe('Home recent charges reuse applyCategory for already-filed rows', () =>
     const rowLinkInner = mapBlock.slice(linkOpen, linkClose);
     expect(rowLinkInner).toContain('data-testid="dashboard-recent-row"');
     expect(rowLinkInner).toContain('formatCents');
-    expect(rowLinkInner).toContain('date');
+    // date moved to TxnDateControl in #628
+    expect(rowLinkInner).not.toContain('{r.date}');
     expect(rowLinkInner).not.toContain('{r.categoryName}');
     expect(rowLinkInner).not.toContain('HomeFileCategoryControl');
 

@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-03 | Home recent-charge date was display-only | date write lived only on transaction detail | a household can change a Home recent-charge date without opening detail | `test_regression__household_can_change_a_home_recent_charge_date_without_opening_detail` |
 | 2026-09-03 | already-filed Home recent-charge category was display-only | HomeFileCategoryControl mounted only on needsFile rows | a household can change the category of an already-filed Home recent charge | `test_regression__household_can_change_the_category_of_an_already_filed_home_recent_charge` |
 | 2026-09-03 | Home recent-charge “Needs category” was display-only | the label lived inside the row Link with no applyCategory | a household can file a category from a Home recent charge that still needs one | `test_regression__household_can_file_a_category_from_a_home_recent_charge_that_needs_one` |
 | 2026-09-03 | Home recent-charge payee was display-only | payee rename lived only on transaction detail and Inbox | a household can rename a payee from Home’s recent charges without writing a rule | `test_regression__household_can_rename_a_payee_on_home_recent_charges_without_writing_a_rule` |

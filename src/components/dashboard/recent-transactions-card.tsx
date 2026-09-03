@@ -8,6 +8,7 @@ import { namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/li
 import { HOME_NEEDS_FILE_HREF, homeNeedsFileLabel } from '@/lib/copy/home-needs-file-copy';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { HomeFileCategoryControl } from '@/components/finance/home-file-category-form';
+import { TxnDateControl } from '@/components/finance/txn-date-form';
 
 /**
  * Home strip: latest spending rows, with needs-file rows highlighted.
@@ -94,6 +95,11 @@ export function RecentTransactionsCard({
                   categoryName={r.categoryName}
                   needsFile={r.needsFile}
                 />
+                {canRenamePayee ? (
+                  <TxnDateControl transactionId={r.id} date={r.date} triggerTestId="home-recent-date" />
+                ) : (
+                  <span className="truncate text-xs text-muted-foreground">{r.date}</span>
+                )}
                 <Link
                   /* C.15 (audit F3): this was a bare /transactions/<id> — the
                      reader landed on a detail page whose way back said "Activity".
@@ -106,9 +112,6 @@ export function RecentTransactionsCard({
                   data-testid="dashboard-recent-row"
                   data-needs-file={r.needsFile ? 'true' : 'false'}
                 >
-                  <p className="truncate text-xs text-muted-foreground">
-                    {r.date}
-                  </p>
                   <span
                     className={`shrink-0 tabular-nums ${
                       r.amountCents < 0 ? 'text-foreground' : 'text-positive-600 dark:text-positive-400'

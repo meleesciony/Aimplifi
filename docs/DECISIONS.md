@@ -2544,3 +2544,11 @@ invent an auto-file quality claim.
 **Decision.** Extend HomeFileCategoryControl; mount it for every recent row as a sibling of the C.15 row Link. applyCategory once. Do not pass always. Do not pass expectUnfiled. Do not mint a rule. Already-filed idle shows the current name; needs-file path unchanged (warning “Needs category” trigger, empty default). Native select scroll/click. The row Link still holds the amount and date and clicks through to detail with back=_dashboard. Do not change the Dashboard h1 or the “Recent transactions” heading. No CSV. No savings-rate percent. Sign-in stays /sign-in. Demo already files from Inbox and Activity (applyCategory has no isDemoUser block). Payee rename stays demo-fenced.
 
 **Locked.** `test_regression__household_can_change_the_category_of_an_already_filed_home_recent_charge`.
+
+## #628 — Household can change a Home recent-charge date without opening detail (2026-09-03)
+
+**Context.** Date write already exists on transaction detail: TxnDateControl + updateTransactionDate (demo fenced, rematchAfterTxnWrite already shipped as #621). Home's Recent transactions card still printed `{r.date}` as static text inside the C.15 row Link, so a household standing on Home could not change a date they were looking at.
+
+**Decision.** Reuse TxnDateControl. rematch already in the action. Demo fenced. C.15 amount stays in the row Link; date control is a sibling (next to HomeFileCategoryControl). Mount the control only when canRenamePayee is true; when false, print r.date as static text as a sibling of the Link. Optional triggerTestId defaults to `detail-date` so detail is unchanged; Home passes `home-recent-date`. No heading tweak. No CSV. No savings-rate percent. Sign-in stays /sign-in. Do not invent a transfer toggle.
+
+**Locked.** `test_regression__household_can_change_a_home_recent_charge_date_without_opening_detail`.

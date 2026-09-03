@@ -18,9 +18,11 @@ const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreg
 export function TxnDateControl({
   transactionId,
   date,
+  triggerTestId = 'detail-date',
 }: {
   transactionId: string;
   date: string;
+  triggerTestId?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -51,7 +53,7 @@ export function TxnDateControl({
       <button
         type="button"
         className="text-left underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground"
-        data-testid="detail-date"
+        data-testid={triggerTestId}
         aria-label={`Change date ${shown}`}
         onClick={() => setEditing(true)}
       >
