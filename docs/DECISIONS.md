@@ -2481,3 +2481,12 @@ invent an auto-file quality claim.
 **Decision.** After an amount save, the same rematch writer (`rematchAfterTxnWrite`) runs against the new signed cents. A matching rule files the row. A settled category stays unless a rule now matches. Splits still refuse the amount write. Sign, date, and descriptor stay put except for the cents write. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_amount_edit_re_matches_the_row`.
+
+
+## #621 — After a household changes a transaction’s date, the row re-matches (2026-09-03)
+
+**Context.** #618–#620 re-match after bank-text, in/out, and amount. Date write (#612) still left category and merchant put, even though weekday/weekend is a `categorize()` input.
+
+**Decision.** After a date save, the same rematch writer (`rematchAfterTxnWrite`) runs against the new calendar date. A matching rule files the row. A settled category stays unless a rule now matches. Amount and descriptor stay put. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_date_edit_re_matches_the_row`.

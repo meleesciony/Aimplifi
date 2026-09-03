@@ -13,6 +13,7 @@ import { auditLog, requireUserId } from '@/server/authz';
 import { refreshRecurringForUser } from '@/server/recurring';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { txnDateError } from '@/lib/engine/transactions/date';
+import { rematchAfterTxnWrite, rematchUpdateData } from '@/server/txn-rematch';
 
 export interface TxnDateResult {
   ok: boolean;
@@ -67,20 +68,49 @@ export async function updateTransactionDate(
         OR: [{ currency: null }, { currency: 'USD' }],
       },
     },
-    select: { id: true, date: true, amountCents: true },
+    select: {
+      id: true,
+      date: true,
+      amountCents: true,
+      rawDescriptor: true,
+      accountId: true,
+      merchantId: true,
+      categoryId: true,
+      needsReview: true,
+      taxClass: true,
+      isSplitParent: true,
+    },
   });
   if (!row) {
     return { ok: false, error: "That transaction isn't on your list, so nothing changed." };
   }
 
+  const rematch = await rematchAfterTxnWrite({
+    userId,
+    rawDescriptor: row.rawDescriptor,
+    amountCents: row.amountCents,
+    date,
+    accountId: row.accountId,
+    merchantId: row.merchantId,
+    categoryId: row.categoryId,
+    needsReview: row.needsReview,
+    isSplitParent: row.isSplitParent,
+    taxClass: row.taxClass,
+  });
+
   await prisma.transaction.update({
     where: { id: row.id },
-    data: { date },
+    data: {
+      date,
+      ...rematchUpdateData(rematch),
+    },
   });
   await auditLog(userId, 'transaction.updateDate', {
     transactionId: id,
     fromDate: row.date,
     toDate: date,
+    rematched: rematch.applyCategory,
+    matchedRule: rematch.matchedRule,
   });
   await refreshRecurringBestEffort(userId);
   revalidateTxnDateSurfaces();

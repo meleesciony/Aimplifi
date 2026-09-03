@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-03 | changing a transaction’s date did not re-match the row | date write left category/merchant put | after a household changes a transaction’s date, the row re-matches | `test_regression__household_date_edit_re_matches_the_row` |
 | 2026-09-03 | changing a transaction’s amount did not re-match the row | amount write left category/merchant put | after a household changes a transaction’s amount, the row re-matches | `test_regression__household_amount_edit_re_matches_the_row` |
 | 2026-09-03 | flipping a transaction in or out did not re-match the row | flip wrote amountCents and left category/merchant put | after a household flips a transaction in or out, the row re-matches | `test_regression__household_flip_re_matches_the_row` |
 | 2026-09-03 | editing bank text did not re-match the row | descriptor write left merchantId and category put | after a household edits bank text, the row re-matches | `test_regression__household_bank_text_edit_re_matches_the_row` |
