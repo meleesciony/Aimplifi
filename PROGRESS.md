@@ -5,6 +5,18 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-09-03 — Vercel Preview build without DATABASE_URL (DECISIONS #635)
+
+**Picked up.** Owner: one CI check failing on PR #19. GitHub Actions
+`verify` on `4cdd178e` was SUCCESS. The red check is Vercel Preview
+(`dpl_HA7A6meJUf1sbbxiZW84biNovePg`), ~16s, before `next build`.
+
+**Closed.** `vercel.json` `buildCommand` is now `scripts/vercel-build.sh`.
+Unset `DATABASE_URL` skips postgres schema + `db push` and generates the
+SQLite client. Set `DATABASE_URL` keeps the Production path.
+
+**Next.** Re-read the Vercel Preview check on this push.
+
 ## 2026-09-03 — Cards statement from Cards page (DECISIONS #634)
 
 **Picked up.** Owner: "continue." #633 closed card rename on Cards.

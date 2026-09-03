@@ -2601,3 +2601,11 @@ invent an auto-file quality claim.
 **Decision.** Reuse `setManualCardStatement` and `ManualCardStatementForm`. New `CardStatementControl` on unknown-due rows for the viewer’s own manual cards. Demo not mounted. Partner and linked cards stay without a writer. Dated cards unchanged. Engine types unchanged. Accounts list unchanged. The panel still names Accounts for linked cards. No heading tweak. No CSV. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_add_a_card_statement_from_the_cards_page_without_opening_accounts`.
+
+## #635 — Preview build skips prisma db push when DATABASE_URL is unset (2026-09-03)
+
+**Context.** Every Vercel Preview on this repo failed in ~16s before `next build`. Production on the same tree stayed READY. Build log (archived 2026-06-26): `datasource.url property is required`. Preview has no `DATABASE_URL` — DEPLOY.md ticks Production only. `vercel.json` ran `prisma db push` unconditionally.
+
+**Decision.** `scripts/vercel-build.sh` is the Vercel `buildCommand`. When `DATABASE_URL` is set: gen-pg → generate → push → `next build` (Production unchanged). When unset: generate the SQLite client (matches `makeAdapter`'s empty-URL fallback), skip push, then `next build`. Do not derive the Postgres schema on Preview — a postgresql client + sqlite adapter throws at import. Do not point Preview push at production Neon.
+
+**Locked.** `test_regression__vercel_preview_build_skips_db_push_when_database_url_is_unset`.
