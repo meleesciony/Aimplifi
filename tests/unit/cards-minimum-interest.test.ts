@@ -6,7 +6,14 @@
  * `minimumInterestNote` from the component file (the pattern `card-identity-view`
  * established for copy beside a component). Byte-locked here.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// CardsBreakdown now mounts AccountNameControl, which imports renameAccount.
+// This file only exercises minimumInterestNote copy; keep the action out of vitest.
+vi.mock('@/components/finance/account-name-form', () => ({
+  AccountNameControl: () => null,
+}));
+
 import { minimumInterestNote } from '@/components/finance/cards-breakdown';
 
 describe('minimumInterestNote (audit P2 — names the covered set)', () => {

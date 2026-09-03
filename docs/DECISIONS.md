@@ -2585,3 +2585,11 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnDescriptorControl compact; rematch already in the action; demo fenced; compact idle is "Bank text" not the full descriptor so 380px does not eat dollars; C.15 unchanged. Payee rename stays the overlay; this is rawDescriptor. No heading tweak. No CSV. Optional `triggerTestId` defaults to `detail-raw-descriptor`; Home passes `home-recent-descriptor`. Optional `compact` (default false): compact idle shows the short label "Bank text"; detail keeps the full descriptor. Mount only when canRenamePayee, as a sibling of the row Link. Amount and merchantId stay put. Sign-in stays /sign-in. Do not invent a transfer toggle.
 
 **Locked.** `test_regression__household_can_change_the_bank_text_on_a_home_recent_charge_without_opening_detail`.
+
+## #633 — Household can rename a card from the Cards page without opening Accounts (2026-09-03)
+
+**Context.** Account rename already exists on Accounts (renameAccount writes displayName, never name). Cards page printed card.cardName as text, so a household standing on Cards could not nickname a card without opening Accounts. Home note was not this slice: setTransactionTax writes note and taxClass together, and the Home recent-charge strip already squeezed C.15 at 380px.
+
+**Decision.** Reuse renameAccount. New AccountNameControl on CardsBreakdown titles for the viewer's own cards. Demo not mounted. Partner cards stay text. Empty input clears the overlay back to the feed name. Engine types unchanged. Accounts list unchanged. No heading tweak. No CSV. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_rename_a_card_from_the_cards_page_without_opening_accounts`.

@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-03 | Cards page card name was display-only | rename lived only on Accounts | a household can rename a card from the Cards page without opening Accounts | `test_regression__household_can_rename_a_card_from_the_cards_page_without_opening_accounts` |
 | 2026-09-03 | Home recent-charge bank text was missing | bank-text write lived only on transaction detail | a household can change the bank text on a Home recent charge without opening detail | `test_regression__household_can_change_the_bank_text_on_a_home_recent_charge_without_opening_detail` |
 | 2026-09-03 | Home recent-charge account was missing | account write lived only on transaction detail | a household can change which account a Home recent charge belongs to without opening detail | `test_regression__household_can_change_which_account_a_home_recent_charge_belongs_to` |
 | 2026-09-03 | Home recent-charge in/out was display-only | direction flip lived only on transaction detail | a household can flip a Home recent charge in or out without opening detail | `test_regression__household_can_flip_a_home_recent_charge_in_or_out_without_opening_detail` |

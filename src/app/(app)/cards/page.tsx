@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { prisma } from '@/lib/db';
+import { isDemoUser } from '@/lib/demo-user';
 import { getDashboardData } from '@/server/finance';
 
 export const metadata = { title: "Credit cards" };
@@ -27,6 +28,16 @@ export default async function CardsPage({
   // 'mine' without live partners), so a stale `?scope=household` link never errors.
   const requestedScope = (await searchParams).scope === 'household' ? 'household' : 'mine';
   const data = await getDashboardData(session.user.id, requestedScope);
+
+  const creditAccounts = await prisma.account.findMany({
+    where: { userId: session.user.id, type: 'CREDIT' },
+    select: { id: true, name: true, displayName: true },
+  });
+  const canRenameCard = !isDemoUser(session.user.id);
+  const cardRenameById: Record<string, { feedName: string; hasOverlay: boolean }> = {};
+  for (const a of creditAccounts) {
+    cardRenameById[a.id] = { feedName: a.name, hasOverlay: Boolean(a.displayName) };
+  }
 
   // "No credit cards yet" is a claim about what the user HAS, but `cards` only
   // holds cards the engine could place a due date on — so a linked card whose
@@ -96,6 +107,8 @@ export default async function CardsPage({
         cardMask={data.cardMask}
         cardDuplicates={data.cardDuplicates}
         householdName={data.scope === 'household' ? data.household?.name ?? null : null}
+        canRenameCard={canRenameCard}
+        cardRenameById={cardRenameById}
       />
     </div>
   );

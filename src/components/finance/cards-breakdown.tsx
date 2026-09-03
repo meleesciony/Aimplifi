@@ -38,6 +38,7 @@ import {
 } from '@/lib/engine/account/feed-dropped-view';
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import { formatCents, type Cents } from '@/lib/money';
+import { AccountNameControl } from '@/components/finance/account-name-form';
 
 /**
  * The minimum-path interest sentence (audit P2). Names the set the estimate covers —
@@ -79,6 +80,8 @@ export function CardsBreakdown({
   householdName = null,
   cardMask = {},
   cardDuplicates = [],
+  canRenameCard = false,
+  cardRenameById,
 }: {
   payInFull: CashNeededResult;
   minimum: CashNeededResult;
@@ -98,9 +101,28 @@ export function CardsBreakdown({
    *  needed ACROSS the household — attributing it to the viewer's own funding
    *  account would claim a partner's autopay draft must sit there. */
   householdName?: string | null;
+  /** Own CREDIT cards only; default false so other callers stay byte-identical. */
+  canRenameCard?: boolean;
+  cardRenameById?: Record<string, { feedName: string; hasOverlay: boolean }>;
 }) {
   const [scenario, setScenario] = useState<'PAY_IN_FULL' | 'MINIMUM'>('PAY_IN_FULL');
   const result = scenario === 'PAY_IN_FULL' ? payInFull : minimum;
+
+  function renderCardName(cardId: string, cardName: string) {
+    const meta = cardRenameById?.[cardId];
+    const isPartner = Boolean(accountOwnerLabel[cardId]);
+    if (canRenameCard && meta && !isPartner) {
+      return (
+        <AccountNameControl
+          accountId={cardId}
+          name={cardName}
+          hasOverlay={meta.hasOverlay}
+          feedName={meta.feedName}
+        />
+      );
+    }
+    return cardName;
+  }
 
   return (
     <div className="space-y-4">
@@ -379,7 +401,7 @@ export function CardsBreakdown({
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between gap-2">
                       <CardTitle className="min-w-0 break-words text-base">
-                        {card.cardName}
+                        {renderCardName(card.cardId, card.cardName)}
                         {/* A real space, not just the margin: the heading's TEXT content is what a
                             reader copies and what assistive tech reads, and "CREDIT CARD····0977"
                             runs the two together (#298 critic F7). */}
@@ -545,7 +567,7 @@ export function CardsBreakdown({
                     const owner = accountOwnerLabel[c.cardId];
                     return (
                       <li key={c.cardId} data-testid={`card-unknown-${c.cardId}`}>
-                        {c.cardName}
+                        {renderCardName(c.cardId, c.cardName)}
                         {/* These are the cards MOST likely to be unnamed — no statement often
                             means a thin issuer feed — so the identity matters more here, not
                             less (#298 critic F4). They are deliberately kept out of
