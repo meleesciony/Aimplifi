@@ -49,6 +49,9 @@ P1-1: amount unlabeled. P1-2: unknown-due named Accounts / a bank
 statement. Residual P2s: empty-state still mentions the plan; household
 add does not say “your” card; `$500`/`1,234` still rejected.
 
+**Ship.** `16590072` on `main`. CI `33803882007` SUCCESS. Vercel
+Production `6252565100` SUCCESS. Public `/cards` is auth-gated.
+
 ## ✅ BUILT 2026-08-31 — Tax-advantaged contribution-room Settings rung (DECISIONS #529)
 
 **The report.** Standing leftover after #528: tax-advantaged

@@ -23,6 +23,16 @@ fail + 1 skipped / 536 files + 1 skipped**. E2E cards-add **1/1**,
 connect-affordances **1/1**, cards-statement **1/1** on mobile-380
 (port 3100 free).
 
+**Ship.** Landed `16590072` on `main`. GitHub Actions `verify` run
+**33803882007** = SUCCESS (11m22s) on that sha. Main push run
+**33803879999** cancelled in 2s (concurrency). Vercel Production
+deployment **6252565100** SUCCESS (`1659007`,
+`https://aimplifi-oqgy252zq-reiforge.vercel.app`). Live
+`https://www.aimplifi.app/cards` → 307 `/sign-in` (auth). The add
+control is demo-fenced, so the public HTML has no `cards-add-open`
+marker — that probe is UNVERIFIED without a signed-in non-demo
+session.
+
 **Next.** Wave 0 ops remain owner-blocked.
 
 ## 2026-09-03 — Standing order: land completed slices on main (#636)
