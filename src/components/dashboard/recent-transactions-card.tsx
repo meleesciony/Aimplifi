@@ -9,6 +9,7 @@ import { HOME_NEEDS_FILE_HREF, homeNeedsFileLabel } from '@/lib/copy/home-needs-
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { HomeFileCategoryControl } from '@/components/finance/home-file-category-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
+import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 
 /**
  * Home strip: latest spending rows, with needs-file rows highlighted.
@@ -102,6 +103,18 @@ export function RecentTransactionsCard({
                 ) : (
                   <span className="truncate text-xs text-muted-foreground">{r.date}</span>
                 )}
+                {canRenamePayee ? (
+                  <span className="shrink-0">
+                    <TxnAmountControl
+                      transactionId={r.id}
+                      amountCents={r.amountCents}
+                      triggerTestId="home-recent-amount"
+                      idleClassName={`text-left text-sm tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
+                        r.amountCents < 0 ? 'text-foreground' : 'text-positive-600 dark:text-positive-400'
+                      }`}
+                    />
+                  </span>
+                ) : null}
                 <Link
                   /* C.15 (audit F3): this was a bare /transactions/<id> — the
                      reader landed on a detail page whose way back said "Activity".
@@ -114,13 +127,20 @@ export function RecentTransactionsCard({
                   data-testid="dashboard-recent-row"
                   data-needs-file={r.needsFile ? 'true' : 'false'}
                 >
-                  <span
-                    className={`shrink-0 tabular-nums ${
-                      r.amountCents < 0 ? 'text-foreground' : 'text-positive-600 dark:text-positive-400'
-                    }`}
-                  >
-                    {formatCents(cents(r.amountCents))}
-                  </span>
+                  {canRenamePayee ? (
+                    <>
+                      <span className="sr-only">{formatCents(cents(r.amountCents))}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">Open</span>
+                    </>
+                  ) : (
+                    <span
+                      className={`shrink-0 tabular-nums ${
+                        r.amountCents < 0 ? 'text-foreground' : 'text-positive-600 dark:text-positive-400'
+                      }`}
+                    >
+                      {formatCents(cents(r.amountCents))}
+                    </span>
+                  )}
                 </Link>
               </div>
             </li>

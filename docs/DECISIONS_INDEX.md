@@ -622,3 +622,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #626 — Household can file a category from a Home recent charge that still needs one (2026-09-03) → docs/DECISIONS.md
 - #627 — Household can change the category of an already-filed Home recent charge (2026-09-03) → docs/DECISIONS.md
 - #628 — Household can change a Home recent-charge date without opening detail (2026-09-03) → docs/DECISIONS.md
+- #629 — Household can change a Home recent-charge amount without opening detail (2026-09-03) → docs/DECISIONS.md

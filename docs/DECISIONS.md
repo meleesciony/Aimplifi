@@ -2552,3 +2552,11 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnDateControl. rematch already in the action. Demo fenced. C.15 amount stays in the row Link; date control is a sibling (next to HomeFileCategoryControl). Mount the control only when canRenamePayee is true; when false, print r.date as static text as a sibling of the Link. Optional triggerTestId defaults to `detail-date` so detail is unchanged; Home passes `home-recent-date`. No heading tweak. No CSV. No savings-rate percent. Sign-in stays /sign-in. Do not invent a transfer toggle.
 
 **Locked.** `test_regression__household_can_change_a_home_recent_charge_date_without_opening_detail`.
+
+## #629 — Household can change a Home recent-charge amount without opening detail (2026-09-03)
+
+**Context.** Amount write already exists on transaction detail: TxnAmountControl + updateTransactionAmount (demo fenced, rematchAfterTxnWrite already shipped as #620). Home's Recent transactions card still printed `{formatCents(cents(r.amountCents))}` as static text inside the C.15 row Link, so a household standing on Home could not change an amount they were looking at.
+
+**Decision.** Reuse TxnAmountControl. rematch already in the action. Demo fenced. Integer cents. Sign stays with the row. C.15 Link still carries formatCents (sr-only) and a visible shrink-0 open affordance; visible dollars are the amount control, also shrink-0; do not show two figures; 380px must not collapse the dollars (f530612). Mount the control only when canRenamePayee. Optional triggerTestId defaults to `detail-amount`; Home passes `home-recent-amount`. Optional idleClassName so Home stays text-sm tabular-nums. No heading tweak. No CSV. No savings-rate percent. Sign-in stays /sign-in. Do not invent a transfer toggle.
+
+**Locked.** `test_regression__household_can_change_a_home_recent_charge_amount_without_opening_detail`.

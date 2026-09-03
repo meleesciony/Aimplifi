@@ -19,9 +19,13 @@ const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreg
 export function TxnAmountControl({
   transactionId,
   amountCents,
+  triggerTestId = 'detail-amount',
+  idleClassName,
 }: {
   transactionId: string;
   amountCents: number;
+  triggerTestId?: string;
+  idleClassName?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -52,10 +56,13 @@ export function TxnAmountControl({
     return (
       <button
         type="button"
-        className={`text-left text-2xl tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
-          amountCents > 0 ? 'text-positive-500' : ''
-        }`}
-        data-testid="detail-amount"
+        className={
+          idleClassName ??
+          `text-left text-2xl tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
+            amountCents > 0 ? 'text-positive-500' : ''
+          }`
+        }
+        data-testid={triggerTestId}
         aria-label={`Change amount ${shown}`}
         onClick={() => setEditing(true)}
       >
