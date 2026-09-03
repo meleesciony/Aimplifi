@@ -15,6 +15,16 @@ yet” named Accounts as the only place to enter a statement.
 `CardStatementControl` → existing `setManualCardStatement`. Demo /
 linked / partner stay without a writer. Dated cards unchanged.
 
+**Critic (fresh context): PASS — 0 P0, 0 P1.** Residual P2s recorded
+(colliding testids, catch-all reload, intro still names Accounts).
+Tap-target P2 fixed this slice.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **8,177 passed + 1 expected
+fail + 1 skipped / 533 files + 1 skipped**. E2E
+`cards-statement.spec.ts` **1/1** on mobile-380. Browser walkthrough
+on a throwaway user: add from Cards, card left “No due date yet”.
+
 **Next.** Wave 0 ops remain owner-blocked.
 
 ## 2026-08-31 — Tax-advantaged contribution-room Settings (DECISIONS #529)
