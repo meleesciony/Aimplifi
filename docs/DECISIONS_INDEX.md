@@ -610,3 +610,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #614 — Household can clear a payee rename back to the bank name (2026-09-02) → docs/DECISIONS.md
 - #615 — Household can clear a repeating bill’s name back to what the app detected (2026-09-02) → docs/DECISIONS.md
 - #616 — Household can flip a transaction in or out (2026-09-02) → docs/DECISIONS.md
+- #617 — Household can change the bank text on a transaction (2026-09-03) → docs/DECISIONS.md

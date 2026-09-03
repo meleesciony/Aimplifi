@@ -2445,3 +2445,12 @@ invent an auto-file quality claim.
 **Decision.** Tapping Mark as money in / Mark as money out on a transaction negates `Transaction.amountCents`. Magnitude stays. Date, payee, category, descriptor, merchantId, rules, account, and account balances stay put (balances stay provider-authoritative). Split parents and split parts refuse. Zero has nothing to flip. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_flip_a_transaction_in_or_out`.
+
+
+## #617 — Household can change the bank text on a transaction (2026-09-03)
+
+**Context.** Amount, date, account, payee overlay, and in/out shipped on the detail page. The raw bank text (`detail-raw-descriptor`) — the words a rule actually matches — was still a printed `<code>` block.
+
+**Decision.** Tapping the bank text on a transaction opens a text field. The write is `Transaction.rawDescriptor`. Amount, date, account, merchantId, category, rules, and payee overlay stay put (this is not a recategorize). Blank and over-cap refuse. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_change_the_bank_text_on_a_transaction`.

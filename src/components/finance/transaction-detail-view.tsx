@@ -80,6 +80,7 @@ import { SpendClassBadge } from '@/components/finance/spend-class-badge';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
+import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import {
@@ -694,9 +695,7 @@ export function TransactionDetailView({
             Your bank sent this on <span className="text-foreground">{row.accountName}</span> as{' '}
           </>
         )}
-        <code className="break-all text-foreground" data-testid="detail-raw-descriptor">
-          {row.rawDescriptor}
-        </code>
+        <TxnDescriptorControl transactionId={row.id} descriptor={row.rawDescriptor} />
         . A rule matches these words, not the tidied-up name above.
       </p>
 

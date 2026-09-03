@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-03 | the bank text a rule matches on the detail page was display-only | rawDescriptor was a printed code block with no write | a household can change the bank text on a transaction | `test_regression__household_can_change_the_bank_text_on_a_transaction` |
 | 2026-09-02 | a transaction’s in/out direction on the detail page was locked | amount write kept the existing sign with no flip | a household can flip a transaction in or out | `test_regression__household_can_flip_a_transaction_in_or_out` |
 | 2026-09-02 | a repeating bill name overlay could not be cleared back to detection | save refused blank; no delete path | a household can clear a repeating bill’s name back to what the app detected | `test_regression__household_can_clear_a_repeating_bill_name_back_to_what_the_app_detected` |
 | 2026-09-02 | a payee rename overlay could not be cleared back to the bank name | save refused blank; no delete path | a household can clear a payee rename back to the bank name | `test_regression__household_can_clear_a_payee_rename_back_to_the_bank_name` |
