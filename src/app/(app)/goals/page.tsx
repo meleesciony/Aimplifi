@@ -15,6 +15,7 @@ import { DeleteGoalButton } from '@/components/finance/delete-goal-button';
 import { GoalNameControl } from '@/components/finance/rename-goal-form';
 import { GoalTargetControl } from '@/components/finance/goal-target-form';
 import { GoalMonthlyControl } from '@/components/finance/goal-monthly-form';
+import { GoalTargetDateControl } from '@/components/finance/goal-target-date-form';
 import { DebtFreedomPlanner } from '@/components/finance/debt-freedom-planner';
 import { GoalForm } from '@/components/finance/goal-form';
 
@@ -179,9 +180,8 @@ export default async function GoalsPage() {
                     goalId={goal.id}
                     monthlyCents={goal.monthlyContributionCents}
                   />
-                  {/* Savings-goal-by-date goals (DECISIONS #126) carry the target date the user
-                      planned toward; existing dateless savings goals are unaffected. */}
-                  {goal.targetDate ? ` · by ${formatMonth(goal.targetDate.slice(0, 7))}` : ''}
+                  {' · '}
+                  <GoalTargetDateControl goalId={goal.id} targetDate={goal.targetDate} />
                 </CardDescription>
               </CardHeader>
               <CardContent className="text-sm">

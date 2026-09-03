@@ -23,7 +23,7 @@ export interface GoalFormResult {
   /** Whole-form refusal (demo fence, missing row). Not a field typo. */
   error?: string;
   /** Per-field messages when validation failed — rendered inline by GoalForm. */
-  errors?: { name?: string; target?: string; monthly?: string };
+  errors?: { name?: string; target?: string; monthly?: string; targetDate?: string };
 }
 
 /**
@@ -339,6 +339,55 @@ export async function updateGoalMonthly(
     return { ok: false, error: "That goal isn't on your list, so nothing changed." };
   }
   await auditLog(userId, 'goal.updateMonthly', { goalId: id, monthlyCents });
+  revalidatePath('/goals');
+  revalidatePath('/coach');
+  return { ok: true };
+}
+
+/**
+ * Change a savings goal's target date already on /goals. Name, target,
+ * saved, and monthly contribution stay put. Reserves and debt-free rows
+ * are refused. Demo cannot learn. Month (YYYY-MM) stores as the first of
+ * that month. Does not re-solve monthly from the date.
+ */
+export async function updateGoalTargetDate(
+  goalId: string,
+  formData: FormData,
+): Promise<GoalFormResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const id = typeof goalId === 'string' ? goalId.trim() : '';
+  if (!id) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+
+  const raw = String(formData.get('targetDate') ?? '').trim();
+  let next: ISODate | null = null;
+  try {
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(raw)) {
+      next = isoDate(`${raw}-01`);
+    } else {
+      next = isoDate(raw);
+    }
+  } catch {
+    next = null;
+  }
+  if (!next) {
+    return {
+      ok: false,
+      errors: { targetDate: 'Enter a month — like 2027-06.' },
+    };
+  }
+
+  const updated = await prisma.goal.updateMany({
+    where: { id, userId, kind: null },
+    data: { targetDate: next },
+  });
+  if (updated.count === 0) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+  await auditLog(userId, 'goal.updateTargetDate', { goalId: id, targetDate: next });
   revalidatePath('/goals');
   revalidatePath('/coach');
   return { ok: true };
