@@ -57,6 +57,8 @@ export interface FixedListLine {
    */
   billKey?: string;
   amountCents: number;
+  /** True when a BillAmount overlay priced this line (DECISIONS #607). */
+  amountOverlaid?: boolean;
   kind: FixedLineKind;
   /** MONTHLY-rate lines say so: a quarterly premium is listed at a third of its
    *  charge, and a reader comparing this to a statement must be told that. */
@@ -175,9 +177,12 @@ export function buildFixedList(input: {
   nameOfCategory: (id: string) => string;
   /** Household names for repeating bills. Absent/empty = detector labels. */
   billNames?: ReadonlyMap<string, string>;
+  /** Household monthly-rate overlays. Absent/empty = detector amounts. */
+  billAmounts?: ReadonlyMap<string, number>;
 }): FixedListResult {
   const { plan } = input;
   const billNames = input.billNames ?? new Map<string, string>();
+  const billAmounts = input.billAmounts ?? new Map<string, number>();
   const categoryLines: FixedListLine[] = input.rollupRows.map((r) => ({
     key: `category:${r.categoryId}`,
     label: r.name,
@@ -188,16 +193,21 @@ export function buildFixedList(input: {
     // The rollup's OWN clause, not a second author's paraphrase of it.
     basisNote: fixedAmountBasisClause(r),
   }));
-  const billLines: FixedListLine[] = plan.fixedLineItems.map((r) => ({
-    key: `bill:${r.key}`,
-    label: labelFor(r, input.nameOfCategory, billNames),
-    billKey: billRenameKey(r),
-    amountCents: r.monthlyRateCents,
-    kind: 'recurring-bill' as const,
-    cadence: r.cadence,
-    loanPayment: r.loanPayment,
-    basisNote: billBasisNote(r.cadence),
-  }));
+  const billLines: FixedListLine[] = plan.fixedLineItems.map((r) => {
+    const key = billRenameKey(r);
+    const overlay = billAmounts.get(key);
+    return {
+      key: `bill:${r.key}`,
+      label: labelFor(r, input.nameOfCategory, billNames),
+      billKey: key,
+      amountCents: r.monthlyRateCents,
+      amountOverlaid: typeof overlay === 'number' && overlay > 0,
+      kind: 'recurring-bill' as const,
+      cadence: r.cadence,
+      loanPayment: r.loanPayment,
+      basisNote: billBasisNote(r.cadence),
+    };
+  });
   // Declared reserves (C.23/H.4). The label is the reader's own name for it and
   // is never decorated with a category or a merchant, because there is neither:
   // the whole point of this kind is that no transaction implies it.

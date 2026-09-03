@@ -1,12 +1,17 @@
 'use client';
 
 /**
- * Change a repeating bill's monthly amount on the spending plan. Name and
- * cadence stay put. Same mutation recipe as ReserveCostControl.
+ * Change or clear a repeating bill's monthly amount. Name and cadence stay
+ * put. Save still refuses blank. Clear deletes the overlay, not a zero.
+ * Same mutation recipe as GoalMonthlyControl.
  */
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { updateBillAmount, type BillAmountResult } from '@/server/bill-amount-actions';
+import {
+  clearBillAmount,
+  updateBillAmount,
+  type BillAmountResult,
+} from '@/server/bill-amount-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { cents, formatCents } from '@/lib/money';
@@ -16,22 +21,24 @@ const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreg
 export function BillAmountControl({
   billKey,
   monthlyCents,
+  hasOverlay,
   amountTestId = 'fixed-composition-amount',
 }: {
   billKey: string;
   monthlyCents: number;
+  hasOverlay: boolean;
   amountTestId?: string;
 }) {
   const inputId = `bill-amount-${billKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'save' | 'clear' | null>(null);
   const [result, setResult] = useState<BillAmountResult | null>(null);
   const shown = formatCents(cents(monthlyCents));
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    setBusy(true);
+    setBusy('save');
     try {
       const res = await withDeadline(updateBillAmount(billKey, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
@@ -43,7 +50,24 @@ export function BillAmountControl({
       window.location.reload();
       return;
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  }
+
+  async function onClear() {
+    setBusy('clear');
+    try {
+      const res = await withDeadline(clearBillAmount(billKey), FORM_ACTION_DEADLINE_MS);
+      setResult(res);
+      if (res.ok) {
+        window.location.reload();
+        return;
+      }
+    } catch {
+      window.location.reload();
+      return;
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -78,14 +102,26 @@ export function BillAmountControl({
           className={`w-28 ${inputCls}`}
           data-testid="bill-amount-input"
         />
-        <Button type="submit" size="sm" disabled={busy} data-testid="bill-amount-save">
-          {busy ? 'Saving…' : 'Save amount'}
+        <Button type="submit" size="sm" disabled={busy !== null} data-testid="bill-amount-save">
+          {busy === 'save' ? 'Saving…' : 'Save amount'}
         </Button>
+        {hasOverlay ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy !== null}
+            onClick={onClear}
+            data-testid="bill-amount-clear"
+          >
+            {busy === 'clear' ? 'Clearing…' : 'Clear amount'}
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="sm"
           variant="ghost"
-          disabled={busy}
+          disabled={busy !== null}
           onClick={() => setEditing(false)}
         >
           Cancel

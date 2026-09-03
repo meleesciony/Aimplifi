@@ -141,6 +141,7 @@ export function FixedCostsCard({
                       <BillAmountControl
                         billKey={l.billKey}
                         monthlyCents={l.amountCents}
+                        hasOverlay={Boolean(l.amountOverlaid)}
                         amountTestId="fixed-costs-basis-amount"
                       />
                     ) : (

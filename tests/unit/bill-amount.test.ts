@@ -42,7 +42,9 @@ describe('Spending plan surface lets the household change a repeating bill amoun
       'utf8',
     );
     expect(control).toContain('updateBillAmount');
+    expect(control).toContain('clearBillAmount');
     expect(control).toContain('Save amount');
+    expect(control).toContain('Clear amount');
     expect(control).toContain('onSubmit');
     expect(control).not.toContain('useActionState');
   });
@@ -64,8 +66,10 @@ describe('applyBillAmountOverlays — monthly rate, never a name or loan', () =>
       },
       rollupRows: [],
       nameOfCategory,
+      billAmounts: new Map([[key, 8_000]]),
     });
     expect(list.lines[0]!.amountCents).toBe(8_000);
+    expect(list.lines[0]!.amountOverlaid).toBe(true);
     expect(list.lines[0]!.label).toBe('Comcast');
     expect(list.lines[0]!.cadence).toBe('MONTHLY');
     expect(list.lines[0]!.billKey).toBe(key);
@@ -182,5 +186,53 @@ describe('Settings Fixed costs bill amount (DECISIONS #606)', () => {
     );
     expect(control).toContain('updateBillAmount');
     expect(control).toContain('amountTestId');
+  });
+});
+
+describe('clearBillAmount — overlay gone, detection lists the dollars again', () => {
+  const CLEAR_USER = `bill-amount-clear-${Date.now()}-${process.pid}`;
+
+  beforeAll(async () => {
+    await prisma.user.deleteMany({ where: { id: CLEAR_USER } });
+    await prisma.user.create({ data: { id: CLEAR_USER, email: `${CLEAR_USER}@test.local` } });
+  }, 60_000);
+
+  afterAll(async () => {
+    await prisma.billAmount.deleteMany({ where: { userId: CLEAR_USER } });
+    await prisma.user.deleteMany({ where: { id: CLEAR_USER } });
+  });
+
+  it('test_regression__household_can_clear_a_repeating_bill_amount_back_to_what_the_app_detected', async () => {
+    const { clearBillAmount } = await import('@/server/bill-amount-actions');
+    const authz = await import('@/server/authz');
+    const spy = vi.spyOn(authz, 'requireUserId').mockResolvedValue(CLEAR_USER);
+    try {
+      await prisma.billAmount.create({
+        data: { userId: CLEAR_USER, billKey: KEY, monthlyCents: 8_000 },
+      });
+      const res = await clearBillAmount(KEY);
+      expect(res.ok).toBe(true);
+      expect(await prisma.billAmount.count({ where: { userId: CLEAR_USER, billKey: KEY } })).toBe(0);
+
+      const again = await clearBillAmount(KEY);
+      expect(again.ok).toBe(false);
+      expect(again.error).toMatch(/already what the app detected/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('test_regression__clear_bill_amount_demo_cannot_learn', async () => {
+    const { clearBillAmount } = await import('@/server/bill-amount-actions');
+    const { DEMO_ENTRY_BLOCKED } = await import('@/lib/demo-user');
+    const authz = await import('@/server/authz');
+    const spy = vi.spyOn(authz, 'requireUserId').mockResolvedValue('user-demo');
+    try {
+      const res = await clearBillAmount(KEY);
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe(DEMO_ENTRY_BLOCKED);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

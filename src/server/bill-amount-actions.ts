@@ -1,9 +1,9 @@
 'use server';
 
 /**
- * Change a repeating bill's monthly amount on the spending plan. Overlay
- * only: name, cadence, detection, and loan identity stay put. Demo cannot
- * learn. Loans refused.
+ * Change or clear a repeating bill's monthly amount. Overlay only: name,
+ * cadence, detection, and loan identity stay put. Clear deletes the overlay
+ * (back to detection), not a zero. Demo cannot learn. Loans refused.
  */
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
@@ -69,6 +69,24 @@ export async function updateBillAmount(
     update: { monthlyCents },
   });
   await auditLog(userId, 'bill.updateAmount', { billKey: key, monthlyCents });
+  revalidateBillAmountSurfaces();
+  return { ok: true };
+}
+
+export async function clearBillAmount(billKey: string): Promise<BillAmountResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const key = typeof billKey === 'string' ? billKey.trim() : '';
+  if (!key || key.length > MAX_BILL_KEY) {
+    return { ok: false, error: 'That amount is already what the app detected.' };
+  }
+
+  const deleted = await prisma.billAmount.deleteMany({ where: { userId, billKey: key } });
+  if (deleted.count === 0) {
+    return { ok: false, error: 'That amount is already what the app detected.' };
+  }
+  await auditLog(userId, 'bill.clearAmount', { billKey: key });
   revalidateBillAmountSurfaces();
   return { ok: true };
 }

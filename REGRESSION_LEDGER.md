@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | a repeating bill amount overlay could not be cleared back to detection | save refused blank; no delete path | a household can clear a repeating bill’s amount back to what the app detected | `test_regression__household_can_clear_a_repeating_bill_amount_back_to_what_the_app_detected` |
 | 2026-09-02 | Settings Fixed costs printed a repeating bill amount with no write | amount overlay lived only on the spending plan | a household can change a repeating bill’s amount from Settings Fixed costs | `test_regression__household_can_change_a_repeating_bill_amount_from_settings_fixed_costs` |
 | 2026-09-02 | a repeating bill amount on the spending plan was detection-only | Fixed list printed monthlyRateCents with no write | a household can change a repeating bill’s amount on the spending plan | `test_regression__household_can_change_a_repeating_bill_amount_on_the_spending_plan` |
 | 2026-09-02 | a payee on a transaction could only be renamed by writing a filing rule | display name lived only on keyword-rule renameTo / Merchant.canonical | a household can rename a payee on a transaction without writing a rule | `test_regression__household_can_rename_a_payee_on_a_transaction_without_writing_a_rule` |

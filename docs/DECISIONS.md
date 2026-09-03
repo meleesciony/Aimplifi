@@ -2359,3 +2359,11 @@ invent an auto-file quality claim.
 **Decision.** Settings Fixed costs reuses `BillAmountControl` / `updateBillAmount` (one writer). Recurring bills with a billKey, not a loan, and canWrite get the control. Loans, category lines, reserves, and demo stay display-only. Overlay, integer cents, demo fence, and sign-in unchanged. No CSV. No savings-rate percent.
 
 **Locked.** `test_regression__household_can_change_a_repeating_bill_amount_from_settings_fixed_costs`.
+
+## #607 — Household can clear a repeating bill’s amount back to what the app detected (2026-09-02)
+
+**Context.** #605/#606 shipped a monthly-amount overlay on the spending plan and Settings. Save refused blank. A household that no longer wanted the overlay still had no way to return to the detected dollars.
+
+**Decision.** Tapping Clear amount deletes the `BillAmount` row (not a zero). Name, cadence, and detection stay put. Save amount still refuses blank and zero. A bill with no overlay has nothing to clear. Loans never carry an overlay. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_clear_a_repeating_bill_amount_back_to_what_the_app_detected`.

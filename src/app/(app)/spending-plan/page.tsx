@@ -329,7 +329,7 @@ export default async function SpendingPlanPage() {
                     l.billKey &&
                     !l.loanPayment &&
                     canEditFigures ? (
-                      <BillAmountControl billKey={l.billKey} monthlyCents={l.amountCents} />
+                      <BillAmountControl billKey={l.billKey} monthlyCents={l.amountCents} hasOverlay={Boolean(l.amountOverlaid)} />
                     ) : (
                       <span className="tabular-nums" data-testid="fixed-composition-amount">
                         {formatCents(cents(l.amountCents))}
