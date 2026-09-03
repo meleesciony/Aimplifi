@@ -2454,3 +2454,12 @@ invent an auto-file quality claim.
 **Decision.** Tapping the bank text on a transaction opens a text field. The write is `Transaction.rawDescriptor`. Amount, date, account, merchantId, category, rules, and payee overlay stay put (this is not a recategorize). Blank and over-cap refuse. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_change_the_bank_text_on_a_transaction`.
+
+
+## #618 — After a household edits bank text, the row re-matches (2026-09-03)
+
+**Context.** #617 wrote `Transaction.rawDescriptor` and left merchantId, category, and rules put. The household could type the words a rule matches, but matching did not run.
+
+**Decision.** After a bank-text save, the same `categorize()` pipeline ingest uses re-matches the row. A matching rule files it (category, confidence, needsReview, merchant join). A settled category stays unless a rule now matches — the backfill rail: never clobber a settled row with a guess. Split parents are not re-filed. Amount and date stay put. Tax/spend stamps follow the pipeline (never overwrite a tag the household already set). Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_bank_text_edit_re_matches_the_row`.
