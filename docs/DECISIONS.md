@@ -2367,3 +2367,11 @@ invent an auto-file quality claim.
 **Decision.** Tapping Clear amount deletes the `BillAmount` row (not a zero). Name, cadence, and detection stay put. Save amount still refuses blank and zero. A bill with no overlay has nothing to clear. Loans never carry an overlay. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_clear_a_repeating_bill_amount_back_to_what_the_app_detected`.
+
+## #608 — Household can change how often a repeating bill comes around (2026-09-02)
+
+**Context.** Repeating-bill name and monthly amount were overlays. Cadence was still detection-only, so a bill the detector called monthly could not be told it is quarterly without deleting it.
+
+**Decision.** Tapping how often on a repeating bill opens a cadence picker. The write is a per-user `BillCadence` overlay keyed on the same `billKey` as the name overlay. Identity is stamped from detection before the cadence rewrite so unnamed keys (which include cadence) do not drift. `scheduledExpenseMonthlyRateCents` uses the overlaid cadence unless a monthly-amount overlay already wins. Name, typical charge, and detection stay put. Loans refuse. Blank and unknown cadences refuse. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_change_how_often_a_repeating_bill_comes_around`.

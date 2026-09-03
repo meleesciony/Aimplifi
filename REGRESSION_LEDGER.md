@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | a repeating bill cadence on the spending plan was detection-only | Fixed list printed cadence with no write | a household can change how often a repeating bill comes around | `test_regression__household_can_change_how_often_a_repeating_bill_comes_around` |
 | 2026-09-02 | a repeating bill amount overlay could not be cleared back to detection | save refused blank; no delete path | a household can clear a repeating bill’s amount back to what the app detected | `test_regression__household_can_clear_a_repeating_bill_amount_back_to_what_the_app_detected` |
 | 2026-09-02 | Settings Fixed costs printed a repeating bill amount with no write | amount overlay lived only on the spending plan | a household can change a repeating bill’s amount from Settings Fixed costs | `test_regression__household_can_change_a_repeating_bill_amount_from_settings_fixed_costs` |
 | 2026-09-02 | a repeating bill amount on the spending plan was detection-only | Fixed list printed monthlyRateCents with no write | a household can change a repeating bill’s amount on the spending plan | `test_regression__household_can_change_a_repeating_bill_amount_on_the_spending_plan` |

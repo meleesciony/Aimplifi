@@ -143,6 +143,11 @@ export interface PlanScheduledItem {
    * Loans never carry it.
    */
   monthlyAmountOverlayCents?: number;
+  /**
+   * Overlay identity stamped from detection (DECISIONS #608). Cadence overlay
+   * rewrites cadence; this key stays the detector's so unnamed bills do not drift.
+   */
+  billKey?: string;
 }
 
 export interface SpendingPlanInput {
@@ -630,6 +635,7 @@ export function recurringPlanExpenseRows(
       cadence: s.cadence,
       monthlyRateCents: rate,
       loanPayment: s.loanPayment === true,
+      billKey: typeof s.billKey === 'string' && s.billKey !== '' ? s.billKey : undefined,
     });
     sum += rate;
   });
@@ -712,6 +718,11 @@ export interface FixedUnionRow {
    *  category-level covered-skip, and worth carrying so a surface can explain
    *  why a mortgage is listed separately from its category. */
   loanPayment: boolean;
+  /**
+   * Overlay identity stamped from detection. When present, billRenameKey
+   * prefers this so a cadence overlay cannot drift unnamed keys.
+   */
+  billKey?: string | null;
 }
 
 export interface FixedUnionResult {
@@ -753,6 +764,7 @@ export function recurringOutsideFixedCategoryRows(
         cadence: s.cadence,
         monthlyRateCents: rate,
         loanPayment: s.loanPayment === true,
+        billKey: typeof s.billKey === 'string' && s.billKey !== '' ? s.billKey : undefined,
       });
       sum += rate;
     };

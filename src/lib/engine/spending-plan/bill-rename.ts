@@ -19,9 +19,13 @@ export interface BillRenameRef {
   merchantCanonical?: string | null;
   categoryId?: string | null;
   cadence?: string | null;
+  /** Stamped overlay identity. Wins so a cadence overlay cannot drift unnamed keys. */
+  billKey?: string | null;
 }
 
 export function billRenameKey(row: BillRenameRef): string {
+  const stamped = (row.billKey ?? '').trim();
+  if (stamped) return stamped.slice(0, MAX_BILL_KEY);
   const canonical = (row.merchantCanonical ?? '').trim();
   if (canonical) return canonical.slice(0, MAX_BILL_KEY);
   const category = (row.categoryId ?? '').trim();
@@ -116,5 +120,72 @@ export function applyBillAmountOverlays<
     const overlay = amounts.get(billRenameKey(item));
     if (overlay == null || overlay <= 0) return item;
     return { ...item, monthlyAmountOverlayCents: overlay };
+  });
+}
+
+export const BILL_CADENCES = [
+  'WEEKLY',
+  'BIWEEKLY',
+  'MONTHLY',
+  'QUARTERLY',
+  'SEMIANNUAL',
+  'ANNUAL',
+] as const;
+export type BillCadence = (typeof BILL_CADENCES)[number];
+
+export const BILL_CADENCE_WORDS: Record<BillCadence, string> = {
+  WEEKLY: 'every week',
+  BIWEEKLY: 'every two weeks',
+  MONTHLY: 'every month',
+  QUARTERLY: 'every 3 months',
+  SEMIANNUAL: 'twice a year',
+  ANNUAL: 'once a year',
+};
+
+export function isBillCadence(value: string): value is BillCadence {
+  return (BILL_CADENCES as readonly string[]).includes(value);
+}
+
+export function billCadenceError(raw: string): string | undefined {
+  const cadence = raw.trim();
+  if (!cadence) return 'Pick how often the bill comes around.';
+  if (!isBillCadence(cadence)) {
+    return 'Pick a cadence the plan can smooth — weekly through yearly.';
+  }
+  return undefined;
+}
+
+/**
+ * Stamp overlay identity from detection BEFORE any cadence rewrite.
+ * Unnamed keys include cadence; rewriting first would drift the key.
+ */
+export function stampBillKeys<T extends BillRenameRef>(
+  items: readonly T[],
+): Array<T & { billKey: string }> {
+  return items.map((item) => {
+    if ((item.billKey ?? '').trim()) {
+      return { ...item, billKey: (item.billKey as string).trim().slice(0, MAX_BILL_KEY) };
+    }
+    return { ...item, billKey: billRenameKey(item) };
+  });
+}
+
+/**
+ * Stamp a household cadence overlay onto counted expense series.
+ * Loans stay at detection. Overlay rewrites cadence after identity is stamped
+ * so unnamed keys do not drift. Amount overlay (monthly cents) still wins.
+ */
+export function applyBillCadenceOverlays<
+  T extends BillRenameRef & { loanPayment?: boolean; cadence?: string | null },
+>(
+  items: readonly T[],
+  cadences: ReadonlyMap<string, string>,
+): T[] {
+  if (cadences.size === 0) return items.slice();
+  return items.map((item) => {
+    if (item.loanPayment === true) return item;
+    const overlay = cadences.get(billRenameKey(item));
+    if (!overlay || !isBillCadence(overlay)) return item;
+    return { ...item, cadence: overlay };
   });
 }

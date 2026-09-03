@@ -26,6 +26,7 @@ import { ReserveCostControl } from '@/components/finance/reserve-cost-form';
 import { ReserveCadenceControl } from '@/components/finance/reserve-cadence-form';
 import { BillNameControl } from '@/components/finance/rename-bill-form';
 import { BillAmountControl } from '@/components/finance/bill-amount-form';
+import { BillCadenceControl } from '@/components/finance/bill-cadence-form';
 import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-button';
 import { ConvertToReserveButton } from '@/components/finance/convert-to-reserve-button';
 import { PutBillBackOnPlanButton } from '@/components/finance/put-bill-back-on-plan-button';
@@ -317,6 +318,12 @@ export default async function SpendingPlanPage() {
                       >
                         reserve
                       </span>
+                    ) : null}
+                    {l.kind === 'recurring-bill' &&
+                    l.billKey &&
+                    !l.loanPayment &&
+                    canEditFigures ? (
+                      <BillCadenceControl billKey={l.billKey} cadence={l.cadence} />
                     ) : null}
                     {l.basisNote ? (
                       <span className="text-xs" data-testid="fixed-composition-basis">

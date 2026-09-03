@@ -601,3 +601,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #605 — Household can change a repeating bill’s amount on the spending plan (2026-09-02) → docs/DECISIONS.md
 - #606 — Household can change a repeating bill’s amount from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
 - #607 — Household can clear a repeating bill’s amount back to what the app detected (2026-09-02) → docs/DECISIONS.md
+- #608 — Household can change how often a repeating bill comes around (2026-09-02) → docs/DECISIONS.md

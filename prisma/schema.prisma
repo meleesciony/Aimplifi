@@ -101,6 +101,7 @@ model User {
   billRenames         BillRename[]
   billOffPlans        BillOffPlan[]
   billAmounts         BillAmount[]
+  billCadences        BillCadence[]
   payeeRenames        PayeeRename[]
   customCategories    Category[]
   pushSubscriptions   PushSubscription[]
@@ -227,6 +228,22 @@ model BillAmount {
   billKey      String
   monthlyCents Int
   updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, billKey])
+  @@index([userId])
+}
+
+// Overlay only — how often a repeating bill comes around. Detection typical
+// charge, name, and loan identity stay put. Identity is billKey stamped from
+// detection so unnamed keys do not drift. Loans refused. Demo writes fenced.
+model BillCadence {
+  id        String   @id @default(cuid())
+  userId    String
+  billKey   String
+  cadence   String
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

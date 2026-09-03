@@ -36,6 +36,20 @@ export async function getBillAmounts(userId: string): Promise<Map<string, number
   return m;
 }
 
+/** Cadence overlays. One loader so the plan figure and the Fixed list cannot disagree. */
+export async function getBillCadences(userId: string): Promise<Map<string, string>> {
+  const rows = await prisma.billCadence.findMany({
+    where: { userId },
+    select: { billKey: true, cadence: true },
+  });
+  const m = new Map<string, string>();
+  for (const r of rows) {
+    const cadence = r.cadence.trim();
+    if (cadence) m.set(r.billKey, cadence);
+  }
+  return m;
+}
+
 export async function getBillOffPlanKeys(userId: string): Promise<Set<string>> {
   const rows = await prisma.billOffPlan.findMany({
     where: { userId },

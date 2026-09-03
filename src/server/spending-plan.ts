@@ -26,8 +26,8 @@
  * pattern against a stock.
  */
 import { prisma } from '@/lib/db';
-import { applyBillAmountOverlays, excludeOffPlanBills } from '@/lib/engine/spending-plan/bill-rename';
-import { getBillAmounts, getBillOffPlanKeys, getBillRenames, getBillsTakenOffPlan } from '@/server/bill-names';
+import { applyBillAmountOverlays, applyBillCadenceOverlays, excludeOffPlanBills, stampBillKeys } from '@/lib/engine/spending-plan/bill-rename';
+import { getBillAmounts, getBillCadences, getBillOffPlanKeys, getBillRenames, getBillsTakenOffPlan } from '@/server/bill-names';
 import {
   computeSpendingPlan,
   daysInMonth,
@@ -258,7 +258,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const scheduledIncome = snap.scheduled
     .filter((s) => s.amountCents > 0 && incomeAccountIds.has(s.accountId))
     .map((s) => ({ amountCents: s.amountCents, cadence: s.cadence }));
-  const [scheduledDetected, offPlanKeys, billsTakenOff, billNames, billAmounts] = await Promise.all([
+  const [scheduledDetected, offPlanKeys, billsTakenOff, billNames, billAmounts, billCadences] = await Promise.all([
     countedExpenseSeriesForPlan(
       userId,
       snap,
@@ -270,13 +270,17 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     getBillsTakenOffPlan(userId),
     getBillRenames(userId),
     getBillAmounts(userId),
+    getBillCadences(userId),
   ]);
   // Overlay only: drop unnamed (or any keyed) bills taken off the plan so the
   // Fixed list AND the Fixed figure lose those cents. One filter, one loader.
   // Amount overlay is MONTHLY rate, applied after the drop so a taken-off bill
   // cannot still price the figure.
   const scheduledFixed = applyBillAmountOverlays(
-    excludeOffPlanBills(scheduledDetected, offPlanKeys),
+    applyBillCadenceOverlays(
+      stampBillKeys(excludeOffPlanBills(scheduledDetected, offPlanKeys)),
+      billCadences,
+    ),
     billAmounts,
   );
   // THE EXACTNESS INVARIANT (critic cycle 1 F1): a merchant's rows leave the
