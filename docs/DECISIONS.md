@@ -2490,3 +2490,12 @@ invent an auto-file quality claim.
 **Decision.** After a date save, the same rematch writer (`rematchAfterTxnWrite`) runs against the new calendar date. A matching rule files the row. A settled category stays unless a rule now matches. Amount and descriptor stay put. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_date_edit_re_matches_the_row`.
+
+
+## #622 — After a household changes a transaction’s account, the row re-matches (2026-09-03)
+
+**Context.** #618–#621 re-match after bank-text, in/out, amount, and date. Account write (#613) still left category and merchant put, even though accountId is a `categorize()` input for account-scoped rules.
+
+**Decision.** After an account save, the same rematch writer (`rematchAfterTxnWrite`) runs against the new accountId. A matching rule files the row. A settled category stays unless a rule now matches. Splits still refuse the move. Amount, date, and descriptor stay put. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_account_edit_re_matches_the_row`.

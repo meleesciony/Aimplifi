@@ -14,6 +14,7 @@ import { refreshRecurringForUser } from '@/server/recurring';
 import { refuseManualWriteToSuperseded } from '@/server/reconciliation';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { txnAccountError } from '@/lib/engine/transactions/account';
+import { rematchAfterTxnWrite, rematchUpdateData } from '@/server/txn-rematch';
 
 export interface TxnAccountResult {
   ok: boolean;
@@ -72,6 +73,11 @@ export async function updateTransactionAccount(
       accountId: true,
       amountCents: true,
       date: true,
+      rawDescriptor: true,
+      merchantId: true,
+      categoryId: true,
+      needsReview: true,
+      taxClass: true,
       isSplitParent: true,
       splitParentId: true,
     },
@@ -102,14 +108,32 @@ export async function updateTransactionAccount(
   const supersededRefusal = await refuseManualWriteToSuperseded(userId, dest.id);
   if (supersededRefusal) return { ok: false, error: supersededRefusal };
 
+  const rematch = await rematchAfterTxnWrite({
+    userId,
+    rawDescriptor: row.rawDescriptor,
+    amountCents: row.amountCents,
+    date: row.date,
+    accountId: dest.id,
+    merchantId: row.merchantId,
+    categoryId: row.categoryId,
+    needsReview: row.needsReview,
+    isSplitParent: row.isSplitParent,
+    taxClass: row.taxClass,
+  });
+
   await prisma.transaction.update({
     where: { id: row.id },
-    data: { accountId: dest.id },
+    data: {
+      accountId: dest.id,
+      ...rematchUpdateData(rematch),
+    },
   });
   await auditLog(userId, 'transaction.updateAccount', {
     transactionId: id,
     fromAccountId: row.accountId,
     toAccountId: dest.id,
+    rematched: rematch.applyCategory,
+    matchedRule: rematch.matchedRule,
   });
   await refreshRecurringBestEffort(userId);
   revalidateTxnAccountSurfaces();

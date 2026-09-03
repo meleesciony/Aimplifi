@@ -615,3 +615,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #619 — After a household flips a transaction in or out, the row re-matches (2026-09-03) → docs/DECISIONS.md
 - #620 — After a household changes a transaction’s amount, the row re-matches (2026-09-03) → docs/DECISIONS.md
 - #621 — After a household changes a transaction’s date, the row re-matches (2026-09-03) → docs/DECISIONS.md
+- #622 — After a household changes a transaction’s account, the row re-matches (2026-09-03) → docs/DECISIONS.md
