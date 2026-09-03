@@ -80,6 +80,7 @@ import { SpendClassBadge } from '@/components/finance/spend-class-badge';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
+import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import {
   outOfScopeExplanation,
   outOfScopeReason,
@@ -223,6 +224,7 @@ export function TransactionDetailView({
   returnTo,
   rawBack,
   attachments,
+  accounts,
   canEditSpendClass = true,
 }: {
   detail: DetailView;
@@ -253,6 +255,8 @@ export function TransactionDetailView({
    *  table and are fetched one at a time by `/api/attachments/<id>`, so rendering
    *  this page never loads a file. */
   attachments: AttachmentListItem[];
+  /** Spending accounts the household may move this row onto. */
+  accounts: readonly { id: string; name: string }[];
   /** #378 — Fixed/Discretionary selector; false on the shared demo. */
   canEditSpendClass?: boolean;
 }) {
@@ -709,8 +713,17 @@ export function TransactionDetailView({
         <Field label="Date">
           <TxnDateControl transactionId={row.id} date={row.date} />
         </Field>
-        <Field label="Account" testid="detail-account">
-          {row.accountName}
+        <Field label="Account">
+          {detail.isSplitParent || detail.splitParentId ? (
+            <span data-testid="detail-account">{row.accountName}</span>
+          ) : (
+            <TxnAccountControl
+              transactionId={row.id}
+              accountId={row.accountId}
+              accountName={row.accountName}
+              accounts={accounts}
+            />
+          )}
         </Field>
         {/* O.13g / Simplifi parity row 13. The value first, then either the
             control or the sentence saying why there isn't one — the same

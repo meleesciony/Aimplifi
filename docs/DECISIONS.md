@@ -2409,3 +2409,12 @@ invent an auto-file quality claim.
 **Decision.** Tapping the date on a transaction opens a calendar-date field. The write is `Transaction.date` (YYYY-MM-DD), not an overlay. Amount, payee, category, descriptor, merchantId, rules, and account balance stay put. Blank, malformed, and impossible calendar dates refuse. A transaction always has a date — there is no clear-to-empty. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_change_a_transaction_date`.
+
+
+## #613 — Household can change a transaction’s account (2026-09-02)
+
+**Context.** #611/#612 shipped amount and date writes on the transaction detail page. Account was still a printed Field (`detail-account`). A row sitting on the wrong checking or savings account had no write, so the register filter, reports, and spending plan could not be told where the money actually sat.
+
+**Decision.** Tapping the account on a transaction opens an account picker. The write is `Transaction.accountId`, not an overlay. Amount, date, payee, category, descriptor, merchantId, rules, and account balances stay put (balances stay provider-authoritative). Destination must be a spending USD account this household owns. Split parents and split parts refuse (a split stays on one account). Blank and unknown destinations refuse. A superseded predecessor is not a destination. Same-account save is a no-op success. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_change_a_transaction_account`.

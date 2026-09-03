@@ -10,6 +10,7 @@ import { getRuleSourceTransaction } from '@/server/keyword-rules';
 import { getTransactionDetail } from '@/server/transactions';
 import { getRecurringVerdictForTransaction } from '@/server/recurring-overrides';
 import { listAttachmentsForTransaction } from '@/server/attachments';
+import { listTxnMoveAccounts } from '@/server/txn-move-accounts';
 import { RETURN_PARAM, returnFromBack } from '@/lib/engine/transactions/links';
 import { isDemoUser } from '@/lib/demo-user';
 
@@ -49,7 +50,7 @@ export default async function TransactionDetailPage({
   // confirms nothing about whether someone else's transaction exists.
   if (!detail) notFound();
 
-  const [categoryGroups, ruleSource, recurringVerdict, attachments] = await Promise.all([
+  const [categoryGroups, ruleSource, recurringVerdict, attachments, accounts] = await Promise.all([
     getVisibleGroups(session.user.id),
     // Asked rather than re-derived: the sentence explaining why a rule cannot be
     // written from this row is the rule builder's OWN predicate, which mirrors
@@ -63,6 +64,7 @@ export default async function TransactionDetailPage({
     // O.13h — METADATA only; the files themselves are fetched one at a time by
     // `/api/attachments/<id>`, so opening this page never reads a byte of one.
     listAttachmentsForTransaction(session.user.id, id),
+    listTxnMoveAccounts(session.user.id, detail.row.accountId),
   ]);
 
   return (
@@ -91,6 +93,7 @@ export default async function TransactionDetailPage({
       returnTo={returnFromBack(rawBack)}
       rawBack={rawBack}
       attachments={attachments}
+      accounts={accounts}
       canEditSpendClass={!isDemoUser(session.user.id)}
     />
   );

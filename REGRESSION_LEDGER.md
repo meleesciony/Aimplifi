@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | a transaction’s account on the detail page was display-only | account was a printed Field with no write | a household can change a transaction’s account | `test_regression__household_can_change_a_transaction_account` |
 | 2026-09-02 | a transaction’s date on the detail page was display-only | date was a printed Field with no write | a household can change a transaction’s date | `test_regression__household_can_change_a_transaction_date` |
 | 2026-09-02 | a transaction’s dollars on the detail page were display-only | amount was a printed figure with no write | a household can change a transaction’s amount | `test_regression__household_can_change_a_transaction_amount` |
 | 2026-09-02 | Settings Fixed costs printed a repeating bill cadence with no write | cadence overlay lived only on the spending plan | a household can change a repeating bill’s cadence from Settings Fixed costs | `test_regression__household_can_change_a_repeating_bill_cadence_from_settings_fixed_costs` |
