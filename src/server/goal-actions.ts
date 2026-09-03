@@ -304,3 +304,42 @@ export async function updateGoalTarget(
   revalidatePath('/coach');
   return { ok: true };
 }
+
+/**
+ * Change a savings goal's monthly contribution already on /goals. Name,
+ * target, saved, and target date stay put. Reserves and debt-free rows
+ * are refused. Demo cannot learn.
+ */
+export async function updateGoalMonthly(
+  goalId: string,
+  formData: FormData,
+): Promise<GoalFormResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const id = typeof goalId === 'string' ? goalId.trim() : '';
+  if (!id) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+
+  const monthly = String(formData.get('monthly') ?? '').trim();
+  const monthlyCents = parseDollarInput(monthly);
+  if (monthlyCents === null || monthlyCents <= 0) {
+    return {
+      ok: false,
+      errors: { monthly: 'Enter a monthly amount above $0 — like 500 or $500.' },
+    };
+  }
+
+  const updated = await prisma.goal.updateMany({
+    where: { id, userId, kind: null },
+    data: { monthlyContributionCents: monthlyCents },
+  });
+  if (updated.count === 0) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+  await auditLog(userId, 'goal.updateMonthly', { goalId: id, monthlyCents });
+  revalidatePath('/goals');
+  revalidatePath('/coach');
+  return { ok: true };
+}

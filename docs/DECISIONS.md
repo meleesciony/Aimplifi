@@ -2303,3 +2303,11 @@ invent an auto-file quality claim.
 **Decision.** Tapping the target on a savings goal opens a target field. The write changes only `targetCents`. Name, saved, monthly contribution, and target date stay put. Blank, zero, and unparseable amounts are refused in words. Reserves and debt-free rows cannot change target through this path. Demo cannot learn. Integer cents. No savings-rate percent. No CSV. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_change_a_savings_goal_target_without_deleting_it`.
+
+## #600 — Household can change a savings goal's monthly contribution without deleting it (2026-09-02)
+
+**Context.** #599 shipped a target write on /goals. Monthly contribution was still locked at create: a mistyped $500 as $50, or a goal created with none, still meant delete-and-recreate. The card even said "Add a monthly contribution" with nothing to tap.
+
+**Decision.** Tapping the monthly line on a savings goal (or Set monthly when none is set) opens a monthly field. The write changes only `monthlyContributionCents`. Name, target, saved, and target date stay put. Blank, zero, and unparseable amounts are refused in words. Reserves and debt-free rows cannot change monthly through this path. Demo cannot learn. Integer cents. No savings-rate percent. No CSV. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_change_a_savings_goal_monthly_contribution_without_deleting_it`.
