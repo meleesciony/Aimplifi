@@ -15,7 +15,9 @@
 
 **Walkthrough.** Demo Home recents at 380px: dollars in one column, no In/Out chips. Signed-in Costco -$212.40: payee left, amount, Open, second line **Money out**. C.15 Open reached detail.
 
-**Next.** Land on `main` (#636), then CI + live probe.
+**Ship.** Landed `dc74a020` on `main`. GitHub Actions `verify` run **33808709791** = SUCCESS. Vercel Production deployment **6253396769** SUCCESS (`dc74a020`, `https://aimplifi-j5b85v6i7-reiforge.vercel.app`). Live `https://www.aimplifi.app/dashboard` → 307 `/sign-in` (auth). The Money out control is signed-in-only, so the public HTML marker is UNVERIFIED.
+
+**Next.** Wave 0 ops remain owner-blocked. Beauty (M.4) stays later.
 
 ## 2026-09-03 — Cards add-card from Cards page (DECISIONS #637)
 

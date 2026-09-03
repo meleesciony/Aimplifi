@@ -21,7 +21,7 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.** Residual P2s: silent toggle, aria-label vs visible name, demo empty third track, source-string lock only.
 
-**Ship.** Pending land on `main` (#636).
+**Ship.** `dc74a020` on `main`. CI `33808709791` SUCCESS. Vercel Production `6253396769` SUCCESS (`https://aimplifi-j5b85v6i7-reiforge.vercel.app`). Live `https://www.aimplifi.app/dashboard` → 307 `/sign-in` (auth). The Money out control is signed-in-only, so the public HTML has no `home-recent-direction` marker — that probe is UNVERIFIED without a signed-in session.
 
 ## ⚠️ OPEN 2026-09-03 — beauty pass after the feature set (Wave M.4)
 
