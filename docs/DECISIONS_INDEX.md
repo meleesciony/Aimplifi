@@ -619,3 +619,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #623 — Household can record how much is already saved toward a savings goal (2026-09-03) → docs/DECISIONS.md
 - #624 — Household can rename a payee on an Inbox merchant group without writing a rule (2026-09-03) → docs/DECISIONS.md
 - #625 — Household can rename a payee from Home’s recent charges without writing a rule (2026-09-03) → docs/DECISIONS.md
+- #626 — Household can file a category from a Home recent charge that still needs one (2026-09-03) → docs/DECISIONS.md

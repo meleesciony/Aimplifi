@@ -2526,3 +2526,12 @@ invent an auto-file quality claim.
 **Decision.** Reuse PayeeNameControl. getDashboardRecent adds payeeRenamed from the existing PayeeRename map. Home mounts the control when canRenamePayee (false for demo). No second writer. The name control is a sibling of the row Link, not inside it, so C.15 still clicks dashboard-recent-row through to detail with back=_dashboard. Do not change the Dashboard h1 or the “Recent transactions” heading. Demo cannot learn. Overlay already shown via registerDisplayName. No CSV. No savings-rate percent. Sign-in stays /sign-in. Do not rematch.
 
 **Locked.** `test_regression__household_can_rename_a_payee_on_home_recent_charges_without_writing_a_rule`.
+
+
+## #626 — Household can file a category from a Home recent charge that still needs one (2026-09-03)
+
+**Context.** Home’s Recent transactions card highlights needsFile rows and prints a static “Needs category” span inside the C.15 row Link. Tapping it opens detail; it does not file. Filing already exists: applyCategory (creates Correction, stamps transfer leaf, revalidatePath('/dashboard')). Detail uses a native select + Save with optgroups from getVisibleGroups and expandSimplifiAliasRows.
+
+**Decision.** Reuse applyCategory once (`{ transactionId, categoryId }`). Native select scroll/click, same as detail — not the register picker. Do not pass always (no match-count on Home; files this row only). Do not pass expectUnfiled. Do not mint a rule. The file control is a sibling of the C.15 row Link, not inside it, so dashboard-recent-row still holds the amount and clicks through to detail with back=_dashboard. Already-filed Home rows stay display-only. Do not change the Dashboard h1 or the “Recent transactions” heading. No CSV. No savings-rate percent. Sign-in stays /sign-in. Demo already files from Inbox and Activity (applyCategory has no isDemoUser block). Payee rename stays demo-fenced.
+
+**Locked.** `test_regression__household_can_file_a_category_from_a_home_recent_charge_that_needs_one`.

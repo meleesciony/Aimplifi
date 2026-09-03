@@ -7,6 +7,7 @@ import { SURFACE_CARD_CLASS } from '@/components/finance/surface-card-styles';
 import { namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/links';
 import { HOME_NEEDS_FILE_HREF, homeNeedsFileLabel } from '@/lib/copy/home-needs-file-copy';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
+import { HomeFileCategoryControl } from '@/components/finance/home-file-category-form';
 
 /**
  * Home strip: latest spending rows, with needs-file rows highlighted.
@@ -15,9 +16,11 @@ import { PayeeNameControl } from '@/components/finance/payee-name-form';
 export function RecentTransactionsCard({
   recent,
   canRenamePayee,
+  categoryGroups,
 }: {
   recent: DashboardRecentResult;
   canRenamePayee: boolean;
+  categoryGroups: { group: string; categories: { id: string; name: string }[] }[];
 }) {
   const { rows, needsFileCount } = recent;
   return (
@@ -83,6 +86,13 @@ export function RecentTransactionsCard({
                     )}
                   </p>
                 </div>
+                {/* idle home-file-category-trigger is a sibling of the C.15 row Link */}
+                {r.needsFile ? (
+                  <HomeFileCategoryControl
+                    transactionId={r.id}
+                    categoryGroups={categoryGroups}
+                  />
+                ) : null}
                 <Link
                   /* C.15 (audit F3): this was a bare /transactions/<id> — the
                      reader landed on a detail page whose way back said "Activity".
@@ -97,11 +107,11 @@ export function RecentTransactionsCard({
                 >
                   <p className="truncate text-xs text-muted-foreground">
                     {r.date}
-                    {' · '}
-                    {r.needsFile ? (
-                      <span className="font-medium text-warning-700 dark:text-warning-400">Needs category</span>
-                    ) : (
-                      r.categoryName
+                    {r.needsFile ? null : (
+                      <>
+                        {' · '}
+                        {r.categoryName}
+                      </>
                     )}
                   </p>
                   <span
