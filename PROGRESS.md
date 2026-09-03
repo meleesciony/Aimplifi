@@ -5,6 +5,49 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-09-03 — Vercel Preview build without DATABASE_URL (DECISIONS #635)
+
+**Picked up.** Owner: one CI check failing on PR #19. GitHub Actions
+`verify` on `4cdd178e` was SUCCESS. The red check is Vercel Preview
+(`dpl_HA7A6meJUf1sbbxiZW84biNovePg`), ~16s, before `next build`.
+
+**Closed.** `vercel.json` `buildCommand` is now `scripts/vercel-build.sh`.
+Unset `DATABASE_URL` skips postgres schema + `db push` and generates the
+SQLite client. Set `DATABASE_URL` keeps the Production path.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **8,180 passed
++ 1 expected fail + 1 skipped / 534 files + 1 skipped**.
+
+**Ship.** Pushed `fff6590e`. GitHub Actions `verify` run **33788118783**
+= SUCCESS (14m46s). Vercel Preview `Hqp49gcMN8kXxkukq7CHHXZo3mHU` SUCCESS
+(was FAILURE `dpl_HA7A6meJUf1sbbxiZW84biNovePg`). Live
+`https://aimplifi-9f63nivkc-reiforge.vercel.app/` → 307 `/sign-in`;
+`/sign-in` 200 with `data-testid="auth-form"` and title Aimplifi.
+
+**Next.** Wave 0 ops remain owner-blocked.
+
+## 2026-09-03 — Cards statement from Cards page (DECISIONS #634)
+
+**Picked up.** Owner: "continue." #633 closed card rename on Cards.
+Wave 0 ops owner-blocked. Next dead-end on the same page: “No due date
+yet” named Accounts as the only place to enter a statement.
+
+**Closed.** Own manual CREDIT cards in that panel mount
+`CardStatementControl` → existing `setManualCardStatement`. Demo /
+linked / partner stay without a writer. Dated cards unchanged.
+
+**Critic (fresh context): PASS — 0 P0, 0 P1.** Residual P2s recorded
+(colliding testids, catch-all reload, intro still names Accounts).
+Tap-target P2 fixed this slice.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **8,177 passed + 1 expected
+fail + 1 skipped / 533 files + 1 skipped**. E2E
+`cards-statement.spec.ts` **1/1** on mobile-380. Browser walkthrough
+on a throwaway user: add from Cards, card left “No due date yet”.
+
+**Next.** Wave 0 ops remain owner-blocked.
+
 ## 2026-08-31 — Tax-advantaged contribution-room Settings (DECISIONS #529)
 
 **Picked up.** Owner: "continue." Employer-match (#528) closed. Wave 0

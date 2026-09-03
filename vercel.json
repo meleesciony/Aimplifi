@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "node scripts/gen-pg-schema.mjs && PRISMA_SCHEMA=prisma/.generated.postgres.prisma npx prisma generate && PRISMA_SCHEMA=prisma/.generated.postgres.prisma npx prisma db push --accept-data-loss && next build",
+  "buildCommand": "bash scripts/vercel-build.sh",
   "redirects": [
     {
       "source": "/:path*",

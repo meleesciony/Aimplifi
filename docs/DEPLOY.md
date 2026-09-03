@@ -45,8 +45,9 @@ first (next step), otherwise the first build has no database.
 
 ## 4. Set environment variables (Vercel → Project → Settings → Environment Variables)
 
-Add these for the **Production** environment (and Preview if you want preview
-deploys to work):
+Add these for the **Production** environment. Preview can *build* without
+`DATABASE_URL` (the build skips `prisma db push` and uses the SQLite client —
+DECISIONS #635). Tick Preview too if you want the preview URL to talk to Neon:
 
 | Variable | Value | Notes |
 |---|---|---|

@@ -8,8 +8,8 @@
 // we transform the canonical one deterministically here. The schema content is
 // already Postgres-portable: Int cents, String dates, no enums/Json/Decimal.
 //
-// Output: prisma/.generated.postgres.prisma (gitignored). Used by the Vercel
-// build command (vercel.json) for `prisma generate` + `prisma db push`.
+// Output: prisma/.generated.postgres.prisma (gitignored). Used by
+// scripts/vercel-build.sh when DATABASE_URL is set.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const SRC = 'prisma/schema.prisma';

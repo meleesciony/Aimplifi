@@ -6,7 +6,8 @@ import { defineConfig } from "prisma/config";
 export default defineConfig({
   // Canonical schema is SQLite (local dev + tests, zero credentials). For a
   // Postgres deploy, scripts/gen-pg-schema.mjs derives a postgresql schema and
-  // PRISMA_SCHEMA points generate/db push at it (see vercel.json). DECISIONS #35.
+  // scripts/vercel-build.sh points generate/db push at it when DATABASE_URL is
+  // set (see vercel.json). DECISIONS #35 / #635.
   schema: process.env["PRISMA_SCHEMA"] ?? "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",

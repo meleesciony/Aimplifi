@@ -31,12 +31,14 @@ export default async function CardsPage({
 
   const creditAccounts = await prisma.account.findMany({
     where: { userId: session.user.id, type: 'CREDIT' },
-    select: { id: true, name: true, displayName: true },
+    select: { id: true, name: true, displayName: true, provider: true },
   });
   const canRenameCard = !isDemoUser(session.user.id);
   const cardRenameById: Record<string, { feedName: string; hasOverlay: boolean }> = {};
+  const canAddStatementById: Record<string, boolean> = {};
   for (const a of creditAccounts) {
     cardRenameById[a.id] = { feedName: a.name, hasOverlay: Boolean(a.displayName) };
+    canAddStatementById[a.id] = a.provider === 'manual';
   }
 
   // "No credit cards yet" is a claim about what the user HAS, but `cards` only
@@ -109,6 +111,7 @@ export default async function CardsPage({
         householdName={data.scope === 'household' ? data.household?.name ?? null : null}
         canRenameCard={canRenameCard}
         cardRenameById={cardRenameById}
+        canAddStatementById={canAddStatementById}
       />
     </div>
   );
