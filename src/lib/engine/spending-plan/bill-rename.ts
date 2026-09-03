@@ -12,6 +12,8 @@ export const UNNAMED_BILL_LABEL = 'A recurring bill we detected';
 
 export const MAX_BILL_NAME = 60;
 export const MAX_BILL_KEY = 200;
+/** Prisma Int ceiling — same column bound as Goal.targetCents. */
+export const MAX_BILL_MONTHLY_CENTS = 2_147_483_647;
 
 export interface BillRenameRef {
   merchantCanonical?: string | null;
@@ -65,4 +67,54 @@ export function excludeOffPlanBills<T extends BillRenameRef>(
 ): T[] {
   if (offPlanKeys.size === 0) return items.slice();
   return items.filter((item) => !offPlanKeys.has(billRenameKey(item)));
+}
+
+export function billMonthlyCentsError(monthlyCents: number | null): string | undefined {
+  if (monthlyCents === null || monthlyCents <= 0) {
+    return 'Enter a monthly amount above $0 — like 80 or $80.';
+  }
+  if (monthlyCents > MAX_BILL_MONTHLY_CENTS) {
+    return 'That amount is too large.';
+  }
+  return undefined;
+}
+
+/**
+ * Stamp a household monthly-rate overlay onto counted expense series.
+ * Loans stay at detection. Overlay is MONTHLY cents; cadence stays put so
+ * the basis note still tells the truth. One filter with the Fixed figure.
+ */
+export function typicalChargeCentsForMonthlyRate(
+  monthlyCents: number,
+  cadence: string | null,
+): number {
+  switch (cadence) {
+    case 'WEEKLY':
+      return Math.round((monthlyCents * 12) / 52);
+    case 'BIWEEKLY':
+      return Math.round((monthlyCents * 12) / 26);
+    case 'QUARTERLY':
+      return monthlyCents * 3;
+    case 'SEMIANNUAL':
+      return monthlyCents * 6;
+    case 'ANNUAL':
+      return monthlyCents * 12;
+    default:
+      return monthlyCents;
+  }
+}
+
+export function applyBillAmountOverlays<
+  T extends BillRenameRef & { loanPayment?: boolean },
+>(
+  items: readonly T[],
+  amounts: ReadonlyMap<string, number>,
+): Array<T & { monthlyAmountOverlayCents?: number }> {
+  if (amounts.size === 0) return items.slice();
+  return items.map((item) => {
+    if (item.loanPayment === true) return item;
+    const overlay = amounts.get(billRenameKey(item));
+    if (overlay == null || overlay <= 0) return item;
+    return { ...item, monthlyAmountOverlayCents: overlay };
+  });
 }

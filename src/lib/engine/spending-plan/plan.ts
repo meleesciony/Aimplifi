@@ -137,6 +137,12 @@ export interface PlanScheduledItem {
    * union.
    */
   merchantCanonical?: string;
+  /**
+   * Household monthly-rate overlay (DECISIONS #605). When set, this IS the
+   * monthly contribution; amountCents and cadence stay the detector's.
+   * Loans never carry it.
+   */
+  monthlyAmountOverlayCents?: number;
 }
 
 export interface SpendingPlanInput {
@@ -570,6 +576,13 @@ export function monthlyRateCents(amountCents: number, cadence: string | null): n
   }
 }
 
+/** Monthly rate a counted expense series contributes. Overlay wins. */
+export function scheduledExpenseMonthlyRateCents(s: PlanScheduledItem): number {
+  const overlay = s.monthlyAmountOverlayCents;
+  if (typeof overlay === 'number' && overlay > 0) return overlay;
+  return monthlyRateCents(-s.amountCents, s.cadence);
+}
+
 /** Settlement / savings — never a Plan Fixed cost class (owner 2026-08-01). */
 export const PLAN_FIXED_NEVER_CATEGORY_IDS = new Set([
   'credit-card-payment',
@@ -605,7 +618,7 @@ export function recurringPlanExpenseRows(
     if (s.amountCents >= 0) return;
     const id = s.categoryId;
     if (typeof id === 'string' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(id)) return;
-    const rate = monthlyRateCents(-s.amountCents, s.cadence);
+    const rate = scheduledExpenseMonthlyRateCents(s);
     const canonical =
       typeof s.merchantCanonical === 'string' && s.merchantCanonical !== ''
         ? s.merchantCanonical
@@ -721,7 +734,7 @@ export function recurringOutsideFixedCategoryRows(
   let sum = 0;
   items.forEach((s, index) => {
     if (s.amountCents >= 0) return;
-    const rate = monthlyRateCents(-s.amountCents, s.cadence);
+    const rate = scheduledExpenseMonthlyRateCents(s);
     const id = s.categoryId;
     if (typeof id === 'string' && id !== '' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(id)) return;
     const keep = () => {

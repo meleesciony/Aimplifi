@@ -598,3 +598,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #602 — Household can clear a savings goal's monthly contribution without deleting it (2026-09-02) → docs/DECISIONS.md
 - #603 — Household can clear a savings goal's target date without deleting it (2026-09-02) → docs/DECISIONS.md
 - #604 — Household can rename a payee on a transaction without writing a rule (2026-09-02) → docs/DECISIONS.md
+- #605 — Household can change a repeating bill’s amount on the spending plan (2026-09-02) → docs/DECISIONS.md

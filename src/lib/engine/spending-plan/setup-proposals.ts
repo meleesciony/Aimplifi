@@ -75,13 +75,13 @@ import {
   type ReserveCadence,
 } from '@/lib/engine/spending-plan/reserves';
 import {
-  monthlyRateCents,
   PLAN_FIXED_NEVER_CATEGORY_IDS,
   recurringOutsideFixedCategoryRows,
   recurringPlanExpenseRows,
+  scheduledExpenseMonthlyRateCents,
   type PlanScheduledItem,
 } from '@/lib/engine/spending-plan/plan';
-import { billRenameKey } from '@/lib/engine/spending-plan/bill-rename';
+import { billRenameKey, typicalChargeCentsForMonthlyRate } from '@/lib/engine/spending-plan/bill-rename';
 
 /**
  * The rhythms a detected bill may be turned into a reserve on.
@@ -211,8 +211,11 @@ export function proposeFixedSetup(input: FixedSetupInput): FixedSetupProposal {
         ? `${s.merchantCanonical}#${index}`
         : `series-${index}`;
     const inBasis = inBasisKeys.has(key);
-    const typicalAmountCents = -s.amountCents;
-    const monthlyRateCentsValue = monthlyRateCents(typicalAmountCents, s.cadence);
+    const monthlyRateCentsValue = scheduledExpenseMonthlyRateCents(s);
+    const typicalAmountCents =
+      typeof s.monthlyAmountOverlayCents === 'number' && s.monthlyAmountOverlayCents > 0
+        ? typicalChargeCentsForMonthlyRate(s.monthlyAmountOverlayCents, s.cadence)
+        : -s.amountCents;
 
     let refusedReason: SeriesRefusalReason | null = null;
     if (!inBasis) {

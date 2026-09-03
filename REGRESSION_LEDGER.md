@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | a repeating bill amount on the spending plan was detection-only | Fixed list printed monthlyRateCents with no write | a household can change a repeating bill’s amount on the spending plan | `test_regression__household_can_change_a_repeating_bill_amount_on_the_spending_plan` |
 | 2026-09-02 | a payee on a transaction could only be renamed by writing a filing rule | display name lived only on keyword-rule renameTo / Merchant.canonical | a household can rename a payee on a transaction without writing a rule | `test_regression__household_can_rename_a_payee_on_a_transaction_without_writing_a_rule` |
 | 2026-09-02 | a savings goal target date could not be cleared without deleting the goal | date write refused blank; no clear path | a household can clear a savings goal’s target date without deleting it | `test_regression__household_can_clear_a_savings_goal_target_date_without_deleting_it` |
 | 2026-09-02 | a savings goal monthly contribution could not be cleared without deleting the goal | monthly write refused blank; no clear path | a household can clear a savings goal’s monthly contribution without deleting it | `test_regression__household_can_clear_a_savings_goal_monthly_contribution_without_deleting_it` |

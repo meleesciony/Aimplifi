@@ -26,8 +26,8 @@
  * pattern against a stock.
  */
 import { prisma } from '@/lib/db';
-import { excludeOffPlanBills } from '@/lib/engine/spending-plan/bill-rename';
-import { getBillOffPlanKeys, getBillRenames, getBillsTakenOffPlan } from '@/server/bill-names';
+import { applyBillAmountOverlays, excludeOffPlanBills } from '@/lib/engine/spending-plan/bill-rename';
+import { getBillAmounts, getBillOffPlanKeys, getBillRenames, getBillsTakenOffPlan } from '@/server/bill-names';
 import {
   computeSpendingPlan,
   daysInMonth,
@@ -258,7 +258,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const scheduledIncome = snap.scheduled
     .filter((s) => s.amountCents > 0 && incomeAccountIds.has(s.accountId))
     .map((s) => ({ amountCents: s.amountCents, cadence: s.cadence }));
-  const [scheduledDetected, offPlanKeys, billsTakenOff, billNames] = await Promise.all([
+  const [scheduledDetected, offPlanKeys, billsTakenOff, billNames, billAmounts] = await Promise.all([
     countedExpenseSeriesForPlan(
       userId,
       snap,
@@ -269,10 +269,16 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     getBillOffPlanKeys(userId),
     getBillsTakenOffPlan(userId),
     getBillRenames(userId),
+    getBillAmounts(userId),
   ]);
   // Overlay only: drop unnamed (or any keyed) bills taken off the plan so the
   // Fixed list AND the Fixed figure lose those cents. One filter, one loader.
-  const scheduledFixed = excludeOffPlanBills(scheduledDetected, offPlanKeys);
+  // Amount overlay is MONTHLY rate, applied after the drop so a taken-off bill
+  // cannot still price the figure.
+  const scheduledFixed = applyBillAmountOverlays(
+    excludeOffPlanBills(scheduledDetected, offPlanKeys),
+    billAmounts,
+  );
   // THE EXACTNESS INVARIANT (critic cycle 1 F1): a merchant's rows leave the
   // rollup / median basis ONLY when its series actually made the union. The
   // exclusion is unconditional but the re-entry is not — detection can

@@ -2343,3 +2343,11 @@ invent an auto-file quality claim.
 **Decision.** Tapping the payee on a transaction opens a name field. The write is a per-user `PayeeRename` overlay keyed on `Merchant.canonical` (or the normalizer's canonical of the bank text when there is no merchant). `registerDisplayName` prefers the overlay, so the register, detail, dashboard, coach, reports, trends, and budgets cannot disagree. Merchant.canonical, merchantId, and CategorizationRule stay put. Blank is refused. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_rename_a_payee_on_a_transaction_without_writing_a_rule`.
+
+## #605 — Household can change a repeating bill’s amount on the spending plan (2026-09-02)
+
+**Context.** A repeating bill on the spending plan could be named, taken off, put back, or converted. Its dollars were detection-only. The Fixed list printed the smoothed monthly rate with no write.
+
+**Decision.** Tapping the amount on a repeating bill opens a monthly-amount field. The write is a per-user `BillAmount` overlay keyed on the same `billKey` as the name overlay. `scheduledExpenseMonthlyRateCents` prefers the overlay, so the Fixed list and the Fixed figure cannot disagree. Name, cadence, and detection typical charge stay put. Loans refuse. Blank, zero, and over-cap refuse. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_change_a_repeating_bill_amount_on_the_spending_plan`.

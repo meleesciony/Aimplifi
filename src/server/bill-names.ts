@@ -23,6 +23,19 @@ export async function getBillRenames(userId: string): Promise<Map<string, string
 }
 
 /** billKeys the household took off the spending plan. Overlay only. */
+/** Monthly-rate overlays. One loader so the plan figure and the Fixed list cannot disagree. */
+export async function getBillAmounts(userId: string): Promise<Map<string, number>> {
+  const rows = await prisma.billAmount.findMany({
+    where: { userId },
+    select: { billKey: true, monthlyCents: true },
+  });
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    if (r.monthlyCents > 0) m.set(r.billKey, r.monthlyCents);
+  }
+  return m;
+}
+
 export async function getBillOffPlanKeys(userId: string): Promise<Set<string>> {
   const rows = await prisma.billOffPlan.findMany({
     where: { userId },
