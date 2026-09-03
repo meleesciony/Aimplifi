@@ -591,3 +591,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #595 — Turn a named no-payee repeating bill into a reserve from the spending plan (2026-09-02) → docs/DECISIONS.md
 - #596 — Turn a named no-payee repeating bill into a reserve from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
 - #597 — Take a repeating bill off the plan from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
+- #598 — Put a repeating bill back on the plan from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md

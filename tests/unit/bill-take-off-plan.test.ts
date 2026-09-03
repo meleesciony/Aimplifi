@@ -1,5 +1,5 @@
 /**
- * Take a repeating bill off the spending plan (DECISIONS #591 / #592 / #597).
+ * Take a repeating bill off the spending plan (DECISIONS #591 / #592 / #597 / #598).
  *
  * Payee bills: NOT_BILL overlay. Unnamed bills (no merchantCanonical): BillOffPlan
  * overlay keyed by billRenameKey. Transactions stay. Loan payments refused.
@@ -602,5 +602,18 @@ describe('Settings Fixed costs take-off (DECISIONS #597)', () => {
     expect(card).toContain('!l.loanPayment && canWrite');
     expect(card).not.toContain("startsWith('unnamed:')");
     expect(card).not.toContain('takeRepeatingBillOffPlan');
+  });
+});
+
+describe('Settings Fixed costs put-back (DECISIONS #598)', () => {
+  it('test_regression__household_can_put_a_repeating_bill_back_on_the_plan_from_settings_fixed_costs', () => {
+    const card = readFileSync(resolve('src/components/settings/fixed-costs-card.tsx'), 'utf8');
+    expect(card).toContain('PutBillBackOnPlanButton');
+    expect(card).toContain("from '@/components/finance/put-bill-back-on-plan-button'");
+    expect(card).toContain('billsTakenOff');
+    expect(card).toContain('bills-taken-off');
+    expect(card).toContain('PutBillBackOnPlanButton billKey={b.billKey}');
+    expect(card).toContain('canWrite ? (');
+    expect(card).not.toContain('putRepeatingBillBackOnPlan');
   });
 });

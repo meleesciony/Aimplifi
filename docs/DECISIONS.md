@@ -2287,3 +2287,11 @@ invent an auto-file quality claim.
 **Decision.** Settings Fixed costs offers the same confirmed Take-off control on a repeating bill (payee or unnamed) that is not a loan payment. Reuse TakeBillOffPlanButton. Do not duplicate takeRepeatingBillOffPlan. Demo still canWrite-gated. Put-back stays on Spending plan. Overlay only. Transactions stay. No CSV. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_take_a_repeating_bill_off_the_plan_from_settings_fixed_costs`.
+
+## #598 — Put a repeating bill back on the plan from Settings Fixed costs (2026-09-02)
+
+**Context.** #597 shipped take-off on Settings Fixed costs. Put-back lived only on Spending plan. Taking a bill off from Settings vanished the row and the undo on that surface.
+
+**Decision.** Settings Fixed costs lists bills taken off (BillOffPlan or NOT_BILL) with the same confirmed Put-back control as Spending plan. Reuse PutBillBackOnPlanButton. Do not duplicate putRepeatingBillBackOnPlan. Demo still canWrite-gated. Empty list renders nothing. Overlay only. Transactions stay. No CSV. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_put_a_repeating_bill_back_on_the_plan_from_settings_fixed_costs`.

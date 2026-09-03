@@ -8,6 +8,7 @@ import type { SpendingPlanWithNotes } from '@/server/spending-plan';
 import { ReserveForm } from '@/components/finance/reserve-form';
 import { ConvertToReserveButton } from '@/components/finance/convert-to-reserve-button';
 import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-button';
+import { PutBillBackOnPlanButton } from '@/components/finance/put-bill-back-on-plan-button';
 import { HoldingAccountPicker } from '@/components/finance/holding-account-picker';
 import { BillNameControl } from '@/components/finance/rename-bill-form';
 
@@ -72,7 +73,7 @@ export function FixedCostsCard({
   /** Demo fence — the shared demo account must not learn from writes. */
   canWrite: boolean;
 }) {
-  const { fixedList, fixedSetup } = plan;
+  const { fixedList, fixedSetup, billsTakenOff } = plan;
   return (
     <Card data-testid="fixed-costs-card">
       <CardHeader className="pb-2">
@@ -163,6 +164,27 @@ export function FixedCostsCard({
             <p className="mt-3 text-xs text-muted-foreground" data-testid="fixed-costs-basis-note-final">
               {fixedList.note}
             </p>
+          ) : null}
+          {billsTakenOff.length > 0 ? (
+            <div className="mt-3" data-testid="bills-taken-off">
+              <p className="text-xs text-muted-foreground">Taken off the plan</p>
+              <dl className="mt-1 divide-y text-sm">
+                {billsTakenOff.map((b) => (
+                  <div
+                    key={b.billKey}
+                    className="flex items-center justify-between gap-3 py-2"
+                    data-testid="bill-taken-off-row"
+                  >
+                    <dt className="min-w-0 text-muted-foreground">{b.label}</dt>
+                    <dd className="shrink-0">
+                      {canWrite ? (
+                        <PutBillBackOnPlanButton billKey={b.billKey} billName={b.label} />
+                      ) : null}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
           ) : null}
           <div className="mt-2">
             <Link

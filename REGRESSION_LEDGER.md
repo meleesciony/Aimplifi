@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | Settings Fixed costs take-off vanished the undo on that surface | put-back lived only on Spending plan | a household can put a repeating bill back on the plan from Settings Fixed costs | `test_regression__household_can_put_a_repeating_bill_back_on_the_plan_from_settings_fixed_costs` |
 | 2026-09-02 | Settings Fixed costs could not take a repeating bill off the plan | take-off lived only on Spending plan | a household can take a repeating bill off the plan from Settings Fixed costs | `test_regression__household_can_take_a_repeating_bill_off_the_plan_from_settings_fixed_costs` |
 | 2026-09-02 | Settings Fixed costs could not turn a named no-payee bill into a reserve | convert button required merchantCanonical | a household can turn a named repeating bill with no payee into a reserve from Settings Fixed costs | `test_regression__household_can_turn_a_named_no_payee_bill_into_a_reserve_from_settings_fixed_costs` |
 | 2026-09-02 | a named repeating bill with no payee on Spending plan could not become a reserve | convert required merchantCanonical / NOT_BILL | a household can turn a named repeating bill with no payee into a reserve from the spending plan | `test_regression__household_can_turn_a_named_no_payee_bill_into_a_reserve_from_the_spending_plan` |
