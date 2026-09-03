@@ -288,7 +288,7 @@ export default async function SpendingPlanPage() {
                 >
                   <dt className="min-w-0 text-muted-foreground">
                     {l.kind === 'recurring-bill' && l.billKey ? (
-                      <BillNameControl billKey={l.billKey} name={l.label} />
+                      <BillNameControl billKey={l.billKey} name={l.label} hasOverlay={Boolean(l.nameOverlaid)} />
                     ) : (
                       <span data-testid="fixed-composition-label">{l.label}</span>
                     )}

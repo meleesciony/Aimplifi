@@ -2,7 +2,8 @@
 
 /**
  * Name a repeating bill on the spending plan. Overlay only: dollars, cadence,
- * merchantCanonical (exclusion / convert) stay put. Demo cannot learn.
+ * merchantCanonical (exclusion / convert) stay put. Clear deletes the
+ * overlay (back to detection), not a blank. Demo cannot learn.
  */
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
@@ -66,6 +67,24 @@ export async function renameBill(
     update: { name: trimmed },
   });
   await auditLog(userId, 'bill.rename', { billKey: key, name: trimmed });
+  revalidateBillNameSurfaces();
+  return { ok: true };
+}
+
+export async function clearBillName(billKey: string): Promise<BillRenameResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const key = typeof billKey === 'string' ? billKey.trim() : '';
+  if (!key || key.length > MAX_BILL_KEY) {
+    return { ok: false, error: 'That name is already what the app detected.' };
+  }
+
+  const deleted = await prisma.billRename.deleteMany({ where: { userId, billKey: key } });
+  if (deleted.count === 0) {
+    return { ok: false, error: 'That name is already what the app detected.' };
+  }
+  await auditLog(userId, 'bill.clearName', { billKey: key });
   revalidateBillNameSurfaces();
   return { ok: true };
 }

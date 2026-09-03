@@ -104,7 +104,7 @@ export function FixedCostsCard({
                 <div key={l.key} className="flex items-center justify-between gap-3 py-2" data-testid="fixed-costs-basis-row">
                   <dt className="min-w-0 text-muted-foreground">
                     {l.kind === 'recurring-bill' && l.billKey && canWrite ? (
-                      <BillNameControl billKey={l.billKey} name={l.label} labelTestId="fixed-costs-basis-label" />
+                      <BillNameControl billKey={l.billKey} name={l.label} hasOverlay={Boolean(l.nameOverlaid)} labelTestId="fixed-costs-basis-label" />
                     ) : (
                       <span data-testid="fixed-costs-basis-label">{l.label}</span>
                     )}

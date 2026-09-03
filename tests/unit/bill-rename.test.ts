@@ -62,6 +62,7 @@ describe('namedBillLabel — overlay, never a guessed category name', () => {
     expect(list.lines[0]!.label).not.toContain(UNNAMED_BILL_LABEL);
     expect(list.lines[0]!.amountCents).toBe(5_000);
     expect(list.lines[0]!.billKey).toBe(key);
+    expect(list.lines[0]!.nameOverlaid).toBe(true);
   });
 
   it('test_regression__bill_name_refuses_blank_and_over_cap', () => {
@@ -78,7 +79,9 @@ describe('Spending plan surface lets the household name a repeating bill', () =>
     expect(page).toContain('BillNameControl');
     const control = readFileSync(resolve('src/components/finance/rename-bill-form.tsx'), 'utf8');
     expect(control).toContain('renameBill');
+    expect(control).toContain('clearBillName');
     expect(control).toContain('Save name');
+    expect(control).toContain('Clear name');
     expect(control).toContain('onSubmit');
     expect(control).not.toContain('useActionState');
   });
@@ -147,6 +150,58 @@ describe('renameBill — overlay only; dollars stay put', () => {
       const fd = new FormData();
       fd.set('name', 'Internet');
       const res = await renameBill(KEY, fd);
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe(DEMO_ENTRY_BLOCKED);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('test_regression__household_can_clear_a_repeating_bill_name_back_to_what_the_app_detected', async () => {
+    const { getSpendingPlan } = await import('@/server/spending-plan');
+    vi.mocked(getSpendingPlan).mockResolvedValue({
+      fixedList: { lines: [{ kind: 'recurring-bill', billKey: KEY }] },
+      fixedLineItems: [
+        { merchantCanonical: null, categoryId: 'utilities', cadence: 'MONTHLY' },
+      ],
+    } as never);
+
+    const { renameBill, clearBillName } = await import('@/server/bill-rename-actions');
+    const authz = await import('@/server/authz');
+    const spy = vi.spyOn(authz, 'requireUserId').mockResolvedValue(USER);
+    try {
+      const fd = new FormData();
+      fd.set('name', 'HOA dues');
+      expect((await renameBill(KEY, fd)).ok).toBe(true);
+      expect(
+        await prisma.billRename.findUnique({
+          where: { userId_billKey: { userId: USER, billKey: KEY } },
+        }),
+      ).not.toBeNull();
+
+      const res = await clearBillName(KEY);
+      expect(res.ok).toBe(true);
+      expect(
+        await prisma.billRename.findUnique({
+          where: { userId_billKey: { userId: USER, billKey: KEY } },
+        }),
+      ).toBeNull();
+
+      const again = await clearBillName(KEY);
+      expect(again.ok).toBe(false);
+      expect(again.error).toMatch(/already what the app detected/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('test_regression__clear_bill_name_demo_cannot_learn', async () => {
+    const { clearBillName } = await import('@/server/bill-rename-actions');
+    const { DEMO_ENTRY_BLOCKED } = await import('@/lib/demo-user');
+    const authz = await import('@/server/authz');
+    const spy = vi.spyOn(authz, 'requireUserId').mockResolvedValue('user-demo');
+    try {
+      const res = await clearBillName(KEY);
       expect(res.ok).toBe(false);
       expect(res.error).toBe(DEMO_ENTRY_BLOCKED);
     } finally {

@@ -2427,3 +2427,12 @@ invent an auto-file quality claim.
 **Decision.** Tapping Clear name deletes the `PayeeRename` row (not a blank overlay). Merchant.canonical, merchantId, and CategorizationRule stay put. Save name still refuses blank. A payee with no overlay has nothing to clear. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_clear_a_payee_rename_back_to_the_bank_name`.
+
+
+## #615 — Household can clear a repeating bill’s name back to what the app detected (2026-09-02)
+
+**Context.** #580 shipped a name overlay on the spending plan (and Settings). Save refused blank. A household that no longer wanted "Internet" instead of the detected label still had no way to return to detection.
+
+**Decision.** Tapping Clear name deletes the `BillRename` row (not a blank overlay). Amount, cadence, detection, and loan identity stay put. Save name still refuses blank. A bill with no overlay has nothing to clear. Demo cannot learn. Integer cents unchanged. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_clear_a_repeating_bill_name_back_to_what_the_app_detected`.

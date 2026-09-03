@@ -57,6 +57,8 @@ export interface FixedListLine {
    */
   billKey?: string;
   amountCents: number;
+  /** True when a BillRename overlay named this line (DECISIONS #615). */
+  nameOverlaid?: boolean;
   /** True when a BillAmount overlay priced this line (DECISIONS #607). */
   amountOverlaid?: boolean;
   /** True when a BillCadence overlay set this line's rhythm (DECISIONS #610). */
@@ -207,6 +209,7 @@ export function buildFixedList(input: {
       label: labelFor(r, input.nameOfCategory, billNames),
       billKey: key,
       amountCents: r.monthlyRateCents,
+      nameOverlaid: billNames.has(key),
       amountOverlaid: typeof overlay === 'number' && overlay > 0,
       cadenceOverlaid: Boolean(cadenceOverlay),
       kind: 'recurring-bill' as const,

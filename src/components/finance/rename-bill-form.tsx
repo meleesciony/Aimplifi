@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { renameBill, type BillRenameResult } from '@/server/bill-rename-actions';
+import { clearBillName, renameBill, type BillRenameResult } from '@/server/bill-rename-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { UNNAMED_BILL_LABEL } from '@/lib/engine/spending-plan/bill-rename';
@@ -16,22 +16,24 @@ const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreg
 export function BillNameControl({
   billKey,
   name,
+  hasOverlay,
   labelTestId = 'fixed-composition-label',
 }: {
   billKey: string;
   name: string;
+  hasOverlay: boolean;
   labelTestId?: string;
 }) {
   const inputId = `bill-rename-${billKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
 
   const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'save' | 'clear' | null>(null);
   const [result, setResult] = useState<BillRenameResult | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    setBusy(true);
+    setBusy('save');
     try {
       const res = await withDeadline(renameBill(billKey, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
@@ -43,7 +45,24 @@ export function BillNameControl({
       window.location.reload();
       return;
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  }
+
+  async function onClear() {
+    setBusy('clear');
+    try {
+      const res = await withDeadline(clearBillName(billKey), FORM_ACTION_DEADLINE_MS);
+      setResult(res);
+      if (res.ok) {
+        window.location.reload();
+        return;
+      }
+    } catch {
+      window.location.reload();
+      return;
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -78,14 +97,26 @@ export function BillNameControl({
           className={`w-44 ${inputCls}`}
           data-testid="bill-rename-input"
         />
-        <Button type="submit" size="sm" disabled={busy} data-testid="bill-rename-save">
-          {busy ? 'Saving…' : 'Save name'}
+        <Button type="submit" size="sm" disabled={busy !== null} data-testid="bill-rename-save">
+          {busy === 'save' ? 'Saving…' : 'Save name'}
         </Button>
+        {hasOverlay ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy !== null}
+            onClick={onClear}
+            data-testid="bill-rename-clear"
+          >
+            {busy === 'clear' ? 'Clearing…' : 'Clear name'}
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="sm"
           variant="ghost"
-          disabled={busy}
+          disabled={busy !== null}
           onClick={() => setEditing(false)}
         >
           Cancel
