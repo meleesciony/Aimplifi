@@ -2335,3 +2335,11 @@ invent an auto-file quality claim.
 **Decision.** Tapping Clear date on a savings goal that has a target date writes `targetDate` to null (not a fake date). Name, target, saved, and monthly contribution stay put. Save date still refuses blank and garbage. A dateless goal has nothing to clear. Does not re-solve monthly. Reserves and debt-free rows cannot clear target date through this path. Demo cannot learn. No savings-rate percent. No CSV. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_clear_a_savings_goal_target_date_without_deleting_it`.
+
+## #604 — Household can rename a payee on a transaction without writing a rule (2026-09-02)
+
+**Context.** Simplifi payee rename (display name ≠ statement text) was missing. The only write that changed what a payee was called was a keyword rule's `renameTo`, which mutates `Merchant.canonical`. A household that wanted "Coffee shop" instead of "Starbucks" had to author a filing rule.
+
+**Decision.** Tapping the payee on a transaction opens a name field. The write is a per-user `PayeeRename` overlay keyed on `Merchant.canonical` (or the normalizer's canonical of the bank text when there is no merchant). `registerDisplayName` prefers the overlay, so the register, detail, dashboard, coach, reports, trends, and budgets cannot disagree. Merchant.canonical, merchantId, and CategorizationRule stay put. Blank is refused. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_rename_a_payee_on_a_transaction_without_writing_a_rule`.

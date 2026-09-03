@@ -39,6 +39,7 @@ import {
 } from '@/server/loan-payment-basis';
 import { getProvider } from '@/lib/providers/demo';
 import { getCategoryMeta } from '@/server/category-meta';
+import { getPayeeRenames } from '@/server/payee-names';
 import { getLinkableCategoryIds } from '@/server/categories';
 import { categoryWindowRegisterHref } from '@/lib/engine/transactions/links';
 import {
@@ -203,7 +204,7 @@ export async function getReports(
   // ACCOUNT-scoped (account, date) keys since U.16's second critic cycle, and a
   // variable that says "dates" invites the next reader to treat it as the
   // unscoped set — the exact confusion that cycle existed to fix.
-  const [snap, meta, linkableCategoryIds, userRow] = await Promise.all([
+  const [snap, meta, linkableCategoryIds, userRow, payeeNames] = await Promise.all([
     provider.getFinanceSnapshot(userId),
     getCategoryMeta(userId),
     // The register's own option list — the fence deciding which figures may
@@ -215,6 +216,7 @@ export async function getReports(
       where: { id: userId },
       select: { expectedReturnBps: true, inflationBps: true },
     }),
+    getPayeeRenames(userId),
   ]);
   // U.35: the snapshot already derived these from the same link-table rows it
   // used for the keep. A second `getReconciliationHandoverKeys` here was a
@@ -261,7 +263,7 @@ export async function getReports(
     ...t,
     // The register's own display rule, shared with it by construction, so one
     // charge reads the same in the panel and in the list it links to.
-    merchantName: registerDisplayName(t),
+    merchantName: registerDisplayName(t, payeeNames),
   }));
   const breakdowns = buildCategoryBreakdowns(
     // Deliberately the UNCLAMPED array with a CLAMPED window: the window

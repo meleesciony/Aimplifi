@@ -8,6 +8,7 @@ import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { isUnclassifiedTxn, SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import { getCategoryMeta } from '@/server/category-meta';
+import { getPayeeRenames } from '@/server/payee-names';
 import { getReconciliationBoundary } from '@/server/reconciliation';
 
 export interface DashboardRecentTxn {
@@ -57,7 +58,7 @@ export async function getDashboardRecent(
           type: { in: [...SPENDING_ACCOUNT_TYPES] },
           OR: [{ currency: null }, { currency: 'USD' }],
         };
-  const [raw, meta, { keepsReconciled, handoverKeys }, unclassifiedCandidates] = await Promise.all([
+  const [raw, meta, { keepsReconciled, handoverKeys }, unclassifiedCandidates, payeeNames] = await Promise.all([
     prisma.transaction.findMany({
       where: {
         account: accountWhere,
@@ -81,6 +82,7 @@ export async function getDashboardRecent(
       },
       select: { accountId: true, date: true },
     }),
+    getPayeeRenames(userId),
   ]);
 
   const rows: DashboardRecentTxn[] = [];
@@ -94,7 +96,7 @@ export async function getDashboardRecent(
     rows.push({
       id: t.id,
       date: t.date,
-      merchantName: registerDisplayName(t),
+      merchantName: registerDisplayName(t, payeeNames),
       categoryName: labelFor(catId, meta, t.category?.name),
       amountCents: t.amountCents,
       needsFile,

@@ -46,6 +46,7 @@
 import { businessDayFraction } from '@/lib/business-today';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
+import { getPayeeRenames } from '@/server/payee-names';
 import {
   buildCategoryBreakdowns,
   type CategoryBreakdown,
@@ -96,6 +97,7 @@ export function toTrendTxns(
     accountId?: string;
     merchant?: { canonical: string } | null;
   }[],
+  names?: ReadonlyMap<string, string>,
 ): TrendTxn[] {
   return rows.map((t) => {
     const stored = t.categoryId ?? null;
@@ -129,7 +131,7 @@ export function toTrendTxns(
       id: t.id,
       accountId: t.accountId,
       rawDescriptor: t.rawDescriptor,
-      merchantName: registerDisplayName(t),
+      merchantName: registerDisplayName(t, names),
     };
   });
 }
@@ -165,9 +167,10 @@ export interface SpendingTrendsData extends SpendingTrends {
 export async function getSpendingTrends(userId: string): Promise<SpendingTrendsData> {
   const provider = getProvider();
   const today = provider.today(userId);
-  const [snap, meta] = await Promise.all([
+  const [snap, meta, payeeNames] = await Promise.all([
     provider.getFinanceSnapshot(userId),
     getCategoryMeta(userId),
+    getPayeeRenames(userId),
   ]);
   // U.35: off the snapshot's own link-table read, not a second fetch. Handed
   // to both the movers' category panels and the new-merchant panels so two
@@ -181,7 +184,7 @@ export async function getSpendingTrends(userId: string): Promise<SpendingTrendsD
   // because the demo seed holds zero reader-excluded rows and therefore cannot
   // express the failure — an argument no fixture can falsify is not a guarantee.
   // Handing both the same array removes the argument instead of defending it.
-  const txns = toTrendTxns(snap.transactions);
+  const txns = toTrendTxns(snap.transactions, payeeNames);
   // The bill calendar, passed straight through (C.2): the pace projection reads
   // `description`, `amountCents`, `nextDate` and `cadence`, which is every field
   // a `ScheduledLike` carries besides `accountId` — so there is no hand-built

@@ -77,6 +77,7 @@ import { ActionDeadline, withDeadline } from '@/components/triage/action-deadlin
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { provenanceBadgeView } from '@/components/finance/provenance-badge';
 import { SpendClassBadge } from '@/components/finance/spend-class-badge';
+import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import {
   outOfScopeExplanation,
   outOfScopeReason,
@@ -522,7 +523,7 @@ export function TransactionDetailView({
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-semibold" data-testid="detail-payee">
-            {row.merchantName}
+            <PayeeNameControl transactionId={row.id} name={row.merchantName} />
           </h1>
           {row.status === 'PENDING' && (
             <Badge variant="outline" className="text-[10px]">

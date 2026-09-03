@@ -15,6 +15,7 @@ import { prisma } from '@/lib/db';
 import { BudgetTargetForm } from '@/components/finance/budget-target-form';
 import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
 import { getCategoryOverlay } from '@/server/category-meta';
+import { getPayeeRenames } from '@/server/payee-names';
 import {
   loanPaymentBasisFacts,
   loanPaymentBasisSentence,
@@ -81,6 +82,7 @@ export default async function BudgetsPage() {
     // Fixed-basis amounts (resolveFixedCategoryAmounts below) and the C.25
     // loan-payment exclusion this page's own row sums must apply (#403).
     snap,
+    payeeNames,
   ] = await Promise.all([
     // All non-transfer, non-split activity this month (BOTH signs) so the engine
     // can net refunds against spend — outflow-only would overstate it.
@@ -149,6 +151,7 @@ export default async function BudgetsPage() {
     getLinkableCategoryIds(userId),
     getRecurringBillMerchantCanonicals(userId),
     provider.getFinanceSnapshot(userId),
+    getPayeeRenames(userId),
   ]);
   const linkable = new Set(linkableCategoryIds);
 
@@ -239,7 +242,7 @@ export default async function BudgetsPage() {
     spendRows.map((t) => ({
       ...t,
       // The register's own display rule, shared with it by construction.
-      merchantName: registerDisplayName(t),
+      merchantName: registerDisplayName(t, payeeNames),
     })),
     spendRange,
     new Map(rows.map((r) => [r.categoryId, r.spentCents])),

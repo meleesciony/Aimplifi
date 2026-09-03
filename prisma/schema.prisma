@@ -100,6 +100,7 @@ model User {
   categoryRenames     CategoryRename[]
   billRenames         BillRename[]
   billOffPlans        BillOffPlan[]
+  payeeRenames        PayeeRename[]
   customCategories    Category[]
   pushSubscriptions   PushSubscription[]
   notificationsSent   NotificationSent[]
@@ -212,6 +213,23 @@ model BillOffPlan {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, billKey])
+  @@index([userId])
+}
+
+// A per-user display name for a payee. Written from a transaction, without
+// a categorization rule. Identity is Merchant.canonical (or the normalizer's
+// canonical of the bank text when there is no merchant). Overlay only —
+// Merchant.canonical, merchantId, and rules stay put. Demo writes fenced.
+model PayeeRename {
+  id        String   @id @default(cuid())
+  userId    String
+  payeeKey  String
+  name      String
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, payeeKey])
   @@index([userId])
 }
 

@@ -47,6 +47,7 @@ import {
   type MonthFlowBreakdown,
 } from '@/lib/engine/glass-box/month-flow-breakdown';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
+import { getPayeeRenames } from '@/server/payee-names';
 import {
   categoryMatchesMoneyDial,
   type DiscretionaryCategorySpend,
@@ -351,9 +352,10 @@ export async function getCoachData(
   const snap = await provider.getFinanceSnapshot(userId);
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('User not found');
-  const [meta, dialCatalog] = await Promise.all([
+  const [meta, dialCatalog, payeeNames] = await Promise.all([
     getCategoryMeta(userId), // custom-category aware creep (DECISIONS #111)
     loadDialCatalog(userId),
+    getPayeeRenames(userId),
   ]);
   const moneyDialIds = resolvedMoneyDialIds(user.moneyDials, dialCatalog);
   // U.35: off the snapshot above, not a later `getReconciliationHandoverKeys`.
@@ -373,7 +375,7 @@ export async function getCoachData(
     // reason `getReports` states where it does the same thing: two panels that
     // disagree about a payee's name on one page would be a defect nobody could
     // explain, and building the array twice is what would let them.
-    merchantName: registerDisplayName(t),
+    merchantName: registerDisplayName(t, payeeNames),
     accountId: t.accountId,
     isTransfer: t.isTransfer,
     status: t.status,

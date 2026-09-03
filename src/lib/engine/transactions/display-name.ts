@@ -27,6 +27,7 @@
  * Prisma type, so an engine fixture can build one.
  */
 import { normalizeMerchant, stripPayeeNoise } from '@/lib/engine/categorize/normalize';
+import { MAX_PAYEE_KEY } from '@/lib/engine/transactions/payee-rename';
 
 export interface DisplayNameSource {
   /** The joined merchant row, when the transaction has one. */
@@ -35,9 +36,22 @@ export interface DisplayNameSource {
   rawDescriptor: string;
 }
 
-export function registerDisplayName(t: DisplayNameSource): string {
+/** Stable identity for a payee overlay. Join first; bank text if no merchant. */
+export function payeeRenameKey(t: DisplayNameSource): string {
+  const fromJoin = t.merchant?.canonical?.trim();
+  if (fromJoin) return fromJoin.slice(0, MAX_PAYEE_KEY);
+  return normalizeMerchant(t.rawDescriptor).canonical.slice(0, MAX_PAYEE_KEY);
+}
+
+export function registerDisplayName(
+  t: DisplayNameSource,
+  names?: ReadonlyMap<string, string>,
+): string {
+  const overlay = names?.get(payeeRenameKey(t))?.trim();
+  if (overlay) return overlay;
   const base = t.merchant?.canonical ?? normalizeMerchant(t.rawDescriptor).canonical;
   // Bank-noise tokens are not a rename (O.13a). Strip them on the way to the
-  // register so a persisted dirty canonical still reads as a payee.
+  // register so a persisted dirty canonical still reads as a payee. A reader's
+  // overlay above is their own words — never stripped.
   return stripPayeeNoise(base) || base;
 }

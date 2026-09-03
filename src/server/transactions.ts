@@ -26,6 +26,7 @@ import { registerSuggestionFor } from '@/lib/engine/categorize/register-suggesti
 import { loadCorrectionInputs, loadUserRules } from '@/server/rules';
 import { getThresholdTuning } from '@/server/tuning';
 import { getCategoryMeta } from '@/server/category-meta';
+import { getPayeeRenames } from '@/server/payee-names';
 import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
 import { similarTransactionsWhere } from '@/server/triage';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
@@ -441,7 +442,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   // the SAME loaders getTriageGroups uses, so the register and the inbox can
   // never answer the "what is this row?" question from different inputs.
   // `loadCorrectionInputs` is demo-fenced at its own definition (#332).
-  const [predictions, userRules, tuning, meta, corrections, fixedMerchants] = await Promise.all([
+  const [predictions, userRules, tuning, meta, corrections, fixedMerchants, payeeNames] = await Promise.all([
     prisma.categoryPrediction.findMany({
       where: { userId },
       select: { transactionId: true, source: true, predictedCategoryId: true, labeledAt: true },
@@ -451,6 +452,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     getCategoryMeta(userId),
     loadCorrectionInputs(userId),
     getRecurringBillMerchantCanonicals(userId),
+    getPayeeRenames(userId),
   ]);
   const predByTxn = new Map(predictions.map((p) => [p.transactionId, p]));
 
@@ -461,7 +463,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     date: t.date,
     accountId: t.accountId,
     accountName: accountLabel(t.account),
-    merchantName: registerDisplayName(t),
+    merchantName: registerDisplayName(t, payeeNames),
     rawDescriptor: t.rawDescriptor,
     categoryId: t.categoryId ?? 'uncategorized',
     categoryName: categoryLabel(t.categoryId, meta, t.category?.name),
@@ -788,7 +790,7 @@ async function reimbursementMatchFor(
   const row = candidates.find((c) => c.id === match.id);
   return {
     ...match,
-    merchantName: row ? registerDisplayName(row) : '',
+    merchantName: row ? registerDisplayName(row, await getPayeeRenames(userId)) : '',
   };
 }
 
@@ -838,7 +840,7 @@ export async function getTransactionDetail(
   // discard them (critic cycle 2, F8). The gate is the ladder's own first
   // condition, kept next to it so the two cannot drift.
   const needsLadder = (t.categoryId ?? 'uncategorized') === 'uncategorized';
-  const [prediction, userRules, tuning, meta, corrections, fixedMerchants, children] = await Promise.all([
+  const [prediction, userRules, tuning, meta, corrections, fixedMerchants, children, payeeNames] = await Promise.all([
     prisma.categoryPrediction.findFirst({
       where: { userId, transactionId: t.id },
       select: { source: true, predictedCategoryId: true, labeledAt: true },
@@ -861,6 +863,7 @@ export async function getTransactionDetail(
       select: { id: true, amountCents: true, categoryId: true, category: { select: { name: true } } },
       orderBy: { id: 'asc' },
     }),
+    getPayeeRenames(userId),
   ]);
 
   const row: TxnView = {
@@ -868,7 +871,7 @@ export async function getTransactionDetail(
     date: t.date,
     accountId: t.accountId,
     accountName: accountLabel(t.account),
-    merchantName: registerDisplayName(t),
+    merchantName: registerDisplayName(t, payeeNames),
     rawDescriptor: t.rawDescriptor,
     categoryId: t.categoryId ?? 'uncategorized',
     categoryName: categoryLabel(t.categoryId, meta, t.category?.name),
@@ -2052,10 +2055,13 @@ export async function getAccountDetail(userId: string, accountId: string): Promi
     };
   }
 
-  const payeeRead = await loadRegisterPayeeRows(userId);
+  const [payeeRead, payeeNames] = await Promise.all([
+    loadRegisterPayeeRows(userId),
+    getPayeeRenames(userId),
+  ]);
   const seen = new Map<string, string | null>();
   for (const t of payeeRead) {
-    const name = registerDisplayName(t);
+    const name = registerDisplayName(t, payeeNames);
     if (name === '' || seen.has(name)) continue;
     seen.set(name, t.merchant?.id ?? null);
   }
@@ -2070,7 +2076,7 @@ export async function getAccountDetail(userId: string, accountId: string): Promi
     accountName: accountLabel(t.account),
     amountCents: t.amountCents,
     isTransfer: t.isTransfer,
-    merchantName: registerDisplayName(t),
+    merchantName: registerDisplayName(t, payeeNames),
   }));
   const payments = paymentMerchant
     ? selectLoanPaymentHistoryRows(mappedPayees, paymentMerchant.canonical)
@@ -2117,9 +2123,12 @@ async function loadRegisterPayeeRows(userId: string) {
  *  case-variant POST cannot mint a second Merchant beside the one the
  *  register already paints. */
 export async function resolveRegisterPayee(userId: string, payee: string): Promise<string | null> {
-  const rows = await loadRegisterPayeeRows(userId);
-  const hit = rows.find((t) => merchantNameEquals(registerDisplayName(t), payee));
-  return hit === undefined ? null : registerDisplayName(hit);
+  const [rows, payeeNames] = await Promise.all([
+    loadRegisterPayeeRows(userId),
+    getPayeeRenames(userId),
+  ]);
+  const hit = rows.find((t) => merchantNameEquals(registerDisplayName(t, payeeNames), payee));
+  return hit === undefined ? null : registerDisplayName(hit, payeeNames);
 }
 
 export async function getWithheldAccountSummary(userId: string): Promise<WithheldAccountSummary> {
