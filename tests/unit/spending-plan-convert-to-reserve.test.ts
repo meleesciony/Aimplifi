@@ -1,10 +1,12 @@
 /**
  * Turn a repeating bill into a reserve from the spending plan
- * (DECISIONS #594 / #595).
+ * (DECISIONS #594 / #595 / #596).
  *
  * #594: ConvertToReserveButton on Spending plan for a payee bill.
  * #595: a household-named unnamed bill (no payee, BillRename overlay) can
  * convert too — BillOffPlan + Goal, never RecurringOverride NOT_BILL.
+ * #596: Settings Fixed costs offers the same convert for a named no-payee
+ * bill (pass billKey; do not require merchantCanonical).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -79,6 +81,18 @@ describe('Spending plan surface lets the household turn a repeating bill into a 
     );
     expect(button).toContain('createReserveFromSeries');
     expect(button).toContain('export function ConvertToReserveButton');
+  });
+
+  it('test_regression__household_can_turn_a_named_no_payee_bill_into_a_reserve_from_settings_fixed_costs', () => {
+    const card = readFileSync(resolve('src/components/settings/fixed-costs-card.tsx'), 'utf8');
+    expect(card).toContain('ConvertToReserveButton');
+    expect(card).toContain("from '@/components/finance/convert-to-reserve-button'");
+    expect(card).not.toContain('createReserveFromSeries');
+    expect(card).toContain('convertibleToReserve && canWrite && b.billKey');
+    expect(card).toContain('merchantCanonical={b.billKey}');
+    expect(card).not.toMatch(/convertibleToReserve && canWrite && b\.merchantCanonical/);
+    expect(card).not.toMatch(/<ConvertToReserveButton merchantCanonical=\{b\.merchantCanonical\}/);
+    expect(card).toContain("b.convertInput?.name ?? b.merchantCanonical ?? 'A repeating expense'");
   });
 });
 

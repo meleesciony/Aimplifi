@@ -193,7 +193,7 @@ export function FixedCostsCard({
                 >
                   <div className="min-w-0">
                     <p className="text-foreground">
-                      {b.merchantCanonical ?? 'A repeating expense'}
+                      {b.convertInput?.name ?? b.merchantCanonical ?? 'A repeating expense'}
                       {b.loanPayment ? (
                         <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
                           loan payment
@@ -208,8 +208,8 @@ export function FixedCostsCard({
                     <span className="tabular-nums" data-testid="fixed-proposal-monthly">
                       {formatCents(cents(b.monthlyRateCents))}/mo
                     </span>
-                    {b.convertibleToReserve && canWrite && b.merchantCanonical ? (
-                      <ConvertToReserveButton merchantCanonical={b.merchantCanonical} />
+                    {b.convertibleToReserve && canWrite && b.billKey ? (
+                      <ConvertToReserveButton merchantCanonical={b.billKey} />
                     ) : null}
                   </div>
                 </li>
