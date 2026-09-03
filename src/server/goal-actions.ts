@@ -419,3 +419,30 @@ export async function clearGoalMonthly(goalId: string): Promise<GoalFormResult> 
   revalidatePath('/coach');
   return { ok: true };
 }
+
+/**
+ * Clear a savings goal's target date already on /goals. Name, target,
+ * saved, and monthly contribution stay put. Reserves, debt-free rows,
+ * and dateless goals refuse. Demo cannot learn. Null, not a fake date.
+ */
+export async function clearGoalTargetDate(goalId: string): Promise<GoalFormResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const id = typeof goalId === 'string' ? goalId.trim() : '';
+  if (!id) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+
+  const updated = await prisma.goal.updateMany({
+    where: { id, userId, kind: null, targetDate: { not: null } },
+    data: { targetDate: null },
+  });
+  if (updated.count === 0) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+  await auditLog(userId, 'goal.clearTargetDate', { goalId: id });
+  revalidatePath('/goals');
+  revalidatePath('/coach');
+  return { ok: true };
+}

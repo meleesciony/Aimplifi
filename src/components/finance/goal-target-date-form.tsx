@@ -1,12 +1,13 @@
 'use client';
 
 /**
- * Change a savings goal's target date. Name, target, saved, and monthly
- * contribution stay put. Same mutation recipe as GoalMonthlyControl.
+ * Change or clear a savings goal's target date. Name, target, saved,
+ * and monthly contribution stay put. Save still refuses blank. Clear
+ * writes null, not a fake date.
  */
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { updateGoalTargetDate, type GoalFormResult } from '@/server/goal-actions';
+import { clearGoalTargetDate, updateGoalTargetDate, type GoalFormResult } from '@/server/goal-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { formatMonth } from '@/lib/dates';
@@ -21,7 +22,7 @@ export function GoalTargetDateControl({
   targetDate: string | null;
 }) {
   const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'save' | 'clear' | null>(null);
   const [result, setResult] = useState<GoalFormResult | null>(null);
   const month = targetDate && /^\d{4}-(0[1-9]|1[0-2])/.test(targetDate) ? targetDate.slice(0, 7) : '';
   const shown = month ? `by ${formatMonth(month)}` : 'Set date';
@@ -29,7 +30,7 @@ export function GoalTargetDateControl({
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    setBusy(true);
+    setBusy('save');
     try {
       const res = await withDeadline(updateGoalTargetDate(goalId, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
@@ -41,7 +42,24 @@ export function GoalTargetDateControl({
       window.location.reload();
       return;
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  }
+
+  async function onClear() {
+    setBusy('clear');
+    try {
+      const res = await withDeadline(clearGoalTargetDate(goalId), FORM_ACTION_DEADLINE_MS);
+      setResult(res);
+      if (res.ok) {
+        window.location.reload();
+        return;
+      }
+    } catch {
+      window.location.reload();
+      return;
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -76,14 +94,26 @@ export function GoalTargetDateControl({
           className={`w-40 ${inputCls}`}
           data-testid="goal-target-date-input"
         />
-        <Button type="submit" size="sm" disabled={busy} data-testid="goal-target-date-save">
-          {busy ? 'Saving…' : 'Save date'}
+        <Button type="submit" size="sm" disabled={busy !== null} data-testid="goal-target-date-save">
+          {busy === 'save' ? 'Saving…' : 'Save date'}
         </Button>
+        {month ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy !== null}
+            onClick={onClear}
+            data-testid="goal-target-date-clear"
+          >
+            {busy === 'clear' ? 'Clearing…' : 'Clear date'}
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="sm"
           variant="ghost"
-          disabled={busy}
+          disabled={busy !== null}
           onClick={() => setEditing(false)}
         >
           Cancel

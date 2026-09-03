@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | a savings goal target date could not be cleared without deleting the goal | date write refused blank; no clear path | a household can clear a savings goal’s target date without deleting it | `test_regression__household_can_clear_a_savings_goal_target_date_without_deleting_it` |
 | 2026-09-02 | a savings goal monthly contribution could not be cleared without deleting the goal | monthly write refused blank; no clear path | a household can clear a savings goal’s monthly contribution without deleting it | `test_regression__household_can_clear_a_savings_goal_monthly_contribution_without_deleting_it` |
 | 2026-09-02 | a savings goal target date could not be changed without deleting the goal | Goals had create / rename / target / monthly, no date write | a household can change a savings goal’s target date without deleting it | `test_regression__household_can_change_a_savings_goal_target_date_without_deleting_it` |
 | 2026-09-02 | a savings goal monthly contribution could not be changed without deleting the goal | Goals had create / rename / target, no monthly write | a household can change a savings goal’s monthly contribution without deleting it | `test_regression__household_can_change_a_savings_goal_monthly_contribution_without_deleting_it` |
