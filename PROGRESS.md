@@ -5,6 +5,21 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-09-03 — Cards add-card from Cards page (DECISIONS #637)
+
+**Picked up.** Owner: "continue." #634 closed statement add on Cards.
+Wave 0 ops owner-blocked. Next dead-end on the same page: empty Cards
+sent “Add a card manually” to Accounts, and a populated Cards page
+had no add affordance.
+
+**Closed.** Own non-demo Cards mounts `CardAddControl` → existing
+`addManualAccount` with type locked to CREDIT. Demo not mounted.
+Accounts list unchanged.
+
+**Gate.** pending this turn.
+
+**Next.** Wave 0 ops remain owner-blocked.
+
 ## 2026-09-03 — Standing order: land completed slices on main (#636)
 
 **Picked up.** Owner: cloud work felt lost; they check live, not a PR.

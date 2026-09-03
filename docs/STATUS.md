@@ -24,6 +24,23 @@ merged: they conflict, failed verify, or are months stale / env-only.
 
 Do not merge these to satisfy #636. Rebase + re-verify first, one PR at a time.
 
+## ✅ BUILT 2026-09-03 — Add a card from the Cards page (DECISIONS #637)
+
+**The report.** Standing leftover after #634: Cards empty still sent
+“Add a card manually” to Accounts, and a populated Cards page had no
+add affordance.
+
+**Shipped.** `CardAddControl` on both Cards empty (`cards-empty-manual`)
+and the populated page (`cards-add-open`). Same writer as Accounts
+(`addManualAccount`); type locked to CREDIT. Demo not mounted.
+Balance still refuses $0. Writer also revalidates `/cards`.
+
+**Does not** add loans or other liabilities from Cards. Does not
+collect APR / due day on create (statement add remains #634). Linked
+cards still come from Connect.
+
+**Gate.** pending this turn.
+
 ## ✅ BUILT 2026-08-31 — Tax-advantaged contribution-room Settings rung (DECISIONS #529)
 
 **The report.** Standing leftover after #528: tax-advantaged

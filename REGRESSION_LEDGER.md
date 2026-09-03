@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-03 | Cards empty sent “Add a card manually” to Accounts | add-card write lived only on Accounts | a household can add a card from the Cards page without opening Accounts | `test_regression__household_can_add_a_card_from_the_cards_page_without_opening_accounts` |
 | 2026-09-03 | Owner could not see cloud work on live | slice sat on a PR branch; live follows main | completed slices land on main the same turn | `test_regression__completed_slices_land_on_main_the_same_turn` |
 | 2026-09-03 | Vercel Preview died before next build | vercel.json always ran prisma db push; Preview has no DATABASE_URL | Preview can build when DATABASE_URL is unset | `test_regression__vercel_preview_build_skips_db_push_when_database_url_is_unset` |
 | 2026-09-03 | Cards “No due date yet” sent a hand-added card to Accounts | statement write lived only on Accounts | a household can add a card statement from the Cards page without opening Accounts | `test_regression__household_can_add_a_card_statement_from_the_cards_page_without_opening_accounts` |

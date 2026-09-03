@@ -2617,3 +2617,11 @@ invent an auto-file quality claim.
 **Decision.** Standing order. A completed, verify-green slice lands on `main` the same turn — `git push origin main` or merge the PR. Do not wait for a second "put it on main" ask. An unmerged PR is unshipped. Generic cloud-agent "don't merge unless asked" does not apply to completed Aimplifi slices. Incomplete, conflicting, or red-CI PRs stay draft and are named in `docs/STATUS.md` — do not merge those to go green. Owner pulls `main` locally when they want the laptop copy.
 
 **Locked.** `test_regression__completed_slices_land_on_main_the_same_turn`.
+
+## #637 — Household can add a card from the Cards page without opening Accounts (2026-09-03)
+
+**Context.** Add-card already exists on Accounts (`addManualAccount`, CREDIT is a liability type). Cards empty state sent “Add a card manually” to `/accounts`, and a populated Cards page had no add affordance, so a household standing on Cards could not add the card they were about to plan.
+
+**Decision.** Reuse `addManualAccount`. New `CardAddControl` on Cards empty and on the populated page. Type locked to CREDIT — no type picker. Demo not mounted. Partner cards are not created here (the write is the viewer’s own row). Balance still refuses $0 (existing parser). Engine types unchanged. Accounts list unchanged. No heading tweak. No CSV. Sign-in stays /sign-in. `addManualAccount` also revalidates `/cards`.
+
+**Locked.** `test_regression__household_can_add_a_card_from_the_cards_page_without_opening_accounts`.

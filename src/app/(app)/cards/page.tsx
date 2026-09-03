@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { CardAddControl } from '@/components/finance/card-add-control';
 import { CardsBreakdown } from '@/components/finance/cards-breakdown';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { buttonVariants } from '@/components/ui/button';
@@ -34,6 +35,7 @@ export default async function CardsPage({
     select: { id: true, name: true, displayName: true, provider: true },
   });
   const canRenameCard = !isDemoUser(session.user.id);
+  const canAddCard = canRenameCard;
   const cardRenameById: Record<string, { feedName: string; hasOverlay: boolean }> = {};
   const canAddStatementById: Record<string, boolean> = {};
   for (const a of creditAccounts) {
@@ -65,14 +67,14 @@ export default async function CardsPage({
             </p>
             <div className="mx-auto flex max-w-sm flex-col items-stretch gap-2">
               <ConnectAccountsButton />
+              {canAddCard ? (
+                <CardAddControl
+                  triggerTestId="cards-empty-manual"
+                  triggerLabel="Add a card manually"
+                  idleClassName={buttonVariants({ variant: 'outline', size: 'sm' })}
+                />
+              ) : null}
               <div className="flex flex-col gap-2 sm:flex-row">
-                <Link
-                  href="/accounts"
-                  className={buttonVariants({ variant: 'outline', size: 'sm' })}
-                  data-testid="cards-empty-manual"
-                >
-                  Add a card manually
-                </Link>
                 <Link
                   href="/transactions/import"
                   className={buttonVariants({ variant: 'outline', size: 'sm' })}
@@ -100,6 +102,7 @@ export default async function CardsPage({
           duplicates={data.householdDuplicates}
         />
       )}
+      {canAddCard ? <CardAddControl /> : null}
       <CardsBreakdown
         payInFull={data.payInFull}
         minimum={data.minimum}

@@ -9,6 +9,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 vi.mock('@/auth', () => ({ auth: vi.fn(), signOut: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
+import { revalidatePath } from 'next/cache';
 import { auth } from '@/auth';
 import { addManualAccount, deleteManualAccount, updateManualAccountValue } from '@/server/networth-actions';
 import { getAccountsView } from '@/server/transactions';
@@ -49,6 +50,7 @@ describe('manual net-worth actions (real, throwaway user — DECISIONS #39)', ()
     const home1 = view.assets.accounts.find((a) => a.name === 'Primary home');
     expect(home1?.manual).toBe(true);
     expect(view.assets.accounts.find((a) => a.id === linkedId)?.manual).toBe(false);
+    expect(vi.mocked(revalidatePath)).toHaveBeenCalledWith('/cards');
   });
 
   it('rejects invalid input without creating anything', async () => {

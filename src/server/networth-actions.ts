@@ -59,6 +59,7 @@ export async function addManualAccount(input: { name: string; type: string; valu
   });
   revalidatePath('/accounts');
   revalidatePath('/dashboard');
+  revalidatePath('/cards');
   return { ok: true, id: acct.id };
 }
 

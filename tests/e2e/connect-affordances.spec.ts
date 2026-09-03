@@ -38,9 +38,13 @@ test('cards empty state and settings connections card offer live connect afforda
   await expect(empty.getByTestId('connect-bank-btn')).toBeVisible();
   await expect(empty.getByTestId('cards-empty-import')).toBeVisible();
 
-  // "Add a card manually" really lands on /accounts, where the manual form lives.
-  await empty.getByTestId('cards-empty-manual').click();
-  await page.waitForURL('**/accounts', { timeout: 20000 });
+  // "Add a card manually" opens the form on Cards — same writer as Accounts,
+  // type locked to CREDIT (DECISIONS #637). Do not leave /cards.
+  await expect(async () => {
+    await empty.getByTestId('cards-empty-manual').click({ timeout: 2000 });
+    await expect(empty.getByTestId('cards-add-form')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20000 });
+  await expect(page).toHaveURL(/\/cards/);
 
   // /settings: the Bank-connections card is live, not decorative (A2).
   await page.goto('/settings');
