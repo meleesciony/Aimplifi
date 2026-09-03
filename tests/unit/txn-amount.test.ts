@@ -75,6 +75,7 @@ describe('updateTransactionAmount — integer cents, splits refuse', () => {
   }, 60_000);
 
   afterAll(async () => {
+    await prisma.categorizationRule.deleteMany({ where: { userId: USER } });
     await prisma.transaction.deleteMany({ where: { account: { userId: USER } } });
     await prisma.account.deleteMany({ where: { userId: USER } });
     await prisma.user.deleteMany({ where: { id: USER } });
@@ -116,6 +117,44 @@ describe('updateTransactionAmount — integer cents, splits refuse', () => {
       expect(inRes.ok).toBe(true);
       const inUpdated = await prisma.transaction.findUniqueOrThrow({ where: { id: inflow.id } });
       expect(inUpdated.amountCents).toBe(8_000);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('test_regression__household_amount_edit_re_matches_the_row', async () => {
+    const { updateTransactionAmount } = await import('@/server/transaction-amount-actions');
+    const authz = await import('@/server/authz');
+    const spy = vi.spyOn(authz, 'requireUserId').mockResolvedValue(USER);
+    try {
+      await prisma.categorizationRule.create({
+        data: {
+          userId: USER,
+          categoryId: 'groceries',
+          priority: 110,
+          matchKeywords: 'costco',
+          minAmountCents: 10_000,
+        },
+      });
+      const row = await prisma.transaction.create({
+        data: {
+          accountId,
+          date: '2026-06-10',
+          rawDescriptor: 'COSTCO WHSE #1084',
+          amountCents: -2_000,
+          categoryId: 'dining',
+          needsReview: false,
+        },
+      });
+      const fd = new FormData();
+      fd.set('amount', '150.00');
+      const res = await updateTransactionAmount(row.id, fd);
+      expect(res.ok).toBe(true);
+      const updated = await prisma.transaction.findUniqueOrThrow({ where: { id: row.id } });
+      expect(updated.amountCents).toBe(-15_000);
+      expect(updated.categoryId).toBe('groceries');
+      expect(updated.rawDescriptor).toBe('COSTCO WHSE #1084');
+      expect(updated.needsReview).toBe(false);
     } finally {
       spy.mockRestore();
     }

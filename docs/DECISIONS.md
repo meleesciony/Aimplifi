@@ -2472,3 +2472,12 @@ invent an auto-file quality claim.
 **Decision.** After an in/out flip, the same rematch writer bank-text uses (`rematchAfterTxnWrite`) runs against the new signed cents. A matching rule files the row. A settled category stays unless a rule now matches. Splits still refuse the flip. Amount magnitude, date, and descriptor stay put except for the sign write. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_flip_re_matches_the_row`.
+
+
+## #620 — After a household changes a transaction’s amount, the row re-matches (2026-09-03)
+
+**Context.** #618/#619 re-match after bank-text and in/out. Amount write (#611) still left category and merchant put, even though signed cents is a `categorize()` input (amount-banded rules).
+
+**Decision.** After an amount save, the same rematch writer (`rematchAfterTxnWrite`) runs against the new signed cents. A matching rule files the row. A settled category stays unless a rule now matches. Splits still refuse the amount write. Sign, date, and descriptor stay put except for the cents write. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_amount_edit_re_matches_the_row`.

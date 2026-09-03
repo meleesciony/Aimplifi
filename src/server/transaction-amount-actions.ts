@@ -76,6 +76,13 @@ export async function updateTransactionAmount(
     select: {
       id: true,
       amountCents: true,
+      rawDescriptor: true,
+      date: true,
+      accountId: true,
+      merchantId: true,
+      categoryId: true,
+      needsReview: true,
+      taxClass: true,
       isSplitParent: true,
       splitParentId: true,
     },
@@ -91,14 +98,31 @@ export async function updateTransactionAmount(
   }
 
   const amountCents = signedTxnAmountCents(row.amountCents, typed);
+  const rematch = await rematchAfterTxnWrite({
+    userId,
+    rawDescriptor: row.rawDescriptor,
+    amountCents,
+    date: row.date,
+    accountId: row.accountId,
+    merchantId: row.merchantId,
+    categoryId: row.categoryId,
+    needsReview: row.needsReview,
+    isSplitParent: row.isSplitParent,
+    taxClass: row.taxClass,
+  });
   await prisma.transaction.update({
     where: { id: row.id },
-    data: { amountCents },
+    data: {
+      amountCents,
+      ...rematchUpdateData(rematch),
+    },
   });
   await auditLog(userId, 'transaction.updateAmount', {
     transactionId: id,
     fromCents: row.amountCents,
     toCents: amountCents,
+    rematched: rematch.applyCategory,
+    matchedRule: rematch.matchedRule,
   });
   await refreshRecurringBestEffort(userId);
   revalidateTxnAmountSurfaces();
