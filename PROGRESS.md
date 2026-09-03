@@ -5,6 +5,18 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-09-03 — Cards statement from Cards page (DECISIONS #634)
+
+**Picked up.** Owner: "continue." #633 closed card rename on Cards.
+Wave 0 ops owner-blocked. Next dead-end on the same page: “No due date
+yet” named Accounts as the only place to enter a statement.
+
+**Closed.** Own manual CREDIT cards in that panel mount
+`CardStatementControl` → existing `setManualCardStatement`. Demo /
+linked / partner stay without a writer. Dated cards unchanged.
+
+**Next.** Wave 0 ops remain owner-blocked.
+
 ## 2026-08-31 — Tax-advantaged contribution-room Settings (DECISIONS #529)
 
 **Picked up.** Owner: "continue." Employer-match (#528) closed. Wave 0

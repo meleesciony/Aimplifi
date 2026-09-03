@@ -13,6 +13,9 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/components/finance/account-name-form', () => ({
   AccountNameControl: () => null,
 }));
+vi.mock('@/components/finance/card-statement-control', () => ({
+  CardStatementControl: () => null,
+}));
 
 import { minimumInterestNote } from '@/components/finance/cards-breakdown';
 

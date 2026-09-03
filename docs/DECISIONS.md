@@ -2593,3 +2593,11 @@ invent an auto-file quality claim.
 **Decision.** Reuse renameAccount. New AccountNameControl on CardsBreakdown titles for the viewer's own cards. Demo not mounted. Partner cards stay text. Empty input clears the overlay back to the feed name. Engine types unchanged. Accounts list unchanged. No heading tweak. No CSV. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_rename_a_card_from_the_cards_page_without_opening_accounts`.
+
+## #634 — Household can add a card statement from the Cards page without opening Accounts (2026-09-03)
+
+**Context.** Statement write already exists on Accounts (`setManualCardStatement`, manual CREDIT only). Cards “No due date yet” named Accounts as the place to enter a statement, so a household standing on Cards could not attach one they were looking at. Linked cards still cannot be edited here (`ownedManualCard`).
+
+**Decision.** Reuse `setManualCardStatement` and `ManualCardStatementForm`. New `CardStatementControl` on unknown-due rows for the viewer’s own manual cards. Demo not mounted. Partner and linked cards stay without a writer. Dated cards unchanged. Engine types unchanged. Accounts list unchanged. The panel still names Accounts for linked cards. No heading tweak. No CSV. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_add_a_card_statement_from_the_cards_page_without_opening_accounts`.

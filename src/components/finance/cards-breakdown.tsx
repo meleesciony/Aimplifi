@@ -39,6 +39,7 @@ import {
 import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import { formatCents, type Cents } from '@/lib/money';
 import { AccountNameControl } from '@/components/finance/account-name-form';
+import { CardStatementControl } from '@/components/finance/card-statement-control';
 
 /**
  * The minimum-path interest sentence (audit P2). Names the set the estimate covers —
@@ -82,6 +83,7 @@ export function CardsBreakdown({
   cardDuplicates = [],
   canRenameCard = false,
   cardRenameById,
+  canAddStatementById,
 }: {
   payInFull: CashNeededResult;
   minimum: CashNeededResult;
@@ -104,6 +106,8 @@ export function CardsBreakdown({
   /** Own CREDIT cards only; default false so other callers stay byte-identical. */
   canRenameCard?: boolean;
   cardRenameById?: Record<string, { feedName: string; hasOverlay: boolean }>;
+  /** Own manual CREDIT cards only. Linked / demo / partner stay without a writer. */
+  canAddStatementById?: Record<string, boolean>;
 }) {
   const [scenario, setScenario] = useState<'PAY_IN_FULL' | 'MINIMUM'>('PAY_IN_FULL');
   const result = scenario === 'PAY_IN_FULL' ? payInFull : minimum;
@@ -593,6 +597,9 @@ export function CardsBreakdown({
                             )}
                           </span>
                         )}
+                        {canRenameCard && canAddStatementById?.[c.cardId] && !owner ? (
+                          <CardStatementControl accountId={c.cardId} />
+                        ) : null}
                       </li>
                     );
                   })}
