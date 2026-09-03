@@ -2,7 +2,8 @@
 
 /**
  * Rename a payee from a transaction. Overlay only: no CategorizationRule,
- * no Merchant.canonical write, no merchantId change. Demo cannot learn.
+ * no Merchant.canonical write, no merchantId change. Clear deletes the
+ * overlay (back to the bank/canonical name), not a blank. Demo cannot learn.
  */
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
@@ -76,6 +77,48 @@ export async function renamePayee(
     update: { name: trimmed },
   });
   await auditLog(userId, 'payee.rename', { transactionId: id, payeeKey: key, length: trimmed.length });
+  revalidatePayeeSurfaces();
+  return { ok: true };
+}
+
+export async function clearPayeeRename(transactionId: string): Promise<PayeeRenameResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const id = typeof transactionId === 'string' ? transactionId.trim() : '';
+  if (!id) {
+    return { ok: false, error: "That transaction isn't on your list, so nothing changed." };
+  }
+
+  const row = await prisma.transaction.findFirst({
+    where: {
+      id,
+      account: {
+        userId,
+        type: { in: [...SPENDING_ACCOUNT_TYPES] },
+        OR: [{ currency: null }, { currency: 'USD' }],
+      },
+    },
+    select: {
+      id: true,
+      rawDescriptor: true,
+      merchant: { select: { canonical: true } },
+    },
+  });
+  if (!row) {
+    return { ok: false, error: "That transaction isn't on your list, so nothing changed." };
+  }
+
+  const key = payeeRenameKey(row).slice(0, MAX_PAYEE_KEY);
+  if (!key) {
+    return { ok: false, error: 'That name is already what the bank sent.' };
+  }
+
+  const deleted = await prisma.payeeRename.deleteMany({ where: { userId, payeeKey: key } });
+  if (deleted.count === 0) {
+    return { ok: false, error: 'That name is already what the bank sent.' };
+  }
+  await auditLog(userId, 'payee.clearRename', { transactionId: id, payeeKey: key });
   revalidatePayeeSurfaces();
   return { ok: true };
 }

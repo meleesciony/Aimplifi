@@ -25,7 +25,9 @@ describe('Payee rename overlay is on the transaction detail surface', () => {
     expect(page).toContain('detail-payee');
     const control = readFileSync(resolve('src/components/finance/payee-name-form.tsx'), 'utf8');
     expect(control).toContain('renamePayee');
+    expect(control).toContain('clearPayeeRename');
     expect(control).toContain('Save name');
+    expect(control).toContain('Clear name');
     expect(control).toContain('onSubmit');
     expect(control).not.toContain('createKeywordRule');
     expect(control).not.toContain('updateKeywordRule');
@@ -202,6 +204,70 @@ describe('renamePayee — overlay only, never a rule', () => {
       const fd = new FormData();
       fd.set('name', 'Coffee shop');
       const res = await renamePayee('any', fd);
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe(DEMO_ENTRY_BLOCKED);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('test_regression__household_can_clear_a_payee_rename_back_to_the_bank_name', async () => {
+    const { renamePayee, clearPayeeRename } = await import('@/server/payee-rename-actions');
+    const authz = await import('@/server/authz');
+    const spy = vi.spyOn(authz, 'requireUserId').mockResolvedValue(USER);
+    try {
+      const row = await prisma.transaction.create({
+        data: {
+          accountId,
+          date: '2026-06-16',
+          rawDescriptor: 'SQ *STARBUCKS STORE 555',
+          amountCents: -450,
+          merchantId,
+        },
+      });
+      const fd = new FormData();
+      fd.set('name', 'Coffee shop');
+      expect((await renamePayee(row.id, fd)).ok).toBe(true);
+      expect(
+        await prisma.payeeRename.findUnique({
+          where: { userId_payeeKey: { userId: USER, payeeKey: 'Starbucks' } },
+        }),
+      ).not.toBeNull();
+
+      const res = await clearPayeeRename(row.id);
+      expect(res.ok).toBe(true);
+      expect(
+        await prisma.payeeRename.findUnique({
+          where: { userId_payeeKey: { userId: USER, payeeKey: 'Starbucks' } },
+        }),
+      ).toBeNull();
+      const merchant = await prisma.merchant.findUniqueOrThrow({ where: { id: merchantId } });
+      expect(merchant.canonical).toBe('Starbucks');
+      const still = await prisma.transaction.findUniqueOrThrow({ where: { id: row.id } });
+      expect(still.merchantId).toBe(merchantId);
+      const names = await (await import('@/server/payee-names')).getPayeeRenames(USER);
+      expect(
+        registerDisplayName(
+          { merchant: { canonical: 'Starbucks' }, rawDescriptor: row.rawDescriptor },
+          names,
+        ),
+      ).toBe('Starbucks');
+
+      const again = await clearPayeeRename(row.id);
+      expect(again.ok).toBe(false);
+      expect(again.error).toMatch(/already what the bank sent/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('test_regression__payee_clear_rename_demo_cannot_learn', async () => {
+    const { clearPayeeRename } = await import('@/server/payee-rename-actions');
+    const { DEMO_ENTRY_BLOCKED } = await import('@/lib/demo-user');
+    const authz = await import('@/server/authz');
+    const spy = vi.spyOn(authz, 'requireUserId').mockResolvedValue('user-demo');
+    try {
+      const res = await clearPayeeRename('txn-x');
       expect(res.ok).toBe(false);
       expect(res.error).toBe(DEMO_ENTRY_BLOCKED);
     } finally {

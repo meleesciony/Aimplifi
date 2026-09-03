@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { renamePayee, type PayeeRenameResult } from '@/server/payee-rename-actions';
+import { clearPayeeRename, renamePayee, type PayeeRenameResult } from '@/server/payee-rename-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 
@@ -15,18 +15,20 @@ const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreg
 export function PayeeNameControl({
   transactionId,
   name,
+  hasOverlay,
 }: {
   transactionId: string;
   name: string;
+  hasOverlay: boolean;
 }) {
   const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'save' | 'clear' | null>(null);
   const [result, setResult] = useState<PayeeRenameResult | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    setBusy(true);
+    setBusy('save');
     try {
       const res = await withDeadline(renamePayee(transactionId, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
@@ -38,7 +40,24 @@ export function PayeeNameControl({
       window.location.reload();
       return;
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  }
+
+  async function onClear() {
+    setBusy('clear');
+    try {
+      const res = await withDeadline(clearPayeeRename(transactionId), FORM_ACTION_DEADLINE_MS);
+      setResult(res);
+      if (res.ok) {
+        window.location.reload();
+        return;
+      }
+    } catch {
+      window.location.reload();
+      return;
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -72,14 +91,26 @@ export function PayeeNameControl({
           className={`w-56 ${inputCls}`}
           data-testid="payee-rename-input"
         />
-        <Button type="submit" size="sm" disabled={busy} data-testid="payee-rename-save">
-          {busy ? 'Saving…' : 'Save name'}
+        <Button type="submit" size="sm" disabled={busy !== null} data-testid="payee-rename-save">
+          {busy === 'save' ? 'Saving…' : 'Save name'}
         </Button>
+        {hasOverlay ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy !== null}
+            onClick={onClear}
+            data-testid="payee-rename-clear"
+          >
+            {busy === 'clear' ? 'Clearing…' : 'Clear name'}
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="sm"
           variant="ghost"
-          disabled={busy}
+          disabled={busy !== null}
           onClick={() => setEditing(false)}
         >
           Cancel

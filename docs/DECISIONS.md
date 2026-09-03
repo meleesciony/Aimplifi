@@ -2418,3 +2418,12 @@ invent an auto-file quality claim.
 **Decision.** Tapping the account on a transaction opens an account picker. The write is `Transaction.accountId`, not an overlay. Amount, date, payee, category, descriptor, merchantId, rules, and account balances stay put (balances stay provider-authoritative). Destination must be a spending USD account this household owns. Split parents and split parts refuse (a split stays on one account). Blank and unknown destinations refuse. A superseded predecessor is not a destination. Same-account save is a no-op success. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_change_a_transaction_account`.
+
+
+## #614 — Household can clear a payee rename back to the bank name (2026-09-02)
+
+**Context.** #604 shipped a payee overlay on the transaction detail page. Save refused blank. A household that no longer wanted "Coffee shop" instead of "Starbucks" still had no way to return to the bank/canonical name without writing a rule.
+
+**Decision.** Tapping Clear name deletes the `PayeeRename` row (not a blank overlay). Merchant.canonical, merchantId, and CategorizationRule stay put. Save name still refuses blank. A payee with no overlay has nothing to clear. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_clear_a_payee_rename_back_to_the_bank_name`.

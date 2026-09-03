@@ -529,7 +529,7 @@ export function TransactionDetailView({
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-semibold" data-testid="detail-payee">
-            <PayeeNameControl transactionId={row.id} name={row.merchantName} />
+            <PayeeNameControl transactionId={row.id} name={row.merchantName} hasOverlay={detail.payeeRenamed} />
           </h1>
           {row.status === 'PENDING' && (
             <Badge variant="outline" className="text-[10px]">

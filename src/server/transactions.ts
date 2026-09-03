@@ -13,7 +13,7 @@ import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { summarizeRecurring } from '@/lib/engine/recurring/summary';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { type PredictionSource, describeProvenance } from '@/lib/engine/categorize/provenance';
-import { registerDisplayName } from '@/lib/engine/transactions/display-name';
+import { payeeRenameKey, registerDisplayName } from '@/lib/engine/transactions/display-name';
 import {
   isLoanPaymentHistoryAccount,
   selectLoanPaymentHistoryRows,
@@ -753,6 +753,8 @@ export interface TransactionDetailView {
    * no merchant-wide scope (merchantless / aggregate payee, split container).
    */
   spendClassSiblingCount: number | null;
+  /** #614: a PayeeRename overlay is on this payee — Clear name is offered. */
+  payeeRenamed: boolean;
 }
 
 /**
@@ -979,6 +981,7 @@ export async function getTransactionDetail(
     descriptorOrigin: rowOrigin({ providerRef: t.providerRef, accountProvider: t.account.provider }),
     reimbursementMatch: await reimbursementMatchFor(userId, t),
     spendClassSiblingCount: await spendClassSiblingCountOf(userId, t, keepsReconciled),
+    payeeRenamed: payeeNames.has(payeeRenameKey(t)),
   };
 }
 
