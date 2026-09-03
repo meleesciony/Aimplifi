@@ -2271,3 +2271,11 @@ invent an auto-file quality claim.
 **Decision.** Overlay only. Offer convert only when the household has given the unnamed bill a name (BillRename). Qualifying cadence still QUARTERLY/SEMIANNUAL/ANNUAL, not loan, monthlyRate > 0, inBasis (or discretionary out) — same as payee convert. Unnamed convert writes BillOffPlan on that billKey (so excludeOffPlanBills drops it) plus a Goal reserve with `Goal.merchantCanonical = billKey`. It does NOT write RecurringOverride NOT_BILL. deleteReserve: if merchantCanonical starts with `unnamed:`, delete BillOffPlan for that billKey; do not require an override row. Payee convert undo unchanged (NOT_BILL withdrawal). Exact swap: bill leaves Fixed list AND figure; a reserve at the same monthly rate enters. Pair undo is the whole pair. Spending plan looks up convert by `b.billKey === l.billKey`. Settings card stays merchantCanonical-only. Demo fenced. Integer cents. No CSV. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_turn_a_named_no_payee_bill_into_a_reserve_from_the_spending_plan`.
+
+## #596 — Turn a named no-payee repeating bill into a reserve from Settings Fixed costs (2026-09-02)
+
+**Context.** #595 shipped convert of a named unnamed bill from Spending plan (`b.billKey === l.billKey`, createReserveFromSeries writes BillOffPlan + Goal). Settings FixedCostsCard still gated convert on `b.merchantCanonical`, so a named no-payee bill stayed unoffered there. The write path already exists.
+
+**Decision.** Settings Fixed costs offers Make-it-a-reserve for a convertible named no-payee bill the same as Spending plan. Gate is `convertibleToReserve && canWrite && b.billKey`. ConvertToReserveButton identity is `b.billKey` (unnamed keys are `unnamed:…`). Row label uses the overlay name (`convertInput.name`) so the household can tell which row. Payee convert unchanged. Demo still canWrite-gated. Do not duplicate createReserveFromSeries. Overlay only. Integer cents. No CSV. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_turn_a_named_no_payee_bill_into_a_reserve_from_settings_fixed_costs`.
