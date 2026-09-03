@@ -5,6 +5,18 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-09-03 — Standing order: land completed slices on main (#636)
+
+**Picked up.** Owner: cloud work felt lost; they check live, not a PR.
+"That's a standing order."
+
+**Closed.** Recorded in CLAUDE.md rule 5, AGENTS.md, and
+`.cursor/rules/always-commit-push.mdc`. An unmerged PR is unshipped.
+Five older drafts stay open in STATUS (conflict / red / stale) — not
+merged to satisfy the order.
+
+**Next.** This slice lands on `main` the same turn.
+
 ## 2026-09-03 — Vercel Preview build without DATABASE_URL (DECISIONS #635)
 
 **Picked up.** Owner: one CI check failing on PR #19. GitHub Actions
