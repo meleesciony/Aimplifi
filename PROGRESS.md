@@ -15,7 +15,16 @@
 Unset `DATABASE_URL` skips postgres schema + `db push` and generates the
 SQLite client. Set `DATABASE_URL` keeps the Production path.
 
-**Next.** Re-read the Vercel Preview check on this push.
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **8,180 passed
++ 1 expected fail + 1 skipped / 534 files + 1 skipped**.
+
+**Ship.** Pushed `fff6590e`. GitHub Actions `verify` run **33788118783**
+= SUCCESS (14m46s). Vercel Preview `Hqp49gcMN8kXxkukq7CHHXZo3mHU` SUCCESS
+(was FAILURE `dpl_HA7A6meJUf1sbbxiZW84biNovePg`). Live
+`https://aimplifi-9f63nivkc-reiforge.vercel.app/` → 307 `/sign-in`;
+`/sign-in` 200 with `data-testid="auth-form"` and title Aimplifi.
+
+**Next.** Wave 0 ops remain owner-blocked.
 
 ## 2026-09-03 — Cards statement from Cards page (DECISIONS #634)
 
