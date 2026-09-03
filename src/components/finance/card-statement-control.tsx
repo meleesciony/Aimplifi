@@ -42,8 +42,9 @@ export function CardStatementControl({ accountId }: { accountId: string }) {
     return (
       <button
         type="button"
-        className="mt-1 rounded-md border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent"
+        className="tap-target mt-1 inline-flex items-center justify-center rounded-md border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent"
         data-testid="card-row-statement-add"
+        aria-label="Add a statement for this card"
         onClick={() => setEditing(true)}
       >
         + Add statement — get “how much &amp; when” for this card

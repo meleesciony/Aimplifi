@@ -52,6 +52,8 @@ describe('Cards page reuses setManualCardStatement', () => {
     expect(form).not.toContain('useActionState');
     expect(form).toContain('data-testid="card-row-statement-add"');
     expect(form).toContain('data-testid="card-row-statement"');
+    expect(form).toContain('tap-target');
+    expect(form).toContain('aria-label="Add a statement for this card"');
     expect(form).toContain('setManualCardStatement({ accountId, ...values })');
 
     const actions = readFileSync(resolve('src/server/card-actions.ts'), 'utf8');
