@@ -79,6 +79,7 @@ import { provenanceBadgeView } from '@/components/finance/provenance-badge';
 import { SpendClassBadge } from '@/components/finance/spend-class-badge';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
+import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import {
@@ -659,7 +660,10 @@ export function TransactionDetailView({
             {formatCents(cents(row.amountCents), { signDisplay: 'always' })}
           </div>
         ) : (
-          <TxnAmountControl transactionId={row.id} amountCents={row.amountCents} />
+          <div>
+            <TxnAmountControl transactionId={row.id} amountCents={row.amountCents} />
+            <TxnDirectionControl transactionId={row.id} amountCents={row.amountCents} />
+          </div>
         )}
       </div>
 

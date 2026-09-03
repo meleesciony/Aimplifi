@@ -23,3 +23,10 @@ export function signedTxnAmountCents(currentCents: number, parsed: number): numb
   if (currentCents === 0) return parsed;
   return currentCents < 0 ? -magnitude : magnitude;
 }
+
+/** Negate the signed cents. Null when there is nothing to flip. */
+export function flippedTxnAmountCents(currentCents: number): number | null {
+  if (currentCents === 0) return null;
+  if (currentCents === -MAX_TXN_ABS_CENTS - 1) return null;
+  return -currentCents;
+}

@@ -2436,3 +2436,12 @@ invent an auto-file quality claim.
 **Decision.** Tapping Clear name deletes the `BillRename` row (not a blank overlay). Amount, cadence, detection, and loan identity stay put. Save name still refuses blank. A bill with no overlay has nothing to clear. Demo cannot learn. Integer cents unchanged. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_clear_a_repeating_bill_name_back_to_what_the_app_detected`.
+
+
+## #616 — Household can flip a transaction in or out (2026-09-02)
+
+**Context.** #611 shipped an amount write that keeps the existing sign, so an outflow stays an outflow. A row posted the wrong way (a refund filed as spending, a purchase filed as income) had no write for direction.
+
+**Decision.** Tapping Mark as money in / Mark as money out on a transaction negates `Transaction.amountCents`. Magnitude stays. Date, payee, category, descriptor, merchantId, rules, account, and account balances stay put (balances stay provider-authoritative). Split parents and split parts refuse. Zero has nothing to flip. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_flip_a_transaction_in_or_out`.

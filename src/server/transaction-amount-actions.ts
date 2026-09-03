@@ -14,6 +14,7 @@ import { auditLog, requireUserId } from '@/server/authz';
 import { refreshRecurringForUser } from '@/server/recurring';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import {
+  flippedTxnAmountCents,
   signedTxnAmountCents,
   txnAmountError,
 } from '@/lib/engine/transactions/amount';
@@ -94,6 +95,65 @@ export async function updateTransactionAmount(
     data: { amountCents },
   });
   await auditLog(userId, 'transaction.updateAmount', {
+    transactionId: id,
+    fromCents: row.amountCents,
+    toCents: amountCents,
+  });
+  await refreshRecurringBestEffort(userId);
+  revalidateTxnAmountSurfaces();
+  return { ok: true };
+}
+
+export async function flipTransactionDirection(
+  transactionId: string,
+): Promise<TxnAmountResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const id = typeof transactionId === 'string' ? transactionId.trim() : '';
+  if (!id) {
+    return { ok: false, error: "That transaction isn't on your list, so nothing changed." };
+  }
+
+  const row = await prisma.transaction.findFirst({
+    where: {
+      id,
+      account: {
+        userId,
+        type: { in: [...SPENDING_ACCOUNT_TYPES] },
+        OR: [{ currency: null }, { currency: 'USD' }],
+      },
+    },
+    select: {
+      id: true,
+      amountCents: true,
+      isSplitParent: true,
+      splitParentId: true,
+    },
+  });
+  if (!row) {
+    return { ok: false, error: "That transaction isn't on your list, so nothing changed." };
+  }
+  if (row.isSplitParent || row.splitParentId) {
+    return {
+      ok: false,
+      error: "A split's dollars stay on the parts — unsplit it first if you need to change the total.",
+    };
+  }
+
+  const amountCents = flippedTxnAmountCents(row.amountCents);
+  if (amountCents === null) {
+    return {
+      ok: false,
+      error: row.amountCents === 0 ? "There's no amount to flip." : 'That amount is too large.',
+    };
+  }
+
+  await prisma.transaction.update({
+    where: { id: row.id },
+    data: { amountCents },
+  });
+  await auditLog(userId, 'transaction.flipDirection', {
     transactionId: id,
     fromCents: row.amountCents,
     toCents: amountCents,
