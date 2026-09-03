@@ -2400,3 +2400,12 @@ invent an auto-file quality claim.
 **Decision.** Tapping the amount on a transaction opens a dollars field. The write is `Transaction.amountCents` (integer cents), not an overlay. Magnitude comes from what they type; the existing sign stays so an outflow stays an outflow. Date, payee, category, descriptor, merchantId, rules, and account balance stay put. Split parents and split parts refuse (the parts carry the money). Blank, zero, and over-cap refuse. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_change_a_transaction_amount`.
+
+
+## #612 — Household can change a transaction’s date (2026-09-02)
+
+**Context.** #611 shipped an amount write on the transaction detail page. Date was still a printed Field (`formatISODate` long). A bank or CSV row on the wrong day had no write, so the register, reports, and spending plan could not be told when the money actually moved.
+
+**Decision.** Tapping the date on a transaction opens a calendar-date field. The write is `Transaction.date` (YYYY-MM-DD), not an overlay. Amount, payee, category, descriptor, merchantId, rules, and account balance stay put. Blank, malformed, and impossible calendar dates refuse. A transaction always has a date — there is no clear-to-empty. Demo cannot learn. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_change_a_transaction_date`.

@@ -79,6 +79,7 @@ import { provenanceBadgeView } from '@/components/finance/provenance-badge';
 import { SpendClassBadge } from '@/components/finance/spend-class-badge';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
+import { TxnDateControl } from '@/components/finance/txn-date-form';
 import {
   outOfScopeExplanation,
   outOfScopeReason,
@@ -705,7 +706,9 @@ export function TransactionDetailView({
       )}
 
       <div className="rounded-md border px-3">
-        <Field label="Date">{formatISODate(isoDate(row.date), 'long')}</Field>
+        <Field label="Date">
+          <TxnDateControl transactionId={row.id} date={row.date} />
+        </Field>
         <Field label="Account" testid="detail-account">
           {row.accountName}
         </Field>
