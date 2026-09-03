@@ -166,3 +166,21 @@ describe('updateBillAmount — overlay only; name and cadence stay put', () => {
     }
   });
 });
+
+describe('Settings Fixed costs bill amount (DECISIONS #606)', () => {
+  it('test_regression__household_can_change_a_repeating_bill_amount_from_settings_fixed_costs', () => {
+    const card = readFileSync(resolve('src/components/settings/fixed-costs-card.tsx'), 'utf8');
+    expect(card).toContain('BillAmountControl');
+    expect(card).toContain("from '@/components/finance/bill-amount-form'");
+    expect(card).toContain('amountTestId="fixed-costs-basis-amount"');
+    expect(card).toContain('!l.loanPayment &&');
+    expect(card).toContain('canWrite');
+    expect(card).not.toContain('updateBillAmount(');
+    const control = readFileSync(
+      resolve('src/components/finance/bill-amount-form.tsx'),
+      'utf8',
+    );
+    expect(control).toContain('updateBillAmount');
+    expect(control).toContain('amountTestId');
+  });
+});

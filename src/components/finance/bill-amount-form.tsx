@@ -16,9 +16,11 @@ const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreg
 export function BillAmountControl({
   billKey,
   monthlyCents,
+  amountTestId = 'fixed-composition-amount',
 }: {
   billKey: string;
   monthlyCents: number;
+  amountTestId?: string;
 }) {
   const inputId = `bill-amount-${billKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   const [editing, setEditing] = useState(false);
@@ -50,7 +52,7 @@ export function BillAmountControl({
       <button
         type="button"
         className="text-left tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground"
-        data-testid="fixed-composition-amount"
+        data-testid={amountTestId}
         aria-label={`Change amount ${shown}`}
         onClick={() => setEditing(true)}
       >

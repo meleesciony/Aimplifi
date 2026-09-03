@@ -2351,3 +2351,11 @@ invent an auto-file quality claim.
 **Decision.** Tapping the amount on a repeating bill opens a monthly-amount field. The write is a per-user `BillAmount` overlay keyed on the same `billKey` as the name overlay. `scheduledExpenseMonthlyRateCents` prefers the overlay, so the Fixed list and the Fixed figure cannot disagree. Name, cadence, and detection typical charge stay put. Loans refuse. Blank, zero, and over-cap refuse. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_change_a_repeating_bill_amount_on_the_spending_plan`.
+
+## #606 — Household can change a repeating bill’s amount from Settings Fixed costs (2026-09-02)
+
+**Context.** #605 shipped the monthly-amount overlay on the spending plan. Settings Fixed costs printed the same dollars with no write, so a household that lives in Settings could not change the figure that card claims to own.
+
+**Decision.** Settings Fixed costs reuses `BillAmountControl` / `updateBillAmount` (one writer). Recurring bills with a billKey, not a loan, and canWrite get the control. Loans, category lines, reserves, and demo stay display-only. Overlay, integer cents, demo fence, and sign-in unchanged. No CSV. No savings-rate percent.
+
+**Locked.** `test_regression__household_can_change_a_repeating_bill_amount_from_settings_fixed_costs`.

@@ -11,6 +11,7 @@ import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-b
 import { PutBillBackOnPlanButton } from '@/components/finance/put-bill-back-on-plan-button';
 import { HoldingAccountPicker } from '@/components/finance/holding-account-picker';
 import { BillNameControl } from '@/components/finance/rename-bill-form';
+import { BillAmountControl } from '@/components/finance/bill-amount-form';
 
 /**
  * THE FIXED-COSTS SETTINGS CARD (C.23 / DECISIONS #431).
@@ -133,9 +134,20 @@ export function FixedCostsCard({
                     ) : null}
                   </dt>
                   <dd className="flex shrink-0 items-center gap-2">
-                    <span className="tabular-nums" data-testid="fixed-costs-basis-amount">
-                      {formatCents(cents(l.amountCents))}
-                    </span>
+                    {l.kind === 'recurring-bill' &&
+                    l.billKey &&
+                    !l.loanPayment &&
+                    canWrite ? (
+                      <BillAmountControl
+                        billKey={l.billKey}
+                        monthlyCents={l.amountCents}
+                        amountTestId="fixed-costs-basis-amount"
+                      />
+                    ) : (
+                      <span className="tabular-nums" data-testid="fixed-costs-basis-amount">
+                        {formatCents(cents(l.amountCents))}
+                      </span>
+                    )}
                     {l.kind === 'recurring-bill' && l.billKey && !l.loanPayment && canWrite ? (
                       <TakeBillOffPlanButton billKey={l.billKey} billName={l.label} />
                     ) : null}
