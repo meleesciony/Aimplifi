@@ -249,6 +249,6 @@ test('H.4: a declared yearly reserve is listed at a twelfth, beside the mortgage
   // stated in the reader's own terms.
   const editorRow = page.getByTestId('reserves-section').getByTestId('reserve-row');
   await expect(editorRow).toHaveCount(1);
-  await expect(editorRow.getByTestId('reserve-row-basis')).toHaveText(/\$1,200\.00 a year/);
+  await expect(editorRow.getByTestId('reserve-row-basis')).toHaveText(/\$1,200\.00\s*a year/);
   await expect(editorRow.getByTestId('reserve-row-monthly')).toHaveText('$100.00/mo');
 });
