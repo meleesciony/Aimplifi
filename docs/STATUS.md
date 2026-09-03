@@ -39,7 +39,15 @@ Balance still refuses $0. Writer also revalidates `/cards`.
 collect APR / due day on create (statement add remains #634). Linked
 cards still come from Connect.
 
-**Gate.** pending this turn.
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **8,182 passed + 1 expected
+fail + 1 skipped / 536 files + 1 skipped**. E2E cards-add **1/1**,
+connect-affordances **1/1**, cards-statement **1/1** on mobile-380.
+
+**Critic (fresh context): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0, 0 P1.**
+P1-1: amount unlabeled. P1-2: unknown-due named Accounts / a bank
+statement. Residual P2s: empty-state still mentions the plan; household
+add does not say “your” card; `$500`/`1,234` still rejected.
 
 ## ✅ BUILT 2026-08-31 — Tax-advantaged contribution-room Settings rung (DECISIONS #529)
 

@@ -14,9 +14,14 @@ had no add affordance.
 
 **Closed.** Own non-demo Cards mounts `CardAddControl` → existing
 `addManualAccount` with type locked to CREDIT. Demo not mounted.
-Accounts list unchanged.
+Accounts list unchanged. Critic cycle 1 FAIL 2 P1 (unlabeled amount;
+unknown-due named Accounts / a bank statement); cycle 2 PASS.
 
-**Gate.** pending this turn.
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **8,182 passed + 1 expected
+fail + 1 skipped / 536 files + 1 skipped**. E2E cards-add **1/1**,
+connect-affordances **1/1**, cards-statement **1/1** on mobile-380
+(port 3100 free).
 
 **Next.** Wave 0 ops remain owner-blocked.
 
