@@ -2295,3 +2295,11 @@ invent an auto-file quality claim.
 **Decision.** Settings Fixed costs lists bills taken off (BillOffPlan or NOT_BILL) with the same confirmed Put-back control as Spending plan. Reuse PutBillBackOnPlanButton. Do not duplicate putRepeatingBillBackOnPlan. Demo still canWrite-gated. Empty list renders nothing. Overlay only. Transactions stay. No CSV. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_put_a_repeating_bill_back_on_the_plan_from_settings_fixed_costs`.
+
+## #599 — Household can change a savings goal's target without deleting it (2026-09-02)
+
+**Context.** A savings goal on /goals could be created, renamed, or deleted. Changing the target meant delete-and-recreate, so a household that mistyped $10,000 as $1,000 (or whose trip got more expensive) had no write for the dollars. Monthly contribution and target date stay a later leftover.
+
+**Decision.** Tapping the target on a savings goal opens a target field. The write changes only `targetCents`. Name, saved, monthly contribution, and target date stay put. Blank, zero, and unparseable amounts are refused in words. Reserves and debt-free rows cannot change target through this path. Demo cannot learn. Integer cents. No savings-rate percent. No CSV. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_change_a_savings_goal_target_without_deleting_it`.

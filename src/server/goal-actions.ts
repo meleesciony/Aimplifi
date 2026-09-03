@@ -265,3 +265,42 @@ export async function renameGoal(
   return { ok: true };
 }
 
+
+/**
+ * Change a savings goal's target already on /goals. Name, saved,
+ * monthly contribution, and target date stay put. Reserves and
+ * debt-free rows are refused. Demo cannot learn.
+ */
+export async function updateGoalTarget(
+  goalId: string,
+  formData: FormData,
+): Promise<GoalFormResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const id = typeof goalId === 'string' ? goalId.trim() : '';
+  if (!id) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+
+  const target = String(formData.get('target') ?? '').trim();
+  const targetCents = parseDollarInput(target);
+  if (targetCents === null || targetCents <= 0) {
+    return {
+      ok: false,
+      errors: { target: 'Enter an amount above $0 — like 10000 or $10,000.' },
+    };
+  }
+
+  const updated = await prisma.goal.updateMany({
+    where: { id, userId, kind: null },
+    data: { targetCents },
+  });
+  if (updated.count === 0) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+  await auditLog(userId, 'goal.updateTarget', { goalId: id, targetCents });
+  revalidatePath('/goals');
+  revalidatePath('/coach');
+  return { ok: true };
+}

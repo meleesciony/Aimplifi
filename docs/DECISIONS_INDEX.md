@@ -592,3 +592,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #596 — Turn a named no-payee repeating bill into a reserve from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
 - #597 — Take a repeating bill off the plan from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
 - #598 — Put a repeating bill back on the plan from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
+- #599 — Household can change a savings goal's target without deleting it (2026-09-02) → docs/DECISIONS.md

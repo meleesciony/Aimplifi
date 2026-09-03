@@ -13,6 +13,7 @@ import { getCoachData } from '@/server/coach';
 import { loadDebtAccounts } from '@/server/debt';
 import { DeleteGoalButton } from '@/components/finance/delete-goal-button';
 import { GoalNameControl } from '@/components/finance/rename-goal-form';
+import { GoalTargetControl } from '@/components/finance/goal-target-form';
 import { DebtFreedomPlanner } from '@/components/finance/debt-freedom-planner';
 import { GoalForm } from '@/components/finance/goal-form';
 
@@ -170,7 +171,8 @@ export default async function GoalsPage() {
                   <DeleteGoalButton goalId={goal.id} goalName={goal.name} />
                 </div>
                 <CardDescription>
-                  {formatCents(cents(goal.savedCents))} of {formatCents(cents(goal.targetCents))}
+                  {formatCents(cents(goal.savedCents))} of{' '}
+                  <GoalTargetControl goalId={goal.id} targetCents={goal.targetCents} />
                   {goal.monthlyContributionCents
                     ? ` · ${formatCents(cents(goal.monthlyContributionCents))}/mo`
                     : ''}

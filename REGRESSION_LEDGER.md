@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | a savings goal target could not be changed without deleting the goal | Goals had create / rename / delete, no target write | a household can change a savings goal’s target without deleting it | `test_regression__household_can_change_a_savings_goal_target_without_deleting_it` |
 | 2026-09-02 | Settings Fixed costs take-off vanished the undo on that surface | put-back lived only on Spending plan | a household can put a repeating bill back on the plan from Settings Fixed costs | `test_regression__household_can_put_a_repeating_bill_back_on_the_plan_from_settings_fixed_costs` |
 | 2026-09-02 | Settings Fixed costs could not take a repeating bill off the plan | take-off lived only on Spending plan | a household can take a repeating bill off the plan from Settings Fixed costs | `test_regression__household_can_take_a_repeating_bill_off_the_plan_from_settings_fixed_costs` |
 | 2026-09-02 | Settings Fixed costs could not turn a named no-payee bill into a reserve | convert button required merchantCanonical | a household can turn a named repeating bill with no payee into a reserve from Settings Fixed costs | `test_regression__household_can_turn_a_named_no_payee_bill_into_a_reserve_from_settings_fixed_costs` |
