@@ -323,7 +323,7 @@ export default async function SpendingPlanPage() {
                     l.billKey &&
                     !l.loanPayment &&
                     canEditFigures ? (
-                      <BillCadenceControl billKey={l.billKey} cadence={l.cadence} />
+                      <BillCadenceControl billKey={l.billKey} cadence={l.cadence} hasOverlay={Boolean(l.cadenceOverlaid)} />
                     ) : null}
                     {l.basisNote ? (
                       <span className="text-xs" data-testid="fixed-composition-basis">

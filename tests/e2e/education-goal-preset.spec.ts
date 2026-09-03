@@ -57,8 +57,8 @@ test('goals: Education preset fills the name and does not invent dollars', async
   await form.locator('input[name="monthly"]').fill('100');
   await page.getByTestId('goal-create').click();
 
-  const card = page.getByTestId('goals-list').locator('[data-testid^="goal-"]').filter({
-    has: page.getByRole('heading', { name: 'Education', exact: true }),
+  const card = page.getByTestId('goals-list').locator('[data-slot="card"]').filter({
+    has: page.getByRole('button', { name: 'Rename Education' }),
   });
   await expect(card).toBeVisible();
   await expect(card.getByTestId('goal-fi-impact')).toContainText('Funded in ~12 months');

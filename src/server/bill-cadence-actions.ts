@@ -69,3 +69,21 @@ export async function updateBillCadence(
   revalidateBillCadenceSurfaces();
   return { ok: true };
 }
+
+export async function clearBillCadence(billKey: string): Promise<BillCadenceResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const key = typeof billKey === 'string' ? billKey.trim() : '';
+  if (!key || key.length > MAX_BILL_KEY) {
+    return { ok: false, error: 'That rhythm is already what the app detected.' };
+  }
+
+  const deleted = await prisma.billCadence.deleteMany({ where: { userId, billKey: key } });
+  if (deleted.count === 0) {
+    return { ok: false, error: 'That rhythm is already what the app detected.' };
+  }
+  await auditLog(userId, 'bill.clearCadence', { billKey: key });
+  revalidateBillCadenceSurfaces();
+  return { ok: true };
+}

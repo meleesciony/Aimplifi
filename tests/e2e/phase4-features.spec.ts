@@ -40,7 +40,9 @@ test('goals: creating a goal shows its effect on the FI date', async ({ page }) 
   await page.locator('input[name="monthly"]').fill('500');
   await page.getByTestId('goal-create').click();
 
-  const card = page.locator('[data-testid^="goal-"]', { hasText: 'Japan trip' });
+  const card = page.getByTestId('goals-list').locator('[data-slot="card"]').filter({
+    has: page.getByRole('button', { name: 'Rename Japan trip' }),
+  });
   await expect(card).toBeVisible();
   await expect(card.getByTestId('goal-fi-impact')).toContainText('Funded in ~12 months');
   await expect(card.getByTestId('goal-fi-impact')).toContainText(/FI date|No measurable effect/);

@@ -70,10 +70,12 @@ describe('applyBillCadenceOverlays — rhythm, never a name or loan', () => {
       },
       rollupRows: [],
       nameOfCategory,
+      billCadences: new Map([[key, 'QUARTERLY']]),
     });
     expect(overlaid[0]!.cadence).toBe('QUARTERLY');
     expect(overlaid[0]!.amountCents).toBe(-9_000);
     expect(list.lines[0]!.cadence).toBe('QUARTERLY');
+    expect(list.lines[0]!.cadenceOverlaid).toBe(true);
     expect(list.lines[0]!.amountCents).toBe(monthlyRateCents(9_000, 'QUARTERLY'));
     expect(list.lines[0]!.label).toBe('Comcast');
     expect(list.lines[0]!.billKey).toBe(key);
@@ -198,6 +200,72 @@ describe('updateBillCadence — overlay only; detection cadence stays put', () =
       const fd = new FormData();
       fd.set('cadence', 'QUARTERLY');
       const res = await updateBillCadence(KEY, fd);
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe(DEMO_ENTRY_BLOCKED);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe('Settings Fixed costs bill cadence (DECISIONS #609)', () => {
+  it('test_regression__household_can_change_a_repeating_bill_cadence_from_settings_fixed_costs', () => {
+    const card = readFileSync(resolve('src/components/settings/fixed-costs-card.tsx'), 'utf8');
+    expect(card).toContain('BillCadenceControl');
+    expect(card).toContain("from '@/components/finance/bill-cadence-form'");
+    expect(card).toContain('cadenceTestId="fixed-costs-basis-cadence"');
+    expect(card).toContain('!l.loanPayment &&');
+    expect(card).toContain('canWrite');
+    expect(card).not.toContain('updateBillCadence(');
+    const control = readFileSync(
+      resolve('src/components/finance/bill-cadence-form.tsx'),
+      'utf8',
+    );
+    expect(control).toContain('updateBillCadence');
+    expect(control).toContain('cadenceTestId');
+  });
+});
+
+describe('clearBillCadence — overlay gone, detection lists the rhythm again', () => {
+  const CLEAR_USER = `bill-cadence-clear-${Date.now()}-${process.pid}`;
+
+  beforeAll(async () => {
+    await prisma.user.deleteMany({ where: { id: CLEAR_USER } });
+    await prisma.user.create({ data: { id: CLEAR_USER, email: `${CLEAR_USER}@test.local` } });
+  }, 60_000);
+
+  afterAll(async () => {
+    await prisma.billCadence.deleteMany({ where: { userId: CLEAR_USER } });
+    await prisma.user.deleteMany({ where: { id: CLEAR_USER } });
+  });
+
+  it('test_regression__household_can_clear_a_repeating_bill_cadence_back_to_what_the_app_detected', async () => {
+    const { clearBillCadence } = await import('@/server/bill-cadence-actions');
+    const authz = await import('@/server/authz');
+    const spy = vi.spyOn(authz, 'requireUserId').mockResolvedValue(CLEAR_USER);
+    try {
+      await prisma.billCadence.create({
+        data: { userId: CLEAR_USER, billKey: KEY, cadence: 'QUARTERLY' },
+      });
+      const res = await clearBillCadence(KEY);
+      expect(res.ok).toBe(true);
+      expect(await prisma.billCadence.count({ where: { userId: CLEAR_USER, billKey: KEY } })).toBe(0);
+
+      const again = await clearBillCadence(KEY);
+      expect(again.ok).toBe(false);
+      expect(again.error).toMatch(/already what the app detected/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('test_regression__clear_bill_cadence_demo_cannot_learn', async () => {
+    const { clearBillCadence } = await import('@/server/bill-cadence-actions');
+    const { DEMO_ENTRY_BLOCKED } = await import('@/lib/demo-user');
+    const authz = await import('@/server/authz');
+    const spy = vi.spyOn(authz, 'requireUserId').mockResolvedValue('user-demo');
+    try {
+      const res = await clearBillCadence(KEY);
       expect(res.ok).toBe(false);
       expect(res.error).toBe(DEMO_ENTRY_BLOCKED);
     } finally {

@@ -59,6 +59,8 @@ export interface FixedListLine {
   amountCents: number;
   /** True when a BillAmount overlay priced this line (DECISIONS #607). */
   amountOverlaid?: boolean;
+  /** True when a BillCadence overlay set this line's rhythm (DECISIONS #610). */
+  cadenceOverlaid?: boolean;
   kind: FixedLineKind;
   /** MONTHLY-rate lines say so: a quarterly premium is listed at a third of its
    *  charge, and a reader comparing this to a statement must be told that. */
@@ -179,10 +181,13 @@ export function buildFixedList(input: {
   billNames?: ReadonlyMap<string, string>;
   /** Household monthly-rate overlays. Absent/empty = detector amounts. */
   billAmounts?: ReadonlyMap<string, number>;
+  /** Household cadence overlays. Absent/empty = detector cadence. */
+  billCadences?: ReadonlyMap<string, string>;
 }): FixedListResult {
   const { plan } = input;
   const billNames = input.billNames ?? new Map<string, string>();
   const billAmounts = input.billAmounts ?? new Map<string, number>();
+  const billCadences = input.billCadences ?? new Map<string, string>();
   const categoryLines: FixedListLine[] = input.rollupRows.map((r) => ({
     key: `category:${r.categoryId}`,
     label: r.name,
@@ -196,12 +201,14 @@ export function buildFixedList(input: {
   const billLines: FixedListLine[] = plan.fixedLineItems.map((r) => {
     const key = billRenameKey(r);
     const overlay = billAmounts.get(key);
+    const cadenceOverlay = billCadences.get(key);
     return {
       key: `bill:${r.key}`,
       label: labelFor(r, input.nameOfCategory, billNames),
       billKey: key,
       amountCents: r.monthlyRateCents,
       amountOverlaid: typeof overlay === 'number' && overlay > 0,
+      cadenceOverlaid: Boolean(cadenceOverlay),
       kind: 'recurring-bill' as const,
       cadence: r.cadence,
       loanPayment: r.loanPayment,

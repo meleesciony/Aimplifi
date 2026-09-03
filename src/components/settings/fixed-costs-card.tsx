@@ -12,6 +12,7 @@ import { PutBillBackOnPlanButton } from '@/components/finance/put-bill-back-on-p
 import { HoldingAccountPicker } from '@/components/finance/holding-account-picker';
 import { BillNameControl } from '@/components/finance/rename-bill-form';
 import { BillAmountControl } from '@/components/finance/bill-amount-form';
+import { BillCadenceControl } from '@/components/finance/bill-cadence-form';
 
 /**
  * THE FIXED-COSTS SETTINGS CARD (C.23 / DECISIONS #431).
@@ -126,6 +127,17 @@ export function FixedCostsCard({
                       >
                         reserve
                       </span>
+                    ) : null}
+                    {l.kind === 'recurring-bill' &&
+                    l.billKey &&
+                    !l.loanPayment &&
+                    canWrite ? (
+                      <BillCadenceControl
+                        billKey={l.billKey}
+                        cadence={l.cadence}
+                        hasOverlay={Boolean(l.cadenceOverlaid)}
+                        cadenceTestId="fixed-costs-basis-cadence"
+                      />
                     ) : null}
                     {l.basisNote ? (
                       <span className="text-xs" data-testid="fixed-costs-basis-note">

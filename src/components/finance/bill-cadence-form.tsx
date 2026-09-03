@@ -1,12 +1,14 @@
 'use client';
 
 /**
- * Change how often a repeating bill comes around. Name and amount stay
- * put. Same mutation recipe as ReserveCadenceControl.
+ * Change or clear a repeating bill's cadence. Name and amount stay put.
+ * Save still refuses blank. Clear deletes the overlay, not a fake monthly.
+ * Same mutation recipe as BillAmountControl.
  */
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
+  clearBillCadence,
   updateBillCadence,
   type BillCadenceResult,
 } from '@/server/bill-cadence-actions';
@@ -28,13 +30,17 @@ function cadenceWord(cadence: string | null): string {
 export function BillCadenceControl({
   billKey,
   cadence,
+  hasOverlay,
+  cadenceTestId = 'fixed-composition-cadence',
 }: {
   billKey: string;
   cadence: string | null;
+  hasOverlay: boolean;
+  cadenceTestId?: string;
 }) {
   const inputId = `bill-cadence-${billKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
   const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'save' | 'clear' | null>(null);
   const [result, setResult] = useState<BillCadenceResult | null>(null);
   const shown = cadenceWord(cadence);
   const selected: BillCadence = cadence && isBillCadence(cadence) ? cadence : 'MONTHLY';
@@ -42,7 +48,7 @@ export function BillCadenceControl({
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    setBusy(true);
+    setBusy('save');
     try {
       const res = await withDeadline(updateBillCadence(billKey, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
@@ -54,7 +60,24 @@ export function BillCadenceControl({
       window.location.reload();
       return;
     } finally {
-      setBusy(false);
+      setBusy(null);
+    }
+  }
+
+  async function onClear() {
+    setBusy('clear');
+    try {
+      const res = await withDeadline(clearBillCadence(billKey), FORM_ACTION_DEADLINE_MS);
+      setResult(res);
+      if (res.ok) {
+        window.location.reload();
+        return;
+      }
+    } catch {
+      window.location.reload();
+      return;
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -63,7 +86,7 @@ export function BillCadenceControl({
       <button
         type="button"
         className="text-left text-xs underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground"
-        data-testid="fixed-composition-cadence"
+        data-testid={cadenceTestId}
         aria-label={`Change how often ${shown}`}
         onClick={() => setEditing(true)}
       >
@@ -94,14 +117,26 @@ export function BillCadenceControl({
           <option value="SEMIANNUAL">Twice a year</option>
           <option value="ANNUAL">Once a year</option>
         </select>
-        <Button type="submit" size="sm" disabled={busy} data-testid="bill-cadence-save">
-          {busy ? 'Saving…' : 'Save rhythm'}
+        <Button type="submit" size="sm" disabled={busy !== null} data-testid="bill-cadence-save">
+          {busy === 'save' ? 'Saving…' : 'Save rhythm'}
         </Button>
+        {hasOverlay ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={busy !== null}
+            onClick={onClear}
+            data-testid="bill-cadence-clear"
+          >
+            {busy === 'clear' ? 'Clearing…' : 'Clear rhythm'}
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="sm"
           variant="ghost"
-          disabled={busy}
+          disabled={busy !== null}
           onClick={() => setEditing(false)}
         >
           Cancel

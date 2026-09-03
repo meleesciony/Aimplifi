@@ -629,6 +629,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
       nameOfCategory: (id) => categoryName(id, categoryMeta),
       billNames,
       billAmounts,
+      billCadences,
     }),
     // Declarations that could not be counted (C.23/H.4). Surfaced rather than
     // swallowed: a refused reserve is money the reader told us about and the

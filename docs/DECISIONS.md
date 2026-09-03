@@ -2375,3 +2375,19 @@ invent an auto-file quality claim.
 **Decision.** Tapping how often on a repeating bill opens a cadence picker. The write is a per-user `BillCadence` overlay keyed on the same `billKey` as the name overlay. Identity is stamped from detection before the cadence rewrite so unnamed keys (which include cadence) do not drift. `scheduledExpenseMonthlyRateCents` uses the overlaid cadence unless a monthly-amount overlay already wins. Name, typical charge, and detection stay put. Loans refuse. Blank and unknown cadences refuse. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_change_how_often_a_repeating_bill_comes_around`.
+
+## #609 — Household can change a repeating bill’s cadence from Settings Fixed costs (2026-09-02)
+
+**Context.** #608 shipped the cadence overlay on the spending plan. Settings Fixed costs printed the same rhythm with no write, so a household that lives in Settings could not change how often a bill comes around.
+
+**Decision.** Settings Fixed costs reuses `BillCadenceControl` / `updateBillCadence` (one writer). Recurring bills with a billKey, not a loan, and canWrite get the control. Loans, category lines, reserves, and demo stay display-only. Overlay, stamped identity, demo fence, and sign-in unchanged. No CSV. No savings-rate percent.
+
+**Locked.** `test_regression__household_can_change_a_repeating_bill_cadence_from_settings_fixed_costs`.
+
+## #610 — Household can clear a repeating bill’s cadence back to what the app detected (2026-09-02)
+
+**Context.** #608/#609 shipped a cadence overlay on the spending plan and Settings. Save refused blank. A household that no longer wanted the overlay still had no way to return to the detected rhythm.
+
+**Decision.** Tapping Clear rhythm deletes the `BillCadence` row (not a fake monthly). Name, amount, and detection stay put. Save cadence still refuses blank and unknown. A bill with no overlay has nothing to clear. Loans never carry an overlay. Demo cannot learn. Integer cents. No CSV. No savings-rate percent. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_clear_a_repeating_bill_cadence_back_to_what_the_app_detected`.

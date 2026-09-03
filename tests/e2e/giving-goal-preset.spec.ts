@@ -46,8 +46,8 @@ test('goals: Giving preset fills the name and does not invent dollars', async ({
 
   // Scoped to the list: `goal-form` / `goal-preset-giving` / the hint all
   // start with `goal-` and contain the word Giving.
-  const card = page.getByTestId('goals-list').locator('[data-testid^="goal-"]').filter({
-    has: page.getByRole('heading', { name: 'Giving', exact: true }),
+  const card = page.getByTestId('goals-list').locator('[data-slot="card"]').filter({
+    has: page.getByRole('button', { name: 'Rename Giving' }),
   });
   await expect(card).toBeVisible();
   await expect(card.getByTestId('goal-fi-impact')).toContainText('Funded in ~10 months');
