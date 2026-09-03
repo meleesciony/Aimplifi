@@ -258,7 +258,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const scheduledIncome = snap.scheduled
     .filter((s) => s.amountCents > 0 && incomeAccountIds.has(s.accountId))
     .map((s) => ({ amountCents: s.amountCents, cadence: s.cadence }));
-  const [scheduledDetected, offPlanKeys, billsTakenOff] = await Promise.all([
+  const [scheduledDetected, offPlanKeys, billsTakenOff, billNames] = await Promise.all([
     countedExpenseSeriesForPlan(
       userId,
       snap,
@@ -268,6 +268,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     ),
     getBillOffPlanKeys(userId),
     getBillsTakenOffPlan(userId),
+    getBillRenames(userId),
   ]);
   // Overlay only: drop unnamed (or any keyed) bills taken off the plan so the
   // Fixed list AND the Fixed figure lose those cents. One filter, one loader.
@@ -571,6 +572,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     // the figure, and the union is what the fixed list still renders.)
     planFixedBasis: plan.fixedBasis,
     reserves: reserveDeclarations,
+    billNames,
   });
 
   return {
@@ -615,7 +617,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
       plan,
       rollupRows: categoryFixed.rows,
       nameOfCategory: (id) => categoryName(id, categoryMeta),
-      billNames: await getBillRenames(userId),
+      billNames,
     }),
     // Declarations that could not be counted (C.23/H.4). Surfaced rather than
     // swallowed: a refused reserve is money the reader told us about and the

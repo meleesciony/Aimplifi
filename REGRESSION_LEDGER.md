@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-02 | a named repeating bill with no payee on Spending plan could not become a reserve | convert required merchantCanonical / NOT_BILL | a household can turn a named repeating bill with no payee into a reserve from the spending plan | `test_regression__household_can_turn_a_named_no_payee_bill_into_a_reserve_from_the_spending_plan` |
 | 2026-09-02 | a repeating bill on Spending plan could not be turned into a reserve | convert lived only on Settings Fixed costs | a household can turn a repeating bill into a reserve from the spending plan | `test_regression__household_can_turn_a_repeating_bill_into_a_reserve_from_the_spending_plan` |
 | 2026-09-02 | taking a repeating bill off the spending plan vanished the row and the undo | take-off stored NOT_BILL or BillOffPlan with no Spending-plan undo | a household can put a repeating bill back on the spending plan | `test_regression__household_can_put_a_repeating_bill_back_on_the_spending_plan` |
 | 2026-09-02 | unnamed repeating bill on Spending plan could not be taken off | take-off required merchantCanonical / NOT_BILL | a household can take an unnamed repeating bill off the spending plan | `test_regression__household_can_take_an_unnamed_repeating_bill_off_the_spending_plan` |

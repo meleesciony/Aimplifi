@@ -335,9 +335,9 @@ export default async function SpendingPlanPage() {
                     {canEditFigures &&
                     l.kind === 'recurring-bill' &&
                     (() => {
-                      const convertBill = p.fixedSetup.bills.find((b) => b.merchantCanonical === l.billKey);
-                      return convertBill?.convertibleToReserve && convertBill.merchantCanonical ? (
-                        <ConvertToReserveButton merchantCanonical={convertBill.merchantCanonical} />
+                      const convertBill = p.fixedSetup.bills.find((b) => b.billKey === l.billKey);
+                      return convertBill?.convertibleToReserve && convertBill.convertInput ? (
+                        <ConvertToReserveButton merchantCanonical={convertBill.billKey} />
                       ) : null;
                     })()}
                   </dd>

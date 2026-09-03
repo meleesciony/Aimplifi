@@ -2263,3 +2263,11 @@ invent an auto-file quality claim.
 **Decision.** A household can turn a repeating bill into a reserve from the spending plan. On Spending plan Fixed composition, a convertible repeating bill (`convertibleToReserve && merchantCanonical`) shows ConvertToReserveButton with that canonical, only when `canEditFigures`. Loan payments and unnamed (no canonical) stay unoffered. Reuse the existing button. Do not duplicate createReserveFromSeries. No CSV. Integer cents. Sign-in stays /sign-in.
 
 **Locked.** `test_regression__household_can_turn_a_repeating_bill_into_a_reserve_from_the_spending_plan`.
+
+## #595 — Turn a named no-payee repeating bill into a reserve from the spending plan (2026-09-02)
+
+**Context.** Convert looks up `p.fixedSetup.bills.find(b => b.merchantCanonical === l.billKey)`. Unnamed bills have billKey `unnamed:${category}:${cadence}`. Engine `convertibleToReserve` was false without a canonical. `createReserveFromSeries` keyed on merchantCanonical and wrote RecurringOverride NOT_BILL, which detection cannot match for unnamed keys. The household can already name that bill (BillRename overlay). After naming, convert still no-oped.
+
+**Decision.** Overlay only. Offer convert only when the household has given the unnamed bill a name (BillRename). Qualifying cadence still QUARTERLY/SEMIANNUAL/ANNUAL, not loan, monthlyRate > 0, inBasis (or discretionary out) — same as payee convert. Unnamed convert writes BillOffPlan on that billKey (so excludeOffPlanBills drops it) plus a Goal reserve with `Goal.merchantCanonical = billKey`. It does NOT write RecurringOverride NOT_BILL. deleteReserve: if merchantCanonical starts with `unnamed:`, delete BillOffPlan for that billKey; do not require an override row. Payee convert undo unchanged (NOT_BILL withdrawal). Exact swap: bill leaves Fixed list AND figure; a reserve at the same monthly rate enters. Pair undo is the whole pair. Spending plan looks up convert by `b.billKey === l.billKey`. Settings card stays merchantCanonical-only. Demo fenced. Integer cents. No CSV. Sign-in stays /sign-in.
+
+**Locked.** `test_regression__household_can_turn_a_named_no_payee_bill_into_a_reserve_from_the_spending_plan`.

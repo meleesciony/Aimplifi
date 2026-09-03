@@ -3,9 +3,9 @@
 /**
  * THE CONVERT LEVER (C.23 / DECISIONS #431) — "make this repeating expense a
  * reserve". The row already carries the series' whole cost and rhythm, so the
- * button sends only the canonical: the server re-derives the verdict from the
+ * button sends only the convert identity (payee canonical, or unnamed billKey). The server re-derives the verdict from the
  * SAME `getSpendingPlan` output the card rendered (never a client-asserted
- * state) and commits the reserve + the NOT_BILL demotion together.
+ * state) and commits the reserve + the pair overlay (NOT_BILL for a payee, BillOffPlan for unnamed).
  *
  * Same mutation recipe as `ReserveForm` (#164/#166, `mutation-form-recipe`):
  * own busy flag, deadline-bounded await, full reload on success — the reloaded
@@ -18,7 +18,7 @@ import { createReserveFromSeries } from '@/server/reserve-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 
-export function ConvertToReserveButton({ merchantCanonical }: { merchantCanonical: string }) {
+export function ConvertToReserveButton({ merchantCanonical }: { /** Convert identity: payee merchantCanonical, or unnamed billKey. */ merchantCanonical: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

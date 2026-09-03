@@ -81,6 +81,7 @@ import {
   recurringPlanExpenseRows,
   type PlanScheduledItem,
 } from '@/lib/engine/spending-plan/plan';
+import { billRenameKey } from '@/lib/engine/spending-plan/bill-rename';
 
 /**
  * The rhythms a detected bill may be turned into a reserve on.
@@ -110,6 +111,8 @@ export interface SetupBillProposal {
   /** The union's OWN row key (`canonical#index`), so the proposal can be
    *  cross-referenced against the very line it stands beside. Never shown. */
   key: string;
+  /** Overlay / convert identity (`billRenameKey`). Payee bills equal merchantCanonical; unnamed bills are `unnamed:${category}:${cadence}`. */
+  billKey: string;
   merchantCanonical: string | null;
   categoryId: string | null;
   cadence: string | null;
@@ -127,7 +130,7 @@ export interface SetupBillProposal {
   /** Whether the "turn this into a monthly reserve" lever is offered. */
   convertibleToReserve: boolean;
   /** What the lever would declare — the prefill, derived from the series. null
-   *  when not convertible. The NAME is the canonical; the action re-validates
+   *  when not convertible. The NAME is the overlay (unnamed) or the canonical; the action re-validates
    *  it against the reserve form's own limits before writing. */
   convertInput: { name: string; trueCostCents: number; cadence: ReserveCadence } | null;
 }
@@ -162,6 +165,8 @@ export interface FixedSetupInput {
   /** The reader's stored reserve declarations (unvalidated — validation is
    *  `resolveReserves`' job, exactly as in the plan). */
   reserves?: readonly ReserveDeclaration[];
+  /** Household BillRename overlays. An unnamed bill is convertible only with a non-empty overlay — a reserve needs a name they recognize. */
+  billNames?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -234,24 +239,33 @@ export function proposeFixedSetup(input: FixedSetupInput): FixedSetupProposal {
     }
 
     // The lever needs something to NAME: a series with no canonical cannot
-    // become a reserve (the reserve form requires a name the reader recognizes),
-    // so it is not offered even when the cadence qualifies. And it is offered
-    // only where the swap is EXACT: in the basis (the union row is the whole
-    // contribution, −rate + rate = 0) or genuinely out (no rollup mass, so the
-    // demote changes nothing — +rate). A covered series would double-count.
+    // become a reserve unless the household typed a BillRename overlay (the
+    // reserve form requires a name they recognize — never "A recurring bill we
+    // detected" or the category). And it is offered only where the swap is
+    // EXACT: in the basis (the union row is the whole contribution, −rate +
+    // rate = 0) or genuinely out (no rollup mass, so the demote changes
+    // nothing — +rate). A covered series would double-count.
     // A monthly share that rounds to $0 (critic P2-2) is a DEAD lever: a
     // $0.00/mo reserve counts nothing and the write refuses it as "less than a
     // cent a month" — a button that renders and then refuses is a lie in the
     // other direction, so the loader never offers it.
+    const billKey = billRenameKey({
+      merchantCanonical: s.merchantCanonical,
+      categoryId: id,
+      cadence: s.cadence,
+    });
+    const overlay = input.billNames?.get(billKey)?.trim() ?? '';
+    const canonicalName = typeof s.merchantCanonical === 'string' ? s.merchantCanonical.trim() : '';
+    const hasName = canonicalName !== '' || overlay !== '';
     const convertible =
       convertibleReserveCadence(s.cadence) &&
       s.loanPayment !== true &&
-      typeof s.merchantCanonical === 'string' &&
-      s.merchantCanonical !== '' &&
+      hasName &&
       monthlyRateCentsValue > 0 &&
       (inBasis || refusedReason === 'discretionary');
     bills.push({
       key,
+      billKey,
       // The union's contract types an absent canonical as `undefined`; the
       // proposal normalizes to null so "no payee" is one value for consumers.
       merchantCanonical: s.merchantCanonical ?? null,
@@ -265,7 +279,7 @@ export function proposeFixedSetup(input: FixedSetupInput): FixedSetupProposal {
       convertibleToReserve: convertible,
       convertInput: convertible
         ? {
-            name: s.merchantCanonical ?? '',
+            name: overlay || canonicalName,
             trueCostCents: typicalAmountCents,
             cadence: s.cadence as ReserveCadence,
           }

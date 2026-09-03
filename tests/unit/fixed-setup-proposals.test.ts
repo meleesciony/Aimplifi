@@ -31,6 +31,7 @@ import {
   RESERVE_CONVERTIBLE_CADENCES,
   type FixedSetupInput,
 } from '@/lib/engine/spending-plan/setup-proposals';
+import { billRenameKey } from '@/lib/engine/spending-plan/bill-rename';
 import {
   recurringOutsideFixedCategoryRows,
   monthlyRateCents,
@@ -318,5 +319,48 @@ describe('the last-resort basis — the inBasis oracle switches with the plan\'s
     expect(b.inBasis).toBe(false);
     expect(b.refusedReason).toBe('discretionary');
     expect(b.convertibleToReserve).toBe(true);
+  });
+});
+
+describe('named unnamed bills can convert to a reserve (DECISIONS #595)', () => {
+  it('unnamed QUARTERLY/ANNUAL in-basis series without overlay is not convertible', () => {
+    for (const cadence of ['QUARTERLY', 'ANNUAL'] as const) {
+      const { bills } = proposeFixedSetup({
+        items: [item({ amountCents: -60_000, cadence, categoryId: 'insurance' })],
+        categoryIsFixed: categoryIsFixed(['insurance']),
+      });
+      expect(bills).toHaveLength(1);
+      expect(bills[0]!.merchantCanonical).toBe(null);
+      expect(bills[0]!.inBasis).toBe(true);
+      expect(bills[0]!.convertibleToReserve).toBe(false);
+      expect(bills[0]!.convertInput).toBeNull();
+      expect(bills[0]!.billKey).toBe(
+        billRenameKey({ merchantCanonical: null, categoryId: 'insurance', cadence }),
+      );
+      expect(bills[0]!.billKey.startsWith('unnamed:')).toBe(true);
+    }
+  });
+
+  it('with a BillRename overlay the unnamed series is convertible and the overlay is the name', () => {
+    const cadence = 'ANNUAL';
+    const billKey = billRenameKey({
+      merchantCanonical: null,
+      categoryId: 'insurance',
+      cadence,
+    });
+    const { bills } = proposeFixedSetup({
+      items: [item({ amountCents: -60_000, cadence, categoryId: 'insurance' })],
+      categoryIsFixed: categoryIsFixed(['insurance']),
+      billNames: new Map([[billKey, 'HOA dues']]),
+    });
+    expect(bills[0]!.convertibleToReserve).toBe(true);
+    expect(bills[0]!.billKey).toBe(billKey);
+    expect(bills[0]!.billKey).toBe('unnamed:insurance:ANNUAL');
+    expect(bills[0]!.merchantCanonical).toBe(null);
+    expect(bills[0]!.convertInput).toEqual({
+      name: 'HOA dues',
+      trueCostCents: 60_000,
+      cadence: 'ANNUAL',
+    });
   });
 });

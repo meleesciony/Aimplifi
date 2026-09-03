@@ -316,6 +316,12 @@ export async function deleteReserve(goalId: string): Promise<void> {
     });
     if (goal === null) return null;
     if (goal.merchantCanonical !== null) {
+      if (goal.merchantCanonical.startsWith('unnamed:')) {
+        // Unnamed convert pair: BillOffPlan is the overlay, not NOT_BILL.
+        await tx.billOffPlan.deleteMany({
+          where: { userId, billKey: goal.merchantCanonical },
+        });
+      } else {
       const allOverrides = await tx.recurringOverride.findMany({
         where: { userId },
         select: { merchantCanonical: true },
@@ -327,6 +333,7 @@ export async function deleteReserve(goalId: string): Promise<void> {
         await tx.recurringOverride.deleteMany({
           where: { userId, merchantCanonical: { in: toRemove } },
         });
+      }
       }
     }
     await tx.goal.deleteMany({ where: { id: goalId, userId, kind: RESERVE_KIND } });
@@ -475,7 +482,9 @@ export async function createReserveFromSeries(
   }
 
   const plan = await getSpendingPlan(userId);
-  const proposal = plan.fixedSetup.bills.find((b) => b.merchantCanonical === canonical);
+  const proposal = plan.fixedSetup.bills.find(
+    (b) => b.merchantCanonical === canonical || b.billKey === canonical,
+  );
   if (
     proposal === undefined ||
     proposal.convertibleToReserve !== true ||
@@ -488,6 +497,8 @@ export async function createReserveFromSeries(
     return { ok: false, error: RESERVE_SERIES_NOT_CONVERTIBLE };
   }
   const { name, trueCostCents, cadence } = proposal.convertInput;
+  const payeeCanonical = (proposal.merchantCanonical ?? '').trim();
+  const convertLink = payeeCanonical || proposal.billKey;
   if (
     name.length > MAX_RESERVE_NAME ||
     trueCostCents <= 0 ||
@@ -526,7 +537,7 @@ export async function createReserveFromSeries(
     // convert unreachable (the NOT_BILL kills both proposals); this closes the
     // CONCURRENT race inside the same tx as the other check-then-acts.
     const sameCanonical = await tx.goal.findFirst({
-      where: { userId, kind: RESERVE_KIND, merchantCanonical: canonical },
+      where: { userId, kind: RESERVE_KIND, merchantCanonical: convertLink },
       select: { id: true },
     });
     if (sameCanonical) return { ok: false, error: RESERVE_SERIES_ALREADY_RESERVED };
@@ -545,9 +556,10 @@ export async function createReserveFromSeries(
         // Critic P1-1/P1-2: the convert link. The rollup excludes this
         // canonical (the reserve is the money's only count) and deleteReserve
         // uses it to withdraw the paired override (the undo is the WHOLE pair).
-        merchantCanonical: canonical,
+        merchantCanonical: convertLink,
       },
     });
+    if (payeeCanonical) {
     // The demotion, written the same shape `setRecurringOverride` stores (same
     // key, same columns) — a NOT_BILL instruction has no cadence by definition.
     //
@@ -578,11 +590,20 @@ export async function createReserveFromSeries(
       create: { userId, merchantCanonical: canonical, decision: 'NOT_BILL', cadence: null },
       update: { decision: 'NOT_BILL', cadence: null },
     });
+    } else {
+      // Unnamed billKey: detection never matches RecurringOverride on unnamed:
+      // keys. BillOffPlan is the overlay excludeOffPlanBills already honors.
+      await tx.billOffPlan.upsert({
+        where: { userId_billKey: { userId, billKey: convertLink } },
+        create: { userId, billKey: convertLink },
+        update: {},
+      });
+    }
     return { ok: true };
   });
 
   if (!written.ok) return written;
-  await auditLog(userId, 'reserve.createFromSeries', { merchantCanonical: canonical, name, cadence });
+  await auditLog(userId, 'reserve.createFromSeries', { merchantCanonical: convertLink, name, cadence });
   // The demotion also moves /recurring — every other surface the write moves
   // is covered by revalidateReserveSurfaces (incl. /settings, C.23).
   revalidateReserveSurfaces();

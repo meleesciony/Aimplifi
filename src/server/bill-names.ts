@@ -73,7 +73,9 @@ export async function getBillsTakenOffPlan(userId: string): Promise<BillTakenOff
   const keys = new Set<string>();
   for (const r of offRows) {
     const k = r.billKey.trim();
-    if (k) keys.add(k);
+    if (!k) continue;
+    if (linked.has(overrideKey(k))) continue;
+    keys.add(k);
   }
   for (const r of notBillRows) {
     const k = r.merchantCanonical.trim();
