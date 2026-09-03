@@ -72,24 +72,30 @@ export function CardAddControl({
       data-testid="cards-add-form"
     >
       <p className="text-sm font-medium">Add a card</p>
-      <input
-        type="text"
-        name="name"
-        placeholder="e.g. Travel card"
-        data-testid="cards-add-name"
-        className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-      />
-      <div className="flex items-center gap-1">
-        <span className="text-sm text-muted-foreground">$</span>
+      <label className="space-y-1 block">
+        <span className="text-xs text-muted-foreground">Card name</span>
         <input
           type="text"
-          name="value"
-          inputMode="decimal"
-          placeholder="0.00"
-          data-testid="cards-add-value"
-          className="w-28 rounded-md border bg-background px-2 py-1.5 text-sm"
+          name="name"
+          placeholder="e.g. Travel card"
+          data-testid="cards-add-name"
+          className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
         />
-      </div>
+      </label>
+      <label className="space-y-1 block">
+        <span className="text-xs text-muted-foreground">Current balance owed</span>
+        <div className="flex items-center gap-1">
+          <span className="text-sm text-muted-foreground">$</span>
+          <input
+            type="text"
+            name="value"
+            inputMode="decimal"
+            placeholder="500.00"
+            data-testid="cards-add-value"
+            className="w-28 rounded-md border bg-background px-2 py-1.5 text-sm"
+          />
+        </div>
+      </label>
       <div className="flex gap-2">
         <button
           type="submit"

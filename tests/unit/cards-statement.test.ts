@@ -24,7 +24,10 @@ describe('Cards page reuses setManualCardStatement', () => {
     expect(unknownStart).toBeGreaterThan(-1);
     const unknownBlock = breakdown.slice(unknownStart);
     expect(unknownBlock).toContain('CardStatementControl');
-    expect(unknownBlock).toContain('href="/accounts"');
+    expect(unknownBlock).toContain('take a statement on this');
+    expect(unknownBlock).not.toContain('href="/accounts"');
+    expect(unknownBlock).not.toContain('from Accounts');
+    expect(unknownBlock).not.toContain("The bank hasn’t sent");
 
     const datedStart = breakdown.indexOf('ordered.map((card)');
     expect(datedStart).toBeGreaterThan(-1);

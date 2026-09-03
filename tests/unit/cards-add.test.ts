@@ -24,6 +24,11 @@ describe('Cards page reuses addManualAccount', () => {
     expect(control).toContain('data-testid="cards-add-save"');
     expect(control).toContain('tap-target');
     expect(control).toContain('aria-label="Add a credit card"');
+    expect(control).toContain('<label className="space-y-1 block">');
+    expect(control).toContain('Card name');
+    expect(control).toContain('Current balance owed');
+    expect(control).toContain('placeholder="500.00"');
+    expect(control).not.toContain('placeholder="0.00"');
     expect(control).not.toContain('manual-type');
     expect(control).not.toContain('MANUAL_LIABILITY_TYPES');
     expect(control).not.toContain('select');
@@ -59,6 +64,15 @@ describe('Cards page reuses addManualAccount', () => {
     expect(accounts).toContain('addManualAccount');
     expect(accounts).toContain('data-testid="add-liability-btn"');
     expect(accounts).toContain('data-testid="manual-add-form"');
+
+    const breakdown = readFileSync(resolve('src/components/finance/cards-breakdown.tsx'), 'utf8');
+    const unknownStart = breakdown.indexOf('cards-unknown-due');
+    expect(unknownStart).toBeGreaterThan(-1);
+    const unknownBlock = breakdown.slice(unknownStart);
+    expect(unknownBlock).toContain('take a statement on this');
+    expect(unknownBlock).not.toContain('href="/accounts"');
+    expect(unknownBlock).not.toContain('from Accounts');
+    expect(unknownBlock).not.toContain("The bank hasn’t sent");
 
     const types = readFileSync(resolve('src/lib/engine/cash-needed/types.ts'), 'utf8');
     expect(types).not.toContain('canAddCard');

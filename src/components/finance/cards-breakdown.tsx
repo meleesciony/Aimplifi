@@ -555,13 +555,9 @@ export function CardsBreakdown({
                     MANUALLY added cards, so it is unfollowable for the connected ones
                     this panel mostly holds (cycle-2 critic P1-1). */}
                 <p className="mt-1 text-xs text-muted-foreground">
-                  The bank hasn’t sent a statement for these, so they aren’t counted in
-                  any figure above. They’ll appear as soon as one arrives. A card you
-                  added by hand can carry a statement you enter yourself, from{' '}
-                  <Link href="/accounts" className="underline hover:text-foreground">
-                    Accounts
-                  </Link>
-                  .
+                  These cards have a balance but no due date, so they aren’t counted in
+                  any figure above. A card you added by hand can take a statement on this
+                  row. A linked card appears when the bank sends one.
                 </p>
                 <ul className="mt-2 space-y-0.5 text-xs">
                   {result.unknownDueDateCards.map((c) => {
@@ -583,8 +579,8 @@ export function CardsBreakdown({
                             BALANCE — the panel says these cards are in no total, so the claim is
                             not about an amount due but about the number printed on this line. It
                             gets `frozenQuotedBalanceNote`, not the card note, for that reason. The
-                            route is already named in this panel's own paragraph above, so the
-                            sentence points at nothing and does not repeat it. */}
+                            panel no longer names Accounts as the writer, so the sentence
+                            points at nothing and does not invent a route. */}
                         {c.frozenSince != null && (
                           <span
                             className="text-warning-500"

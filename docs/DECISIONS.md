@@ -2622,6 +2622,6 @@ invent an auto-file quality claim.
 
 **Context.** Add-card already exists on Accounts (`addManualAccount`, CREDIT is a liability type). Cards empty state sent “Add a card manually” to `/accounts`, and a populated Cards page had no add affordance, so a household standing on Cards could not add the card they were about to plan.
 
-**Decision.** Reuse `addManualAccount`. New `CardAddControl` on Cards empty and on the populated page. Type locked to CREDIT — no type picker. Demo not mounted. Partner cards are not created here (the write is the viewer’s own row). Balance still refuses $0 (existing parser). Engine types unchanged. Accounts list unchanged. No heading tweak. No CSV. Sign-in stays /sign-in. `addManualAccount` also revalidates `/cards`.
+**Decision.** Reuse `addManualAccount`. New `CardAddControl` on Cards empty and on the populated page. Type locked to CREDIT — no type picker. Demo not mounted. Partner cards are not created here (the write is the viewer’s own row). Balance still refuses $0 (existing parser). Name and amount are labelled; the amount is “Current balance owed”. The “No due date yet” body no longer names Accounts or claims a bank will send a statement for a hand-added card — a hand-added card takes a statement on this row; a linked card waits for the bank. Engine types unchanged. Accounts list unchanged. No heading tweak. No CSV. Sign-in stays /sign-in. `addManualAccount` also revalidates `/cards`.
 
 **Locked.** `test_regression__household_can_add_a_card_from_the_cards_page_without_opening_accounts`.
