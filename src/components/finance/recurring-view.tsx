@@ -26,6 +26,7 @@ import {
 } from '@/components/finance/recurring-verdict-controls';
 import { BillNameControl } from '@/components/finance/rename-bill-form';
 import { BillAmountControl } from '@/components/finance/bill-amount-form';
+import { BillCadenceControl } from '@/components/finance/bill-cadence-form';
 import { billRenameKey, namedBillLabel } from '@/lib/engine/spending-plan/bill-rename';
 
 const CADENCE_SUFFIX: Record<Cadence, string> = {
@@ -44,6 +45,7 @@ function Row({
   categoryNames,
   billNames,
   billAmounts,
+  billCadences,
   canRenameBills,
 }: {
   item: RecurringItem;
@@ -51,6 +53,7 @@ function Row({
   categoryNames: Record<string, string>;
   billNames: ReadonlyMap<string, string>;
   billAmounts: ReadonlyMap<string, number>;
+  billCadences: ReadonlyMap<string, string>;
   canRenameBills: boolean;
 }) {
   const mag = Math.abs(item.lastAmountCents);
@@ -63,6 +66,9 @@ function Row({
   const amountOverlay = billAmounts.get(billKey);
   const amountOverlaid = typeof amountOverlay === 'number' && amountOverlay > 0;
   const monthlyCents = amountOverlaid ? amountOverlay! : item.monthlyEquivalentCents;
+  const cadenceOverlay = billCadences.get(billKey)?.trim() || null;
+  const cadenceOverlaid = Boolean(cadenceOverlay);
+  const displayCadence = cadenceOverlaid ? cadenceOverlay : item.cadence;
   // Color by whether the change helps the user: a rising bill is bad (rose), but a
   // rising paycheck is good (emerald). Pure helper so this is unit-locked (REC-2).
   const change = priceChangeBadge(item);
@@ -173,14 +179,22 @@ function Row({
         <div className="shrink-0 text-right">
           <div className="tabular-nums">
             {canRenameBills && !item.isIncome ? (
-              <span className="inline-flex items-baseline gap-1 font-medium">
-                <BillAmountControl
+              <span className="inline-flex flex-col items-end gap-0.5 font-medium">
+                <span className="inline-flex items-baseline gap-1">
+                  <BillAmountControl
+                    billKey={billKey}
+                    monthlyCents={monthlyCents}
+                    hasOverlay={amountOverlaid}
+                    amountTestId="recurring-bill-amount"
+                  />
+                  <span className="text-xs font-normal text-muted-foreground">/mo</span>
+                </span>
+                <BillCadenceControl
                   billKey={billKey}
-                  monthlyCents={monthlyCents}
-                  hasOverlay={amountOverlaid}
-                  amountTestId="recurring-bill-amount"
+                  cadence={displayCadence}
+                  hasOverlay={cadenceOverlaid}
+                  cadenceTestId="recurring-bill-cadence"
                 />
-                <span className="text-xs font-normal text-muted-foreground">/mo</span>
               </span>
             ) : (
               <>
@@ -236,6 +250,7 @@ function Section({
   categoryNames,
   billNames,
   billAmounts,
+  billCadences,
   canRenameBills,
   testid,
   muted,
@@ -247,6 +262,7 @@ function Section({
   categoryNames: Record<string, string>;
   billNames: ReadonlyMap<string, string>;
   billAmounts: ReadonlyMap<string, number>;
+  billCadences: ReadonlyMap<string, string>;
   canRenameBills: boolean;
   testid?: string;
   muted?: boolean;
@@ -271,6 +287,7 @@ function Section({
             categoryNames={categoryNames}
             billNames={billNames}
             billAmounts={billAmounts}
+            billCadences={billCadences}
             canRenameBills={canRenameBills}
           />
         ))}
@@ -300,6 +317,7 @@ export function RecurringView({
   const s = data.summary;
   const billNames = new Map(Object.entries(data.billNames ?? {}));
   const billAmounts = new Map(Object.entries(data.billAmounts ?? {}));
+  const billCadences = new Map(Object.entries(data.billCadences ?? {}));
   const paidThisCycleByMerchant = new Set(
     s.items.filter((i) => i.paidThisCycle).map((i) => i.merchantCanonical),
   );
@@ -456,6 +474,7 @@ export function RecurringView({
             categoryNames={data.categoryNames}
             billNames={billNames}
             billAmounts={billAmounts}
+            billCadences={billCadences}
             canRenameBills={canRenameBills}
             testid="recurring-list"
           />
@@ -467,6 +486,7 @@ export function RecurringView({
             categoryNames={data.categoryNames}
             billNames={billNames}
             billAmounts={billAmounts}
+            billCadences={billCadences}
             canRenameBills={canRenameBills}
           />
           <Section
@@ -477,6 +497,7 @@ export function RecurringView({
             categoryNames={data.categoryNames}
             billNames={billNames}
             billAmounts={billAmounts}
+            billCadences={billCadences}
             canRenameBills={canRenameBills}
           />
           <Section
@@ -487,6 +508,7 @@ export function RecurringView({
             categoryNames={data.categoryNames}
             billNames={billNames}
             billAmounts={billAmounts}
+            billCadences={billCadences}
             canRenameBills={canRenameBills}
             muted
           />

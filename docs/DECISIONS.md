@@ -2805,3 +2805,8 @@ invent an auto-file quality claim.
 **Decision.** Load BillAmount overlays in getRecurring. Mount BillAmountControl on Recurring expense rows when canRenameBills (shows monthly rate; income keeps charge + cadence text). Widen updateBillAmount ownership to Fixed list OR live expense Recurring series; loans still refused when on the Fixed list. Same BillAmount overlay. Revalidate /recurring. Demo fenced. Integer cents. No CSV.
 **Locked.** `test_regression__household_can_change_a_recurring_monthly_amount_without_leaving_for_spending_plan`.
 
+## #671 — Household can change a Recurring cadence without leaving for Spending plan (2026-09-06)
+**Context.** updateBillCadence lived on Spending plan Fixed rows and refused keys not on the Fixed list. Recurring gained monthly amount (#670) but still printed static cadence text for household rows.
+**Decision.** Load BillCadence overlays in getRecurring. Mount BillCadenceControl on Recurring expense rows when canRenameBills. Widen updateBillCadence ownership to Fixed list OR live expense Recurring series; loans still refused when on the Fixed list. Same BillCadence overlay. Revalidate /recurring. Demo fenced. No CSV.
+**Locked.** `test_regression__household_can_change_a_recurring_cadence_without_leaving_for_spending_plan`.
+

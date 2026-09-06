@@ -14,6 +14,7 @@ import {
   billRenameKey,
 } from '@/lib/engine/spending-plan/bill-rename';
 import { getSpendingPlan } from '@/server/spending-plan';
+import { getRecurring } from '@/server/recurring';
 
 export interface BillCadenceResult {
   ok: boolean;
@@ -23,9 +24,32 @@ export interface BillCadenceResult {
 
 function revalidateBillCadenceSurfaces(): void {
   revalidatePath('/spending-plan');
+  revalidatePath('/recurring');
   revalidatePath('/settings');
   revalidatePath('/budgets');
   revalidatePath('/dashboard');
+}
+
+async function householdOwnsBillCadenceKey(
+  userId: string,
+  key: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const plan = await getSpendingPlan(userId);
+  const line = plan.fixedList.lines.find(
+    (l) => l.kind === 'recurring-bill' && l.billKey === key,
+  );
+  if (line) {
+    if (line.loanPayment) {
+      return { ok: false, error: 'A loan payment stays at the cadence the plan lists.' };
+    }
+    if (plan.fixedLineItems.some((r) => billRenameKey(r) === key)) {
+      return { ok: true };
+    }
+  }
+  const recurring = await getRecurring(userId);
+  const item = recurring.summary.items.find((i) => billRenameKey(i) === key);
+  if (item && !item.isIncome) return { ok: true };
+  return { ok: false, error: "That bill isn't on your plan, so nothing changed." };
 }
 
 export async function updateBillCadence(
@@ -45,20 +69,8 @@ export async function updateBillCadence(
   if (cadenceErr) return { ok: false, errors: { cadence: cadenceErr } };
   const cadence = raw.trim();
 
-  const plan = await getSpendingPlan(userId);
-  const line = plan.fixedList.lines.find(
-    (l) => l.kind === 'recurring-bill' && l.billKey === key,
-  );
-  if (!line) {
-    return { ok: false, error: "That bill isn't on your plan, so nothing changed." };
-  }
-  if (line.loanPayment) {
-    return { ok: false, error: 'A loan payment stays at the cadence the plan lists.' };
-  }
-  const row = plan.fixedLineItems.find((r) => billRenameKey(r) === key);
-  if (!row) {
-    return { ok: false, error: "That bill isn't on your plan, so nothing changed." };
-  }
+  const owned = await householdOwnsBillCadenceKey(userId, key);
+  if (!owned.ok) return { ok: false, error: owned.error };
 
   await prisma.billCadence.upsert({
     where: { userId_billKey: { userId, billKey: key } },
