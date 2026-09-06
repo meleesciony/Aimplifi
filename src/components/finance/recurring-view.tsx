@@ -321,6 +321,8 @@ export function RecurringView({
   const paidThisCycleByMerchant = new Set(
     s.items.filter((i) => i.paidThisCycle).map((i) => i.merchantCanonical),
   );
+  /** Coming up amount/cadence reuse the series monthly figure (Spending plan overlays). */
+  const seriesByMerchant = new Map(s.items.map((i) => [i.merchantCanonical, i]));
   const hasAny = s.items.length > 0;
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
@@ -405,7 +407,21 @@ export function RecurringView({
             ))}
           </div>
           <ul className="divide-y border-t" data-testid="coming-up-list">
-            {renewalsWithin(data.renewals.occurrences, 30).map((o) => (
+            {renewalsWithin(data.renewals.occurrences, 30).map((o) => {
+                const series = seriesByMerchant.get(o.merchantCanonical);
+                const comingUpBillKey = billRenameKey(o);
+                const comingUpAmountOverlay = billAmounts.get(comingUpBillKey);
+                const comingUpAmountOverlaid =
+                  typeof comingUpAmountOverlay === 'number' && comingUpAmountOverlay > 0;
+                const comingUpMonthlyCents = comingUpAmountOverlaid
+                  ? comingUpAmountOverlay!
+                  : (series?.monthlyEquivalentCents ?? o.amountCents);
+                const comingUpCadenceOverlay = billCadences.get(comingUpBillKey)?.trim() || null;
+                const comingUpCadenceOverlaid = Boolean(comingUpCadenceOverlay);
+                const comingUpDisplayCadence = comingUpCadenceOverlaid
+                  ? comingUpCadenceOverlay
+                  : (series?.cadence ?? o.cadence);
+                return (
                 <li
                   key={`${o.date}:${o.merchantCanonical}:${o.accountId}`}
                   data-testid="coming-up-row"
@@ -450,7 +466,29 @@ export function RecurringView({
                     )}
                   </div>
                   <div className="shrink-0 text-right">
-                    <span className="font-medium tabular-nums">{formatCents(cents(o.amountCents))}</span>
+                    {canRenameBills ? (
+                      <span className="inline-flex flex-col items-end gap-0.5 font-medium">
+                        <span className="inline-flex items-baseline gap-1">
+                          <BillAmountControl
+                            billKey={comingUpBillKey}
+                            monthlyCents={comingUpMonthlyCents}
+                            hasOverlay={comingUpAmountOverlaid}
+                            amountTestId="coming-up-bill-amount"
+                          />
+                          <span className="text-xs font-normal text-muted-foreground">/mo</span>
+                        </span>
+                        <BillCadenceControl
+                          billKey={comingUpBillKey}
+                          cadence={comingUpDisplayCadence}
+                          hasOverlay={comingUpCadenceOverlaid}
+                          cadenceTestId="coming-up-bill-cadence"
+                        />
+                      </span>
+                    ) : (
+                      <span className="font-medium tabular-nums">
+                        {formatCents(cents(o.amountCents))}
+                      </span>
+                    )}
                     <div className="text-xs text-muted-foreground">
                       {o.daysOut === 0 ? 'expected today' : <>~ {formatISODate(isoDate(o.date))}</>}
                     </div>
@@ -475,7 +513,8 @@ export function RecurringView({
                     ) : null}
                   </div>
                 </li>
-              ))}
+                );
+              })}
           </ul>
           <p className="px-4 pb-3 pt-2 text-xs text-muted-foreground">
             Expected from each one&apos;s usual timing and most recent amount — estimates, not

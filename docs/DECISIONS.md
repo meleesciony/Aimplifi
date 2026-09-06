@@ -2845,3 +2845,8 @@ invent an auto-file quality claim.
 **Decision.** Keep BillNameControl for the name. When `merchantCanonical` is present, add a sibling Filter link (`merchantRegisterHref`, `data-testid="fixed-costs-basis-merchant-filter"`). Unnamed / no-merchant lines stay without Filter. Demo still shows the plain label. No new writer.
 **Locked.** `test_regression__household_can_rename_a_fixed_bill_and_still_open_merchant_filter`.
 
+## #679 — Household can change Coming up amount and cadence without leaving for Spending plan (2026-09-06)
+**Context.** BillAmountControl and BillCadenceControl lived on Spending plan Fixed and Recurring series rows (#670/#671). Coming up printed the expected charge as static text, so changing the plan monthly rate or cadence from the next-charge list required leaving.
+**Decision.** Mount BillAmountControl and BillCadenceControl on Coming up rows when canRenameBills. Prefer BillAmount / BillCadence overlays, else the matching series monthlyEquivalentCents and cadence. Same writers and ownership as #670/#671. Demo keeps the expected charge as text. Integer cents. No CSV.
+**Locked.** `test_regression__household_can_change_coming_up_amount_and_cadence_without_leaving_for_spending_plan`.
+
