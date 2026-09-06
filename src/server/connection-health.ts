@@ -73,7 +73,7 @@ export async function getConnectionAlerts(userId: string): Promise<ConnectionAle
     }),
     prisma.plaidItem.findMany({
       where: { userId },
-      select: { id: true, institution: true, lastSyncAttemptAt: true, lastSyncError: true },
+      select: { itemId: true, institution: true, lastSyncAttemptAt: true, lastSyncError: true },
     }),
   ]);
 
@@ -89,7 +89,8 @@ export async function getConnectionAlerts(userId: string): Promise<ConnectionAle
   }
   for (const item of plaidItems) {
     inputs.push({
-      connectionId: item.id,
+      // Plaid Link update-mode and syncPlaidNow key on the Plaid item id, not the DB row id.
+      connectionId: item.itemId,
       provider: 'Plaid',
       institution: item.institution,
       lastSyncAttemptAt: item.lastSyncAttemptAt ? isoDate(item.lastSyncAttemptAt) : null,

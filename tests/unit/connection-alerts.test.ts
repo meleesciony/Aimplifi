@@ -53,7 +53,7 @@ describe('getConnectionAlerts — persisted failure → reconnect alert', () => 
     expect(alerts).toHaveLength(1);
     expect(alerts[0].provider).toBe('SimpleFIN');
     expect(alerts[0].daysSinceAttempt).toBe(2); // 2026-06-08 → 2026-06-10
-    expect(alerts[0].message).toMatch(/Reconnect it on the Accounts page/);
+    expect(alerts[0].message).toMatch(/Reconnect it so your numbers stay current/);
     expect(alerts[0].message).not.toContain('auth'); // reason text never surfaced
   });
 

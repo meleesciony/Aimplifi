@@ -405,7 +405,7 @@ describe('selectConnectionAlerts — one alert per broken connection, determinis
     );
     expect(alerts).toHaveLength(1);
     expect(alerts[0].message).not.toContain('a-secret-url-token');
-    expect(alerts[0].message).toMatch(/Reconnect it on the Accounts page/);
+    expect(alerts[0].message).toMatch(/Reconnect it so your numbers stay current/);
   });
 });
 
@@ -413,7 +413,7 @@ describe('connectionAlertMessage — guardrail-safe copy', () => {
   const base = { connectionId: 'c', provider: 'SimpleFIN', institution: null, state: 'broken' as const };
   it('names the institution when known', () => {
     expect(connectionAlertMessage({ ...base, provider: 'Plaid', institution: 'Chase', daysSinceAttempt: 2 })).toBe(
-      "Your Chase (Plaid) connection couldn't sync for 2 days. Reconnect it on the Accounts page so your numbers stay current.",
+      "Your Chase (Plaid) connection couldn't sync for 2 days. Reconnect it so your numbers stay current.",
     );
   });
   it('today / yesterday phrasing without an institution', () => {

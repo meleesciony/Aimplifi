@@ -2860,3 +2860,8 @@ invent an auto-file quality claim.
 **Decision.** Load ManualCardBilling for manual credits on /cards. Expand CardStatementControl to Edit/Clear when hasStatement (same setManualCardStatement / clearManualCardStatement writers). Mount on dated manual card rows when canRenameCard and not a partner card. Demo fenced. Integer cents. No CSV.
 **Locked.** `test_regression__household_can_edit_a_card_statement_without_leaving_for_accounts`.
 
+## #682 — Household can reconnect a broken Plaid feed from the dashboard (2026-09-06)
+**Context.** ConnectionAlertsCard told the household to reconnect on Accounts. PlaidUpdateButton (update-mode Link) lived only on Accounts, so a broken Plaid feed on the dashboard required leaving.
+**Decision.** Mount PlaidUpdateButton on each Plaid alert row (connectionId is the Plaid item id). SimpleFIN keeps “Reconnect on Accounts” (setup-token flow). Soften alert copy to “Reconnect it so your numbers stay current.” Demo has no linked feeds. No CSV.
+**Locked.** `test_regression__household_can_reconnect_a_broken_plaid_feed_from_the_dashboard`.
+

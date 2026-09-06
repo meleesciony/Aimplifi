@@ -338,5 +338,5 @@ export function connectionAlertMessage(h: ConnectionHealthResult): string {
         : h.daysSinceAttempt === 1
           ? ' since yesterday'
           : ` for ${h.daysSinceAttempt} days`;
-  return `Your ${who} connection couldn't sync${when}. Reconnect it on the Accounts page so your numbers stay current.`;
+  return `Your ${who} connection couldn't sync${when}. Reconnect it so your numbers stay current.`;
 }
