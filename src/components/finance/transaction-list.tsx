@@ -54,6 +54,7 @@ import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { TxnActionMenuItems } from '@/components/finance/txn-action-menu';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import {
   PROVENANCE_BADGE_TESTID,
@@ -1341,9 +1342,18 @@ export function TransactionList({
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <div className={`tabular-nums ${amountClass(t)}`}>
-                        {formatCents(cents(t.amountCents), { signDisplay: 'always' })}
-                      </div>
+                      {canEditSpendClass && !t.splitParentId ? (
+                        <TxnAmountControl
+                          transactionId={t.id}
+                          amountCents={t.amountCents}
+                          triggerTestId="activity-amount"
+                          idleClassName={`shrink-0 tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${amountClass(t)}`}
+                        />
+                      ) : (
+                        <div className={`tabular-nums ${amountClass(t)}`}>
+                          {formatCents(cents(t.amountCents), { signDisplay: 'always' })}
+                        </div>
+                      )}
                       {/* O.15 — the one action menu: the row's complete verb list.
                           Same content module the detail view renders, so the two
                           surfaces can never disagree about what a row can do. */}

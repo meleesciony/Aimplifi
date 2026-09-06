@@ -2688,3 +2688,8 @@ invent an auto-file quality claim.
 **Decision.** Plumb taxClass through ReviewRow/group rows. Reuse TxnTaxClassControl compact when canRenamePayee on single-txn statement block and singles rows. Multi-txn groups stay without a tax control. Writes tax only (note untouched). Demo fenced. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_set_a_tax_tag_on_an_inbox_charge_without_opening_detail`.
 
+## #648 — Household can change an Activity charge amount without opening detail (2026-09-06)
+**Context.** Amount write lived on detail, Home, and Inbox. Activity printed formatCents as static text on each register row.
+**Decision.** Reuse TxnAmountControl when canEditSpendClass and the row is not a split piece. Split pieces stay text (server refuses). Demo fenced. Integer cents. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_change_an_activity_charge_amount_without_opening_detail`.
+

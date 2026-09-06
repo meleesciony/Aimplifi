@@ -62,6 +62,7 @@ vi.mock('@/server/transaction-flags-actions', () => ({
   setReimbursement: vi.fn(),
 }));
 vi.mock('@/server/triage-actions', () => ({ recategorize: vi.fn() }));
+vi.mock('@/server/transaction-amount-actions', () => ({ updateTransactionAmount: vi.fn() }));
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { TransactionFilters, transactionsHref } from '@/components/finance/transaction-filters';
