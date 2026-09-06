@@ -2850,3 +2850,8 @@ invent an auto-file quality claim.
 **Decision.** Mount BillAmountControl and BillCadenceControl on Coming up rows when canRenameBills. Prefer BillAmount / BillCadence overlays, else the matching series monthlyEquivalentCents and cadence. Same writers and ownership as #670/#671. Demo keeps the expected charge as text. Integer cents. No CSV.
 **Locked.** `test_regression__household_can_change_coming_up_amount_and_cadence_without_leaving_for_spending_plan`.
 
+## #680 — Household can edit reserves on Settings Fixed without leaving for Spending plan (2026-09-06)
+**Context.** Reserve name / cost / cadence / delete lived on the Spending plan reserves section. Settings Fixed showed only the monthly figure and the add form, so changing an existing reserve (or removing a refused one) required leaving for Spending plan.
+**Decision.** Mount ReserveNameControl, ReserveCostControl, ReserveCadenceControl, and DeleteReserveButton on Settings Fixed for `reserveLines` when `canWrite` (paired-to-bill stays display-only on cost/cadence). Mount DeleteReserveButton on refused rows here too. Same writers as Spending plan. Demo stays display-only. Integer cents. No CSV. No savings-rate percent.
+**Locked.** `test_regression__household_can_edit_reserves_on_settings_fixed_without_leaving_for_spending_plan`.
+

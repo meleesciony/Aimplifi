@@ -673,3 +673,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #677 — Detail payee rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md
 - #678 — Fixed bill rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md
 - #679 — Household can change Coming up amount and cadence without leaving for Spending plan (2026-09-06) → docs/DECISIONS.md
+- #680 — Household can edit reserves on Settings Fixed without leaving for Spending plan (2026-09-06) → docs/DECISIONS.md

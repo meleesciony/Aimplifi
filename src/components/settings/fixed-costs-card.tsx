@@ -7,6 +7,10 @@ import { RESERVE_CADENCE_WORDS } from '@/lib/engine/spending-plan/reserves';
 import { holdingAccountClause, type SetupBillProposal } from '@/lib/engine/spending-plan/setup-proposals';
 import type { SpendingPlanWithNotes } from '@/server/spending-plan';
 import { ReserveForm } from '@/components/finance/reserve-form';
+import { ReserveNameControl } from '@/components/finance/rename-reserve-form';
+import { ReserveCostControl } from '@/components/finance/reserve-cost-form';
+import { ReserveCadenceControl } from '@/components/finance/reserve-cadence-form';
+import { DeleteReserveButton } from '@/components/finance/delete-reserve-button';
 import { ConvertToReserveButton } from '@/components/finance/convert-to-reserve-button';
 import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-button';
 import { PutBillBackOnPlanButton } from '@/components/finance/put-bill-back-on-plan-button';
@@ -76,7 +80,7 @@ export function FixedCostsCard({
   /** Demo fence — the shared demo account must not learn from writes. */
   canWrite: boolean;
 }) {
-  const { fixedList, fixedSetup, billsTakenOff } = plan;
+  const { fixedList, fixedSetup, billsTakenOff, reserveLines } = plan;
   return (
     <Card data-testid="fixed-costs-card">
       <CardHeader className="pb-2">
@@ -292,6 +296,47 @@ export function FixedCostsCard({
             service. Tell us the whole cost and how often it comes around; we divide it and count
             the monthly share as a fixed cost.
           </p>
+          {reserveLines.length > 0 ? (
+            <dl className="mb-3 divide-y text-sm" data-testid="reserves-setup-list">
+              {reserveLines.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between gap-3 py-2"
+                  data-testid="reserve-setup-row"
+                >
+                  <dt className="min-w-0 text-muted-foreground">
+                    {canWrite ? (
+                      <ReserveNameControl reserveId={r.id} name={r.name} />
+                    ) : (
+                      <span>{r.name}</span>
+                    )}
+                    {r.pairedToBill ? (
+                      <span className="mt-0.5 block text-xs" data-testid="reserve-setup-row-basis">
+                        {formatCents(cents(r.trueCostCents))} {RESERVE_CADENCE_WORDS[r.cadence]}
+                      </span>
+                    ) : canWrite ? (
+                      <span className="mt-0.5 flex flex-wrap items-baseline gap-x-1 text-xs" data-testid="reserve-setup-row-basis">
+                        <ReserveCostControl reserveId={r.id} trueCostCents={r.trueCostCents} />
+                        <ReserveCadenceControl reserveId={r.id} cadence={r.cadence} />
+                      </span>
+                    ) : (
+                      <span className="mt-0.5 block text-xs" data-testid="reserve-setup-row-basis">
+                        {formatCents(cents(r.trueCostCents))} {RESERVE_CADENCE_WORDS[r.cadence]}
+                      </span>
+                    )}
+                  </dt>
+                  <dd className="flex shrink-0 items-center gap-2">
+                    <span className="tabular-nums" data-testid="reserve-setup-row-monthly">
+                      {formatCents(cents(r.monthlyCents))}/mo
+                    </span>
+                    {canWrite ? (
+                      <DeleteReserveButton reserveId={r.id} reserveName={r.name} />
+                    ) : null}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
           {fixedSetup.reserveMonthlyCents > 0 ? (
             <p className="text-sm" data-testid="reserves-monthly-figure">
               Move{' '}
@@ -309,9 +354,8 @@ export function FixedCostsCard({
           {/* Critic P2-5: a refused declaration is money the reader told us
               about and the figure is now spending as though it were free — the
               plan page's own disclosure rule, mirrored here with the same
-              headline so this surface and that one state one thing. The remove
-              control lives on the plan page (the link above); the card names
-              the state and the remedy, never invents a verdict. */}
+              headline so this surface and that one state one thing. Remove is
+              on each refused row here too, so the reader is not sent away. */}
           {plan.refusedReserves.length > 0 ? (
             <div className="mt-3" data-testid="reserves-refused-card">
               <p className="text-xs text-red-500">
@@ -336,6 +380,11 @@ export function FixedCostsCard({
                             : "the amount saved isn't a usable figure"}
                       </span>
                     </dt>
+                    {canWrite ? (
+                      <dd className="shrink-0">
+                        <DeleteReserveButton reserveId={r.id} reserveName={r.name} />
+                      </dd>
+                    ) : null}
                   </div>
                 ))}
               </dl>
