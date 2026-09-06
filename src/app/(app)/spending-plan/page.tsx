@@ -28,7 +28,7 @@ import { BillNameControl } from '@/components/finance/rename-bill-form';
 import { BillAmountControl } from '@/components/finance/bill-amount-form';
 import { BillCadenceControl } from '@/components/finance/bill-cadence-form';
 import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-button';
-import { PaidThisCycleButton } from '@/components/finance/recurring-verdict-controls';
+import { NotABillButton, PaidThisCycleButton } from '@/components/finance/recurring-verdict-controls';
 import { ConvertToReserveButton } from '@/components/finance/convert-to-reserve-button';
 import { PutBillBackOnPlanButton } from '@/components/finance/put-bill-back-on-plan-button';
 
@@ -357,6 +357,12 @@ export default async function SpendingPlanPage() {
                       ) : (
                         <PaidThisCycleButton merchantCanonical={l.merchantCanonical} />
                       )
+                    ) : null}
+                    {l.kind === 'recurring-bill' &&
+                    l.merchantCanonical &&
+                    !l.loanPayment &&
+                    canEditFigures ? (
+                      <NotABillButton merchantCanonical={l.merchantCanonical} triggerTestId="fixed-composition-not-a-bill" />
                     ) : null}
                     {l.kind === 'recurring-bill' &&
                     l.billKey &&

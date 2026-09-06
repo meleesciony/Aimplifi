@@ -2815,3 +2815,8 @@ invent an auto-file quality claim.
 **Decision.** Mount BillNameControl on Coming up expense rows when canRenameBills. Keep a sibling Filter link to the merchant register. Same renameBill / clearBillName writers. Demo keeps the name as the Filter link. No CSV.
 **Locked.** `test_regression__household_can_rename_a_recurring_coming_up_display_name_without_a_dead_end`.
 
+## #673 — Household can mark Not a bill from the Spending plan Fixed list (2026-09-06)
+**Context.** markMerchantNotABill lived on Recurring series rows. Spending plan Fixed had Take off plan (BillOffPlan) and Paid this cycle, but no detection verdict — a false detection required leaving for Recurring.
+**Decision.** Mount NotABillButton on Fixed bill lines when canEditFigures, named payee, not a loan. Same markMerchantNotABill writer (NOT_BILL override). Distinct from TakeBillOffPlan. Unnamed bills stay without the lever. Demo fenced. No CSV.
+**Locked.** `test_regression__household_can_mark_not_a_bill_from_spending_plan_fixed_list`.
+

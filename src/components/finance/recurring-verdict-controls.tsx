@@ -87,7 +87,14 @@ function useVerdictRunner() {
  * INCOME series too, and a paycheck the detector got wrong is not a bill by any
  * reading — the button has to be true of every row it renders on.
  */
-export function NotABillButton({ merchantCanonical }: { merchantCanonical: string }) {
+export function NotABillButton({
+  merchantCanonical,
+  triggerTestId = 'recurring-not-a-bill',
+}: {
+  merchantCanonical: string;
+  /** Optional test id — Spending plan Fixed uses fixed-composition-not-a-bill. */
+  triggerTestId?: string;
+}) {
   const { busy, error, run } = useVerdictRunner();
   return (
     <div className="text-right">
@@ -95,7 +102,7 @@ export function NotABillButton({ merchantCanonical }: { merchantCanonical: strin
         size="sm"
         variant="ghost"
         disabled={busy}
-        data-testid="recurring-not-a-bill"
+        data-testid={triggerTestId}
         data-merchant={merchantCanonical}
         // The merchant is in the ACCESSIBLE name, not only in a data attribute:
         // a screen reader otherwise hears "Not recurring" a dozen times with
