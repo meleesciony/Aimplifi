@@ -29,12 +29,15 @@ const OPTIONS: { value: EmployerMatch; label: string }[] = [
 export function EmployerMatchForm({
   current,
   canWrite = true,
+  reloadOnSuccess = false,
 }: {
   /** Stored column; null = never written = unknown. */
   current: string | null;
   /** False on the shared demo: one visitor's status would re-rank Coach
    *  for the next (same shape as RichLifeForm's canWrite). */
   canWrite?: boolean;
+  /** Coach mounts beside the investing ladder — reload so the rung re-derives. */
+  reloadOnSuccess?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<EmployerMatchResult | null>(null);
@@ -48,6 +51,10 @@ export function EmployerMatchForm({
     try {
       const res = await withDeadline(updateEmployerMatch(null, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
+      if (res.ok && reloadOnSuccess) {
+        window.location.reload();
+        return;
+      }
     } catch {
       window.location.reload();
       return;
@@ -77,7 +84,7 @@ export function EmployerMatchForm({
               </legend>
               <p className="text-xs text-muted-foreground" id="employer-match-hint">
                 This is a rung on the next-dollar order, not a percentage compared to a
-                loan. Contribution room is a separate Settings card.
+                loan. Contribution room is a separate dial (Coach or Settings).
               </p>
               {OPTIONS.map((opt) => (
                 <label

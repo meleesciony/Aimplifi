@@ -2880,3 +2880,8 @@ invent an auto-file quality claim.
 **Decision.** Mount Make it your default on the what-if when canWrite and dirty. Same User.retirementAge / endAge / inflationBps dials via saveRetirementWhatIfDefaults (demo fenced; currentAge unchanged). Clean-state link points at /coach#coach-money-dials for other dials. Integer ages/bps. No CSV. No savings-rate percent.
 **Locked.** `test_regression__household_can_save_retirement_whatif_as_default_without_leaving_for_settings`.
 
+## #686 — Household can set employer match and tax room from Coach without leaving for Settings (2026-09-06)
+**Context.** Investing ladder and next-dollar on Coach read employerMatch and taxAdvantagedRoom. Those writers lived only on Settings, so changing a rung from Coach required leaving — while money dials already mount on Coach (#683).
+**Decision.** Mount EmployerMatchForm and TaxAdvantagedRoomForm on /coach after InvestingLadderCard (`#coach-employer-match`, `#coach-tax-advantaged-room`) with the same writers. `reloadOnSuccess` so ladder/next-dollar re-derive. Demo fenced via canWrite. Settings forms unchanged. No CSV. No savings-rate percent.
+**Locked.** `test_regression__household_can_set_employer_match_and_tax_room_from_coach_without_leaving_for_settings`.
+

@@ -43,6 +43,8 @@ import { getValueReceiptsSummary, recordReceipts } from '@/server/receipts';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { isDemoUser } from '@/lib/demo-user';
 import { MoneyDialsForm } from '@/components/settings/money-dials-form';
+import { EmployerMatchForm } from '@/components/settings/employer-match-form';
+import { TaxAdvantagedRoomForm } from '@/components/settings/tax-advantaged-room-form';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
 import { loadDialCatalog, resolvedMoneyDialIds } from '@/server/money-dials';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
@@ -76,6 +78,8 @@ export default async function CoachPage() {
         endAge: true,
         inflationBps: true,
         savingsTargetBps: true,
+        employerMatch: true,
+        taxAdvantagedRoom: true,
       },
     }),
     prisma.account.findMany({
@@ -239,6 +243,12 @@ export default async function CoachPage() {
           nextStep: 'accounts-route',
         })}
       />
+      <div id="coach-employer-match" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-employer-match">
+        <EmployerMatchForm current={dialUser.employerMatch} canWrite={canWriteDials} reloadOnSuccess />
+      </div>
+      <div id="coach-tax-advantaged-room" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-tax-advantaged-room">
+        <TaxAdvantagedRoomForm current={dialUser.taxAdvantagedRoom} canWrite={canWriteDials} reloadOnSuccess />
+      </div>
 
       {/* Wealth target — the reader states a number ("$10M") and a horizon; the card answers
           both directions (when the current pace arrives, what a chosen date requires) in

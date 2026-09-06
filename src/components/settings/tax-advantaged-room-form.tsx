@@ -29,12 +29,15 @@ const OPTIONS: { value: TaxAdvantagedRoom; label: string }[] = [
 export function TaxAdvantagedRoomForm({
   current,
   canWrite = true,
+  reloadOnSuccess = false,
 }: {
   /** Stored column; null = never written = unknown. */
   current: string | null;
   /** False on the shared demo: one visitor's status would re-rank Coach
    *  for the next (same shape as EmployerMatchForm's canWrite). */
   canWrite?: boolean;
+  /** Coach mounts beside the investing ladder — reload so next-dollar re-derives. */
+  reloadOnSuccess?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<TaxAdvantagedRoomResult | null>(null);
@@ -49,6 +52,10 @@ export function TaxAdvantagedRoomForm({
     try {
       const res = await withDeadline(updateTaxAdvantagedRoom(null, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
+      if (res.ok && reloadOnSuccess) {
+        window.location.reload();
+        return;
+      }
     } catch {
       window.location.reload();
       return;
