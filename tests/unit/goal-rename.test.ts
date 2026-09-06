@@ -109,11 +109,12 @@ describe('renameGoal — the write is a name, never a money figure', () => {
       expect(reserveRow.name).toBe('Home repair');
       expect(reserveRow.targetCents).toBe(120_000);
 
-      const blockedDebt = await renameGoal(debt.id, fd);
-      expect(blockedDebt.ok).toBe(false);
+      const debtRename = await renameGoal(debt.id, fd);
+      expect(debtRename.ok).toBe(true);
       const debtRow = await prisma.goal.findUniqueOrThrow({ where: { id: debt.id } });
-      expect(debtRow.name).toBe('Debt-free by 2027-06');
+      expect(debtRow.name).toBe('Italy trip');
       expect(debtRow.targetCents).toBe(1_000_000);
+      expect(debtRow.kind).toBe('debt_free');
     } finally {
       spy.mockRestore();
     }

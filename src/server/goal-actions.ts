@@ -230,10 +230,9 @@ export async function deleteGoal(goalId: string): Promise<void> {
 }
 
 /**
- * Rename a savings goal already on /goals. Dollars stay put — target,
- * saved, monthly contribution, and target date are untouched. Reserves
- * and debt-free rows are refused (those are not savings goals).
- * Demo cannot learn.
+ * Rename a goal already on /goals (savings or debt-free). Dollars stay put —
+ * target, saved, monthly contribution, and target date are untouched.
+ * Reserves are refused. Demo cannot learn.
  */
 export async function renameGoal(
   goalId: string,
@@ -253,7 +252,7 @@ export async function renameGoal(
   }
 
   const updated = await prisma.goal.updateMany({
-    where: { id, userId, kind: null },
+    where: { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }] },
     data: { name },
   });
   if (updated.count === 0) {

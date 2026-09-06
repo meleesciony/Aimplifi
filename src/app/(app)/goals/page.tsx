@@ -136,7 +136,9 @@ export default async function GoalsPage() {
               <Card key={goal.id} data-testid={`goal-${goal.id}`}>
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{goal.name}</CardTitle>
+                    <CardTitle className="text-base">
+                      <GoalNameControl goalId={goal.id} name={goal.name} />
+                    </CardTitle>
                     <DeleteGoalButton goalId={goal.id} goalName={goal.name} />
                   </div>
                   <CardDescription>

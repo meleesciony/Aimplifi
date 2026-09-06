@@ -646,3 +646,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #650 — Household can flip an Activity charge in or out without opening detail (2026-09-06) → docs/DECISIONS.md
 - #651 — Household can change which account an Activity charge belongs to without opening detail (2026-09-06) → docs/DECISIONS.md
 - #652 — Household can change the bank text on an Activity charge without opening detail (2026-09-06) → docs/DECISIONS.md
+- #653 — Household can rename a debt-free goal without opening a separate flow (2026-09-06) → docs/DECISIONS.md

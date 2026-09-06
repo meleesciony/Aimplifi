@@ -2713,3 +2713,8 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnDescriptorControl compact ("Bank text") on the register row when canEditSpendClass. Rematch already in the action. Demo fenced. Payee rename stays the merchant overlay path; this is rawDescriptor. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_change_the_bank_text_on_an_activity_charge_without_opening_detail`.
 
+## #653 — Household can rename a debt-free goal without opening a separate flow (2026-09-06)
+**Context.** Savings goals used GoalNameControl + renameGoal. Debt-free cards printed the name as text, and renameGoal refused any non-null kind.
+**Decision.** Allow renameGoal for debt_free (same OR as delete — reserves still refused). Mount GoalNameControl on the debt-free card title. Dollars stay put. Demo fenced. Not target/date/monthly for debt_free (those writers stay savings-only until a later slice). No CSV. No savings-rate percent.
+**Locked.** `test_regression__household_can_rename_a_debt_free_goal_without_opening_a_separate_flow`.
+
