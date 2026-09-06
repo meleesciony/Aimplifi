@@ -40,6 +40,7 @@ import { formatISODate, formatRelativeDays, isoDate } from '@/lib/dates';
 import { formatCents, type Cents } from '@/lib/money';
 import { AccountNameControl } from '@/components/finance/account-name-form';
 import { CardStatementControl } from '@/components/finance/card-statement-control';
+import type { ManualCardBilling } from '@/server/transactions';
 
 /**
  * The minimum-path interest sentence (audit P2). Names the set the estimate covers —
@@ -84,6 +85,7 @@ export function CardsBreakdown({
   canRenameCard = false,
   cardRenameById,
   canAddStatementById,
+  cardBilling,
 }: {
   payInFull: CashNeededResult;
   minimum: CashNeededResult;
@@ -108,6 +110,8 @@ export function CardsBreakdown({
   cardRenameById?: Record<string, { feedName: string; hasOverlay: boolean }>;
   /** Own manual CREDIT cards only. Linked / demo / partner stay without a writer. */
   canAddStatementById?: Record<string, boolean>;
+  /** Manual-card billing for Edit/Clear on dated Cards rows. */
+  cardBilling?: Record<string, ManualCardBilling>;
 }) {
   const [scenario, setScenario] = useState<'PAY_IN_FULL' | 'MINIMUM'>('PAY_IN_FULL');
   const result = scenario === 'PAY_IN_FULL' ? payInFull : minimum;
@@ -536,6 +540,15 @@ export function CardsBreakdown({
                         )}
                       </p>
                     )}
+                    {canRenameCard &&
+                    canAddStatementById?.[card.cardId] &&
+                    !owner &&
+                    card.isManual ? (
+                      <CardStatementControl
+                        accountId={card.cardId}
+                        billing={cardBilling?.[card.cardId]}
+                      />
+                    ) : null}
                   </CardContent>
                 </Card>
                 );
@@ -594,7 +607,10 @@ export function CardsBreakdown({
                           </span>
                         )}
                         {canRenameCard && canAddStatementById?.[c.cardId] && !owner ? (
-                          <CardStatementControl accountId={c.cardId} />
+                          <CardStatementControl
+                            accountId={c.cardId}
+                            billing={cardBilling?.[c.cardId]}
+                          />
                         ) : null}
                       </li>
                     );

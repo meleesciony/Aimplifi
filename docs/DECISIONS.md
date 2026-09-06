@@ -2855,3 +2855,8 @@ invent an auto-file quality claim.
 **Decision.** Mount ReserveNameControl, ReserveCostControl, ReserveCadenceControl, and DeleteReserveButton on Settings Fixed for `reserveLines` when `canWrite` (paired-to-bill stays display-only on cost/cadence). Mount DeleteReserveButton on refused rows here too. Same writers as Spending plan. Demo stays display-only. Integer cents. No CSV. No savings-rate percent.
 **Locked.** `test_regression__household_can_edit_reserves_on_settings_fixed_without_leaving_for_spending_plan`.
 
+## #681 — Household can edit a card statement without leaving for Accounts (2026-09-06)
+**Context.** Cards mounted Add statement on “No due date yet” rows. Edit and Clear lived only on Accounts. A dated manual card on /cards had no way to change balance, due date, or minimum without leaving.
+**Decision.** Load ManualCardBilling for manual credits on /cards. Expand CardStatementControl to Edit/Clear when hasStatement (same setManualCardStatement / clearManualCardStatement writers). Mount on dated manual card rows when canRenameCard and not a partner card. Demo fenced. Integer cents. No CSV.
+**Locked.** `test_regression__household_can_edit_a_card_statement_without_leaving_for_accounts`.
+

@@ -5,7 +5,7 @@
  * CREDIT only). Cards “No due date yet” named Accounts as the place to enter
  * one, so a household standing on Cards could not attach a statement they
  * were looking at. Same writer — no second action. Demo / linked / partner
- * stay without a writer. Dated cards unchanged.
+ * stay without a writer. Dated manual cards gained Edit/Clear in #681.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -18,7 +18,8 @@ describe('Cards page reuses setManualCardStatement', () => {
     expect(breakdown).toContain("from '@/components/finance/card-statement-control'");
     expect(breakdown).toContain('canAddStatementById');
     expect(breakdown).toContain('canRenameCard && canAddStatementById?.[c.cardId] && !owner');
-    expect(breakdown).toContain('<CardStatementControl accountId={c.cardId} />');
+    expect(breakdown).toContain('<CardStatementControl');
+    expect(breakdown).toContain('accountId={c.cardId}');
 
     const unknownStart = breakdown.indexOf('cards-unknown-due');
     expect(unknownStart).toBeGreaterThan(-1);
@@ -33,7 +34,9 @@ describe('Cards page reuses setManualCardStatement', () => {
     expect(datedStart).toBeGreaterThan(-1);
     const datedEnd = breakdown.indexOf('cards-unknown-due', datedStart);
     const datedBlock = breakdown.slice(datedStart, datedEnd);
-    expect(datedBlock).not.toContain('CardStatementControl');
+    // #681: dated manual cards mount Edit/Clear via CardStatementControl.
+    expect(datedBlock).toContain('CardStatementControl');
+    expect(datedBlock).toContain('card.isManual');
 
     const page = readFileSync(resolve('src/app/(app)/cards/page.tsx'), 'utf8');
     expect(page).toContain('canAddStatementById');

@@ -11,6 +11,7 @@ import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { prisma } from '@/lib/db';
 import { isDemoUser } from '@/lib/demo-user';
 import { getDashboardData } from '@/server/finance';
+import type { ManualCardBilling } from '@/server/transactions';
 
 export const metadata = { title: "Credit cards" };
 
@@ -32,15 +33,60 @@ export default async function CardsPage({
 
   const creditAccounts = await prisma.account.findMany({
     where: { userId: session.user.id, type: 'CREDIT' },
-    select: { id: true, name: true, displayName: true, provider: true },
+    select: { id: true, name: true, displayName: true, provider: true, aprBps: true },
   });
   const canRenameCard = !isDemoUser(session.user.id);
   const canAddCard = canRenameCard;
   const cardRenameById: Record<string, { feedName: string; hasOverlay: boolean }> = {};
   const canAddStatementById: Record<string, boolean> = {};
+  const manualCreditIds = creditAccounts.filter((a) => a.provider === 'manual').map((a) => a.id);
   for (const a of creditAccounts) {
     cardRenameById[a.id] = { feedName: a.name, hasOverlay: Boolean(a.displayName) };
     canAddStatementById[a.id] = a.provider === 'manual';
+  }
+  // Same shape Accounts builds for manual cards — Edit/Clear on Cards needs it.
+  const cardBilling: Record<string, ManualCardBilling> = {};
+  if (manualCreditIds.length > 0) {
+    const [statements, autopays] = await Promise.all([
+      prisma.statement.findMany({
+        where: { accountId: { in: manualCreditIds } },
+        orderBy: { cycleEnd: 'desc' },
+        select: {
+          accountId: true,
+          cycleEnd: true,
+          dueDate: true,
+          statementBalanceCents: true,
+          minimumPaymentCents: true,
+        },
+      }),
+      prisma.autopayConfig.findMany({
+        where: { accountId: { in: manualCreditIds } },
+        select: { accountId: true, mode: true, fixedAmountCents: true },
+      }),
+    ]);
+    const newestStatement = new Map<string, (typeof statements)[number]>();
+    for (const s of statements) if (!newestStatement.has(s.accountId)) newestStatement.set(s.accountId, s);
+    const autopayByAccount = new Map(autopays.map((a) => [a.accountId, a]));
+    for (const a of creditAccounts) {
+      if (a.provider !== 'manual') continue;
+      const ap = autopayByAccount.get(a.id);
+      const s = newestStatement.get(a.id);
+      const common = {
+        aprBps: a.aprBps,
+        autopayMode: ap?.mode ?? null,
+        autopayFixedAmountCents: ap?.mode === 'FIXED_AMOUNT' ? ap.fixedAmountCents : null,
+      };
+      cardBilling[a.id] = s
+        ? {
+            hasStatement: true,
+            statementBalanceCents: s.statementBalanceCents,
+            minimumPaymentCents: s.minimumPaymentCents,
+            dueDate: s.dueDate,
+            cycleEnd: s.cycleEnd,
+            ...common,
+          }
+        : { hasStatement: false, ...common };
+    }
   }
 
   // "No credit cards yet" is a claim about what the user HAS, but `cards` only
@@ -115,6 +161,7 @@ export default async function CardsPage({
         canRenameCard={canRenameCard}
         cardRenameById={cardRenameById}
         canAddStatementById={canAddStatementById}
+        cardBilling={cardBilling}
       />
     </div>
   );
