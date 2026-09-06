@@ -2753,3 +2753,8 @@ invent an auto-file quality claim.
 **Context.** saveDebtFreeGoal lived on Ask. Goals Debt Freedom planner showed a debt-free date with no save control.
 **Decision.** Mount Save as debt-free goal when canSaveGoal and a date exists. Same saveDebtFreeGoal writer (re-solves monthly from safe-to-spend). Demo fenced on UI and writer. No CSV. No savings-rate percent.
 **Locked.** `test_regression__household_can_save_a_debt_free_goal_from_the_goals_planner`.
+
+## #661 — Household can mark Paid this cycle from Recurring Coming up (2026-09-06)
+**Context.** Paid this cycle lived on each series row. Coming up (next 30 days) showed the next charge with no lever.
+**Decision.** Mount PaidThisCycleButton on Coming up expense rows (same recordRepeatingBillPaidThisCycle writer). Show Paid this cycle status when already recorded. Demo fenced in the action. No CSV.
+**Locked.** `test_regression__household_can_mark_paid_this_cycle_from_recurring_coming_up`.

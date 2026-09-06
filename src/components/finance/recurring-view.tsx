@@ -276,6 +276,9 @@ export function RecurringView({
 }) {
   const s = data.summary;
   const billNames = new Map(Object.entries(data.billNames ?? {}));
+  const paidThisCycleByMerchant = new Set(
+    s.items.filter((i) => i.paidThisCycle).map((i) => i.merchantCanonical),
+  );
   const hasAny = s.items.length > 0;
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
@@ -389,6 +392,19 @@ export function RecurringView({
                     <div className="text-xs text-muted-foreground">
                       {o.daysOut === 0 ? 'expected today' : <>~ {formatISODate(isoDate(o.date))}</>}
                     </div>
+                    {/* Same Paid this cycle writer as the series row — Coming up
+                        is where the household sees the next charge, so the lever
+                        belongs here too (not only on the cadence list below). */}
+                    {paidThisCycleByMerchant.has(o.merchantCanonical) ? (
+                      <div
+                        className="text-[11px] text-muted-foreground"
+                        data-testid="coming-up-paid-this-cycle-status"
+                      >
+                        Paid this cycle
+                      </div>
+                    ) : (
+                      <PaidThisCycleButton merchantCanonical={o.merchantCanonical} />
+                    )}
                   </div>
                 </li>
               ))}
