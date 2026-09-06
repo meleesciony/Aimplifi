@@ -2708,3 +2708,8 @@ invent an auto-file quality claim.
 **Decision.** Load listTxnMoveAccounts on the Activity page. Reuse TxnAccountControl when canEditSpendClass and not a split piece. Demo fenced. Rematch already in the action. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_change_which_account_an_activity_charge_belongs_to_without_opening_detail`.
 
+## #652 — Household can change the bank text on an Activity charge without opening detail (2026-09-06)
+**Context.** Bank-text write lived on detail, Home, and Inbox. Activity forced opening detail for statement text.
+**Decision.** Reuse TxnDescriptorControl compact ("Bank text") on the register row when canEditSpendClass. Rematch already in the action. Demo fenced. Payee rename stays the merchant overlay path; this is rawDescriptor. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_change_the_bank_text_on_an_activity_charge_without_opening_detail`.
+

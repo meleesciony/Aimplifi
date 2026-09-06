@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-06 | Activity charge bank text required opening detail | bank-text write lived on detail/Home/Inbox; register omitted the control | a household can change the bank text on an Activity charge without opening detail | `test_regression__household_can_change_the_bank_text_on_an_activity_charge_without_opening_detail` |
 | 2026-09-06 | Activity charge account was display-only | account write lived on detail/Home/Inbox | a household can change which account an Activity charge belongs to without opening detail | `test_regression__household_can_change_which_account_an_activity_charge_belongs_to_without_opening_detail` |
 | 2026-09-06 | Activity charge in/out was display-only | direction flip lived on detail/Home/Inbox | a household can flip an Activity charge in or out without opening detail | `test_regression__household_can_flip_an_activity_charge_in_or_out_without_opening_detail` |
 | 2026-09-06 | Activity charge date had no per-row write | date write lived on detail/Home/Inbox; register only showed date as a section header | a household can change an Activity charge date without opening detail | `test_regression__household_can_change_an_activity_charge_date_without_opening_detail` |

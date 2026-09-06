@@ -58,6 +58,7 @@ import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { TxnAccountControl } from '@/components/finance/txn-account-form';
+import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import {
   PROVENANCE_BADGE_TESTID,
@@ -847,6 +848,16 @@ export function TransactionList({
                         >
                           Details
                         </Link>
+                        {canEditSpendClass ? (
+                          <span className="shrink-0">
+                            <TxnDescriptorControl
+                              transactionId={t.id}
+                              descriptor={t.rawDescriptor}
+                              compact
+                              triggerTestId="activity-descriptor"
+                            />
+                          </span>
+                        ) : null}
                         {/* O.13b — the rule lever, ON THE ROW. Owner, 2026-07-30:
                             "whenever clicking a transaction, should have rules pull
                             up so you can change specifically for that transaction…
