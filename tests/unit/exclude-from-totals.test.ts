@@ -172,6 +172,7 @@ describe('the register: the one place an excluded row STAYS', () => {
     accountId: 'a1',
     accountName: 'Checking',
     merchantName: 'Costco',
+    payeeRenamed: false,
     rawDescriptor: 'COSTCO WHSE',
     categoryId: 'groceries',
     categoryName: 'Groceries',

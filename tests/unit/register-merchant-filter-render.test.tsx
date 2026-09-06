@@ -68,6 +68,7 @@ vi.mock('@/server/transaction-descriptor-actions', () => ({ updateTransactionDes
 vi.mock('@/server/transaction-note-actions', () => ({ updateTransactionNote: vi.fn() }));
 vi.mock('@/server/transaction-tax-actions', () => ({ updateTransactionTaxClass: vi.fn() }));
 vi.mock('@/server/transaction-date-actions', () => ({ updateTransactionDate: vi.fn() }));
+vi.mock('@/server/payee-rename-actions', () => ({ renamePayee: vi.fn(), clearPayeeRename: vi.fn() }));
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { TransactionFilters, transactionsHref } from '@/components/finance/transaction-filters';

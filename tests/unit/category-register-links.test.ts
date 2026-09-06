@@ -144,6 +144,7 @@ const asTxnViews = (rows: Row[]): TxnView[] =>
       accountId: 'acct-A',
       accountName: 'Everyday Checking',
       merchantName: 'Test Merchant',
+      payeeRenamed: false,
       rawDescriptor: 'TEST',
       categoryId: r.categoryId,
       categoryName: r.categoryId,

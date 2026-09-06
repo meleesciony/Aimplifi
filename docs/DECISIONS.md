@@ -2733,3 +2733,8 @@ invent an auto-file quality claim.
 **Decision.** Open updateGoalTarget, updateGoalMonthly, updateGoalTargetDate, clearGoalMonthly, and clearGoalTargetDate to debt_free (same OR as rename — reserves refused). Mount GoalTargetControl, GoalTargetDateControl, and GoalMonthlyControl on the debt-free card. Already-saved stays savings-only (debt-free is not a savings pile). Demo fenced. Integer cents. No savings-rate percent. No CSV.
 **Locked.** `test_regression__household_can_edit_debt_free_goal_target_date_and_monthly_without_a_separate_flow`.
 
+
+## #657 — Household can rename a payee on Activity without opening detail (2026-09-06)
+**Context.** Payee rename overlay lived on detail, Inbox, and Home. Activity printed merchantName inside a merchant-filter Link.
+**Decision.** Plumb payeeRenamed on TxnView. Reuse PayeeNameControl when canEditSpendClass (replaces the filter Link for household; demo keeps the Link). Same renamePayee / clearPayeeRename writers. Demo fenced. No filing rule. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_rename_a_payee_on_activity_without_opening_detail`.

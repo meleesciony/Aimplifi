@@ -25,6 +25,11 @@ export interface TxnView {
   accountName: string;
   /** Display name: canonical merchant if known, else a cleaned descriptor. */
   merchantName: string;
+  /**
+   * True when a PayeeRename overlay is present for this payee. REQUIRED so the
+   * register's PayeeNameControl can offer Clear name — same fact detail carries.
+   */
+  payeeRenamed: boolean;
   rawDescriptor: string;
   categoryId: string;
   categoryName: string;

@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-06 | Activity payee rename required opening detail | register printed merchantName as a filter Link only | a household can rename a payee on Activity without opening detail | `test_regression__household_can_rename_a_payee_on_activity_without_opening_detail` |
 | 2026-09-06 | Debt-free goal target/date/monthly were display-only | writers refused non-null kind; card printed text | a household can edit a debt-free goal's target, date, and monthly without a separate flow | `test_regression__household_can_edit_debt_free_goal_target_date_and_monthly_without_a_separate_flow` |
 | 2026-09-06 | Activity tax tag save could clobber note | register Tag panel used setTransactionTax (note+tax together) | a household can set a tax tag on an Activity charge without opening detail | `test_regression__household_can_set_a_tax_tag_on_an_activity_charge_without_opening_detail` |
 | 2026-09-06 | Activity note save could clobber tax tag | register Tag panel used setTransactionTax (note+tax together) | a household can add or edit an Activity charge note without opening detail | `test_regression__household_can_add_or_edit_an_activity_charge_note_without_opening_detail` |

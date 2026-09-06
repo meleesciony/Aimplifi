@@ -84,6 +84,7 @@ function view(id: string, merchantName: string): TxnView {
     accountId: 'acct-A',
     accountName: 'Everyday Checking',
     merchantName,
+    payeeRenamed: false,
     rawDescriptor: `RAW ${merchantName}`,
     categoryId: 'groceries',
     categoryName: 'Groceries',

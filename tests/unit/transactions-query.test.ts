@@ -57,6 +57,7 @@ function txn(over: Partial<TxnView> & Pick<TxnView, 'id' | 'date' | 'amountCents
     accountId: 'acct-A',
     accountName: 'Everyday Checking',
     merchantName: 'Test Merchant',
+    payeeRenamed: false,
     rawDescriptor: 'TEST',
     // Default: a decided row. The unclassified tests below override it, so the
     // fixture never silently supplies the state under test.

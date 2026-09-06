@@ -61,6 +61,7 @@ import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
 import { TxnNoteControl } from '@/components/finance/txn-note-form';
 import { TxnTaxClassControl } from '@/components/finance/txn-tax-form';
+import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import {
   PROVENANCE_BADGE_TESTID,
@@ -776,13 +777,23 @@ export function TransactionList({
                       <div className="flex flex-wrap items-center gap-1.5">
                         {/* Merchant Pattern Lens entry (DECISIONS #250): the name
                             links to the merchant-filtered register + lens card. */}
-                        <Link
-                          href={merchantRegisterHref(t.merchantName)}
-                          data-testid="txn-merchant-link"
-                          className={`truncate ${MERCHANT_LINK_CLASS}`}
-                        >
-                          {t.merchantName}
-                        </Link>
+                        {canEditSpendClass ? (
+                          <span className="truncate font-medium" data-testid="txn-merchant-link">
+                            <PayeeNameControl
+                              transactionId={t.id}
+                              name={t.merchantName}
+                              hasOverlay={t.payeeRenamed}
+                            />
+                          </span>
+                        ) : (
+                          <Link
+                            href={merchantRegisterHref(t.merchantName)}
+                            data-testid="txn-merchant-link"
+                            className={`truncate ${MERCHANT_LINK_CLASS}`}
+                          >
+                            {t.merchantName}
+                          </Link>
+                        )}
                         {t.status === 'PENDING' && (
                           <Badge variant="outline" className="shrink-0 text-[10px]">
                             Pending
