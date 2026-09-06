@@ -37,6 +37,7 @@ function run(rules: RuleLike[]) {
     accountId: o.txn.accountId,
     accountName: 'X',
     note: null,
+    taxClass: null,
     status: 'POSTED',
     aggregate: normalizeMerchant(o.txn.rawDescriptor).aggregate,
     suggestedCategoryId: o.verdict.categoryId === 'uncategorized' ? null : o.verdict.categoryId,

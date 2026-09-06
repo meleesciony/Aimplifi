@@ -2683,3 +2683,8 @@ invent an auto-file quality claim.
 **Decision.** Plumb note through ReviewRow/group rows. Reuse TxnNoteControl compact when canRenamePayee on single-txn statement block and singles rows. Multi-txn groups stay without a note control. Writes note only (tax untouched). Demo fenced. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_add_or_edit_an_inbox_charge_note_without_opening_detail`.
 
+## #647 — Household can set a tax tag on an Inbox charge without opening detail (2026-09-06)
+**Context.** Tax write lived on detail and Home via updateTransactionTaxClass. Inbox had no taxClass on ReviewRow.
+**Decision.** Plumb taxClass through ReviewRow/group rows. Reuse TxnTaxClassControl compact when canRenamePayee on single-txn statement block and singles rows. Multi-txn groups stay without a tax control. Writes tax only (note untouched). Demo fenced. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_set_a_tax_tag_on_an_inbox_charge_without_opening_detail`.
+
