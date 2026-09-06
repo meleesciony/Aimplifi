@@ -112,11 +112,12 @@ describe('clearGoalMonthly — the write is monthly null, never a name or target
       expect(reserveRow.monthlyContributionCents).toBe(10_000);
       expect(reserveRow.name).toBe('Home repair');
 
-      const blockedDebt = await clearGoalMonthly(debt.id);
-      expect(blockedDebt.ok).toBe(false);
+      const debtRes = await clearGoalMonthly(debt.id);
+      expect(debtRes.ok).toBe(true);
       const debtRow = await prisma.goal.findUniqueOrThrow({ where: { id: debt.id } });
-      expect(debtRow.monthlyContributionCents).toBe(50_000);
+      expect(debtRow.monthlyContributionCents).toBeNull();
       expect(debtRow.name).toBe('Debt-free by 2027-06');
+      expect(debtRow.kind).toBe('debt_free');
     } finally {
       spy.mockRestore();
     }

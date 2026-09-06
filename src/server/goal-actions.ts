@@ -267,8 +267,8 @@ export async function renameGoal(
 
 /**
  * Change a savings goal's target already on /goals. Name, saved,
- * monthly contribution, and target date stay put. Reserves and
- * debt-free rows are refused. Demo cannot learn.
+ * monthly contribution, and target date stay put. Reserves are
+ * refused; debt-free goals are allowed. Demo cannot learn.
  */
 export async function updateGoalTarget(
   goalId: string,
@@ -292,7 +292,7 @@ export async function updateGoalTarget(
   }
 
   const updated = await prisma.goal.updateMany({
-    where: { id, userId, kind: null },
+    where: { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }] },
     data: { targetCents },
   });
   if (updated.count === 0) {
@@ -345,8 +345,8 @@ export async function updateGoalSaved(
 
 /**
  * Change a savings goal's monthly contribution already on /goals. Name,
- * target, saved, and target date stay put. Reserves and debt-free rows
- * are refused. Demo cannot learn.
+ * target, saved, and target date stay put. Reserves are refused;
+ * debt-free goals are allowed (extra-on-minimums). Demo cannot learn.
  */
 export async function updateGoalMonthly(
   goalId: string,
@@ -370,7 +370,7 @@ export async function updateGoalMonthly(
   }
 
   const updated = await prisma.goal.updateMany({
-    where: { id, userId, kind: null },
+    where: { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }] },
     data: { monthlyContributionCents: monthlyCents },
   });
   if (updated.count === 0) {
@@ -384,8 +384,8 @@ export async function updateGoalMonthly(
 
 /**
  * Change a savings goal's target date already on /goals. Name, target,
- * saved, and monthly contribution stay put. Reserves and debt-free rows
- * are refused. Demo cannot learn. Month (YYYY-MM) stores as the first of
+ * saved, and monthly contribution stay put. Reserves are refused;
+ * debt-free goals are allowed. Demo cannot learn. Month (YYYY-MM) stores as the first of
  * that month. Does not re-solve monthly from the date.
  */
 export async function updateGoalTargetDate(
@@ -419,7 +419,7 @@ export async function updateGoalTargetDate(
   }
 
   const updated = await prisma.goal.updateMany({
-    where: { id, userId, kind: null },
+    where: { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }] },
     data: { targetDate: next },
   });
   if (updated.count === 0) {
@@ -432,9 +432,9 @@ export async function updateGoalTargetDate(
 }
 
 /**
- * Clear a savings goal's monthly contribution already on /goals. Name,
- * target, saved, and target date stay put. Reserves, debt-free rows,
- * and goals with no monthly refuse. Demo cannot learn. Null, not zero.
+ * Clear a goal's monthly contribution already on /goals. Name,
+ * target, saved, and target date stay put. Reserves and goals with no
+ * monthly refuse; debt-free allowed. Demo cannot learn. Null, not zero.
  */
 export async function clearGoalMonthly(goalId: string): Promise<GoalFormResult> {
   const userId = await requireUserId();
@@ -446,7 +446,7 @@ export async function clearGoalMonthly(goalId: string): Promise<GoalFormResult> 
   }
 
   const updated = await prisma.goal.updateMany({
-    where: { id, userId, kind: null, monthlyContributionCents: { gt: 0 } },
+    where: { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }], monthlyContributionCents: { gt: 0 } },
     data: { monthlyContributionCents: null },
   });
   if (updated.count === 0) {
@@ -459,9 +459,9 @@ export async function clearGoalMonthly(goalId: string): Promise<GoalFormResult> 
 }
 
 /**
- * Clear a savings goal's target date already on /goals. Name, target,
- * saved, and monthly contribution stay put. Reserves, debt-free rows,
- * and dateless goals refuse. Demo cannot learn. Null, not a fake date.
+ * Clear a goal's target date already on /goals. Name, target,
+ * saved, and monthly contribution stay put. Reserves and dateless
+ * goals refuse; debt-free allowed. Demo cannot learn. Null, not a fake date.
  */
 export async function clearGoalTargetDate(goalId: string): Promise<GoalFormResult> {
   const userId = await requireUserId();
@@ -473,7 +473,7 @@ export async function clearGoalTargetDate(goalId: string): Promise<GoalFormResul
   }
 
   const updated = await prisma.goal.updateMany({
-    where: { id, userId, kind: null, targetDate: { not: null } },
+    where: { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }], targetDate: { not: null } },
     data: { targetDate: null },
   });
   if (updated.count === 0) {

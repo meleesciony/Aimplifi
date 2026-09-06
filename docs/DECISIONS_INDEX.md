@@ -649,3 +649,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #653 — Household can rename a debt-free goal without opening a separate flow (2026-09-06) → docs/DECISIONS.md
 - #654 — Household can add or edit an Activity charge note without opening detail (2026-09-06) → docs/DECISIONS.md
 - #655 — Household can set a tax tag on an Activity charge without opening detail (2026-09-06) → docs/DECISIONS.md
+- #656 — Household can edit a debt-free goal's target, date, and monthly without a separate flow (2026-09-06) → docs/DECISIONS.md

@@ -102,11 +102,12 @@ describe('updateGoalTarget — the write is the target, never a name', () => {
       expect(reserveRow.targetCents).toBe(120_000);
       expect(reserveRow.name).toBe('Home repair');
 
-      const blockedDebt = await updateGoalTarget(debt.id, fd);
-      expect(blockedDebt.ok).toBe(false);
+      const debtRes = await updateGoalTarget(debt.id, fd);
+      expect(debtRes.ok).toBe(true);
       const debtRow = await prisma.goal.findUniqueOrThrow({ where: { id: debt.id } });
-      expect(debtRow.targetCents).toBe(1_000_000);
+      expect(debtRow.targetCents).toBe(800_000);
       expect(debtRow.name).toBe('Debt-free by 2027-06');
+      expect(debtRow.kind).toBe('debt_free');
     } finally {
       spy.mockRestore();
     }

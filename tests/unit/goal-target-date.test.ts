@@ -127,11 +127,12 @@ describe('updateGoalTargetDate — the write is the date, never a name or target
       expect(reserveRow.targetDate).toBe('2026-12-01');
       expect(reserveRow.name).toBe('Home repair');
 
-      const blockedDebt = await updateGoalTargetDate(debt.id, fd);
-      expect(blockedDebt.ok).toBe(false);
+      const debtRes = await updateGoalTargetDate(debt.id, fd);
+      expect(debtRes.ok).toBe(true);
       const debtRow = await prisma.goal.findUniqueOrThrow({ where: { id: debt.id } });
-      expect(debtRow.targetDate).toBe('2027-06-01');
+      expect(debtRow.targetDate).toBe('2028-12-01');
       expect(debtRow.name).toBe('Debt-free by 2027-06');
+      expect(debtRow.kind).toBe('debt_free');
     } finally {
       spy.mockRestore();
     }

@@ -7,7 +7,6 @@ import { goalFIImpact } from '@/lib/engine/goals';
 import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
-import { formatMonth } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { getCoachData } from '@/server/coach';
 import { loadDebtAccounts } from '@/server/debt';
@@ -142,8 +141,14 @@ export default async function GoalsPage() {
                     <DeleteGoalButton goalId={goal.id} goalName={goal.name} />
                   </div>
                   <CardDescription>
-                    {formatCents(cents(goal.targetCents))} of debt
-                    {goal.targetDate ? ` · target ${formatMonth(goal.targetDate.slice(0, 7))}` : ''}
+                    <GoalTargetControl goalId={goal.id} targetCents={goal.targetCents} /> of debt
+                    {' · '}
+                    <GoalTargetDateControl goalId={goal.id} targetDate={goal.targetDate} />
+                    {' · '}
+                    <GoalMonthlyControl
+                      goalId={goal.id}
+                      monthlyCents={goal.monthlyContributionCents}
+                    />
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="text-sm" data-testid="goal-debt-free">

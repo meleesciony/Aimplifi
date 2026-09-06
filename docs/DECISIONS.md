@@ -2728,3 +2728,8 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnTaxClassControl compact beside the note-only control when canEditSpendClass. Writes tax only. Combined Tag panel left for now. Demo fenced. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_set_a_tax_tag_on_an_activity_charge_without_opening_detail`.
 
+## #656 — Household can edit a debt-free goal's target, date, and monthly without a separate flow (2026-09-06)
+**Context.** Debt-free cards printed target/date as text and suggested monthly as prose. Writers for target/date/monthly were savings-only (kind: null).
+**Decision.** Open updateGoalTarget, updateGoalMonthly, updateGoalTargetDate, clearGoalMonthly, and clearGoalTargetDate to debt_free (same OR as rename — reserves refused). Mount GoalTargetControl, GoalTargetDateControl, and GoalMonthlyControl on the debt-free card. Already-saved stays savings-only (debt-free is not a savings pile). Demo fenced. Integer cents. No savings-rate percent. No CSV.
+**Locked.** `test_regression__household_can_edit_debt_free_goal_target_date_and_monthly_without_a_separate_flow`.
+
