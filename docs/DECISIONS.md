@@ -2820,3 +2820,8 @@ invent an auto-file quality claim.
 **Decision.** Mount NotABillButton on Fixed bill lines when canEditFigures, named payee, not a loan. Same markMerchantNotABill writer (NOT_BILL override). Distinct from TakeBillOffPlan. Unnamed bills stay without the lever. Demo fenced. No CSV.
 **Locked.** `test_regression__household_can_mark_not_a_bill_from_spending_plan_fixed_list`.
 
+## #674 — Household can mark Not a bill from Recurring Coming up (2026-09-06)
+**Context.** markMerchantNotABill lived on series rows and Spending plan Fixed (#673). Coming up had Paid this cycle and rename but no detection verdict.
+**Decision.** Mount NotABillButton on Coming up rows when canRenameBills. Same markMerchantNotABill writer. Demo fenced. No CSV.
+**Locked.** `test_regression__household_can_mark_not_a_bill_from_recurring_coming_up`.
+

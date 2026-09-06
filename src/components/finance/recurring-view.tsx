@@ -467,6 +467,12 @@ export function RecurringView({
                     ) : (
                       <PaidThisCycleButton merchantCanonical={o.merchantCanonical} />
                     )}
+                    {canRenameBills ? (
+                      <NotABillButton
+                        merchantCanonical={o.merchantCanonical}
+                        triggerTestId="coming-up-not-a-bill"
+                      />
+                    ) : null}
                   </div>
                 </li>
               ))}
