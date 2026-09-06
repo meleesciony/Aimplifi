@@ -2673,3 +2673,8 @@ invent an auto-file quality claim.
 **Decision.** Plumb accountId through ReviewRow/group rows. Reuse TxnAccountControl when canRenamePayee on single-txn group meta and singles rows. Multi-txn groups stay text. Rematch already in the action. Demo fenced. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_change_which_account_an_inbox_charge_belongs_to_without_opening_detail`.
 
+## #645 — Household can change the bank text on an Inbox charge without opening detail (2026-09-06)
+**Context.** Bank-text write lived on detail and Home. Inbox printed rawDescriptor / variants as text on single-txn cards and one-by-one rows.
+**Decision.** Reuse TxnDescriptorControl when canRenamePayee on single-txn group statement text and singles rows. Multi-txn groups keep the variant list display-only. Rematch already in the action. Demo fenced. No CSV. No heading tweak. Payee rename stays the overlay; this is rawDescriptor.
+**Locked.** `test_regression__household_can_change_the_bank_text_on_an_inbox_charge_without_opening_detail`.
+

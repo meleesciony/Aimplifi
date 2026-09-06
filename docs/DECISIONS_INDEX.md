@@ -638,3 +638,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #642 — Household can change an Inbox charge date without opening detail (2026-09-06) → docs/DECISIONS.md
 - #643 — Household can flip an Inbox charge in or out without opening detail (2026-09-06) → docs/DECISIONS.md
 - #644 — Household can change which account an Inbox charge belongs to without opening detail (2026-09-06) → docs/DECISIONS.md
+- #645 — Household can change the bank text on an Inbox charge without opening detail (2026-09-06) → docs/DECISIONS.md

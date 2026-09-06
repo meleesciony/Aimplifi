@@ -52,6 +52,7 @@ import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { TxnAccountControl } from '@/components/finance/txn-account-form';
+import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
 import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import {
@@ -1127,13 +1128,23 @@ export function TriageInbox({
             As on your statement
             {bankHeading !== top.merchantCanonical ? ' (name masked by the bank)' : ''}:
           </p>
-          {top.variants.slice(0, 3).map((v) => (
-            <p key={v} className="break-all font-mono text-xs text-muted-foreground">
-              {v}
-            </p>
-          ))}
-          {top.variants.length > 3 && (
-            <p className="text-xs text-muted-foreground">+ {top.variants.length - 3} more descriptor variants</p>
+          {one && canRenamePayee ? (
+            <TxnDescriptorControl
+              transactionId={anchorRow.id}
+              descriptor={anchorRow.rawDescriptor}
+              triggerTestId="inbox-descriptor"
+            />
+          ) : (
+            <>
+              {top.variants.slice(0, 3).map((v) => (
+                <p key={v} className="break-all font-mono text-xs text-muted-foreground">
+                  {v}
+                </p>
+              ))}
+              {top.variants.length > 3 && (
+                <p className="text-xs text-muted-foreground">+ {top.variants.length - 3} more descriptor variants</p>
+              )}
+            </>
           )}
           <div className="flex items-center gap-2 pt-1">
             <span className="text-sm text-muted-foreground">Suggestion:</span>
@@ -1254,7 +1265,15 @@ export function TriageInbox({
                   <span className="tabular-nums">{formatCents(cents(r.amountCents), { signDisplay: 'always' })}</span>
                 )}
               </div>
-              <p className="break-all font-mono text-[10px] text-muted-foreground">{r.rawDescriptor}</p>
+              {canRenamePayee ? (
+                <TxnDescriptorControl
+                  transactionId={r.id}
+                  descriptor={r.rawDescriptor}
+                  triggerTestId="inbox-single-descriptor"
+                />
+              ) : (
+                <p className="break-all font-mono text-[10px] text-muted-foreground">{r.rawDescriptor}</p>
+              )}
               {r.rowSuggestion && (
                 <div className="mt-1 flex flex-wrap items-center gap-2" data-testid="triage-row-suggestion">
                   <Badge variant="outline" className="text-[10px]">
