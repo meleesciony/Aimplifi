@@ -2657,3 +2657,8 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnAmountControl when canRenamePayee on single-txn group cards and singles rows. Multi-txn group totals stay display-only (sum). Rematch already in the action. Demo fenced. No CSV. No heading tweak.
 
 **Locked.** `test_regression__household_can_change_an_inbox_charge_amount_without_opening_detail`.
+
+## #642 — Household can change an Inbox charge date without opening detail (2026-09-06)
+**Context.** Date write lived on detail and Home. Inbox printed dates as text on single-txn cards and one-by-one rows.
+**Decision.** Reuse TxnDateControl when canRenamePayee on single-txn group meta and singles rows. Multi-txn date ranges stay display-only. Rematch already in the action. Demo fenced. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_change_an_inbox_charge_date_without_opening_detail`.

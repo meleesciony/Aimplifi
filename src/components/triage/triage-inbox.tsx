@@ -50,6 +50,7 @@ import { cents, centsFromDollarString, formatCents } from '@/lib/money';
 import type { TriageGroupView } from '@/server/triage';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
+import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import {
   acceptAllConfident,
@@ -1073,9 +1074,24 @@ export function TriageInbox({
             )}
           </div>
           <p className="text-xs text-muted-foreground" data-testid="triage-group-meta">
-            {one
-              ? `1 transaction · ${formatISODate(isoDate(top.newestDate), 'long')} · ${anchorRow.accountName}`
-              : `${top.count} transactions · ${formatISODate(isoDate(top.oldestDate), 'long')} – ${formatISODate(isoDate(top.newestDate), 'long')}`}
+            {one ? (
+              <>
+                1 transaction ·{' '}
+                {canRenamePayee ? (
+                  <TxnDateControl
+                    transactionId={anchorRow.id}
+                    date={anchorRow.date}
+                    triggerTestId="inbox-date"
+                  />
+                ) : (
+                  formatISODate(isoDate(anchorRow.date), 'long')
+                )}
+                {' '}
+                · {anchorRow.accountName}
+              </>
+            ) : (
+              `${top.count} transactions · ${formatISODate(isoDate(top.oldestDate), 'long')} – ${formatISODate(isoDate(top.newestDate), 'long')}`
+            )}
             {ageHint.includes('ago') && (
               <span data-testid="triage-age"> · {ageHint}</span>
             )}
@@ -1167,11 +1183,22 @@ export function TriageInbox({
           {top.rows.map((r) => (
             <div key={r.id} className="rounded-md border px-2 py-1.5" data-testid="triage-single-row">
               <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="text-xs text-muted-foreground">
-                  {formatISODate(isoDate(r.date), 'long')} · {r.accountName}
-                  {formatRelativeDays(today, isoDate(r.date)).includes('ago')
-                    ? ` · ${formatRelativeDays(today, isoDate(r.date))}`
-                    : ''}
+                <span className="text-xs text-muted-foreground inline-flex flex-wrap items-center gap-x-1">
+                  {canRenamePayee ? (
+                    <TxnDateControl
+                      transactionId={r.id}
+                      date={r.date}
+                      triggerTestId="inbox-single-date"
+                    />
+                  ) : (
+                    formatISODate(isoDate(r.date), 'long')
+                  )}
+                  <span>
+                    · {r.accountName}
+                    {formatRelativeDays(today, isoDate(r.date)).includes('ago')
+                      ? ` · ${formatRelativeDays(today, isoDate(r.date))}`
+                      : ''}
+                  </span>
                 </span>
                 {canRenamePayee ? (
                   <TxnAmountControl
