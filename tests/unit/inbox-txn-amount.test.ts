@@ -25,7 +25,7 @@ describe('Inbox reuses TxnAmountControl on single charges', () => {
     const singlesBlock = inbox.slice(singlesStart);
     const singlesMap = singlesBlock.indexOf('top.rows.map');
     expect(singlesMap).toBeGreaterThan(-1);
-    const singlesMapBlock = singlesBlock.slice(singlesMap, singlesMap + 1200);
+    const singlesMapBlock = singlesBlock.slice(singlesMap, singlesMap + 4500);
     expect(singlesMapBlock).toContain('<TxnAmountControl');
     expect(singlesMapBlock).toContain('canRenamePayee');
     expect(singlesMapBlock).toContain('r.amountCents');

@@ -2667,3 +2667,9 @@ invent an auto-file quality claim.
 **Context.** Direction flip lived on detail and Home. Inbox printed amounts without an in/out control on single-txn cards and one-by-one rows.
 **Decision.** Reuse TxnDirectionControl compact when canRenamePayee on single-txn group cards and singles rows. Multi-txn sums stay without a flip. Rematch already in the action. Demo fenced. No transfer toggle. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_flip_an_inbox_charge_in_or_out_without_opening_detail`.
+
+## #644 — Household can change which account an Inbox charge belongs to without opening detail (2026-09-06)
+**Context.** Account write lived on detail and Home. Inbox printed accountName as text on single-txn cards and one-by-one rows; ReviewRow lacked accountId.
+**Decision.** Plumb accountId through ReviewRow/group rows. Reuse TxnAccountControl when canRenamePayee on single-txn group meta and singles rows. Multi-txn groups stay text. Rematch already in the action. Demo fenced. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_change_which_account_an_inbox_charge_belongs_to_without_opening_detail`.
+

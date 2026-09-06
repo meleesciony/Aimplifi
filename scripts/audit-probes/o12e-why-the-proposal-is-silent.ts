@@ -169,6 +169,7 @@ async function main() {
       rawDescriptor: t.rawDescriptor,
       amountCents: Number(t.amountCents),
       date: t.date,
+      accountId: String(t.accountId ?? ''),
       accountName: '',
       status: t.status,
       reimbursement: (t as { reimbursement?: string | null }).reimbursement ?? null,

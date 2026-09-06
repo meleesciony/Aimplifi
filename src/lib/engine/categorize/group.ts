@@ -27,6 +27,7 @@ export interface ReviewRow {
   amountCents: number;
   /** YYYY-MM-DD */
   date: string;
+  accountId: string;
   accountName: string;
   status: string;
   /** O.15 (cycle-2 P2): the inbox's split tool must refuse a tracked row with
@@ -89,6 +90,7 @@ export interface TriageGroup {
       | 'amountCents'
       | 'rawDescriptor'
       | 'status'
+      | 'accountId'
       | 'accountName'
       | 'reimbursement'
       | 'suggestedCategoryId'
@@ -177,6 +179,7 @@ export function groupReviewRows(rows: ReviewRow[]): TriageGroup[] {
         amountCents: m.amountCents,
         rawDescriptor: m.rawDescriptor,
         status: m.status,
+        accountId: m.accountId,
         accountName: m.accountName,
         reimbursement: m.reimbursement,
         // O.12e: singles drill-down needs the same ladder rungs the register

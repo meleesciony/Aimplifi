@@ -51,6 +51,7 @@ import type { TriageGroupView } from '@/server/triage';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
+import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import {
@@ -97,6 +98,7 @@ export function TriageInbox({
   categories,
   today,
   canRenamePayee,
+  accounts,
 }: {
   initialGroups: TriageGroupView[];
   categories: { id: string; name: string; group?: string }[];
@@ -104,6 +106,7 @@ export function TriageInbox({
   today: ISODate;
   /** False for demo — overlay writer already refuses, this hides the control. */
   canRenamePayee: boolean;
+  accounts: readonly { id: string; name: string }[];
 }) {
   const [groups, setGroups] = useState(initialGroups);
   const [mode, setMode] = useState<'idle' | 'picker' | 'split' | 'singles'>('idle');
@@ -1095,8 +1098,18 @@ export function TriageInbox({
                 ) : (
                   formatISODate(isoDate(anchorRow.date), 'long')
                 )}
-                {' '}
-                · {anchorRow.accountName}
+                {' · '}
+                {canRenamePayee ? (
+                  <TxnAccountControl
+                    transactionId={anchorRow.id}
+                    accountId={anchorRow.accountId}
+                    accountName={anchorRow.accountName}
+                    accounts={accounts}
+                    triggerTestId="inbox-account"
+                  />
+                ) : (
+                  anchorRow.accountName
+                )}
               </>
             ) : (
               `${top.count} transactions · ${formatISODate(isoDate(top.oldestDate), 'long')} – ${formatISODate(isoDate(top.newestDate), 'long')}`
@@ -1202,8 +1215,19 @@ export function TriageInbox({
                   ) : (
                     formatISODate(isoDate(r.date), 'long')
                   )}
-                  <span>
-                    · {r.accountName}
+                  <span className="inline-flex flex-wrap items-center gap-x-1">
+                    ·{' '}
+                    {canRenamePayee ? (
+                      <TxnAccountControl
+                        transactionId={r.id}
+                        accountId={r.accountId}
+                        accountName={r.accountName}
+                        accounts={accounts}
+                        triggerTestId="inbox-single-account"
+                      />
+                    ) : (
+                      r.accountName
+                    )}
                     {formatRelativeDays(today, isoDate(r.date)).includes('ago')
                       ? ` · ${formatRelativeDays(today, isoDate(r.date))}`
                       : ''}

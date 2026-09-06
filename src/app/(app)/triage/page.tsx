@@ -13,6 +13,7 @@ import { getVisibleCategories } from '@/server/categories';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { INBOX_PAGE_SUBTITLE } from '@/lib/copy/inbox-copy';
 import { isDemoUser } from '@/lib/demo-user';
+import { listTxnMoveAccounts } from '@/server/txn-move-accounts';
 
 export const metadata = { title: "Review" };
 
@@ -23,11 +24,12 @@ export default async function TriagePage() {
   // (2026-07-21 agent review A3): a bare empty inbox reads as "nothing to do",
   // not "not set up yet". Same USD-or-null gate as cards/coach/goals/calendar.
   if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyTriage />;
-  const [groups, accuracy, categories, withheld] = await Promise.all([
+  const [groups, accuracy, categories, withheld, accounts] = await Promise.all([
     getTriageGroups(session.user.id), // merchant-group queue (Phase 3c, DECISIONS #143)
     getCategorizationAccuracy(session.user.id),
     getVisibleCategories(session.user.id),
     getWithheldAccountSummary(session.user.id),
+    listTxnMoveAccounts(session.user.id, ''),
   ]);
 
   return (
@@ -51,6 +53,7 @@ export default async function TriagePage() {
           categories={categories}
           today={businessToday(session.user.id)}
           canRenamePayee={!isDemoUser(session.user.id)}
+          accounts={accounts}
         />
       </div>
     </div>

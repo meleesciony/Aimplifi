@@ -34,6 +34,7 @@ function run(rules: RuleLike[]) {
     reimbursement: null,
     amountCents: o.txn.amountCents,
     date: o.txn.date,
+    accountId: o.txn.accountId,
     accountName: 'X',
     status: 'POSTED',
     aggregate: normalizeMerchant(o.txn.rawDescriptor).aggregate,
