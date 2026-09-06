@@ -2718,3 +2718,8 @@ invent an auto-file quality claim.
 **Decision.** Allow renameGoal for debt_free (same OR as delete — reserves still refused). Mount GoalNameControl on the debt-free card title. Dollars stay put. Demo fenced. Not target/date/monthly for debt_free (those writers stay savings-only until a later slice). No CSV. No savings-rate percent.
 **Locked.** `test_regression__household_can_rename_a_debt_free_goal_without_opening_a_separate_flow`.
 
+## #654 — Household can add or edit an Activity charge note without opening detail (2026-09-06)
+**Context.** Note-only write lived on detail, Home, and Inbox via updateTransactionNote. Activity's Tag panel still used setTransactionTax (note + taxClass together), so a note save could clobber the tax tag.
+**Decision.** Reuse TxnNoteControl compact when canEditSpendClass on the register meta line. Writes note only. Combined Tag panel left for tax until the tax-only control ships. Demo fenced. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_add_or_edit_an_activity_charge_note_without_opening_detail`.
+

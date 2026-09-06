@@ -59,6 +59,7 @@ import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
+import { TxnNoteControl } from '@/components/finance/txn-note-form';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import {
   PROVENANCE_BADGE_TESTID,
@@ -1040,12 +1041,23 @@ export function TransactionList({
                         ) : (
                           <span className="break-all">{t.accountName}</span>
                         )}{' '}
+                        {canEditSpendClass ? (
+                          <span className="shrink-0">
+                            <TxnNoteControl
+                              transactionId={t.id}
+                              note={t.note}
+                              compact
+                              triggerTestId="activity-note"
+                            />
+                          </span>
+                        ) : null}{' '}
                         {/* Note + tax tag (O.1). Sits on the SAME line as the category
                             chip on purpose: a control on its own line would add a line
                             to every row in the register, and a uniform row-height shift
                             is what broke the #136 confirm lock once already. Truncated
                             rather than wrapping, so a long class label cannot grow the
-                            row either. */}
+                            row either. Combined panel still writes note+tax together;
+                            activity-note is the note-only path (#654). */}
                         <span ref={taxOpen ? taxRef : undefined} className="relative inline-block">
                           <button
                             type="button"

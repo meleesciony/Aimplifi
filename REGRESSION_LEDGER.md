@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-06 | Activity note save could clobber tax tag | register Tag panel used setTransactionTax (note+tax together) | a household can add or edit an Activity charge note without opening detail | `test_regression__household_can_add_or_edit_an_activity_charge_note_without_opening_detail` |
 | 2026-09-06 | Debt-free goal name was display-only | renameGoal refused non-null kind; debt-free card printed text | a household can rename a debt-free goal without opening a separate flow | `test_regression__household_can_rename_a_debt_free_goal_without_opening_a_separate_flow` |
 | 2026-09-06 | Activity charge bank text required opening detail | bank-text write lived on detail/Home/Inbox; register omitted the control | a household can change the bank text on an Activity charge without opening detail | `test_regression__household_can_change_the_bank_text_on_an_activity_charge_without_opening_detail` |
 | 2026-09-06 | Activity charge account was display-only | account write lived on detail/Home/Inbox | a household can change which account an Activity charge belongs to without opening detail | `test_regression__household_can_change_which_account_an_activity_charge_belongs_to_without_opening_detail` |
