@@ -2641,3 +2641,11 @@ invent an auto-file quality claim.
 **Decision.** New updateTransactionNote writes note only; taxClass untouched. New TxnNoteControl compact on Home meta line. Demo fenced. Detail paired note+tax form unchanged. C.15 unchanged. No CSV. No heading tweak.
 
 **Locked.** `test_regression__household_can_add_or_edit_a_home_recent_charge_note_without_opening_detail`.
+
+## #640 — Household can set a tax tag on a Home recent charge without opening detail (2026-09-06)
+
+**Context.** Tax tag write lived only on detail via setTransactionTax (note+taxClass). Home note-only (#639) left tax display-only on Home. Calling setTransactionTax from Home with only a tag would clear the note.
+
+**Decision.** New updateTransactionTaxClass writes taxClass only; note untouched. New TxnTaxClassControl compact on Home meta line. Demo fenced. Detail paired form unchanged. C.15 unchanged. No CSV. No heading tweak.
+
+**Locked.** `test_regression__household_can_set_a_tax_tag_on_a_home_recent_charge_without_opening_detail`.

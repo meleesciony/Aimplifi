@@ -27,6 +27,8 @@ export interface DashboardRecentTxn {
   rawDescriptor: string;
   /** Per-transaction note; null when none. */
   note: string | null;
+  /** Tax tag slug; null when untagged. */
+  taxClass: string | null;
   /** True when the row still needs a human filing decision. */
   needsFile: boolean;
   /**
@@ -116,6 +118,7 @@ export async function getDashboardRecent(
       accountName: accountLabel(t.account),
       rawDescriptor: t.rawDescriptor,
       note: t.note ?? null,
+      taxClass: t.taxClass ?? null,
       needsFile,
       onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)),
     });
