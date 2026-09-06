@@ -33,6 +33,8 @@ export interface ReviewRow {
   note: string | null;
   /** Tax tag; null when unset. */
   taxClass: string | null;
+  /** Soft-hide from cash totals without deleting. DECISIONS #664. */
+  excludeFromTotals: boolean;
   status: string;
   /** O.15 (cycle-2 P2): the inbox's split tool must refuse a tracked row with
    *  the shared sentence BEFORE the server throw — a thrown server-action
@@ -98,6 +100,7 @@ export interface TriageGroup {
       | 'accountName'
       | 'note'
       | 'taxClass'
+      | 'excludeFromTotals'
       | 'reimbursement'
       | 'suggestedCategoryId'
       | 'providerCategoryId'
@@ -189,6 +192,7 @@ export function groupReviewRows(rows: ReviewRow[]): TriageGroup[] {
         accountName: m.accountName,
         note: m.note,
         taxClass: m.taxClass,
+        excludeFromTotals: m.excludeFromTotals,
         reimbursement: m.reimbursement,
         // O.12e: singles drill-down needs the same ladder rungs the register
         // already has — group-level unanimity can be null while a row has a chip.

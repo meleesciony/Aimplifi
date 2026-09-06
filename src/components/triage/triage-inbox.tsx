@@ -55,6 +55,7 @@ import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
 import { TxnNoteControl } from '@/components/finance/txn-note-form';
 import { TxnTaxClassControl } from '@/components/finance/txn-tax-form';
+import { TxnExcludeControl } from '@/components/finance/txn-exclude-form';
 import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import {
@@ -1149,6 +1150,11 @@ export function TriageInbox({
                 compact
                 triggerTestId="inbox-tax"
               />
+              <TxnExcludeControl
+                transactionId={anchorRow.id}
+                excluded={anchorRow.excludeFromTotals}
+                triggerTestId="inbox-exclude"
+              />
             </div>
           ) : (
             <>
@@ -1299,6 +1305,11 @@ export function TriageInbox({
                     taxClass={r.taxClass}
                     compact
                     triggerTestId="inbox-single-tax"
+                  />
+                  <TxnExcludeControl
+                    transactionId={r.id}
+                    excluded={r.excludeFromTotals}
+                    triggerTestId="inbox-single-exclude"
                   />
                 </div>
               ) : (

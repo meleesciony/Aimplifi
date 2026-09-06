@@ -657,3 +657,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #661 — Household can mark Paid this cycle from Recurring Coming up (2026-09-06) → docs/DECISIONS.md
 - #662 — Activity payee rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md
 - #663 — Household can exclude a Home recent charge from totals without opening detail (2026-09-06) → docs/DECISIONS.md
+- #664 — Household can exclude an Inbox charge from totals without opening detail (2026-09-06) → docs/DECISIONS.md

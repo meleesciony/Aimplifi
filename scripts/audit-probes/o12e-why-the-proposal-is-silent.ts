@@ -173,6 +173,7 @@ async function main() {
       accountName: '',
       note: null,
       taxClass: null,
+      excludeFromTotals: false,
       status: t.status,
       reimbursement: (t as { reimbursement?: string | null }).reimbursement ?? null,
       aggregate: normalizeMerchant(t.rawDescriptor).aggregate,
