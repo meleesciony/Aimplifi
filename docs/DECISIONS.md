@@ -2870,3 +2870,8 @@ invent an auto-file quality claim.
 **Decision.** Mount MoneyDialsForm on /coach (`#coach-money-dials`) with the same updateMoneyDials writer. WealthTargetCard `assumptionsHref` points at the on-page anchor. `reloadOnSuccess` so FI/wealth cards re-derive after save. Demo fenced via canWrite. Settings form unchanged (no reload). No CSV. No savings-rate percent hardcode.
 **Locked.** `test_regression__household_can_change_coach_money_dials_without_leaving_for_settings`.
 
+## #684 — Household can reconnect SimpleFIN from the dashboard alert (2026-09-06)
+**Context.** #682 mounted Plaid update-mode on connection alerts. SimpleFIN still only linked to Accounts, so a broken SimpleFIN sync on Home required leaving to Sync now or paste a setup token.
+**Decision.** Mount SimplefinAlertReconnect on SimpleFIN alert rows: Sync now (syncSimplefinNow) and paste-token reconnect (connectSimplefin). Same writers as Accounts. Demo has no SimpleFIN row. No CSV.
+**Locked.** `test_regression__household_can_reconnect_simplefin_from_the_dashboard_alert`.
+

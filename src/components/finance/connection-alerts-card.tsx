@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { ConnectionAlert } from '@/lib/engine/sync/health';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 import { PlaidUpdateButton } from '@/components/finance/plaid-update-button';
+import { SimplefinAlertReconnect } from '@/components/finance/simplefin-alert-reconnect';
 
 /**
  * Dashboard reconnect alert when a linked feed's last sync actually FAILED (Gap 1 §4) —
@@ -18,7 +19,7 @@ import { PlaidUpdateButton } from '@/components/finance/plaid-update-button';
  * could carry a credentialed URL.
  *
  * Plaid rows get update-mode reconnect here (same PlaidUpdateButton as Accounts). SimpleFIN
- * still links to Accounts, where the setup-token reconnect lives.
+ * gets Sync now + setup-token reconnect here (same writers as Accounts).
  */
 export function ConnectionAlertsCard({ alerts }: { alerts: ConnectionAlert[] }) {
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +40,8 @@ export function ConnectionAlertsCard({ alerts }: { alerts: ConnectionAlert[] }) 
                   disabled={false}
                   onError={setError}
                 />
+              ) : a.provider === 'SimpleFIN' ? (
+                <SimplefinAlertReconnect />
               ) : (
                 <TrackedActedLink
                   href="/accounts"
