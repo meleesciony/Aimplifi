@@ -2835,3 +2835,8 @@ invent an auto-file quality claim.
 **Decision.** Keep PayeeNameControl for the name. Add a sibling Filter link (`merchantRegisterHref(bankHeading)`, `data-testid="inbox-merchant-filter"`) when rule-eligible and `canRenamePayee`. Demo still shows the plain heading. No new writer.
 **Locked.** `test_regression__household_can_rename_an_inbox_payee_and_still_open_merchant_filter`.
 
+## #677 — Detail payee rename keeps the merchant filter link (2026-09-06)
+**Context.** Activity #662, Home #675, and Inbox #676 keep a sibling Filter link beside PayeeNameControl. Charge detail mounted PayeeNameControl alone in the h1 (a separate "Every … transaction" link lived lower on the page).
+**Decision.** Keep PayeeNameControl for the name. Add a sibling Filter link (`merchantRegisterHref(row.merchantName)`, `data-testid="detail-payee-merchant-filter"`) in the detail h1. Lower "Every …" link stays. No new writer.
+**Locked.** `test_regression__household_can_rename_a_detail_payee_and_still_open_merchant_filter`.
+

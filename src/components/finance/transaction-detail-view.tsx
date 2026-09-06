@@ -23,6 +23,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
+  MERCHANT_LINK_CLASS,
   RETURN_PARAM,
   merchantRegisterHref,
   withForwardedReturn,
@@ -531,7 +532,17 @@ export function TransactionDetailView({
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-semibold" data-testid="detail-payee">
-            <PayeeNameControl transactionId={row.id} name={row.merchantName} hasOverlay={detail.payeeRenamed} />
+            <span className="inline-flex min-w-0 flex-wrap items-center gap-2">
+              <PayeeNameControl transactionId={row.id} name={row.merchantName} hasOverlay={detail.payeeRenamed} />
+              <Link
+                href={merchantRegisterHref(row.merchantName)}
+                data-testid="detail-payee-merchant-filter"
+                className={`shrink-0 text-sm font-normal ${MERCHANT_LINK_CLASS}`}
+                aria-label={`See all charges for ${row.merchantName}`}
+              >
+                Filter
+              </Link>
+            </span>
           </h1>
           {row.status === 'PENDING' && (
             <Badge variant="outline" className="text-[10px]">
