@@ -29,6 +29,8 @@ export interface DashboardRecentTxn {
   note: string | null;
   /** Tax tag slug; null when untagged. */
   taxClass: string | null;
+  /** O.15: reader excluded this row from totals. */
+  excludeFromTotals: boolean;
   /** True when the row still needs a human filing decision. */
   needsFile: boolean;
   /**
@@ -119,6 +121,7 @@ export async function getDashboardRecent(
       rawDescriptor: t.rawDescriptor,
       note: t.note ?? null,
       taxClass: t.taxClass ?? null,
+      excludeFromTotals: t.excludeFromTotals,
       needsFile,
       onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)),
     });

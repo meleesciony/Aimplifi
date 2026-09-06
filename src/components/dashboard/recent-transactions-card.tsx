@@ -15,6 +15,7 @@ import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
 import { TxnNoteControl } from '@/components/finance/txn-note-form';
 import { TxnTaxClassControl } from '@/components/finance/txn-tax-form';
+import { TxnExcludeControl } from '@/components/finance/txn-exclude-form';
 
 /**
  * Home strip: latest spending rows, with needs-file rows highlighted.
@@ -198,6 +199,15 @@ export function RecentTransactionsCard({
                         taxClass={r.taxClass}
                         compact
                         triggerTestId="home-recent-tax"
+                      />
+                    </span>
+                  ) : null}
+                  {canRenamePayee ? (
+                    <span className="shrink-0">
+                      <TxnExcludeControl
+                        transactionId={r.id}
+                        excluded={r.excludeFromTotals}
+                        triggerTestId="home-recent-exclude"
                       />
                     </span>
                   ) : null}

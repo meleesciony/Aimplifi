@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-06 | Home recent exclude required opening detail | setExcludeFromTotals lived only in Activity menu; Home had no control | a household can exclude a Home recent charge from totals without opening detail | `test_regression__household_can_exclude_a_home_recent_charge_from_totals_without_opening_detail` |
 | 2026-09-06 | Activity payee rename dropped the merchant filter | #657 replaced the lens Link with PayeeNameControl | Activity payee rename keeps the merchant filter link | `test_regression__household_can_rename_a_payee_on_activity_without_opening_detail` |
 | 2026-09-06 | Recurring Coming up had no Paid this cycle | lever lived only on series rows; Coming up printed the next charge display-only | a household can mark Paid this cycle from Recurring Coming up | `test_regression__household_can_mark_paid_this_cycle_from_recurring_coming_up` |
 | 2026-09-06 | Goals Debt Freedom planner had no save | saveDebtFreeGoal lived only on Ask; planner was what-if only | a household can save a debt-free goal from the Goals planner | `test_regression__household_can_save_a_debt_free_goal_from_the_goals_planner` |

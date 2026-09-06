@@ -2764,3 +2764,8 @@ invent an auto-file quality claim.
 **Context.** #657 mounted PayeeNameControl and replaced the merchant-filter Link for household users, so the Merchant Pattern Lens entry (#250) disappeared from the row.
 **Decision.** Keep PayeeNameControl for the name. Add a sibling Filter link (same merchantRegisterHref) so rename and lens entry coexist. Demo still uses the name as the filter Link. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_rename_a_payee_on_activity_without_opening_detail` (asserts Filter link remains).
+
+## #663 — Household can exclude a Home recent charge from totals without opening detail (2026-09-06)
+**Context.** setExcludeFromTotals lived in the Activity action menu. Home recent charges had no exclude control.
+**Decision.** Plumb excludeFromTotals on dashboard recent rows. Mount TxnExcludeControl when canRenamePayee. Same setExcludeFromTotals writer. Demo fenced. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_exclude_a_home_recent_charge_from_totals_without_opening_detail`.
