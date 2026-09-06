@@ -2649,3 +2649,11 @@ invent an auto-file quality claim.
 **Decision.** New updateTransactionTaxClass writes taxClass only; note untouched. New TxnTaxClassControl compact on Home meta line. Demo fenced. Detail paired form unchanged. C.15 unchanged. No CSV. No heading tweak.
 
 **Locked.** `test_regression__household_can_set_a_tax_tag_on_a_home_recent_charge_without_opening_detail`.
+
+## #641 — Household can change an Inbox charge amount without opening detail (2026-09-06)
+
+**Context.** Amount write lived on detail and Home. Inbox printed amounts as text on single-txn cards and one-by-one rows.
+
+**Decision.** Reuse TxnAmountControl when canRenamePayee on single-txn group cards and singles rows. Multi-txn group totals stay display-only (sum). Rematch already in the action. Demo fenced. No CSV. No heading tweak.
+
+**Locked.** `test_regression__household_can_change_an_inbox_charge_amount_without_opening_detail`.

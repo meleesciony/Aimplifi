@@ -49,6 +49,7 @@ import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { cents, centsFromDollarString, formatCents } from '@/lib/money';
 import type { TriageGroupView } from '@/server/triage';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
+import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import {
   acceptAllConfident,
@@ -1056,9 +1057,20 @@ export function TriageInbox({
                 heading
               )}
             </span>
-            <span className="text-lg font-semibold tabular-nums">
-              {formatCents(cents(top.totalCents), { signDisplay: 'always' })}
-            </span>
+            {one && canRenamePayee ? (
+              <TxnAmountControl
+                transactionId={anchorRow.id}
+                amountCents={anchorRow.amountCents}
+                triggerTestId="inbox-amount"
+                idleClassName={`text-lg font-semibold tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
+                  anchorRow.amountCents > 0 ? 'text-positive-500' : ''
+                }`}
+              />
+            ) : (
+              <span className="text-lg font-semibold tabular-nums">
+                {formatCents(cents(top.totalCents), { signDisplay: 'always' })}
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground" data-testid="triage-group-meta">
             {one
@@ -1161,7 +1173,18 @@ export function TriageInbox({
                     ? ` · ${formatRelativeDays(today, isoDate(r.date))}`
                     : ''}
                 </span>
-                <span className="tabular-nums">{formatCents(cents(r.amountCents), { signDisplay: 'always' })}</span>
+                {canRenamePayee ? (
+                  <TxnAmountControl
+                    transactionId={r.id}
+                    amountCents={r.amountCents}
+                    triggerTestId="inbox-single-amount"
+                    idleClassName={`tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
+                      r.amountCents > 0 ? 'text-positive-500' : ''
+                    }`}
+                  />
+                ) : (
+                  <span className="tabular-nums">{formatCents(cents(r.amountCents), { signDisplay: 'always' })}</span>
+                )}
               </div>
               <p className="break-all font-mono text-[10px] text-muted-foreground">{r.rawDescriptor}</p>
               {r.rowSuggestion && (

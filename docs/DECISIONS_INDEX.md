@@ -634,3 +634,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #638 — Home recent charges line up; compact direction says Money out (2026-09-03) → docs/DECISIONS.md
 - #639 — Household can add or edit a Home recent-charge note without opening detail (2026-09-06) → docs/DECISIONS.md
 - #640 — Household can set a tax tag on a Home recent charge without opening detail (2026-09-06) → docs/DECISIONS.md
+- #641 — Household can change an Inbox charge amount without opening detail (2026-09-06) → docs/DECISIONS.md

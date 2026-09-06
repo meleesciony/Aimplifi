@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-06 | Inbox charge amount was display-only | amount write lived on detail and Home; Inbox printed formatCents | a household can change an Inbox charge amount without opening detail | `test_regression__household_can_change_an_inbox_charge_amount_without_opening_detail` |
 | 2026-09-06 | Home recent-charge tax tag was missing | tax write lived only on setTransactionTax (note+taxClass) | a household can set a tax tag on a Home recent charge without opening detail | `test_regression__household_can_set_a_tax_tag_on_a_home_recent_charge_without_opening_detail` |
 | 2026-09-06 | Home recent-charge note was missing | note write lived only on setTransactionTax (note+taxClass) | a household can add or edit a Home recent-charge note without opening detail | `test_regression__household_can_add_or_edit_a_home_recent_charge_note_without_opening_detail` |
 | 2026-09-03 | Home recent charges did not line up; compact control said “Out” | one flex row held payee + writes + dollars + In/Out | Home recent charges line up; compact direction says Money out | `test_regression__home_recent_charges_line_up_and_name_money_out` |
