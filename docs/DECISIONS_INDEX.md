@@ -665,3 +665,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #669 — Household can mark Paid this cycle from the Spending plan Fixed list (2026-09-06) → docs/DECISIONS.md
 - #670 — Household can change a Recurring monthly amount without leaving for Spending plan (2026-09-06) → docs/DECISIONS.md
 - #671 — Household can change a Recurring cadence without leaving for Spending plan (2026-09-06) → docs/DECISIONS.md
+- #672 — Household can rename a Recurring Coming up display name without a dead end (2026-09-06) → docs/DECISIONS.md

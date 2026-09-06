@@ -2810,3 +2810,8 @@ invent an auto-file quality claim.
 **Decision.** Load BillCadence overlays in getRecurring. Mount BillCadenceControl on Recurring expense rows when canRenameBills. Widen updateBillCadence ownership to Fixed list OR live expense Recurring series; loans still refused when on the Fixed list. Same BillCadence overlay. Revalidate /recurring. Demo fenced. No CSV.
 **Locked.** `test_regression__household_can_change_a_recurring_cadence_without_leaving_for_spending_plan`.
 
+## #672 — Household can rename a Recurring Coming up display name without a dead end (2026-09-06)
+**Context.** BillNameControl lived on Recurring series rows (#658). Coming up printed the overlay name inside a merchant Filter link only.
+**Decision.** Mount BillNameControl on Coming up expense rows when canRenameBills. Keep a sibling Filter link to the merchant register. Same renameBill / clearBillName writers. Demo keeps the name as the Filter link. No CSV.
+**Locked.** `test_regression__household_can_rename_a_recurring_coming_up_display_name_without_a_dead_end`.
+

@@ -416,13 +416,33 @@ export function RecurringView({
                     {/* O.15 slice 1 — same reasoning as the Row above: a renewal
                         the app says is COMING is a claim built from charges that
                         already happened, so the name opens them. */}
-                    <Link
-                      href={merchantRegisterHref(o.merchantCanonical)}
-                      data-testid="coming-up-merchant-link"
-                      className={`truncate ${MERCHANT_LINK_CLASS}`}
-                    >
-                      {namedBillLabel(o, billNames, (id) => data.categoryNames[id] ?? CATEGORY_BY_ID.get(id)?.name ?? id)}
-                    </Link>
+                    {canRenameBills ? (
+                      <span className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="truncate font-medium" data-testid="coming-up-merchant-link">
+                          <BillNameControl
+                            billKey={billRenameKey(o)}
+                            name={namedBillLabel(o, billNames, (id) => data.categoryNames[id] ?? CATEGORY_BY_ID.get(id)?.name ?? id)}
+                            hasOverlay={Boolean(billNames.get(billRenameKey(o))?.trim())}
+                            labelTestId="coming-up-bill-name"
+                          />
+                        </span>
+                        <Link
+                          href={merchantRegisterHref(o.merchantCanonical)}
+                          data-testid="coming-up-merchant-filter"
+                          className={`shrink-0 text-[11px] ${MERCHANT_LINK_CLASS}`}
+                        >
+                          Filter
+                        </Link>
+                      </span>
+                    ) : (
+                      <Link
+                        href={merchantRegisterHref(o.merchantCanonical)}
+                        data-testid="coming-up-merchant-link"
+                        className={`truncate ${MERCHANT_LINK_CLASS}`}
+                      >
+                        {namedBillLabel(o, billNames, (id) => data.categoryNames[id] ?? CATEGORY_BY_ID.get(id)?.name ?? id)}
+                      </Link>
+                    )}
                     {o.increasedFromCents !== null && (
                       <span className="shrink-0 rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-600 dark:text-rose-400">
                         ↑ was {formatCents(cents(o.increasedFromCents))}
