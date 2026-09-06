@@ -56,6 +56,7 @@ import { ActionDeadline, withDeadline } from '@/components/triage/action-deadlin
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
+import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import {
   PROVENANCE_BADGE_TESTID,
@@ -1354,12 +1355,20 @@ export function TransactionList({
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       {canEditSpendClass && !t.splitParentId ? (
-                        <TxnAmountControl
-                          transactionId={t.id}
-                          amountCents={t.amountCents}
-                          triggerTestId="activity-amount"
-                          idleClassName={`shrink-0 tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${amountClass(t)}`}
-                        />
+                        <span className="inline-flex shrink-0 items-center gap-1">
+                          <TxnAmountControl
+                            transactionId={t.id}
+                            amountCents={t.amountCents}
+                            triggerTestId="activity-amount"
+                            idleClassName={`shrink-0 tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${amountClass(t)}`}
+                          />
+                          <TxnDirectionControl
+                            transactionId={t.id}
+                            amountCents={t.amountCents}
+                            compact
+                            flipTestId="activity-direction"
+                          />
+                        </span>
                       ) : (
                         <div className={`tabular-nums ${amountClass(t)}`}>
                           {formatCents(cents(t.amountCents), { signDisplay: 'always' })}

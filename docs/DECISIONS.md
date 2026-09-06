@@ -2698,3 +2698,8 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnDateControl on the register meta line when canEditSpendClass. Demo fenced. Rematch already in the action. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_change_an_activity_charge_date_without_opening_detail`.
 
+## #650 — Household can flip an Activity charge in or out without opening detail (2026-09-06)
+**Context.** Direction flip lived on detail, Home, and Inbox. Activity had amount write (#648) but no in/out flip beside it.
+**Decision.** Reuse TxnDirectionControl compact beside Activity amount when canEditSpendClass and not a split piece. Demo fenced. Rematch already in the action. Not a transfer toggle. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_flip_an_activity_charge_in_or_out_without_opening_detail`.
+
