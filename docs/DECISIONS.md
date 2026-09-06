@@ -2662,3 +2662,8 @@ invent an auto-file quality claim.
 **Context.** Date write lived on detail and Home. Inbox printed dates as text on single-txn cards and one-by-one rows.
 **Decision.** Reuse TxnDateControl when canRenamePayee on single-txn group meta and singles rows. Multi-txn date ranges stay display-only. Rematch already in the action. Demo fenced. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_change_an_inbox_charge_date_without_opening_detail`.
+
+## #643 — Household can flip an Inbox charge in or out without opening detail (2026-09-06)
+**Context.** Direction flip lived on detail and Home. Inbox printed amounts without an in/out control on single-txn cards and one-by-one rows.
+**Decision.** Reuse TxnDirectionControl compact when canRenamePayee on single-txn group cards and singles rows. Multi-txn sums stay without a flip. Rematch already in the action. Demo fenced. No transfer toggle. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_flip_an_inbox_charge_in_or_out_without_opening_detail`.

@@ -51,6 +51,7 @@ import type { TriageGroupView } from '@/server/triage';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
+import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import {
   acceptAllConfident,
@@ -1059,14 +1060,22 @@ export function TriageInbox({
               )}
             </span>
             {one && canRenamePayee ? (
-              <TxnAmountControl
-                transactionId={anchorRow.id}
-                amountCents={anchorRow.amountCents}
-                triggerTestId="inbox-amount"
-                idleClassName={`text-lg font-semibold tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
-                  anchorRow.amountCents > 0 ? 'text-positive-500' : ''
-                }`}
-              />
+              <span className="inline-flex shrink-0 items-center gap-2">
+                <TxnAmountControl
+                  transactionId={anchorRow.id}
+                  amountCents={anchorRow.amountCents}
+                  triggerTestId="inbox-amount"
+                  idleClassName={`text-lg font-semibold tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
+                    anchorRow.amountCents > 0 ? 'text-positive-500' : ''
+                  }`}
+                />
+                <TxnDirectionControl
+                  transactionId={anchorRow.id}
+                  amountCents={anchorRow.amountCents}
+                  compact
+                  flipTestId="inbox-direction"
+                />
+              </span>
             ) : (
               <span className="text-lg font-semibold tabular-nums">
                 {formatCents(cents(top.totalCents), { signDisplay: 'always' })}
@@ -1201,14 +1210,22 @@ export function TriageInbox({
                   </span>
                 </span>
                 {canRenamePayee ? (
-                  <TxnAmountControl
-                    transactionId={r.id}
-                    amountCents={r.amountCents}
-                    triggerTestId="inbox-single-amount"
-                    idleClassName={`tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
-                      r.amountCents > 0 ? 'text-positive-500' : ''
-                    }`}
-                  />
+                  <span className="inline-flex shrink-0 items-center gap-2">
+                    <TxnAmountControl
+                      transactionId={r.id}
+                      amountCents={r.amountCents}
+                      triggerTestId="inbox-single-amount"
+                      idleClassName={`tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
+                        r.amountCents > 0 ? 'text-positive-500' : ''
+                      }`}
+                    />
+                    <TxnDirectionControl
+                      transactionId={r.id}
+                      amountCents={r.amountCents}
+                      compact
+                      flipTestId="inbox-single-direction"
+                    />
+                  </span>
                 ) : (
                   <span className="tabular-nums">{formatCents(cents(r.amountCents), { signDisplay: 'always' })}</span>
                 )}
