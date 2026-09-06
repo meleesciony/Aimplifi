@@ -82,6 +82,7 @@ export async function createGoal(
  */
 export async function saveDebtFreeGoal(targetDateRaw: string): Promise<void> {
   const userId = await requireUserId();
+  if (isDemoUser(userId)) throw new Error(DEMO_ENTRY_BLOCKED);
   let targetDate: ISODate;
   try {
     targetDate = isoDate(String(targetDateRaw ?? ''));

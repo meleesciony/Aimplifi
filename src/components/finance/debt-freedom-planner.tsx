@@ -16,13 +16,27 @@ import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { planDebtPayoff, type DebtInput, type DebtStrategy } from '@/lib/engine/debt/payoff';
 import { addMonthsClamped, formatMonth, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
+import { saveDebtFreeGoal } from '@/server/goal-actions';
+import { withDeadline } from '@/components/triage/action-deadline';
+import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 
 const EXTRA_MAX_CENTS = 200_000; // $2,000/mo
 const EXTRA_STEP_CENTS = 5_000; // $50
 
-export function DebtFreedomPlanner({ debts, today }: { debts: DebtInput[]; today: string }) {
+export function DebtFreedomPlanner({
+  debts,
+  today,
+  canSaveGoal = false,
+}: {
+  debts: DebtInput[];
+  today: string;
+  /** Demo cannot learn — Save as goal only for a real household. */
+  canSaveGoal?: boolean;
+}) {
   const [strategy, setStrategy] = useState<DebtStrategy>('avalanche'); // Conflict A default
   const [extraCents, setExtraCents] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const active = useMemo(
     () => planDebtPayoff({ debts, strategy, extraMonthlyCents: extraCents }),
@@ -41,6 +55,11 @@ export function DebtFreedomPlanner({ debts, today }: { debts: DebtInput[]; today
     months === null ? null : formatMonth(addMonthsClamped(isoDate(today), months).slice(0, 7));
 
   const heroDate = monthLabel(active.monthsToDebtFree);
+  // ISO date saveDebtFreeGoal re-solves from — same writer Ask uses (DECISIONS #125).
+  const heroTargetDate =
+    active.monthsToDebtFree === null
+      ? null
+      : addMonthsClamped(isoDate(today), active.monthsToDebtFree);
   const interestSavedCents = Math.max(0, snowball.totalInterestCents - avalanche.totalInterestCents);
   const showTradeoff = snowball.firstPayoffMonth !== null && interestSavedCents > 0;
 
@@ -54,6 +73,40 @@ export function DebtFreedomPlanner({ debts, today }: { debts: DebtInput[]; today
         <p className="text-sm text-muted-foreground">
           {heroDate ? COACH_COPY.debtFreeHero(heroDate) : COACH_COPY.debtNotClearing()}
         </p>
+        {canSaveGoal && heroTargetDate ? (
+          <div className="pt-2">
+            <Button
+              type="button"
+              size="sm"
+              disabled={saving}
+              data-testid="debt-planner-save-goal"
+              onClick={() => {
+                if (saving) return;
+                setSaveError(null);
+                setSaving(true);
+                void (async () => {
+                  try {
+                    await withDeadline(saveDebtFreeGoal(heroTargetDate), FORM_ACTION_DEADLINE_MS);
+                    window.location.reload();
+                  } catch {
+                    setSaveError('Could not save that goal. Try again.');
+                    setSaving(false);
+                  }
+                })();
+              }}
+            >
+              {saving ? 'Saving…' : 'Save as debt-free goal'}
+            </Button>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Same save as Ask — monthly contribution is re-solved from your safe-to-spend, not the slider.
+            </p>
+            {saveError ? (
+              <p className="mt-1 text-xs text-red-500" role="alert" data-testid="debt-planner-save-error">
+                {saveError}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Strategy toggle — values choice (Conflict A) */}

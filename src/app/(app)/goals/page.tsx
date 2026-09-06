@@ -17,6 +17,7 @@ import { GoalSavedControl } from '@/components/finance/goal-saved-form';
 import { GoalMonthlyControl } from '@/components/finance/goal-monthly-form';
 import { GoalTargetDateControl } from '@/components/finance/goal-target-date-form';
 import { DebtFreedomPlanner } from '@/components/finance/debt-freedom-planner';
+import { isDemoUser } from '@/lib/demo-user';
 import { GoalForm } from '@/components/finance/goal-form';
 
 export const metadata = { title: "Goals" };
@@ -219,7 +220,13 @@ export default async function GoalsPage() {
         })}
       </div>
 
-      {debts.length > 0 && <DebtFreedomPlanner debts={debts} today={coach.today} />}
+      {debts.length > 0 && (
+        <DebtFreedomPlanner
+          debts={debts}
+          today={coach.today}
+          canSaveGoal={!isDemoUser(session.user.id)}
+        />
+      )}
 
       <Card>
         <CardHeader className="pb-2">

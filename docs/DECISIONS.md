@@ -2748,3 +2748,8 @@ invent an auto-file quality claim.
 **Context.** setBudget / clearBudget lived behind the bottom "Set a monthly target" form. By-category printed " / $X" as static text.
 **Decision.** Mount BudgetRowTargetControl on each By-category row when canEdit (demo stays display-only). Same setBudget / clearBudget writers. Bottom form kept for categories not on the list. Integer cents via parseBudgetTargetCents. No CSV. No savings-rate percent.
 **Locked.** `test_regression__household_can_change_a_budget_target_on_the_category_row`.
+
+## #660 — Household can save a debt-free goal from the Goals planner (2026-09-06)
+**Context.** saveDebtFreeGoal lived on Ask. Goals Debt Freedom planner showed a debt-free date with no save control.
+**Decision.** Mount Save as debt-free goal when canSaveGoal and a date exists. Same saveDebtFreeGoal writer (re-solves monthly from safe-to-spend). Demo fenced on UI and writer. No CSV. No savings-rate percent.
+**Locked.** `test_regression__household_can_save_a_debt_free_goal_from_the_goals_planner`.
