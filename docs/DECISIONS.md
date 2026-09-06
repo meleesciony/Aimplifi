@@ -2703,3 +2703,8 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnDirectionControl compact beside Activity amount when canEditSpendClass and not a split piece. Demo fenced. Rematch already in the action. Not a transfer toggle. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_flip_an_activity_charge_in_or_out_without_opening_detail`.
 
+## #651 — Household can change which account an Activity charge belongs to without opening detail (2026-09-06)
+**Context.** Account write lived on detail, Home, and Inbox. Activity printed accountName as text on the register meta line.
+**Decision.** Load listTxnMoveAccounts on the Activity page. Reuse TxnAccountControl when canEditSpendClass and not a split piece. Demo fenced. Rematch already in the action. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_change_which_account_an_activity_charge_belongs_to_without_opening_detail`.
+

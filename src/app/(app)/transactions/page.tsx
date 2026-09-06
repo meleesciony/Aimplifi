@@ -17,6 +17,7 @@ import { getSharedTransactionsView } from '@/server/household';
 import { getTransactions, getWithheldAccountSummary } from '@/server/transactions';
 import { getVisibleGroups } from '@/server/categories';
 import { isDemoUser } from '@/lib/demo-user';
+import { listTxnMoveAccounts } from '@/server/txn-move-accounts';
 import { getProvider } from '@/lib/providers/demo';
 import { ACTIVITY_PAGE_TITLE } from '@/lib/copy/activity-copy';
 
@@ -104,7 +105,7 @@ export default async function TransactionsPage({
     spendClass !== null;
   const hasFilters = hasFiltersBesidesMerchant || !!merchant;
 
-  const [{ rows, summary, accountOptions, accountFilter, pageInfo, lens, unclassifiedCount, oldestDate, newestDate }, categoryGroups, withheld, shared] =
+  const [{ rows, summary, accountOptions, accountFilter, pageInfo, lens, unclassifiedCount, oldestDate, newestDate }, categoryGroups, withheld, shared, moveAccounts] =
     await Promise.all([
       getTransactions(session.user.id, filter, page),
       getVisibleGroups(session.user.id),
@@ -112,6 +113,7 @@ export default async function TransactionsPage({
       // Separate path from getTransactions (§4.5 / T9 twin of slice 2) — personal
       // summary + picker stay the viewer's own set.
       getSharedTransactionsView(),
+      listTxnMoveAccounts(session.user.id, ''),
     ]);
 
   return (
@@ -266,6 +268,7 @@ export default async function TransactionsPage({
         // stop looking for the real route (K.3 critic, F1).
         canImportCsv={!isDemoUser(session.user.id)}
         canEditSpendClass={!isDemoUser(session.user.id)}
+        accounts={moveAccounts}
       />
 
       {shared.kind === 'member' && (

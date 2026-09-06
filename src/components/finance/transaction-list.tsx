@@ -57,6 +57,7 @@ import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
+import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import {
   PROVENANCE_BADGE_TESTID,
@@ -99,6 +100,7 @@ export function TransactionList({
   canImportCsv = true,
   /** When false (shared demo), Fixed/Discretionary is a label only. */
   canEditSpendClass = true,
+  accounts = [],
 }: {
   rows: TxnView[];
   summary: TxnSummary;
@@ -116,6 +118,8 @@ export function TransactionList({
    *  empty state must not name an import it cannot perform (K.3 critic F1). */
   canImportCsv?: boolean;
   canEditSpendClass?: boolean;
+  /** Destinations for TxnAccountControl (#651). Empty when the page omits them. */
+  accounts?: readonly { id: string; name: string }[];
 }) {
   const searchParams = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -1013,7 +1017,18 @@ export function TransactionList({
                         ) : (
                           formatISODate(isoDate(t.date), 'long')
                         )}{' '}
-                        · <span className="break-all">{t.accountName}</span>{' '}
+                        ·{' '}
+                        {canEditSpendClass && !t.splitParentId ? (
+                          <TxnAccountControl
+                            transactionId={t.id}
+                            accountId={t.accountId}
+                            accountName={t.accountName}
+                            accounts={accounts}
+                            triggerTestId="activity-account"
+                          />
+                        ) : (
+                          <span className="break-all">{t.accountName}</span>
+                        )}{' '}
                         {/* Note + tax tag (O.1). Sits on the SAME line as the category
                             chip on purpose: a control on its own line would add a line
                             to every row in the register, and a uniform row-height shift

@@ -644,3 +644,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #648 — Household can change an Activity charge amount without opening detail (2026-09-06) → docs/DECISIONS.md
 - #649 — Household can change an Activity charge date without opening detail (2026-09-06) → docs/DECISIONS.md
 - #650 — Household can flip an Activity charge in or out without opening detail (2026-09-06) → docs/DECISIONS.md
+- #651 — Household can change which account an Activity charge belongs to without opening detail (2026-09-06) → docs/DECISIONS.md
