@@ -671,3 +671,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #675 — Home payee rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md
 - #676 — Inbox payee rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md
 - #677 — Detail payee rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md
+- #678 — Fixed bill rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md

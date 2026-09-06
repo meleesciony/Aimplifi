@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transactions/links';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cents, formatCents } from '@/lib/money';
 import { UNNAMED_BILL_LABEL } from '@/lib/engine/spending-plan/fixed-line-items';
@@ -104,7 +105,19 @@ export function FixedCostsCard({
                 <div key={l.key} className="flex items-center justify-between gap-3 py-2" data-testid="fixed-costs-basis-row">
                   <dt className="min-w-0 text-muted-foreground">
                     {l.kind === 'recurring-bill' && l.billKey && canWrite ? (
-                      <BillNameControl billKey={l.billKey} name={l.label} hasOverlay={Boolean(l.nameOverlaid)} labelTestId="fixed-costs-basis-label" />
+                      <span className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
+                        <BillNameControl billKey={l.billKey} name={l.label} hasOverlay={Boolean(l.nameOverlaid)} labelTestId="fixed-costs-basis-label" />
+                        {l.merchantCanonical?.trim() ? (
+                          <Link
+                            href={merchantRegisterHref(l.merchantCanonical)}
+                            data-testid="fixed-costs-basis-merchant-filter"
+                            className={`shrink-0 text-[11px] ${MERCHANT_LINK_CLASS}`}
+                            aria-label={`See all charges for ${l.merchantCanonical}`}
+                          >
+                            Filter
+                          </Link>
+                        ) : null}
+                      </span>
                     ) : (
                       <span data-testid="fixed-costs-basis-label">{l.label}</span>
                     )}

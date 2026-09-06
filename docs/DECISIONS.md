@@ -2840,3 +2840,8 @@ invent an auto-file quality claim.
 **Decision.** Keep PayeeNameControl for the name. Add a sibling Filter link (`merchantRegisterHref(row.merchantName)`, `data-testid="detail-payee-merchant-filter"`) in the detail h1. Lower "Every …" link stays. No new writer.
 **Locked.** `test_regression__household_can_rename_a_detail_payee_and_still_open_merchant_filter`.
 
+## #678 — Fixed bill rename keeps the merchant filter link (2026-09-06)
+**Context.** Recurring Coming up (#672) keeps a sibling Filter link beside BillNameControl. Spending plan Fixed mounted BillNameControl alone for named recurring bills, so renaming dropped Merchant Pattern Lens entry from the Fixed list.
+**Decision.** Keep BillNameControl for the name. When `merchantCanonical` is present, add a sibling Filter link (`merchantRegisterHref`, `data-testid="fixed-costs-basis-merchant-filter"`). Unnamed / no-merchant lines stay without Filter. Demo still shows the plain label. No new writer.
+**Locked.** `test_regression__household_can_rename_a_fixed_bill_and_still_open_merchant_filter`.
+
