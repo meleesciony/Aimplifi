@@ -776,15 +776,28 @@ export function TransactionList({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         {/* Merchant Pattern Lens entry (DECISIONS #250): the name
-                            links to the merchant-filtered register + lens card. */}
+                            links to the merchant-filtered register + lens card.
+                            When the household can rename (#657), the rename
+                            control owns the name and a sibling Filter link
+                            keeps the lens entry (#662). */}
                         {canEditSpendClass ? (
-                          <span className="truncate font-medium" data-testid="txn-merchant-link">
-                            <PayeeNameControl
-                              transactionId={t.id}
-                              name={t.merchantName}
-                              hasOverlay={t.payeeRenamed}
-                            />
-                          </span>
+                          <>
+                            <span className="truncate font-medium" data-testid="txn-merchant-name">
+                              <PayeeNameControl
+                                transactionId={t.id}
+                                name={t.merchantName}
+                                hasOverlay={t.payeeRenamed}
+                              />
+                            </span>
+                            <Link
+                              href={merchantRegisterHref(t.merchantName)}
+                              data-testid="txn-merchant-link"
+                              className={`shrink-0 text-[10px] ${MERCHANT_LINK_CLASS}`}
+                              aria-label={`See all charges for ${t.merchantName}`}
+                            >
+                              Filter
+                            </Link>
+                          </>
                         ) : (
                           <Link
                             href={merchantRegisterHref(t.merchantName)}

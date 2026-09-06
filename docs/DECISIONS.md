@@ -2758,3 +2758,9 @@ invent an auto-file quality claim.
 **Context.** Paid this cycle lived on each series row. Coming up (next 30 days) showed the next charge with no lever.
 **Decision.** Mount PaidThisCycleButton on Coming up expense rows (same recordRepeatingBillPaidThisCycle writer). Show Paid this cycle status when already recorded. Demo fenced in the action. No CSV.
 **Locked.** `test_regression__household_can_mark_paid_this_cycle_from_recurring_coming_up`.
+
+
+## #662 — Activity payee rename keeps the merchant filter link (2026-09-06)
+**Context.** #657 mounted PayeeNameControl and replaced the merchant-filter Link for household users, so the Merchant Pattern Lens entry (#250) disappeared from the row.
+**Decision.** Keep PayeeNameControl for the name. Add a sibling Filter link (same merchantRegisterHref) so rename and lens entry coexist. Demo still uses the name as the filter Link. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_rename_a_payee_on_activity_without_opening_detail` (asserts Filter link remains).

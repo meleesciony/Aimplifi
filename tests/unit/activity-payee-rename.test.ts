@@ -21,6 +21,10 @@ describe('Activity register reuses the existing payee rename', () => {
     expect(list).toContain('canEditSpendClass');
     expect(list).toContain('hasOverlay={t.payeeRenamed}');
     expect(list).toContain('transactionId={t.id}');
+    // #662 — rename does not kill the merchant-filter lens entry.
+    expect(list).toContain('data-testid="txn-merchant-link"');
+    expect(list).toContain('See all charges for');
+    expect(list).toMatch(/>\s*Filter\s*<\/Link>/);
     expect(list).not.toContain('createKeywordRule');
     expect(list).not.toContain('renamePayee(');
 
