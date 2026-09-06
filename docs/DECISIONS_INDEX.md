@@ -663,3 +663,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #667 — Household can track reimbursement on an Inbox charge without opening detail (2026-09-06) → docs/DECISIONS.md
 - #668 — Household can track reimbursement on an Activity charge without opening detail (2026-09-06) → docs/DECISIONS.md
 - #669 — Household can mark Paid this cycle from the Spending plan Fixed list (2026-09-06) → docs/DECISIONS.md
+- #670 — Household can change a Recurring monthly amount without leaving for Spending plan (2026-09-06) → docs/DECISIONS.md

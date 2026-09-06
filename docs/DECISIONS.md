@@ -2800,3 +2800,8 @@ invent an auto-file quality claim.
 **Decision.** Plumb paidThisCycle and merchantCanonical onto Fixed list bill lines from detection. Mount PaidThisCycleButton (or Paid this cycle status) when canEditFigures, named payee, not a loan. Same recordRepeatingBillPaidThisCycle writer. Unnamed bills stay without the lever (no merchantCanonical). Demo fenced. No CSV. No savings-rate percent.
 **Locked.** `test_regression__household_can_mark_paid_this_cycle_from_spending_plan_fixed_list`.
 
+## #670 — Household can change a Recurring monthly amount without leaving for Spending plan (2026-09-06)
+**Context.** updateBillAmount lived on Spending plan Fixed rows and refused keys not on the Fixed list. Recurring printed charge magnitude as static text, so changing the plan monthly rate required leaving for Spending plan.
+**Decision.** Load BillAmount overlays in getRecurring. Mount BillAmountControl on Recurring expense rows when canRenameBills (shows monthly rate; income keeps charge + cadence text). Widen updateBillAmount ownership to Fixed list OR live expense Recurring series; loans still refused when on the Fixed list. Same BillAmount overlay. Revalidate /recurring. Demo fenced. Integer cents. No CSV.
+**Locked.** `test_regression__household_can_change_a_recurring_monthly_amount_without_leaving_for_spending_plan`.
+

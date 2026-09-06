@@ -25,6 +25,7 @@ import {
   RecurringInstructions,
 } from '@/components/finance/recurring-verdict-controls';
 import { BillNameControl } from '@/components/finance/rename-bill-form';
+import { BillAmountControl } from '@/components/finance/bill-amount-form';
 import { billRenameKey, namedBillLabel } from '@/lib/engine/spending-plan/bill-rename';
 
 const CADENCE_SUFFIX: Record<Cadence, string> = {
@@ -42,12 +43,14 @@ function Row({
   accountNames,
   categoryNames,
   billNames,
+  billAmounts,
   canRenameBills,
 }: {
   item: RecurringItem;
   accountNames: Record<string, string>;
   categoryNames: Record<string, string>;
   billNames: ReadonlyMap<string, string>;
+  billAmounts: ReadonlyMap<string, number>;
   canRenameBills: boolean;
 }) {
   const mag = Math.abs(item.lastAmountCents);
@@ -57,6 +60,9 @@ function Row({
   const billKey = billRenameKey(item);
   const displayName = namedBillLabel(item, billNames, (id) => categoryNames[id] ?? CATEGORY_BY_ID.get(id)?.name ?? id);
   const nameOverlaid = Boolean(billNames.get(billKey)?.trim());
+  const amountOverlay = billAmounts.get(billKey);
+  const amountOverlaid = typeof amountOverlay === 'number' && amountOverlay > 0;
+  const monthlyCents = amountOverlaid ? amountOverlay! : item.monthlyEquivalentCents;
   // Color by whether the change helps the user: a rising bill is bad (rose), but a
   // rising paycheck is good (emerald). Pure helper so this is unit-locked (REC-2).
   const change = priceChangeBadge(item);
@@ -166,8 +172,22 @@ function Row({
             380px: "next ~ Mon, Ju…"). */}
         <div className="shrink-0 text-right">
           <div className="tabular-nums">
-            <span className="font-medium">{formatCents(cents(mag))}</span>
-            <span className="text-xs text-muted-foreground">{CADENCE_SUFFIX[item.cadence]}</span>
+            {canRenameBills && !item.isIncome ? (
+              <span className="inline-flex items-baseline gap-1 font-medium">
+                <BillAmountControl
+                  billKey={billKey}
+                  monthlyCents={monthlyCents}
+                  hasOverlay={amountOverlaid}
+                  amountTestId="recurring-bill-amount"
+                />
+                <span className="text-xs font-normal text-muted-foreground">/mo</span>
+              </span>
+            ) : (
+              <>
+                <span className="font-medium">{formatCents(cents(mag))}</span>
+                <span className="text-xs text-muted-foreground">{CADENCE_SUFFIX[item.cadence]}</span>
+              </>
+            )}
           </div>
           <div className="text-xs text-muted-foreground">
             {item.active ? (
@@ -215,6 +235,7 @@ function Section({
   accountNames,
   categoryNames,
   billNames,
+  billAmounts,
   canRenameBills,
   testid,
   muted,
@@ -225,6 +246,7 @@ function Section({
   accountNames: Record<string, string>;
   categoryNames: Record<string, string>;
   billNames: ReadonlyMap<string, string>;
+  billAmounts: ReadonlyMap<string, number>;
   canRenameBills: boolean;
   testid?: string;
   muted?: boolean;
@@ -248,6 +270,7 @@ function Section({
             accountNames={accountNames}
             categoryNames={categoryNames}
             billNames={billNames}
+            billAmounts={billAmounts}
             canRenameBills={canRenameBills}
           />
         ))}
@@ -276,6 +299,7 @@ export function RecurringView({
 }) {
   const s = data.summary;
   const billNames = new Map(Object.entries(data.billNames ?? {}));
+  const billAmounts = new Map(Object.entries(data.billAmounts ?? {}));
   const paidThisCycleByMerchant = new Set(
     s.items.filter((i) => i.paidThisCycle).map((i) => i.merchantCanonical),
   );
@@ -431,6 +455,7 @@ export function RecurringView({
             accountNames={data.accountNames}
             categoryNames={data.categoryNames}
             billNames={billNames}
+            billAmounts={billAmounts}
             canRenameBills={canRenameBills}
             testid="recurring-list"
           />
@@ -441,6 +466,7 @@ export function RecurringView({
             accountNames={data.accountNames}
             categoryNames={data.categoryNames}
             billNames={billNames}
+            billAmounts={billAmounts}
             canRenameBills={canRenameBills}
           />
           <Section
@@ -450,6 +476,7 @@ export function RecurringView({
             accountNames={data.accountNames}
             categoryNames={data.categoryNames}
             billNames={billNames}
+            billAmounts={billAmounts}
             canRenameBills={canRenameBills}
           />
           <Section
@@ -459,6 +486,7 @@ export function RecurringView({
             accountNames={data.accountNames}
             categoryNames={data.categoryNames}
             billNames={billNames}
+            billAmounts={billAmounts}
             canRenameBills={canRenameBills}
             muted
           />

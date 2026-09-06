@@ -16,6 +16,7 @@ import {
   billRenameKey,
 } from '@/lib/engine/spending-plan/bill-rename';
 import { getSpendingPlan } from '@/server/spending-plan';
+import { getRecurring } from '@/server/recurring';
 
 export interface BillAmountResult {
   ok: boolean;
@@ -25,9 +26,37 @@ export interface BillAmountResult {
 
 function revalidateBillAmountSurfaces(): void {
   revalidatePath('/spending-plan');
+  revalidatePath('/recurring');
   revalidatePath('/settings');
   revalidatePath('/budgets');
   revalidatePath('/dashboard');
+}
+
+/**
+ * A billKey the household may price: on the spending-plan Fixed list, OR a
+ * live expense series on Recurring / Subscriptions (same BillAmount overlay).
+ * Loans stay refused when they appear on the Fixed list.
+ */
+async function householdOwnsBillAmountKey(
+  userId: string,
+  key: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const plan = await getSpendingPlan(userId);
+  const line = plan.fixedList.lines.find(
+    (l) => l.kind === 'recurring-bill' && l.billKey === key,
+  );
+  if (line) {
+    if (line.loanPayment) {
+      return { ok: false, error: 'A loan payment stays at the amount the plan lists.' };
+    }
+    if (plan.fixedLineItems.some((r) => billRenameKey(r) === key)) {
+      return { ok: true };
+    }
+  }
+  const recurring = await getRecurring(userId);
+  const item = recurring.summary.items.find((i) => billRenameKey(i) === key);
+  if (item && !item.isIncome) return { ok: true };
+  return { ok: false, error: "That bill isn't on your plan, so nothing changed." };
 }
 
 export async function updateBillAmount(
@@ -48,20 +77,8 @@ export async function updateBillAmount(
   if (amountErr) return { ok: false, errors: { amount: amountErr } };
   const monthlyCents = parsed as number;
 
-  const plan = await getSpendingPlan(userId);
-  const line = plan.fixedList.lines.find(
-    (l) => l.kind === 'recurring-bill' && l.billKey === key,
-  );
-  if (!line) {
-    return { ok: false, error: "That bill isn't on your plan, so nothing changed." };
-  }
-  if (line.loanPayment) {
-    return { ok: false, error: 'A loan payment stays at the amount the plan lists.' };
-  }
-  const row = plan.fixedLineItems.find((r) => billRenameKey(r) === key);
-  if (!row) {
-    return { ok: false, error: "That bill isn't on your plan, so nothing changed." };
-  }
+  const owned = await householdOwnsBillAmountKey(userId, key);
+  if (!owned.ok) return { ok: false, error: owned.error };
 
   await prisma.billAmount.upsert({
     where: { userId_billKey: { userId, billKey: key } },

@@ -29,7 +29,7 @@ import { getProvider } from '@/lib/providers/demo';
 import { SPENDING_ACCOUNT_TYPES } from '@/lib/engine/transactions/query';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
 import { accountLabel } from '@/lib/engine/account/display-name';
-import { getBillRenames } from '@/server/bill-names';
+import { getBillAmounts, getBillRenames } from '@/server/bill-names';
 
 export interface RecurringData {
   summary: RecurringSummary;
@@ -47,6 +47,11 @@ export interface RecurringData {
    * Display names on Recurring / Coming up read through this map.
    */
   billNames: Record<string, string>;
+  /**
+   * BillAmount overlay by billRenameKey — monthly cents. Same table Spending
+   * plan uses (DECISIONS #670).
+   */
+  billAmounts: Record<string, number>;
 }
 
 /**
@@ -76,10 +81,11 @@ export async function getRecurring(userId: string): Promise<RecurringData> {
       isTransfer: t.isTransfer,
     }));
 
-  const [overrides, paidThrough, billRenameMap] = await Promise.all([
+  const [overrides, paidThrough, billRenameMap, billAmountMap] = await Promise.all([
     getRecurringOverrides(userId),
     getRecurringPaidThrough(userId),
     getBillRenames(userId),
+    getBillAmounts(userId),
   ]);
   const series = detectRecurring(txns, isoDate(today), overrides, paidThrough);
   const summary = summarizeRecurring(series, today);
@@ -100,7 +106,11 @@ export async function getRecurring(userId: string): Promise<RecurringData> {
     const name = v.trim();
     if (name) billNames[k] = name;
   }
-  return { summary, renewals, accountNames, categoryNames, billNames };
+  const billAmounts: Record<string, number> = {};
+  for (const [k, v] of billAmountMap) {
+    if (typeof v === 'number' && v > 0) billAmounts[k] = v;
+  }
+  return { summary, renewals, accountNames, categoryNames, billNames, billAmounts };
 }
 
 /** Scheduled-row sources that are DERIVED from detection (and so safe to replace). */
