@@ -145,9 +145,10 @@ export async function setReimbursement(input: {
     transactionId: row.id,
     state: input.state,
   });
-  // The tracker line lives on /coach; the badge on /transactions.
+  // The tracker line lives on /coach; the badge on /transactions; Home/Inbox lists too.
   revalidatePath('/transactions');
   revalidatePath('/dashboard');
+  revalidatePath('/triage');
   revalidatePath('/coach');
   return { ok: true };
 }

@@ -56,6 +56,7 @@ import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
 import { TxnNoteControl } from '@/components/finance/txn-note-form';
 import { TxnTaxClassControl } from '@/components/finance/txn-tax-form';
 import { TxnExcludeControl } from '@/components/finance/txn-exclude-form';
+import { TxnReimbursementControl } from '@/components/finance/txn-reimbursement-form';
 import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import {
@@ -1155,6 +1156,13 @@ export function TriageInbox({
                 excluded={anchorRow.excludeFromTotals}
                 triggerTestId="inbox-exclude"
               />
+              {anchorRow.amountCents < 0 ? (
+                <TxnReimbursementControl
+                  transactionId={anchorRow.id}
+                  reimbursement={anchorRow.reimbursement}
+                  triggerTestId="inbox-reimbursement"
+                />
+              ) : null}
             </div>
           ) : (
             <>
@@ -1311,6 +1319,13 @@ export function TriageInbox({
                     excluded={r.excludeFromTotals}
                     triggerTestId="inbox-single-exclude"
                   />
+                  {r.amountCents < 0 ? (
+                    <TxnReimbursementControl
+                      transactionId={r.id}
+                      reimbursement={r.reimbursement}
+                      triggerTestId="inbox-single-reimbursement"
+                    />
+                  ) : null}
                 </div>
               ) : (
                 <p className="break-all font-mono text-[10px] text-muted-foreground">{r.rawDescriptor}</p>

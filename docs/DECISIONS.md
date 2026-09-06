@@ -2785,3 +2785,8 @@ invent an auto-file quality claim.
 **Decision.** Plumb reimbursement on dashboard recent rows. Mount TxnReimbursementControl when canRenamePayee and the row is an outflow. Cycle unset → awaiting → received → unset via the same setReimbursement writer. Demo fenced. Revalidate /dashboard. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_track_reimbursement_on_a_home_recent_charge_without_opening_detail`.
 
+## #667 — Household can track reimbursement on an Inbox charge without opening detail (2026-09-06)
+**Context.** setReimbursement lived in Activity menu/detail and on Home recent (#666). Inbox singles had no reimbursement control.
+**Decision.** Mount TxnReimbursementControl on single-txn group cards and one-by-one rows when canRenamePayee and the row is an outflow. Same setReimbursement writer. Multi-txn groups stay without a reimbursement control. Revalidate /triage. Demo fenced. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_track_reimbursement_on_an_inbox_charge_without_opening_detail`.
+
