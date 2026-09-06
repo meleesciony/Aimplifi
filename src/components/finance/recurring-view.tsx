@@ -24,6 +24,8 @@ import {
   PaidThisCycleButton,
   RecurringInstructions,
 } from '@/components/finance/recurring-verdict-controls';
+import { BillNameControl } from '@/components/finance/rename-bill-form';
+import { billRenameKey, namedBillLabel } from '@/lib/engine/spending-plan/bill-rename';
 
 const CADENCE_SUFFIX: Record<Cadence, string> = {
   WEEKLY: '/wk',
@@ -39,15 +41,22 @@ function Row({
   item,
   accountNames,
   categoryNames,
+  billNames,
+  canRenameBills,
 }: {
   item: RecurringItem;
   accountNames: Record<string, string>;
   categoryNames: Record<string, string>;
+  billNames: ReadonlyMap<string, string>;
+  canRenameBills: boolean;
 }) {
   const mag = Math.abs(item.lastAmountCents);
   // Prefer the server-resolved name (covers custom categories, #111); fall back to
   // the static map, then a friendly placeholder — never a raw cuid (critic F8).
   const catName = categoryNames[item.categoryId] ?? CATEGORY_BY_ID.get(item.categoryId)?.name ?? 'Uncategorized';
+  const billKey = billRenameKey(item);
+  const displayName = namedBillLabel(item, billNames, (id) => categoryNames[id] ?? CATEGORY_BY_ID.get(id)?.name ?? id);
+  const nameOverlaid = Boolean(billNames.get(billKey)?.trim());
   // Color by whether the change helps the user: a rising bill is bad (rose), but a
   // rising paycheck is good (emerald). Pure helper so this is unit-locked (REC-2).
   const change = priceChangeBadge(item);
@@ -102,13 +111,24 @@ function Row({
                 than any figure that could have been clicked). A recurring series
                 has no month window to hand over; it is a cadence, not a sum. The
                 honest link here is the merchant, which asserts no figure at all. */}
-            <Link
-              href={merchantRegisterHref(item.merchantCanonical)}
-              data-testid="recurring-merchant-link"
-              className={`truncate ${MERCHANT_LINK_CLASS}`}
-            >
-              {item.merchantCanonical}
-            </Link>
+            {canRenameBills ? (
+              <span className="truncate font-medium" data-testid="recurring-merchant-link">
+                <BillNameControl
+                  billKey={billKey}
+                  name={displayName}
+                  hasOverlay={nameOverlaid}
+                  labelTestId="recurring-bill-name"
+                />
+              </span>
+            ) : (
+              <Link
+                href={merchantRegisterHref(item.merchantCanonical)}
+                data-testid="recurring-merchant-link"
+                className={`truncate ${MERCHANT_LINK_CLASS}`}
+              >
+                {displayName}
+              </Link>
+            )}
             {change && (
               <span
                 data-testid="price-change-badge"
@@ -194,6 +214,8 @@ function Section({
   items,
   accountNames,
   categoryNames,
+  billNames,
+  canRenameBills,
   testid,
   muted,
 }: {
@@ -202,6 +224,8 @@ function Section({
   items: RecurringItem[];
   accountNames: Record<string, string>;
   categoryNames: Record<string, string>;
+  billNames: ReadonlyMap<string, string>;
+  canRenameBills: boolean;
   testid?: string;
   muted?: boolean;
 }) {
@@ -223,6 +247,8 @@ function Section({
             item={i}
             accountNames={accountNames}
             categoryNames={categoryNames}
+            billNames={billNames}
+            canRenameBills={canRenameBills}
           />
         ))}
       </ul>
@@ -235,6 +261,7 @@ export function RecurringView({
   withheld,
   instructions,
   projectionsStale,
+  canRenameBills = false,
 }: {
   data: RecurringData;
   withheld: WithheldAccountSummary;
@@ -244,8 +271,11 @@ export function RecurringView({
   instructions: React.ComponentProps<typeof RecurringInstructions>['rows'];
   /** A verdict saved, but the projection rebuild behind it did not run. */
   projectionsStale: boolean;
+  /** Demo cannot learn — BillNameControl only for a real household. */
+  canRenameBills?: boolean;
 }) {
   const s = data.summary;
+  const billNames = new Map(Object.entries(data.billNames ?? {}));
   const hasAny = s.items.length > 0;
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
@@ -346,7 +376,7 @@ export function RecurringView({
                       data-testid="coming-up-merchant-link"
                       className={`truncate ${MERCHANT_LINK_CLASS}`}
                     >
-                      {o.merchantCanonical}
+                      {namedBillLabel(o, billNames, (id) => data.categoryNames[id] ?? CATEGORY_BY_ID.get(id)?.name ?? id)}
                     </Link>
                     {o.increasedFromCents !== null && (
                       <span className="shrink-0 rounded border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-600 dark:text-rose-400">
@@ -384,6 +414,8 @@ export function RecurringView({
             items={s.subscriptions}
             accountNames={data.accountNames}
             categoryNames={data.categoryNames}
+            billNames={billNames}
+            canRenameBills={canRenameBills}
             testid="recurring-list"
           />
           <Section
@@ -392,6 +424,8 @@ export function RecurringView({
             items={s.bills}
             accountNames={data.accountNames}
             categoryNames={data.categoryNames}
+            billNames={billNames}
+            canRenameBills={canRenameBills}
           />
           <Section
             title="Recurring income"
@@ -399,6 +433,8 @@ export function RecurringView({
             items={s.income}
             accountNames={data.accountNames}
             categoryNames={data.categoryNames}
+            billNames={billNames}
+            canRenameBills={canRenameBills}
           />
           <Section
             title="No longer charging"
@@ -406,6 +442,8 @@ export function RecurringView({
             items={s.inactive}
             accountNames={data.accountNames}
             categoryNames={data.categoryNames}
+            billNames={billNames}
+            canRenameBills={canRenameBills}
             muted
           />
         </>

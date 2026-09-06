@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 vi.mock('@/auth', () => ({ auth: vi.fn(), signOut: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/server/spending-plan', () => ({ getSpendingPlan: vi.fn() }));
+vi.mock('@/server/recurring', () => ({ getRecurring: vi.fn() }));
 
 import { prisma } from '@/lib/db';
 import {

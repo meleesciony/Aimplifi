@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * Name a repeating bill on the spending plan. Overlay only: dollars, cadence,
+ * Name a repeating bill on the spending plan or Recurring / Subscriptions. Overlay only: dollars, cadence,
  * merchantCanonical (exclusion / convert) stay put. Clear deletes the
  * overlay (back to detection), not a blank. Demo cannot learn.
  */
@@ -15,6 +15,7 @@ import {
   billRenameKey,
 } from '@/lib/engine/spending-plan/bill-rename';
 import { getSpendingPlan } from '@/server/spending-plan';
+import { getRecurring } from '@/server/recurring';
 import { clearRecurringVerdict, markMerchantNotABill } from '@/server/recurring-override-actions';
 
 export interface BillRenameResult {
@@ -25,9 +26,26 @@ export interface BillRenameResult {
 
 function revalidateBillNameSurfaces(): void {
   revalidatePath('/spending-plan');
+  revalidatePath('/recurring');
   revalidatePath('/settings');
   revalidatePath('/budgets');
   revalidatePath('/dashboard');
+}
+
+/**
+ * A billKey the household may name: on the spending-plan Fixed list, OR a
+ * live series on Recurring / Subscriptions (same BillRename overlay). Without
+ * the Recurring half, renaming from /recurring is a dead end — the writer
+ * refused every key that was not already on the plan.
+ */
+async function householdOwnsBillKey(userId: string, key: string): Promise<boolean> {
+  const plan = await getSpendingPlan(userId);
+  const onPlan =
+    plan.fixedList.lines.some((l) => l.kind === 'recurring-bill' && l.billKey === key) &&
+    plan.fixedLineItems.some((r) => billRenameKey(r) === key);
+  if (onPlan) return true;
+  const recurring = await getRecurring(userId);
+  return recurring.summary.items.some((i) => billRenameKey(i) === key);
 }
 
 export async function renameBill(
@@ -47,17 +65,7 @@ export async function renameBill(
   if (nameErr) return { ok: false, errors: { name: nameErr } };
   const trimmed = name.trim();
 
-  const plan = await getSpendingPlan(userId);
-  const line = plan.fixedList.lines.find(
-    (l) => l.kind === 'recurring-bill' && l.billKey === key,
-  );
-  if (!line) {
-    return { ok: false, error: "That bill isn't on your plan, so nothing changed." };
-  }
-  // The key the engine would mint for this line must match what the page sent,
-  // so a forged key cannot write an overlay that later attaches to a different bill.
-  const row = plan.fixedLineItems.find((r) => billRenameKey(r) === key);
-  if (!row) {
+  if (!(await householdOwnsBillKey(userId, key))) {
     return { ok: false, error: "That bill isn't on your plan, so nothing changed." };
   }
 

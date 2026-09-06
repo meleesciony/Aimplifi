@@ -8,6 +8,7 @@ import { listRecurringOverrideRows } from '@/server/recurring-overrides';
 import { overrideKey, verdictEffect } from '@/lib/engine/recurring/override';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { prisma } from '@/lib/db';
+import { isDemoUser } from '@/lib/demo-user';
 
 export const metadata = { title: "Recurring" };
 
@@ -49,6 +50,7 @@ export default async function RecurringPage({
       withheld={withheld}
       instructions={instructions}
       projectionsStale={query[PROJECTIONS_STALE_PARAM] === '1'}
+      canRenameBills={!isDemoUser(userId)}
     />
   );
 }

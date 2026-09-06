@@ -2738,3 +2738,8 @@ invent an auto-file quality claim.
 **Context.** Payee rename overlay lived on detail, Inbox, and Home. Activity printed merchantName inside a merchant-filter Link.
 **Decision.** Plumb payeeRenamed on TxnView. Reuse PayeeNameControl when canEditSpendClass (replaces the filter Link for household; demo keeps the Link). Same renamePayee / clearPayeeRename writers. Demo fenced. No filing rule. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_rename_a_payee_on_activity_without_opening_detail`.
+
+## #658 — Household can rename a Recurring / Subscriptions display name without a dead-end flow (2026-09-06)
+**Context.** Spending plan had BillNameControl + renameBill. Recurring printed merchantCanonical as a filter Link only, and renameBill refused keys not already on the Fixed list.
+**Decision.** Load BillRename overlays in getRecurring. Mount BillNameControl on Recurring rows when canRenameBills (demo keeps the merchant Link). Widen renameBill ownership to Fixed-list OR a live Recurring series. Same overlay — dollars and merchantCanonical stay put. Revalidate /recurring. Coming-up list shows the overlay name. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_rename_a_recurring_display_name_without_a_dead_end`.
