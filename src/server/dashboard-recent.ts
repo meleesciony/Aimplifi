@@ -31,6 +31,8 @@ export interface DashboardRecentTxn {
   taxClass: string | null;
   /** O.15: reader excluded this row from totals. */
   excludeFromTotals: boolean;
+  /** O.15: reimbursement tracking ('awaiting' | 'received' | null). DECISIONS #666. */
+  reimbursement: string | null;
   /** True when the row still needs a human filing decision. */
   needsFile: boolean;
   /**
@@ -122,6 +124,7 @@ export async function getDashboardRecent(
       note: t.note ?? null,
       taxClass: t.taxClass ?? null,
       excludeFromTotals: t.excludeFromTotals,
+      reimbursement: t.reimbursement ?? null,
       needsFile,
       onHandoverDay: handoverKeys.has(handoverKey(t.accountId, t.date)),
     });

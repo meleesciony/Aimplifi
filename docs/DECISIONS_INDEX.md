@@ -659,3 +659,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #663 — Household can exclude a Home recent charge from totals without opening detail (2026-09-06) → docs/DECISIONS.md
 - #664 — Household can exclude an Inbox charge from totals without opening detail (2026-09-06) → docs/DECISIONS.md
 - #665 — Household can exclude an Activity charge from totals without opening detail (2026-09-06) → docs/DECISIONS.md
+- #666 — Household can track reimbursement on a Home recent charge without opening detail (2026-09-06) → docs/DECISIONS.md

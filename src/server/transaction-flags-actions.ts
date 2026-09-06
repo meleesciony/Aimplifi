@@ -147,6 +147,7 @@ export async function setReimbursement(input: {
   });
   // The tracker line lives on /coach; the badge on /transactions.
   revalidatePath('/transactions');
+  revalidatePath('/dashboard');
   revalidatePath('/coach');
   return { ok: true };
 }

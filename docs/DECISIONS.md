@@ -2780,3 +2780,8 @@ invent an auto-file quality claim.
 **Decision.** Mount TxnExcludeControl beside Activity note/tax when canEditSpendClass. Same setExcludeFromTotals writer. Action menu kept. Demo fenced. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_exclude_an_activity_charge_from_totals_without_opening_detail`.
 
+## #666 — Household can track reimbursement on a Home recent charge without opening detail (2026-09-06)
+**Context.** setReimbursement lived in the Activity action menu and detail. Home recent charges had no reimbursement control.
+**Decision.** Plumb reimbursement on dashboard recent rows. Mount TxnReimbursementControl when canRenamePayee and the row is an outflow. Cycle unset → awaiting → received → unset via the same setReimbursement writer. Demo fenced. Revalidate /dashboard. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_track_reimbursement_on_a_home_recent_charge_without_opening_detail`.
+
