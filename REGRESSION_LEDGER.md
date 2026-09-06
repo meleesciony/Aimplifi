@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-06 | Budget target on By-category row was display-only | setBudget lived only in the bottom form; row printed static / $X | a household can change a budget target on the By-category row | `test_regression__household_can_change_a_budget_target_on_the_category_row` |
 | 2026-09-06 | Recurring display rename was a dead end | renameBill required Fixed-list membership; Recurring printed merchantCanonical only | a household can rename a Recurring / Subscriptions display name without a dead-end flow | `test_regression__household_can_rename_a_recurring_display_name_without_a_dead_end` |
 | 2026-09-06 | Activity payee rename required opening detail | register printed merchantName as a filter Link only | a household can rename a payee on Activity without opening detail | `test_regression__household_can_rename_a_payee_on_activity_without_opening_detail` |
 | 2026-09-06 | Debt-free goal target/date/monthly were display-only | writers refused non-null kind; card printed text | a household can edit a debt-free goal's target, date, and monthly without a separate flow | `test_regression__household_can_edit_debt_free_goal_target_date_and_monthly_without_a_separate_flow` |

@@ -2743,3 +2743,8 @@ invent an auto-file quality claim.
 **Context.** Spending plan had BillNameControl + renameBill. Recurring printed merchantCanonical as a filter Link only, and renameBill refused keys not already on the Fixed list.
 **Decision.** Load BillRename overlays in getRecurring. Mount BillNameControl on Recurring rows when canRenameBills (demo keeps the merchant Link). Widen renameBill ownership to Fixed-list OR a live Recurring series. Same overlay — dollars and merchantCanonical stay put. Revalidate /recurring. Coming-up list shows the overlay name. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_rename_a_recurring_display_name_without_a_dead_end`.
+
+## #659 — Household can change a budget target on the By-category row (2026-09-06)
+**Context.** setBudget / clearBudget lived behind the bottom "Set a monthly target" form. By-category printed " / $X" as static text.
+**Decision.** Mount BudgetRowTargetControl on each By-category row when canEdit (demo stays display-only). Same setBudget / clearBudget writers. Bottom form kept for categories not on the list. Integer cents via parseBudgetTargetCents. No CSV. No savings-rate percent.
+**Locked.** `test_regression__household_can_change_a_budget_target_on_the_category_row`.

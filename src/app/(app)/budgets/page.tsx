@@ -13,7 +13,7 @@ import { formatMonth } from '@/lib/dates';
 import { getProvider } from '@/lib/providers/demo';
 import { prisma } from '@/lib/db';
 import { BudgetTargetForm } from '@/components/finance/budget-target-form';
-import { ClearBudgetButton } from '@/components/finance/clear-budget-button';
+import { BudgetRowTargetControl } from '@/components/finance/budget-row-target-form';
 import { getCategoryOverlay } from '@/server/category-meta';
 import { getPayeeRenames } from '@/server/payee-names';
 import {
@@ -410,7 +410,7 @@ export default async function BudgetsPage() {
                         at, and it was the one inert thing on a tappable row — the
                         figure beside it is ~62px wide on a phone. Same href, same
                         builder, same refusal as the figure; a second anchor rather
-                        than a row-wide one because ClearBudgetButton lives in this
+                        than a row-wide one because BudgetRowTargetControl lives in this
                         row and controls may not nest inside an anchor. */}
                     {href === null ? (
                       row.name
@@ -460,13 +460,17 @@ export default async function BudgetsPage() {
                           {spent}
                         </Link>
                       )}
-                      {row.budgetCents !== null && (
+                      {canEdit ? (
+                        <BudgetRowTargetControl
+                          categoryId={row.categoryId}
+                          name={row.name}
+                          budgetCents={row.budgetCents}
+                        />
+                      ) : row.budgetCents !== null ? (
                         <span className="text-muted-foreground"> / {formatCents(cents(row.budgetCents))}</span>
-                      )}
+                      ) : null}
                     </span>
-                    {row.budgetCents !== null && (
-                      <ClearBudgetButton categoryId={row.categoryId} name={row.name} />
-                    )}
+                    {/* Clear lives inside BudgetRowTargetControl when canEdit; demo keeps display-only. */}
                   </span>
                 </div>
                 {row.pct !== null && row.remainingCents !== null && (
@@ -536,11 +540,17 @@ export default async function BudgetsPage() {
               bar — it never blocks spending.
             </p>
           )}
-          <BudgetTargetForm categoryOptions={categoryOptions.map((c) => ({ id: c.id, name: c.name }))} />
-          <p className="mt-2 text-xs text-muted-foreground">
-            Setting a target just adds a progress bar — it never blocks spending or judges a
-            category. Clear it anytime.
-          </p>
+          {canEdit ? (
+            <>
+              <BudgetTargetForm categoryOptions={categoryOptions.map((c) => ({ id: c.id, name: c.name }))} />
+              <p className="mt-2 text-xs text-muted-foreground">
+                Setting a target just adds a progress bar — it never blocks spending or judges a
+                category. Clear it anytime. Or tap the target on a category row above.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Demo cannot set monthly targets.</p>
+          )}
         </CardContent>
       </Card>
     </div>
