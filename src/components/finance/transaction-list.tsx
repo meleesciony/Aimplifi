@@ -61,6 +61,7 @@ import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
 import { TxnNoteControl } from '@/components/finance/txn-note-form';
 import { TxnTaxClassControl } from '@/components/finance/txn-tax-form';
+import { TxnExcludeControl } from '@/components/finance/txn-exclude-form';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import {
@@ -1079,6 +1080,11 @@ export function TransactionList({
                               taxClass={t.taxClass}
                               compact
                               triggerTestId="activity-tax"
+                            />
+                            <TxnExcludeControl
+                              transactionId={t.id}
+                              excluded={t.excludeFromTotals}
+                              triggerTestId="activity-exclude"
                             />
                           </span>
                         ) : null}{' '}

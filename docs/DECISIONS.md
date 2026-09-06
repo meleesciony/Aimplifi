@@ -2775,3 +2775,8 @@ invent an auto-file quality claim.
 **Decision.** Plumb excludeFromTotals on ReviewRow and Inbox group row Pick. Mount TxnExcludeControl on single-txn group cards and one-by-one rows when canRenamePayee. Same setExcludeFromTotals writer. Multi-txn groups stay without an exclude control. Demo fenced. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_exclude_an_inbox_charge_from_totals_without_opening_detail`.
 
+## #665 — Household can exclude an Activity charge from totals without opening detail (2026-09-06)
+**Context.** setExcludeFromTotals lived in the Activity action menu and on Home/Inbox list controls. Activity register had no inline Exclude beside note/tax.
+**Decision.** Mount TxnExcludeControl beside Activity note/tax when canEditSpendClass. Same setExcludeFromTotals writer. Action menu kept. Demo fenced. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_exclude_an_activity_charge_from_totals_without_opening_detail`.
+
