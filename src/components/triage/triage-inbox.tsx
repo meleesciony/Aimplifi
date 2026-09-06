@@ -44,7 +44,7 @@ import {
   summarizeConfident,
 } from '@/lib/engine/categorize/group';
 import { SPLIT_BLOCKED_REIMBURSED } from '@/lib/engine/transactions/actions';
-import { namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/links';
+import { merchantRegisterHref, namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/links';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import { cents, centsFromDollarString, formatCents } from '@/lib/money';
 import type { TriageGroupView } from '@/server/triage';
@@ -1058,11 +1058,20 @@ export function TriageInbox({
           <div className="flex items-baseline justify-between gap-2">
             <span className="font-medium" data-testid="triage-merchant-heading">
               {top.ruleEligible && canRenamePayee ? (
-                <PayeeNameControl
-                  transactionId={top.payeeTransactionId || anchorRow.id}
-                  name={top.payeeName || heading}
-                  hasOverlay={top.payeeRenamed}
-                />
+                <span className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
+                  <PayeeNameControl
+                    transactionId={top.payeeTransactionId || anchorRow.id}
+                    name={top.payeeName || heading}
+                    hasOverlay={top.payeeRenamed}
+                  />
+                  <Link
+                    href={merchantRegisterHref(bankHeading)}
+                    data-testid="inbox-merchant-filter"
+                    className="shrink-0 text-[11px] font-normal text-muted-foreground underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:text-foreground hover:decoration-foreground"
+                  >
+                    Filter
+                  </Link>
+                </span>
               ) : (
                 heading
               )}

@@ -35,7 +35,7 @@ describe('Inbox reuses TxnAmountControl on single charges', () => {
     expect(inbox).toContain('formatCents(cents(top.totalCents)');
     const headerStart = inbox.indexOf('data-testid="triage-merchant-heading"');
     expect(headerStart).toBeGreaterThan(-1);
-    const headerRegion = inbox.slice(headerStart, headerStart + 1600);
+    const headerRegion = inbox.slice(headerStart, headerStart + 2800);
     expect(headerRegion).toContain('one && canRenamePayee');
     expect(headerRegion).toContain('<TxnAmountControl');
     expect(headerRegion).toContain('anchorRow.id');

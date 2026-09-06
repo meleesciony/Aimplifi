@@ -2830,3 +2830,8 @@ invent an auto-file quality claim.
 **Decision.** Keep PayeeNameControl for the name. Add a sibling Filter link (merchantRegisterHref) on Home recent when canRenamePayee. Demo still shows the plain name. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_rename_a_home_payee_and_still_open_merchant_filter`.
 
+## #676 — Inbox payee rename keeps the merchant filter link (2026-09-06)
+**Context.** Activity #662 and Home #675 keep a sibling Filter link beside PayeeNameControl. Inbox mounted PayeeNameControl alone on the card heading, so renaming dropped Merchant Pattern Lens entry.
+**Decision.** Keep PayeeNameControl for the name. Add a sibling Filter link (`merchantRegisterHref(bankHeading)`, `data-testid="inbox-merchant-filter"`) when rule-eligible and `canRenamePayee`. Demo still shows the plain heading. No new writer.
+**Locked.** `test_regression__household_can_rename_an_inbox_payee_and_still_open_merchant_filter`.
+
