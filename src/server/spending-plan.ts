@@ -761,6 +761,7 @@ async function countedExpenseSeriesForPlan(
         // that actually made the union.
         loanPayment: loanPaymentMerchants.has(s.merchantCanonical),
         merchantCanonical: s.merchantCanonical,
+        paidThisCycle: s.paidThisCycle === true,
       };
     });
 }

@@ -56,6 +56,13 @@ export interface FixedListLine {
    * Identity for a household name; not a money figure.
    */
   billKey?: string;
+  /**
+   * Detection payee for Paid this cycle (DECISIONS #669). Null/absent on
+   * unnamed bills — the writer needs a live series merchantCanonical.
+   */
+  merchantCanonical?: string | null;
+  /** True when this cycle is already marked paid. */
+  paidThisCycle?: boolean;
   amountCents: number;
   /** True when a BillRename overlay named this line (DECISIONS #615). */
   nameOverlaid?: boolean;
@@ -208,6 +215,8 @@ export function buildFixedList(input: {
       key: `bill:${r.key}`,
       label: labelFor(r, input.nameOfCategory, billNames),
       billKey: key,
+      merchantCanonical: r.merchantCanonical,
+      paidThisCycle: r.paidThisCycle === true,
       amountCents: r.monthlyRateCents,
       nameOverlaid: billNames.has(key),
       amountOverlaid: typeof overlay === 'number' && overlay > 0,

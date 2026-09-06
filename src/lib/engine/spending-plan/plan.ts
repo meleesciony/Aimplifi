@@ -148,6 +148,11 @@ export interface PlanScheduledItem {
    * rewrites cadence; this key stays the detector's so unnamed bills do not drift.
    */
   billKey?: string;
+  /**
+   * True when this cycle is already marked paid (DECISIONS #669).
+   * Same paidThrough overlay Recurring reads.
+   */
+  paidThisCycle?: boolean;
 }
 
 export interface SpendingPlanInput {
@@ -636,6 +641,7 @@ export function recurringPlanExpenseRows(
       monthlyRateCents: rate,
       loanPayment: s.loanPayment === true,
       billKey: typeof s.billKey === 'string' && s.billKey !== '' ? s.billKey : undefined,
+      paidThisCycle: s.paidThisCycle === true,
     });
     sum += rate;
   });
@@ -723,6 +729,8 @@ export interface FixedUnionRow {
    * prefers this so a cadence overlay cannot drift unnamed keys.
    */
   billKey?: string | null;
+  /** True when this cycle is already marked paid (DECISIONS #669). */
+  paidThisCycle?: boolean;
 }
 
 export interface FixedUnionResult {
@@ -765,6 +773,7 @@ export function recurringOutsideFixedCategoryRows(
         monthlyRateCents: rate,
         loanPayment: s.loanPayment === true,
         billKey: typeof s.billKey === 'string' && s.billKey !== '' ? s.billKey : undefined,
+        paidThisCycle: s.paidThisCycle === true,
       });
       sum += rate;
     };

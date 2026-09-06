@@ -2795,3 +2795,8 @@ invent an auto-file quality claim.
 **Decision.** Mount TxnReimbursementControl beside Activity note/tax/exclude when canEditSpendClass and the row is an outflow. Same setReimbursement writer. Action menu kept. Demo fenced. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_track_reimbursement_on_an_activity_charge_without_opening_detail`.
 
+## #669 — Household can mark Paid this cycle from the Spending plan Fixed list (2026-09-06)
+**Context.** Paid this cycle lived on Recurring series rows and Coming up (#661). Spending plan Fixed composition had rename/amount/cadence/off-plan but no Paid lever for a named bill.
+**Decision.** Plumb paidThisCycle and merchantCanonical onto Fixed list bill lines from detection. Mount PaidThisCycleButton (or Paid this cycle status) when canEditFigures, named payee, not a loan. Same recordRepeatingBillPaidThisCycle writer. Unnamed bills stay without the lever (no merchantCanonical). Demo fenced. No CSV. No savings-rate percent.
+**Locked.** `test_regression__household_can_mark_paid_this_cycle_from_spending_plan_fixed_list`.
+
