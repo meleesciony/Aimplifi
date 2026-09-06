@@ -60,6 +60,7 @@ import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
 import { TxnNoteControl } from '@/components/finance/txn-note-form';
+import { TxnTaxClassControl } from '@/components/finance/txn-tax-form';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import {
   PROVENANCE_BADGE_TESTID,
@@ -1042,12 +1043,18 @@ export function TransactionList({
                           <span className="break-all">{t.accountName}</span>
                         )}{' '}
                         {canEditSpendClass ? (
-                          <span className="shrink-0">
+                          <span className="inline-flex shrink-0 items-center gap-1">
                             <TxnNoteControl
                               transactionId={t.id}
                               note={t.note}
                               compact
                               triggerTestId="activity-note"
+                            />
+                            <TxnTaxClassControl
+                              transactionId={t.id}
+                              taxClass={t.taxClass}
+                              compact
+                              triggerTestId="activity-tax"
                             />
                           </span>
                         ) : null}{' '}

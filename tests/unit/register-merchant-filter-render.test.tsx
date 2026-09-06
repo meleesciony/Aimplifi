@@ -66,6 +66,7 @@ vi.mock('@/server/transaction-amount-actions', () => ({ updateTransactionAmount:
 vi.mock('@/server/transaction-account-actions', () => ({ updateTransactionAccount: vi.fn() }));
 vi.mock('@/server/transaction-descriptor-actions', () => ({ updateTransactionDescriptor: vi.fn() }));
 vi.mock('@/server/transaction-note-actions', () => ({ updateTransactionNote: vi.fn() }));
+vi.mock('@/server/transaction-tax-actions', () => ({ updateTransactionTaxClass: vi.fn() }));
 vi.mock('@/server/transaction-date-actions', () => ({ updateTransactionDate: vi.fn() }));
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';

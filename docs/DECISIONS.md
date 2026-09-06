@@ -2723,3 +2723,8 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnNoteControl compact when canEditSpendClass on the register meta line. Writes note only. Combined Tag panel left for tax until the tax-only control ships. Demo fenced. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_add_or_edit_an_activity_charge_note_without_opening_detail`.
 
+## #655 — Household can set a tax tag on an Activity charge without opening detail (2026-09-06)
+**Context.** Tax-only write lived on detail, Home, and Inbox via updateTransactionTaxClass. Activity's Tag panel still used setTransactionTax (note + taxClass together).
+**Decision.** Reuse TxnTaxClassControl compact beside the note-only control when canEditSpendClass. Writes tax only. Combined Tag panel left for now. Demo fenced. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_set_a_tax_tag_on_an_activity_charge_without_opening_detail`.
+
