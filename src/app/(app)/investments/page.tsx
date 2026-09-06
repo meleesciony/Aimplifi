@@ -5,6 +5,7 @@ import { InvestmentsView } from '@/components/finance/investments-view';
 import { getInvestments, getRetirementOutlook } from '@/server/investments';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { prisma } from '@/lib/db';
+import { isDemoUser } from '@/lib/demo-user';
 
 export const metadata = { title: 'Investments' };
 
@@ -28,5 +29,13 @@ export default async function InvestmentsPage({
     getRetirementOutlook(),
     getWithheldAccountSummary(userId),
   ]);
-  return <InvestmentsView data={data} outlook={outlook} withheld={withheld} scopedAccountId={scopedAccountId} />;
+  return (
+    <InvestmentsView
+      data={data}
+      outlook={outlook}
+      withheld={withheld}
+      scopedAccountId={scopedAccountId}
+      canWrite={!isDemoUser(userId)}
+    />
+  );
 }

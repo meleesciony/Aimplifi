@@ -678,3 +678,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #682 — Household can reconnect a broken Plaid feed from the dashboard (2026-09-06) → docs/DECISIONS.md
 - #683 — Household can change Coach money dials without leaving for Settings (2026-09-06) → docs/DECISIONS.md
 - #684 — Household can reconnect SimpleFIN from the dashboard alert (2026-09-06) → docs/DECISIONS.md
+- #685 — Household can save a retirement what-if as the default without leaving for Settings (2026-09-06) → docs/DECISIONS.md

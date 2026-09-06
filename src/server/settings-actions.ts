@@ -12,12 +12,14 @@ import { prisma } from '@/lib/db';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { auditLog, requireUserId } from '@/server/authz';
 import {
+  DIAL_LIMITS,
   PAYMENT_ACCOUNT_TYPES,
   encodeDials,
   validateDials,
   type FieldErrors,
   type RawDials,
 } from '@/lib/engine/settings/dials';
+import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
 import { loadDialCatalog } from '@/server/money-dials';
 
 export interface DialsResult {
@@ -123,6 +125,75 @@ export async function updateMoneyDials(
   revalidatePath('/spending-plan'); // guilt-free spending reads the savings target (#295)
   revalidatePath('/budgets'); // the conscious-buckets strip re-partitions the same plan
   revalidatePath('/trends'); // mover gauges key off the same resolved dial ids
+
+  return { ok: true };
+}
+
+/**
+ * Persist retirement what-if ages + inflation from /investments (DECISIONS #685).
+ * Same User dials as MoneyDialsForm / saveRetirementAge — never invents wage/SWR/return.
+ * Demo fenced. currentAge is read-only here (what-if does not edit it).
+ */
+export async function saveRetirementWhatIfDefaults(plan: {
+  retirementAge: number;
+  endAge: number;
+  inflationBps: number;
+}): Promise<DialsResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const retirementAge = Math.round(Number(plan.retirementAge));
+  const endAge = Math.round(Number(plan.endAge));
+  const inflationBps = Math.round(Number(plan.inflationBps));
+
+  if (
+    !Number.isInteger(retirementAge) ||
+    retirementAge < DIAL_LIMITS.retirementAge.min ||
+    retirementAge > DIAL_LIMITS.retirementAge.max
+  ) {
+    return { ok: false, errors: { retirementAge: 'Retirement age must be between 18 and 110.' } };
+  }
+  if (
+    !Number.isInteger(endAge) ||
+    endAge < DIAL_LIMITS.endAge.min ||
+    endAge > DIAL_LIMITS.endAge.max
+  ) {
+    return { ok: false, errors: { endAge: 'Plan-through age must be between 19 and 120.' } };
+  }
+  if (
+    !Number.isInteger(inflationBps) ||
+    inflationBps < DIAL_LIMITS.inflationBps.min ||
+    inflationBps > DIAL_LIMITS.inflationBps.max
+  ) {
+    return { ok: false, errors: { inflation: 'Inflation must be between 0% and 10%.' } };
+  }
+
+  const row = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { currentAge: true },
+  });
+  const effCurrent = row?.currentAge ?? RETIREMENT_ASSUMPTIONS.currentAge;
+  if (retirementAge < effCurrent) {
+    return { ok: false, errors: { retirementAge: 'Retirement age can’t be before your current age.' } };
+  }
+  if (endAge <= retirementAge) {
+    return { ok: false, errors: { endAge: 'Plan-through age must be after your retirement age.' } };
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { retirementAge, endAge, inflationBps },
+  });
+  await auditLog(userId, 'settings.dials.update', {
+    retirementAge,
+    endAge,
+    inflationBps,
+    source: 'investments-whatif',
+  });
+
+  revalidatePath('/investments');
+  revalidatePath('/settings');
+  revalidatePath('/coach');
 
   return { ok: true };
 }

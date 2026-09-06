@@ -2875,3 +2875,8 @@ invent an auto-file quality claim.
 **Decision.** Mount SimplefinAlertReconnect on SimpleFIN alert rows: Sync now (syncSimplefinNow) and paste-token reconnect (connectSimplefin). Same writers as Accounts. Demo has no SimpleFIN row. No CSV.
 **Locked.** `test_regression__household_can_reconnect_simplefin_from_the_dashboard_alert`.
 
+## #685 — Household can save a retirement what-if as the default without leaving for Settings (2026-09-06)
+**Context.** Retirement outlook what-if on Investments linked “Make it your default” to Settings. Money dials (including ages/inflation) also live on Coach (#683), so saving a previewed plan still required leaving Investments.
+**Decision.** Mount Make it your default on the what-if when canWrite and dirty. Same User.retirementAge / endAge / inflationBps dials via saveRetirementWhatIfDefaults (demo fenced; currentAge unchanged). Clean-state link points at /coach#coach-money-dials for other dials. Integer ages/bps. No CSV. No savings-rate percent.
+**Locked.** `test_regression__household_can_save_retirement_whatif_as_default_without_leaving_for_settings`.
+

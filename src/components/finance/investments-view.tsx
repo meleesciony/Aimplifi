@@ -34,6 +34,7 @@ export function InvestmentsView({
   outlook,
   withheld,
   scopedAccountId,
+  canWrite = true,
 }: {
   data: InvestmentsData;
   outlook: RetirementOutlook;
@@ -41,6 +42,8 @@ export function InvestmentsView({
   /** Optional ?account=<id> deep-link (DECISIONS #160): narrow the per-account holdings
    *  list to one account. Inert with ≤1 account, so the demo renders byte-identically. */
   scopedAccountId?: string;
+  /** False on the shared demo — retirement what-if save stays off. */
+  canWrite?: boolean;
 }) {
   const { overall, accounts } = data;
   const hasHoldings = overall.positions.length > 0;
@@ -63,7 +66,7 @@ export function InvestmentsView({
           them out of getInvestments) — the vanish must not be silent here either (STATUS #23). */}
       <CurrencyExclusionBanner summary={withheld} />
 
-      {outlook.hasData ? <RetirementOutlookCard outlook={outlook} /> : null}
+      {outlook.hasData ? <RetirementOutlookCard outlook={outlook} canWrite={canWrite} /> : null}
 
       {!hasHoldings ? (
         <Card data-testid="investments-empty">

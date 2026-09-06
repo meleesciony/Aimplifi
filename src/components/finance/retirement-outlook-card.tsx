@@ -11,12 +11,15 @@
  *
  * The invariant-maintaining lever logic lives in the pure, unit-tested `retirement-whatif`
  * module (clamp + coordinated bumping), so this component stays a thin display. Saving a
- * new default happens in Settings (where every other dial persists); the what-if here is
- * exploratory and never writes — so it can't perturb the shared demo/golden data.
+ * new default writes the same User dials MoneyDialsForm uses (DECISIONS #685); demo stays
+ * exploratory-only via canWrite.
  */
 import { useState } from 'react';
 import Link from 'next/link';
 import { CalendarClock, RotateCcw } from 'lucide-react';
+import { withDeadline } from '@/components/triage/action-deadline';
+import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { saveRetirementWhatIfDefaults } from '@/server/settings-actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cents, formatCents } from '@/lib/money';
 import {
@@ -56,7 +59,14 @@ const pctFromBps = (bps: number): string => {
 const inputClass =
   'h-8 w-full rounded-md border border-input bg-background px-2 text-sm tabular-nums text-foreground';
 
-export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook }) {
+export function RetirementOutlookCard({
+  outlook,
+  canWrite = true,
+}: {
+  outlook: RetirementOutlook;
+  /** False on the shared demo — what-if stays exploratory and never persists. */
+  canWrite?: boolean;
+}) {
   const { inputs } = outlook;
   // Fixed financial facts (server-grounded). The what-if varies only the planning levers.
   const base = {
@@ -74,10 +84,40 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
   };
 
   const [plan, setPlan] = useState<WhatIfPlan>(saved);
+  const [savedPlan, setSavedPlan] = useState<WhatIfPlan>(saved);
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const dirty =
-    plan.retirementAge !== saved.retirementAge ||
-    plan.endAge !== saved.endAge ||
-    plan.inflationBps !== saved.inflationBps;
+    plan.retirementAge !== savedPlan.retirementAge ||
+    plan.endAge !== savedPlan.endAge ||
+    plan.inflationBps !== savedPlan.inflationBps;
+
+  async function saveAsDefault() {
+    if (!canWrite || !dirty || busy) return;
+    setBusy(true);
+    setSaveError(null);
+    try {
+      const res = await withDeadline(
+        saveRetirementWhatIfDefaults(plan),
+        FORM_ACTION_DEADLINE_MS,
+      );
+      if (!res.ok) {
+        const field =
+          res.errors?.retirementAge ??
+          res.errors?.endAge ??
+          res.errors?.inflation ??
+          res.error ??
+          'Could not save that plan.';
+        setSaveError(field);
+        return;
+      }
+      setSavedPlan(plan);
+      // Reload so Coach/Settings dials and this card’s server inputs agree.
+      window.location.reload();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // The projection — same builder + engine the server uses, on the live planning levers.
   // The reducers guarantee a valid plan, so this never throws and matches the inputs shown.
@@ -269,7 +309,7 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
             {dirty ? (
               <button
                 type="button"
-                onClick={() => setPlan(saved)}
+                onClick={() => setPlan(savedPlan)}
                 data-testid="retirement-whatif-reset"
                 className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
               >
@@ -324,23 +364,38 @@ export function RetirementOutlookCard({ outlook }: { outlook: RetirementOutlook 
           </div>
           <p className="text-xs text-muted-foreground" data-testid="retirement-whatif-note">
             {dirty ? (
-              <>
-                Previewing a what-if — your saved plan is unchanged.{' '}
-                <Link href="/settings" className="underline hover:text-foreground">
-                  Make it your default
-                </Link>
-                .
-              </>
+              canWrite ? (
+                <>
+                  Previewing a what-if — your saved plan is unchanged.{' '}
+                  <button
+                    type="button"
+                    onClick={() => void saveAsDefault()}
+                    disabled={busy}
+                    data-testid="retirement-whatif-save"
+                    className="underline hover:text-foreground disabled:opacity-50"
+                  >
+                    {busy ? 'Saving…' : 'Make it your default'}
+                  </button>
+                  .
+                </>
+              ) : (
+                <>Previewing a what-if — your saved plan is unchanged.</>
+              )
             ) : (
               <>
-                Adjust the ages or inflation to preview instantly. Save a new default in{' '}
-                <Link href="/settings" className="underline hover:text-foreground">
-                  Settings
+                Adjust the ages or inflation to preview instantly. Other dials live on{' '}
+                <Link href="/coach#coach-money-dials" className="underline hover:text-foreground">
+                  Coach
                 </Link>
                 .
               </>
             )}
           </p>
+          {saveError ? (
+            <p className="text-xs text-red-500" role="alert" data-testid="retirement-whatif-save-error">
+              {saveError}
+            </p>
+          ) : null}
         </div>
 
         <p className="text-xs text-muted-foreground" data-testid="retirement-assumptions">
