@@ -4,7 +4,7 @@ import { HANDOVER_DAY_ROW_MARKER } from '@/lib/engine/glass-box/category-breakdo
 import { cents, formatCents } from '@/lib/money';
 import type { DashboardRecentResult } from '@/server/dashboard-recent';
 import { SURFACE_CARD_CLASS } from '@/components/finance/surface-card-styles';
-import { namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/links';
+import { merchantRegisterHref, namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/links';
 import { HOME_NEEDS_FILE_HREF, homeNeedsFileLabel } from '@/lib/copy/home-needs-file-copy';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { HomeFileCategoryControl } from '@/components/finance/home-file-category-form';
@@ -74,11 +74,20 @@ export function RecentTransactionsCard({
                 <div className="min-w-0">
                   <p className="truncate font-medium text-foreground">
                     {canRenamePayee ? (
-                      <PayeeNameControl
-                        transactionId={r.id}
-                        name={r.merchantName}
-                        hasOverlay={r.payeeRenamed}
-                      />
+                      <span className="inline-flex min-w-0 flex-wrap items-center gap-1.5">
+                        <PayeeNameControl
+                          transactionId={r.id}
+                          name={r.merchantName}
+                          hasOverlay={r.payeeRenamed}
+                        />
+                        <Link
+                          href={merchantRegisterHref(r.merchantName)}
+                          data-testid="home-recent-merchant-filter"
+                          className="shrink-0 text-[11px] font-normal text-muted-foreground underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:text-foreground hover:decoration-foreground"
+                        >
+                          Filter
+                        </Link>
+                      </span>
                     ) : (
                       r.merchantName
                     )}

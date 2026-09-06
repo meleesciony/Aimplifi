@@ -2825,3 +2825,8 @@ invent an auto-file quality claim.
 **Decision.** Mount NotABillButton on Coming up rows when canRenameBills. Same markMerchantNotABill writer. Demo fenced. No CSV.
 **Locked.** `test_regression__household_can_mark_not_a_bill_from_recurring_coming_up`.
 
+## #675 — Home payee rename keeps the merchant filter link (2026-09-06)
+**Context.** Activity #662 kept a sibling Filter link beside PayeeNameControl. Home mounted PayeeNameControl alone, so renaming on Home dropped Merchant Pattern Lens entry from the row.
+**Decision.** Keep PayeeNameControl for the name. Add a sibling Filter link (merchantRegisterHref) on Home recent when canRenamePayee. Demo still shows the plain name. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_rename_a_home_payee_and_still_open_merchant_filter`.
+
