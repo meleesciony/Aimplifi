@@ -2790,3 +2790,8 @@ invent an auto-file quality claim.
 **Decision.** Mount TxnReimbursementControl on single-txn group cards and one-by-one rows when canRenamePayee and the row is an outflow. Same setReimbursement writer. Multi-txn groups stay without a reimbursement control. Revalidate /triage. Demo fenced. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_track_reimbursement_on_an_inbox_charge_without_opening_detail`.
 
+## #668 — Household can track reimbursement on an Activity charge without opening detail (2026-09-06)
+**Context.** setReimbursement lived in the Activity action menu and on Home/Inbox list controls. Activity register had no inline reimbursement beside note/tax.
+**Decision.** Mount TxnReimbursementControl beside Activity note/tax/exclude when canEditSpendClass and the row is an outflow. Same setReimbursement writer. Action menu kept. Demo fenced. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_track_reimbursement_on_an_activity_charge_without_opening_detail`.
+

@@ -62,6 +62,7 @@ import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
 import { TxnNoteControl } from '@/components/finance/txn-note-form';
 import { TxnTaxClassControl } from '@/components/finance/txn-tax-form';
 import { TxnExcludeControl } from '@/components/finance/txn-exclude-form';
+import { TxnReimbursementControl } from '@/components/finance/txn-reimbursement-form';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import {
@@ -1086,6 +1087,13 @@ export function TransactionList({
                               excluded={t.excludeFromTotals}
                               triggerTestId="activity-exclude"
                             />
+                            {t.amountCents < 0 ? (
+                              <TxnReimbursementControl
+                                transactionId={t.id}
+                                reimbursement={t.reimbursement}
+                                triggerTestId="activity-reimbursement"
+                              />
+                            ) : null}
                           </span>
                         ) : null}{' '}
                         {/* Note + tax tag (O.1). Sits on the SAME line as the category
