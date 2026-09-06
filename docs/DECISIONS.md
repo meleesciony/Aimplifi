@@ -2678,3 +2678,8 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnDescriptorControl when canRenamePayee on single-txn group statement text and singles rows. Multi-txn groups keep the variant list display-only. Rematch already in the action. Demo fenced. No CSV. No heading tweak. Payee rename stays the overlay; this is rawDescriptor.
 **Locked.** `test_regression__household_can_change_the_bank_text_on_an_inbox_charge_without_opening_detail`.
 
+## #646 — Household can add or edit an Inbox charge note without opening detail (2026-09-06)
+**Context.** Note write lived on detail and Home via updateTransactionNote. Inbox had no note on ReviewRow and no control.
+**Decision.** Plumb note through ReviewRow/group rows. Reuse TxnNoteControl compact when canRenamePayee on single-txn statement block and singles rows. Multi-txn groups stay without a note control. Writes note only (tax untouched). Demo fenced. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_add_or_edit_an_inbox_charge_note_without_opening_detail`.
+

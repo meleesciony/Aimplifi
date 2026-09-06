@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-06 | Inbox charge note was missing | note write lived on detail and Home; ReviewRow lacked note | a household can add or edit an Inbox charge note without opening detail | `test_regression__household_can_add_or_edit_an_inbox_charge_note_without_opening_detail` |
 | 2026-09-06 | Inbox charge bank text was display-only | bank-text write lived on detail and Home | a household can change the bank text on an Inbox charge without opening detail | `test_regression__household_can_change_the_bank_text_on_an_inbox_charge_without_opening_detail` |
 | 2026-09-06 | Inbox charge account was display-only | account write lived on detail and Home; ReviewRow lacked accountId | a household can change which account an Inbox charge belongs to without opening detail | `test_regression__household_can_change_which_account_an_inbox_charge_belongs_to_without_opening_detail` |
 | 2026-09-06 | Inbox charge in/out was display-only | direction flip lived on detail and Home; Inbox had no in/out control | a household can flip an Inbox charge in or out without opening detail | `test_regression__household_can_flip_an_inbox_charge_in_or_out_without_opening_detail` |

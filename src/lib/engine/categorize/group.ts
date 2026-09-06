@@ -29,6 +29,8 @@ export interface ReviewRow {
   date: string;
   accountId: string;
   accountName: string;
+  /** Per-transaction note; null when none. */
+  note: string | null;
   status: string;
   /** O.15 (cycle-2 P2): the inbox's split tool must refuse a tracked row with
    *  the shared sentence BEFORE the server throw — a thrown server-action
@@ -92,6 +94,7 @@ export interface TriageGroup {
       | 'status'
       | 'accountId'
       | 'accountName'
+      | 'note'
       | 'reimbursement'
       | 'suggestedCategoryId'
       | 'providerCategoryId'
@@ -181,6 +184,7 @@ export function groupReviewRows(rows: ReviewRow[]): TriageGroup[] {
         status: m.status,
         accountId: m.accountId,
         accountName: m.accountName,
+        note: m.note,
         reimbursement: m.reimbursement,
         // O.12e: singles drill-down needs the same ladder rungs the register
         // already has — group-level unanimity can be null while a row has a chip.

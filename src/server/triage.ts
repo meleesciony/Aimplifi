@@ -325,6 +325,7 @@ export async function getTriageGroups(userId: string): Promise<TriageGroupView[]
       date: t.date,
       accountId: t.accountId,
       accountName: accountLabel(t.account),
+      note: t.note ?? null,
       status: t.status,
       reimbursement: t.reimbursement,
       aggregate: normalizeMerchant(t.rawDescriptor).aggregate,

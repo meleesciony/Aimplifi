@@ -171,6 +171,7 @@ async function main() {
       date: t.date,
       accountId: String(t.accountId ?? ''),
       accountName: '',
+      note: null,
       status: t.status,
       reimbursement: (t as { reimbursement?: string | null }).reimbursement ?? null,
       aggregate: normalizeMerchant(t.rawDescriptor).aggregate,

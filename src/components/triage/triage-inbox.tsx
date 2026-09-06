@@ -53,6 +53,7 @@ import { TxnAmountControl } from '@/components/finance/txn-amount-form';
 import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { TxnAccountControl } from '@/components/finance/txn-account-form';
 import { TxnDescriptorControl } from '@/components/finance/txn-descriptor-form';
+import { TxnNoteControl } from '@/components/finance/txn-note-form';
 import { TxnDirectionControl } from '@/components/finance/txn-direction-form';
 import { createCustomCategory } from '@/server/custom-category-actions';
 import {
@@ -1129,11 +1130,19 @@ export function TriageInbox({
             {bankHeading !== top.merchantCanonical ? ' (name masked by the bank)' : ''}:
           </p>
           {one && canRenamePayee ? (
-            <TxnDescriptorControl
-              transactionId={anchorRow.id}
-              descriptor={anchorRow.rawDescriptor}
-              triggerTestId="inbox-descriptor"
-            />
+            <div className="space-y-1">
+              <TxnDescriptorControl
+                transactionId={anchorRow.id}
+                descriptor={anchorRow.rawDescriptor}
+                triggerTestId="inbox-descriptor"
+              />
+              <TxnNoteControl
+                transactionId={anchorRow.id}
+                note={anchorRow.note}
+                compact
+                triggerTestId="inbox-note"
+              />
+            </div>
           ) : (
             <>
               {top.variants.slice(0, 3).map((v) => (
@@ -1266,11 +1275,19 @@ export function TriageInbox({
                 )}
               </div>
               {canRenamePayee ? (
-                <TxnDescriptorControl
-                  transactionId={r.id}
-                  descriptor={r.rawDescriptor}
-                  triggerTestId="inbox-single-descriptor"
-                />
+                <div className="space-y-0.5">
+                  <TxnDescriptorControl
+                    transactionId={r.id}
+                    descriptor={r.rawDescriptor}
+                    triggerTestId="inbox-single-descriptor"
+                  />
+                  <TxnNoteControl
+                    transactionId={r.id}
+                    note={r.note}
+                    compact
+                    triggerTestId="inbox-single-note"
+                  />
+                </div>
               ) : (
                 <p className="break-all font-mono text-[10px] text-muted-foreground">{r.rawDescriptor}</p>
               )}
