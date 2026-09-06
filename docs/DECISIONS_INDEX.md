@@ -642,3 +642,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #646 — Household can add or edit an Inbox charge note without opening detail (2026-09-06) → docs/DECISIONS.md
 - #647 — Household can set a tax tag on an Inbox charge without opening detail (2026-09-06) → docs/DECISIONS.md
 - #648 — Household can change an Activity charge amount without opening detail (2026-09-06) → docs/DECISIONS.md
+- #649 — Household can change an Activity charge date without opening detail (2026-09-06) → docs/DECISIONS.md

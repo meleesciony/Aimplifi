@@ -2693,3 +2693,8 @@ invent an auto-file quality claim.
 **Decision.** Reuse TxnAmountControl when canEditSpendClass and the row is not a split piece. Split pieces stay text (server refuses). Demo fenced. Integer cents. No CSV. No heading tweak.
 **Locked.** `test_regression__household_can_change_an_activity_charge_amount_without_opening_detail`.
 
+## #649 — Household can change an Activity charge date without opening detail (2026-09-06)
+**Context.** Date write lived on detail, Home, and Inbox. Activity grouped by date header and printed no per-row date control.
+**Decision.** Reuse TxnDateControl on the register meta line when canEditSpendClass. Demo fenced. Rematch already in the action. No CSV. No heading tweak.
+**Locked.** `test_regression__household_can_change_an_activity_charge_date_without_opening_detail`.
+

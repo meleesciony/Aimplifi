@@ -55,6 +55,7 @@ import { TxnActionMenuItems } from '@/components/finance/txn-action-menu';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { TxnAmountControl } from '@/components/finance/txn-amount-form';
+import { TxnDateControl } from '@/components/finance/txn-date-form';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 import {
   PROVENANCE_BADGE_TESTID,
@@ -1001,6 +1002,16 @@ export function TransactionList({
                           {t.categoryName}
                           <Pencil className="size-3 opacity-50" aria-hidden />
                         </button>{' '}
+                        ·{' '}
+                        {canEditSpendClass ? (
+                          <TxnDateControl
+                            transactionId={t.id}
+                            date={t.date}
+                            triggerTestId="activity-date"
+                          />
+                        ) : (
+                          formatISODate(isoDate(t.date), 'long')
+                        )}{' '}
                         · <span className="break-all">{t.accountName}</span>{' '}
                         {/* Note + tax tag (O.1). Sits on the SAME line as the category
                             chip on purpose: a control on its own line would add a line

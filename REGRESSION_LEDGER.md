@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-06 | Activity charge date had no per-row write | date write lived on detail/Home/Inbox; register only showed date as a section header | a household can change an Activity charge date without opening detail | `test_regression__household_can_change_an_activity_charge_date_without_opening_detail` |
 | 2026-09-06 | Activity charge amount was display-only | amount write lived on detail/Home/Inbox | a household can change an Activity charge amount without opening detail | `test_regression__household_can_change_an_activity_charge_amount_without_opening_detail` |
 | 2026-09-06 | Inbox charge tax tag was missing | tax write lived on detail and Home; ReviewRow lacked taxClass | a household can set a tax tag on an Inbox charge without opening detail | `test_regression__household_can_set_a_tax_tag_on_an_inbox_charge_without_opening_detail` |
 | 2026-09-06 | Inbox charge note was missing | note write lived on detail and Home; ReviewRow lacked note | a household can add or edit an Inbox charge note without opening detail | `test_regression__household_can_add_or_edit_an_inbox_charge_note_without_opening_detail` |
