@@ -2633,3 +2633,11 @@ invent an auto-file quality claim.
 **Decision.** Keep every Home write. Restyle the row as a 3-column grid: payee, dollars (`justify-self-end`, `tabular-nums`), Open. Category, date, account, bank text, and direction sit on a wrapping second line (`col-span-3`). Compact `TxnDirectionControl` uses the same words as detail — Money in / Money out — not In / Out. C.15 `dashboard-recent-row` stays the Open/`formatCents` Link; writes stay siblings. Amounts stay `shrink-0` (f530612 / 380px). No transfer toggle. No heading change. No app-wide restyle.
 
 **Locked.** `test_regression__home_recent_charges_line_up_and_name_money_out`.
+
+## #639 — Household can add or edit a Home recent-charge note without opening detail (2026-09-06)
+
+**Context.** Note write lived only on transaction detail via setTransactionTax (note+taxClass together). Home recent strip had no note field. Calling setTransactionTax from Home with only a note would clear the tax tag.
+
+**Decision.** New updateTransactionNote writes note only; taxClass untouched. New TxnNoteControl compact on Home meta line. Demo fenced. Detail paired note+tax form unchanged. C.15 unchanged. No CSV. No heading tweak.
+
+**Locked.** `test_regression__household_can_add_or_edit_a_home_recent_charge_note_without_opening_detail`.
