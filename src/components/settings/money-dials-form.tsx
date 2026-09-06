@@ -58,6 +58,7 @@ export function MoneyDialsForm({
   accounts,
   dialOptions,
   canWrite = true,
+  reloadOnSuccess = false,
 }: {
   current: {
     hourlyWageCents: number | null;
@@ -78,6 +79,8 @@ export function MoneyDialsForm({
    *  coaching figures the NEXT visitor sees (same shape as FixedCostsCard's
    *  canWrite). The values stay readable via the coach cards that print them. */
   canWrite?: boolean;
+  /** Coach mounts this form beside projections that read the dials — reload so FI/wealth cards re-derive. Settings stays no-reload. */
+  reloadOnSuccess?: boolean;
 }) {
   // #166: direct invocation + own busy flag + deadline — NOT useActionState
   // (whose result/pending application was a coin-flip in probes: the
@@ -95,6 +98,10 @@ export function MoneyDialsForm({
     try {
       const res = await withDeadline(updateMoneyDials(null, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
+      if (res.ok && reloadOnSuccess) {
+        window.location.reload();
+        return;
+      }
     } catch {
       // Deadline: the save usually COMMITTED — the reload shows the truth.
       window.location.reload();

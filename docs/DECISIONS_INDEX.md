@@ -676,3 +676,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #680 — Household can edit reserves on Settings Fixed without leaving for Spending plan (2026-09-06) → docs/DECISIONS.md
 - #681 — Household can edit a card statement without leaving for Accounts (2026-09-06) → docs/DECISIONS.md
 - #682 — Household can reconnect a broken Plaid feed from the dashboard (2026-09-06) → docs/DECISIONS.md
+- #683 — Household can change Coach money dials without leaving for Settings (2026-09-06) → docs/DECISIONS.md

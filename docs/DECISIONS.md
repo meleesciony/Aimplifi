@@ -2865,3 +2865,8 @@ invent an auto-file quality claim.
 **Decision.** Mount PlaidUpdateButton on each Plaid alert row (connectionId is the Plaid item id). SimpleFIN keeps “Reconnect on Accounts” (setup-token flow). Soften alert copy to “Reconnect it so your numbers stay current.” Demo has no linked feeds. No CSV.
 **Locked.** `test_regression__household_can_reconnect_a_broken_plaid_feed_from_the_dashboard`.
 
+## #683 — Household can change Coach money dials without leaving for Settings (2026-09-06)
+**Context.** WealthTargetCard linked to /settings#money-dials. MoneyDialsForm lived only on Settings, so changing return, inflation, wage, or related dials from Coach required leaving — while Coach projections are what those dials drive.
+**Decision.** Mount MoneyDialsForm on /coach (`#coach-money-dials`) with the same updateMoneyDials writer. WealthTargetCard `assumptionsHref` points at the on-page anchor. `reloadOnSuccess` so FI/wealth cards re-derive after save. Demo fenced via canWrite. Settings form unchanged (no reload). No CSV. No savings-rate percent hardcode.
+**Locked.** `test_regression__household_can_change_coach_money_dials_without_leaving_for_settings`.
+

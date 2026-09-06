@@ -70,6 +70,7 @@ export function WealthTargetCard({
   moneyDials,
   frozenPortfolioNote,
   currencyNote,
+  assumptionsHref = '/settings#money-dials',
 }: {
   portfolioCents: Cents;
   /**
@@ -133,6 +134,8 @@ export function WealthTargetCard({
    * `server/coach.ts` cites for its own frozen-balance disclosure.
    */
   currencyNote?: string | null;
+  /** Where dials edit links go. Coach passes an on-page anchor. */
+  assumptionsHref?: string;
 }) {
   const [targetCents, setTargetCents] = useState<number | null>(DEFAULT_TARGET_CENTS);
   /**
@@ -324,7 +327,7 @@ export function WealthTargetCard({
             {/* The card's only call to action. It was inline `text-xs` — a ~16px tap target, the
                 smallest thing on the card — so it gets its own row and a 44px minimum instead. */}
             <Link
-              href="/settings#money-dials"
+              href={assumptionsHref}
               data-testid="wealth-target-dials-link"
               className="inline-flex min-h-11 items-center text-sm font-medium text-brand-600 underline underline-offset-4 dark:text-brand-400"
             >
@@ -474,7 +477,7 @@ export function WealthTargetCard({
                     </ul>
                   )}
                   <Link
-                    href="/settings#money-dials"
+                    href={assumptionsHref}
                     className="inline-flex min-h-11 items-center text-xs font-medium text-brand-600 underline underline-offset-4 dark:text-brand-400"
                     data-testid="wealth-target-cuts-dials-link"
                   >

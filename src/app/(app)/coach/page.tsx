@@ -41,6 +41,11 @@ import { getCoachData } from '@/server/coach';
 import { loanPaymentBasisSentence } from '@/server/loan-payment-basis';
 import { getValueReceiptsSummary, recordReceipts } from '@/server/receipts';
 import { getWithheldAccountSummary } from '@/server/transactions';
+import { isDemoUser } from '@/lib/demo-user';
+import { MoneyDialsForm } from '@/components/settings/money-dials-form';
+import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
+import { loadDialCatalog, resolvedMoneyDialIds } from '@/server/money-dials';
+import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 
 export const metadata = { title: "Coach" };
 
@@ -49,18 +54,47 @@ export default async function CoachPage() {
   if (!session?.user?.id) redirect('/sign-in');
   // No accounts yet → route-framed onboarding (the FI/cash engine needs accounts).
   if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyCoach />;
-  const [data, withheld, plan] = await Promise.all([
-    getCoachData(session.user.id, { orderReview: true, cutImpact: true }),
-    getWithheldAccountSummary(session.user.id),
+  const userId = session.user.id;
+  const [data, withheld, plan, dialUser, accounts, dialCatalog, supersededFunding] = await Promise.all([
+    getCoachData(userId, { orderReview: true, cutImpact: true }),
+    getWithheldAccountSummary(userId),
     // The wealth-target card answers affordability against the SAME safe-to-spend the
     // /spending-plan view prints, and deflates by the SAME inflation dial the /investments
     // outlook uses — the inverse-planner grounding idiom (server/assistant.ts:566).
-    getSpendingPlan(session.user.id),
-    // W.2 removed a fourth query here that re-read `User.inflationBps` for the wealth card
-    // alone. `getCoachData` already loads the user row and now needs the dial itself, so both
-    // cards read the one value it returns — two reads of one column is how two cards on one
-    // page come to print two different rates.
+    getSpendingPlan(userId),
+    // Money dials on Coach (#683): same writer as Settings — projections re-derive after save.
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        hourlyWageCents: true,
+        swrBps: true,
+        expectedReturnBps: true,
+        moneyDials: true,
+        paymentAccountId: true,
+        currentAge: true,
+        retirementAge: true,
+        endAge: true,
+        inflationBps: true,
+        savingsTargetBps: true,
+      },
+    }),
+    prisma.account.findMany({
+      where: { userId },
+      select: { id: true, name: true, type: true, displayName: true },
+      orderBy: [{ type: 'asc' }, { name: 'asc' }],
+    }),
+    loadDialCatalog(userId),
+    activeSupersededPredecessorIds([userId]),
   ]);
+  if (!dialUser) redirect('/sign-in');
+  const eligibleAccounts = accounts
+    .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type) && !supersededFunding.has(a.id))
+    .map((a) => ({ id: a.id, name: a.displayName?.trim() || a.name }));
+  const moneyDialIds = resolvedMoneyDialIds(dialUser.moneyDials, dialCatalog);
+  const dialOptions = dialCatalog
+    .filter((e) => !e.hidden || moneyDialIds.includes(e.id))
+    .map((e) => ({ id: e.id, name: e.name, group: e.group }));
+  const canWriteDials = !isDemoUser(userId);
   // Value receipts (TASKS 1.3): /coach is where price-increase flags are surfaced, so
   // it mints their receipts (key-dedup → idempotent, one row per increase ever), then
   // reads the cumulative tally. Reminder/radar receipts are minted by their delivery
@@ -236,7 +270,30 @@ export default async function CoachPage() {
           figureLabel: 'the portfolio these projections start from',
           nextStep: 'accounts-route',
         })}
+      
+        assumptionsHref="#coach-money-dials"
       />
+      <div id="coach-money-dials" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-money-dials">
+        <MoneyDialsForm
+          current={{
+            hourlyWageCents: dialUser.hourlyWageCents,
+            swrBps: dialUser.swrBps,
+            expectedReturnBps: dialUser.expectedReturnBps,
+            moneyDials: moneyDialIds,
+            paymentAccountId: dialUser.paymentAccountId,
+            currentAge: dialUser.currentAge,
+            retirementAge: dialUser.retirementAge,
+            endAge: dialUser.endAge,
+            inflationBps: dialUser.inflationBps,
+            savingsTargetBps: dialUser.savingsTargetBps,
+          }}
+          accounts={eligibleAccounts}
+          dialOptions={dialOptions}
+          canWrite={canWriteDials}
+          reloadOnSuccess
+        />
+      </div>
+
 
       {/* #252 Money Signature — habit patterns + this-month weather, facts inline */}
       <MoneySignatureCard
