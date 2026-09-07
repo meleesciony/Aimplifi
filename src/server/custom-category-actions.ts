@@ -34,7 +34,8 @@ export interface CategoryActionResult {
 const KNOWN_GROUPS = new Set(CUSTOM_CATEGORY_GROUPS);
 
 /** Picker/analytics sources that read categories — refresh them after any change. */
-const REVALIDATE = ['/settings', '/transactions', '/transactions/new', '/triage', '/budgets', '/reports', '/trends', '/coach', '/recurring'];
+const REVALIDATE = ['/settings', '/transactions', '/transactions/new', '/triage', '/budgets',
+  '/rules', '/reports', '/trends', '/coach', '/recurring'];
 function revalidateAll(): void {
   for (const p of REVALIDATE) revalidatePath(p);
 }

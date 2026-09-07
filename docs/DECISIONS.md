@@ -2960,3 +2960,8 @@ invent an auto-file quality claim.
 **Decision.** Mount CategoryManager on /rules (`rules-categories-card`) with the same writers. setCategoryHidden also revalidates /rules. Settings/Budgets unchanged. Demo fenced.
 **Locked.** `test_regression__household_can_manage_built_in_categories_from_rules_without_leaving_for_settings`.
 
+## #702 — Household can manage custom categories from Rules without leaving for Settings (2026-09-07)
+**Context.** After #701 mounted built-in CategoryManager on Rules, creating a custom category for a new rule still required Settings or Budgets.
+**Decision.** Mount CustomCategoryManager on /rules inside `rules-categories-card` (`rules-custom-categories`). custom-category-actions also revalidates /rules. Settings/Budgets unchanged. Demo fenced.
+**Locked.** `test_regression__household_can_manage_custom_categories_from_rules_without_leaving_for_settings`.
+

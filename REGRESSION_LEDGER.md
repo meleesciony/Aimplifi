@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-07 | Custom categories required leaving Rules for Settings | CustomCategoryManager not on Rules | a household can manage custom categories from Rules without leaving for Settings | `test_regression__household_can_manage_custom_categories_from_rules_without_leaving_for_settings` |
 | 2026-09-07 | Built-in category hide/rename required leaving Rules for Settings | CategoryManager not on Rules | a household can manage built-in categories from Rules without leaving for Settings | `test_regression__household_can_manage_built_in_categories_from_rules_without_leaving_for_settings` |
 | 2026-09-07 | Enabling cash-dip/card-due push required leaving Home for Settings | PushOptIn was Settings/Cards only | a household can enable push notifications from Home without leaving for Settings | `test_regression__household_can_enable_push_notifications_from_home_without_leaving_for_settings` |
 | 2026-09-07 | Naming reserve holding account required leaving Spending plan for Settings | HoldingAccountPicker lived only on Settings | a household can set the reserve holding account from Spending plan without leaving for Settings | `test_regression__household_can_set_reserve_holding_account_from_spending_plan_without_leaving_for_settings` |

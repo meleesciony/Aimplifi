@@ -23,6 +23,9 @@ import { listRuleInventory } from '@/server/rule-inventory';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { HOME_NEEDS_FILE_HREF } from '@/lib/copy/home-needs-file-copy';
 import { CategoryManager } from '@/components/settings/category-manager';
+import { CustomCategoryManager } from '@/components/settings/custom-category-manager';
+import { getCustomCategories } from '@/server/category-meta';
+import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getCategoryCatalog } from '@/server/categories';
 import { isDemoUser } from '@/lib/demo-user';
@@ -81,7 +84,7 @@ export default async function RulesPage({
     ? { ...source, transactionId: source.id, ...suggestRuleKeywords(source.rawDescriptor) }
     : null;
 
-  const [categoryGroups, categoryMeta, rules, inventory, allAccounts, superseded, categoryCatalog] = await Promise.all([
+  const [categoryGroups, categoryMeta, rules, inventory, allAccounts, superseded, categoryCatalog, customCategories] = await Promise.all([
     getVisibleGroups(session.user.id),
     getCategoryMeta(session.user.id),
     listKeywordRules(),
@@ -110,6 +113,7 @@ export default async function RulesPage({
     }),
     activeSupersededPredecessorIds([session.user.id]),
     getCategoryCatalog(session.user.id),
+    getCustomCategories(session.user.id),
   ]);
   const accounts = allAccounts
     .filter((a) => !superseded.has(a.id))
@@ -210,15 +214,30 @@ export default async function RulesPage({
 
       <Card data-testid="rules-categories-card">
         <CardHeader className="pb-2">
-          <CardDescription>Hide or rename categories the rule builder offers</CardDescription>
-          <CardTitle className="text-base">Built-in categories</CardTitle>
+          <CardDescription>Make the category list your own for the rule builder</CardDescription>
+          <CardTitle className="text-base">Categories</CardTitle>
         </CardHeader>
-        <CardContent>
-          <CategoryManager
-            catalog={categoryCatalog}
-            canRename={!isDemoUser(session.user.id)}
-            canRemove={!isDemoUser(session.user.id)}
-          />
+        <CardContent className="space-y-5">
+          <div data-testid="rules-custom-categories">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Your categories
+            </h3>
+            <CustomCategoryManager
+              categories={customCategories}
+              groups={CUSTOM_CATEGORY_GROUPS}
+              canWrite={!isDemoUser(session.user.id)}
+            />
+          </div>
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Built-in categories
+            </h3>
+            <CategoryManager
+              catalog={categoryCatalog}
+              canRename={!isDemoUser(session.user.id)}
+              canRemove={!isDemoUser(session.user.id)}
+            />
+          </div>
         </CardContent>
       </Card>
 
