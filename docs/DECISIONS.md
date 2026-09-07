@@ -3054,3 +3054,8 @@ invent an auto-file quality claim.
 **Context.** GoalTargetDateControl lived on /goals. Coach already mounts already-saved (#716), target (#719), and monthly (#720) for ordinary savings goals, but the target date still required leaving.
 **Decision.** When ordinary savings goals exist (`kind: null`), mount GoalTargetDateControl on /coach beside the other savings writers (`coach-goals-saved-card`). Same writer (including clear); goal-actions already revalidates /coach. Debt-free and reserves excluded. Demo read-only. No Settings remount.
 **Locked.** `test_regression__household_can_edit_goal_target_date_from_coach_without_leaving_for_goals`.
+
+## #722 — Household can rename a savings goal from Coach without leaving for Goals (2026-09-07)
+**Context.** GoalNameControl lived on /goals. Coach already mounts already-saved (#716), target (#719), monthly (#720), and target date (#721) for ordinary savings goals, but the name was still read-only text.
+**Decision.** When ordinary savings goals exist (`kind: null`), mount GoalNameControl on /coach for the goal title (`coach-goals-saved-card`). Same writer; goal-actions already revalidates /coach. Debt-free and reserves excluded. Demo read-only. No Settings remount. No create/delete from Coach in this slice.
+**Locked.** `test_regression__household_can_rename_goal_from_coach_without_leaving_for_goals`.

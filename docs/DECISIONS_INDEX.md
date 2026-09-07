@@ -714,3 +714,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #719 — Household can edit goal target from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
 - #720 — Household can edit goal monthly from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
 - #721 — Household can edit goal target date from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
+- #722 — Household can rename a savings goal from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md

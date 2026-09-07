@@ -31,6 +31,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { EmptyCoach } from '@/components/onboarding/route-empty';
+import { GoalNameControl } from '@/components/finance/rename-goal-form';
 import { GoalSavedControl } from '@/components/finance/goal-saved-form';
 import { GoalTargetControl } from '@/components/finance/goal-target-form';
 import { GoalMonthlyControl } from '@/components/finance/goal-monthly-form';
@@ -177,9 +178,9 @@ export default async function CoachPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p className="text-muted-foreground">
-              Update already-saved, target, monthly contribution, and target date — same writes
-              as Goals. Debt-free and reserve rows stay on their own pages. Aimplifi never moves
-              money.
+              Rename a goal and update already-saved, target, monthly contribution, and target
+              date — same writes as Goals. Debt-free and reserve rows stay on their own pages.
+              Aimplifi never moves money.
             </p>
             <ul className="space-y-2">
               {savingsGoals.map((g) => (
@@ -188,7 +189,13 @@ export default async function CoachPage() {
                   className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border px-3 py-2"
                   data-testid={`coach-goal-saved-${g.id}`}
                 >
-                  <span className="font-medium">{g.name}</span>
+                  <span className="font-medium">
+                    {canWriteDials ? (
+                      <GoalNameControl goalId={g.id} name={g.name} />
+                    ) : (
+                      g.name
+                    )}
+                  </span>
                   <span className="tabular-nums text-muted-foreground">
                     {canWriteDials ? (
                       <GoalSavedControl goalId={g.id} savedCents={g.savedCents} />
