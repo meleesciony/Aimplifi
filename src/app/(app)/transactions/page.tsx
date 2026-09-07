@@ -7,6 +7,7 @@ import { MerchantLensCard } from '@/components/finance/merchant-lens-card';
 import { TransactionFilters } from '@/components/finance/transaction-filters';
 import { TransactionList } from '@/components/finance/transaction-list';
 import { buttonVariants } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { FlowType, TxnFilter } from '@/lib/engine/transactions/query';
 import { VALID_FLOW_TYPES, VALID_SPEND_CLASSES } from '@/lib/engine/transactions/links';
 import { registerEmptyReason } from '@/lib/engine/transactions/empty-reason';
@@ -270,6 +271,23 @@ export default async function TransactionsPage({
         canEditSpendClass={!isDemoUser(session.user.id)}
         accounts={moveAccounts}
       />
+
+
+      <Card data-testid="activity-transactions-export-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Take your register with you</CardDescription>
+          <CardTitle className="text-base">Export transactions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <a
+            href="/api/export?format=transactions-csv"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            data-testid="export-transactions-csv"
+          >
+            Transactions (CSV)
+          </a>
+        </CardContent>
+      </Card>
 
       {shared.kind === 'member' && (
         <SharedTransactionList

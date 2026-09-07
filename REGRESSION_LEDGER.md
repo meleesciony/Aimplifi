@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-07 | Transactions CSV required leaving Activity for Settings | Transactions export lived only on Settings | a household can download transactions CSV from Activity without leaving for Settings | `test_regression__household_can_download_transactions_csv_from_activity_without_leaving_for_settings` |
 | 2026-09-07 | Enabling card-due push required leaving Cards for Settings | PushOptIn lived only on Settings | a household can enable push notifications from Cards without leaving for Settings | `test_regression__household_can_enable_push_notifications_from_cards_without_leaving_for_settings` |
 | 2026-09-07 | Net worth export required leaving Investments for Settings | Net worth CSV/PDF lived only on Settings | a household can download net worth export from Investments without leaving for Settings | `test_regression__household_can_download_net_worth_export_from_investments_without_leaving_for_settings` |
 | 2026-09-07 | Tax-year CSV required leaving Reports for Settings | Tax export lived only on Settings | a household can download tax-year CSV from Reports without leaving for Settings | `test_regression__household_can_download_tax_year_csv_from_reports_without_leaving_for_settings` |

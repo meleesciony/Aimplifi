@@ -691,3 +691,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #695 — Household can download tax-year CSV from Reports without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #696 — Household can download net worth export from Investments without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #697 — Household can enable push notifications from Cards without leaving for Settings (2026-09-07) → docs/DECISIONS.md
+- #698 — Household can download transactions CSV from Activity without leaving for Settings (2026-09-07) → docs/DECISIONS.md

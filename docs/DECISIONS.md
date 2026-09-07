@@ -2940,3 +2940,8 @@ invent an auto-file quality claim.
 **Decision.** Mount PushOptIn on /cards (`cards-notifications-card`) when VAPID is configured, same subscribe/unsubscribe writers. Settings card unchanged. Demo stays dormant when no key.
 **Locked.** `test_regression__household_can_enable_push_notifications_from_cards_without_leaving_for_settings`.
 
+## #698 — Household can download transactions CSV from Activity without leaving for Settings (2026-09-07)
+**Context.** Transactions CSV export lived only on Settings. Activity is the register.
+**Decision.** Mount `/api/export?format=transactions-csv` on /transactions (`activity-transactions-export-card`). Settings export card unchanged. Same API.
+**Locked.** `test_regression__household_can_download_transactions_csv_from_activity_without_leaving_for_settings`.
+
