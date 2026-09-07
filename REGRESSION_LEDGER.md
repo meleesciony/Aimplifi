@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-06 | Coach Rich Life required leaving for Settings | Echo only on Coach; writer lived on Settings | a household can set Rich Life from Coach without leaving for Settings | `test_regression__household_can_set_rich_life_from_coach_without_leaving_for_settings` |
 | 2026-09-06 | Coach employer match / tax room required leaving for Settings | Writers lived only on Settings; ladder only displayed status | a household can set employer match and tax room from Coach without leaving for Settings | `test_regression__household_can_set_employer_match_and_tax_room_from_coach_without_leaving_for_settings` |
 | 2026-09-06 | Retirement what-if default required leaving for Settings | Make it your default linked to /settings; what-if never wrote | a household can save a retirement what-if as the default without leaving for Settings | `test_regression__household_can_save_retirement_whatif_as_default_without_leaving_for_settings` |
 | 2026-09-06 | Home recent exclude required opening detail | setExcludeFromTotals lived only in Activity menu; Home had no control | a household can exclude a Home recent charge from totals without opening detail | `test_regression__household_can_exclude_a_home_recent_charge_from_totals_without_opening_detail` |

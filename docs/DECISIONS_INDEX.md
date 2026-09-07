@@ -680,3 +680,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #684 — Household can reconnect SimpleFIN from the dashboard alert (2026-09-06) → docs/DECISIONS.md
 - #685 — Household can save a retirement what-if as the default without leaving for Settings (2026-09-06) → docs/DECISIONS.md
 - #686 — Household can set employer match and tax room from Coach without leaving for Settings (2026-09-06) → docs/DECISIONS.md
+- #687 — Household can set Rich Life from Coach without leaving for Settings (2026-09-06) → docs/DECISIONS.md

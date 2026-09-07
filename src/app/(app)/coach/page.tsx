@@ -18,6 +18,7 @@ import { StayingWealthyCard } from '@/components/coach/staying-wealthy-card';
 import { NextDollarCard } from '@/components/coach/next-dollar-card';
 import { InvestingLadderCard } from '@/components/coach/investing-ladder-card';
 import { RichLifeEcho } from '@/components/coach/rich-life-echo';
+import { RichLifeForm } from '@/components/settings/rich-life-form';
 import { WealthTargetCard } from '@/components/coach/wealth-target-card';
 import { composeStayingWealthy } from '@/lib/engine/fi/staying-wealthy';
 import { getSpendingPlan } from '@/server/spending-plan';
@@ -80,6 +81,7 @@ export default async function CoachPage() {
         savingsTargetBps: true,
         employerMatch: true,
         taxAdvantagedRoom: true,
+        richLifeVision: true,
       },
     }),
     prisma.account.findMany({
@@ -150,6 +152,9 @@ export default async function CoachPage() {
       {/* P1.3 — the reader's own one-line Rich Life, quiet atop the page. Only
           set (and only writable) by the same person; no line when unset. */}
       <RichLifeEcho vision={data.richLifeVision} />
+      <div id="coach-rich-life" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-rich-life">
+        <RichLifeForm current={dialUser.richLifeVision} canWrite={canWriteDials} reloadOnSuccess />
+      </div>
 
       {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
           vanish silently. Renders nothing for all-USD users (the overwhelming case). */}

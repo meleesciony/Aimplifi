@@ -2885,3 +2885,8 @@ invent an auto-file quality claim.
 **Decision.** Mount EmployerMatchForm and TaxAdvantagedRoomForm on /coach after InvestingLadderCard (`#coach-employer-match`, `#coach-tax-advantaged-room`) with the same writers. `reloadOnSuccess` so ladder/next-dollar re-derive. Demo fenced via canWrite. Settings forms unchanged. No CSV. No savings-rate percent.
 **Locked.** `test_regression__household_can_set_employer_match_and_tax_room_from_coach_without_leaving_for_settings`.
 
+## #687 — Household can set Rich Life from Coach without leaving for Settings (2026-09-06)
+**Context.** Coach echoed richLifeVision but the writer lived only on Settings, so writing or clearing the one-liner required leaving — while the line is what Coach is in service of.
+**Decision.** Mount RichLifeForm on /coach (`#coach-rich-life`) with the same updateRichLife writer. `reloadOnSuccess` so the echo re-derives. Demo fenced via canWrite. Settings form unchanged. No CSV.
+**Locked.** `test_regression__household_can_set_rich_life_from_coach_without_leaving_for_settings`.
+

@@ -24,6 +24,7 @@ const fieldClass =
 export function RichLifeForm({
   current,
   canWrite = true,
+  reloadOnSuccess = false,
 }: {
   /** The stored vision; null = never written. */
   current: string | null;
@@ -31,6 +32,8 @@ export function RichLifeForm({
    *  (same shape as MoneyDialsForm's canWrite). The value stays readable via
    *  the /coach echo while it exists; the demo row never has one. */
   canWrite?: boolean;
+  /** Coach mounts beside the echo — reload so the header line re-derives. */
+  reloadOnSuccess?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RichLifeResult | null>(null);
@@ -42,6 +45,10 @@ export function RichLifeForm({
     try {
       const res = await withDeadline(updateRichLife(null, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
+      if (res.ok && reloadOnSuccess) {
+        window.location.reload();
+        return;
+      }
     } catch {
       // Deadline: the save usually COMMITTED — the reload shows the truth.
       window.location.reload();
