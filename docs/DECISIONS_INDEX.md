@@ -696,3 +696,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #700 — Household can enable push notifications from Home without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #701 — Household can manage built-in categories from Rules without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #702 — Household can manage custom categories from Rules without leaving for Settings (2026-09-07) → docs/DECISIONS.md
+- #703 — Household can see self-audit on Trust without leaving for Settings (2026-09-07) → docs/DECISIONS.md

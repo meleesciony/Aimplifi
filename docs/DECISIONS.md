@@ -2965,3 +2965,8 @@ invent an auto-file quality claim.
 **Decision.** Mount CustomCategoryManager on /rules inside `rules-categories-card` (`rules-custom-categories`). custom-category-actions also revalidates /rules. Settings/Budgets unchanged. Demo fenced.
 **Locked.** `test_regression__household_can_manage_custom_categories_from_rules_without_leaving_for_settings`.
 
+## #703 — Household can see self-audit on Trust without leaving for Settings (2026-09-07)
+**Context.** SelfAuditMetrics lived under Settings → AI trust. Trust Center already shows AccuracyMetrics but not the self-audit snapshot.
+**Decision.** Mount SelfAuditMetrics on /trust track-record card beside AccuracyMetrics. Same loader. Settings card unchanged. Read-only surface.
+**Locked.** `test_regression__household_can_see_self_audit_on_trust_without_leaving_for_settings`.
+

@@ -18,7 +18,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AccuracyMetrics } from '@/components/triage/accuracy-card';
+import { AccuracyMetrics, SelfAuditMetrics } from '@/components/triage/accuracy-card';
+import { getLatestSelfAuditSnapshot } from '@/server/self-audit';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { DEMO_USER_ID } from '@/lib/demo-user';
 import {
@@ -41,11 +42,12 @@ export default async function TrustPage() {
   const userId = session.user.id;
   const isDemo = userId === DEMO_USER_ID;
 
-  const [accuracy, tuning, trail, touchpointCounts] = await Promise.all([
+  const [accuracy, tuning, trail, touchpointCounts, selfAudit] = await Promise.all([
     getCategorizationAccuracy(userId),
     getThresholdTuning(userId),
     getAiTrail(userId),
     getAiTouchpointCounts(userId),
+    getLatestSelfAuditSnapshot(userId),
   ]);
   const summary = summarizeAiTrail(trail);
   // Per-touchpoint all-time stats keyed by id (tallyTouchpoints returns one entry
@@ -86,8 +88,9 @@ export default async function TrustPage() {
           <CardDescription>Measured on your data, not asserted</CardDescription>
           <CardTitle className="text-base">Track record</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
           <AccuracyMetrics result={accuracy} tuning={tuning} />
+          <SelfAuditMetrics snapshot={selfAudit} />
         </CardContent>
       </Card>
 
