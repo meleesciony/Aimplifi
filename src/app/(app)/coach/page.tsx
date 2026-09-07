@@ -31,6 +31,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { EmptyCoach } from '@/components/onboarding/route-empty';
+import { GoalSavedControl } from '@/components/finance/goal-saved-form';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { runwayTitle } from '@/lib/engine/fi/insights';
 import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
@@ -61,7 +62,7 @@ export default async function CoachPage() {
   if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyCoach />;
   const userId = session.user.id;
   const householdView = await getHouseholdView();
-  const [data, withheld, plan, dialUser, accounts, dialCatalog, supersededFunding] = await Promise.all([
+  const [data, withheld, plan, dialUser, accounts, dialCatalog, supersededFunding, savingsGoals] = await Promise.all([
     getCoachData(userId, { orderReview: true, cutImpact: true }),
     getWithheldAccountSummary(userId),
     // The wealth-target card answers affordability against the SAME safe-to-spend the
@@ -94,6 +95,12 @@ export default async function CoachPage() {
     }),
     loadDialCatalog(userId),
     activeSupersededPredecessorIds([userId]),
+    // Ordinary savings goals only (kind null) — same gate as updateGoalSaved (#623/#716).
+    prisma.goal.findMany({
+      where: { userId, kind: null },
+      select: { id: true, name: true, savedCents: true, targetCents: true },
+      orderBy: { name: 'asc' },
+    }),
   ]);
   if (!dialUser) redirect('/sign-in');
   const eligibleAccounts = accounts
@@ -158,6 +165,40 @@ export default async function CoachPage() {
       <div id="coach-rich-life" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-rich-life">
         <RichLifeForm current={dialUser.richLifeVision} canWrite={canWriteDials} reloadOnSuccess />
       </div>
+
+      {savingsGoals.length > 0 ? (
+        <Card data-testid="coach-goals-saved-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Savings goals</CardDescription>
+            <CardTitle className="text-base">Already saved</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              Update how much you have already set aside — same write as Goals. Debt-free and
+              reserve rows stay on their own pages. Aimplifi never moves money.
+            </p>
+            <ul className="space-y-2">
+              {savingsGoals.map((g) => (
+                <li
+                  key={g.id}
+                  className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border px-3 py-2"
+                  data-testid={`coach-goal-saved-${g.id}`}
+                >
+                  <span className="font-medium">{g.name}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {canWriteDials ? (
+                      <GoalSavedControl goalId={g.id} savedCents={g.savedCents} />
+                    ) : (
+                      formatCents(cents(g.savedCents))
+                    )}{' '}
+                    of {formatCents(cents(g.targetCents))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
           vanish silently. Renders nothing for all-USD users (the overwhelming case). */}

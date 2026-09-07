@@ -3029,3 +3029,8 @@ invent an auto-file quality claim.
 **Context.** Calendar's shortfall day already printed the transfer instruction (#714 added Forecast actions). Sync and the longer Forecast projection still required leaving from that dated cell.
 **Decision.** On the calendar-dip cell, mount `calendar-dip-actions`: link to /forecast and SyncAllButton when a bank is connected (non-demo). Same syncAllAccounts writer. No PushOptIn. No deepen copy. No Settings remount.
 **Locked.** `test_regression__household_can_act_on_calendar_cash_dip_without_leaving_for_accounts`.
+
+## #716 — Household can edit already-saved from Coach without leaving for Goals (2026-09-07)
+**Context.** GoalSavedControl lived on /goals (#623). Coach already uses savings goals for pay-yourself-first blueprint and FI framing, but updating already-saved required leaving.
+**Decision.** When ordinary savings goals exist (`kind: null`, same gate as updateGoalSaved), mount GoalSavedControl on /coach (`coach-goals-saved-card`). Same writer; goal-actions already revalidates /coach. Debt-free and reserves excluded. Demo read-only. No Settings remount.
+**Locked.** `test_regression__household_can_edit_already_saved_from_coach_without_leaving_for_goals`.

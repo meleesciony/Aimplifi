@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-07 | Updating already-saved required leaving Coach for Goals | GoalSavedControl lived only on /goals | Goals already-saved — mount on Coach for kind-null savings goals | `test_regression__household_can_edit_already_saved_from_coach_without_leaving_for_goals` |
 | 2026-09-07 | Calendar cash-dip cell had instruction only; Sync/Forecast required leaving | no actions under calendar-dip | cash-dip action — Forecast link + SyncAll when bank connected | `test_regression__household_can_act_on_calendar_cash_dip_without_leaving_for_accounts` |
 | 2026-09-07 | Forecast showed a cash-dip date with no next step | no Calendar link or Sync on Forecast dip | cash-dip action — Calendar month link + SyncAll when bank connected | `test_regression__household_can_act_on_forecast_cash_dip_without_leaving_for_accounts` |
 | 2026-09-07 | Deepen Plaid history required leaving Cards for Accounts | deepen-history lived on Accounts/Home only | bank leftover — mount deepen on Cards when PlaidItem exists | `test_regression__household_can_deepen_plaid_history_from_cards_without_leaving_for_accounts` |
