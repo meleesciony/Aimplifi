@@ -3059,3 +3059,8 @@ invent an auto-file quality claim.
 **Context.** GoalNameControl lived on /goals. Coach already mounts already-saved (#716), target (#719), monthly (#720), and target date (#721) for ordinary savings goals, but the name was still read-only text.
 **Decision.** When ordinary savings goals exist (`kind: null`), mount GoalNameControl on /coach for the goal title (`coach-goals-saved-card`). Same writer; goal-actions already revalidates /coach. Debt-free and reserves excluded. Demo read-only. No Settings remount. No create/delete from Coach in this slice.
 **Locked.** `test_regression__household_can_rename_goal_from_coach_without_leaving_for_goals`.
+
+## #723 — Activity merchant-wide recategorize of aggregate/masked mints the durable auto-file rule (2026-09-07)
+**Context.** Inbox File already mints a durable twin for aggregates and masked bank-name groups (#718). Activity's merchant-wide recategorize still fell back to one row / no rule for those rows (#589), so re-filing from the register left the next matching ingest in Inbox.
+**Decision.** Merchant-wide recategorize uses the same filing kinds as Inbox File: exact-descriptor keyword rule for aggregates / masked merchantless; unconditional merchant rule when a stable merchantId exists (including masked). Scope of the batch write matches that kind (exact descriptor vs merchant / canonical). Demo cannot learn. No CSV parser change. No Coach Goals remount.
+**Locked.** `test_regression__recategorize_aggregate_mints_keyword_rule`.

@@ -5,7 +5,8 @@
  * rule; 'merchant' re-files EVERY transaction of the merchant — including ones
  * the pipeline already auto-filed (needsReview=false), which is the whole point
  * (a confident-but-wrong guess never reaches triage) — and creates a durable
- * priority-100 rule. Unique per-run ids + a wipe guard keep it deterministic.
+ * priority-100 rule. Aggregates / masked mint the same durable twin as Inbox
+ * File (DECISIONS #723). Unique per-run ids + a wipe guard keep it deterministic.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -114,5 +115,103 @@ describe('recategorize (real action, throwaway data — DECISIONS #36)', () => {
     const acc = await getCategorizationAccuracy(USER);
     expect(acc.n).toBe(3);
     expect(acc.correct).toBe(0); // predicted 'shopping' vs actual 'fuel' → all misses
+  });
+});
+
+describe('recategorize aggregate / masked (DECISIONS #723)', () => {
+  const stamp = `${Date.now()}-${process.pid}-agg`;
+  const USER = `recat-agg-${stamp}`;
+  let zelleId = '';
+  let marcusA = '';
+  let marcusB = '';
+  let riley = '';
+
+  async function wipe() {
+    await prisma.correction.deleteMany({ where: { userId: USER } });
+    await prisma.categorizationRule.deleteMany({ where: { userId: USER } });
+    await prisma.account.deleteMany({ where: { userId: USER } });
+    await prisma.user.deleteMany({ where: { id: USER } });
+  }
+
+  beforeAll(async () => {
+    await wipe();
+    await prisma.category.upsert({
+      where: { id: 'gifts' },
+      update: {},
+      create: { id: 'gifts', name: 'Gifts', isSystem: true },
+    });
+    await prisma.user.create({ data: { id: USER, email: `${USER}@test.local` } });
+    zelleId = (
+      await prisma.merchant.upsert({
+        where: { canonical: 'Zelle Payment' },
+        create: { canonical: 'Zelle Payment' },
+        update: {},
+      })
+    ).id;
+    const acct = await prisma.account.create({
+      data: { userId: USER, provider: 'demo', name: 'T', type: 'CHECKING', currentBalanceCents: 0 },
+    });
+    marcusA = (
+      await prisma.transaction.create({
+        data: {
+          accountId: acct.id,
+          date: '2026-06-01',
+          amountCents: -5000,
+          rawDescriptor: 'ZELLE PAYMENT TO MARCUS CHEN',
+          merchantId: zelleId,
+          categoryId: 'shopping',
+          needsReview: false,
+        },
+      })
+    ).id;
+    marcusB = (
+      await prisma.transaction.create({
+        data: {
+          accountId: acct.id,
+          date: '2026-06-02',
+          amountCents: -5000,
+          rawDescriptor: 'ZELLE PAYMENT TO MARCUS CHEN',
+          merchantId: zelleId,
+          categoryId: 'shopping',
+          needsReview: true,
+        },
+      })
+    ).id;
+    riley = (
+      await prisma.transaction.create({
+        data: {
+          accountId: acct.id,
+          date: '2026-06-03',
+          amountCents: -3000,
+          rawDescriptor: 'ZELLE PAYMENT TO RILEY OKAFOR',
+          merchantId: zelleId,
+          categoryId: 'shopping',
+          needsReview: true,
+        },
+      })
+    ).id;
+  });
+  afterAll(wipe);
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(auth).mockResolvedValue({ user: { id: USER } } as never);
+  });
+
+  it('test_regression__recategorize_aggregate_mints_keyword_rule (#723)', async () => {
+    const res = await recategorize({
+      transactionId: marcusB,
+      categoryId: 'gifts',
+      scope: 'merchant',
+    });
+    expect(res.affected).toBe(2);
+    expect(res.ruleId).not.toBeNull();
+    expect((await prisma.transaction.findUniqueOrThrow({ where: { id: marcusA } })).categoryId).toBe('gifts');
+    expect((await prisma.transaction.findUniqueOrThrow({ where: { id: marcusB } })).categoryId).toBe('gifts');
+    expect((await prisma.transaction.findUniqueOrThrow({ where: { id: riley } })).categoryId).toBe('shopping');
+    const rule = await prisma.categorizationRule.findUniqueOrThrow({ where: { id: res.ruleId! } });
+    expect(rule.merchantId).toBeNull();
+    expect(rule.matchKeywords).toBeTruthy();
+    expect(rule.priority).toBe(110);
+    expect(rule.categoryId).toBe('gifts');
   });
 });

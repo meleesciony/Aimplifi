@@ -11,7 +11,6 @@ import type { Prisma } from '@/generated/prisma/client';
 import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
 import {
   inboxFilingRuleKind,
-  isDurablePayeeCanonical,
   selectConfidentGroups,
 } from '@/lib/engine/categorize/group';
 import {
@@ -761,13 +760,12 @@ export async function acceptAllConfident(): Promise<AcceptAllResult> {
  * ANY transaction — including confidently auto-filed ones the pipeline never
  * routed to review. Two scopes:
  *   'one'      → just this transaction (records a reversible Correction, no rule)
- *   'merchant' → re-file EVERY transaction of this merchant (already-categorized
- *                included) AND create a durable priority-100 rule, so past and
- *                future are fixed in one action.
- * 'merchant' falls back to 'one' for aggregates (Zelle/checks) and masked
- * bank names — those never carry merchant-wide rules. Merchantless CSV/manual
- * rows of a real payee recategorize across that canonical, not one row.
- * Every write is ownership-scoped and audit-logged.
+ *   'merchant' → re-file EVERY transaction of this merchant / exact-descriptor
+ *                group (already-categorized included) AND mint a durable rule
+ *                (merchant rule or descriptor keyword — same kinds as Inbox File,
+ *                DECISIONS #718/#723), so past and future are fixed in one action.
+ * Merchantless CSV/manual rows of a real payee recategorize across that
+ * canonical, not one row. Every write is ownership-scoped and audit-logged.
  */
 export async function recategorize(input: {
   transactionId: string;
@@ -781,10 +779,13 @@ export async function recategorize(input: {
   const txn = await ownedTransaction(userId, input.transactionId);
 
   const normalized = normalizeMerchant(txn.rawDescriptor);
-  const merchantWide =
-    input.scope === 'merchant' &&
-    !normalized.aggregate &&
-    isDurablePayeeCanonical(normalized.canonical);
+  const filingKind = inboxFilingRuleKind({
+    aggregate: normalized.aggregate,
+    merchantCanonical: normalized.canonical,
+    merchantId: txn.merchantId,
+    hasDescriptorKeywords: suggestRuleKeywords(txn.rawDescriptor).keywords.length > 0,
+  });
+  const merchantWide = input.scope === 'merchant' && filingKind !== 'none';
 
   if (!merchantWide) {
     // Single row: reuse the triage single-apply path (correction + update, no rule).
@@ -806,8 +807,13 @@ export async function recategorize(input: {
   // tx for the fileMerchantGroup reason above; the spend-class twin of this
   // gesture (#397) has carried the same filter since it shipped.
   const keepsReconciled = await getReconciliationTxnKeep(userId);
+  // Exact-descriptor scope for keyword kinds (aggregates / masked merchantless);
+  // merchantless durable still scopes by canonical (#589); masked-with-merchantId
+  // uses the stable merchantId (#723).
+  const exactDescriptorScope = filingKind === 'keyword';
   const { correctionIds, ruleId, minted, affected, ruleMerchantId } = await serializableTx(async (tx) => {
-    const merchantlessByCanonical = txn.merchantId === null;
+    const merchantlessByCanonical =
+      filingKind === 'merchant' && txn.merchantId === null && !exactDescriptorScope;
     const canon = merchantlessByCanonical
       ? normalized.canonical.normalize('NFC').trim().toLowerCase()
       : null;
@@ -815,7 +821,11 @@ export async function recategorize(input: {
       await tx.transaction.findMany({
         where: similarTransactionsWhere(
           userId,
-          { merchantId: txn.merchantId, rawDescriptor: txn.rawDescriptor, aggregate: false },
+          {
+            merchantId: txn.merchantId,
+            rawDescriptor: txn.rawDescriptor,
+            aggregate: exactDescriptorScope || normalized.aggregate,
+          },
           merchantlessByCanonical
             ? { onlyNeedsReview: false, merchantlessByCanonical: true }
             : { onlyNeedsReview: false },
@@ -838,17 +848,32 @@ export async function recategorize(input: {
       ids.push(c.id);
       if (!firstCorrectionId) firstCorrectionId = c.id;
     }
-    let ruleMerchantId: string | null = txn.merchantId;
-    if (!ruleMerchantId) {
-      ruleMerchantId = await ensureMerchantForCanonical(tx, normalized.canonical, input.categoryId);
+    let ruleMerchantId: string | null = filingKind === 'merchant' ? txn.merchantId : null;
+    let rid: string | null = null;
+    let ruleMinted = false;
+    if (filingKind === 'merchant') {
+      if (!ruleMerchantId) {
+        ruleMerchantId = await ensureMerchantForCanonical(tx, normalized.canonical, input.categoryId);
+      }
+      const r = await ensureUnconditionalRule(tx, {
+        userId,
+        merchantId: ruleMerchantId,
+        categoryId: input.categoryId,
+        createdFrom: firstCorrectionId,
+      });
+      rid = r.ruleId;
+      ruleMinted = r.minted;
+    } else {
+      const r = await ensureDescriptorKeywordRule(tx, {
+        userId,
+        rawDescriptor: txn.rawDescriptor,
+        categoryId: input.categoryId,
+        createdFrom: firstCorrectionId,
+      });
+      rid = r.ruleId;
+      ruleMinted = r.minted;
     }
-    const { ruleId: rid, minted: ruleMinted } = await ensureUnconditionalRule(tx, {
-      userId,
-      merchantId: ruleMerchantId,
-      categoryId: input.categoryId,
-      createdFrom: firstCorrectionId,
-    });
-    if (ruleMinted && firstCorrectionId) {
+    if (ruleMinted && firstCorrectionId && rid) {
       await tx.correction.update({ where: { id: firstCorrectionId }, data: { becameRuleId: rid } });
     }
     await tx.transaction.updateMany({
@@ -871,13 +896,15 @@ export async function recategorize(input: {
 
   // Provenance-honest audit (cycle-3 P2): pre-fix this always logged 'rule.create'
   // even when the dedupe reused an existing rule.
-  await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', {
-    ruleId,
-    merchantId: ruleMerchantId,
-    categoryId: input.categoryId,
-    affected,
-    via: 'register',
-  });
+  if (ruleId) {
+    await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', {
+      ruleId,
+      merchantId: ruleMerchantId,
+      categoryId: input.categoryId,
+      affected,
+      via: 'register',
+    });
+  }
 
   revalidateAfterCategoryWrite();
   return { correctionIds, ruleId, affected };
