@@ -689,3 +689,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #693 — Household can forget learned phrases from Ask without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #694 — Household can manage household membership from Coach without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #695 — Household can download tax-year CSV from Reports without leaving for Settings (2026-09-07) → docs/DECISIONS.md
+- #696 — Household can download net worth export from Investments without leaving for Settings (2026-09-07) → docs/DECISIONS.md

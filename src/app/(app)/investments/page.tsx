@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { InvestmentsView } from '@/components/finance/investments-view';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { buttonVariants } from '@/components/ui/button';
 import { getInvestments, getRetirementOutlook } from '@/server/investments';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { prisma } from '@/lib/db';
@@ -30,12 +32,36 @@ export default async function InvestmentsPage({
     getWithheldAccountSummary(userId),
   ]);
   return (
-    <InvestmentsView
-      data={data}
-      outlook={outlook}
-      withheld={withheld}
-      scopedAccountId={scopedAccountId}
-      canWrite={!isDemoUser(userId)}
-    />
+    <div className="space-y-4">
+      <InvestmentsView
+        data={data}
+        outlook={outlook}
+        withheld={withheld}
+        scopedAccountId={scopedAccountId}
+        canWrite={!isDemoUser(userId)}
+      />
+      <Card data-testid="investments-net-worth-export-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Take your net worth with you</CardDescription>
+          <CardTitle className="text-base">Net worth export</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <a
+            href="/api/export?format=net-worth-csv"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            data-testid="export-net-worth-csv"
+          >
+            Net worth (CSV)
+          </a>
+          <a
+            href="/api/export?format=net-worth-pdf"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            data-testid="export-net-worth-pdf"
+          >
+            Net worth report (PDF)
+          </a>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

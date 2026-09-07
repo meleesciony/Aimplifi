@@ -2930,3 +2930,8 @@ invent an auto-file quality claim.
 **Decision.** Mount the same `getTaxYears` + `/api/export?format=tax-year-csv` links on /reports (`reports-tax-export-card`). Settings export card unchanged. No CSV invent; same API. Not tax advice.
 **Locked.** `test_regression__household_can_download_tax_year_csv_from_reports_without_leaving_for_settings`.
 
+## #696 — Household can download net worth export from Investments without leaving for Settings (2026-09-07)
+**Context.** Net worth CSV/PDF export lived only on Settings. Investments is where portfolio and retirement outlook live.
+**Decision.** Mount the same `/api/export?format=net-worth-csv` and `net-worth-pdf` links on /investments (`investments-net-worth-export-card`). Settings export card unchanged. Same API.
+**Locked.** `test_regression__household_can_download_net_worth_export_from_investments_without_leaving_for_settings`.
+

@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-07 | Net worth export required leaving Investments for Settings | Net worth CSV/PDF lived only on Settings | a household can download net worth export from Investments without leaving for Settings | `test_regression__household_can_download_net_worth_export_from_investments_without_leaving_for_settings` |
 | 2026-09-07 | Tax-year CSV required leaving Reports for Settings | Tax export lived only on Settings | a household can download tax-year CSV from Reports without leaving for Settings | `test_regression__household_can_download_tax_year_csv_from_reports_without_leaving_for_settings` |
 | 2026-09-07 | Household membership required leaving Coach for Settings | HouseholdCard lived only on Settings | a household can manage household membership from Coach without leaving for Settings | `test_regression__household_can_manage_household_membership_from_coach_without_leaving_for_settings` |
 | 2026-09-07 | Forgetting learned Ask phrases required leaving for Settings | LearnedPhrases lived only on Settings | a household can forget learned phrases from Ask without leaving for Settings | `test_regression__household_can_forget_learned_phrases_from_ask_without_leaving_for_settings` |
