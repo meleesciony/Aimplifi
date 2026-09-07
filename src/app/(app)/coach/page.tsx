@@ -44,10 +44,12 @@ import { getValueReceiptsSummary, recordReceipts } from '@/server/receipts';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { isDemoUser } from '@/lib/demo-user';
 import { MoneyDialsForm } from '@/components/settings/money-dials-form';
+import { HouseholdCard } from '@/components/settings/household-card';
 import { EmployerMatchForm } from '@/components/settings/employer-match-form';
 import { TaxAdvantagedRoomForm } from '@/components/settings/tax-advantaged-room-form';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
 import { loadDialCatalog, resolvedMoneyDialIds } from '@/server/money-dials';
+import { getHouseholdView } from '@/server/household';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 
 export const metadata = { title: "Coach" };
@@ -58,6 +60,7 @@ export default async function CoachPage() {
   // No accounts yet → route-framed onboarding (the FI/cash engine needs accounts).
   if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyCoach />;
   const userId = session.user.id;
+  const householdView = await getHouseholdView();
   const [data, withheld, plan, dialUser, accounts, dialCatalog, supersededFunding] = await Promise.all([
     getCoachData(userId, { orderReview: true, cutImpact: true }),
     getWithheldAccountSummary(userId),
@@ -562,6 +565,17 @@ export default async function CoachPage() {
 
       {/* Your money rules — a short rulebook beats a perfect plan you won't keep
           (Aliche · Get Good with Money; Sethi · your money rules) */}
+
+      <Card data-testid="coach-household-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Share planning with a partner — accounts stay private until you share them</CardDescription>
+          <CardTitle className="text-base">Household</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <HouseholdCard view={householdView} />
+        </CardContent>
+      </Card>
+
       <Card data-testid="money-rules-card">
         <CardHeader className="pb-2">
           <CardDescription>Your money rules</CardDescription>

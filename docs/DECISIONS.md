@@ -2920,3 +2920,8 @@ invent an auto-file quality claim.
 **Decision.** Mount LearnedPhrases on /ask (`ask-learned-phrases-card`) when any phrases exist, same forgetLearnedPhrase writer. forgetLearnedPhrase also revalidates /ask. Settings card unchanged. No CSV.
 **Locked.** `test_regression__household_can_forget_learned_phrases_from_ask_without_leaving_for_settings`.
 
+## #694 — Household can manage household membership from Coach without leaving for Settings (2026-09-07)
+**Context.** HouseholdCard (create, invite, accept, leave) lived only on Settings. Coach is where shared FI planning lives; membership still required a Settings detour.
+**Decision.** Mount HouseholdCard on /coach (`coach-household-card`) with the same household-actions writers. Those writers also revalidate /coach. Settings card unchanged. No CSV. No account-sharing controls invented.
+**Locked.** `test_regression__household_can_manage_household_membership_from_coach_without_leaving_for_settings`.
+

@@ -687,3 +687,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #691 — Household can manage custom categories from Budgets without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #692 — Household can manage built-in categories from Budgets without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #693 — Household can forget learned phrases from Ask without leaving for Settings (2026-09-07) → docs/DECISIONS.md
+- #694 — Household can manage household membership from Coach without leaving for Settings (2026-09-07) → docs/DECISIONS.md

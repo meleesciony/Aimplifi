@@ -96,6 +96,7 @@ export async function createHousehold(rawName: string): Promise<HouseholdActionR
   }
   await auditLog(userId, 'household.create', { name: v.name });
   revalidatePath('/settings');
+  revalidatePath('/coach');
   return { ok: true };
 }
 
@@ -174,6 +175,7 @@ export async function inviteToHousehold(rawEmail: string): Promise<InviteCreateR
     householdId: viewer.household.id,
   });
   revalidatePath('/settings');
+  revalidatePath('/coach');
   return { ok: true, code, email };
 }
 
@@ -265,6 +267,7 @@ export async function acceptInvite(
   }
   await auditLog(userId, 'household.invite.accept', { householdId: invite.householdId });
   revalidatePath('/settings');
+  revalidatePath('/coach');
   return { ok: true };
 }
 
@@ -281,6 +284,7 @@ export async function declineInvite(inviteId: string): Promise<HouseholdActionRe
   if (count === 0) return { ok: false, error: GENERIC_REDEEM_ERROR };
   await auditLog(userId, 'household.invite.decline', { inviteId });
   revalidatePath('/settings');
+  revalidatePath('/coach');
   return { ok: true };
 }
 
@@ -298,6 +302,7 @@ export async function revokeInvite(inviteId: string): Promise<HouseholdActionRes
     householdId: viewer.household.id,
   });
   revalidatePath('/settings');
+  revalidatePath('/coach');
   return { ok: true };
 }
 
@@ -329,6 +334,7 @@ export async function leaveHousehold(): Promise<HouseholdActionResult> {
 
   await auditLog(viewer.userId, 'household.leave', { householdId });
   revalidatePath('/settings');
+  revalidatePath('/coach');
   return { ok: true };
 }
 
@@ -357,6 +363,7 @@ export async function removeMember(targetUserId: string): Promise<HouseholdActio
   }
   await auditLog(viewer.userId, 'household.member.remove', { householdId, targetUserId });
   revalidatePath('/settings');
+  revalidatePath('/coach');
   return { ok: true };
 }
 
