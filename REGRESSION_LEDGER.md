@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-07 | Amount/date/account/descriptor on multi-txn Inbox required One by one | Multi-txn idle cards lacked core field controls | a household can edit amount, date, account, and descriptor on Inbox multi-txn groups without One by one | `test_regression__household_can_edit_amount_date_account_descriptor_on_inbox_multi_txn_without_one_by_one` |
 | 2026-09-07 | Note/tax/exclude/reimburse on multi-txn Inbox required One by one | Multi-txn idle cards had no field controls | a household can edit note, tax, exclude, and reimbursement on Inbox multi-txn groups without One by one | `test_regression__household_can_edit_note_tax_exclude_reimbursement_on_inbox_multi_txn_without_one_by_one` |
 | 2026-09-07 | Forgetting learned Ask phrases required leaving Trust for Settings | LearnedPhrases not on Trust | a household can forget learned phrases from Trust without leaving for Settings | `test_regression__household_can_forget_learned_phrases_from_trust_without_leaving_for_settings` |
 | 2026-09-07 | Category create/hide/rename required leaving Inbox for Settings | Category managers not on Inbox | a household can manage categories from Inbox without leaving for Settings | `test_regression__household_can_manage_categories_from_inbox_without_leaving_for_settings` |

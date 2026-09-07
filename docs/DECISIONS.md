@@ -2985,3 +2985,8 @@ invent an auto-file quality claim.
 **Decision.** On multi-txn group cards when canRenamePayee, mount per-row TxnNoteControl / TxnTaxClassControl / TxnExcludeControl / TxnReimbursementControl (`inbox-multi-txn-fields`). Same writers. Filing still uses File all / One by one. Demo fenced. No category managers. No CSV.
 **Locked.** `test_regression__household_can_edit_note_tax_exclude_reimbursement_on_inbox_multi_txn_without_one_by_one`.
 
+## #707 — Household can edit amount, date, account, and descriptor on Inbox multi-txn groups without One by one (2026-09-07)
+**Context.** #706 added note/tax/exclude/reimburse on multi-txn idle cards. Amount, date, account, direction, and descriptor still required One by one (or a single-txn card).
+**Decision.** Mount TxnDateControl / TxnAmountControl / TxnDirectionControl / TxnAccountControl / TxnDescriptorControl on each multi-txn field row (`inbox-multi-date` etc.). Same writers as singles. Demo fenced. No category managers. No CSV.
+**Locked.** `test_regression__household_can_edit_amount_date_account_descriptor_on_inbox_multi_txn_without_one_by_one`.
+

@@ -1193,10 +1193,41 @@ export function TriageInbox({
                       className="space-y-1 rounded-md border border-dashed px-2 py-1.5"
                       data-testid="inbox-multi-txn-field-row"
                     >
-                      <p className="text-[11px] text-muted-foreground">
-                        {formatISODate(isoDate(r.date), 'long')} ·{' '}
-                        <span className="tabular-nums">{formatCents(cents(r.amountCents), { signDisplay: 'always' })}</span>
-                      </p>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                        <TxnDateControl
+                          transactionId={r.id}
+                          date={r.date}
+                          triggerTestId="inbox-multi-date"
+                        />
+                        <span className="inline-flex items-center gap-1">
+                          <TxnAmountControl
+                            transactionId={r.id}
+                            amountCents={r.amountCents}
+                            triggerTestId="inbox-multi-amount"
+                            idleClassName={`tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${
+                              r.amountCents > 0 ? 'text-positive-500' : ''
+                            }`}
+                          />
+                          <TxnDirectionControl
+                            transactionId={r.id}
+                            amountCents={r.amountCents}
+                            compact
+                            flipTestId="inbox-multi-direction"
+                          />
+                        </span>
+                        <TxnAccountControl
+                          transactionId={r.id}
+                          accountId={r.accountId}
+                          accountName={r.accountName}
+                          accounts={accounts}
+                          triggerTestId="inbox-multi-account"
+                        />
+                      </div>
+                      <TxnDescriptorControl
+                        transactionId={r.id}
+                        descriptor={r.rawDescriptor}
+                        triggerTestId="inbox-multi-descriptor"
+                      />
                       <TxnNoteControl
                         transactionId={r.id}
                         note={r.note}
