@@ -699,3 +699,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #703 — Household can see self-audit on Trust without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #704 — Household can manage categories from Inbox without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #705 — Household can forget learned phrases from Trust without leaving for Settings (2026-09-07) → docs/DECISIONS.md
+- #706 — Household can edit note, tax, exclude, and reimbursement on Inbox multi-txn groups without One by one (2026-09-07) → docs/DECISIONS.md

@@ -1183,6 +1183,48 @@ export function TriageInbox({
               {top.variants.length > 3 && (
                 <p className="text-xs text-muted-foreground">+ {top.variants.length - 3} more descriptor variants</p>
               )}
+              {/* Multi-txn field gap (#706): note/tax/exclude/reimburse per row without
+                  opening One by one. Filing still uses File all / One by one below. */}
+              {canRenamePayee ? (
+                <div className="space-y-2 pt-1" data-testid="inbox-multi-txn-fields">
+                  {top.rows.map((r) => (
+                    <div
+                      key={r.id}
+                      className="space-y-1 rounded-md border border-dashed px-2 py-1.5"
+                      data-testid="inbox-multi-txn-field-row"
+                    >
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatISODate(isoDate(r.date), 'long')} ·{' '}
+                        <span className="tabular-nums">{formatCents(cents(r.amountCents), { signDisplay: 'always' })}</span>
+                      </p>
+                      <TxnNoteControl
+                        transactionId={r.id}
+                        note={r.note}
+                        compact
+                        triggerTestId="inbox-multi-note"
+                      />
+                      <TxnTaxClassControl
+                        transactionId={r.id}
+                        taxClass={r.taxClass}
+                        compact
+                        triggerTestId="inbox-multi-tax"
+                      />
+                      <TxnExcludeControl
+                        transactionId={r.id}
+                        excluded={r.excludeFromTotals}
+                        triggerTestId="inbox-multi-exclude"
+                      />
+                      {r.amountCents < 0 ? (
+                        <TxnReimbursementControl
+                          transactionId={r.id}
+                          reimbursement={r.reimbursement}
+                          triggerTestId="inbox-multi-reimbursement"
+                        />
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </>
           )}
           <div className="flex items-center gap-2 pt-1">

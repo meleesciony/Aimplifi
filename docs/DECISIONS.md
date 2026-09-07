@@ -2980,3 +2980,8 @@ invent an auto-file quality claim.
 **Decision.** Mount LearnedPhrases on /trust (`trust-learned-phrases-card`) when any phrases exist. Same forgetLearnedPhrase writer; also revalidates /trust. Settings and Ask unchanged. No category managers. No CSV.
 **Locked.** `test_regression__household_can_forget_learned_phrases_from_trust_without_leaving_for_settings`.
 
+## #706 — Household can edit note, tax, exclude, and reimbursement on Inbox multi-txn groups without One by one (2026-09-07)
+**Context.** Single-txn Inbox cards and One-by-one rows had note/tax/exclude/reimburse (#662–#667). Multi-txn idle cards kept those fields display-only until One by one, so tagging identical charges required a mode switch.
+**Decision.** On multi-txn group cards when canRenamePayee, mount per-row TxnNoteControl / TxnTaxClassControl / TxnExcludeControl / TxnReimbursementControl (`inbox-multi-txn-fields`). Same writers. Filing still uses File all / One by one. Demo fenced. No category managers. No CSV.
+**Locked.** `test_regression__household_can_edit_note_tax_exclude_reimbursement_on_inbox_multi_txn_without_one_by_one`.
+
