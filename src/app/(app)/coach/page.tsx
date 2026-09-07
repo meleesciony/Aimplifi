@@ -34,6 +34,7 @@ import { EmptyCoach } from '@/components/onboarding/route-empty';
 import { GoalSavedControl } from '@/components/finance/goal-saved-form';
 import { GoalTargetControl } from '@/components/finance/goal-target-form';
 import { GoalMonthlyControl } from '@/components/finance/goal-monthly-form';
+import { GoalTargetDateControl } from '@/components/finance/goal-target-date-form';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { runwayTitle } from '@/lib/engine/fi/insights';
 import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
@@ -100,7 +101,7 @@ export default async function CoachPage() {
     // Ordinary savings goals only (kind null) — same gate as updateGoalSaved (#623/#716).
     prisma.goal.findMany({
       where: { userId, kind: null },
-      select: { id: true, name: true, savedCents: true, targetCents: true, monthlyContributionCents: true },
+      select: { id: true, name: true, savedCents: true, targetCents: true, monthlyContributionCents: true, targetDate: true },
       orderBy: { name: 'asc' },
     }),
   ]);
@@ -176,8 +177,9 @@ export default async function CoachPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p className="text-muted-foreground">
-              Update already-saved, target, and monthly contribution — same writes as Goals.
-              Debt-free and reserve rows stay on their own pages. Aimplifi never moves money.
+              Update already-saved, target, monthly contribution, and target date — same writes
+              as Goals. Debt-free and reserve rows stay on their own pages. Aimplifi never moves
+              money.
             </p>
             <ul className="space-y-2">
               {savingsGoals.map((g) => (
@@ -209,6 +211,14 @@ export default async function CoachPage() {
                       `${formatCents(cents(g.monthlyContributionCents))}/mo`
                     ) : (
                       'No monthly set'
+                    )}
+                    {' · '}
+                    {canWriteDials ? (
+                      <GoalTargetDateControl goalId={g.id} targetDate={g.targetDate} />
+                    ) : g.targetDate ? (
+                      g.targetDate.slice(0, 7)
+                    ) : (
+                      'No date set'
                     )}
                   </span>
                 </li>
