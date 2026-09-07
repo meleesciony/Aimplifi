@@ -4,7 +4,8 @@
  * getReviewCount), and fileMerchantGroup files every queued row of the merchant, records
  * per-row Corrections, sets prediction ground truth, and creates the durable rule that
  * makes the NEXT ingest of this merchant auto-file silently (trust on repeat = certainty).
- * Aggregates (Zelle) group by EXACT descriptor and never get rules (#23).
+ * Aggregates (Zelle) group by EXACT descriptor (#23) and mint a descriptor
+ * keyword rule on File so the next matching ingest skips Inbox (#718).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +16,7 @@ import { auth } from '@/auth';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import {
   groupReviewRows,
+  inboxFilingRuleKind,
   inboxMerchantHeading,
   isConfidentGroup,
   merchantlessCanonKey,
@@ -119,7 +121,7 @@ describe('merchant-group triage (Phase 3b)', () => {
 
     const marcus = groups.find((g) => g.variants.includes('ZELLE PAYMENT TO MARCUS CHEN'))!;
     expect(marcus.count).toBe(2); // Marcus only — Riley is her own group (#23)
-    expect(marcus.ruleEligible).toBe(false);
+    expect(marcus.ruleEligible).toBe(true); // #718: aggregate File mints descriptor keyword rule
     expect(marcus.aggregate).toBe(true);
   });
 
@@ -203,18 +205,70 @@ describe('merchant-group triage (Phase 3b)', () => {
     }
   });
 
-  it('aggregate group: files ONLY the exact descriptor rows, creates NO rule', async () => {
+  it('aggregate group: files ONLY the exact descriptor rows and mints a descriptor keyword rule', async () => {
     const groups = await getTriageGroups(USER);
     const marcus = groups.find((g) => g.variants.includes('ZELLE PAYMENT TO MARCUS CHEN'))!;
 
     const res = await fileMerchantGroup({ anchorTransactionId: marcus.anchorTransactionId, categoryId: 'rent' });
     expect(res.affected).toBe(2);
-    expect(res.ruleId).toBeNull(); // aggregates never get merchant-wide rules
+    expect(res.ruleId).not.toBeNull(); // #718: durable twin so next matching ingest skips Inbox
+
+    const rule = await prisma.categorizationRule.findUniqueOrThrow({ where: { id: res.ruleId! } });
+    expect(rule.merchantId).toBeNull(); // never merchant-wide on an aggregate canonical
+    expect(rule.matchKeywords).toBeTruthy();
+    expect(rule.priority).toBe(110);
+    expect(rule.categoryId).toBe('rent');
 
     const riley = await prisma.transaction.findFirstOrThrow({ where: { id: `grp-z3-${process.pid}` } });
     expect(riley.needsReview).toBe(true); // untouched — different payee
     expect(riley.categoryId).toBe('uncategorized');
-    expect(await prisma.categorizationRule.count({ where: { userId: USER } })).toBe(0);
+    expect(await prisma.categorizationRule.count({ where: { userId: USER } })).toBe(1);
+  });
+
+
+  it('test_regression__masked_with_merchantId_file_mints_merchant_rule (#718)', async () => {
+    const masked = await prisma.merchant.upsert({
+      where: { canonical: '.' },
+      create: { id: `grp-merch-mask-${process.pid}`, canonical: '.' },
+      update: {},
+    });
+    const acct = await prisma.account.findFirstOrThrow({ where: { userId: USER } });
+    await prisma.transaction.create({
+      data: {
+        id: `grp-mask-${process.pid}`,
+        accountId: acct.id,
+        date: '2026-06-10',
+        amountCents: -4200,
+        rawDescriptor: 'PURCHASE ****1234',
+        merchantId: masked.id,
+        categoryId: 'uncategorized',
+        confidenceBps: 4000,
+        needsReview: true,
+      },
+    });
+    const res = await fileMerchantGroup({
+      anchorTransactionId: `grp-mask-${process.pid}`,
+      categoryId: 'shopping',
+    });
+    expect(res.affected).toBe(1);
+    expect(res.ruleId).not.toBeNull();
+    const rule = await prisma.categorizationRule.findUniqueOrThrow({ where: { id: res.ruleId! } });
+    expect(rule.merchantId).toBe(masked.id);
+    expect(rule.matchKeywords).toBeNull();
+    expect(rule.priority).toBe(100);
+    expect(rule.categoryId).toBe('shopping');
+  });
+
+  it('test_regression__aggregate_file_mints_keyword_rule_not_merchant_wide (#718)', async () => {
+    const groups = await getTriageGroups(USER);
+    const marcus = groups.find((g) => g.variants.includes('ZELLE PAYMENT TO MARCUS CHEN'))!;
+    const res = await fileMerchantGroup({ anchorTransactionId: marcus.anchorTransactionId, categoryId: 'gifts' });
+    expect(res.ruleId).not.toBeNull();
+    const rule = await prisma.categorizationRule.findUniqueOrThrow({ where: { id: res.ruleId! } });
+    // Must not hang on the Zelle pipeline merchant — that would auto-file Riley too.
+    expect(rule.merchantId).toBeNull();
+    expect(rule.matchKeywords!.toLowerCase()).toContain('marcus');
+    expect(rule.matchKeywords!.toLowerCase()).not.toContain('riley');
   });
 
   it('rejects an anchor owned by another user', async () => {
@@ -253,6 +307,46 @@ describe('merchant-group triage (Phase 3b)', () => {
     expect(inboxMerchantHeading('.')).toBe('Masked charge (bank hid the name)');
     expect(inboxMerchantHeading('****')).toBe('Masked charge (bank hid the name)');
     expect(inboxMerchantHeading('Starbucks')).toBe('Starbucks');
+  });
+
+  it('test_regression__inbox_filing_rule_kind_for_aggregate_and_masked (#718)', () => {
+    expect(
+      inboxFilingRuleKind({
+        aggregate: true,
+        merchantCanonical: 'Zelle Payment',
+        merchantId: 'm-zelle',
+      }),
+    ).toBe('keyword');
+    expect(
+      inboxFilingRuleKind({
+        aggregate: false,
+        merchantCanonical: '.',
+        merchantId: 'm-masked',
+      }),
+    ).toBe('merchant');
+    expect(
+      inboxFilingRuleKind({
+        aggregate: false,
+        merchantCanonical: '.',
+        merchantId: null,
+        hasDescriptorKeywords: true,
+      }),
+    ).toBe('keyword');
+    expect(
+      inboxFilingRuleKind({
+        aggregate: false,
+        merchantCanonical: '.',
+        merchantId: null,
+        hasDescriptorKeywords: false,
+      }),
+    ).toBe('none');
+    expect(
+      inboxFilingRuleKind({
+        aggregate: false,
+        merchantCanonical: 'Starbucks',
+        merchantId: null,
+      }),
+    ).toBe('merchant');
   });
 
   // ── L.12: provider (Plaid) fallback suggestion — pure engine ──

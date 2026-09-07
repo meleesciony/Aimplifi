@@ -9,8 +9,18 @@
 import { revalidatePath } from 'next/cache';
 import type { Prisma } from '@/generated/prisma/client';
 import { isUniqueViolation, prisma, serializableTx } from '@/lib/db';
-import { isDurablePayeeCanonical, selectConfidentGroups } from '@/lib/engine/categorize/group';
+import {
+  inboxFilingRuleKind,
+  isDurablePayeeCanonical,
+  selectConfidentGroups,
+} from '@/lib/engine/categorize/group';
+import {
+  encodeKeywordGroups,
+  encodeKeywords,
+  KEYWORD_RULE_PRIORITY,
+} from '@/lib/engine/categorize/keyword-rule';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { suggestRuleKeywords } from '@/lib/engine/categorize/rule-prefill';
 import { auditLog, requireUserId } from '@/server/authz';
 import { assertOwnedCategory } from '@/server/category-meta';
 import { ensureCategories } from '@/server/ensure-categories';
@@ -49,10 +59,17 @@ async function ensureMerchantForCanonical(
   }
 }
 
-/** Aggregate pseudo-merchants (Zelle/checks/ATM) never get merchant-wide rules. */
-function assertRuleEligible(rawDescriptor: string): void {
-  if (normalizeMerchant(rawDescriptor).aggregate) {
-    throw new Error('This merchant groups unrelated payees — rules are not offered for it');
+/** Refuse Always when there is no durable handle (no merchant, no descriptor keywords). */
+function assertCanMintFilingRule(rawDescriptor: string, merchantId: string | null): void {
+  const n = normalizeMerchant(rawDescriptor);
+  const kind = inboxFilingRuleKind({
+    aggregate: n.aggregate,
+    merchantCanonical: n.canonical,
+    merchantId,
+    hasDescriptorKeywords: suggestRuleKeywords(rawDescriptor).keywords.length > 0,
+  });
+  if (kind === 'none') {
+    throw new Error('Nothing durable to hang an auto-file rule on for this payee');
   }
 }
 
@@ -137,6 +154,62 @@ async function ensureUnconditionalRule(
   return { ruleId: rule.id, minted: true };
 }
 
+/**
+ * Reuse-or-mint a priority-110 exact-descriptor keyword rule inside the caller's
+ * transaction (DECISIONS #718). Aggregates and masked merchantless rows cannot
+ * hang a merchant-wide rule on the pipeline canonical (that would auto-file every
+ * Zelle/Venmo/check). The Inbox group already keys on exact rawDescriptor — the
+ * durable twin is a typed keyword key built from that same statement text.
+ *
+ * Same supersede + unconditional-condition dedupe shape as ensureUnconditionalRule,
+ * keyed on matchKeywords instead of merchantId.
+ */
+async function ensureDescriptorKeywordRule(
+  tx: Prisma.TransactionClient,
+  args: { userId: string; rawDescriptor: string; categoryId: string; createdFrom: string | null },
+): Promise<{ ruleId: string | null; minted: boolean }> {
+  const keywords = suggestRuleKeywords(args.rawDescriptor).keywords;
+  if (keywords.length === 0) return { ruleId: null, minted: false };
+  const matchKeywords = encodeKeywords(keywords);
+  const matchKeywordGroups = encodeKeywordGroups([keywords]);
+  const unconditional = {
+    minAmountCents: null,
+    maxAmountCents: null,
+    weekendOnly: null,
+    weekdayOnly: null,
+    accountId: null,
+    merchantId: null,
+  };
+  await tx.categorizationRule.deleteMany({
+    where: {
+      userId: args.userId,
+      matchKeywords,
+      categoryId: { not: args.categoryId },
+      ...unconditional,
+    },
+  });
+  const existing = await tx.categorizationRule.findFirst({
+    where: {
+      userId: args.userId,
+      matchKeywords,
+      categoryId: args.categoryId,
+      ...unconditional,
+    },
+  });
+  if (existing) return { ruleId: existing.id, minted: false };
+  const rule = await tx.categorizationRule.create({
+    data: {
+      userId: args.userId,
+      categoryId: args.categoryId,
+      priority: KEYWORD_RULE_PRIORITY,
+      matchKeywords,
+      matchKeywordGroups,
+      createdFrom: args.createdFrom,
+    },
+  });
+  return { ruleId: rule.id, minted: true };
+}
+
 export interface ApplyResult {
   correctionIds: string[];
   ruleId: string | null;
@@ -196,9 +269,15 @@ export async function applyCategory(input: {
     let ruleMinted = false;
     let stampedMerchantId: string | null = fresh.merchantId;
     if (input.always) {
-      assertRuleEligible(fresh.rawDescriptor);
+      assertCanMintFilingRule(fresh.rawDescriptor, fresh.merchantId);
       const n = normalizeMerchant(fresh.rawDescriptor);
-      if (isDurablePayeeCanonical(n.canonical)) {
+      const kind = inboxFilingRuleKind({
+        aggregate: n.aggregate,
+        merchantCanonical: n.canonical,
+        merchantId: fresh.merchantId,
+        hasDescriptorKeywords: suggestRuleKeywords(fresh.rawDescriptor).keywords.length > 0,
+      });
+      if (kind === 'merchant') {
         if (!stampedMerchantId) {
           stampedMerchantId = await ensureMerchantForCanonical(tx, n.canonical, input.categoryId);
         }
@@ -211,6 +290,18 @@ export async function applyCategory(input: {
         createdRuleId = r.ruleId;
         ruleMinted = r.minted;
         if (r.minted) {
+          await tx.correction.update({ where: { id: created.id }, data: { becameRuleId: r.ruleId } });
+        }
+      } else if (kind === 'keyword') {
+        const r = await ensureDescriptorKeywordRule(tx, {
+          userId,
+          rawDescriptor: fresh.rawDescriptor,
+          categoryId: input.categoryId,
+          createdFrom: created.id,
+        });
+        createdRuleId = r.ruleId;
+        ruleMinted = r.minted;
+        if (r.minted && r.ruleId) {
           await tx.correction.update({ where: { id: created.id }, data: { becameRuleId: r.ruleId } });
         }
       }
@@ -272,9 +363,32 @@ export async function makeRuleFromCorrection(correctionId: string): Promise<{ ru
       where: { id: correction.transactionId, account: { userId } },
     });
     if (!txn) throw new Error('Transaction not found');
-    assertRuleEligible(txn.rawDescriptor);
+    assertCanMintFilingRule(txn.rawDescriptor, txn.merchantId);
     const n = normalizeMerchant(txn.rawDescriptor);
-    if (!isDurablePayeeCanonical(n.canonical)) {
+    const kind = inboxFilingRuleKind({
+      aggregate: n.aggregate,
+      merchantCanonical: n.canonical,
+      merchantId: txn.merchantId,
+      hasDescriptorKeywords: suggestRuleKeywords(txn.rawDescriptor).keywords.length > 0,
+    });
+    if (kind === 'keyword') {
+      const r = await ensureDescriptorKeywordRule(tx, {
+        userId,
+        rawDescriptor: txn.rawDescriptor,
+        categoryId: correction.toCategoryId,
+        createdFrom: correction.id,
+      });
+      if (r.minted && r.ruleId) {
+        await tx.correction.update({ where: { id: correction.id }, data: { becameRuleId: r.ruleId } });
+      }
+      return {
+        ruleId: r.ruleId,
+        minted: r.minted,
+        merchantId: null,
+        categoryId: correction.toCategoryId,
+      };
+    }
+    if (kind !== 'merchant') {
       return { ruleId: null, minted: false, merchantId: null, categoryId: null };
     }
     let merchantId = txn.merchantId;
@@ -296,7 +410,7 @@ export async function makeRuleFromCorrection(correctionId: string): Promise<{ ru
     }
     return { ruleId: r.ruleId, minted: r.minted, merchantId, categoryId: correction.toCategoryId };
   });
-  if (ruleId && merchantId) {
+  if (ruleId) {
     await auditLog(userId, minted ? 'rule.create' : 'rule.reuse', { ruleId, merchantId, categoryId });
   }
   return { ruleId };
@@ -317,7 +431,10 @@ export async function applyToAllSimilar(input: {
   const txn = await ownedTransaction(userId, input.transactionId);
   // Merchantless used to fall through to applyCategory (one row, no rule).
   // File the Inbox group and mint the same durable rule File-all does.
-  if (!txn.merchantId) {
+  // Aggregates with a pipeline merchantId still need the File-all mint path
+  // (descriptor keyword rule, DECISIONS #718) — not the merchant-attached
+  // batch that deliberately skips Always.
+  if (!txn.merchantId || normalizeMerchant(txn.rawDescriptor).aggregate) {
     return fileMerchantGroup({
       anchorTransactionId: input.transactionId,
       categoryId: input.categoryId,
@@ -386,9 +503,12 @@ export async function applyToAllSimilar(input: {
  * Consent framing: unlike the per-transaction surfaces (#36's two-step confirm),
  * the GROUP CARD is explicitly merchant-scoped — "File all N Starbucks · future
  * ones file automatically" IS the consent; a second prompt would re-ask the
- * question the card already asked. Aggregates (Zelle/checks/ATM/Venmo) file
- * their exact-descriptor rows and never create a rule (#23). The group scope is
- * re-derived server-side from the anchor row — the client's list is never trusted.
+ * question the card already asked. Aggregates (Zelle/checks/ATM/Venmo) and
+ * masked bank-name groups still file their exact-descriptor / group scope, and
+ * now mint a durable auto-file twin (keyword for aggregates / masked merchantless;
+ * merchant rule when a stable merchantId exists) so the next matching ingest
+ * skips Inbox (DECISIONS #718). The group scope is re-derived server-side from
+ * the anchor row — the client's list is never trusted.
  */
 export async function fileMerchantGroup(input: {
   anchorTransactionId: string;
@@ -401,7 +521,13 @@ export async function fileMerchantGroup(input: {
 
   const normalized = normalizeMerchant(txn.rawDescriptor);
   const aggregate = normalized.aggregate;
-  const ruleEligible = !aggregate && isDurablePayeeCanonical(normalized.canonical);
+  const filingKind = inboxFilingRuleKind({
+    aggregate,
+    merchantCanonical: normalized.canonical,
+    merchantId: txn.merchantId,
+    hasDescriptorKeywords: suggestRuleKeywords(txn.rawDescriptor).keywords.length > 0,
+  });
+  const ruleEligible = filingKind !== 'none';
 
   // EVERYTHING inside one SERIALIZABLE transaction (Phase-3 checker P1 +
   // cycle-2 P1): the target fetch, the needsReview re-assert, and the rule
@@ -472,10 +598,10 @@ export async function fileMerchantGroup(input: {
     let createdRuleId: string | null = null;
     let mintedRule = false;
     let ruleMerchantId: string | null = txn.merchantId;
-    if (ruleEligible) {
+    if (ruleEligible && filingKind === 'merchant') {
       // Merchantless CSV/manual rows have no merchantId. Hang the durable rule
       // on the canonical payee so the next same-payee ingest auto-files
-      // (DECISIONS #586). Aggregates never reach here.
+      // (DECISIONS #586). Masked-with-merchantId reuses the bank feed's id (#718).
       if (!ruleMerchantId) {
         ruleMerchantId = await ensureMerchantForCanonical(tx, normalized.canonical, input.categoryId);
       }
@@ -493,6 +619,22 @@ export async function fileMerchantGroup(input: {
       if (minted) {
         await tx.correction.update({ where: { id: ids[0] }, data: { becameRuleId: rid } });
       }
+    } else if (ruleEligible && filingKind === 'keyword') {
+      // Aggregates / masked merchantless: exact-descriptor keyword rule (#718).
+      // Never upsert a Merchant on the aggregate canonical — that would auto-file
+      // every Zelle/Venmo/check under one rule.
+      const { ruleId: rid, minted } = await ensureDescriptorKeywordRule(tx, {
+        userId,
+        rawDescriptor: txn.rawDescriptor,
+        categoryId: input.categoryId,
+        createdFrom: ids[0] ?? null,
+      });
+      createdRuleId = rid;
+      mintedRule = minted;
+      ruleMerchantId = null;
+      if (minted && rid) {
+        await tx.correction.update({ where: { id: ids[0] }, data: { becameRuleId: rid } });
+      }
     }
     const updated = await tx.transaction.updateMany({
       // Compare-and-set: only rows STILL in review are filed, re-asserted in the write.
@@ -503,7 +645,9 @@ export async function fileMerchantGroup(input: {
         confidenceBps: 9900,
         reviewPinned: false,
         ...stampIsTransferOnTransferLeaf(input.categoryId),
-        ...(merchantlessByCanonical && ruleMerchantId ? { merchantId: ruleMerchantId } : {}),
+        ...(merchantlessByCanonical && filingKind === 'merchant' && ruleMerchantId
+          ? { merchantId: ruleMerchantId }
+          : {}),
       },
     });
     await tx.categoryPrediction.updateMany({

@@ -117,6 +117,30 @@ export function isDurablePayeeCanonical(canonical: string): boolean {
   return true;
 }
 
+/**
+ * How Inbox File/Always should persist a durable auto-file (DECISIONS #718).
+ * - merchant: unconditional merchant→category rule (real payee, or masked with a
+ *   stable merchantId from the bank feed).
+ * - keyword: exact-descriptor keyword rule (aggregates, or masked merchantless
+ *   with enough statement text) so the next matching ingest skips Inbox.
+ * - none: nothing durable to hang a rule on.
+ */
+export type InboxFilingRuleKind = 'merchant' | 'keyword' | 'none';
+
+export function inboxFilingRuleKind(input: {
+  aggregate: boolean;
+  merchantCanonical: string;
+  merchantId: string | null;
+  /** When set, used to decide whether a masked merchantless row has statement text. */
+  hasDescriptorKeywords?: boolean;
+}): InboxFilingRuleKind {
+  if (input.aggregate) return 'keyword';
+  if (isDurablePayeeCanonical(input.merchantCanonical)) return 'merchant';
+  if (input.merchantId != null) return 'merchant';
+  if (input.hasDescriptorKeywords) return 'keyword';
+  return 'none';
+}
+
 export function merchantlessCanonKey(canonical: string): string {
   return `canon:${canonical.normalize('NFC').trim().toLowerCase()}`;
 }
@@ -174,7 +198,15 @@ export function groupReviewRows(rows: ReviewRow[]): TriageGroup[] {
       merchantCanonical: first.merchantCanonical,
       merchantId: first.merchantId,
       aggregate: first.aggregate,
-      ruleEligible: !first.aggregate && isDurablePayeeCanonical(first.merchantCanonical),
+      // #718: aggregates + masked-with-merchantId are rule-eligible; masked
+      // merchantless is eligible so File can try a descriptor keyword rule.
+      ruleEligible:
+        inboxFilingRuleKind({
+          aggregate: first.aggregate,
+          merchantCanonical: first.merchantCanonical,
+          merchantId: first.merchantId,
+          hasDescriptorKeywords: !first.aggregate && first.merchantId == null && !isDurablePayeeCanonical(first.merchantCanonical),
+        }) !== 'none',
       count: members.length,
       totalCents: members.reduce((s, m) => s + m.amountCents, 0),
       newestDate: members.reduce((a, m) => (m.date > a ? m.date : a), first.date),

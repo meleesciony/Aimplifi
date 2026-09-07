@@ -5,8 +5,16 @@
  */
 import { prisma } from '@/lib/db';
 import { categoryName } from '@/lib/engine/categorize/categories';
-import { type ReviewRow, type TriageGroup, groupKey, groupReviewRows, inboxMerchantHeading } from '@/lib/engine/categorize/group';
+import {
+  type ReviewRow,
+  type TriageGroup,
+  groupKey,
+  groupReviewRows,
+  inboxFilingRuleKind,
+  inboxMerchantHeading,
+} from '@/lib/engine/categorize/group';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { suggestRuleKeywords } from '@/lib/engine/categorize/rule-prefill';
 import { categorize, suggestAlternatives } from '@/lib/engine/categorize/pipeline';
 import { deriveCorrectionHints, type LearnedCorrectionInput } from '@/lib/engine/categorize/learn';
 import {
@@ -43,7 +51,7 @@ export interface TriageItem {
   alternativeNames: string[];
   /** How many other transactions share this merchant (for batch apply). */
   similarCount: number;
-  /** False for aggregate pseudo-merchants (Zelle/checks/ATM): never offer "Always" rules. */
+  /** False when Nothing durable can hang an auto-file rule (DECISIONS #718). */
   ruleEligible: boolean;
 }
 
@@ -140,8 +148,15 @@ export async function getTriageItems(userId: string): Promise<TriageItem[]> {
       { flaggedBps: tuning.flaggedBps },
     );
     const suggested = out.categoryId === 'uncategorized' ? bestGuess(t.amountCents) : out.categoryId;
-    const aggregate = normalizeMerchant(t.rawDescriptor).aggregate;
-    const ruleEligible = !aggregate;
+    const n = normalizeMerchant(t.rawDescriptor);
+    const aggregate = n.aggregate;
+    const ruleEligible =
+      inboxFilingRuleKind({
+        aggregate,
+        merchantCanonical: n.canonical,
+        merchantId: t.merchantId,
+        hasDescriptorKeywords: suggestRuleKeywords(t.rawDescriptor).keywords.length > 0,
+      }) !== 'none';
     const pool = suggestAlternatives(
       {
         rawDescriptor: t.rawDescriptor,

@@ -710,3 +710,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #714 — Household can act on a Forecast cash dip without leaving for Accounts (2026-09-07) → docs/DECISIONS.md
 - #715 — Household can act on a Calendar cash dip without leaving for Accounts (2026-09-07) → docs/DECISIONS.md
 - #716 — Household can edit already-saved from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
+- #718 — Inbox File of an aggregate or masked bank-name group mints a durable auto-file rule (2026-09-07) → docs/DECISIONS.md

@@ -327,7 +327,9 @@ export function TriageInbox({
     runAction(rollback, async () => {
       // Merchantless Inbox groups already promise a durable rule on the card
       // (DECISIONS #586/#587). File-all mints it; a one-row pick must too.
-      const mintWithFile = group.ruleEligible && group.merchantId === null;
+      // Merchantless Always-on-File (#586). Aggregates / masked also mint on
+      // File when ruleEligible (#718) — same durable twin File-all mints.
+      const mintWithFile = group.ruleEligible && (group.merchantId === null || group.aggregate);
       const result = await applyCategory({
         transactionId: row.id,
         categoryId,
