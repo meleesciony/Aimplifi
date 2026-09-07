@@ -197,3 +197,41 @@ export async function saveRetirementWhatIfDefaults(plan: {
 
   return { ok: true };
 }
+
+/**
+ * Confirm which checking/savings account funds card payments (DECISIONS #690).
+ * Same User.paymentAccountId dial MoneyDialsForm writes — ages/wage/SWR untouched.
+ * Demo fenced. Used by the Home onboarding nudge so Step 3 does not require Settings.
+ */
+export async function updatePaymentAccount(formData: FormData): Promise<DialsResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+
+  const paymentAccountId = String(formData.get('paymentAccountId') ?? '').trim();
+  if (!paymentAccountId) {
+    return { ok: false, errors: { paymentAccountId: 'Choose the account your card payments come from.' } };
+  }
+
+  const owned = await prisma.account.findMany({
+    where: { userId },
+    select: { id: true, type: true },
+  });
+  const eligible = owned.filter((a) => PAYMENT_TYPES.includes(a.type));
+  if (!eligible.some((a) => a.id === paymentAccountId)) {
+    return { ok: false, errors: { paymentAccountId: 'Pick one of your checking or savings accounts.' } };
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { paymentAccountId },
+  });
+  await auditLog(userId, 'settings.dials.update', { paymentAccountId, source: 'onboarding-nudge' });
+
+  revalidatePath('/dashboard');
+  revalidatePath('/settings');
+  revalidatePath('/coach');
+  revalidatePath('/cards');
+  revalidatePath('/accounts');
+
+  return { ok: true };
+}

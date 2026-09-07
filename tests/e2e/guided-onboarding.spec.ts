@@ -67,12 +67,10 @@ test('signup → Step 1 inlined connect → manual account → Steps 2/3 togethe
   expect(step3Box, 'Step 3 badge must be present and visible').not.toBeNull();
   expect(step2Box!.y, 'Step 2 must render ABOVE Step 3, not after it').toBeLessThan(step3Box!.y);
 
-  // Confirm the payment account (Step 3) on /settings.
+  // Confirm the payment account (Step 3) on the dashboard nudge — no Settings detour (#690).
+  await page.getByTestId('onboarding-payment-account').selectOption({ label: 'Guided Checking' });
   await page.getByTestId('onboarding-nudge-cta').click();
-  await page.waitForURL('**/settings');
-  await page.getByTestId('dials-payment-account').selectOption({ label: 'Guided Checking' });
-  await page.getByTestId('dials-submit').click();
-  await expect(page.getByTestId('dials-saved')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('onboarding-nudge')).toHaveCount(0, { timeout: 20000 });
 
   // Back on the dashboard: the guided flow is complete — no more step badges
   // or nudge, but the Cash-Needed card (now grounded in the confirmed account)

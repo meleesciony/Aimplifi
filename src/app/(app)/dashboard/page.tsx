@@ -124,9 +124,10 @@ export default async function DashboardPage({
     radar: radar.radar,
   });
 
-  const eligiblePaymentAccountIds = data.accounts
+  const paymentAccounts = data.accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))
-    .map((a) => a.id);
+    .map((a) => ({ id: a.id, name: a.name }));
+  const eligiblePaymentAccountIds = paymentAccounts.map((a) => a.id);
   const showOnboarding = needsOnboarding(
     { paymentAccountId: data.paymentAccountId },
     eligiblePaymentAccountIds,
@@ -204,7 +205,12 @@ export default async function DashboardPage({
       <StaleDataBanner summary={freshness} canSync={!isDemoUser(session.user.id) && linkedBank} />
       <ConnectionAlertsCard alerts={connectionAlerts} />
 
-      {showOnboarding && <OnboardingNudge />}
+      {showOnboarding && (
+        <OnboardingNudge
+          accounts={paymentAccounts}
+          currentPaymentAccountId={data.paymentAccountId}
+        />
+      )}
 
       <CashFlowRadarCard
         radar={radar.radar}

@@ -2900,3 +2900,8 @@ invent an auto-file quality claim.
 **Decision.** Mount TransferRepairCard on /accounts when there is work (clearCount > 0) or a last run to undo. Same apply/undo writers. Demo fenced via canApply. Settings card unchanged. Revalidate /accounts. No CSV.
 **Locked.** `test_regression__household_can_repair_transfer_marks_from_accounts_without_leaving_for_settings`.
 
+## #690 — Household can confirm the payment account from Home without leaving for Settings (2026-09-07)
+**Context.** Onboarding Step 3 linked to Settings to pick the card-funding account. Money dials already mount on Coach (#683), so confirming the one cash-needed input still required leaving Home.
+**Decision.** Mount an inline payment-account form on OnboardingNudge (updatePaymentAccount writes the same User.paymentAccountId dial). Keep a secondary link to Coach money dials. Demo stays without the nudge. No CSV. No savings-rate percent.
+**Locked.** `test_regression__household_can_confirm_payment_account_from_home_without_leaving_for_settings`.
+
