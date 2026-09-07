@@ -712,3 +712,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #716 — Household can edit already-saved from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
 - #718 — Inbox File of an aggregate or masked bank-name group mints a durable auto-file rule (2026-09-07) → docs/DECISIONS.md
 - #719 — Household can edit goal target from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
+- #720 — Household can edit goal monthly from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md

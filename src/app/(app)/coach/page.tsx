@@ -33,6 +33,7 @@ import {
 import { EmptyCoach } from '@/components/onboarding/route-empty';
 import { GoalSavedControl } from '@/components/finance/goal-saved-form';
 import { GoalTargetControl } from '@/components/finance/goal-target-form';
+import { GoalMonthlyControl } from '@/components/finance/goal-monthly-form';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { runwayTitle } from '@/lib/engine/fi/insights';
 import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
@@ -99,7 +100,7 @@ export default async function CoachPage() {
     // Ordinary savings goals only (kind null) — same gate as updateGoalSaved (#623/#716).
     prisma.goal.findMany({
       where: { userId, kind: null },
-      select: { id: true, name: true, savedCents: true, targetCents: true },
+      select: { id: true, name: true, savedCents: true, targetCents: true, monthlyContributionCents: true },
       orderBy: { name: 'asc' },
     }),
   ]);
@@ -171,13 +172,12 @@ export default async function CoachPage() {
         <Card data-testid="coach-goals-saved-card">
           <CardHeader className="pb-2">
             <CardDescription>Savings goals</CardDescription>
-            <CardTitle className="text-base">Already saved and target</CardTitle>
+            <CardTitle className="text-base">Savings progress</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p className="text-muted-foreground">
-              Update how much you have already set aside and the goal target — same writes as
-              Goals. Debt-free and reserve rows stay on their own pages. Aimplifi never moves
-              money.
+              Update already-saved, target, and monthly contribution — same writes as Goals.
+              Debt-free and reserve rows stay on their own pages. Aimplifi never moves money.
             </p>
             <ul className="space-y-2">
               {savingsGoals.map((g) => (
@@ -198,6 +198,17 @@ export default async function CoachPage() {
                       <GoalTargetControl goalId={g.id} targetCents={g.targetCents} />
                     ) : (
                       formatCents(cents(g.targetCents))
+                    )}
+                    {' · '}
+                    {canWriteDials ? (
+                      <GoalMonthlyControl
+                        goalId={g.id}
+                        monthlyCents={g.monthlyContributionCents}
+                      />
+                    ) : g.monthlyContributionCents && g.monthlyContributionCents > 0 ? (
+                      `${formatCents(cents(g.monthlyContributionCents))}/mo`
+                    ) : (
+                      'No monthly set'
                     )}
                   </span>
                 </li>

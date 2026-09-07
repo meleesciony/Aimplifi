@@ -3044,3 +3044,8 @@ invent an auto-file quality claim.
 **Context.** GoalTargetControl lived on /goals. Coach already mounts GoalSavedControl for ordinary savings goals (#716) but printed target as read-only dollars, so changing the target still required leaving.
 **Decision.** When ordinary savings goals exist (`kind: null`, same gate as updateGoalSaved/#716), mount GoalTargetControl beside already-saved on /coach (`coach-goals-saved-card`). Same writer; goal-actions already revalidates /coach. Debt-free and reserves excluded. Demo read-only. No Settings remount. No monthly/date copy in this slice.
 **Locked.** `test_regression__household_can_edit_goal_target_from_coach_without_leaving_for_goals`.
+
+## #720 — Household can edit goal monthly from Coach without leaving for Goals (2026-09-07)
+**Context.** GoalMonthlyControl lived on /goals. Coach already mounts already-saved (#716) and target (#719) for ordinary savings goals, but monthly contribution still required leaving — and Coach timelines use that monthly figure.
+**Decision.** When ordinary savings goals exist (`kind: null`), mount GoalMonthlyControl on /coach beside saved/target (`coach-goals-saved-card`). Same writer (including clear); goal-actions already revalidates /coach. Debt-free and reserves excluded. Demo read-only. No Settings remount. Target-date copy not in this slice.
+**Locked.** `test_regression__household_can_edit_goal_monthly_from_coach_without_leaving_for_goals`.

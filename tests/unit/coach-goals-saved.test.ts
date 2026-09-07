@@ -1,12 +1,12 @@
 /**
- * Coach: edit already-saved and target on savings goals without leaving for Goals
- * (DECISIONS #716, #719).
+ * Coach: edit already-saved, target, and monthly on savings goals without leaving for Goals
+ * (DECISIONS #716, #719, #720).
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-describe('Coach mounts GoalSavedControl for ordinary savings goals', () => {
+describe('Coach mounts savings-goal writers for ordinary savings goals', () => {
   it('test_regression__household_can_edit_already_saved_from_coach_without_leaving_for_goals', () => {
     const page = readFileSync(resolve('src/app/(app)/coach/page.tsx'), 'utf8');
     expect(page).toContain('GoalSavedControl');
@@ -23,6 +23,17 @@ describe('Coach mounts GoalSavedControl for ordinary savings goals', () => {
     expect(page).toContain('kind: null');
     const actions = readFileSync(resolve('src/server/goal-actions.ts'), 'utf8');
     expect(actions).toContain('updateGoalTarget');
+    expect(actions).toContain("revalidatePath('/coach')");
+  });
+
+  it('test_regression__household_can_edit_goal_monthly_from_coach_without_leaving_for_goals', () => {
+    const page = readFileSync(resolve('src/app/(app)/coach/page.tsx'), 'utf8');
+    expect(page).toContain('GoalMonthlyControl');
+    expect(page).toContain('monthlyContributionCents');
+    expect(page).toContain('coach-goals-saved-card');
+    expect(page).toContain('kind: null');
+    const actions = readFileSync(resolve('src/server/goal-actions.ts'), 'utf8');
+    expect(actions).toContain('updateGoalMonthly');
     expect(actions).toContain("revalidatePath('/coach')");
   });
 });
