@@ -2925,3 +2925,8 @@ invent an auto-file quality claim.
 **Decision.** Mount HouseholdCard on /coach (`coach-household-card`) with the same household-actions writers. Those writers also revalidate /coach. Settings card unchanged. No CSV. No account-sharing controls invented.
 **Locked.** `test_regression__household_can_manage_household_membership_from_coach_without_leaving_for_settings`.
 
+## #695 — Household can download tax-year CSV from Reports without leaving for Settings (2026-09-07)
+**Context.** Tax-year CSV export links lived only on Settings. Reports is where tagged totals are reviewed.
+**Decision.** Mount the same `getTaxYears` + `/api/export?format=tax-year-csv` links on /reports (`reports-tax-export-card`). Settings export card unchanged. No CSV invent; same API. Not tax advice.
+**Locked.** `test_regression__household_can_download_tax_year_csv_from_reports_without_leaving_for_settings`.
+
