@@ -31,6 +31,7 @@ export async function forgetLearnedPhrase(entryId: string): Promise<boolean> {
     }
     revalidatePath('/settings');
     revalidatePath('/ask');
+    revalidatePath('/trust');
   }
   return retired;
 }

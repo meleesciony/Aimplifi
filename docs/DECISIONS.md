@@ -2975,3 +2975,8 @@ invent an auto-file quality claim.
 **Decision.** Mount CustomCategoryManager + CategoryManager on /triage (`inbox-categories-card`). custom-category-actions also revalidates /triage. Settings and other mounts unchanged. Demo fenced.
 **Locked.** `test_regression__household_can_manage_categories_from_inbox_without_leaving_for_settings`.
 
+## #705 — Household can forget learned phrases from Trust without leaving for Settings (2026-09-07)
+**Context.** LearnedPhrases forget lived on Settings and Ask (#693). Trust Center is the AI honesty surface and showed accuracy/self-audit but not the undoable learned phrasings.
+**Decision.** Mount LearnedPhrases on /trust (`trust-learned-phrases-card`) when any phrases exist. Same forgetLearnedPhrase writer; also revalidates /trust. Settings and Ask unchanged. No category managers. No CSV.
+**Locked.** `test_regression__household_can_forget_learned_phrases_from_trust_without_leaving_for_settings`.
+

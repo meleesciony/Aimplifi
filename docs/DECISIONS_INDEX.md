@@ -698,3 +698,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #702 — Household can manage custom categories from Rules without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #703 — Household can see self-audit on Trust without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #704 — Household can manage categories from Inbox without leaving for Settings (2026-09-07) → docs/DECISIONS.md
+- #705 — Household can forget learned phrases from Trust without leaving for Settings (2026-09-07) → docs/DECISIONS.md

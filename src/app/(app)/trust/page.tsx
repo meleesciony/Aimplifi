@@ -19,7 +19,9 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AccuracyMetrics, SelfAuditMetrics } from '@/components/triage/accuracy-card';
+import { LearnedPhrases } from '@/components/settings/learned-phrases';
 import { getLatestSelfAuditSnapshot } from '@/server/self-audit';
+import { listLearnedPhrases } from '@/server/vocab';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { DEMO_USER_ID } from '@/lib/demo-user';
 import {
@@ -42,12 +44,13 @@ export default async function TrustPage() {
   const userId = session.user.id;
   const isDemo = userId === DEMO_USER_ID;
 
-  const [accuracy, tuning, trail, touchpointCounts, selfAudit] = await Promise.all([
+  const [accuracy, tuning, trail, touchpointCounts, selfAudit, learnedPhrases] = await Promise.all([
     getCategorizationAccuracy(userId),
     getThresholdTuning(userId),
     getAiTrail(userId),
     getAiTouchpointCounts(userId),
     getLatestSelfAuditSnapshot(userId),
+    listLearnedPhrases(userId),
   ]);
   const summary = summarizeAiTrail(trail);
   // Per-touchpoint all-time stats keyed by id (tallyTouchpoints returns one entry
@@ -93,6 +96,18 @@ export default async function TrustPage() {
           <SelfAuditMetrics snapshot={selfAudit} />
         </CardContent>
       </Card>
+
+      {learnedPhrases.length > 0 ? (
+        <Card data-testid="trust-learned-phrases-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Undo what Ask learned from how you phrase questions</CardDescription>
+            <CardTitle className="text-base">Learned phrasings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <LearnedPhrases phrases={learnedPhrases} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card data-testid="trust-touchpoints">
         <CardHeader className="pb-2">
