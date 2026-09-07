@@ -2935,3 +2935,8 @@ invent an auto-file quality claim.
 **Decision.** Mount the same `/api/export?format=net-worth-csv` and `net-worth-pdf` links on /investments (`investments-net-worth-export-card`). Settings export card unchanged. Same API.
 **Locked.** `test_regression__household_can_download_net_worth_export_from_investments_without_leaving_for_settings`.
 
+## #697 — Household can enable push notifications from Cards without leaving for Settings (2026-09-07)
+**Context.** PushOptIn (card-due and cash-dip heads-ups) lived only on Settings. Cards is where due dates live.
+**Decision.** Mount PushOptIn on /cards (`cards-notifications-card`) when VAPID is configured, same subscribe/unsubscribe writers. Settings card unchanged. Demo stays dormant when no key.
+**Locked.** `test_regression__household_can_enable_push_notifications_from_cards_without_leaving_for_settings`.
+

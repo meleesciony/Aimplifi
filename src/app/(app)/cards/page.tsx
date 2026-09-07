@@ -5,13 +5,15 @@ import { CardAddControl } from '@/components/finance/card-add-control';
 import { CardsBreakdown } from '@/components/finance/cards-breakdown';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { buttonVariants } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PushOptIn } from '@/components/settings/push-optin';
 import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { prisma } from '@/lib/db';
 import { isDemoUser } from '@/lib/demo-user';
 import { getDashboardData } from '@/server/finance';
 import type { ManualCardBilling } from '@/server/transactions';
+import { getVapidPublicKey } from '@/lib/push';
 
 export const metadata = { title: "Credit cards" };
 
@@ -37,6 +39,7 @@ export default async function CardsPage({
   });
   const canRenameCard = !isDemoUser(session.user.id);
   const canAddCard = canRenameCard;
+  const vapidPublicKey = getVapidPublicKey();
   const cardRenameById: Record<string, { feedName: string; hasOverlay: boolean }> = {};
   const canAddStatementById: Record<string, boolean> = {};
   const manualCreditIds = creditAccounts.filter((a) => a.provider === 'manual').map((a) => a.id);
@@ -132,6 +135,23 @@ export default async function CardsPage({
             </div>
           </CardContent>
         </Card>
+
+      {vapidPublicKey ? (
+        <Card data-testid="cards-notifications-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Proactive heads-ups</CardDescription>
+            <CardTitle className="text-base">Notifications</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Get a push when a card payment is due within a few days or your checking is on track to
+              dip below $0. Aimplifi never moves money — these are heads-ups so nothing catches you by
+              surprise.
+            </p>
+            <PushOptIn publicKey={vapidPublicKey} />
+          </CardContent>
+        </Card>
+      ) : null}
       </div>
     );
   }
@@ -163,6 +183,23 @@ export default async function CardsPage({
         canAddStatementById={canAddStatementById}
         cardBilling={cardBilling}
       />
+
+      {vapidPublicKey ? (
+        <Card data-testid="cards-notifications-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Proactive heads-ups</CardDescription>
+            <CardTitle className="text-base">Notifications</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Get a push when a card payment is due within a few days or your checking is on track to
+              dip below $0. Aimplifi never moves money — these are heads-ups so nothing catches you by
+              surprise.
+            </p>
+            <PushOptIn publicKey={vapidPublicKey} />
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
