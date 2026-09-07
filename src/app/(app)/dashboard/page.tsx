@@ -64,7 +64,7 @@ export default async function DashboardPage({
 
   const requestedScope = (await searchParams).scope === 'household' ? 'household' : 'mine';
 
-  const [data, coach, plan, recent, reports, trends, withheld, feedDropped, freshness, connectionAlerts, radar, nudgeDismissedKeys, categoryGroups, accounts] =
+  const [data, coach, plan, recent, reports, trends, withheld, feedDropped, freshness, connectionAlerts, radar, nudgeDismissedKeys, categoryGroups, accounts, linkedBank] =
     await Promise.all([
       getDashboardData(session.user.id, requestedScope),
       getCoachData(session.user.id),
@@ -84,6 +84,13 @@ export default async function DashboardPage({
       getNudgeDismissedKeys(session.user.id),
       getVisibleGroups(session.user.id),
       listTxnMoveAccounts(session.user.id, ''),
+      Promise.all([
+        prisma.simpleFinConnection.findUnique({
+          where: { userId: session.user.id },
+          select: { userId: true },
+        }),
+        prisma.plaidItem.count({ where: { userId: session.user.id } }),
+      ]).then(([sf, plaidCount]) => sf !== null || plaidCount > 0),
     ]);
 
   const frozenDueRows = frozenNothingDueRows({
@@ -194,7 +201,7 @@ export default async function DashboardPage({
 
       <CurrencyExclusionBanner summary={withheld} />
       <FeedDroppedBanner accounts={feedDropped} householdFrozenCount={data.householdFeedDroppedCount} />
-      <StaleDataBanner summary={freshness} />
+      <StaleDataBanner summary={freshness} canSync={!isDemoUser(session.user.id) && linkedBank} />
       <ConnectionAlertsCard alerts={connectionAlerts} />
 
       {showOnboarding && <OnboardingNudge />}

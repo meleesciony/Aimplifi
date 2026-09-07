@@ -18,7 +18,17 @@ import { RefreshCw } from 'lucide-react';
 import { setFlash } from '@/components/finance/flash';
 import { syncAllAccounts } from '@/server/sync-actions';
 
-export function SyncAllButton({ connected }: { connected: boolean }) {
+export function SyncAllButton({
+  connected,
+  variant = 'block',
+  flashKey = 'accounts',
+}: {
+  connected: boolean;
+  /** `inline` fits the stale-data banner; `block` is the Accounts control. */
+  variant?: 'block' | 'inline';
+  /** sessionStorage flash key after a successful sync+reload. */
+  flashKey?: string;
+}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +50,7 @@ export function SyncAllButton({ connected }: { connected: boolean }) {
         }
         // The summary names what changed (including "no new transactions"), so a
         // sync that did nothing can't be mistaken for one that never ran.
-        setFlash('accounts', r.summary);
+        setFlash(flashKey, r.summary);
         // Full reload, matching the disconnect/sync precedent: every figure on the
         // page is server-rendered from what this just changed.
         window.location.reload();
@@ -51,17 +61,24 @@ export function SyncAllButton({ connected }: { connected: boolean }) {
     })();
   }
 
+  const buttonClass =
+    variant === 'inline'
+      ? 'tap-target inline-flex items-center gap-1.5 font-medium underline underline-offset-2 disabled:opacity-50'
+      : 'tap-target inline-flex w-full items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50';
+
   return (
-    <div className="space-y-1">
+    <div className={variant === 'inline' ? 'inline-flex flex-col gap-1' : 'space-y-1'}>
       <button
         type="button"
-        data-testid="sync-all"
+        data-testid={variant === 'inline' ? 'stale-data-sync-all' : 'sync-all'}
         disabled={pending}
         onClick={run}
-        className="tap-target inline-flex w-full items-center justify-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+        className={buttonClass}
       >
-        <RefreshCw className={`size-4 ${pending ? 'animate-spin' : ''}`} aria-hidden />
-        {pending ? 'Syncing all accounts…' : 'Sync all accounts'}
+        {variant === 'block' ? (
+          <RefreshCw className={`size-4 ${pending ? 'animate-spin' : ''}`} aria-hidden />
+        ) : null}
+        {pending ? 'Syncing…' : variant === 'inline' ? 'Sync now' : 'Sync all accounts'}
       </button>
       {error && (
         <p role="alert" className="text-xs text-red-400" data-testid="sync-all-error">

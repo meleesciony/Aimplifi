@@ -2890,3 +2890,8 @@ invent an auto-file quality claim.
 **Decision.** Mount RichLifeForm on /coach (`#coach-rich-life`) with the same updateRichLife writer. `reloadOnSuccess` so the echo re-derives. Demo fenced via canWrite. Settings form unchanged. No CSV.
 **Locked.** `test_regression__household_can_set_rich_life_from_coach_without_leaving_for_settings`.
 
+## #688 — Household can sync from the stale-data banner without leaving for Accounts (2026-09-06)
+**Context.** StaleDataBanner told the household data may be old and only linked to Accounts. Sync all accounts lived only on Accounts, so refreshing a quiet linked feed from Home required leaving.
+**Decision.** When canSync (real household with a linked SimpleFIN or Plaid feed), mount SyncAllButton inline on the banner (same syncAllAccounts writer). Keep Go to Accounts for per-bank controls. Demo fenced. No CSV.
+**Locked.** `test_regression__household_can_sync_from_stale_data_banner_without_leaving_for_accounts`.
+
