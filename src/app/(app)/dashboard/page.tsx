@@ -14,6 +14,9 @@ import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
 import { SpendingInsightsCard } from '@/components/finance/spending-insights-card';
 import { StaleDataBanner } from '@/components/finance/stale-data-banner';
 import { ConnectionAlertsCard } from '@/components/finance/connection-alerts-card';
+import { PushOptIn } from '@/components/settings/push-optin';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getVapidPublicKey } from '@/lib/push';
 import { TopSpendingCard } from '@/components/finance/top-spending-card';
 import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
 import { RecentTransactionsCard } from '@/components/dashboard/recent-transactions-card';
@@ -156,6 +159,8 @@ export default async function DashboardPage({
     data.cardMask,
   );
 
+  const vapidPublicKey = getVapidPublicKey();
+
   return (
     <div className="space-y-5">
       <h1 className="sr-only">Dashboard</h1>
@@ -204,6 +209,23 @@ export default async function DashboardPage({
       <FeedDroppedBanner accounts={feedDropped} householdFrozenCount={data.householdFeedDroppedCount} />
       <StaleDataBanner summary={freshness} canSync={!isDemoUser(session.user.id) && linkedBank} />
       <ConnectionAlertsCard alerts={connectionAlerts} />
+
+      {vapidPublicKey ? (
+        <Card data-testid="home-notifications-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Proactive heads-ups</CardDescription>
+            <CardTitle className="text-base">Notifications</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Get a push when a card payment is due within a few days or your checking is on track to
+              dip below $0. Aimplifi never moves money — these are heads-ups so nothing catches you by
+              surprise.
+            </p>
+            <PushOptIn publicKey={vapidPublicKey} />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {showOnboarding && (
         <OnboardingNudge

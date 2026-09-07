@@ -2950,3 +2950,8 @@ invent an auto-file quality claim.
 **Decision.** Mount HoldingAccountPicker on /spending-plan beside ReserveForm (`spending-plan-holding-account`). setReserveHoldingAccount also revalidates /spending-plan. Settings card unchanged. Demo fenced. No money moved.
 **Locked.** `test_regression__household_can_set_reserve_holding_account_from_spending_plan_without_leaving_for_settings`.
 
+## #700 — Household can enable push notifications from Home without leaving for Settings (2026-09-07)
+**Context.** PushOptIn lived on Settings and Cards (#697). Home is where cash-dip radar and card-due pressure show up first.
+**Decision.** Mount PushOptIn on /dashboard (`home-notifications-card`) when VAPID is configured, same writers. Settings and Cards cards unchanged. Demo dormant without key.
+**Locked.** `test_regression__household_can_enable_push_notifications_from_home_without_leaving_for_settings`.
+
