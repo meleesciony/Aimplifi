@@ -20,6 +20,10 @@ import {
 import { UNNAMED_BILL_LABEL } from '@/lib/engine/spending-plan/fixed-line-items';
 import { RESERVE_CADENCE_WORDS } from '@/lib/engine/spending-plan/reserves';
 import { ReserveForm } from '@/components/finance/reserve-form';
+import { HoldingAccountPicker } from '@/components/finance/holding-account-picker';
+import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
+import { accountLabel } from '@/lib/engine/account/display-name';
+import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { DeleteReserveButton } from '@/components/finance/delete-reserve-button';
 import { ReserveNameControl } from '@/components/finance/rename-reserve-form';
 import { ReserveCostControl } from '@/components/finance/reserve-cost-form';
@@ -43,6 +47,21 @@ export default async function SpendingPlanPage() {
 
   const p = await getSpendingPlan(userId);
   const canEditFigures = !isDemoUser(userId);
+  const [accounts, userRow, supersededFunding] = await Promise.all([
+    prisma.account.findMany({
+      where: { userId, OR: [{ currency: null }, { currency: 'USD' }] },
+      select: { id: true, name: true, displayName: true, type: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { reserveHoldingAccountId: true },
+    }),
+    activeSupersededPredecessorIds([userId]),
+  ]);
+  const eligibleAccounts = accounts
+    .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type) && !supersededFunding.has(a.id))
+    .map((a) => ({ id: a.id, name: accountLabel(a) }));
+  const holdingAccountId = userRow?.reserveHoldingAccountId ?? null;
   const figuresForm = (
     <PlanFiguresForm
       suggestedIncomeCents={p.suggestedIncomeCents}
@@ -541,7 +560,14 @@ export default async function SpendingPlanPage() {
             refuses it either way; hiding the form is the courtesy half, matching
             how the Plan figures form treats the same account. */}
         {canEditFigures ? (
-          <ReserveForm />
+          <div className="space-y-3" data-testid="spending-plan-holding-account">
+            <HoldingAccountPicker
+              accounts={eligibleAccounts}
+              currentId={holdingAccountId}
+              canWrite={canEditFigures}
+            />
+            <ReserveForm />
+          </div>
         ) : (
           <p className="text-xs text-muted-foreground" data-testid="reserves-demo-note">
             The demo is a shared account, so reserves can&apos;t be added here — create your

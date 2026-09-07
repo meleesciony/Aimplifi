@@ -386,6 +386,7 @@ export async function setReserveHoldingAccount(
     await prisma.user.update({ where: { id: userId }, data: { reserveHoldingAccountId: null } });
     await auditLog(userId, 'reserve.holdingAccount.clear', {});
     revalidatePath('/settings');
+    revalidatePath('/spending-plan');
     return { ok: true };
   }
 
@@ -409,6 +410,7 @@ export async function setReserveHoldingAccount(
   if (!written) return { ok: false, error: HOLDING_ACCOUNT_INVALID };
   await auditLog(userId, 'reserve.holdingAccount.set', { accountId });
   revalidatePath('/settings');
+  revalidatePath('/spending-plan');
   return { ok: true };
 }
 

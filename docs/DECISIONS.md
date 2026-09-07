@@ -2945,3 +2945,8 @@ invent an auto-file quality claim.
 **Decision.** Mount `/api/export?format=transactions-csv` on /transactions (`activity-transactions-export-card`). Settings export card unchanged. Same API.
 **Locked.** `test_regression__household_can_download_transactions_csv_from_activity_without_leaving_for_settings`.
 
+## #699 — Household can set the reserve holding account from Spending plan without leaving for Settings (2026-09-07)
+**Context.** HoldingAccountPicker (name where monthly reserve set-aside lives) lived only inside Settings FixedCostsCard. Spending plan already edits reserves.
+**Decision.** Mount HoldingAccountPicker on /spending-plan beside ReserveForm (`spending-plan-holding-account`). setReserveHoldingAccount also revalidates /spending-plan. Settings card unchanged. Demo fenced. No money moved.
+**Locked.** `test_regression__household_can_set_reserve_holding_account_from_spending_plan_without_leaving_for_settings`.
+

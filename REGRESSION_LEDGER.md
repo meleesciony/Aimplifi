@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-07 | Naming reserve holding account required leaving Spending plan for Settings | HoldingAccountPicker lived only on Settings | a household can set the reserve holding account from Spending plan without leaving for Settings | `test_regression__household_can_set_reserve_holding_account_from_spending_plan_without_leaving_for_settings` |
 | 2026-09-07 | Transactions CSV required leaving Activity for Settings | Transactions export lived only on Settings | a household can download transactions CSV from Activity without leaving for Settings | `test_regression__household_can_download_transactions_csv_from_activity_without_leaving_for_settings` |
 | 2026-09-07 | Enabling card-due push required leaving Cards for Settings | PushOptIn lived only on Settings | a household can enable push notifications from Cards without leaving for Settings | `test_regression__household_can_enable_push_notifications_from_cards_without_leaving_for_settings` |
 | 2026-09-07 | Net worth export required leaving Investments for Settings | Net worth CSV/PDF lived only on Settings | a household can download net worth export from Investments without leaving for Settings | `test_regression__household_can_download_net_worth_export_from_investments_without_leaving_for_settings` |
