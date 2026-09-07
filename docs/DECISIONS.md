@@ -2995,3 +2995,8 @@ invent an auto-file quality claim.
 **Decision.** Mount `/api/export?format=transactions-csv` on /trends (`trends-transactions-export-card`). Same API. Settings/Activity unchanged. No category managers.
 **Locked.** `test_regression__household_can_download_transactions_csv_from_trends_without_leaving_for_settings`.
 
+## #709 — Household can enable push notifications from Forecast without leaving for Settings (2026-09-07)
+**Context.** Forecast projects cash dips and dues; PushOptIn lived on Settings, Cards, and Home. Enabling cash-dip heads-ups from the projection itself required leaving.
+**Decision.** Mount PushOptIn on /forecast (`forecast-notifications-card`) when VAPID is configured. Same writers. Settings/Cards/Home unchanged. Demo dormant without key. No category managers.
+**Locked.** `test_regression__household_can_enable_push_notifications_from_forecast_without_leaving_for_settings`.
+

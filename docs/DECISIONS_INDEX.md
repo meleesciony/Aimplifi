@@ -702,3 +702,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #706 — Household can edit note, tax, exclude, and reimbursement on Inbox multi-txn groups without One by one (2026-09-07) → docs/DECISIONS.md
 - #707 — Household can edit amount, date, account, and descriptor on Inbox multi-txn groups without One by one (2026-09-07) → docs/DECISIONS.md
 - #708 — Household can download transactions CSV from Trends without leaving for Settings (2026-09-07) → docs/DECISIONS.md
+- #709 — Household can enable push notifications from Forecast without leaving for Settings (2026-09-07) → docs/DECISIONS.md
