@@ -8,6 +8,10 @@ import { getAccountSharingView } from '@/server/household';
 import { loadMortgageCandidates } from '@/server/mortgage';
 import { pickMortgageForEarlyPayoff } from '@/lib/engine/debt/mortgage-early-payoff';
 import { MortgageEarlyPayoffCard } from '@/components/finance/mortgage-early-payoff-card';
+import { TransferRepairCard } from '@/components/settings/transfer-repair-card';
+import { getTransferFlagRepairPreview } from '@/server/transfer-flag-repair';
+import { isDemoUser } from '@/lib/demo-user';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const metadata = { title: "Accounts" };
 
@@ -27,11 +31,12 @@ export default async function AccountsPage({
   const detailParam = Array.isArray(sp.detail) ? (sp.detail[0] ?? '') : (sp.detail ?? '');
   // Sharing is a SEPARATE query path from getAccountsView (#192/T9): partner
   // rows must never enter the duplicate detector's input set.
-  const [data, sharing, detail, mortgages] = await Promise.all([
+  const [data, sharing, detail, mortgages, transferRepairPreview] = await Promise.all([
     getAccountsView(session.user.id),
     getAccountSharingView(),
     detailParam ? getAccountDetail(session.user.id, detailParam) : Promise.resolve(null),
     loadMortgageCandidates(session.user.id),
+    getTransferFlagRepairPreview(session.user.id),
   ]);
   const mortgagePick = pickMortgageForEarlyPayoff(mortgages);
 
@@ -55,6 +60,20 @@ export default async function AccountsPage({
           /dashboard — the coach loader throws with zero accounts, and this
           page is the first-run add-asset surface. */}
       <MortgageEarlyPayoffCard pick={mortgagePick} />
+      {(transferRepairPreview.clearCount > 0 || transferRepairPreview.lastRun) && (
+        <Card data-testid="transfer-repair-accounts-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Transactions held out of your totals by an outdated transfer mark</CardDescription>
+            <CardTitle className="text-base">Transfer mark repair</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TransferRepairCard
+              preview={transferRepairPreview}
+              canApply={!isDemoUser(session.user.id)}
+            />
+          </CardContent>
+        </Card>
+      )}
       {/* Household members only — solo and demo users render nothing here (T6). */}
       {sharing.kind === 'member' && <HouseholdSharingCard view={sharing} />}
     </div>

@@ -682,3 +682,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #686 — Household can set employer match and tax room from Coach without leaving for Settings (2026-09-06) → docs/DECISIONS.md
 - #687 — Household can set Rich Life from Coach without leaving for Settings (2026-09-06) → docs/DECISIONS.md
 - #688 — Household can sync from the stale-data banner without leaving for Accounts (2026-09-06) → docs/DECISIONS.md
+- #689 — Household can repair transfer marks from Accounts without leaving for Settings (2026-09-06) → docs/DECISIONS.md

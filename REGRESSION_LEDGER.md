@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-06 | Transfer mark repair required leaving Accounts for Settings | TransferRepairCard lived only on Settings | a household can repair transfer marks from Accounts without leaving for Settings | `test_regression__household_can_repair_transfer_marks_from_accounts_without_leaving_for_settings` |
 | 2026-09-06 | Stale-data banner only linked to Accounts | Sync all lived only on Accounts; banner had no Sync | a household can sync from the stale-data banner without leaving for Accounts | `test_regression__household_can_sync_from_stale_data_banner_without_leaving_for_accounts` |
 | 2026-09-06 | Coach Rich Life required leaving for Settings | Echo only on Coach; writer lived on Settings | a household can set Rich Life from Coach without leaving for Settings | `test_regression__household_can_set_rich_life_from_coach_without_leaving_for_settings` |
 | 2026-09-06 | Coach employer match / tax room required leaving for Settings | Writers lived only on Settings; ladder only displayed status | a household can set employer match and tax room from Coach without leaving for Settings | `test_regression__household_can_set_employer_match_and_tax_room_from_coach_without_leaving_for_settings` |

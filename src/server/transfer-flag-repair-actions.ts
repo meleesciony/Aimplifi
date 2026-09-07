@@ -26,6 +26,7 @@ function revalidateTransferTotals(): void {
   revalidatePath('/coach');
   revalidatePath('/spending-plan');
   revalidatePath('/settings');
+  revalidatePath('/accounts');
 }
 
 export async function applyTransferFlagRepairAction(): Promise<TransferFlagRepairApplyResult> {

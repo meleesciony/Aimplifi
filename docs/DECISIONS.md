@@ -2895,3 +2895,8 @@ invent an auto-file quality claim.
 **Decision.** When canSync (real household with a linked SimpleFIN or Plaid feed), mount SyncAllButton inline on the banner (same syncAllAccounts writer). Keep Go to Accounts for per-bank controls. Demo fenced. No CSV.
 **Locked.** `test_regression__household_can_sync_from_stale_data_banner_without_leaving_for_accounts`.
 
+## #689 — Household can repair transfer marks from Accounts without leaving for Settings (2026-09-06)
+**Context.** Transfer mark repair lived only on Settings. Mis-flagged transfers show up while managing banks on Accounts, so fixing them required leaving.
+**Decision.** Mount TransferRepairCard on /accounts when there is work (clearCount > 0) or a last run to undo. Same apply/undo writers. Demo fenced via canApply. Settings card unchanged. Revalidate /accounts. No CSV.
+**Locked.** `test_regression__household_can_repair_transfer_marks_from_accounts_without_leaving_for_settings`.
+
