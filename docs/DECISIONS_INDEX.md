@@ -704,3 +704,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #708 — Household can download transactions CSV from Trends without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #709 — Household can enable push notifications from Forecast without leaving for Settings (2026-09-07) → docs/DECISIONS.md
 - #710 — Household can edit a card statement from Calendar without leaving for Cards (2026-09-07) → docs/DECISIONS.md
+- #711 — Household can deepen Plaid history from Home without leaving for Accounts (2026-09-07) → docs/DECISIONS.md

@@ -14,6 +14,7 @@ import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
 import { SpendingInsightsCard } from '@/components/finance/spending-insights-card';
 import { StaleDataBanner } from '@/components/finance/stale-data-banner';
 import { ConnectionAlertsCard } from '@/components/finance/connection-alerts-card';
+import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { PushOptIn } from '@/components/settings/push-optin';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getVapidPublicKey } from '@/lib/push';
@@ -67,7 +68,7 @@ export default async function DashboardPage({
 
   const requestedScope = (await searchParams).scope === 'household' ? 'household' : 'mine';
 
-  const [data, coach, plan, recent, reports, trends, withheld, feedDropped, freshness, connectionAlerts, radar, nudgeDismissedKeys, categoryGroups, accounts, linkedBank] =
+  const [data, coach, plan, recent, reports, trends, withheld, feedDropped, freshness, connectionAlerts, radar, nudgeDismissedKeys, categoryGroups, accounts, bankLinks] =
     await Promise.all([
       getDashboardData(session.user.id, requestedScope),
       getCoachData(session.user.id),
@@ -93,8 +94,15 @@ export default async function DashboardPage({
           select: { userId: true },
         }),
         prisma.plaidItem.count({ where: { userId: session.user.id } }),
-      ]).then(([sf, plaidCount]) => sf !== null || plaidCount > 0),
+      ]).then(([sf, plaidCount]) => ({
+        linkedBank: sf !== null || plaidCount > 0,
+        // Bank leftover (DECISIONS #711): deepen-history only when a Plaid
+        // connection already exists — same gate as Accounts' deepen panel.
+        plaidCount,
+      })),
     ]);
+  const linkedBank = bankLinks.linkedBank;
+  const canDeepenHistory = !isDemoUser(session.user.id) && bankLinks.plaidCount > 0;
 
   const frozenDueRows = frozenNothingDueRows({
     cards: [...data.payInFull.cards, ...data.payInFull.unknownDueDateCards],
@@ -209,6 +217,24 @@ export default async function DashboardPage({
       <FeedDroppedBanner accounts={feedDropped} householdFrozenCount={data.householdFeedDroppedCount} />
       <StaleDataBanner summary={freshness} canSync={!isDemoUser(session.user.id) && linkedBank} />
       <ConnectionAlertsCard alerts={connectionAlerts} />
+
+      {canDeepenHistory ? (
+        <Card data-testid="home-deepen-history-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Bank history</CardDescription>
+            <CardTitle className="text-base">Only seeing a few months?</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Pull a longer window from a bank you already connected — same deepen control as
+              Accounts. Aimplifi never moves money.
+            </p>
+            <div data-testid="deepen-history-panel">
+              <ConnectAccountsButton deepenHistory />
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {vapidPublicKey ? (
         <Card data-testid="home-notifications-card">

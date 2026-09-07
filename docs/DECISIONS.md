@@ -3004,3 +3004,8 @@ invent an auto-file quality claim.
 **Context.** Card-due rows on Calendar showed amount and due badge only. Adding or correcting a manual statement (how much & when) lived on Cards and Accounts, so fixing a due from the date grid required leaving.
 **Decision.** On /calendar card-due events for the viewer's own manual CREDIT accounts, mount CardStatementControl (`calendar-card-statement-{accountId}`). Same setManualCardStatement / clearManualCardStatement writers; card-actions already revalidates /calendar. Partner dues at household scope stay display-only. Demo fenced. No PushOptIn. No Settings remount.
 **Locked.** `test_regression__household_can_edit_card_statement_from_calendar_without_leaving_for_cards`.
+
+## #711 — Household can deepen Plaid history from Home without leaving for Accounts (2026-09-07)
+**Context.** “Only seeing a few months?” / deepen-history lived only under Accounts → Plaid connections. Home already surfaces connection alerts and sync, but pulling a longer window still required leaving.
+**Decision.** When the viewer has at least one PlaidItem and is not demo, mount ConnectAccountsButton with deepenHistory on /dashboard (`home-deepen-history-card` / `deepen-history-panel`). Same linkPlaidAccount deepen path as Accounts. No PushOptIn. No Settings remount.
+**Locked.** `test_regression__household_can_deepen_plaid_history_from_home_without_leaving_for_accounts`.
