@@ -684,3 +684,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #688 — Household can sync from the stale-data banner without leaving for Accounts (2026-09-06) → docs/DECISIONS.md
 - #689 — Household can repair transfer marks from Accounts without leaving for Settings (2026-09-06) → docs/DECISIONS.md
 - #690 — Household can confirm the payment account from Home without leaving for Settings (2026-09-07) → docs/DECISIONS.md
+- #691 — Household can manage custom categories from Budgets without leaving for Settings (2026-09-07) → docs/DECISIONS.md

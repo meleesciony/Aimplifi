@@ -45,6 +45,9 @@ import { buildCategoryBreakdowns, breakdownHandoverDayCopy } from '@/lib/engine/
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { isDemoUser } from '@/lib/demo-user';
+import { CustomCategoryManager } from '@/components/settings/custom-category-manager';
+import { getCustomCategories } from '@/server/category-meta';
+import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { isoDate } from '@/lib/dates';
 
 const SYSTEM_BUDGETABLE = CATEGORIES.filter((c) => isBudgetable(c.id));
@@ -83,6 +86,7 @@ export default async function BudgetsPage() {
     // loan-payment exclusion this page's own row sums must apply (#403).
     snap,
     payeeNames,
+    customCategories,
   ] = await Promise.all([
     // All non-transfer, non-split activity this month (BOTH signs) so the engine
     // can net refunds against spend — outflow-only would overstate it.
@@ -152,6 +156,7 @@ export default async function BudgetsPage() {
     getRecurringBillMerchantCanonicals(userId),
     provider.getFinanceSnapshot(userId),
     getPayeeRenames(userId),
+    getCustomCategories(userId),
   ]);
   const linkable = new Set(linkableCategoryIds);
 
@@ -519,6 +524,20 @@ export default async function BudgetsPage() {
             A conscious-spending view, not a guilt meter: money-dial categories are where
             spending buys you the most life.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="budgets-custom-categories-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Make the category list your own</CardDescription>
+          <CardTitle className="text-base">Your categories</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CustomCategoryManager
+            categories={customCategories}
+            groups={CUSTOM_CATEGORY_GROUPS}
+            canWrite={canEdit}
+          />
         </CardContent>
       </Card>
 

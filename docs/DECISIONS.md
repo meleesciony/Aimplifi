@@ -2905,3 +2905,8 @@ invent an auto-file quality claim.
 **Decision.** Mount an inline payment-account form on OnboardingNudge (updatePaymentAccount writes the same User.paymentAccountId dial). Keep a secondary link to Coach money dials. Demo stays without the nudge. No CSV. No savings-rate percent.
 **Locked.** `test_regression__household_can_confirm_payment_account_from_home_without_leaving_for_settings`.
 
+## #691 — Household can manage custom categories from Budgets without leaving for Settings (2026-09-07)
+**Context.** CustomCategoryManager lived only on Settings. Budgets is where category targets and actuals live, so creating or renaming a category for a target required leaving.
+**Decision.** Mount CustomCategoryManager on /budgets (`budgets-custom-categories-card`) with the same create/rename/delete writers. Demo fenced via canWrite. Settings card unchanged. No CSV.
+**Locked.** `test_regression__household_can_manage_custom_categories_from_budgets_without_leaving_for_settings`.
+
