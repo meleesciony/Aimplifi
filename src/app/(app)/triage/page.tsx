@@ -5,11 +5,16 @@ import { EmptyTriage } from '@/components/onboarding/route-empty';
 import { AccuracyCard } from '@/components/triage/accuracy-card';
 import { BackfillButton } from '@/components/triage/backfill-button';
 import { TriageInbox } from '@/components/triage/triage-inbox';
+import { CategoryManager } from '@/components/settings/category-manager';
+import { CustomCategoryManager } from '@/components/settings/custom-category-manager';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { businessToday } from '@/lib/business-today';
 import { prisma } from '@/lib/db';
+import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { getCategorizationAccuracy } from '@/server/accuracy';
 import { getTriageGroups } from '@/server/triage';
-import { getVisibleCategories } from '@/server/categories';
+import { getCategoryCatalog, getVisibleCategories } from '@/server/categories';
+import { getCustomCategories } from '@/server/category-meta';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { INBOX_PAGE_SUBTITLE } from '@/lib/copy/inbox-copy';
 import { isDemoUser } from '@/lib/demo-user';
@@ -24,13 +29,17 @@ export default async function TriagePage() {
   // (2026-07-21 agent review A3): a bare empty inbox reads as "nothing to do",
   // not "not set up yet". Same USD-or-null gate as cards/coach/goals/calendar.
   if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyTriage />;
-  const [groups, accuracy, categories, withheld, accounts] = await Promise.all([
-    getTriageGroups(session.user.id), // merchant-group queue (Phase 3c, DECISIONS #143)
-    getCategorizationAccuracy(session.user.id),
-    getVisibleCategories(session.user.id),
-    getWithheldAccountSummary(session.user.id),
-    listTxnMoveAccounts(session.user.id, ''),
+  const userId = session.user.id;
+  const [groups, accuracy, categories, withheld, accounts, categoryCatalog, customCategories] = await Promise.all([
+    getTriageGroups(userId), // merchant-group void (Phase 3c, DECISIONS #143)
+    getCategorizationAccuracy(userId),
+    getVisibleCategories(userId),
+    getWithheldAccountSummary(userId),
+    listTxnMoveAccounts(userId, ''),
+    getCategoryCatalog(userId),
+    getCustomCategories(userId),
   ]);
+  const canEditCategories = !isDemoUser(userId);
 
   return (
     <div className="space-y-4">
@@ -51,10 +60,38 @@ export default async function TriagePage() {
         <TriageInbox
           initialGroups={groups}
           categories={categories}
-          today={businessToday(session.user.id)}
+          today={businessToday(userId)}
           canRenamePayee={!isDemoUser(session.user.id)}
           accounts={accounts}
         />
+        <Card data-testid="inbox-categories-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Make the category list your own while filing</CardDescription>
+            <CardTitle className="text-base">Categories</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div data-testid="inbox-custom-categories">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Your categories
+              </h3>
+              <CustomCategoryManager
+                categories={customCategories}
+                groups={CUSTOM_CATEGORY_GROUPS}
+                canWrite={canEditCategories}
+              />
+            </div>
+            <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Built-in categories
+              </h3>
+              <CategoryManager
+                catalog={categoryCatalog}
+                canRename={canEditCategories}
+                canRemove={canEditCategories}
+              />
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -2970,3 +2970,8 @@ invent an auto-file quality claim.
 **Decision.** Mount SelfAuditMetrics on /trust track-record card beside AccuracyMetrics. Same loader. Settings card unchanged. Read-only surface.
 **Locked.** `test_regression__household_can_see_self_audit_on_trust_without_leaving_for_settings`.
 
+## #704 — Household can manage categories from Inbox without leaving for Settings (2026-09-07)
+**Context.** Filing in Inbox uses the category list, but create/hide/rename lived on Settings, Budgets, and Rules. Adjusting the list mid-file required leaving.
+**Decision.** Mount CustomCategoryManager + CategoryManager on /triage (`inbox-categories-card`). custom-category-actions also revalidates /triage. Settings and other mounts unchanged. Demo fenced.
+**Locked.** `test_regression__household_can_manage_categories_from_inbox_without_leaving_for_settings`.
+
