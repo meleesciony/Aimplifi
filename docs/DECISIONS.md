@@ -2915,3 +2915,8 @@ invent an auto-file quality claim.
 **Decision.** Mount CategoryManager on /budgets inside `budgets-categories-card` (alongside CustomCategoryManager) with the same rename/hide writers. Demo fenced via canRename/canRemove. setCategoryHidden also revalidates /budgets. Settings card unchanged. No CSV.
 **Locked.** `test_regression__household_can_manage_built_in_categories_from_budgets_without_leaving_for_settings`.
 
+## #693 — Household can forget learned phrases from Ask without leaving for Settings (2026-09-07)
+**Context.** LearnedPhrases (forget a phrasing Ask learned) lived only under Settings → AI trust. Ask is where those phrasings are used.
+**Decision.** Mount LearnedPhrases on /ask (`ask-learned-phrases-card`) when any phrases exist, same forgetLearnedPhrase writer. forgetLearnedPhrase also revalidates /ask. Settings card unchanged. No CSV.
+**Locked.** `test_regression__household_can_forget_learned_phrases_from_ask_without_leaving_for_settings`.
+

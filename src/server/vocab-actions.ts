@@ -30,6 +30,7 @@ export async function forgetLearnedPhrase(entryId: string): Promise<boolean> {
       /* an audit-write fault must not undo the user's undo */
     }
     revalidatePath('/settings');
+    revalidatePath('/ask');
   }
   return retired;
 }
