@@ -1,5 +1,6 @@
 /**
- * Coach: edit already-saved on savings goals without leaving for Goals (DECISIONS #716).
+ * Coach: edit already-saved and target on savings goals without leaving for Goals
+ * (DECISIONS #716, #719).
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -10,8 +11,18 @@ describe('Coach mounts GoalSavedControl for ordinary savings goals', () => {
     const page = readFileSync(resolve('src/app/(app)/coach/page.tsx'), 'utf8');
     expect(page).toContain('GoalSavedControl');
     expect(page).toContain('coach-goals-saved-card');
-    expect(page).toContain("kind: null");
+    expect(page).toContain('kind: null');
     const actions = readFileSync(resolve('src/server/goal-actions.ts'), 'utf8');
+    expect(actions).toContain("revalidatePath('/coach')");
+  });
+
+  it('test_regression__household_can_edit_goal_target_from_coach_without_leaving_for_goals', () => {
+    const page = readFileSync(resolve('src/app/(app)/coach/page.tsx'), 'utf8');
+    expect(page).toContain('GoalTargetControl');
+    expect(page).toContain('coach-goals-saved-card');
+    expect(page).toContain('kind: null');
+    const actions = readFileSync(resolve('src/server/goal-actions.ts'), 'utf8');
+    expect(actions).toContain('updateGoalTarget');
     expect(actions).toContain("revalidatePath('/coach')");
   });
 });

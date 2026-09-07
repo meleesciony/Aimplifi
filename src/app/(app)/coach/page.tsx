@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/card';
 import { EmptyCoach } from '@/components/onboarding/route-empty';
 import { GoalSavedControl } from '@/components/finance/goal-saved-form';
+import { GoalTargetControl } from '@/components/finance/goal-target-form';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { runwayTitle } from '@/lib/engine/fi/insights';
 import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
@@ -170,12 +171,13 @@ export default async function CoachPage() {
         <Card data-testid="coach-goals-saved-card">
           <CardHeader className="pb-2">
             <CardDescription>Savings goals</CardDescription>
-            <CardTitle className="text-base">Already saved</CardTitle>
+            <CardTitle className="text-base">Already saved and target</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p className="text-muted-foreground">
-              Update how much you have already set aside — same write as Goals. Debt-free and
-              reserve rows stay on their own pages. Aimplifi never moves money.
+              Update how much you have already set aside and the goal target — same writes as
+              Goals. Debt-free and reserve rows stay on their own pages. Aimplifi never moves
+              money.
             </p>
             <ul className="space-y-2">
               {savingsGoals.map((g) => (
@@ -191,7 +193,12 @@ export default async function CoachPage() {
                     ) : (
                       formatCents(cents(g.savedCents))
                     )}{' '}
-                    of {formatCents(cents(g.targetCents))}
+                    of{' '}
+                    {canWriteDials ? (
+                      <GoalTargetControl goalId={g.id} targetCents={g.targetCents} />
+                    ) : (
+                      formatCents(cents(g.targetCents))
+                    )}
                   </span>
                 </li>
               ))}

@@ -3039,3 +3039,8 @@ invent an auto-file quality claim.
 **Context.** Merchantless File already minted an unconditional merchant rule (#586–#589). Aggregate groups (Zelle/Venmo/check) and masked bank-name groups still filed one scope and minted none, so the next matching ingest returned to Inbox. A merchant-wide rule on the aggregate canonical would auto-file unrelated payees.
 **Decision.** File-all / Always of an aggregate or masked merchantless group mints (or reuses) a priority-110 descriptor keyword rule from that exact statement text. Masked rows that already have a stable merchantId mint (or reuse) the unconditional merchant rule on that id. Scope of the file write is unchanged (exact descriptor for aggregates). Demo cannot learn. No CSV parser change. No Trust invent.
 **Locked.** `test_regression__aggregate_file_mints_keyword_rule_not_merchant_wide`, `test_regression__masked_with_merchantId_file_mints_merchant_rule`, `test_regression__inbox_filing_rule_kind_for_aggregate_and_masked`.
+
+## #719 — Household can edit goal target from Coach without leaving for Goals (2026-09-07)
+**Context.** GoalTargetControl lived on /goals. Coach already mounts GoalSavedControl for ordinary savings goals (#716) but printed target as read-only dollars, so changing the target still required leaving.
+**Decision.** When ordinary savings goals exist (`kind: null`, same gate as updateGoalSaved/#716), mount GoalTargetControl beside already-saved on /coach (`coach-goals-saved-card`). Same writer; goal-actions already revalidates /coach. Debt-free and reserves excluded. Demo read-only. No Settings remount. No monthly/date copy in this slice.
+**Locked.** `test_regression__household_can_edit_goal_target_from_coach_without_leaving_for_goals`.
