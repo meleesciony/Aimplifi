@@ -3024,3 +3024,8 @@ invent an auto-file quality claim.
 **Context.** Forecast showed the first-negative date but offered no next step. Calendar already carries the dated transfer instruction; Sync lived on Accounts/Home. Acting on a projected dip required leaving.
 **Decision.** When firstNegativeDate is set (non-demo), mount `forecast-cash-dip-actions` with a link to `/calendar?month=` for that day and SyncAllButton when a bank is connected (same syncAllAccounts writer). PushOptIn unchanged. No Settings remount. No deepen copy.
 **Locked.** `test_regression__household_can_act_on_forecast_cash_dip_without_leaving_for_accounts`.
+
+## #715 — Household can act on a Calendar cash dip without leaving for Accounts (2026-09-07)
+**Context.** Calendar's shortfall day already printed the transfer instruction (#714 added Forecast actions). Sync and the longer Forecast projection still required leaving from that dated cell.
+**Decision.** On the calendar-dip cell, mount `calendar-dip-actions`: link to /forecast and SyncAllButton when a bank is connected (non-demo). Same syncAllAccounts writer. No PushOptIn. No deepen copy. No Settings remount.
+**Locked.** `test_regression__household_can_act_on_calendar_cash_dip_without_leaving_for_accounts`.

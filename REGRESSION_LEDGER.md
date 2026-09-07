@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-07 | Calendar cash-dip cell had instruction only; Sync/Forecast required leaving | no actions under calendar-dip | cash-dip action — Forecast link + SyncAll when bank connected | `test_regression__household_can_act_on_calendar_cash_dip_without_leaving_for_accounts` |
 | 2026-09-07 | Forecast showed a cash-dip date with no next step | no Calendar link or Sync on Forecast dip | cash-dip action — Calendar month link + SyncAll when bank connected | `test_regression__household_can_act_on_forecast_cash_dip_without_leaving_for_accounts` |
 | 2026-09-07 | Deepen Plaid history required leaving Cards for Accounts | deepen-history lived on Accounts/Home only | bank leftover — mount deepen on Cards when PlaidItem exists | `test_regression__household_can_deepen_plaid_history_from_cards_without_leaving_for_accounts` |
 | 2026-09-07 | Calendar loan-due showed due amount only; naming the payment payee required Accounts | AccountPaymentMerchantPicker lived only on Accounts detail | calendar event write — mount payee picker on viewer loan-due | `test_regression__household_can_set_loan_payment_payee_from_calendar_without_leaving_for_accounts` |

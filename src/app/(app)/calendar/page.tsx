@@ -5,6 +5,7 @@ import { auth } from '@/auth';
 import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
 import { EmptyCalendar } from '@/components/onboarding/route-empty';
 import { CardStatementControl } from '@/components/finance/card-statement-control';
+import { SyncAllButton } from '@/components/finance/sync-all-button';
 import { AccountPaymentMerchantPicker } from '@/components/finance/account-payment-merchant-picker';
 import { getAccountDetail, type ManualCardBilling } from '@/server/transactions';
 import { Badge } from '@/components/ui/badge';
@@ -239,6 +240,13 @@ export default async function CalendarPage({
   // same writers as Cards/Accounts (DECISIONS #710) — viewer's own manual CREDIT
   // only, so a household partner's due never gets a write control here.
   const canEditCardStatement = canImportCsv;
+  const bankConnected = await Promise.all([
+    prisma.simpleFinConnection.findUnique({
+      where: { userId },
+      select: { userId: true },
+    }),
+    prisma.plaidItem.count({ where: { userId } }),
+  ]).then(([sf, plaidCount]) => sf !== null || plaidCount > 0);
   const canAddStatementById: Record<string, boolean> = {};
   const cardBilling: Record<string, ManualCardBilling> = {};
   if (canEditCardStatement) {
@@ -832,28 +840,46 @@ export default async function CalendarPage({
                   {/* the day the account is projected to go below $0 — the whole
                       point of the dashboard warning, now visible where dates live */}
                   {result.headline.shortfallDate === day.date && result.headline.recommendation && (
-                    <p
-                      className="mt-1.5 rounded-md border border-red-900/50 bg-red-950/40 px-2 py-1 text-xs text-red-300"
+                    <div
+                      className="mt-1.5 space-y-2 rounded-md border border-red-900/50 bg-red-950/40 px-2 py-1.5 text-xs text-red-300"
                       data-testid="calendar-dip"
                     >
-                      {/* This cell is the FIRST short day, so the figure quoted here is this
-                          day's own projected balance — the window's intra-period low belongs
-                          to a later date and is named with that date, not implied to be today. */}
-                      Projected balance:{' '}
-                      {formatCents(result.headline.shortfallDateBalanceCents ?? cents(0))} —
-                      {/* audit P2: this dated instruction concerns ONE account — the funding
-                          account the projection walks from. The totals above span every
-                          account, so the transfer must name its own. Same expression the
-                          frozen disclosure uses for the same row (L.19). */}
-                      transfer {formatCents(result.headline.recommendation.amountCents)} into{' '}
-                      {input.paymentAccount.name} by{' '}
-                      {formatISODate(isoDate(result.headline.recommendation.byDate))} to stay
-                      covered.
-                      {result.headline.worstDipDate &&
-                        result.headline.worstDipDate !== day.date &&
-                        result.intraPeriodMinimum &&
-                        ` Lowest point: ${formatCents(result.intraPeriodMinimum.balanceCents)} on ${formatISODate(isoDate(result.intraPeriodMinimum.date))}.`}
-                    </p>
+                      <p>
+                        {/* This cell is the FIRST short day, so the figure quoted here is this
+                            day's own projected balance — the window's intra-period low belongs
+                            to a later date and is named with that date, not implied to be today. */}
+                        Projected balance:{' '}
+                        {formatCents(result.headline.shortfallDateBalanceCents ?? cents(0))} —
+                        {/* audit P2: this dated instruction concerns ONE account — the funding
+                            account the projection walks from. The totals above span every
+                            account, so the transfer must name its own. Same expression the
+                            frozen disclosure uses for the same row (L.19). */}
+                        transfer {formatCents(result.headline.recommendation.amountCents)} into{' '}
+                        {input.paymentAccount.name} by{' '}
+                        {formatISODate(isoDate(result.headline.recommendation.byDate))} to stay
+                        covered.
+                        {result.headline.worstDipDate &&
+                          result.headline.worstDipDate !== day.date &&
+                          result.intraPeriodMinimum &&
+                          ` Lowest point: ${formatCents(result.intraPeriodMinimum.balanceCents)} on ${formatISODate(isoDate(result.intraPeriodMinimum.date))}.`}
+                      </p>
+                      {/* DECISIONS #715 — cash-dip actions on the dated cell (parity with Forecast #714). */}
+                      <div
+                        className="flex flex-col gap-2 text-red-200/90 sm:flex-row sm:items-center"
+                        data-testid="calendar-dip-actions"
+                      >
+                        <Link
+                          href="/forecast"
+                          className="font-medium underline underline-offset-2 hover:text-red-100"
+                          data-testid="calendar-dip-forecast-link"
+                        >
+                          See the full Forecast →
+                        </Link>
+                        {canEditCardStatement && bankConnected ? (
+                          <SyncAllButton connected variant="inline" flashKey="calendar" />
+                        ) : null}
+                      </div>
+                    </div>
                   )}
                 </li>
               ))}
