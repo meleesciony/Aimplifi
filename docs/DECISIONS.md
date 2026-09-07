@@ -3000,3 +3000,7 @@ invent an auto-file quality claim.
 **Decision.** Mount PushOptIn on /forecast (`forecast-notifications-card`) when VAPID is configured. Same writers. Settings/Cards/Home unchanged. Demo dormant without key. No category managers.
 **Locked.** `test_regression__household_can_enable_push_notifications_from_forecast_without_leaving_for_settings`.
 
+## #710 — Household can edit a card statement from Calendar without leaving for Cards (2026-09-07)
+**Context.** Card-due rows on Calendar showed amount and due badge only. Adding or correcting a manual statement (how much & when) lived on Cards and Accounts, so fixing a due from the date grid required leaving.
+**Decision.** On /calendar card-due events for the viewer's own manual CREDIT accounts, mount CardStatementControl (`calendar-card-statement-{accountId}`). Same setManualCardStatement / clearManualCardStatement writers; card-actions already revalidates /calendar. Partner dues at household scope stay display-only. Demo fenced. No PushOptIn. No Settings remount.
+**Locked.** `test_regression__household_can_edit_card_statement_from_calendar_without_leaving_for_cards`.

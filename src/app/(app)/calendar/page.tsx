@@ -4,6 +4,8 @@ import { ArrowDownLeft, ArrowUpRight, CreditCard, Landmark } from 'lucide-react'
 import { auth } from '@/auth';
 import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
 import { EmptyCalendar } from '@/components/onboarding/route-empty';
+import { CardStatementControl } from '@/components/finance/card-statement-control';
+import type { ManualCardBilling } from '@/server/transactions';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { prisma } from '@/lib/db';
@@ -231,6 +233,64 @@ export default async function CalendarPage({
   // dues, not their transaction rows (the register itself is viewer-only), and the note under
   // the grid says so rather than letting the two halves read as one basis.
   const canImportCsv = !isDemoUser(session.user.id);
+  // Manual card statements drive card-due rows. Edit/add on Calendar uses the
+  // same writers as Cards/Accounts (DECISIONS #710) — viewer's own manual CREDIT
+  // only, so a household partner's due never gets a write control here.
+  const canEditCardStatement = canImportCsv;
+  const canAddStatementById: Record<string, boolean> = {};
+  const cardBilling: Record<string, ManualCardBilling> = {};
+  if (canEditCardStatement) {
+    const creditAccounts = await prisma.account.findMany({
+      where: { userId: session.user.id, type: 'CREDIT' },
+      select: { id: true, provider: true, aprBps: true },
+    });
+    const manualCreditIds = creditAccounts.filter((a) => a.provider === 'manual').map((a) => a.id);
+    for (const a of creditAccounts) {
+      canAddStatementById[a.id] = a.provider === 'manual';
+    }
+    if (manualCreditIds.length > 0) {
+      const [statements, autopays] = await Promise.all([
+        prisma.statement.findMany({
+          where: { accountId: { in: manualCreditIds } },
+          orderBy: { cycleEnd: 'desc' },
+          select: {
+            accountId: true,
+            cycleEnd: true,
+            dueDate: true,
+            statementBalanceCents: true,
+            minimumPaymentCents: true,
+          },
+        }),
+        prisma.autopayConfig.findMany({
+          where: { accountId: { in: manualCreditIds } },
+          select: { accountId: true, mode: true, fixedAmountCents: true },
+        }),
+      ]);
+      const newestStatement = new Map<string, (typeof statements)[number]>();
+      for (const s of statements) if (!newestStatement.has(s.accountId)) newestStatement.set(s.accountId, s);
+      const autopayByAccount = new Map(autopays.map((a) => [a.accountId, a]));
+      for (const a of creditAccounts) {
+        if (a.provider !== 'manual') continue;
+        const ap = autopayByAccount.get(a.id);
+        const s = newestStatement.get(a.id);
+        const common = {
+          aprBps: a.aprBps,
+          autopayMode: ap?.mode ?? null,
+          autopayFixedAmountCents: ap?.mode === 'FIXED_AMOUNT' ? ap.fixedAmountCents : null,
+        };
+        cardBilling[a.id] = s
+          ? {
+              hasStatement: true,
+              statementBalanceCents: s.statementBalanceCents,
+              minimumPaymentCents: s.minimumPaymentCents,
+              dueDate: s.dueDate,
+              cycleEnd: s.cycleEnd,
+              ...common,
+            }
+          : { hasStatement: false, ...common };
+      }
+    }
+  }
   const monthLastDay = `${month}-${String(daysInMonth(+month.slice(0, 4), +month.slice(5, 7))).padStart(2, '0')}`;
   const postedRead = await getPostedCalendarRows(session.user.id, `${month}-01`, monthLastDay);
   const posted = buildPostedCalendarMonth({
@@ -661,36 +721,52 @@ export default async function CalendarPage({
                       </>
                     )}
                     {day.events.map((e, i) => (
-                      <li key={i} className="flex items-baseline justify-between gap-2 text-sm">
-                        <span className="flex items-center gap-1.5">
-                          {e.kind === 'card-due' ? (
-                            <CreditCard className="size-3.5 text-muted-foreground" aria-hidden />
-                          ) : e.kind === 'loan-due' ? (
-                            <Landmark className="size-3.5 text-muted-foreground" aria-hidden />
-                          ) : e.amountCents >= 0 ? (
-                            <ArrowDownLeft className="size-3.5 text-positive-500" aria-hidden />
-                          ) : (
-                            <ArrowUpRight className="size-3.5 text-muted-foreground" aria-hidden />
-                          )}
-                          {e.label}
-                          {(e.kind === 'card-due' || e.kind === 'loan-due') && (
-                            <Badge variant="destructive" className="text-[10px]">
-                              due
-                            </Badge>
-                          )}
-                          {(e.kind === 'inflow' || e.kind === 'outflow') && (
-                            // K.1: every inflow/outflow event is a scheduled-series projection —
-                            // the engine expands them strictly after today (build.ts) — and it
-                            // must not read like posted data, which is the owner's exact trust
-                            // complaint ("forward data" that is really a series replayed).
-                            <Badge variant="outline" className="text-[10px]">
-                              scheduled
-                            </Badge>
-                          )}
-                        </span>
-                        <span className={`tabular-nums ${e.amountCents >= 0 ? 'text-positive-500' : ''}`}>
-                          {formatCents(cents(e.amountCents), { signDisplay: 'always' })}
-                        </span>
+                      <li key={i} className="space-y-1 text-sm">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="flex items-center gap-1.5">
+                            {e.kind === 'card-due' ? (
+                              <CreditCard className="size-3.5 text-muted-foreground" aria-hidden />
+                            ) : e.kind === 'loan-due' ? (
+                              <Landmark className="size-3.5 text-muted-foreground" aria-hidden />
+                            ) : e.amountCents >= 0 ? (
+                              <ArrowDownLeft className="size-3.5 text-positive-500" aria-hidden />
+                            ) : (
+                              <ArrowUpRight className="size-3.5 text-muted-foreground" aria-hidden />
+                            )}
+                            {e.label}
+                            {(e.kind === 'card-due' || e.kind === 'loan-due') && (
+                              <Badge variant="destructive" className="text-[10px]">
+                                due
+                              </Badge>
+                            )}
+                            {(e.kind === 'inflow' || e.kind === 'outflow') && (
+                              // K.1: every inflow/outflow event is a scheduled-series projection —
+                              // the engine expands them strictly after today (build.ts) — and it
+                              // must not read like posted data, which is the owner's exact trust
+                              // complaint ("forward data" that is really a series replayed).
+                              <Badge variant="outline" className="text-[10px]">
+                                scheduled
+                              </Badge>
+                            )}
+                          </span>
+                          <span className={`tabular-nums ${e.amountCents >= 0 ? 'text-positive-500' : ''}`}>
+                            {formatCents(cents(e.amountCents), { signDisplay: 'always' })}
+                          </span>
+                        </div>
+                        {e.kind === 'card-due' &&
+                        e.accountId &&
+                        canEditCardStatement &&
+                        canAddStatementById[e.accountId] ? (
+                          <div
+                            className="pl-5"
+                            data-testid={`calendar-card-statement-${e.accountId}`}
+                          >
+                            <CardStatementControl
+                              accountId={e.accountId}
+                              billing={cardBilling[e.accountId]}
+                            />
+                          </div>
+                        ) : null}
                       </li>
                     ))}
                   </ul>

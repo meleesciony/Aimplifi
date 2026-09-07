@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-07 | Calendar card-due showed due amount only; fixing a manual statement required Cards/Accounts | mount CardStatementControl on viewer manual card-due (`calendar-card-statement-*`); same writers; partner dues stay display-only | calendar event write without Settings remount; no PushOptIn | `test_regression__household_can_edit_card_statement_from_calendar_without_leaving_for_cards` |
 | 2026-09-07 | Enabling cash-dip push required leaving Forecast for Settings | PushOptIn not on Forecast | a household can enable push notifications from Forecast without leaving for Settings | `test_regression__household_can_enable_push_notifications_from_forecast_without_leaving_for_settings` |
 | 2026-09-07 | Transactions CSV required leaving Trends for Settings | Export not on Trends | a household can download transactions CSV from Trends without leaving for Settings | `test_regression__household_can_download_transactions_csv_from_trends_without_leaving_for_settings` |
 | 2026-09-07 | Amount/date/account/descriptor on multi-txn Inbox required One by one | Multi-txn idle cards lacked core field controls | a household can edit amount, date, account, and descriptor on Inbox multi-txn groups without One by one | `test_regression__household_can_edit_amount_date_account_descriptor_on_inbox_multi_txn_without_one_by_one` |
