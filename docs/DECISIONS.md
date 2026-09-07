@@ -2990,3 +2990,8 @@ invent an auto-file quality claim.
 **Decision.** Mount TxnDateControl / TxnAmountControl / TxnDirectionControl / TxnAccountControl / TxnDescriptorControl on each multi-txn field row (`inbox-multi-date` etc.). Same writers as singles. Demo fenced. No category managers. No CSV.
 **Locked.** `test_regression__household_can_edit_amount_date_account_descriptor_on_inbox_multi_txn_without_one_by_one`.
 
+## #708 — Household can download transactions CSV from Trends without leaving for Settings (2026-09-07)
+**Context.** Trends shows spending movement but export lived on Settings and Activity (#698). Taking the register behind a trend required leaving.
+**Decision.** Mount `/api/export?format=transactions-csv` on /trends (`trends-transactions-export-card`). Same API. Settings/Activity unchanged. No category managers.
+**Locked.** `test_regression__household_can_download_transactions_csv_from_trends_without_leaving_for_settings`.
+

@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { TrendsView } from '@/components/finance/trends-view';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { buttonVariants } from '@/components/ui/button';
 import { getSpendingTrends } from '@/server/trends';
 import { getBalanceMove } from '@/server/balance-move';
 import { getLinkableCategoryIds } from '@/server/categories';
@@ -27,11 +29,28 @@ export default async function TrendsPage() {
   ]);
   const balanceMove = await getBalanceMove(userId, trends);
   return (
-    <TrendsView
-      trends={trends}
-      dials={resolvedMoneyDialIds(user?.moneyDials, dialCatalog)}
-      balanceMove={balanceMove}
-      linkableCategoryIds={linkableCategoryIds}
-    />
+    <div className="space-y-4">
+      <TrendsView
+        trends={trends}
+        dials={resolvedMoneyDialIds(user?.moneyDials, dialCatalog)}
+        balanceMove={balanceMove}
+        linkableCategoryIds={linkableCategoryIds}
+      />
+      <Card data-testid="trends-transactions-export-card" className="mx-auto max-w-2xl">
+        <CardHeader className="pb-2">
+          <CardDescription>Take the register behind these trends with you</CardDescription>
+          <CardTitle className="text-base">Export transactions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <a
+            href="/api/export?format=transactions-csv"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            data-testid="export-transactions-csv"
+          >
+            Transactions (CSV)
+          </a>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
