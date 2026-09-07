@@ -24,6 +24,7 @@ export default async function CardsPage({
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
+  const userId = session.user.id;
   // No accounts yet → first-run onboarding (the cash-needed engine needs accounts).
   if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
@@ -34,12 +35,15 @@ export default async function CardsPage({
   const data = await getDashboardData(session.user.id, requestedScope);
 
   const creditAccounts = await prisma.account.findMany({
-    where: { userId: session.user.id, type: 'CREDIT' },
+    where: { userId, type: 'CREDIT' },
     select: { id: true, name: true, displayName: true, provider: true, aprBps: true },
   });
   const canRenameCard = !isDemoUser(session.user.id);
   const canAddCard = canRenameCard;
   const vapidPublicKey = getVapidPublicKey();
+  const plaidCount = await prisma.plaidItem.count({ where: { userId } });
+  const canDeepenHistory = canRenameCard && plaidCount > 0;
+
   const cardRenameById: Record<string, { feedName: string; hasOverlay: boolean }> = {};
   const canAddStatementById: Record<string, boolean> = {};
   const manualCreditIds = creditAccounts.filter((a) => a.provider === 'manual').map((a) => a.id);
@@ -136,6 +140,25 @@ export default async function CardsPage({
           </CardContent>
         </Card>
 
+      {canDeepenHistory ? (
+        <Card data-testid="cards-deepen-history-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Bank history</CardDescription>
+            <CardTitle className="text-base">Only seeing a few months?</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Pull a longer window from a bank you already connected — same deepen control as
+              Accounts and Home. Helps card statements and due dates fill in. Aimplifi never moves
+              money.
+            </p>
+            <div data-testid="deepen-history-panel">
+              <ConnectAccountsButton deepenHistory />
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {vapidPublicKey ? (
         <Card data-testid="cards-notifications-card">
           <CardHeader className="pb-2">
@@ -183,6 +206,25 @@ export default async function CardsPage({
         canAddStatementById={canAddStatementById}
         cardBilling={cardBilling}
       />
+
+      {canDeepenHistory ? (
+        <Card data-testid="cards-deepen-history-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Bank history</CardDescription>
+            <CardTitle className="text-base">Only seeing a few months?</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>
+              Pull a longer window from a bank you already connected — same deepen control as
+              Accounts and Home. Helps card statements and due dates fill in. Aimplifi never moves
+              money.
+            </p>
+            <div data-testid="deepen-history-panel">
+              <ConnectAccountsButton deepenHistory />
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {vapidPublicKey ? (
         <Card data-testid="cards-notifications-card">
