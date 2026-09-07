@@ -46,7 +46,9 @@ import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { isDemoUser } from '@/lib/demo-user';
 import { CustomCategoryManager } from '@/components/settings/custom-category-manager';
+import { CategoryManager } from '@/components/settings/category-manager';
 import { getCustomCategories } from '@/server/category-meta';
+import { getCategoryCatalog } from '@/server/categories';
 import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
 import { isoDate } from '@/lib/dates';
 
@@ -87,6 +89,7 @@ export default async function BudgetsPage() {
     snap,
     payeeNames,
     customCategories,
+    categoryCatalog,
   ] = await Promise.all([
     // All non-transfer, non-split activity this month (BOTH signs) so the engine
     // can net refunds against spend — outflow-only would overstate it.
@@ -157,6 +160,7 @@ export default async function BudgetsPage() {
     provider.getFinanceSnapshot(userId),
     getPayeeRenames(userId),
     getCustomCategories(userId),
+    getCategoryCatalog(userId),
   ]);
   const linkable = new Set(linkableCategoryIds);
 
@@ -527,17 +531,32 @@ export default async function BudgetsPage() {
         </CardContent>
       </Card>
 
-      <Card data-testid="budgets-custom-categories-card">
+      <Card data-testid="budgets-categories-card">
         <CardHeader className="pb-2">
           <CardDescription>Make the category list your own</CardDescription>
-          <CardTitle className="text-base">Your categories</CardTitle>
+          <CardTitle className="text-base">Categories</CardTitle>
         </CardHeader>
-        <CardContent>
-          <CustomCategoryManager
-            categories={customCategories}
-            groups={CUSTOM_CATEGORY_GROUPS}
-            canWrite={canEdit}
-          />
+        <CardContent className="space-y-5">
+          <div data-testid="budgets-custom-categories-card">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Your categories
+            </h3>
+            <CustomCategoryManager
+              categories={customCategories}
+              groups={CUSTOM_CATEGORY_GROUPS}
+              canWrite={canEdit}
+            />
+          </div>
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Built-in categories
+            </h3>
+            <CategoryManager
+              catalog={categoryCatalog}
+              canRename={canEdit}
+              canRemove={canEdit}
+            />
+          </div>
         </CardContent>
       </Card>
 

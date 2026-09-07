@@ -13,6 +13,7 @@ this ledger starts at the 2026-06-21 hardening session.
 
 | date | symptom | root cause | rule broken | locking test |
 |---|---|---|---|---|
+| 2026-09-07 | Built-in category hide/rename required leaving Budgets for Settings | CategoryManager lived only on Settings | a household can manage built-in categories from Budgets without leaving for Settings | `test_regression__household_can_manage_built_in_categories_from_budgets_without_leaving_for_settings` |
 | 2026-09-07 | Custom categories required leaving Budgets for Settings | CustomCategoryManager lived only on Settings | a household can manage custom categories from Budgets without leaving for Settings | `test_regression__household_can_manage_custom_categories_from_budgets_without_leaving_for_settings` |
 | 2026-09-07 | Onboarding payment account required leaving for Settings | Nudge CTA linked to Settings; dial lived only there | a household can confirm the payment account from Home without leaving for Settings | `test_regression__household_can_confirm_payment_account_from_home_without_leaving_for_settings` |
 | 2026-09-06 | Transfer mark repair required leaving Accounts for Settings | TransferRepairCard lived only on Settings | a household can repair transfer marks from Accounts without leaving for Settings | `test_regression__household_can_repair_transfer_marks_from_accounts_without_leaving_for_settings` |

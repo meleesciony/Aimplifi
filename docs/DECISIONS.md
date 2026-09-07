@@ -2910,3 +2910,8 @@ invent an auto-file quality claim.
 **Decision.** Mount CustomCategoryManager on /budgets (`budgets-custom-categories-card`) with the same create/rename/delete writers. Demo fenced via canWrite. Settings card unchanged. No CSV.
 **Locked.** `test_regression__household_can_manage_custom_categories_from_budgets_without_leaving_for_settings`.
 
+## #692 — Household can manage built-in categories from Budgets without leaving for Settings (2026-09-07)
+**Context.** After #691 mounted custom categories on Budgets, hide/rename for built-ins still lived only on Settings. Targets and actuals on Budgets need the same list the household uses when filing.
+**Decision.** Mount CategoryManager on /budgets inside `budgets-categories-card` (alongside CustomCategoryManager) with the same rename/hide writers. Demo fenced via canRename/canRemove. setCategoryHidden also revalidates /budgets. Settings card unchanged. No CSV.
+**Locked.** `test_regression__household_can_manage_built_in_categories_from_budgets_without_leaving_for_settings`.
+

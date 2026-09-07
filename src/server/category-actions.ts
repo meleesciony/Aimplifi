@@ -51,7 +51,9 @@ export async function setCategoryHidden(input: {
   });
 
   // Picker sources live on these pages; refresh so the change shows immediately.
+  // /budgets mounts CategoryManager (#692); keep hide/restore visible there too.
   revalidatePath('/settings');
+  revalidatePath('/budgets');
   revalidatePath('/triage');
   revalidatePath('/transactions');
   return { ok: true };
