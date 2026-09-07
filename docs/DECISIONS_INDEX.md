@@ -707,3 +707,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #711 — Household can deepen Plaid history from Home without leaving for Accounts (2026-09-07) → docs/DECISIONS.md
 - #712 — Household can set a loan payment payee from Calendar without leaving for Accounts (2026-09-07) → docs/DECISIONS.md
 - #713 — Household can deepen Plaid history from Cards without leaving for Accounts (2026-09-07) → docs/DECISIONS.md
+- #714 — Household can act on a Forecast cash dip without leaving for Accounts (2026-09-07) → docs/DECISIONS.md

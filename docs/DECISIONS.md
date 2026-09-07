@@ -3019,3 +3019,8 @@ invent an auto-file quality claim.
 **Context.** Deepen-history lived on Accounts and Home (#711). Cards is where issuer connections and due dates meet, but pulling a longer window still required leaving.
 **Decision.** When the viewer has at least one PlaidItem and is not demo, mount ConnectAccountsButton with deepenHistory on /cards (`cards-deepen-history-card`). Same deepen path. Empty and populated Cards layouts both get it. No PushOptIn copy. No Settings remount.
 **Locked.** `test_regression__household_can_deepen_plaid_history_from_cards_without_leaving_for_accounts`.
+
+## #714 — Household can act on a Forecast cash dip without leaving for Accounts (2026-09-07)
+**Context.** Forecast showed the first-negative date but offered no next step. Calendar already carries the dated transfer instruction; Sync lived on Accounts/Home. Acting on a projected dip required leaving.
+**Decision.** When firstNegativeDate is set (non-demo), mount `forecast-cash-dip-actions` with a link to `/calendar?month=` for that day and SyncAllButton when a bank is connected (same syncAllAccounts writer). PushOptIn unchanged. No Settings remount. No deepen copy.
+**Locked.** `test_regression__household_can_act_on_forecast_cash_dip_without_leaving_for_accounts`.
