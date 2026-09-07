@@ -54,6 +54,7 @@ export async function setCategoryHidden(input: {
   // /budgets mounts CategoryManager (#692); keep hide/restore visible there too.
   revalidatePath('/settings');
   revalidatePath('/budgets');
+  revalidatePath('/rules');
   revalidatePath('/triage');
   revalidatePath('/transactions');
   return { ok: true };

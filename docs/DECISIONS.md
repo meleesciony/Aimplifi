@@ -2955,3 +2955,8 @@ invent an auto-file quality claim.
 **Decision.** Mount PushOptIn on /dashboard (`home-notifications-card`) when VAPID is configured, same writers. Settings and Cards cards unchanged. Demo dormant without key.
 **Locked.** `test_regression__household_can_enable_push_notifications_from_home_without_leaving_for_settings`.
 
+## #701 — Household can manage built-in categories from Rules without leaving for Settings (2026-09-07)
+**Context.** Rule builder category pickers reflect hide/rename, but CategoryManager lived on Settings and Budgets only. Adjusting the list while writing a rule required leaving.
+**Decision.** Mount CategoryManager on /rules (`rules-categories-card`) with the same writers. setCategoryHidden also revalidates /rules. Settings/Budgets unchanged. Demo fenced.
+**Locked.** `test_regression__household_can_manage_built_in_categories_from_rules_without_leaving_for_settings`.
+

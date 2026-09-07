@@ -22,6 +22,10 @@ import { getRuleSourceTransaction, listKeywordRules } from '@/server/keyword-rul
 import { listRuleInventory } from '@/server/rule-inventory';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { HOME_NEEDS_FILE_HREF } from '@/lib/copy/home-needs-file-copy';
+import { CategoryManager } from '@/components/settings/category-manager';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getCategoryCatalog } from '@/server/categories';
+import { isDemoUser } from '@/lib/demo-user';
 
 export const metadata = { title: 'Rules' };
 
@@ -77,7 +81,7 @@ export default async function RulesPage({
     ? { ...source, transactionId: source.id, ...suggestRuleKeywords(source.rawDescriptor) }
     : null;
 
-  const [categoryGroups, categoryMeta, rules, inventory, allAccounts, superseded] = await Promise.all([
+  const [categoryGroups, categoryMeta, rules, inventory, allAccounts, superseded, categoryCatalog] = await Promise.all([
     getVisibleGroups(session.user.id),
     getCategoryMeta(session.user.id),
     listKeywordRules(),
@@ -105,6 +109,7 @@ export default async function RulesPage({
       orderBy: [{ type: 'asc' }, { name: 'asc' }],
     }),
     activeSupersededPredecessorIds([session.user.id]),
+    getCategoryCatalog(session.user.id),
   ]);
   const accounts = allAccounts
     .filter((a) => !superseded.has(a.id))
@@ -201,6 +206,21 @@ export default async function RulesPage({
         hasLearnedRules={inventory.hasLearnedRules}
         isDemo={inventory.isDemo}
       />
+
+
+      <Card data-testid="rules-categories-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Hide or rename categories the rule builder offers</CardDescription>
+          <CardTitle className="text-base">Built-in categories</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CategoryManager
+            catalog={categoryCatalog}
+            canRename={!isDemoUser(session.user.id)}
+            canRemove={!isDemoUser(session.user.id)}
+          />
+        </CardContent>
+      </Card>
 
       <p className="text-xs text-muted-foreground">
         Looking for a single transaction instead?{' '}
