@@ -5,7 +5,8 @@ import { auth } from '@/auth';
 import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
 import { EmptyCalendar } from '@/components/onboarding/route-empty';
 import { CardStatementControl } from '@/components/finance/card-statement-control';
-import type { ManualCardBilling } from '@/server/transactions';
+import { AccountPaymentMerchantPicker } from '@/components/finance/account-payment-merchant-picker';
+import { getAccountDetail, type ManualCardBilling } from '@/server/transactions';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { prisma } from '@/lib/db';
@@ -42,8 +43,9 @@ export default async function CalendarPage({
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/sign-in');
+  const userId = session.user.id;
   // No accounts yet → route-framed onboarding; getCashNeeded throws on empty (DECISIONS #44).
-  if ((await prisma.account.count({ where: { userId: session.user.id, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyCalendar />;
+  if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyCalendar />;
   const params = await searchParams;
   // Household scope toggle (TASKS 4.2 slice 5) — same contract as /dashboard,
   // /cards: getCashNeeded re-derives the EFFECTIVE scope (falls back to 'mine'
@@ -241,7 +243,7 @@ export default async function CalendarPage({
   const cardBilling: Record<string, ManualCardBilling> = {};
   if (canEditCardStatement) {
     const creditAccounts = await prisma.account.findMany({
-      where: { userId: session.user.id, type: 'CREDIT' },
+      where: { userId, type: 'CREDIT' },
       select: { id: true, provider: true, aprBps: true },
     });
     const manualCreditIds = creditAccounts.filter((a) => a.provider === 'manual').map((a) => a.id);
@@ -291,8 +293,38 @@ export default async function CalendarPage({
       }
     }
   }
+  // Loan-due rows: name the Activity payee that pays this LOAN/MORTGAGE
+  // (same setAccountPaymentMerchant writer as Accounts — DECISIONS #712).
+  // Viewer-owned only; partner dues stay display-only. One detail read per
+  // unique loan id (candidates are register-wide).
+  const loanPayeeById: Record<
+    string,
+    { currentCanonical: string | null; candidates: { id: string | null; canonical: string }[] }
+  > = {};
+  const loanPayeeMounted = new Set<string>();
+  if (canEditCardStatement) {
+    const loanIds = [
+      ...new Set(
+        paintedLoans
+          .map((l) => l.accountId)
+          .filter((id) => !accountOwnerLabel[id]),
+      ),
+    ];
+    if (loanIds.length > 0) {
+      const details = await Promise.all(loanIds.map((id) => getAccountDetail(userId, id)));
+      for (const d of details) {
+        if (!d?.canSetPaymentMerchant) continue;
+        if (d.paymentMerchantCandidates.length === 0 && d.paymentMerchant == null) continue;
+        loanPayeeById[d.id] = {
+          currentCanonical: d.paymentMerchant?.canonical ?? null,
+          candidates: d.paymentMerchantCandidates,
+        };
+      }
+    }
+  }
+
   const monthLastDay = `${month}-${String(daysInMonth(+month.slice(0, 4), +month.slice(5, 7))).padStart(2, '0')}`;
-  const postedRead = await getPostedCalendarRows(session.user.id, `${month}-01`, monthLastDay);
+  const postedRead = await getPostedCalendarRows(userId, `${month}-01`, monthLastDay);
   const posted = buildPostedCalendarMonth({
     month,
     today,
@@ -767,6 +799,33 @@ export default async function CalendarPage({
                             />
                           </div>
                         ) : null}
+                        {(() => {
+                          if (
+                            e.kind !== 'loan-due' ||
+                            !e.accountId ||
+                            !loanPayeeById[e.accountId] ||
+                            loanPayeeMounted.has(e.accountId)
+                          ) {
+                            return null;
+                          }
+                          loanPayeeMounted.add(e.accountId);
+                          const payee = loanPayeeById[e.accountId]!;
+                          return (
+                            <div
+                              className="pl-5"
+                              data-testid={`calendar-loan-payee-${e.accountId}`}
+                            >
+                              <p className="mb-1 text-[11px] text-muted-foreground">
+                                Which Activity payee is this loan payment?
+                              </p>
+                              <AccountPaymentMerchantPicker
+                                accountId={e.accountId}
+                                currentCanonical={payee.currentCanonical}
+                                candidates={payee.candidates}
+                              />
+                            </div>
+                          );
+                        })()}
                       </li>
                     ))}
                   </ul>

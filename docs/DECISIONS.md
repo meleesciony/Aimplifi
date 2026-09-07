@@ -3009,3 +3009,8 @@ invent an auto-file quality claim.
 **Context.** “Only seeing a few months?” / deepen-history lived only under Accounts → Plaid connections. Home already surfaces connection alerts and sync, but pulling a longer window still required leaving.
 **Decision.** When the viewer has at least one PlaidItem and is not demo, mount ConnectAccountsButton with deepenHistory on /dashboard (`home-deepen-history-card` / `deepen-history-panel`). Same linkPlaidAccount deepen path as Accounts. No PushOptIn. No Settings remount.
 **Locked.** `test_regression__household_can_deepen_plaid_history_from_home_without_leaving_for_accounts`.
+
+## #712 — Household can set a loan payment payee from Calendar without leaving for Accounts (2026-09-07)
+**Context.** Loan-due rows on Calendar showed amount and due badge only. Naming the Activity payee that pays a LOAN/MORTGAGE (payment history link) lived only on Accounts detail.
+**Decision.** On /calendar, for each viewer-owned loan-due account in the month (once per account), mount AccountPaymentMerchantPicker (`calendar-loan-payee-{accountId}`) when candidates or a current link exist. Same setAccountPaymentMerchant writer; also revalidates /calendar. Partner dues stay display-only. Demo fenced. No PushOptIn. No Settings remount.
+**Locked.** `test_regression__household_can_set_loan_payment_payee_from_calendar_without_leaving_for_accounts`.

@@ -49,6 +49,7 @@ export async function setAccountPaymentMerchant(input: {
     await prisma.account.update({ where: { id: account.id }, data: { paymentMerchantId: null } });
     await auditLog(userId, 'account.paymentMerchant.clear', { id: account.id });
     revalidatePath('/accounts');
+    revalidatePath('/calendar');
     return { ok: true };
   }
 
@@ -69,5 +70,6 @@ export async function setAccountPaymentMerchant(input: {
   });
   await auditLog(userId, 'account.paymentMerchant.set', { id: account.id, merchantId: merchant.id });
   revalidatePath('/accounts');
+  revalidatePath('/calendar');
   return { ok: true };
 }
