@@ -421,6 +421,40 @@ export function CashNeededCard({
           ))}
         </ul>
 
+        {(() => {
+          const seen = new Set<string>();
+          const dated: { cardId: string; cardName: string }[] = [];
+          for (const point of result.perDueDate) {
+            for (const c of point.cards) {
+              if (seen.has(c.cardId) || !statementWritable(c.cardId)) continue;
+              seen.add(c.cardId);
+              dated.push({ cardId: c.cardId, cardName: c.cardName });
+            }
+          }
+          for (const u of result.upcoming) {
+            if (seen.has(u.cardId) || !statementWritable(u.cardId)) continue;
+            seen.add(u.cardId);
+            dated.push({ cardId: u.cardId, cardName: u.cardName });
+          }
+          if (dated.length === 0) return null;
+          return (
+            <div className="space-y-2" data-testid="home-cash-needed-dated-statements">
+              <p className="text-xs text-muted-foreground">
+                Correct a manual card statement here — same write as Cards and Calendar.
+              </p>
+              {dated.map((c) => (
+                <div key={c.cardId} data-testid={`home-cash-needed-statement-${c.cardId}`}>
+                  <p className="text-xs font-medium">{painted(c.cardId, ownedName(c))}</p>
+                  <CardStatementControl
+                    accountId={c.cardId}
+                    billing={cardBilling[c.cardId]}
+                  />
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         <div className="flex justify-between pt-1">
           <Link
             href="/forecast"
