@@ -4,6 +4,7 @@ import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { RecurringView } from '@/components/finance/recurring-view';
 import { PROJECTIONS_STALE_PARAM } from '@/components/finance/transaction-detail-params';
 import { getRecurring } from '@/server/recurring';
+import { getSpendingPlan } from '@/server/spending-plan';
 import { listRecurringOverrideRows } from '@/server/recurring-overrides';
 import { overrideKey, verdictEffect } from '@/lib/engine/recurring/override';
 import { getWithheldAccountSummary } from '@/server/transactions';
@@ -22,12 +23,24 @@ export default async function RecurringPage({
   const userId = session.user.id;
   if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
-  const [data, withheld, overrides, query] = await Promise.all([
+  const canRenameBills = !isDemoUser(userId);
+  const [data, withheld, overrides, query, plan] = await Promise.all([
     getRecurring(userId),
     getWithheldAccountSummary(userId),
     listRecurringOverrideRows(userId),
     searchParams,
+    // Convert-to-reserve gate is the same fixedSetup loader Spending plan uses
+    // (DECISIONS #729). Demo skips — no convert write.
+    canRenameBills ? getSpendingPlan(userId) : Promise.resolve(null),
   ]);
+  const convertibleConvertKeys = new Set<string>();
+  if (plan) {
+    for (const b of plan.fixedSetup.bills) {
+      if (!b.convertibleToReserve || !b.convertInput) continue;
+      convertibleConvertKeys.add(b.billKey);
+      if (b.merchantCanonical) convertibleConvertKeys.add(b.merchantCanonical);
+    }
+  }
   // What each instruction is actually DOING, decided by the engine against the
   // SAME list this page renders — so "this is doing nothing" can never be claimed
   // about a payee visible three inches above it, and a declaration that detection
@@ -50,7 +63,8 @@ export default async function RecurringPage({
       withheld={withheld}
       instructions={instructions}
       projectionsStale={query[PROJECTIONS_STALE_PARAM] === '1'}
-      canRenameBills={!isDemoUser(userId)}
+      canRenameBills={canRenameBills}
+      convertibleConvertKeys={convertibleConvertKeys}
     />
   );
 }

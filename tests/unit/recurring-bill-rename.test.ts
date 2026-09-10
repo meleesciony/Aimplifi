@@ -24,7 +24,8 @@ describe('Recurring reuses the spending-plan bill name overlay', () => {
     expect(view).not.toContain('renameBill(');
 
     const page = readFileSync(resolve('src/app/(app)/recurring/page.tsx'), 'utf8');
-    expect(page).toContain('canRenameBills={!isDemoUser(userId)}');
+    expect(page).toContain('canRenameBills={canRenameBills}');
+    expect(page).toContain('!isDemoUser(userId)');
 
     const loader = readFileSync(resolve('src/server/recurring.ts'), 'utf8');
     expect(loader).toContain('getBillRenames');

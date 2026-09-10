@@ -27,6 +27,7 @@ import {
 import { BillNameControl } from '@/components/finance/rename-bill-form';
 import { BillAmountControl } from '@/components/finance/bill-amount-form';
 import { BillCadenceControl } from '@/components/finance/bill-cadence-form';
+import { ConvertToReserveButton } from '@/components/finance/convert-to-reserve-button';
 import { billRenameKey, namedBillLabel } from '@/lib/engine/spending-plan/bill-rename';
 
 const CADENCE_SUFFIX: Record<Cadence, string> = {
@@ -47,6 +48,7 @@ function Row({
   billAmounts,
   billCadences,
   canRenameBills,
+  convertibleConvertKeys,
 }: {
   item: RecurringItem;
   accountNames: Record<string, string>;
@@ -55,6 +57,7 @@ function Row({
   billAmounts: ReadonlyMap<string, number>;
   billCadences: ReadonlyMap<string, string>;
   canRenameBills: boolean;
+  convertibleConvertKeys: ReadonlySet<string>;
 }) {
   const mag = Math.abs(item.lastAmountCents);
   // Prefer the server-resolved name (covers custom categories, #111); fall back to
@@ -225,6 +228,14 @@ function Row({
               <PaidThisCycleButton merchantCanonical={item.merchantCanonical} />
             )
           ) : null}
+          {canRenameBills &&
+          !item.isIncome &&
+          (convertibleConvertKeys.has(billKey) ||
+            convertibleConvertKeys.has(item.merchantCanonical)) ? (
+            <div data-testid="recurring-convert-to-reserve">
+              <ConvertToReserveButton merchantCanonical={billKey} />
+            </div>
+          ) : null}
           <NotABillButton merchantCanonical={item.merchantCanonical} />
         </div>
       </div>
@@ -252,6 +263,7 @@ function Section({
   billAmounts,
   billCadences,
   canRenameBills,
+  convertibleConvertKeys,
   testid,
   muted,
 }: {
@@ -264,6 +276,7 @@ function Section({
   billAmounts: ReadonlyMap<string, number>;
   billCadences: ReadonlyMap<string, string>;
   canRenameBills: boolean;
+  convertibleConvertKeys: ReadonlySet<string>;
   testid?: string;
   muted?: boolean;
 }) {
@@ -289,6 +302,7 @@ function Section({
             billAmounts={billAmounts}
             billCadences={billCadences}
             canRenameBills={canRenameBills}
+            convertibleConvertKeys={convertibleConvertKeys}
           />
         ))}
       </ul>
@@ -302,6 +316,7 @@ export function RecurringView({
   instructions,
   projectionsStale,
   canRenameBills = false,
+  convertibleConvertKeys = new Set(),
 }: {
   data: RecurringData;
   withheld: WithheldAccountSummary;
@@ -313,6 +328,8 @@ export function RecurringView({
   projectionsStale: boolean;
   /** Demo cannot learn — BillNameControl only for a real household. */
   canRenameBills?: boolean;
+  /** billKey / merchantCanonical keys Spending plan marks convertible (DECISIONS #729). */
+  convertibleConvertKeys?: ReadonlySet<string>;
 }) {
   const s = data.summary;
   const billNames = new Map(Object.entries(data.billNames ?? {}));
@@ -541,6 +558,7 @@ export function RecurringView({
             billAmounts={billAmounts}
             billCadences={billCadences}
             canRenameBills={canRenameBills}
+            convertibleConvertKeys={convertibleConvertKeys}
             testid="recurring-list"
           />
           <Section
@@ -553,6 +571,7 @@ export function RecurringView({
             billAmounts={billAmounts}
             billCadences={billCadences}
             canRenameBills={canRenameBills}
+          convertibleConvertKeys={convertibleConvertKeys}
           />
           <Section
             title="Recurring income"
@@ -564,6 +583,7 @@ export function RecurringView({
             billAmounts={billAmounts}
             billCadences={billCadences}
             canRenameBills={canRenameBills}
+          convertibleConvertKeys={convertibleConvertKeys}
           />
           <Section
             title="No longer charging"
@@ -575,6 +595,7 @@ export function RecurringView({
             billAmounts={billAmounts}
             billCadences={billCadences}
             canRenameBills={canRenameBills}
+            convertibleConvertKeys={convertibleConvertKeys}
             muted
           />
         </>
