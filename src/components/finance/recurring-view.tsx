@@ -28,6 +28,7 @@ import { BillNameControl } from '@/components/finance/rename-bill-form';
 import { BillAmountControl } from '@/components/finance/bill-amount-form';
 import { BillCadenceControl } from '@/components/finance/bill-cadence-form';
 import { ConvertToReserveButton } from '@/components/finance/convert-to-reserve-button';
+import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-button';
 import { billRenameKey, namedBillLabel } from '@/lib/engine/spending-plan/bill-rename';
 
 const CADENCE_SUFFIX: Record<Cadence, string> = {
@@ -49,6 +50,7 @@ function Row({
   billCadences,
   canRenameBills,
   convertibleConvertKeys,
+  takeOffBillKeys,
 }: {
   item: RecurringItem;
   accountNames: Record<string, string>;
@@ -58,6 +60,7 @@ function Row({
   billCadences: ReadonlyMap<string, string>;
   canRenameBills: boolean;
   convertibleConvertKeys: ReadonlySet<string>;
+  takeOffBillKeys: ReadonlySet<string>;
 }) {
   const mag = Math.abs(item.lastAmountCents);
   // Prefer the server-resolved name (covers custom categories, #111); fall back to
@@ -236,6 +239,11 @@ function Row({
               <ConvertToReserveButton merchantCanonical={billKey} />
             </div>
           ) : null}
+          {canRenameBills && !item.isIncome && takeOffBillKeys.has(billKey) ? (
+            <div data-testid="recurring-take-off-plan">
+              <TakeBillOffPlanButton billKey={billKey} billName={displayName} />
+            </div>
+          ) : null}
           <NotABillButton merchantCanonical={item.merchantCanonical} />
         </div>
       </div>
@@ -264,6 +272,7 @@ function Section({
   billCadences,
   canRenameBills,
   convertibleConvertKeys,
+  takeOffBillKeys,
   testid,
   muted,
 }: {
@@ -277,6 +286,7 @@ function Section({
   billCadences: ReadonlyMap<string, string>;
   canRenameBills: boolean;
   convertibleConvertKeys: ReadonlySet<string>;
+  takeOffBillKeys: ReadonlySet<string>;
   testid?: string;
   muted?: boolean;
 }) {
@@ -303,6 +313,7 @@ function Section({
             billCadences={billCadences}
             canRenameBills={canRenameBills}
             convertibleConvertKeys={convertibleConvertKeys}
+            takeOffBillKeys={takeOffBillKeys}
           />
         ))}
       </ul>
@@ -317,6 +328,7 @@ export function RecurringView({
   projectionsStale,
   canRenameBills = false,
   convertibleConvertKeys = new Set(),
+  takeOffBillKeys = new Set(),
 }: {
   data: RecurringData;
   withheld: WithheldAccountSummary;
@@ -330,6 +342,8 @@ export function RecurringView({
   canRenameBills?: boolean;
   /** billKey / merchantCanonical keys Spending plan marks convertible (DECISIONS #729). */
   convertibleConvertKeys?: ReadonlySet<string>;
+  /** billKeys on the Spending plan Fixed list eligible for take-off (DECISIONS #730). */
+  takeOffBillKeys?: ReadonlySet<string>;
 }) {
   const s = data.summary;
   const billNames = new Map(Object.entries(data.billNames ?? {}));
@@ -559,6 +573,7 @@ export function RecurringView({
             billCadences={billCadences}
             canRenameBills={canRenameBills}
             convertibleConvertKeys={convertibleConvertKeys}
+            takeOffBillKeys={takeOffBillKeys}
             testid="recurring-list"
           />
           <Section
@@ -572,6 +587,7 @@ export function RecurringView({
             billCadences={billCadences}
             canRenameBills={canRenameBills}
           convertibleConvertKeys={convertibleConvertKeys}
+            takeOffBillKeys={takeOffBillKeys}
           />
           <Section
             title="Recurring income"
@@ -584,6 +600,7 @@ export function RecurringView({
             billCadences={billCadences}
             canRenameBills={canRenameBills}
           convertibleConvertKeys={convertibleConvertKeys}
+            takeOffBillKeys={takeOffBillKeys}
           />
           <Section
             title="No longer charging"
@@ -596,6 +613,7 @@ export function RecurringView({
             billCadences={billCadences}
             canRenameBills={canRenameBills}
             convertibleConvertKeys={convertibleConvertKeys}
+            takeOffBillKeys={takeOffBillKeys}
             muted
           />
         </>

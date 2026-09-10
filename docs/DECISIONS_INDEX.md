@@ -722,3 +722,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #727 — Household can edit a card statement from Home Cash Needed without leaving for Cards (2026-09-10) → docs/DECISIONS.md
 - #728 — Household can edit a dated card statement from Home Cash Needed without leaving for Cards (2026-09-10) → docs/DECISIONS.md
 - #729 — Household can convert a repeating bill to a reserve from Recurring without leaving for Spending plan (2026-09-10) → docs/DECISIONS.md
+- #730 — Household can take a repeating bill off the plan from Recurring without leaving for Spending plan (2026-09-10) → docs/DECISIONS.md

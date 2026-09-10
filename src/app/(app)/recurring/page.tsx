@@ -34,11 +34,16 @@ export default async function RecurringPage({
     canRenameBills ? getSpendingPlan(userId) : Promise.resolve(null),
   ]);
   const convertibleConvertKeys = new Set<string>();
+  const takeOffBillKeys = new Set<string>();
   if (plan) {
     for (const b of plan.fixedSetup.bills) {
       if (!b.convertibleToReserve || !b.convertInput) continue;
       convertibleConvertKeys.add(b.billKey);
       if (b.merchantCanonical) convertibleConvertKeys.add(b.merchantCanonical);
+    }
+    for (const l of plan.fixedList.lines) {
+      if (l.kind !== 'recurring-bill' || !l.billKey || l.loanPayment) continue;
+      takeOffBillKeys.add(l.billKey);
     }
   }
   // What each instruction is actually DOING, decided by the engine against the
@@ -65,6 +70,7 @@ export default async function RecurringPage({
       projectionsStale={query[PROJECTIONS_STALE_PARAM] === '1'}
       canRenameBills={canRenameBills}
       convertibleConvertKeys={convertibleConvertKeys}
+      takeOffBillKeys={takeOffBillKeys}
     />
   );
 }
