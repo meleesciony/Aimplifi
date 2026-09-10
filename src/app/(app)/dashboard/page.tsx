@@ -11,6 +11,7 @@ import { IdleCashCard } from '@/components/finance/idle-cash-card';
 import { PawLensCard } from '@/components/finance/paw-lens-card';
 import { CashFlowRadarCard } from '@/components/finance/cash-flow-radar-card';
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend-card';
+import { PlanFiguresForm } from '@/components/finance/plan-figures-form';
 import { SpendingInsightsCard } from '@/components/finance/spending-insights-card';
 import { StaleDataBanner } from '@/components/finance/stale-data-banner';
 import { ConnectionAlertsCard } from '@/components/finance/connection-alerts-card';
@@ -192,6 +193,21 @@ export default async function DashboardPage({
       )}
 
       <SafeToSpendCard plan={plan} disclosures={plan.disclosures} />
+
+      <div data-testid="home-plan-figures">
+        <PlanFiguresForm
+          suggestedIncomeCents={plan.suggestedIncomeCents}
+          patternFixedCents={plan.patternFixedCents}
+          reserveMonthlyCents={plan.reserveMonthlyCents}
+          incomeOverrideCents={plan.incomeOverrideCents}
+          fixedOverrideCents={plan.fixedOverrideCents}
+          savingsTargetBps={plan.savingsTargetBps}
+          incomeSlideCents={plan.incomeSlideCents}
+          fixedSlideCents={plan.fixedSlideCents}
+          hasSlide={plan.hasSlide}
+          canEdit={!isDemoUser(session.user.id)}
+        />
+      </div>
 
       <CashNeededCard
         result={data.payInFull}
