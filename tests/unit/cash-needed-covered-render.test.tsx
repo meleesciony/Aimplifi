@@ -9,6 +9,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/server/engagement-actions', () => ({ logEngagement: vi.fn() }));
+// #727 mounts CardStatementControl (pulls card-actions → next-auth) on undated
+// rows; this suite only asserts covered-alert copy.
+vi.mock('@/components/finance/card-statement-control', () => ({
+  CardStatementControl: () => null,
+}));
 
 import { cleanup, render, screen } from '@testing-library/react';
 import { CashNeededCard } from '@/components/finance/cash-needed-card';

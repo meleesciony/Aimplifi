@@ -34,7 +34,7 @@ import { getDashboardData } from '@/server/finance';
 import { getDashboardRecent } from '@/server/dashboard-recent';
 import { listTxnMoveAccounts } from '@/server/txn-move-accounts';
 import { getVisibleGroups } from '@/server/categories';
-import { getFeedDroppedAccounts, getWithheldAccountSummary } from '@/server/transactions';
+import { getFeedDroppedAccounts, getWithheldAccountSummary, type ManualCardBilling } from '@/server/transactions';
 import { getConnectionAlerts, getDataFreshness } from '@/server/connection-health';
 import { getCashFlowRadar } from '@/server/radar';
 import { eligibleTransferSources } from '@/lib/engine/radar/radar';
@@ -171,6 +171,63 @@ export default async function DashboardPage({
 
   const vapidPublicKey = getVapidPublicKey();
 
+  // Manual undated cards on Cash Needed: same writers as Cards/Calendar
+  // (DECISIONS #727). Viewer-owned manual CREDIT only; demo stays read-only.
+  const canAddStatementById: Record<string, boolean> = {};
+  const cardBilling: Record<string, ManualCardBilling> = {};
+  if (!isDemoUser(session.user.id)) {
+    const creditAccounts = await prisma.account.findMany({
+      where: { userId: session.user.id, type: 'CREDIT' },
+      select: { id: true, provider: true, aprBps: true },
+    });
+    const manualCreditIds = creditAccounts.filter((a) => a.provider === 'manual').map((a) => a.id);
+    for (const a of creditAccounts) {
+      canAddStatementById[a.id] = a.provider === 'manual';
+    }
+    if (manualCreditIds.length > 0) {
+      const [statements, autopays] = await Promise.all([
+        prisma.statement.findMany({
+          where: { accountId: { in: manualCreditIds } },
+          orderBy: { cycleEnd: 'desc' },
+          select: {
+            accountId: true,
+            cycleEnd: true,
+            dueDate: true,
+            statementBalanceCents: true,
+            minimumPaymentCents: true,
+          },
+        }),
+        prisma.autopayConfig.findMany({
+          where: { accountId: { in: manualCreditIds } },
+          select: { accountId: true, mode: true, fixedAmountCents: true },
+        }),
+      ]);
+      const newestStatement = new Map<string, (typeof statements)[number]>();
+      for (const s of statements) if (!newestStatement.has(s.accountId)) newestStatement.set(s.accountId, s);
+      const autopayByAccount = new Map(autopays.map((a) => [a.accountId, a]));
+      for (const a of creditAccounts) {
+        if (a.provider !== 'manual') continue;
+        const ap = autopayByAccount.get(a.id);
+        const s = newestStatement.get(a.id);
+        const common = {
+          aprBps: a.aprBps,
+          autopayMode: ap?.mode ?? null,
+          autopayFixedAmountCents: ap?.mode === 'FIXED_AMOUNT' ? ap.fixedAmountCents : null,
+        };
+        cardBilling[a.id] = s
+          ? {
+              hasStatement: true,
+              statementBalanceCents: s.statementBalanceCents,
+              minimumPaymentCents: s.minimumPaymentCents,
+              dueDate: s.dueDate,
+              cycleEnd: s.cycleEnd,
+              ...common,
+            }
+          : { hasStatement: false, ...common };
+      }
+    }
+  }
+
   return (
     <div className={PAGE_STACK_CLASS}>
       <h1 className="sr-only">Dashboard</h1>
@@ -218,6 +275,8 @@ export default async function DashboardPage({
         accountOwnerLabel={data.accountOwnerLabel}
         cardDuplicates={data.cardDuplicates}
         cardIdentity={cardIdentity}
+        canAddStatementById={canAddStatementById}
+        cardBilling={cardBilling}
       />
 
       <RecentTransactionsCard recent={recent} canRenamePayee={!isDemoUser(session.user.id)} categoryGroups={categoryGroups} accounts={accounts} />

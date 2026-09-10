@@ -3079,3 +3079,8 @@ invent an auto-file quality claim.
 **Context.** PlanFiguresForm (savings %, optional income/fixed locks) lived on Spending plan and Budgets. Home's Safe to Spend and cash-needed cards read those dials, but changing them required leaving — Safe to Spend only linked to Spending plan.
 **Decision.** Mount PlanFiguresForm on /dashboard (`home-plan-figures`) beside Safe to Spend, ahead of Cash needed. Same writer (`updatePlanFigures`); already revalidates /dashboard. Demo read-only. No Settings remount. No PushOptIn / deepen / Coach Goals / category / CSV work.
 **Locked.** `test_regression__household_can_edit_plan_figures_from_home_without_leaving_for_spending_plan`.
+
+## #727 — Household can edit a card statement from Home Cash Needed without leaving for Cards (2026-09-10)
+**Context.** Cash Needed on Home listed undated cards with balance and mostly said there was nothing to do except open Cards. Manual CREDIT cards already use CardStatementControl on Cards and Calendar (#710); Home still sent the owner away to add the statement that would put the card into the figure.
+**Decision.** On /dashboard CashNeededCard, for viewer-owned manual CREDIT cards in the undated / not-included set, mount CardStatementControl (`home-cash-needed-statements` / `home-cash-needed-statement-{accountId}`). Same setManualCardStatement / clearManualCardStatement writers; card-actions already revalidates /dashboard. Partner cards stay display-only. Linked (non-manual) cards keep the honest “nothing to do” / wait-for-feed copy — no fake Add. Demo fenced. No PushOptIn. No Settings remount. No deepen / Coach Goals / category / CSV / Trust invent.
+**Locked.** `test_regression__household_can_edit_card_statement_from_home_cash_needed_without_leaving_for_cards`.

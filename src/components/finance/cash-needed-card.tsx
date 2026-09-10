@@ -30,6 +30,8 @@ import { type CashNeededResult, undatedCardsWithBalance } from '@/lib/engine/cas
 import { traceCashNeeded } from '@/lib/engine/glass-box/trace';
 import { formatISODate, formatRelativeDays, isoDate, type ISODate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
+import { CardStatementControl } from '@/components/finance/card-statement-control';
+import type { ManualCardBilling } from '@/server/transactions';
 
 export function CashNeededCard({
   result,
@@ -40,6 +42,8 @@ export function CashNeededCard({
   accountOwnerLabel = {},
   cardDuplicates = [],
   cardIdentity = {},
+  canAddStatementById = {},
+  cardBilling = {},
 }: {
   result: CashNeededResult;
   paymentAccountName: string;
@@ -72,6 +76,9 @@ export function CashNeededCard({
    *  Without it a partner's undatable card was named here unattributed —
    *  reading as the viewer's own (#277 P2, the slice-8 F-1 class). */
   accountOwnerLabel?: Record<string, string>;
+  /** Own manual CREDIT cards only — same gate as Cards/Calendar (DECISIONS #727). */
+  canAddStatementById?: Record<string, boolean>;
+  cardBilling?: Record<string, ManualCardBilling>;
 }) {
   const { headline } = result;
   /** A card name, owner-attributed at household scope (payment-reminders idiom). */
@@ -79,6 +86,8 @@ export function CashNeededCard({
     const owner = accountOwnerLabel[c.cardId];
     return owner ? `${c.cardName} (${owner}'s)` : c.cardName;
   };
+  const statementWritable = (cardId: string) =>
+    Boolean(canAddStatementById[cardId]) && !accountOwnerLabel[cardId];
 
   if (headline.firstDueDate === null) {
     // "Nothing is due" and "we cannot date anything" are different facts, and only
@@ -139,21 +148,35 @@ export function CashNeededCard({
               </p>
             )}
             {duplicates && <DuplicateDisclosure view={duplicates} />}
-            {/* No instruction here. The "+ Add statement" control exists ONLY for
-                manually-added cards (server/transactions.ts builds cardBilling for
-                provider === 'manual', and card-actions.ts refuses anything else), so
-                telling the owner of a CONNECTED card to add one sends them looking
-                for a button that isn't on their row — cycle-2 critic P1-1. What is
-                true for every card is that we re-check daily. */}
-            {/* No cadence claim: the daily sweep depends on the deployment's cron
-                actually firing, which is UNVERIFIED (docs/STATUS.md Wave 0.3). This
-                sentence is true either way. */}
-            <p>
-              The bank hasn’t sent a statement for{' '}
-              {unknown.length === 1 ? 'this card' : 'these cards'} yet. The due date
-              appears here as soon as one arrives — there’s nothing to do in the
-              meantime.
-            </p>
+            {/* Connected cards: no Add statement (cycle-2 critic P1-1). Manual cards:
+                mount the same CardStatementControl Cards/Calendar use (#727). */}
+            {unknown.some((c) => statementWritable(c.cardId)) ? (
+              <div className="space-y-3" data-testid="home-cash-needed-statements">
+                <p className="text-sm text-muted-foreground">
+                  A manual card needs a statement before it can enter this figure. Add one
+                  here — same write as Cards. Linked bank cards appear when the feed sends a
+                  statement.
+                </p>
+                {unknown
+                  .filter((c) => statementWritable(c.cardId))
+                  .map((c) => (
+                    <div key={c.cardId} data-testid={`home-cash-needed-statement-${c.cardId}`}>
+                      <p className="mb-1 text-xs font-medium">{paintedUndated(c)}</p>
+                      <CardStatementControl
+                        accountId={c.cardId}
+                        billing={cardBilling[c.cardId]}
+                      />
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <p>
+                The bank hasn’t sent a statement for{' '}
+                {unknown.length === 1 ? 'this card' : 'these cards'} yet. The due date
+                appears here as soon as one arrives — there’s nothing to do in the
+                meantime.
+              </p>
+            )}
             <p>
               <Link href="/cards" className="underline hover:text-foreground">
                 See all cards →
@@ -261,12 +284,29 @@ export function CashNeededCard({
           // The mixed case: a real total for the datable cards, plus at least one
           // balance-carrying card we cannot date. Without this line the figure
           // reads as complete.
-          <p className="text-xs text-warning-500" data-testid="cash-needed-unknown-note">
-            Not included:{' '}
-            {unknownWithBalance.map((c) => painted(c.cardId, ownedName(c))).join(', ')} — no statement or
-            due date yet, so {unknownWithBalance.length === 1 ? 'its' : 'their'}{' '}
-            balance isn’t in this figure.
-          </p>
+          <div className="space-y-2" data-testid="cash-needed-unknown-block">
+            <p className="text-xs text-warning-500" data-testid="cash-needed-unknown-note">
+              Not included:{' '}
+              {unknownWithBalance.map((c) => painted(c.cardId, ownedName(c))).join(', ')} — no
+              statement or due date yet, so {unknownWithBalance.length === 1 ? 'its' : 'their'}{' '}
+              balance isn’t in this figure.
+            </p>
+            {unknownWithBalance.some((c) => statementWritable(c.cardId)) ? (
+              <div className="space-y-2" data-testid="home-cash-needed-statements">
+                {unknownWithBalance
+                  .filter((c) => statementWritable(c.cardId))
+                  .map((c) => (
+                    <div key={c.cardId} data-testid={`home-cash-needed-statement-${c.cardId}`}>
+                      <p className="text-xs font-medium">{painted(c.cardId, ownedName(c))}</p>
+                      <CardStatementControl
+                        accountId={c.cardId}
+                        billing={cardBilling[c.cardId]}
+                      />
+                    </div>
+                  ))}
+              </div>
+            ) : null}
+          </div>
         )}
         {covered ? (
           <Alert data-testid="covered-alert">
