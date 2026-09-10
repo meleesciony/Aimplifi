@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { ArrowDownRight, ArrowUpRight, Gauge, Receipt, Sparkles, Store } from 'lucide-react';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents, sumCents } from '@/lib/money';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import {
   CATEGORY_LINK_CLASS,
@@ -262,7 +263,7 @@ export function TrendsView({
           data-testid="trends-pace"
           aria-label="Spending pace this month"
         >
-          <h2 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <h2 className={PAGE_SECTION_LABEL_CLASS}>
             <Gauge className="size-3.5" aria-hidden /> Pace · {shortMonth(pace.ym)}
           </h2>
           <div className="mt-2 flex items-baseline gap-2">
@@ -334,7 +335,7 @@ export function TrendsView({
           data-testid="trends-pace-empty"
           aria-label="Spending pace this month"
         >
-          <h2 className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <h2 className={PAGE_SECTION_LABEL_CLASS}>
             <Gauge className="size-3.5" aria-hidden /> Pace · {shortMonth(trends.asOfYm)}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">{PACE_NO_SPEND_YET}</p>

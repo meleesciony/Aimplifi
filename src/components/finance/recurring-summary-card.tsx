@@ -3,6 +3,7 @@ import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
 /**
@@ -24,7 +25,7 @@ export function RecurringSummaryCard({ summary }: { summary: RecurringSummary })
       className={SURFACE_LINK_CARD_CLASS}
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <div className={PAGE_SECTION_LABEL_CLASS}>
           <Repeat className="size-3.5" aria-hidden /> Recurring &amp; subscriptions
         </div>
         {!noRecurring && summary.priceIncreases.length > 0 && (

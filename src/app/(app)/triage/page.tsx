@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { PAGE_LEAD_CLASS, PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { EmptyTriage } from '@/components/onboarding/route-empty';
 import { AccuracyCard } from '@/components/triage/accuracy-card';
 import { BackfillButton } from '@/components/triage/backfill-button';
@@ -42,11 +43,11 @@ export default async function TriagePage() {
   const canEditCategories = !isDemoUser(userId);
 
   return (
-    <div className="space-y-4">
+    <div className={PAGE_STACK_CLASS}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Inbox</h1>
-          <p className="text-sm text-muted-foreground" data-testid="inbox-subtitle">
+          <h1 className={PAGE_TITLE_CLASS}>Inbox</h1>
+          <p className={PAGE_LEAD_CLASS} data-testid="inbox-subtitle">
             {INBOX_PAGE_SUBTITLE}
           </p>
         </div>

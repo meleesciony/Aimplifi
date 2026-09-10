@@ -11,6 +11,7 @@ import { MortgageEarlyPayoffCard } from '@/components/finance/mortgage-early-pay
 import { TransferRepairCard } from '@/components/settings/transfer-repair-card';
 import { getTransferFlagRepairPreview } from '@/server/transfer-flag-repair';
 import { isDemoUser } from '@/lib/demo-user';
+import { PAGE_LEAD_CLASS, PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const metadata = { title: "Accounts" };
@@ -41,9 +42,9 @@ export default async function AccountsPage({
   const mortgagePick = pickMortgageForEarlyPayoff(mortgages);
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-2xl font-semibold tracking-tight">Accounts</h1>
-      <p className="text-sm text-muted-foreground">
+    <div className={PAGE_STACK_CLASS}>
+      <h1 className={PAGE_TITLE_CLASS}>Accounts</h1>
+      <p className={PAGE_LEAD_CLASS}>
         {/* "to open it", not "to see its transactions" (2026-08-11): only
             spending accounts open the register — a brokerage opens its
             holdings and everything else expands its detail right here, so the

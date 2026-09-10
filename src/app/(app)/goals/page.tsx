@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { PAGE_LEAD_CLASS, PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { EmptyGoals } from '@/components/onboarding/route-empty';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { prisma } from '@/lib/db';
@@ -58,9 +59,9 @@ export default async function GoalsPage() {
   });
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Goals</h1>
-      <p className="text-sm text-muted-foreground">
+    <div className={PAGE_STACK_CLASS}>
+      <h1 className={PAGE_TITLE_CLASS}>Goals</h1>
+      <p className={PAGE_LEAD_CLASS}>
         Every goal shows its effect on your FI date, assuming your savings rate
         and expected return stay as they are. Dates here are in today&apos;s money,
         after inflation — the same basis the FI card on Coach uses, so the two

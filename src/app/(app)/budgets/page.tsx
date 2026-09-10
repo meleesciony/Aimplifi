@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CATEGORIES, categoryName, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
@@ -343,8 +344,8 @@ export default async function BudgetsPage() {
   const canEdit = !isDemoUser(userId);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Spending this month</h1>
+    <div className={PAGE_STACK_CLASS}>
+      <h1 className={PAGE_TITLE_CLASS}>Spending this month</h1>
       <BudgetingCompositionCard
         plan={plan}
         savingsTargetBps={user?.savingsTargetBps ?? null}

@@ -10,6 +10,7 @@
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, CornerDownLeft, Sparkles } from 'lucide-react';
+import { PAGE_LEAD_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { askAssistant, correctFromAsk, undoAskCorrection } from '@/server/assistant';
 import { saveDebtFreeGoal, saveRetirementAge, saveSavingsGoal } from '@/server/goal-actions';
 import { forgetLearnedPhrase } from '@/server/vocab-actions';
@@ -251,10 +252,10 @@ export function AskView({
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+        <h1 className={`flex items-center gap-2 ${PAGE_TITLE_CLASS}`}>
           <Sparkles className="size-5 text-brand-500" aria-hidden /> Ask Aimplifi
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className={PAGE_LEAD_CLASS}>
           Ask about your money in plain language. Every answer is computed from your own accounts and
           transactions — nothing is made up.
         </p>

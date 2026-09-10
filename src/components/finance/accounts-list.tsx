@@ -1208,8 +1208,8 @@ function Group({
   return (
     <Card data-testid={`account-group-${group.kind}`}>
       <CardHeader className="flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base">{title}</CardTitle>
-        <span className={`tabular-nums text-sm ${isLiability ? 'text-red-400' : ''}`}>
+        <CardTitle className="text-base tracking-tight">{title}</CardTitle>
+        <span className={`tabular-nums text-sm font-medium ${isLiability ? 'text-red-400' : ''}`}>
           {isLiability ? '−' : ''}
           {formatCents(group.subtotalCents)}
         </span>
@@ -1477,7 +1477,7 @@ function LinkedRow({
           scroll={dest.kind === 'detail' ? false : undefined}
           aria-expanded={dest.kind === 'detail' ? detailOpen : undefined}
           aria-controls={dest.kind === 'detail' ? `account-detail-${account.id}` : undefined}
-          className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 hover:bg-accent"
+          className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2.5 hover:bg-accent/70 sm:py-3"
         >
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
@@ -1512,7 +1512,7 @@ function LinkedRow({
               </div>
             )}
           </div>
-          <div className={`shrink-0 tabular-nums ${isLiability ? 'text-red-400' : 'text-foreground'}`}>
+          <div className={`shrink-0 font-medium tabular-nums ${isLiability ? 'text-red-400' : 'text-foreground'}`}>
             {isLiability ? '−' : ''}
             {formatCents(cents(account.currentBalanceCents))}
           </div>
@@ -1635,7 +1635,7 @@ function ManualRow({
         ? '/accounts'
         : `/accounts?detail=${account.id}`;
   return (
-    <li className="px-3 py-2" data-testid="manual-account-row">
+    <li className="px-3 py-2.5 sm:py-3" data-testid="manual-account-row">
       {renaming ? (
         <RenameForm account={account} pending={pending} onSave={onSaveName} onCancel={onCancelRename} />
       ) : (

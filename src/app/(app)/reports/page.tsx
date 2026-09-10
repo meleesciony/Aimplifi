@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/auth';
+import { PAGE_STACK_CLASS } from '@/components/finance/page-chrome';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { ReportsView } from '@/components/finance/reports-view';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,7 +54,7 @@ export default async function ReportsPage({
   // crosses to the client ReportsView fine) — banner inside the view's own max-w-2xl column,
   // no redundant wrapper, all-USD DOM byte-identical.
   return (
-    <div className="space-y-4">
+    <div className={PAGE_STACK_CLASS}>
       <ReportsView data={data} withheld={withheld} months={months} />
       <Card data-testid="reports-tax-export-card" className="mx-auto max-w-2xl">
         <CardHeader className="pb-2">

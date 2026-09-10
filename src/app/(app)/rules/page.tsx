@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/auth';
+import { PAGE_LEAD_CLASS, PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import {
   KeywordRuleBuilder,
   type RulePrefillView,
@@ -135,7 +136,7 @@ export default async function RulesPage({
   ]);
 
   return (
-    <div className="space-y-4">
+    <div className={PAGE_STACK_CLASS}>
       {/*
         Owner 2026-08-03: if he was on a single row, Return goes there; there is
         always also a button to the Activity list for that place. Deliberately
@@ -180,8 +181,8 @@ export default async function RulesPage({
       </div>
 
       <div>
-        <h1 className="text-xl font-semibold">Rules</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className={PAGE_TITLE_CLASS}>Rules</h1>
+        <p className={PAGE_LEAD_CLASS}>
           Tell Aimplifi how to file a transaction and it follows the words you typed rather than
           guessing at the payee. Useful when the bank text changes every time: a fund name, a store
           number, or a transaction id that never repeats. A rule does not override a payment detected as

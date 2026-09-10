@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { PAGE_STACK_CLASS } from '@/components/finance/page-chrome';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { TrendsView } from '@/components/finance/trends-view';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,7 +30,7 @@ export default async function TrendsPage() {
   ]);
   const balanceMove = await getBalanceMove(userId, trends);
   return (
-    <div className="space-y-4">
+    <div className={PAGE_STACK_CLASS}>
       <TrendsView
         trends={trends}
         dials={resolvedMoneyDialIds(user?.moneyDials, dialCatalog)}

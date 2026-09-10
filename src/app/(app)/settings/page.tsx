@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
@@ -166,8 +167,8 @@ export default async function SettingsPage() {
     .map((e) => ({ id: e.id, name: e.name, group: e.group }));
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Settings</h1>
+    <div className={PAGE_STACK_CLASS}>
+      <h1 className={PAGE_TITLE_CLASS}>Settings</h1>
 
       {/* Anchor target for every surface that prints a figure computed from these dials and
           offers to change them (`/coach`'s wealth-target card). It WRAPS the form rather than

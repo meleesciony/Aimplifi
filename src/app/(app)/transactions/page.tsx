@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Plus, Upload, Wand2 } from 'lucide-react';
 import { auth } from '@/auth';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { MerchantLensCard } from '@/components/finance/merchant-lens-card';
 import { TransactionFilters } from '@/components/finance/transaction-filters';
 import { TransactionList } from '@/components/finance/transaction-list';
@@ -118,13 +119,13 @@ export default async function TransactionsPage({
     ]);
 
   return (
-    <div className="space-y-4">
+    <div className={PAGE_STACK_CLASS}>
       {/* Puts the reader back where they were after an inline edit's
           confirmation reload (owner, 2026-08-03). Mounted ONCE for the whole
           page — both lists below write the same saved offset. */}
       <RegisterScrollRestorer />
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">{ACTIVITY_PAGE_TITLE}</h1>
+        <h1 className={PAGE_TITLE_CLASS}>{ACTIVITY_PAGE_TITLE}</h1>
         <div className="flex gap-2">
           {/* O.13a: the register is where the owner notices a descriptor whose text
               changes every time, so it is where the rule builder has to be reachable

@@ -16,6 +16,7 @@ import { StaleDataBanner } from '@/components/finance/stale-data-banner';
 import { ConnectionAlertsCard } from '@/components/finance/connection-alerts-card';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { PushOptIn } from '@/components/settings/push-optin';
+import { PAGE_STACK_CLASS } from '@/components/finance/page-chrome';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getVapidPublicKey } from '@/lib/push';
 import { TopSpendingCard } from '@/components/finance/top-spending-card';
@@ -170,7 +171,7 @@ export default async function DashboardPage({
   const vapidPublicKey = getVapidPublicKey();
 
   return (
-    <div className="space-y-5">
+    <div className={PAGE_STACK_CLASS}>
       <h1 className="sr-only">Dashboard</h1>
       {showOnboarding && (
         <div className="space-y-0.5">

@@ -5,6 +5,7 @@
  * (cash-needed framing). These keep the same connect panel + account-count
  * gate, but explain what *this* page will show once accounts exist.
  */
+import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConnectOnboardingPanel } from '@/components/onboarding/connect-onboarding-panel';
 import { StepIndicator } from '@/components/onboarding/step-indicator';
@@ -25,8 +26,8 @@ function RouteEmptyShell({
   footnote: string;
 }) {
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">{pageTitle}</h1>
+    <div className={PAGE_STACK_CLASS}>
+      <h1 className={PAGE_TITLE_CLASS}>{pageTitle}</h1>
       <Card className="border-dashed" data-testid={testId}>
         <CardHeader>
           <StepIndicator step={1} />

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { PAGE_STACK_CLASS } from '@/components/finance/page-chrome';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { InvestmentsView } from '@/components/finance/investments-view';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,7 +33,7 @@ export default async function InvestmentsPage({
     getWithheldAccountSummary(userId),
   ]);
   return (
-    <div className="space-y-4">
+    <div className={PAGE_STACK_CLASS}>
       <InvestmentsView
         data={data}
         outlook={outlook}

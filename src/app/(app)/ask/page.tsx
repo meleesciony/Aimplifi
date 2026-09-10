@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { PAGE_STACK_CLASS } from '@/components/finance/page-chrome';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { AskView } from '@/components/finance/ask-view';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +24,7 @@ export default async function AskPage() {
     listLearnedPhrases(userId),
   ]);
   return (
-    <div className="space-y-4">
+    <div className={PAGE_STACK_CLASS}>
       <AskView
         assistEnabled={assistEnabled}
         categoryOptions={categoryGroups.flatMap((g) => g.categories)}

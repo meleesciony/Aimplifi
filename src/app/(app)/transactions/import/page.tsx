@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { ImportCsvForm } from '@/components/finance/import-csv-form';
+import { PAGE_LEAD_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { CsvImportGuides } from '@/components/finance/csv-import-guides';
 import { prisma } from '@/lib/db';
 import { activeSupersededPredecessorIds } from '@/server/reconciliation';
@@ -39,8 +40,8 @@ export default async function ImportTransactionsPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-4">
-      <h1 className="text-xl font-semibold">Import transactions</h1>
-      <p className="text-sm text-muted-foreground" data-testid="csv-import-intro">
+      <h1 className={PAGE_TITLE_CLASS}>Import transactions</h1>
+      <p className={PAGE_LEAD_CLASS} data-testid="csv-import-intro">
         {CSV_IMPORT_INTRO}
       </p>
       <ImportCsvForm accounts={accounts} />

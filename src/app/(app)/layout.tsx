@@ -61,20 +61,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* items-center on phones (brand + More + Sign out on one row); items-start
           on sm+ so a wrapped link row doesn't vertically center Sign out into it.
           Sign-out shrink-0: never share width with the 13 desktop text links (#188). */}
-      <header className="-mx-4 flex items-center justify-between gap-3 border-b bg-background px-4 py-3 sm:sticky sm:top-0 sm:z-30 sm:items-start sm:-mx-6 sm:bg-background/80 sm:px-6 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-background/60">
+      <header className="-mx-4 flex items-center justify-between gap-3 border-b border-border/70 bg-background/90 px-4 py-3 sm:sticky sm:top-0 sm:z-30 sm:items-start sm:-mx-6 sm:bg-background/75 sm:px-6 sm:py-3.5 sm:backdrop-blur-md sm:supports-[backdrop-filter]:bg-background/55">
         <AppNav reviewBadge={<ReviewBadge userId={session.user.id} />} />
         <SignOutButton />
       </header>
       {isDemo && (
-        <p className="mb-3 flex items-center gap-2 text-xs text-muted-foreground" data-testid="demo-banner">
+        <p
+          className="mb-4 mt-3 inline-flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-xs text-muted-foreground"
+          data-testid="demo-banner"
+        >
           <span className="inline-block size-1.5 shrink-0 rounded-full bg-brand-500" aria-hidden />
           Demo dataset · fictional accounts · as of {formatISODate(isoDate(today), 'long')}
         </p>
       )}
-      <main id="content" tabIndex={-1} className="outline-none">
+      <main id="content" tabIndex={-1} className="pt-4 outline-none sm:pt-6">
         {children}
       </main>
-      <footer className="mt-10 border-t pt-4 text-xs text-muted-foreground">
+      <footer className="mt-12 border-t border-border/70 pt-6 text-xs leading-relaxed text-muted-foreground">
         Aimplifi is an educational tool, not financial advice. Projections
         state their assumptions; verify amounts with your card issuer before
         paying.

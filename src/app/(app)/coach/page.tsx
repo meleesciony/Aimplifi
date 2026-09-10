@@ -6,6 +6,7 @@ import { auth } from '@/auth';
 import { AutomationBlueprintCard } from '@/components/coach/automation-blueprint-card';
 import { FICard } from '@/components/coach/fi-card';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { withheldInlineNote } from '@/lib/providers/currency';
 import { FROZEN_RUNWAY_TESTID, frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
 import { LifeEnergyCard } from '@/components/coach/life-energy-card';
@@ -160,8 +161,8 @@ export default async function CoachPage() {
       : null;
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">FI Coach</h1>
+    <div className={PAGE_STACK_CLASS}>
+      <h1 className={PAGE_TITLE_CLASS}>FI Coach</h1>
 
       {/* P1.3 — the reader's own one-line Rich Life, quiet atop the page. Only
           set (and only writable) by the same person; no line when unset. */}

@@ -11,6 +11,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-10 — M.4 slice 2: page-chrome tokens, chrome restyle, brand-tinted dark theme (DECISIONS #724)
+
+**Shipped.** Four shared page-chrome tokens (title / lead / stack / section label) in `src/components/finance/page-chrome.ts`, unit-locked; every visible page h1 + lead migrated (16 routes + the new-user welcome card); two byte-identical trends-view section labels onto the token. Shell chrome: sticky translucent header, pill desktop nav, mobile bottom-bar active indicator (shape, not color), demo banner as a pill, sign-in card elevation, rounded-lg auth inputs, surface cards with a 1-ring hairline. `.dark` retinted with brand-green chroma (oklch hue 165) — the app renders hard-coded dark (root layout), so the retint is the identity, not a mode; light `:root` untouched. className/CSS only: no copy, figure, adjacency, testid, or logic change.
+
+**Boundary repairs (own REGRESSION_LEDGER rows).** A 2026-09-08 `core.autocrlf=true` re-smudge had put CRLF on 586 worktree files while the index stayed LF: byte-identical repair + `.gitattributes` `* text=auto eol=lf`. `vercel-build.test.ts` never passed on Windows — `bash` here is WSL (PATH/env do not cross as the test assumed; DATABASE_URL needs WSLENV): made platform-aware, Linux path unchanged. Lesson: `docs/lessons/wsl-is-the-bash-env-and-boundary.md`.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (run 5, exit 0, 365s): tsc 0, probes tsc 0, eslint 0, unit **8,288 passed + 1 expected fail + 1 skipped / 614 files + 1 skipped (615)**, `next build` clean.
+
+**Walkthrough.** `tests/e2e/m4-page-chrome.spec.ts` 3/3: 19 (app) routes × 380px+1440px with no horizontal overflow; desktop h1 renders 30px; desktop nav links pill-shaped; demo banner renders as a pill; hero font weight ≥600. Retinted screenshots reviewed: dashboard 380px, accounts 1440px, sign-in — all render coherently.
+
+**Critic (fresh context): cycle 1 FAIL 3 P1 — all fixed same-session.** Junk WSL cmds.log files staged (removed from disk+index); deleted temp spec still staged (replaced by the promoted `m4-page-chrome.spec.ts`); new lessons INDEX line over the 220-char ceiling. Contrast re-check passed (all text pairs AA-preserved). Open P2s for M.4 continuation: 7 near-twin section-label literals (allocation-drilldown, forecast-view, recurring-view, retirement-outlook-card, spend-class-panel, top-spending-card, ask-view); PAGE_LEAD_CLASS `max-w-2xl` dead on `max-w-md` routes (transactions/import, transactions/new, error); `background-attachment: fixed` body gradient (scroll repaints, ignored by iOS Safari).
+
 ## ✅ BUILT 2026-09-03 — Home recent charges line up; compact direction says Money out (DECISIONS #638)
 
 **The report.** Owner: Home Recent transactions were not lined up, and compact “Out” did not say what it meant. Beauty later, after the feature set.

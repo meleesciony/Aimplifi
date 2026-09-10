@@ -16,13 +16,13 @@ export default async function SignInPage() {
   const googleEnabled = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
+    <main className="relative flex min-h-screen items-center justify-center p-4">
+      <Card className="relative w-full max-w-sm border-border/80 shadow-lg ring-1 ring-foreground/5">
         <CardHeader>
-          <CardTitle className="text-2xl">
+          <CardTitle className="text-2xl font-semibold tracking-tight">
             Aim<span className="text-brand-500">plifi</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="leading-relaxed">
             Aimplifi makes you deliberately wealthier — a financial coach with a bank feed:
             it shows where your money actually goes, protects the spending you love, and
             keeps your long game on track.

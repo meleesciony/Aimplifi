@@ -1652,3 +1652,17 @@ skipped**, `next build` clean. Draft PR only — do not merge.
 
 **Next.** Owner review of draft PR. O.20j converse leak / H.7b still open.
 
+
+## 2026-09-10 - M.4 slice 2: page-chrome tokens + chrome restyle + dark retint (DECISIONS #724)
+
+**Picked up.** "Continue building." The tree held the slice-2 maker output (page-chrome.ts tokens + migrations + chrome restyle + .dark retint), interrupted before gates - DECISIONS.md ended at #723. Picked it up from the ledger, not from memory.
+
+**Blocked, then repaired.** Verify run 1: 3 unit failures, none in the slice - a 2026-09-08 core.autocrlf re-smudge had rewritten 586 worktree files to CRLF while the index stayed all-LF (bash -n broke on pipefail\r; a 4500-char source window overflowed). Byte-level CRLF-to-LF rewrite (content-identical; git diff stayed 33 files), .gitattributes pins LF. Run 2 residue: tests/unit/vercel-build.test.ts has never passed on this machine - bash is WSL (stub PATH does not survive; DATABASE_URL needs WSLENV). Made platform-aware with probes for each leg; Linux path unchanged. Logged as a lesson (docs/lessons/wsl-is-the-bash-env-and-boundary.md) + 2 REGRESSION_LEDGER rows.
+
+**Walkthrough.** tests/e2e/m4-page-chrome.spec.ts (the temp walkthrough, promoted): 19 (app) routes x 380px+1440px, no horizontal overflow anywhere; desktop h1 renders at 30px (the shared scale); desktop nav links pill-shaped; demo banner renders as a pill; hero font weight >=600. Screenshots reviewed: dark dashboard at 380 and accounts at 1440 render coherently in the retinted theme. Learned the app is hard-coded dark (root layout), so the retint is the identity, not a mode.
+
+**Critic (fresh context): cycle 1 FAIL 3 P1; fixed same-session.** All three were the staging boundary, none the visual work: 5 WSL-written junk cmds.log files staged (removed from disk+index); the deleted temp spec still staged while its replacement was untracked (unstaged; replacement committed); the new INDEX lesson line was 248 chars > the 220 ceiling (shortened; standing-reads green). P2s fixed in-slice: 2 byte-identical trends-view section labels migrated to the token; the new-user welcome h1 (empty-dashboard) got PAGE_TITLE_CLASS. Remaining P2s recorded, not blocking: 7 near-twin label literals, max-w-2xl dead on max-w-md pages, background-attachment fixed.
+
+**Gate.** bash scripts/verify.sh (run 5, after the ledger-index repair) -> **VERIFY GREEN, exit 0, 365s**: tsc 0, probes tsc 0, eslint 0, unit **8,288 passed + 1 expected fail + 1 skipped / 614 files + 1 skipped (615)**, `next build` clean. E2E skipped locally (VERIFY_E2E=1 not set); slice's e2e evidence is the promoted walkthrough spec, run 3/3 green earlier this session (CI runs the full VERIFY_E2E=1 gate on push).
+
+**Next.** Ship same-turn (commit, push, ci-status, live probe). M.4 continues: remaining near-twin section labels + per-route visual direction, one or two routes per slice.

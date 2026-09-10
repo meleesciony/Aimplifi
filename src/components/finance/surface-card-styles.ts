@@ -27,7 +27,7 @@
  * claim about the codebase, so it moves when the set does.
  */
 export const SURFACE_LINK_CARD_CLASS =
-  'block rounded-2xl border bg-card p-4 shadow-sm transition hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50';
+  'block rounded-2xl border bg-card p-4 shadow-sm ring-1 ring-foreground/5 transition hover:border-foreground/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50';
 
 /**
  * The same surface, for a summary card that is NOT itself one big link.
@@ -38,4 +38,5 @@ export const SURFACE_LINK_CARD_CLASS =
  * neighbours instead of drifting into a hand-written copy. Its own controls carry
  * their own focus rings.
  */
-export const SURFACE_CARD_CLASS = 'rounded-2xl border bg-card p-4 shadow-sm';
+export const SURFACE_CARD_CLASS =
+  'rounded-2xl border bg-card p-4 shadow-sm ring-1 ring-foreground/5';

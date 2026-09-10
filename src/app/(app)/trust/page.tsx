@@ -17,6 +17,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AccuracyMetrics, SelfAuditMetrics } from '@/components/triage/accuracy-card';
 import { LearnedPhrases } from '@/components/settings/learned-phrases';
@@ -61,8 +62,8 @@ export default async function TrustPage() {
   const aiConfigured = !!(process.env.XAI_API_KEY || process.env.ANTHROPIC_API_KEY);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">AI Trust Center</h1>
+    <div className={PAGE_STACK_CLASS}>
+      <h1 className={PAGE_TITLE_CLASS}>AI Trust Center</h1>
 
       <Card data-testid="trust-headline">
         <CardHeader className="pb-2">

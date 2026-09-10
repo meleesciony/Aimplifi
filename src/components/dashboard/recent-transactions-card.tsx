@@ -3,6 +3,7 @@ import { ListOrdered } from 'lucide-react';
 import { HANDOVER_DAY_ROW_MARKER } from '@/lib/engine/glass-box/category-breakdown';
 import { cents, formatCents } from '@/lib/money';
 import type { DashboardRecentResult } from '@/server/dashboard-recent';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { SURFACE_CARD_CLASS } from '@/components/finance/surface-card-styles';
 import { merchantRegisterHref, namedPageBack, withForwardedReturn } from '@/lib/engine/transactions/links';
 import { HOME_NEEDS_FILE_HREF, homeNeedsFileLabel } from '@/lib/copy/home-needs-file-copy';
@@ -38,7 +39,7 @@ export function RecentTransactionsCard({
     <section data-testid="dashboard-recent-transactions" className={SURFACE_CARD_CLASS}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <div className={PAGE_SECTION_LABEL_CLASS}>
             <ListOrdered className="size-3.5 shrink-0" aria-hidden />
             Recent transactions
           </div>

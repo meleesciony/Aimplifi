@@ -1,0 +1,5 @@
+# LF everywhere: CRLF worktree files break `bash -n` in the verify gates and
+# lengthen source for string-window unit tests (685 files had to be
+# re-normalized on 2026-09-10 after a core.autocrlf=true re-smudge; the index
+# is already all-LF, so this only pins future checkouts — no renormalization).
+* text=auto eol=lf

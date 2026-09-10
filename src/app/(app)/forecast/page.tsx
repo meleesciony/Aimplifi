@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { PAGE_STACK_CLASS } from '@/components/finance/page-chrome';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { ForecastView } from '@/components/finance/forecast-view';
 import { SyncAllButton } from '@/components/finance/sync-all-button';
@@ -37,7 +38,7 @@ export default async function ForecastPage() {
   const dipMonth = dipDate ? dipDate.slice(0, 7) : null;
 
   return (
-    <div className="space-y-4">
+    <div className={PAGE_STACK_CLASS}>
       <ForecastView data={data} />
 
       {canActOnDip && dipDate && dipMonth ? (

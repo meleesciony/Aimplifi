@@ -3,6 +3,7 @@ import { cents, formatCents } from '@/lib/money';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
 /**
@@ -34,7 +35,7 @@ export function SafeToSpendCard({
       data-testid="dashboard-safe-to-spend"
       className={SURFACE_LINK_CARD_CLASS}
     >
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <div className={PAGE_SECTION_LABEL_CLASS}>
         <Gauge className="size-3.5" aria-hidden />
         {ok || noData ? 'Guilt-free to spend' : 'Over plan'}
       </div>

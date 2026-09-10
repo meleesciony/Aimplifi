@@ -9,6 +9,7 @@
  * empties on coach/goals/calendar — TASKS 1.5). Dashboard keeps the generic
  * welcome framing; those routes explain their own payoff.
  */
+import { PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConnectOnboardingPanel } from '@/components/onboarding/connect-onboarding-panel';
 import { StepIndicator } from '@/components/onboarding/step-indicator';
@@ -23,7 +24,7 @@ export function EmptyDashboard() {
             dashboard (and remaining EmptyDashboard routes) — it's the only
             heading those pages render, so it must be the page's <h1>, not the
             CardTitle default of <h2> (production-readiness backlog, 2026-06-24). */}
-        <CardTitle as="h1" className="text-xl">Welcome to Aimplifi 👋</CardTitle>
+        <CardTitle as="h1" className={PAGE_TITLE_CLASS}>Welcome to Aimplifi 👋</CardTitle>
         <CardDescription data-testid="empty-dashboard-description">
           {EMPTY_DASHBOARD_DESCRIPTION}
         </CardDescription>

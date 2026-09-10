@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { CardAddControl } from '@/components/finance/card-add-control';
+import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { CardsBreakdown } from '@/components/finance/cards-breakdown';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { buttonVariants } from '@/components/ui/button';
@@ -103,8 +104,8 @@ export default async function CardsPage({
   // still count as cards; CardsBreakdown lists them under "No due date yet".
   if (data.payInFull.cards.length === 0 && data.payInFull.unknownDueDateCards.length === 0) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-xl font-semibold">Credit cards</h1>
+      <div className={PAGE_STACK_CLASS}>
+        <h1 className={PAGE_TITLE_CLASS}>Credit cards</h1>
         {data.household?.hasPartners && (
           <HouseholdScopeToggle scope={data.scope} householdName={data.household.name} basePath="/cards" />
         )}
@@ -180,8 +181,8 @@ export default async function CardsPage({
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Credit cards</h1>
+    <div className={PAGE_STACK_CLASS}>
+      <h1 className={PAGE_TITLE_CLASS}>Credit cards</h1>
       {data.household?.hasPartners && (
         <HouseholdScopeToggle
           scope={data.scope}

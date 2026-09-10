@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { AddTransactionForm } from '@/components/finance/add-transaction-form';
+import { PAGE_LEAD_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { getProvider } from '@/lib/providers/demo';
 import { prisma } from '@/lib/db';
 import { getVisibleCategories } from '@/server/categories';
@@ -30,8 +31,8 @@ export default async function NewTransactionPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-4">
-      <h1 className="text-xl font-semibold">Add transaction</h1>
-      <p className="text-sm text-muted-foreground">
+      <h1 className={PAGE_TITLE_CLASS}>Add transaction</h1>
+      <p className={PAGE_LEAD_CLASS}>
         Record cash, a check, or anything not pulled in automatically.
       </p>
       <AddTransactionForm

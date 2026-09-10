@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { ArrowDownLeft, ArrowUpRight, CreditCard, Landmark } from 'lucide-react';
 import { auth } from '@/auth';
 import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
+import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { EmptyCalendar } from '@/components/onboarding/route-empty';
 import { CardStatementControl } from '@/components/finance/card-statement-control';
 import { SyncAllButton } from '@/components/finance/sync-all-button';
@@ -418,7 +419,7 @@ export default async function CalendarPage({
   const scopeQuery = scope === 'household' ? '&scope=household' : '';
 
   return (
-    <div className="space-y-4">
+    <div className={PAGE_STACK_CLASS}>
       {household?.hasPartners && (
         <HouseholdScopeToggle
           scope={scope}
@@ -430,7 +431,7 @@ export default async function CalendarPage({
         />
       )}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Cash-flow calendar</h1>
+        <h1 className={PAGE_TITLE_CLASS}>Cash-flow calendar</h1>
         <div className="flex items-center gap-2 text-sm">
           {/* #166: on Next 15.5.x these same-page searchParams navigations silently
               failed to commit whenever the TARGET month had events (deterministic:

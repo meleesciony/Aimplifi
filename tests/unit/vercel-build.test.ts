@@ -14,13 +14,31 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+// On Windows, `bash` is WSL: Windows node.exe resolves `bash` along a
+// ';'-separated PATH, then WSL's interop translates each ';' entry to
+// /mnt/<drive>/... with order preserved — so the stub dir rides FIRST in
+// Windows form and lands first in the WSL PATH. The stub's log path, by
+// contrast, is resolved INSIDE WSL, so it must be the /mnt form. Linux
+// keeps the ':' join and the native path.
+function toWslPath(p: string): string {
+  return process.platform === 'win32'
+    ? p.replace(/^([A-Za-z]):/, (_m, d: string) => `/mnt/${d.toLowerCase()}`).replace(/\\/g, '/')
+    : p;
+}
+
+function stubPathEnv(bin: string): string {
+  return process.platform === 'win32'
+    ? `${bin};${process.env.PATH ?? ''}`
+    : `${bin}:${process.env.PATH ?? ''}`;
+}
+
 function runVercelBuild(databaseUrl: string | undefined): { log: string; stdout: string } {
   const dir = mkdtempSync(join(tmpdir(), 'vercel-build-'));
   const bin = join(dir, 'bin');
   const logPath = join(dir, 'cmds.log');
   mkdirSync(bin);
   const stub = `#!/usr/bin/env bash
-printf '%s\\n' "\${0##*/} $*" >> ${JSON.stringify(logPath)}
+printf '%s\\n' "\${0##*/} $*" >> ${JSON.stringify(toWslPath(logPath))}
 exit 0
 `;
   writeFileSync(join(bin, 'node'), stub, { mode: 0o755 });
@@ -29,13 +47,16 @@ exit 0
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    PATH: `${bin}:${process.env.PATH ?? ''}`,
+    PATH: stubPathEnv(bin),
     HOME: dir,
   };
   if (databaseUrl === undefined) {
     delete env.DATABASE_URL;
   } else {
     env.DATABASE_URL = databaseUrl;
+    // WSL interop forwards only WSLENV-listed variables across the Windows
+    // boundary; without this the production branch below never sees the URL.
+    env.WSLENV = process.env.WSLENV ? `${process.env.WSLENV}:DATABASE_URL` : 'DATABASE_URL';
   }
 
   const stdout = execFileSync('bash', ['scripts/vercel-build.sh'], {

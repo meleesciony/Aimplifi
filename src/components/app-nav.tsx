@@ -43,7 +43,7 @@ const SHEET = SHEET_DESTINATIONS;
 
 function topLinkClass(active: boolean) {
   // shrink-0 so wrapped desktop rows keep whole labels (never squash into Sign out).
-  return `shrink-0 rounded-md px-1.5 py-1 text-sm sm:px-2 ${
+  return `shrink-0 rounded-full px-2 py-1 text-sm sm:px-2.5 sm:py-1.5 ${
     active
       ? 'bg-accent font-medium text-foreground'
       : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -107,7 +107,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
         aria-label="Main"
         data-testid="main-nav"
       >
-        <Link href="/dashboard" className="mr-1 shrink-0 text-base font-bold tracking-tight sm:mr-2 sm:text-lg">
+        <Link href="/dashboard" className="mr-1 shrink-0 text-base font-bold tracking-tight sm:mr-2.5 sm:text-lg">
           Aim<span className="text-brand-500">plifi</span>
         </Link>
 
@@ -286,7 +286,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
       <nav
         // pointer-events-none on the strip so content scrolled flush to the
         // viewport bottom stays clickable; links re-enable their own events
-        className="pb-safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-40 flex border-t bg-background/95 backdrop-blur sm:hidden"
+        className="pb-safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-40 flex border-t border-border/70 bg-background/90 backdrop-blur-md sm:hidden"
         aria-label="Primary"
         data-testid="bottom-nav"
       >
@@ -302,7 +302,9 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
               data-testid={`bottom-${item.testid}`}
               onClick={closeMore}
               className={`pointer-events-auto relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] ${
-                active ? 'text-brand-500' : 'text-muted-foreground'
+                active
+                  ? 'text-brand-500 before:absolute before:inset-x-5 before:top-0 before:h-0.5 before:rounded-full before:bg-brand-500'
+                  : 'text-muted-foreground'
               }`}
             >
               <Icon className="size-5" aria-hidden />

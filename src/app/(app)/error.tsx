@@ -13,6 +13,7 @@
  */
 import { useEffect } from 'react';
 import Link from 'next/link';
+import { PAGE_LEAD_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { buttonVariants } from '@/components/ui/button';
 import { captureError } from '@/lib/errors';
 
@@ -32,8 +33,8 @@ export default function AppError({
 
   return (
     <div className="mx-auto max-w-md space-y-4 py-12 text-center" data-testid="app-error">
-      <h1 className="text-xl font-semibold">Something went wrong</h1>
-      <p className="text-sm text-muted-foreground">
+      <h1 className={PAGE_TITLE_CLASS}>Something went wrong</h1>
+      <p className={PAGE_LEAD_CLASS}>
         This page couldn&apos;t load. Try again, or sign in again — if it keeps happening, please reach
         out for help.
       </p>
