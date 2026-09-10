@@ -178,14 +178,16 @@ export function TransactionFilters({
             control. When it is ON it stays visible whatever the count, so the
             reader is never stranded inside a filter with no way to read its state.
 
-            `aria-pressed` rather than a checkbox: this is a view toggle, and the
-            count belongs in the accessible name so a screen reader hears the same
-            thing the eye sees. */}
+            `aria-current` rather than `aria-pressed`: this control is a Link so a
+            click before hydration still filters (#167 / #532), and `aria-pressed`
+            is not allowed on an `<a>` (axe `aria-allowed-attr`). The count stays
+            in the accessible name so a screen reader hears the same thing the
+            eye sees. */}
         {(unclassifiedCount > 0 || current.unclassified) && (
           <Link
             href={transactionsHref({ ...current, unclassified: !current.unclassified })}
             prefetch={false}
-            aria-pressed={current.unclassified}
+            aria-current={current.unclassified ? true : undefined}
             data-testid="txn-filter-unclassified"
             className={`tap-target inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm transition ${
               current.unclassified

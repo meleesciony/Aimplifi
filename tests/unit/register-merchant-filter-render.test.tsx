@@ -219,7 +219,7 @@ describe('every filter the register can apply, the register shows', () => {
     {
       name: 'unclassified',
       current: { unclassified: true },
-      visible: () => expect(screen.getByTestId('txn-filter-unclassified').getAttribute('aria-pressed')).toBe('true'),
+      visible: () => expect(screen.getByTestId('txn-filter-unclassified').getAttribute('aria-current')).toBe('true'),
     },
     {
       name: 'reimbursement',
@@ -421,13 +421,15 @@ describe('Needs a category chip is a real link (DECISIONS #532)', () => {
     const chip = screen.getByTestId('txn-filter-unclassified');
     expect(chip.tagName).toBe('A');
     expect(chip.getAttribute('href')).toBe('/transactions?unclassified=1');
-    expect(chip.getAttribute('aria-pressed')).toBe('false');
+    expect(chip.getAttribute('aria-pressed')).toBeNull();
+    expect(chip.getAttribute('aria-current')).toBeNull();
     cleanup();
 
     renderBar({ unclassified: true }, 15);
     const on = screen.getByTestId('txn-filter-unclassified');
     expect(on.getAttribute('href')).toBe('/transactions');
-    expect(on.getAttribute('aria-pressed')).toBe('true');
+    expect(on.getAttribute('aria-pressed')).toBeNull();
+    expect(on.getAttribute('aria-current')).toBe('true');
     cleanup();
 
     renderBar({ from: '2026-01-01', unclassified: false }, 15);

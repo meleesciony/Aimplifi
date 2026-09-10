@@ -23,6 +23,11 @@ describe('Budgets By-category row reuses setBudget', () => {
     expect(control).toContain('clearBudget');
     expect(control).toContain('fd.set(\'categoryId\'');
     expect(control).not.toContain('useActionState');
+    // Clear is inside the editing form, not the collapsed target. Specs that
+    // look for budget-clear-* on the idle row will miss it (CI 34511385651).
+    const clearIdx = control.indexOf('data-testid={`budget-clear-${categoryId}`}');
+    const editingIdx = control.indexOf('if (!editing)');
+    expect(clearIdx).toBeGreaterThan(editingIdx);
 
     const actions = readFileSync(resolve('src/server/budget-actions.ts'), 'utf8');
     expect(actions).toContain('isDemoUser');

@@ -113,10 +113,13 @@ test('a connection whose last sync FAILED surfaces the dashboard reconnect alert
   await expect(alert).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId('empty-dashboard')).toHaveCount(0);
   await expect(alert).toContainText("couldn't sync");
-  await expect(alert).toContainText('Reconnect it on the Accounts page');
+  await expect(alert).toContainText('Reconnect it so your numbers stay current');
   // The sanitized reason is a breadcrumb only — never shown to the user.
   await expect(alert).not.toContainText('auth');
-  await expect(alert.getByRole('link', { name: 'Go to Accounts' })).toBeVisible();
+  // SimpleFIN reconnects here — Sync now / paste a token — not a hop to Accounts.
+  await expect(page.getByTestId('simplefin-alert-reconnect')).toBeVisible();
+  await expect(page.getByTestId('simplefin-alert-sync')).toBeVisible();
+  await expect(page.getByTestId('simplefin-alert-reconnect-btn')).toBeVisible();
 
   // Axe on the destructive alert — the demo user never renders it, so phase5-a11y can't cover it.
   const axe = await new AxeBuilder({ page })

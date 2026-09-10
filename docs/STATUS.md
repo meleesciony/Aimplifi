@@ -11,6 +11,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-10 — CI repair: four red e2e specs + Needs-a-category aria-pressed (DECISIONS #725)
+
+**The report.** Slice 2 left CI `verify` run `34511385651` red on four pre-existing e2e + one flaky a11y scan. Those were the next leftover.
+
+**Shipped.** Specs follow the shipped UI. Budget Clear is inside the row editor — open `budget-row-target-*`, then after clear assert the first-run hint and the gone row (a collapsed `budget-clear-*` count-0 does not prove the target left). Failed-sync alert locks `couldn't sync` / `Reconnect it so your numbers stay current` plus in-place SimpleFIN reconnect. Wealth-target dials link is `#coach-money-dials` and that target is on /coach. Needs-a-category chip stays a pre-hydration `<a>`; `aria-current` when on; no `aria-pressed` (axe `aria-allowed-attr`).
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8,288 passed + 1 expected fail + 1 skipped / 614 files + 1 skipped (615)**, `next build` clean. Playwright mobile-380 **17/17** on the repaired specs + phase5-a11y, then **2/2** after the clear-outcome strengthen.
+
+**Critic (fresh context): PASS — 0 P0, 0 P1.** Residual P2s: `aria-current` is not toggle semantics; dials jump is existence-locked not click-tested.
+
+**Still open.** M.4 slice 3 (section labels + dashboard/accounts). Ledger rotation (ceiling). Wave 0 ops owner-blocked.
+
 ## ✅ BUILT 2026-09-10 — M.4 slice 2: page-chrome tokens, chrome restyle, brand-tinted dark theme (DECISIONS #724)
 
 **Shipped.** Four shared page-chrome tokens (title / lead / stack / section label) in `src/components/finance/page-chrome.ts`, unit-locked; every visible page h1 + lead migrated (16 routes + the new-user welcome card); two byte-identical trends-view section labels onto the token. Shell chrome: sticky translucent header, pill desktop nav, mobile bottom-bar active indicator (shape, not color), demo banner as a pill, sign-in card elevation, rounded-lg auth inputs, surface cards with a 1-ring hairline. `.dark` retinted with brand-green chroma (oklch hue 165) — the app renders hard-coded dark (root layout), so the retint is the identity, not a mode; light `:root` untouched. className/CSS only: no copy, figure, adjacency, testid, or logic change.
@@ -23,7 +35,7 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): cycle 1 FAIL 3 P1 — all fixed same-session.** Junk WSL cmds.log files staged (removed from disk+index); deleted temp spec still staged (replaced by the promoted `m4-page-chrome.spec.ts`); new lessons INDEX line over the 220-char ceiling. Contrast re-check passed (all text pairs AA-preserved). Open P2s for M.4 continuation: 7 near-twin section-label literals (allocation-drilldown, forecast-view, recurring-view, retirement-outlook-card, spend-class-panel, top-spending-card, ask-view); PAGE_LEAD_CLASS `max-w-2xl` dead on `max-w-md` routes (transactions/import, transactions/new, error); `background-attachment: fixed` body gradient (scroll repaints, ignored by iOS Safari).
 
-**Ship.** `795b0dc1` on `main` (pushed 2026-09-10). Live `https://www.aimplifi.app/sign-in` serves the slice marker (`shadow-lg ring-1 ring-foreground/5`, sign-in card elevation) — deployment READY. **CI `verify` run `34511385651` FAILURE — all failures proven pre-existing**, red identically or worse on the prior run `34099812006` (tree without this push): 4 failed + 1 flaky here vs 5 failed + 2 flaky there. Failing tests (all mobile-380 e2e): `budget-targets.spec.ts:61`, `connection-health.spec.ts:93` (reconnect-alert copy), `pwa-offline.spec.ts:51`, `wealth-target.spec.ts:13` — the last has a named pre-existing cause: `c28c2211` pointed the dials link at `#coach-money-dials` while the spec still asserts `/settings#money-dials`; and `phase5-a11y.spec.ts:102` flaky on `aria-pressed="false"` rendered by `transaction-filters.tsx` (`<a aria-pressed>` is an axe `aria-allowed-attr` violation — pre-existing, file untouched by this diff). Nothing failing is a test or surface this push touched. `scripts/ci-status.sh` is UNVERIFIED as a tool on this machine — `gh` is not installed; the verdict was read via the GitHub API instead. Open item: repair the four red e2e specs + the `<a aria-pressed>` a11y defect on a dedicated slice.
+**Ship.** `795b0dc1` on `main` (pushed 2026-09-10). Live `https://www.aimplifi.app/sign-in` serves the slice marker (`shadow-lg ring-1 ring-foreground/5`, sign-in card elevation) — deployment READY. **CI `verify` run `34511385651` FAILURE — all failures proven pre-existing** at ship time; repaired in #725.
 
 ## ✅ BUILT 2026-09-03 — Home recent charges line up; compact direction says Money out (DECISIONS #638)
 

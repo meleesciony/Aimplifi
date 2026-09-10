@@ -1056,7 +1056,8 @@ test('the register can isolate items that still need a category, and says how ma
   await expect(toggle).toBeVisible();
   const count = Number((await page.getByTestId('txn-unclassified-count').textContent())?.trim());
   expect(count, 'the two rows imported with no category').toBe(2);
-  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(toggle).not.toHaveAttribute('aria-pressed');
+  await expect(toggle).not.toHaveAttribute('aria-current');
 
   // The iOS touch floor, asserted HERE because this is the only fixture that
   // guarantees the control is rendered at all. `tap-targets.spec.ts` covers only
@@ -1094,7 +1095,7 @@ test('the register can isolate items that still need a category, and says how ma
     if (!/unclassified=1/.test(page.url())) await toggle.click({ timeout: 2000 });
     await expect(page).toHaveURL(/unclassified=1/, { timeout: 2000 });
   }).toPass({ timeout: 20000 });
-  await expect(page.getByTestId('txn-filter-unclassified')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('txn-filter-unclassified')).toHaveAttribute('aria-current', 'true');
   await expect(page.getByTestId('txn-row')).toHaveCount(count);
 
   // The count drops only the `unclassified` axis, so it still reads the same from

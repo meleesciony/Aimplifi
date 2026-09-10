@@ -75,6 +75,8 @@ test('budget targets: set, scan a11y, overwrite atomically, then clear', async (
   await expect(page.getByTestId('budget-no-targets-hint')).toHaveCount(0);
   await expect(row).toContainText('/ $500.00'); // actual / target
   await expect(row).toContainText(/left this month|over target/); // remaining status
+  // Clear lives inside the row editor (#659) — collapsed state shows the target, not Clear.
+  await page.getByTestId('budget-row-target-dining').click();
   await expect(page.getByTestId('budget-clear-dining')).toBeVisible();
 
   // WCAG AA on the target-bearing DOM (Clear button, progress bar, status text) —
@@ -104,10 +106,15 @@ test('budget targets: set, scan a11y, overwrite atomically, then clear', async (
   const actionSettled = page
     .waitForResponse((r) => r.request().method() === 'POST', { timeout: 12000 })
     .catch(() => null);
+  await page.getByTestId('budget-row-target-dining').click();
   await page.getByTestId('budget-clear-dining').click();
   await actionSettled;
   await expect(async () => {
     await page.reload();
-    await expect(page.getByTestId('budget-clear-dining')).toHaveCount(0, { timeout: 2000 });
+    // The row exists only because of the target (no spend). After a real
+    // clear it is gone and the first-run hint returns — `budget-clear-*`
+    // count-0 is true of a collapsed row that still has a target.
+    await expect(page.getByTestId('budget-no-targets-hint')).toBeVisible({ timeout: 2000 });
+    await expect(page.getByTestId('budget-row-dining')).toHaveCount(0);
   }).toPass({ timeout: 20000 });
 });

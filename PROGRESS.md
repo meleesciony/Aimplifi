@@ -5,6 +5,18 @@
 > Only the current wave (2026-08-20 onward) lives here; append new sessions
 > at the top as before.
 
+## 2026-09-10 — CI repair: four red e2e specs + Needs-a-category aria-pressed (DECISIONS #725)
+
+**Picked up.** Owner: "continue." Slice 2 (#724) next line: first fix the four red CI e2e specs + the `<a aria-pressed>` defect, then M.4 continues.
+
+**Closed.** Specs retargeted to shipped UI, not weakened. Clear lives in the row editor (#659) — open `budget-row-target-*` first; after clear, lock the hint + missing row (critic P2-1). Failed-sync alert copy is in-place SimpleFIN reconnect. Wealth-target dials link is `#coach-money-dials` and that target is on /coach. Needs-a-category chip stays an `<a>` (`aria-current` when on; no `aria-pressed`).
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8,288 passed + 1 expected fail + 1 skipped / 614 files + 1 skipped (615)**, `next build` clean. Playwright mobile-380: budget-targets 1/1, connection-health 4/4, pwa-offline 1/1, wealth-target 2/2, phase5-a11y 8/8 (including remaining content routes). 17/17 then 2/2 after P2-1 strengthen.
+
+**Critic (fresh context): PASS — 0 P0, 0 P1.** Residual P2s: aria-current is not toggle semantics; dials jump is existence-locked not click-tested. P2-1 (clear count-0 tautology) fixed same-session.
+
+**Next.** M.4 slice 3: remaining near-twin section labels + per-route visual direction (dashboard + accounts). Ledger rotation still due (ceiling).
+
 ## 2026-09-03 — Home recent row alignment + Money out (DECISIONS #638)
 
 **Picked up.** Owner: Home Recent transactions not lined up; “what does Out mean?” Beauty later, after the feature set.

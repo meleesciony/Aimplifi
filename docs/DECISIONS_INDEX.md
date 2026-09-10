@@ -717,3 +717,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #722 — Household can rename a savings goal from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
 - #723 — Activity merchant-wide recategorize of aggregate/masked mints the durable auto-file rule (2026-09-07) → docs/DECISIONS.md
 - #724 — M.4 slice 2: shared page-chrome tokens, chrome restyle, brand-tinted dark theme (2026-09-10) → docs/DECISIONS.md
+- #725 — CI repair: four red e2e specs + Needs-a-category aria-pressed (2026-09-10) → docs/DECISIONS.md

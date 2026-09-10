@@ -55,10 +55,12 @@ test('wealth target: typing a target and dragging the horizon move the live answ
   await expect(dials).not.toContainText('your setting');
   await expect(dials).not.toContainText('Both rates are yours');
   await expect(dials).toContainText('How long the target takes');
+  // #683 moved the dials onto this page; the link is an in-page jump, not Settings.
   await expect(page.getByTestId('wealth-target-dials-link')).toHaveAttribute(
     'href',
-    '/settings#money-dials',
+    '#coach-money-dials',
   );
+  await expect(page.getByTestId('coach-money-dials')).toBeVisible();
 
   // 3. The HORIZON, seeded from the reader's own arrival instead of a constant 25. At the
   //    default target the demo's pace lands inside the control's range, so the slider must open

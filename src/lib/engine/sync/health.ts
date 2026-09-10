@@ -325,7 +325,7 @@ export function selectConnectionAlerts(
 
 /**
  * Guardrail-safe reconnect copy for a broken connection. States the fact (the sync
- * failed) and the one action (reconnect on Accounts) without echoing the recorded
+ * failed) and the one action (reconnect) without echoing the recorded
  * error text or blaming the user. `daysSinceAttempt` softens the timing when known.
  */
 export function connectionAlertMessage(h: ConnectionHealthResult): string {

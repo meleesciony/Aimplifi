@@ -73,7 +73,10 @@ test('server actions round-trip under a CONTROLLING service worker (the v1/v2 ab
   await page.getByTestId('budget-category').selectOption('groceries');
   await page.getByTestId('budget-amount').fill('123');
   await page.getByTestId('budget-set').click();
-  await expect(page.getByTestId('budget-clear-groceries')).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId('budget-row-target-groceries')).toBeVisible({ timeout: 15000 });
+  await page.getByTestId('budget-row-target-groceries').click();
+  await expect(page.getByTestId('budget-clear-groceries')).toBeVisible();
   await page.getByTestId('budget-clear-groceries').click();
-  await expect(page.getByTestId('budget-clear-groceries')).toHaveCount(0, { timeout: 15000 });
+  await expect(page.getByTestId('budget-no-targets-hint')).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId('budget-row-groceries')).toHaveCount(0);
 });
