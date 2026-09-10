@@ -29,6 +29,7 @@ import { BillAmountControl } from '@/components/finance/bill-amount-form';
 import { BillCadenceControl } from '@/components/finance/bill-cadence-form';
 import { ConvertToReserveButton } from '@/components/finance/convert-to-reserve-button';
 import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-button';
+import { PutBillBackOnPlanButton } from '@/components/finance/put-bill-back-on-plan-button';
 import { billRenameKey, namedBillLabel } from '@/lib/engine/spending-plan/bill-rename';
 
 const CADENCE_SUFFIX: Record<Cadence, string> = {
@@ -329,6 +330,7 @@ export function RecurringView({
   canRenameBills = false,
   convertibleConvertKeys = new Set(),
   takeOffBillKeys = new Set(),
+  billsTakenOff = [],
 }: {
   data: RecurringData;
   withheld: WithheldAccountSummary;
@@ -344,6 +346,8 @@ export function RecurringView({
   convertibleConvertKeys?: ReadonlySet<string>;
   /** billKeys on the Spending plan Fixed list eligible for take-off (DECISIONS #730). */
   takeOffBillKeys?: ReadonlySet<string>;
+  /** Same billsTakenOff list Spending plan uses for Put back (DECISIONS #731). */
+  billsTakenOff?: readonly { billKey: string; label: string }[];
 }) {
   const s = data.summary;
   const billNames = new Map(Object.entries(data.billNames ?? {}));
@@ -618,6 +622,29 @@ export function RecurringView({
           />
         </>
       )}
+
+      {canRenameBills && billsTakenOff.length > 0 ? (
+        <section
+          className="rounded-2xl border bg-card p-4 shadow-sm"
+          data-testid="recurring-bills-taken-off"
+        >
+          <p className="text-xs text-muted-foreground">Taken off the plan</p>
+          <dl className="mt-1 divide-y text-sm">
+            {billsTakenOff.map((b) => (
+              <div
+                key={b.billKey}
+                className="flex items-center justify-between gap-3 py-2"
+                data-testid="recurring-bill-taken-off-row"
+              >
+                <dt className="min-w-0 text-muted-foreground">{b.label}</dt>
+                <dd className="shrink-0">
+                  <PutBillBackOnPlanButton billKey={b.billKey} billName={b.label} />
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ) : null}
 
       <RecurringInstructions rows={instructions} />
 

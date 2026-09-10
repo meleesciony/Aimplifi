@@ -71,6 +71,7 @@ export default async function RecurringPage({
       canRenameBills={canRenameBills}
       convertibleConvertKeys={convertibleConvertKeys}
       takeOffBillKeys={takeOffBillKeys}
+      billsTakenOff={plan?.billsTakenOff ?? []}
     />
   );
 }
