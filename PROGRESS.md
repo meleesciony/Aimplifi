@@ -15,6 +15,8 @@
 
 **Critic (fresh context): PASS — 0 P0, 0 P1.** Residual P2s: aria-current is not toggle semantics; dials jump is existence-locked not click-tested. P2-1 (clear count-0 tautology) fixed same-session.
 
+**Ship.** `ad9c0f77` on `main`. CI `34516971264` SUCCESS. Vercel `dpl_6eQqSWvabbbv1SdV9y9bQRU2bCqn` READY.
+
 **Next.** M.4 slice 3: remaining near-twin section labels + per-route visual direction (dashboard + accounts). Ledger rotation still due (ceiling).
 
 ## 2026-09-03 — Home recent row alignment + Money out (DECISIONS #638)

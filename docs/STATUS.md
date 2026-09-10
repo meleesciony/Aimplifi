@@ -21,6 +21,8 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): PASS — 0 P0, 0 P1.** Residual P2s: `aria-current` is not toggle semantics; dials jump is existence-locked not click-tested.
 
+**Ship.** `ad9c0f77` on `main`. GitHub Actions `verify` run `34516971264` = SUCCESS. Vercel Production `dpl_6eQqSWvabbbv1SdV9y9bQRU2bCqn` READY (`https://aimplifi-bupvp09n8-reiforge.vercel.app`, aliased to `www.aimplifi.app`). Live `/sign-in` 200. The repaired chip and reconnect alert are signed-in-only — public HTML marker UNVERIFIED.
+
 **Still open.** M.4 slice 3 (section labels + dashboard/accounts). Ledger rotation (ceiling). Wave 0 ops owner-blocked.
 
 ## ✅ BUILT 2026-09-10 — M.4 slice 2: page-chrome tokens, chrome restyle, brand-tinted dark theme (DECISIONS #724)
