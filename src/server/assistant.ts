@@ -19,6 +19,8 @@ import { getRecurring } from '@/server/recurring';
 import { getCashFlowForecast } from '@/server/forecast';
 import { getCashFlowRadar } from '@/server/radar';
 import { getCoachData } from '@/server/coach';
+import { getGoalProgressRows, listSavingsGoalNames } from '@/server/goals';
+import { matchGoalName } from '@/lib/engine/goals/match';
 import { composeStayingWealthy } from '@/lib/engine/fi/staying-wealthy';
 import { loadDebtAccounts } from '@/server/debt';
 import { planDebtPayoff } from '@/lib/engine/debt/payoff';
@@ -68,6 +70,9 @@ import {
   answerNextDollar,
   answerSavingsGoalByDate,
   answerSavingsGoalNeedsAmount,
+  answerGoalStatus,
+  answerGoalStatusAmbiguous,
+  answerGoalStatusNoMatch,
   answerSavingsRate,
   answerSpendByCategory,
   answerSpendTotal,
@@ -109,6 +114,7 @@ const DELEGATES_OWN_BOUNDARY: ReadonlySet<AssistantIntent['kind']> = new Set([
   'safe_to_spend',
   'debt_free_by_date',
   'savings_goal_by_date',
+  'goal_status',
   'retire_at_age',
   'wealth_target',
   'savings_rate',
@@ -172,7 +178,8 @@ async function resolveIntent(
   custom: readonly { id: string; name: string }[],
   frame: AskFrame | null,
 ): Promise<ResolveResult> {
-  const parsed = parseAssistantQuery(question, today as Parameters<typeof parseAssistantQuery>[1], custom);
+  const goalNames = await listSavingsGoalNames(userId);
+  const parsed = parseAssistantQuery(question, today as Parameters<typeof parseAssistantQuery>[1], custom, goalNames);
   if (parsed.kind !== 'unknown') {
     return { intent: parsed, viaLlm: false, viaFrame: false, vocab: null, parserUnknown: false, llmGuessKind: null };
   }
@@ -188,7 +195,13 @@ async function resolveIntent(
 
   const learned = await lookupVocab(userId, question);
   if (learned) {
-    const proposed = intentFromKind(learned.kind, question, today as Parameters<typeof intentFromKind>[2], custom);
+    const proposed = intentFromKind(
+      learned.kind,
+      question,
+      today as Parameters<typeof intentFromKind>[2],
+      custom,
+      goalNames,
+    );
     const valid = proposed ? validateIntent(proposed, custom) : null;
     // The learned kind must ROUND-TRIP. The phrase key masks digits, so one key spans
     // "can I pay off my car by 2027" (a date) and "…by 65" (an age); `intentFromKind`
@@ -221,7 +234,7 @@ async function resolveIntent(
   }
 
   const kind = await classifyIntentViaLLM(question, aiAuditSink(userId, 'intent')); // Trust Center trail (§3.2, #242)
-  const proposed = intentFromKind(kind, question, today as Parameters<typeof intentFromKind>[2], custom);
+  const proposed = intentFromKind(kind, question, today as Parameters<typeof intentFromKind>[2], custom, goalNames);
   const valid = proposed ? validateIntent(proposed, custom) : null;
   return valid
     ? { intent: valid, viaLlm: true, viaFrame: false, vocab: null, parserUnknown: true, llmGuessKind: kind }
@@ -726,6 +739,21 @@ async function buildAnswer(
         safeToSpendCents: plan.leftToSpendCents,
       });
       return answerSavingsGoalByDate(result, intent.label, intent.targetDate, today, plan.unallocatedSavingsCents);
+    }
+    case 'goal_status': {
+      // SAME getGoalProgressRows + goalProgress the /goals card and Home Goals
+      // card use (DECISIONS #738). The sentence is goalPaceSentence — byte-identical.
+      // Matching abstains when the name is missing or ambiguous; never a guess.
+      const rows = await getGoalProgressRows(userId, today as ISODate);
+      const match = matchGoalName(
+        intent.nameQuery,
+        rows.map((r) => r.name),
+      );
+      if (match.kind === 'none') return answerGoalStatusNoMatch(intent.nameQuery);
+      if (match.kind === 'ambiguous') return answerGoalStatusAmbiguous(intent.nameQuery, match.names);
+      const row = rows.find((r) => r.name === match.name);
+      if (!row) return answerGoalStatusNoMatch(intent.nameQuery);
+      return answerGoalStatus(row);
     }
     case 'retire_at_age': {
       // Inverse retirement planner (DECISIONS #131): the user STATED the age; we re-derive the

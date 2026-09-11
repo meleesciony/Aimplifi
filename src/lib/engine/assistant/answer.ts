@@ -63,7 +63,9 @@ import {
 import type { LargestTxn } from '@/lib/engine/trends/trends';
 import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
-import { addMonthsClamped, compareDates, formatMonth, isoDate } from '@/lib/dates';
+import { addMonthsClamped, compareDates, formatMonth, isoDate, type ISODate } from '@/lib/dates';
+import type { GoalProgress } from '@/lib/engine/goals/progress';
+import { GOAL_PACE_LABEL, goalPaceSentence } from '@/lib/engine/goals/progress-copy';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { CutCounterfactual } from '@/lib/engine/fi/counterfactual';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
@@ -1953,6 +1955,66 @@ export function answerSavingsGoalByDate(
     facts,
     source: GOALS_SOURCE,
     action,
+  };
+}
+
+// ─── stored savings-goal status (DECISIONS #738) ──────────────────────────────
+
+export interface GoalStatusInput {
+  name: string;
+  targetCents: number;
+  savedCents: number;
+  monthlyContributionCents: number | null;
+  targetDate: ISODate | null;
+  today: ISODate;
+  progress: GoalProgress;
+}
+
+/**
+ * The /goals card's own sentence, plus the stored name and the pace badge.
+ * `detail` is byte-identical to `goalPaceSentence` so Ask cannot drift from
+ * the card. No new money math — `progress` is `goalProgress()`'s output.
+ */
+export function answerGoalStatus(row: GoalStatusInput): AssistantAnswer {
+  const p = row.progress;
+  const pct = Math.floor(p.fundedBps / 100);
+  return {
+    kind: 'goal_status',
+    headline: `${row.name} — ${GOAL_PACE_LABEL[p.pace]}.`,
+    detail: goalPaceSentence(p, {
+      targetCents: row.targetCents,
+      savedCents: row.savedCents,
+      monthlyContributionCents: row.monthlyContributionCents,
+      targetDate: row.targetDate,
+      today: row.today,
+    }),
+    facts: [
+      { label: 'Marked saved', value: `${fmt(row.savedCents)} of ${fmt(row.targetCents)}` },
+      { label: 'Funded', value: `${pct}%` },
+    ],
+    source: GOALS_SOURCE,
+  };
+}
+
+/** Named a goal we do not have. No figures — abstaining is the answer. */
+export function answerGoalStatusNoMatch(nameQuery: string): AssistantAnswer {
+  return {
+    kind: 'goal_status',
+    headline: `I don't see a savings goal named “${nameQuery}.”`,
+    detail: 'Open Goals to add one, or ask using the name on the card.',
+    facts: [],
+    source: GOALS_SOURCE,
+  };
+}
+
+/** Two or more stored names fit. List them; do not pick. */
+export function answerGoalStatusAmbiguous(nameQuery: string, names: readonly string[]): AssistantAnswer {
+  return {
+    kind: 'goal_status',
+    headline: `More than one goal matches “${nameQuery}.”`,
+    detail: `Ask about one by its full name: ${names.join(', ')}.`,
+    facts: [],
+    source: GOALS_SOURCE,
   };
 }
 

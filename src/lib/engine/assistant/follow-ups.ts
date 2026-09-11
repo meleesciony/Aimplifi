@@ -124,6 +124,13 @@ export function followUpQuestions(intent: AssistantIntent): readonly string[] {
         'What is my net worth?',
       ]);
 
+    case 'goal_status':
+      return take([
+        "What's my savings rate?",
+        'How much is guilt-free to spend this month?',
+        'What is my net worth?',
+      ]);
+
     case 'retire_at_age':
       return take([
         'Can I retire at 60?',

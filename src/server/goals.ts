@@ -25,6 +25,15 @@ export interface GoalProgressRow {
   progress: GoalProgress;
 }
 
+export async function listSavingsGoalNames(userId: string): Promise<string[]> {
+  const rows = await prisma.goal.findMany({
+    where: { userId, kind: null },
+    select: { name: true },
+    orderBy: { name: 'asc' },
+  });
+  return rows.map((r) => r.name);
+}
+
 export async function getGoalProgressRows(userId: string, today: ISODate): Promise<GoalProgressRow[]> {
   const goals = await prisma.goal.findMany({
     where: { userId, kind: null },

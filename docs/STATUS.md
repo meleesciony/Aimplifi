@@ -15,6 +15,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-11 — Ask answers on-track for a stored savings goal (DECISIONS #738)
+
+**The report.** After #737 the /goals card and Home knew pace; Ask could only inverse-plan a new amount + date. A reader with three named goals could not ask about any of them.
+
+**Shipped.** Ask intent `goal_status`. Parser takes the reader's savings-goal names and commits only on a unique or ambiguous `matchGoalName` (none declines). `detail` is the card's own `goalPaceSentence`. Timeframe/`at`/date checks run on leftover tokens outside the matched name, so "June wedding" is askable and "Japan trip this month" still abstains. Demo read-only.
+
+**Critic (fresh context): cycles 1–4 FAIL, all P0/P1 fixed same-session.** Residual P2s in DECISIONS #738. No 5th critic (budget 4).
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN, exit 0: tsc 0, probes tsc 0, eslint 0, unit **8,388 passed + 1 expected fail + 1 skipped / 625 files**, `next build` clean. Playwright mobile-380: `goal-status-ask.spec.ts` **1/1**.
+
+**Still open.** GL.3 behind-pace nudge; GL.4 seeded demo goals (live demo Ask cannot show a match); GL.5 1200-month cap. Wave 0 ops owner-blocked. M.4 visual direction owner-deferred.
+
 ## ✅ BUILT 2026-09-11 — Goals: progress + pace on every savings goal, and a Home Goals card (DECISIONS #737)
 
 **The report.** Owner: make the app "extremely user friendly and insightful towards goals." A savings-goal card answered only "how many months at this pledge?"; it never said how far along the reader is or whether the pledge makes the date, and Home never mentioned goals.

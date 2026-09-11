@@ -62,6 +62,8 @@ function sampleIntent(kind: (typeof ASSISTANT_INTENT_KINDS)[number]): AssistantI
         targetCents: 2_000_000,
         label: 'December 2028',
       };
+    case 'goal_status':
+      return { kind, nameQuery: 'japan trip' };
     case 'retire_at_age':
       return { kind, targetAge: 60, label: 'age 60' };
     case 'fi_status':

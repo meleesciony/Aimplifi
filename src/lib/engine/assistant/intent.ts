@@ -15,6 +15,8 @@
 import { addMonthsClamped, addMonthsToMonthKey, daysInMonth, isoDate, monthKey, type ISODate } from '@/lib/dates';
 import { centsFromDollarString, formatCents, type Cents } from '@/lib/money';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { MAX_GOAL_NAME } from '@/lib/engine/goals/goal-name';
+import { matchGoalName, leftoverAfterGoalName } from '@/lib/engine/goals/match';
 
 /** A resolved calendar window over month keys (inclusive), with a display label. */
 export interface Timeframe {
@@ -54,6 +56,13 @@ export type AssistantIntent =
   | { kind: 'debt_payoff' }
   | { kind: 'debt_free_by_date'; targetDate: ISODate; label: string }
   | { kind: 'savings_goal_by_date'; targetDate: ISODate; targetCents: number | null; label: string }
+  /**
+   * Status of a STORED savings goal (DECISIONS #738). `nameQuery` is the
+   * cleaned name extracted from the user's words — the server matches it
+   * against `Goal.name` (savings rows only) and abstains when the match is
+   * missing or ambiguous. Not the inverse planner (that is `savings_goal_by_date`).
+   */
+  | { kind: 'goal_status'; nameQuery: string }
   | { kind: 'retire_at_age'; targetAge: number; label: string }
   /**
    * Standing FI date / number — the SAME `getCoachData().fi` the /coach FI card
@@ -129,6 +138,7 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'debt_payoff',
   'debt_free_by_date',
   'savings_goal_by_date',
+  'goal_status',
   'retire_at_age',
   'fi_status',
   'wealth_target',
@@ -1688,6 +1698,182 @@ export function nextDollarFromQuestion(
   return { kind: 'next_dollar' };
 }
 
+/**
+ * Status of a stored savings goal. Shared by the parser and `intentFromKind`
+ * so a model-chosen kind cannot answer a NEW amount+date (the inverse planner),
+ * a retirement/FI question, or a nameless "am I on track?" with a guessed row.
+ *
+ * Abstain (`null`) when the words do not ask this question, or when they name
+ * an amount or date (those stay savings_goal_by_date / wealth_target), or when
+ * the name cannot be extracted — `null` lets a later route answer; claiming
+ * `unknown` here would delete debt_payoff / spend_total (critic #738 P0-1 / P1-3).
+ * A timeframe window, unreadable date shape, or named store (`at Costco`) is
+ * `unknown` only once a name was extracted — this IS a goal-status question we
+ * cannot window. Spend synonyms inside the name ("trip", "vacation") are the
+ * goal, not a category total.
+ */
+export function goalStatusFromQuestion(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+  goalNames: readonly string[] = [],
+): AssistantIntent | null {
+  const q = foldAssistantApostrophes(normalize(question));
+  if (!asksGoalStatus(q)) return null;
+  void custom;
+  // Inverse planners and FI own these — decline so they can match (or already did).
+  if (parseTargetAmount(question) !== null) return null;
+  if (asksFiStatus(q) || parseTargetAge(question) !== null) return null;
+  if (/\bdebt[\s-]?free\b/.test(q) || /\bout of debt\b/.test(q)) return null;
+  // Verb AND noun spellings: "pay off" / "payoff" / "paydown" / "snowball".
+  // Cycle 1 only guarded the verb and deleted debt_payoff on the noun forms
+  // (critic #738 cycle 2 P0-1).
+  if (/\b(pay(?:ing)?[\s-]?off|pay(?:ing)?[\s-]?down|payoffs?|paydowns?|snowball)\b/.test(q)) {
+    return null;
+  }
+  const nameQuery = extractGoalNameQuery(question);
+  if (!nameQuery) {
+    // A blocked leftover another route owns must decline (critic #738 P1-3).
+    // A generic "savings goal" / "my goals" with no name is THIS question
+    // unanswered — unknown, not the savings-account balance.
+    if (isGenericNamelessGoalStatus(q)) return { kind: 'unknown', question };
+    return null;
+  }
+  // Match BEFORE any unknown return. A leftover that includes a window
+  // ("spending last month") is not a stored name — declining lets spend /
+  // income / cash_needed answer. Returning unknown here deleted those routes
+  // for every user, goals or not (critic #738 cycle 3 P0-1).
+  const match = matchGoalName(nameQuery, goalNames);
+  if (match.kind === 'none') return null;
+  // Ambiguous: listing the stored names is the answer. Window/store words in
+  // the question do not make those names un-listable.
+  if (match.kind === 'unique') {
+    const leftover = leftoverAfterGoalName(question, match.name);
+    if (parseExplicitTimeframe(leftover, today) !== null) return { kind: 'unknown', question };
+    if (unresolvedDateShape(leftover, today)) return { kind: 'unknown', question };
+    if (parseTargetDate(leftover, today) !== null) return { kind: 'unknown', question };
+    if (/\bat\b/.test(leftover) && !/\bat (?:all|least|the end|once|the moment)\b/.test(leftover)) {
+      return { kind: 'unknown', question };
+    }
+  }
+  return { kind: 'goal_status', nameQuery };
+}
+
+function isGenericNamelessGoalStatus(q: string): boolean {
+  if (/\b(spend(?:ing)?|loans?|debts?|rent|bills?|mortgage|cards?|income|account|checking|paycheck)\b/.test(q)) {
+    return false;
+  }
+  return /\b(savings?\s+)?goals?\b/.test(q);
+}
+
+function asksGoalStatus(q: string): boolean {
+  const folded = foldAssistantApostrophes(q);
+  // "on track FOR my X" / "on track for Japan trip" — not "on track TO pay off".
+  const onTrackOrPace = /\bon[\s-]?(?:track|pace)\b/.test(folded);
+  const forMy = /\b(?:for|on|with)\s+(?:my|the)\b/.test(folded);
+  // `on` is not a name-introducer here: "on track" itself would match
+  // `\bon\s+[a-z]` and claim every nameless "am I on track?".
+  const forBareName = /\b(?:for|with)\s+(?:["“]|[a-z])/.test(folded);
+  const onTrackTo = /\bon[\s-]?(?:track|pace)\s+to\b/.test(folded);
+  if (onTrackOrPace && forMy && !onTrackTo) return true;
+  if (onTrackOrPace && forBareName && !forMy && !onTrackTo) return true;
+  if (/\bbehind\s+pace\b/.test(folded) && forMy) return true;
+  if (/\bahead of (?:pace|schedule)\b/.test(folded) && forMy) return true;
+  if (/\bhow(?:'s|s| is) my\b/.test(folded) && /\bgoal\b/.test(folded)) return true;
+  if (/\bhow am i doing\b/.test(folded) && forMy) return true;
+  if (/\bprogress\s+(?:on|for|toward|towards)\s+(?:my|the)\b/.test(folded)) return true;
+  if (/\bstatus\s+(?:of|on)\s+(?:my|the)\b/.test(folded) && /\bgoal\b/.test(folded)) return true;
+  if (/\bwill i (?:make|hit|fund|reach)\b/.test(folded) && /\b(goal|date)\b/.test(folded)) {
+    return true;
+  }
+  if (/\bis my\b/.test(folded) && /\b(funded|on[\s-]?track|on[\s-]?pace)\b/.test(folded)) return true;
+  return false;
+}
+
+/**
+ * Words that look like a goal name but are the assistant's own vocabulary or
+ * a generic "my savings". Extracting them would route a status question onto
+ * the wrong engine (FI, spend, a guessed row). Empty after stripping → abstain.
+ */
+const BLOCKED_GOAL_NAME_QUERIES = new Set([
+  'retirement',
+  'retire',
+  'fi',
+  'financial independence',
+  'net worth',
+  'spending',
+  'income',
+  'budget',
+  'runway',
+  'debt',
+  'debts',
+  'savings',
+  'money',
+  'cards',
+  'card',
+  'goals',
+  'goal',
+  'rent',
+  'bills',
+  'bill',
+  'mortgage',
+  'loan',
+  'loans',
+  'dining',
+  'dining out',
+  'credit cards',
+  'student loan',
+  'paying off',
+]);
+
+function cleanGoalNameQuery(raw: string): string | null {
+  const t = foldAssistantApostrophes(raw)
+    .replace(/[?!.,:;]+$/g, '')
+    .replace(/\b(looking|going|doing|coming along)\s*$/i, '')
+    .replace(/\b(savings?\s+)?goals?\s*$/i, '')
+    .replace(/^(?:my|the|a|an)\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  if (t.length < 2 || t.length > MAX_GOAL_NAME) return null;
+  if (BLOCKED_GOAL_NAME_QUERIES.has(t)) return null;
+  return t;
+}
+
+/**
+ * Pull the goal name the user typed. Quoted names win. Otherwise a small set
+ * of status constructions. Returns null when nothing usable is left — the
+ * caller abstains rather than inventing which goal they meant.
+ */
+export function extractGoalNameQuery(question: string): string | null {
+  const q = foldAssistantApostrophes(normalize(question)).replace(/[?!]+$/g, '');
+
+  const quoted = /["“]([^"”]+)["”]/.exec(q);
+  if (quoted?.[1]) return cleanGoalNameQuery(quoted[1]);
+
+  const patterns: RegExp[] = [
+    /\bon[\s-]?track\b.{0,48}?\b(?:for|on|with)\s+(?:my|the\s+)?(.+)$/,
+    /\bon[\s-]?pace\b.{0,48}?\b(?:for|on|with)\s+(?:my|the\s+)?(.+)$/,
+    /\bbehind(?:\s+pace)?\b.{0,48}?\b(?:for|on|with)\s+(?:my|the\s+)?(.+)$/,
+    /\b(?:for|on|with)\s+(?:my|the)\s+(.+?)(?:,|\s+am i|\s+is (?:it|this)|\s+on[\s-]?(?:track|pace))\b/,
+    /\bhow(?:'s|s| is) my\s+(.+?)(?:\s+(?:looking|going|doing|coming along))?\s*$/,
+    /\bhow am i doing\s+(?:on|with|for)\s+(?:my|the\s+)?(.+)$/,
+    /\bprogress\s+(?:on|for|toward|towards)\s+(?:my|the\s+)?(.+)$/,
+    /\bstatus\s+(?:of|on)\s+(?:my|the\s+)?(.+)$/,
+    /\bis my\s+(.+?)\s+(?:on[\s-]?track|on[\s-]?pace|funded|behind)\b/,
+    /\bwill i\s+(?:make|hit|fund|reach)\s+(?:my\s+)?(.+?)(?:\s+(?:goal|date))?\s*$/,
+    /\b(?:for|about)\s+my\s+(.+?)\s+goal\b/,
+  ];
+  for (const re of patterns) {
+    const m = re.exec(q);
+    if (m?.[1]) {
+      const cleaned = cleanGoalNameQuery(m[1]);
+      if (cleaned) return cleaned;
+    }
+  }
+  return null;
+}
+
 /** Purpose adjunct, not ranking: `before I can` / `so I can` (and close twins). */
 const NEXT_DOLLAR_PURPOSE_RE =
   /\b(?:before i(?:'m able| am able| can| could)|so i could|so that i can|so i can)\b/;
@@ -1849,6 +2035,7 @@ export function parseAssistantQuery(
   question: string,
   today: ISODate,
   custom: readonly { id: string; name: string }[] = [],
+  goalNames: readonly string[] = [],
 ): AssistantIntent {
   const q = normalize(question);
   if (!q) return { kind: 'unknown', question };
@@ -2023,6 +2210,16 @@ export function parseAssistantQuery(
   {
     const rich = richLifeFromQuestion(question, today, custom);
     if (rich) return rich;
+  }
+
+  // Status of a stored savings goal (DECISIONS #738). After the inverse
+  // planners (amount+date already took "save $X by <date>") and after FI /
+  // retirement (those words stay those routes). Before wealth_target so a
+  // nameless-amount question is not this. Commits only when a stored name
+  // unique-or-ambiguous-matches; none declines so later routes still run.
+  {
+    const status = goalStatusFromQuestion(question, today, custom, goalNames);
+    if (status) return status;
   }
 
   // Wealth target with NO deadline (W.4). The dated sibling above already took
@@ -2403,6 +2600,12 @@ export function validateIntent(
       } catch {
         return null;
       }
+    }
+    case 'goal_status': {
+      if (typeof o.nameQuery !== 'string') return null;
+      const nameQuery = o.nameQuery.trim().toLowerCase();
+      if (!nameQuery || nameQuery.length > MAX_GOAL_NAME) return null;
+      return { kind: 'goal_status', nameQuery };
     }
     case 'retire_at_age': {
       if (typeof o.targetAge !== 'number' || !Number.isInteger(o.targetAge) || o.targetAge < 18 || o.targetAge > 110) {

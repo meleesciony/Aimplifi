@@ -11,7 +11,9 @@ last day of the target month), never the stored day. `targetMonths` is the solve
 `wholeMonthsUntil` (largest k with `addMonthsClamped(today, k) ≤ deadline`). `fundedBps =
 min(10000, floor(saved × 10000 / target))` — FLOORED so the bar can understate by < 0.01% but never
 claim 100% early; target ≤ 0 → 10000. `remaining = max(0, target − saved)`. Every figure below is
-pinned in `tests/unit/goal-progress.test.ts` (today = 2026-06-10 unless noted).
+pinned in `tests/unit/goal-progress.test.ts` (today = 2026-06-10 unless noted). Ask's
+`goal_status` intent (DECISIONS #738) prints this module's `goalPaceSentence` byte-for-byte;
+it adds no figures of its own.
 
 Pace precedence: `funded` (remaining 0) → `date-passed` (date set, targetMonths < 1) → `no-pledge`
 (monthly null/0) → `no-date` (no date) → `on-track` (monthsToFunded ≤ targetMonths) → `behind`.

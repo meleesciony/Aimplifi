@@ -6,6 +6,18 @@
 > Only sessions from 2026-09-03 onward live here; append new sessions
 > at the top as before.
 
+## 2026-09-11 - Ask answers on-track for a stored savings goal (DECISIONS #738)
+
+**Picked up.** Owner: "continue." Tree held GL.2 in progress after #737: Ask still only inverse-planned a NEW amount+date.
+
+**Closed.** New intent `goal_status` `{ nameQuery }`. Parser shares `goalStatusFromQuestion` with `intentFromKind`. Matching is `matchGoalName` (exact, then unique whole-word; reverse only with filler leftovers). Commits only when a stored savings name unique-or-ambiguous-matches; none declines. Answer `detail` is byte-identical to `goalPaceSentence`. Server `listSavingsGoalNames` (userId + kind null) is passed into the parser. Demo read-only, no writers, no new money math.
+
+**Critic (fresh context): cycles 1–4 FAIL — all blocking findings fixed same-session.** Cycle 1 stole `debt_payoff` / rent / `spend_total` and 1-token reverse-matched `Fund`. Cycle 2: noun payoff, 2-token reverse "Car loan" inside "car loan payoff" (wrong-goal dollars), stolen income/accounts/plan/cash-needed, unmatched nouns claimed a miss. Cycle 3: timeframe-unknown before match deleted later routes ("spending last month"). Cycle 4: unique match then discarded because the *name* contained a month ("June wedding"). Leftover-token window. Residual P2s named in DECISIONS #738 (including seeded demo goals = GL.4). No 5th critic (budget 4).
+
+**Gate.** `bash scripts/verify.sh` → **VERIFY GREEN, exit 0**: tsc 0, probes tsc 0, eslint 0, unit **8,388 passed + 1 expected fail + 1 skipped / 625 files + 1 skipped**, next build clean. Playwright mobile-380 on the fresh build: `goal-status-ask` **1/1** (throwaway "Pace check"; card sentence === Ask `ask-answer`; headline `Pace check — On pace.`; source `/goals`).
+
+**Next.** GL.3 behind-pace nudge; GL.4 seeded demo goals; GL.5 1200-month cap. M.4 visual direction owner-deferred.
+
 ## 2026-09-11 - Goals: progress + pace on every savings goal, and a Home Goals card (DECISIONS #737)
 
 **Picked up.** Owner: "continue building this app out. make it extremely user friendly and insightful towards goals." Tree clean, main even with origin. Explorer map of the goals surface: the card said "Funded in ~N months" + FI delay and nothing else - no % funded, no verdict against the target date, editing a date never re-solved the monthly, Home silent, no open TASKS row. Both engines needed already existed (`goalFundingMonths`, `solveSavingsGoalByDate`), so the slice is a pure composition engine + two surfaces.

@@ -35,6 +35,7 @@ import {
   stayWealthyFromQuestion,
   richLifeFromQuestion,
   nextDollarFromQuestion,
+  goalStatusFromQuestion,
 } from './intent';
 
 /** The kinds the model is allowed to choose (everything except the fallback). */
@@ -57,6 +58,7 @@ export function buildIntentPrompt(question: string): string {
     '- debt_payoff: when the user will be debt-free / how to pay off loans and debts at their current payments, with NO specific deadline (snowball vs avalanche)',
     '- debt_free_by_date: whether the user can be debt-free by a SPECIFIC date they name (e.g. "by December 2027", "in 3 years") and what extra payment it would take',
     '- savings_goal_by_date: whether the user can reach a SPECIFIC savings target by a date they name (e.g. "save $15,000 by December 2027", "set aside money for a down payment by 2028") and what monthly amount it would take',
+    '- goal_status: whether a NAMED savings goal already on /goals is on pace (e.g. "am I on track for my Japan trip?", "how\'s my emergency fund goal"). The name must appear in the question. Never an amount or date (those are savings_goal_by_date). Not retirement / FI (those are fi_status / retire_at_age). Not "am I on track" with no goal name',
     '- retire_at_age: whether the user can retire at a SPECIFIC age they name (e.g. "can I retire at 60?", "retire by age 67") and what monthly contribution it would take to make their money last',
     '- fi_status: standing financial-independence date and FI number from the Coach FI card — "when can I retire?", "when will I be FI?", "what\'s my FI number", "am I saving enough for retirement". Never a named age (that is retire_at_age), never an amount or date',
     '- wealth_target: a stated nest-egg / wealth number with NO deadline (e.g. "save up to 10 mil", "I want $10M", "what do I need to do to get to ten million") — when they would arrive at the current pace and what monthly contribution a horizon would take. If they name a date, use savings_goal_by_date instead',
@@ -96,6 +98,7 @@ export function intentFromKind(
   question: string,
   today: ISODate,
   custom: readonly { id: string; name: string }[] = [],
+  goalNames: readonly string[] = [],
 ): AssistantIntent | null {
   if (!kindRaw || !(LLM_ROUTABLE_KINDS as readonly string[]).includes(kindRaw)) return null;
   // The parser abstains on a question naming an object it cannot read ("how much did I
@@ -221,6 +224,13 @@ export function intentFromKind(
       return amount !== null
         ? { kind: 'wealth_target', targetCents: amount, label: formatCents(amount as Cents) }
         : null;
+    }
+    case 'goal_status': {
+      // The name is re-derived from the user's words. A model that tagged a
+      // nameless / dated / amount-bearing question as goal_status abstains —
+      // the kind is a hint, never a licence to pick a stored row they did not name.
+      const standing = goalStatusFromQuestion(question, today, custom, goalNames);
+      return standing?.kind === 'goal_status' ? standing : null;
     }
     case 'retire_at_age': {
       // The age is re-derived deterministically from the user's own words — the model supplied
