@@ -266,3 +266,230 @@ plan-verdicts-are-authoring-time).
 Owner, verbatim: *"please consolidate readme files if needed, we don't want massive token
 burning context."* D.1–D.3 closed 2026-08-28; this heading no longer earns a live-queue slot.
 
+<!-- moved 2026-09-11 from TASKS.md: closed waves O/O.16/O.12/O.18/O.19(totals)/C/G/O.19(accounts); rows already in the done-row table above; preambles moved verbatim per D.3 -->
+
+## Wave O — Owner feedback 2026-07-27 (LIVE REQUESTS — highest priority)
+
+Three requests arrived mid-session while L.30 was in flight. Verbatim, in the order sent:
+
+1. *"Can we create notes like simplifi to remember what a transaction is?"*
+2. *"And for fields that may have tax implications (medical expenses, child care, etc…) so easy to
+   export that data during tax time"*
+3. *"Please make it easier to see unclassified items in activity"*
+
+Read together, (1) and (2) are ONE slice with two halves — a free-text note per transaction, and a
+structured tax flag whose whole point is a tax-time export — because the note is prose a human reads
+and the tax flag is a field a report GROUPS BY, and building the note alone would invite tax data to
+be typed into it where no export can ever find it. (3) is separate and cheap.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+
+
+**SURVEYED 2026-07-27 (read-only; every claim below re-verified first-hand — the explorer's report cited a path that does not exist, so treat its remaining citations as unchecked).** The data class is **three** surfaces that print a per-category total, not six, and all three already hold a `categoryId`, so no new identifier is needed: `top-spending-card.tsx` (`breakdown.byCategory`, `key={c.categoryId}`), `reports-view.tsx` (same shape, top 12) and `budgets/page.tsx` (`summarizeBudgets` rows, `key={row.categoryId}`). `trends-view.tsx` shows category MOVERS (a change, not a total) and would need a different window if linked at all; `ask-view.tsx` and `recurring-view.tsx` print no category total and are out of scope. **What reconciles already:** the register query at `src/server/transactions.ts:112-113` applies the same account scope and the same split-parent exclusion as the engines (`account.type in SPENDING_ACCOUNT_TYPES`, `currency null|USD`, `isSplitParent: false`), and `src/lib/engine/transactions/query.ts:118` matches `categoryId` exactly — including `'uncategorized'`, which is a real category row (`categories.ts:141`), not a null, so it IS linkable (reports already sends that one row to /triage instead, `reports-view.tsx:116` — the only drill-down idiom in the repo today). **The two things that would make a linked page disagree with the figure clicked, both to be handled in the build, not discovered during it:** (1) **the window** — all three sources sum the CURRENT CALENDAR MONTH (`server/reports.ts` slices `today.slice(0,7)`; `budgets/page.tsx:34,48` filters `date startsWith month`), while the register defaults to ALL history, so the link must carry `from`/`to` for the month or it lands on a strictly larger number (L.31: a borrowed total imports its window); (2) **transfers** — the engines drop them outright (`reports.ts:45`, `trends.ts:122`: `if (t.isSplitParent || t.isTransfer) return false`), and the register's SUMMARY also drops them (`query.ts:173`) but its ROW LIST at the default `type=all` does NOT (`query.ts:97-101`), so a transfer row carrying that category would be visible in a list whose own total excludes it — the link should carry `type=expense` so the rows and the total describe the same basis. **Therefore the reconciliation test is the deliverable's centre**: assert the register summary at the linked URL equals the figure rendered on the source card, for at least one category, on all three surfaces. | 
+
+
+
+## Wave O.16 — Come back to where I was (owner request 2026-07-30, LIVE)
+
+Owner, verbatim, mid-session while O.15 slice 7 was in flight: *"Notate this for future session. Can you
+add away to go back to what we were doing after let's say changing a rule? Right now I have to click
+activity again and needs category"* ("add away" = "add a way"; **Activity** is the register's nav label,
+`src/components/app-nav.tsx`; **"Needs a category"** is the register filter option,
+`src/components/finance/transaction-filters.tsx:129`).
+
+The complaint is about LOST PLACE, not about rules. He is working a filtered queue — Activity filtered to
+"Needs a category" — opens a row's rule lever, saves, and is left wherever the rule flow ends, with the
+filter gone. Getting back is two deliberate clicks he should not have to make, once per transaction, which
+is exactly the friction that makes a triage session feel endless.
+
+**Verified this session (facts, not hypotheses), enough to scope but NOT enough to build:**
+`/rules` already receives `?from=<transactionId>` (`src/app/(app)/rules/page.tsx:37-49`, shipped by
+O.13b) — so the rule page knows WHICH ROW he came from, but nothing carries WHERE HE WAS: the register's
+filter state lives in its own `searchParams` (`src/app/(app)/transactions/page.tsx:48-53`), and no return
+URL, no back link, and no post-save redirect to the originating view exists on the rules page.
+
+**NOT yet measured — do these first, do not assume:** (1) the full set of doors into `/rules` (register
+row menu, detail view, More sheet, the `/transactions` header link) and which of them a reader is most
+often standing in front of; (2) whether the same lost-place friction exists after the OTHER row actions
+(category change, split, tax tag, recurring), which would make this a shared return-context concern rather
+than a rules-only one; (3) whether the register restores scroll position and page number, not just the
+filter, since returning to row 1 of page 3 is still a lost place.
+
+**Design cautions for whoever builds it.** A return target arriving as a URL parameter is
+attacker-controllable, so it must be validated as a same-origin internal path, never redirected to
+verbatim. The register already treats unknown filter values as "no filter"
+(`transactions/page.tsx:48`), so a malformed return URL must degrade to the plain register rather than
+error. And a "Back to…" affordance that names a view the reader did not come from is a false claim about
+his own history — if the origin is unknown, say nothing rather than guess.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+
+## Wave O.12 — Why the categorization work looks like nothing happened (owner report 2026-07-29, LIVE)
+
+Owner, verbatim: *"I don't see changes from the last day of work"* and *"when I categorize something, it
+should also categorize the same going forward. It seems like they are only doing trailing
+categorization"*.
+
+> **2026-07-29, SECOND PASS — the first diagnosis below was measured on the wrong set and all three of
+> its task rows are RETRACTED.** The original probe counted `needsReview = true` joined to `Account`
+> with **no account-type filter**, but all three inbox entry points already scope to
+> `SPENDING_ACCOUNT_TYPES` (`triage.ts:102`, `:260`, `:368`). It measured a set the owner's screen never
+> renders. Superseded by the replay in `scripts/audit-probes/o12-what-the-inbox-actually-holds.ts`, which
+> reproduces `getTriageGroups` statement for statement over his live rows. Retained here only so nobody
+> re-derives the retracted numbers. Original text:
+>
+> *"548 unfiled rows, 16 with a proposal, 374 (68%) on INVESTMENT accounts burying the rest; the review
+> queue is the one place that does not scope to `SPENDING_ACCOUNT_TYPES`."* — **false**: the queue does
+> scope, the 374 securities rows were never in it, and the true queue is 173 rows / 89 merchant groups.
+
+**Two hypotheses REFUTED in the first pass and still refuted — recorded so nobody re-chases them:** the
+deploy was fine (the live domain serves the newest commit), and the register chip is not being suppressed
+by its `currentCategoryId !== 'uncategorized'` gate. Also verified in code: learned rules DO apply going
+forward — `loadUserRules` (`rules.ts:139`) appends them and every ingest path loads through it — so
+"trailing only" is a symptom, not the mechanism.
+
+**WHAT THE OWNER'S INBOX ACTUALLY HOLDS** (shipped `getTriageGroups` replayed over production):
+
+| measurement | value |
+|---|---|
+| `needsReview` rows, every account type (what the first pass measured) | 548 |
+| …after the queue's own `type in CHECKING/SAVINGS/CREDIT` | **173** (−375) |
+| …after the currency and transfer guards | 173 (−0) |
+| merchant **groups** — the number the nav badge prints | **89** |
+| groups offered our own ruleset suggestion | **0** |
+| groups offered Plaid's guess | **0** |
+| groups offered an O.9 proposal | **7** |
+| groups offering the reader **nothing at all** | **82** |
+
+**WHY those 82 are silent** — bucketed by the probe, not guessed:
+
+| reason | groups |
+|---|---|
+| aggregate pseudo-merchant (Venmo ×33 rows, Cash App, checks) — never ruleable by design | 10 |
+| **merchant never corrected before — no history to learn from** | **72** |
+| ≥2 corrections but below the bar / conflicting (the retracted O.12b class) | **0** |
+
+**ROOT CAUSE — the tier built for exactly this population is dead on his data.** The 72 never-corrected
+merchants are local one-offs (`La Mei Zi`, `Proof Of The Pudding`, `Sf Over Georgia Food`, `Creek Gc`); a
+merchant learner cannot help on a first sighting, which is precisely why L.12 added Plaid's own
+`personal_finance_category` as a labelled "Plaid's guess" fallback. Measured coverage of that column on
+his spending rows:
+
+| provider | rows | carrying a provider guess |
+|---|---|---|
+| plaid | 1,312 | **33 (2.5%)** — every one dated **2026-07-23 or later** |
+| simplefin | 1,272 | 0 (correct — SimpleFIN sends no category) |
+
+The mapping is not broken: the 33 rows map to sensible leaves (shopping, fast-food, coffee, dining,
+groceries, fuel…). **L.12 shipped in `57e3576` on 2026-07-24, ingest has written the column ever since,
+and (at diagnosis time) no backfill existed** — `providerCategoryId` then had exactly one writer,
+`plaid.ts:1163`. Plaid's `/transactions/sync` never re-sends a row it has already
+delivered, so those 1,279 nulls were **permanent** without an explicit repair — which O.12d below now
+provides (the backfill is the deliberate second writer of the two provider columns). 97 of the 173 rows in his
+queue are Plaid rows older than 2026-07-23, so the guess tier is silent on every one of them.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+
+## Wave O.18 — expandable rows (owner request 2026-07-31, LIVE)
+
+Owner, with a /budgets screenshot: *"I've asked you many times to make rows expandable so I can see
+what exactly system is classifying spending as. Not just the stuff in the photo but every table.
+You haven't done it."*
+
+The category LINKS shipped the day before (`21b6b20`, deployed) were not the ask. A link leaves the
+page and answers one category at a time; "is this bucket right?" gets answered by scanning several
+buckets, which only works if the answer opens in place. Both affordances now ship: the panel shows
+what is inside, and its footer still offers the register, which is where a row gets re-filed.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+
+
+
+## Wave O.19 — "These numbers do not add up to July monthly total" (owner report 2026-07-31, LIVE)
+
+Owner, with two /reports screenshots (header "Jul · $28,253.04 total", eleven visible rows
+summing to $19,312.25): *"Notate this. These numbers do not add up to July monthly total: 28k
+and change. Make it make sense."*
+
+Measured cause, same session: `reports-view.tsx:44` renders `byCategory.slice(0, 12)` under a
+header printing `totalCents`, which the engine computes over the WHOLE array
+(`engine/reports/reports.ts:101`) — a silent top-12 cap beside an uncapped total, the exact
+"no silent caps" class. O.18's per-row expanders sharpened the contradiction: each row now
+proves itself to the penny while the page-level identity is silently ~$8.9k short. The
+dashboard Top Spending card is the same disease at `slice(0, 4)` beside "`totalCents` this
+month" (`top-spending-card.tsx:44,58`). **Sweep CORRECTED by the O.19 hostile critic (my
+first pass wrote "Ask's 'biggest' phrasings print no adjacent total" — false, verified by
+reading):** `answerTopCategories` (answer.ts:441-458) prints `Total <period>: $X` beside a
+capped fact list, and `answerSpendTotal` (answer.ts:381-398) headlines the whole-month total
+over `byCategory.slice(0, 3)` facts with no count or remainder — the same shape the owner
+photographed, mitigated only by the headline's tap-through trace. /budgets is uncapped;
+/trends caps under completeness-implying headers but prints no adjacent total. Filed as
+O.19b/O.19c below.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+
+## Wave C — Calculation audit (owner report 2026-08-02, LIVE)
+
+Owner, verbatim: *"do a multi agent adversarial review of every displayed calculation in this app.
+For instance the trends makes no sense. 'on pace for 19,713.85 less than last month' how? we've
+spent 578.79 on the first day of the month… 8971.25 makes no sense since our mortgage is ~6200.
+That's just one of many. user experience also seems quite clunky in areas."*
+
+**Full findings: `docs/CALC_AUDIT_2026-08-02.md`** — six parallel read-only hostile critics
+(trends/pace · spending-plan+Fixed · money instructions · long-horizon projections · cross-surface
+parity · transaction/rules UX). 8 P0, 29 P1, ~20 P2, plus 7 UX P1. Read that doc before starting
+any row here; each row below is a pointer, not the evidence.
+
+Both owner numbers resolved exactly: `57879 / 2 days * 31 = 897125c` and July actual
+`$28,685.10`. Seven of the eight P0s were reproduced in the main thread against source, not taken
+on a subagent's word (`a-subagents-green-is-a-hypothesis`).
+
+**START HERE: C.1 + C.3 + C.2 as one /trends slice.** Owner's reply to the audit was *"doesn't
+seem like it's fixed at all"* — the review shipped a document and his number is unchanged. The
+next session writes CODE; the analysis is done and lives in the audit doc. Then C.7, then C.0 →
+C.4/C.5, then C.6 in its own session.
+
+**Grok 4.5 scope in this wave (owner asked 2026-08-02).** Per the routing policy above, Grok may
+take **C.3**, **C.16** (excluding F5's confirm-step and F7's split-container fence — both are
+data-integrity), the **wiring half of C.15** once the return encoder exists, and the **copy-only
+P2s in C.17**. Grok may NOT take C.1, C.2, C.4, C.5, C.6, C.7, C.9, C.11, C.12, C.13, C.14's
+`goalFIImpact` floor, C.15's encoder (a URL-construction boundary), or C.17's float-rounding fix.
+Note for expectation-setting: **C.3 does not change the $8,971.25** — it adds the day count, the
+assumption and the horizon and removes the false green. The figure itself moves only in C.2.
+
+**C.0 gates the Fixed cluster ONLY** — it is a read-only database measurement that produces
+nothing the owner can see, so it is not the place to start. Per
+`three-sessions-of-hypothesis-one-query-of-evidence`, three prior sessions each shipped a
+plausible Fixed-figure fix without measuring and none was the cause. C.4/C.5 move Fixed in the
+OPPOSITE direction from the pace defect the owner reported; do not guess which is live on his
+account.
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+
+## Wave G — Gate integrity (the ship gate must mean something)
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+
+
+## Wave O.19 — /accounts de-clutter: hide the combine machinery (owner request 2026-08-07, LIVE)
+
+> **Renumbered 2026-08-07.** Filed as "O.18" when it was queued, but Wave O.18 (expandable rows,
+> 2026-07-31) already owns that id and its rows O.18c/O.18e/O.18g are cited in STATUS — two waves
+> answering to one number would make every future citation ambiguous. Same row, new id.
+
+Owner, verbatim, after closing H.6c: *"Can we get rid of all the combine accounts on accounts
+page. Looks like a beta website. Perhaps do[n']t delete that if we ever need to come back to it.
+Maybe hide it for now. It's ugly. Save this for next slice after I /clear"* — and, same
+exchange, the depth decision that de-prioritizes the machinery's biggest use case: *"We don't
+need more than 2 years. I just want parity with what's out there."*
+
+| # | Task | Owner/Agent | Effort | Est. budget | Status |
+|---|------|-------------|--------|------------|--------|
+
