@@ -729,3 +729,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #734 — M.4 slice 3: section-label token, lead-column cap, body-wash scrolls (2026-09-11) → docs/DECISIONS.md
 - #735 — TASKS.md ledger cut: eight closed waves rotated verbatim (2026-09-11) → docs/DECISIONS.md
 - #736 — M.4 slice 4: the residual near-twin labels onto the token (2026-09-11) → docs/DECISIONS.md
+- #737 — Goal progress + pace: how far along, and does the pledge make the date (2026-09-11) → docs/DECISIONS.md

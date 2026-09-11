@@ -5,6 +5,9 @@ import { EmptyGoals } from '@/components/onboarding/route-empty';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { prisma } from '@/lib/db';
 import { goalFIImpact } from '@/lib/engine/goals';
+import { goalProgress, goalTargetDate } from '@/lib/engine/goals/progress';
+import { GoalPaceLine, GoalProgressBlock } from '@/components/finance/goal-progress';
+import { isoDate } from '@/lib/dates';
 import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
@@ -62,7 +65,8 @@ export default async function GoalsPage() {
     <div className={PAGE_STACK_CLASS}>
       <h1 className={PAGE_TITLE_CLASS}>Goals</h1>
       <p className={`${PAGE_LEAD_CLASS} ${PAGE_LEAD_WIDE_CLASS}`}>
-        Every goal shows its effect on your FI date, assuming your savings rate
+        Every goal shows how far along you are, whether your monthly amount makes
+        your date, and its effect on your FI date, assuming your savings rate
         and expected return stay as they are. Dates here are in today&apos;s money,
         after inflation — the same basis the FI card on Coach uses, so the two
         agree. Goals and FI aren&apos;t enemies — they&apos;re both you, paying
@@ -173,6 +177,17 @@ export default async function GoalsPage() {
             goalRemainingCents: cents(Math.max(0, goal.targetCents - goal.savedCents)),
             goalMonthlyContributionCents: cents(goal.monthlyContributionCents ?? 0),
           });
+          // #737 — progress + pace from the stored fields, on the same `today` the
+          // debt planner below uses. The required-monthly figure is Ask's own solver.
+          const targetDate = goalTargetDate(goal.targetDate);
+          const today = isoDate(coach.today);
+          const progress = goalProgress({
+            targetCents: goal.targetCents,
+            savedCents: goal.savedCents,
+            monthlyContributionCents: goal.monthlyContributionCents,
+            targetDate,
+            today,
+          });
           return (
             <Card key={goal.id} data-testid={`goal-${goal.id}`}>
               <CardHeader className="pb-2">
@@ -194,10 +209,21 @@ export default async function GoalsPage() {
                   <GoalTargetDateControl goalId={goal.id} targetDate={goal.targetDate} />
                 </CardDescription>
               </CardHeader>
-              <CardContent className="text-sm">
+              <CardContent className="space-y-3 text-sm">
+                <GoalProgressBlock name={goal.name} progress={progress} />
+                <GoalPaceLine
+                  progress={progress}
+                  goal={{
+                    targetCents: goal.targetCents,
+                    savedCents: goal.savedCents,
+                    monthlyContributionCents: goal.monthlyContributionCents,
+                    targetDate,
+                    today,
+                  }}
+                />
                 {impact.monthsToGoal === null ? (
                   <p className="text-muted-foreground">
-                    Add a monthly contribution to see the timeline and FI effect.
+                    Add a monthly amount to see this goal&apos;s effect on your FI date.
                   </p>
                 ) : (
                   <p data-testid="goal-fi-impact">

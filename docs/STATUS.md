@@ -15,6 +15,20 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-11 — Goals: progress + pace on every savings goal, and a Home Goals card (DECISIONS #737)
+
+**The report.** Owner: make the app "extremely user friendly and insightful towards goals." A savings-goal card answered only "how many months at this pledge?"; it never said how far along the reader is or whether the pledge makes the date, and Home never mentioned goals.
+
+**Shipped.** Pure engine `goalProgress()` (integer cents / bps; funded percent FLOORED so 99.99% never reads 100%; the required monthly for a dated goal is `solveSavingsGoalByDate`'s own figure, so the card and Ask state one number; the deadline is month-granular - the form's 1st-of-month and Ask's month-end judge alike). Every /goals savings card: progress bar (role=progressbar) + "N% funded" + a pace badge (Funded / Date passed / Needs a monthly amount / No date yet / On pace / Behind pace) + one sentence naming both inputs ("counting the $X you've marked saved, $Y/mo has this funded by <Month>, N months ahead of / after your <Month> date") and, when behind, the monthly that closes the gap plus the invitation to update what's saved. Home: `GoalsProgressCard` with a headline ("1 of 3 goals needs a look"), the three goals most in need of attention, each with bar + "$X marked saved of $Y · N% funded" + the same sentence, and a link to /goals. Debt-free cards and reserves untouched; no writers added; demo unchanged (no goals → no Home card).
+
+**Critic (fresh context): cycle 1 FAIL 1 P1 — fixed same-session.** P1-1: the verdict leaned on the hand-typed saved figure without naming it (an Ask-saved goal read "Behind pace" one month later with zero reader action). Fixed in copy + Home basis line; GP-M anchor. Residual P2s accepted: `wholeMonthsUntil` caps at 1200 months (a >100-year date overstates the required monthly; the month input has no max); a regex-passing invalid stored date would split the two readers (unreachable through current writers).
+
+**Gate.** `bash scripts/verify.sh` (run 2, after the critic fixes) → ✅ VERIFY GREEN, exit 0: tsc 0, probes tsc 0, eslint 0, unit **8,354 passed + 1 expected fail + 1 skipped / 623 files**, `next build` clean. Playwright mobile-380 on the fresh build: `goal-progress.spec.ts` **1/1** (no-date → on-track → 25% + 3 months ahead → behind with "$375.00/mo gets you there on time ($75.00/mo more)"; Home headline, basis line, row, link), phase4 goals **1/1**.
+
+**Ship.** SHIP_PLACEHOLDER
+
+**Still open.** Ask against stored goals ("am I on track for my Japan trip?"); a behind-pace nudge; seeded demo goals. Wave 0 ops owner-blocked. M.4 visual direction owner-deferred.
+
 ## ✅ BUILT 2026-09-11 — TASKS.md ledger cut + M.4 slice 4: residual section labels onto the token (DECISIONS #735, #736)
 
 **Ledger cut (#735).** The rotation commit's named next cut: eight fully-closed wave sections (O, O.16, O.12, O.18, O.19 totals, C, G, O.19 accounts — zero status-badged rows, each range re-verified row-by-row; Wave O's owner requests confirmed shipped via the done-row archive + #725) moved verbatim to `docs/archive/TASKS_DONE_ARCHIVE.md` under a dated marker. TASKS.md 143 KB → 126.5 KB; the rest is open rows' live status cells. docs-lint clean; ledger suite 20/20.

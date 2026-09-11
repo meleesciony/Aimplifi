@@ -6,6 +6,20 @@
 > Only sessions from 2026-09-03 onward live here; append new sessions
 > at the top as before.
 
+## 2026-09-11 - Goals: progress + pace on every savings goal, and a Home Goals card (DECISIONS #737)
+
+**Picked up.** Owner: "continue building this app out. make it extremely user friendly and insightful towards goals." Tree clean, main even with origin. Explorer map of the goals surface: the card said "Funded in ~N months" + FI delay and nothing else - no % funded, no verdict against the target date, editing a date never re-solved the monthly, Home silent, no open TASKS row. Both engines needed already existed (`goalFundingMonths`, `solveSavingsGoalByDate`), so the slice is a pure composition engine + two surfaces.
+
+**Closed.** `src/lib/engine/goals/progress.ts` `goalProgress()` (funded bps floored, remaining, funded-by month, targetMonths + requiredMonthly read from Ask's own solver, pace funded | date-passed | no-pledge | no-date | on-track | behind, delta + gap) and `progress-copy.ts` (one sentence per pace, `goalsHeadline`). Found and fixed a real disagreement while wiring it: the form stores a month pick as the 1st while Ask resolves "by June 2027" to the month END - judged day-precisely, a form-set "Jun 2027" at $500/mo toward $6,000 read "behind by 1 month". The deadline is month-granular (`monthWindow(monthKey(targetDate)).to`), pinned by GP-L. /goals savings cards render `GoalProgressBlock` (bar + "N% funded" + pace badge) and `GoalPaceLine` above the FI line; Home renders `GoalsProgressCard` (top 3 by attention rank, "All goals (N more)", null with no goals) on the same `coach.today`.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1 - fixed same-session.** The verdict leaned on the hand-typed `savedCents` without naming it: probed one month after an Ask save, the row read "Behind pace ... $545.46/mo" with zero reader action. Every projecting sentence now names "counting the $X you've marked saved", behind offers the saved update before the bigger pledge, Home prints "$X marked saved of $Y" (GP-M). P2s fixed: has-passed wording, needs/need, "has this funded", Home name title + wrap, one tautological assertion. Accepted P2s named in DECISIONS.
+
+**Gate.** `bash scripts/verify.sh` (run 2, after the critic fixes) -> **VERIFY GREEN, exit 0**: tsc 0, probes tsc 0, eslint 0, unit **8,354 passed + 1 expected fail + 1 skipped / 623 files** (+39 over the #736 baseline = this slice's tests), next build clean. docs-lint clean (241 files); ledger suite 20/20. Playwright mobile-380 on the fresh build: `goal-progress` **1/1**, phase4 goals **1/1**.
+
+**Ship.** SHIP_PLACEHOLDER
+
+**Next.** Ask answering "am I on track for <goal>?" against stored rows (Ask today only inverse-plans a NEW amount+date); a behind-pace nudge kind; seeded demo goals so the live demo /goals is not the empty worked example. M.4 per-route visual direction stays owner-deferred.
+
 ## 2026-09-11 - TASKS.md ledger cut (#735) + M.4 slice 4: residual section labels onto the token (#736)
 
 **Picked up.** Owner: "continue building." Tree clean, main even with origin (everything shipped). Two continuation items named by the ledgers: the TASKS.md cut (named "next cut" by the 2026-09-11 rotation commit) and M.4 slice 4 (slice 3's ~13 residual near-twin literals).

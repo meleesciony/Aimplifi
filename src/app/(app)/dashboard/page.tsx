@@ -40,6 +40,9 @@ import { getConnectionAlerts, getDataFreshness } from '@/server/connection-healt
 import { getCashFlowRadar } from '@/server/radar';
 import { eligibleTransferSources } from '@/lib/engine/radar/radar';
 import { getReturnMoment } from '@/server/return-moment';
+import { getGoalProgressRows } from '@/server/goals';
+import { GoalsProgressCard } from '@/components/finance/goals-progress-card';
+import { isoDate } from '@/lib/dates';
 import { ReturnMomentCard } from '@/components/dashboard/return-moment-card';
 import { TodayFeedCard } from '@/components/dashboard/today-feed-card';
 import { getNudgeDismissedKeys } from '@/server/nudge';
@@ -131,12 +134,17 @@ export default async function DashboardPage({
   const nudgeFeed = buildNudgeFeed({ ...nudgeInput, dismissedKeys: nudgeDismissedKeys });
   const nudgeFeedAll = buildNudgeFeed({ ...nudgeInput, dismissedKeys: new Set<string>() });
 
-  const returnMoment = await getReturnMoment(session.user.id, {
-    today: radar.radar.today,
-    review: coach.review,
-    opportunities: coach.opportunities,
-    radar: radar.radar,
-  });
+  const [returnMoment, goalRows] = await Promise.all([
+    getReturnMoment(session.user.id, {
+      today: radar.radar.today,
+      review: coach.review,
+      opportunities: coach.opportunities,
+      radar: radar.radar,
+    }),
+    // #737 — savings goals with progress + pace, on the same business "today" as
+    // /goals (coach.today), so the two surfaces judge a date alike.
+    getGoalProgressRows(session.user.id, isoDate(coach.today)),
+  ]);
 
   const paymentAccounts = data.accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))
@@ -289,6 +297,8 @@ export default async function DashboardPage({
       />
 
       {returnMoment && <ReturnMomentCard moment={returnMoment} />}
+
+      <GoalsProgressCard rows={goalRows} />
 
       <CurrencyExclusionBanner summary={withheld} />
       <FeedDroppedBanner accounts={feedDropped} householdFrozenCount={data.householdFeedDroppedCount} />

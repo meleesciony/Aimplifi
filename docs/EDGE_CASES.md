@@ -24,6 +24,7 @@ expected value to match the code.
 - [§Mortgage early-payoff (DECISIONS #517)](../tests/edge-cases/mortgage-early-payoff-decisions-517.md)
 - [§Debt-free-by-date (DECISIONS #125 — inverse planner, hand-verified)](../tests/edge-cases/debt-free-by-date-decisions-125-inverse-planner-hand-verified.md)
 - [§Savings-goal-by-date (DECISIONS #126 — inverse planner, hand-verified)](../tests/edge-cases/savings-goal-by-date-decisions-126-inverse-planner-hand-verified.md)
+- [§Goal-progress-and-pace (DECISIONS #737 — hand-verified)](../tests/edge-cases/goal-progress-and-pace-decisions-737.md)
 - [§Retire-at-age (DECISIONS #131 — inverse planner, hand-verified)](../tests/edge-cases/retire-at-age-decisions-131-inverse-planner-hand-verified.md)
 - [SimpleFIN holdings — authoritative total vs per-share round-trip (DECISIONS #129, live-ingest backlog #5)](../tests/edge-cases/simplefin-holdings-authoritative-total-vs-per-share-round-trip-decisions-129-liv.md)
 - [Loan/mortgage payment obligations + Plaid mortgage/student ingest (DECISIONS #134)](../tests/edge-cases/loan-mortgage-payment-obligations-plaid-mortgage-student-ingest-decisions-134.md)
