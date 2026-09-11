@@ -478,244 +478,244 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #482 — O.17a: money dials key by category id (2026-08-16) → docs/archive/DECISIONS_ARCHIVE_402_to_484.md
 - #483 — W.8: every COACH_COPY key enters the guardrail scan (2026-08-17) → docs/archive/DECISIONS_ARCHIVE_402_to_484.md
 - #484 — W.4: route a wealth target through Ask (2026-08-17) → docs/archive/DECISIONS_ARCHIVE_402_to_484.md
-- #485 — O.20j first slice: `countsInFlows` honors the transfer category leaf (2026-08-20) → docs/DECISIONS.md
-- #486 — O.20j R6: Overdraft Transfer from Brokerage is a transfer, not a fee (2026-08-20) → docs/DECISIONS.md
-- #487 — O.20j: filed transfer category is detector evidence (2026-08-20) → docs/DECISIONS.md
-- #488 — Ask "will I run out of money?" uses Cash flow radar (2026-08-20) → docs/DECISIONS.md
-- #489 — Public "Explore the demo" CTA uses the mutation-form recipe (2026-08-20) → docs/DECISIONS.md
-- #490 — O.10a: Ask merchant match is exact store identity (2026-08-20) → docs/DECISIONS.md
-- #491 — O.20j: hand-file to Transfer stamps `isTransfer` immediately (2026-08-20) → docs/DECISIONS.md
-- #492 — Header Sign out uses the mutation-form recipe (2026-08-20) → docs/DECISIONS.md
-- #493 — Ideal savings percent is the Settings dial, never a hardcoded 40% (2026-08-20) → docs/DECISIONS.md
-- #494 — Ask "what should I cut?" uses the Coach opportunities list (2026-08-20) → docs/DECISIONS.md
-- #495 — Coach/Ask cut list skips money-dial categories (2026-08-21) → docs/DECISIONS.md
-- #496 — Ask "when can I retire?" uses the Coach FI card (2026-08-21) → docs/DECISIONS.md
-- #497 — Ask "is my lifestyle creeping?" uses the Coach lifestyle-creep card (2026-08-21) → docs/DECISIONS.md
-- #498 — Ask "how many months of runway?" uses the Coach room-for-error card (2026-08-21) → docs/DECISIONS.md
-- #499 — P.2 reconciled; Ask phrases the conscious-spending buckets (2026-08-21) → docs/DECISIONS.md
-- #500 — P1.2 staying-wealthy row composes three Coach signals (2026-08-21) → docs/DECISIONS.md
-- #501 — Build docs reframed from loop engineering to graph engineering (2026-08-22) → docs/DECISIONS.md
-- #502 — P2.2 memory-dividend reflection on the life-energy card, gated to buys outside the dials (2026-08-23) → docs/DECISIONS.md
-- #503 — C14 "past enough" Coast-FI framing on the FI card; P1.1 closed as a skip (2026-08-23) → docs/DECISIONS.md
-- #504 — P1.3 "My Rich Life" vision line: one stored string, two fences (2026-08-23) → docs/DECISIONS.md
-- #505 — Ask `rich_life` intent: the stored line routed, and the empty state named (2026-08-23) → docs/DECISIONS.md
-- #506 — Ask "what should I cut?": the FI counterfactual over exactly the list printed (2026-08-24) → docs/DECISIONS.md
-- #507 — Ask "what should I cut?": radar/cash-dip re-walk, speak only if it moves (2026-08-24) → docs/DECISIONS.md
-- #508 — /coach-card radiation of the cut FI + radar sentences (2026-08-24) → docs/DECISIONS.md
-- #509 — Standing: commit and push at the end of every slice (2026-08-24) → docs/DECISIONS.md
-- #510 — W.6(b) next extra dollar, ranked from rates on file (2026-08-24) → docs/DECISIONS.md
-- #511 — W.6(b) Ask P1: `should I` is not the ranking proxy (2026-08-24) → docs/DECISIONS.md
-- #512 — W.6(d) drawdown on FI date (2026-08-24) → docs/DECISIONS.md
-- #513 — W.6(c) category fulfillment curve (2026-08-24) → docs/DECISIONS.md
-- #514 — P1.4 income lever (raise → FI delta) (2026-08-25) → docs/DECISIONS.md
-- #515 — P1.5 investing ladder + fee-drag (2026-08-25) → docs/DECISIONS.md
-- #516 — Reports interest & fees YTD (2026-08-25) → docs/DECISIONS.md
-- #517 — Mortgage extra-principal what-if (2026-08-25) → docs/DECISIONS.md
-- #518 — PAW expected-net-worth lens (2026-08-25) → docs/DECISIONS.md
-- #519 — Idle cash past a 6-month cushion (2026-08-26) → docs/DECISIONS.md
-- #520 — C14 Giving YTD on /reports (2026-08-26) → docs/DECISIONS.md
-- #521 — C14 Giving goal preset on /goals (2026-08-26) → docs/DECISIONS.md
-- #522 — C14 Education goal preset on /goals (2026-08-26) → docs/DECISIONS.md
-- #523 — C2 dashboard cushion line pairs the radar dip (coach-principles plan §4 Dashboard row): a pure composer `cushionLineFor(status, firstNegativeDate, runwayMonths)` (src/lib/engine/radar/cushion-line.ts) returns `COACH_COPY… → docs/DECISIONS.md
-- #524 — C5 time-window-of-life line closes the coach-principles plan's last C5 gap (§3 row: "no ... time-window-of-life framing" — the one-line's "buy experiences while you can"; §6's two C5 sentences — the dials "spend there pr… → docs/DECISIONS.md
-- #525 — P0.4 assign-to-zero leftover line on /budgets (2026-08-28) → docs/DECISIONS.md
-- #526 — D.3 standing-read audit: INDEX ≤220, EDGE_CASES next to tests, closed TASKS waves out (2026-08-28) → docs/DECISIONS.md
-- #527 — Opt-in "Remember me on this device" at email/password sign-in (2026-08-28) → docs/DECISIONS.md
-- #528 — Employer-match Settings rung for next-dollar (2026-08-29) → docs/DECISIONS.md
-- #529 — Tax-advantaged contribution-room Settings rung (2026-08-31) → docs/DECISIONS.md
-- #530 — Change category click persists; Simplifi aliases are clickable (2026-08-31) → docs/DECISIONS.md
-- #531 — Simplifi CSV recategorizes matching existing rows (2026-09-01) → docs/DECISIONS.md
-- #532 — Needs a category chip is a real link (2026-09-01) → docs/DECISIONS.md
-- #533 — Over-plan copy is the pattern remainder, not this-month spend (2026-09-01) → docs/DECISIONS.md
-- #534 — Today payment-due rows name the account (2026-09-01) → docs/DECISIONS.md
-- #535 — You're covered names this cycle (2026-09-01) → docs/DECISIONS.md
-- #536 — Inbox copy does not promise auto-file quality (2026-09-01) → docs/DECISIONS.md
-- #537 — Strip bank-feed tokens that are not a payee (2026-09-01) → docs/DECISIONS.md
-- #538 — Cursor and Moonshot file software (2026-09-01) → docs/DECISIONS.md
-- #539 — Direct Starbucks is coffee; delivery-app Starbucks is Food Delivery (2026-09-01) → docs/DECISIONS.md
-- #540 — CSV import is any source, not a Simplifi standup matcher (2026-09-01) → docs/DECISIONS.md
-- #541 — Sign-in accepts a correct password wrapped in autofill whitespace (2026-09-01) → docs/DECISIONS.md
-- #542 — POS prefixes are not a payee name (2026-09-01) → docs/DECISIONS.md
-- #543 — Home Needs a category goes to Activity, not Inbox (2026-09-01) → docs/DECISIONS.md
-- #544 — CSV import accepts Debit/Credit and Net Amount (2026-09-01) → docs/DECISIONS.md
-- #545 — Uncategorized figures go to Needs a category, not Inbox (2026-09-01) → docs/DECISIONS.md
-- #546 — CSV paste helper names Debit/Credit and Net Amount (2026-09-01) → docs/DECISIONS.md
-- #547 — First-run CSV import creates the spending account (2026-09-01) → docs/DECISIONS.md
-- #548 — File transactions goes to Needs a category, not Inbox (2026-09-01) → docs/DECISIONS.md
-- #549 — Empty Home offers bank or CSV, not a 30-second Cash-Needed promise (2026-09-01) → docs/DECISIONS.md
-- #550 — CSV import accepts Withdrawal/Deposit and names amount alternatives (2026-09-01) → docs/DECISIONS.md
-- #551 — Signup and reset hash the trimmed password (2026-09-01) → docs/DECISIONS.md
-- #552 — CSV Debit/Credit headers may carry a unit in parentheses (2026-09-01) → docs/DECISIONS.md
-- #553 — CSV import accepts Post Date and Trans Date (2026-09-01) → docs/DECISIONS.md
-- #554 — Empty Home connect heading names CSV, not only a bank (2026-09-01) → docs/DECISIONS.md
-- #555 — CSV paste helper and bank guides name Post Date and Withdrawal/Deposit (2026-09-01) → docs/DECISIONS.md
-- #556 — Sign-in and first-run empty name CSV, not bank-only (2026-09-01) → docs/DECISIONS.md
-- #557 — CSV import accepts Merchant, Amount (USD), and Trans. Date (2026-09-01) → docs/DECISIONS.md
-- #558 — CSV import drops a trailing time from Excel and Sheets dates (2026-09-01) → docs/DECISIONS.md
-- #559 — CSV import accepts US hyphen dates MM-DD-YYYY (2026-09-01) → docs/DECISIONS.md
-- #560 — Missing-amount CSV error names Withdrawal/Deposit (2026-09-01) → docs/DECISIONS.md
-- #561 — CSV import accepts Run Date (2026-09-01) → docs/DECISIONS.md
-- #562 — CSV import accepts US two-digit years (2026-09-01) → docs/DECISIONS.md
-- #563 — CSV paste helper names Run Date and two-digit years (2026-09-01) → docs/DECISIONS.md
-- #564 — Inbox copy is merchant-group review, not Needs a category (2026-09-01) → docs/DECISIONS.md
-- #565 — Unrecognized CSV date error names two-digit years (2026-09-01) → docs/DECISIONS.md
-- #566 — Activity period names calendar years (2026-09-01) → docs/DECISIONS.md
-- #567 — Reports range names calendar years (2026-09-01) → docs/DECISIONS.md
-- #568 — First-run CSV records a typed current balance (2026-09-01) → docs/DECISIONS.md
-- #569 — CSV import can create another account (2026-09-01) → docs/DECISIONS.md
-- #570 — CSV import finds the header under a bank preamble (2026-09-02) → docs/DECISIONS.md
-- #571 — CSV import accepts accounting parentheses amounts (2026-09-02) → docs/DECISIONS.md
-- #572 — CSV import skips bank footer totals (2026-09-02) → docs/DECISIONS.md
-- #573 — CSV import accepts trailing-minus amounts (2026-09-02) → docs/DECISIONS.md
-- #574 — CSV import accepts CR/DR amount marks (2026-09-02) → docs/DECISIONS.md
-- #575 — Home Step 1 names bank or CSV (2026-09-02) → docs/DECISIONS.md
-- #576 — Settings Bank connections names CSV (2026-09-02) → docs/DECISIONS.md
-- #577 — Activity register heading matches the nav (2026-09-02) → docs/DECISIONS.md
-- #578 — Reports nav names trailing months or a year (2026-09-02) → docs/DECISIONS.md
-- #579 — Household can name each spending-plan envelope (2026-09-02) → docs/DECISIONS.md
-- #580 — Household can name a repeating bill (2026-09-02) → docs/DECISIONS.md
-- #581 — Household can rename a savings goal (2026-09-02) → docs/DECISIONS.md
-- #582 — Household can change a reserve's true cost (2026-09-02) → docs/DECISIONS.md
-- #583 — Household can change how often a typed reserve comes around (2026-09-02) → docs/DECISIONS.md
-- #584 — Household can record that a repeating bill paid this cycle (2026-09-02) → docs/DECISIONS.md
-- #585 — Household can file an Inbox merchant group in one go (2026-09-02) → docs/DECISIONS.md
-- #586 — Inbox file saves a rule for the next same payee (2026-09-02) → docs/DECISIONS.md
-- #587 — One-row Inbox pick of a merchantless payee still saves the rule (2026-09-02) → docs/DECISIONS.md
-- #588 — All-similar of a merchantless payee files the group and saves the rule (2026-09-02) → docs/DECISIONS.md
-- #589 — Merchant-wide recategorize of a merchantless payee files the group (2026-09-02) → docs/DECISIONS.md
-- #590 — Spend-class all-similar of a merchantless payee files the group (2026-09-02) → docs/DECISIONS.md
-- #591 — Take a repeating bill off the spending plan (2026-09-02) → docs/DECISIONS.md
-- #592 — Take an unnamed repeating bill off the spending plan (2026-09-02) → docs/DECISIONS.md
-- #593 — Put a repeating bill back on the spending plan (2026-09-02) → docs/DECISIONS.md
-- #594 — Turn a repeating bill into a reserve from the spending plan (2026-09-02) → docs/DECISIONS.md
-- #595 — Turn a named no-payee repeating bill into a reserve from the spending plan (2026-09-02) → docs/DECISIONS.md
-- #596 — Turn a named no-payee repeating bill into a reserve from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
-- #597 — Take a repeating bill off the plan from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
-- #598 — Put a repeating bill back on the plan from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
-- #599 — Household can change a savings goal's target without deleting it (2026-09-02) → docs/DECISIONS.md
-- #600 — Household can change a savings goal's monthly contribution without deleting it (2026-09-02) → docs/DECISIONS.md
-- #601 — Household can change a savings goal's target date without deleting it (2026-09-02) → docs/DECISIONS.md
-- #602 — Household can clear a savings goal's monthly contribution without deleting it (2026-09-02) → docs/DECISIONS.md
-- #603 — Household can clear a savings goal's target date without deleting it (2026-09-02) → docs/DECISIONS.md
-- #604 — Household can rename a payee on a transaction without writing a rule (2026-09-02) → docs/DECISIONS.md
-- #605 — Household can change a repeating bill’s amount on the spending plan (2026-09-02) → docs/DECISIONS.md
-- #606 — Household can change a repeating bill’s amount from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
-- #607 — Household can clear a repeating bill’s amount back to what the app detected (2026-09-02) → docs/DECISIONS.md
-- #608 — Household can change how often a repeating bill comes around (2026-09-02) → docs/DECISIONS.md
-- #609 — Household can change a repeating bill’s cadence from Settings Fixed costs (2026-09-02) → docs/DECISIONS.md
-- #610 — Household can clear a repeating bill’s cadence back to what the app detected (2026-09-02) → docs/DECISIONS.md
-- #611 — Household can change a transaction’s amount (2026-09-02) → docs/DECISIONS.md
-- #612 — Household can change a transaction’s date (2026-09-02) → docs/DECISIONS.md
-- #613 — Household can change a transaction’s account (2026-09-02) → docs/DECISIONS.md
-- #614 — Household can clear a payee rename back to the bank name (2026-09-02) → docs/DECISIONS.md
-- #615 — Household can clear a repeating bill’s name back to what the app detected (2026-09-02) → docs/DECISIONS.md
-- #616 — Household can flip a transaction in or out (2026-09-02) → docs/DECISIONS.md
-- #617 — Household can change the bank text on a transaction (2026-09-03) → docs/DECISIONS.md
-- #618 — After a household edits bank text, the row re-matches (2026-09-03) → docs/DECISIONS.md
-- #619 — After a household flips a transaction in or out, the row re-matches (2026-09-03) → docs/DECISIONS.md
-- #620 — After a household changes a transaction’s amount, the row re-matches (2026-09-03) → docs/DECISIONS.md
-- #621 — After a household changes a transaction’s date, the row re-matches (2026-09-03) → docs/DECISIONS.md
-- #622 — After a household changes a transaction’s account, the row re-matches (2026-09-03) → docs/DECISIONS.md
-- #623 — Household can record how much is already saved toward a savings goal (2026-09-03) → docs/DECISIONS.md
-- #624 — Household can rename a payee on an Inbox merchant group without writing a rule (2026-09-03) → docs/DECISIONS.md
-- #625 — Household can rename a payee from Home’s recent charges without writing a rule (2026-09-03) → docs/DECISIONS.md
-- #626 — Household can file a category from a Home recent charge that still needs one (2026-09-03) → docs/DECISIONS.md
-- #627 — Household can change the category of an already-filed Home recent charge (2026-09-03) → docs/DECISIONS.md
-- #628 — Household can change a Home recent-charge date without opening detail (2026-09-03) → docs/DECISIONS.md
-- #629 — Household can change a Home recent-charge amount without opening detail (2026-09-03) → docs/DECISIONS.md
-- #630 — Household can flip a Home recent charge in or out without opening detail (2026-09-03) → docs/DECISIONS.md
-- #631 — Household can change which account a Home recent charge belongs to without opening detail (2026-09-03) → docs/DECISIONS.md
-- #632 — Household can change the bank text on a Home recent charge without opening detail (2026-09-03) → docs/DECISIONS.md
-- #633 — Household can rename a card from the Cards page without opening Accounts (2026-09-03) → docs/DECISIONS.md
-- #634 — Household can add a card statement from the Cards page without opening Accounts (2026-09-03) → docs/DECISIONS.md
-- #635 — Preview build skips prisma db push when DATABASE_URL is unset (2026-09-03) → docs/DECISIONS.md
-- #636 — Completed slices land on main the same turn (standing order, 2026-09-03) → docs/DECISIONS.md
-- #637 — Household can add a card from the Cards page without opening Accounts (2026-09-03) → docs/DECISIONS.md
-- #638 — Home recent charges line up; compact direction says Money out (2026-09-03) → docs/DECISIONS.md
-- #639 — Household can add or edit a Home recent-charge note without opening detail (2026-09-06) → docs/DECISIONS.md
-- #640 — Household can set a tax tag on a Home recent charge without opening detail (2026-09-06) → docs/DECISIONS.md
-- #641 — Household can change an Inbox charge amount without opening detail (2026-09-06) → docs/DECISIONS.md
-- #642 — Household can change an Inbox charge date without opening detail (2026-09-06) → docs/DECISIONS.md
-- #643 — Household can flip an Inbox charge in or out without opening detail (2026-09-06) → docs/DECISIONS.md
-- #644 — Household can change which account an Inbox charge belongs to without opening detail (2026-09-06) → docs/DECISIONS.md
-- #645 — Household can change the bank text on an Inbox charge without opening detail (2026-09-06) → docs/DECISIONS.md
-- #646 — Household can add or edit an Inbox charge note without opening detail (2026-09-06) → docs/DECISIONS.md
-- #647 — Household can set a tax tag on an Inbox charge without opening detail (2026-09-06) → docs/DECISIONS.md
-- #648 — Household can change an Activity charge amount without opening detail (2026-09-06) → docs/DECISIONS.md
-- #649 — Household can change an Activity charge date without opening detail (2026-09-06) → docs/DECISIONS.md
-- #650 — Household can flip an Activity charge in or out without opening detail (2026-09-06) → docs/DECISIONS.md
-- #651 — Household can change which account an Activity charge belongs to without opening detail (2026-09-06) → docs/DECISIONS.md
-- #652 — Household can change the bank text on an Activity charge without opening detail (2026-09-06) → docs/DECISIONS.md
-- #653 — Household can rename a debt-free goal without opening a separate flow (2026-09-06) → docs/DECISIONS.md
-- #654 — Household can add or edit an Activity charge note without opening detail (2026-09-06) → docs/DECISIONS.md
-- #655 — Household can set a tax tag on an Activity charge without opening detail (2026-09-06) → docs/DECISIONS.md
-- #656 — Household can edit a debt-free goal's target, date, and monthly without a separate flow (2026-09-06) → docs/DECISIONS.md
-- #657 — Household can rename a payee on Activity without opening detail (2026-09-06) → docs/DECISIONS.md
-- #658 — Household can rename a Recurring / Subscriptions display name without a dead-end flow (2026-09-06) → docs/DECISIONS.md
-- #659 — Household can change a budget target on the By-category row (2026-09-06) → docs/DECISIONS.md
-- #660 — Household can save a debt-free goal from the Goals planner (2026-09-06) → docs/DECISIONS.md
-- #661 — Household can mark Paid this cycle from Recurring Coming up (2026-09-06) → docs/DECISIONS.md
-- #662 — Activity payee rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md
-- #663 — Household can exclude a Home recent charge from totals without opening detail (2026-09-06) → docs/DECISIONS.md
-- #664 — Household can exclude an Inbox charge from totals without opening detail (2026-09-06) → docs/DECISIONS.md
-- #665 — Household can exclude an Activity charge from totals without opening detail (2026-09-06) → docs/DECISIONS.md
-- #666 — Household can track reimbursement on a Home recent charge without opening detail (2026-09-06) → docs/DECISIONS.md
-- #667 — Household can track reimbursement on an Inbox charge without opening detail (2026-09-06) → docs/DECISIONS.md
-- #668 — Household can track reimbursement on an Activity charge without opening detail (2026-09-06) → docs/DECISIONS.md
-- #669 — Household can mark Paid this cycle from the Spending plan Fixed list (2026-09-06) → docs/DECISIONS.md
-- #670 — Household can change a Recurring monthly amount without leaving for Spending plan (2026-09-06) → docs/DECISIONS.md
-- #671 — Household can change a Recurring cadence without leaving for Spending plan (2026-09-06) → docs/DECISIONS.md
-- #672 — Household can rename a Recurring Coming up display name without a dead end (2026-09-06) → docs/DECISIONS.md
-- #673 — Household can mark Not a bill from the Spending plan Fixed list (2026-09-06) → docs/DECISIONS.md
-- #674 — Household can mark Not a bill from Recurring Coming up (2026-09-06) → docs/DECISIONS.md
-- #675 — Home payee rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md
-- #676 — Inbox payee rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md
-- #677 — Detail payee rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md
-- #678 — Fixed bill rename keeps the merchant filter link (2026-09-06) → docs/DECISIONS.md
-- #679 — Household can change Coming up amount and cadence without leaving for Spending plan (2026-09-06) → docs/DECISIONS.md
-- #680 — Household can edit reserves on Settings Fixed without leaving for Spending plan (2026-09-06) → docs/DECISIONS.md
-- #681 — Household can edit a card statement without leaving for Accounts (2026-09-06) → docs/DECISIONS.md
-- #682 — Household can reconnect a broken Plaid feed from the dashboard (2026-09-06) → docs/DECISIONS.md
-- #683 — Household can change Coach money dials without leaving for Settings (2026-09-06) → docs/DECISIONS.md
-- #684 — Household can reconnect SimpleFIN from the dashboard alert (2026-09-06) → docs/DECISIONS.md
-- #685 — Household can save a retirement what-if as the default without leaving for Settings (2026-09-06) → docs/DECISIONS.md
-- #686 — Household can set employer match and tax room from Coach without leaving for Settings (2026-09-06) → docs/DECISIONS.md
-- #687 — Household can set Rich Life from Coach without leaving for Settings (2026-09-06) → docs/DECISIONS.md
-- #688 — Household can sync from the stale-data banner without leaving for Accounts (2026-09-06) → docs/DECISIONS.md
-- #689 — Household can repair transfer marks from Accounts without leaving for Settings (2026-09-06) → docs/DECISIONS.md
-- #690 — Household can confirm the payment account from Home without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #691 — Household can manage custom categories from Budgets without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #692 — Household can manage built-in categories from Budgets without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #693 — Household can forget learned phrases from Ask without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #694 — Household can manage household membership from Coach without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #695 — Household can download tax-year CSV from Reports without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #696 — Household can download net worth export from Investments without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #697 — Household can enable push notifications from Cards without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #698 — Household can download transactions CSV from Activity without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #699 — Household can set the reserve holding account from Spending plan without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #700 — Household can enable push notifications from Home without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #701 — Household can manage built-in categories from Rules without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #702 — Household can manage custom categories from Rules without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #703 — Household can see self-audit on Trust without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #704 — Household can manage categories from Inbox without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #705 — Household can forget learned phrases from Trust without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #706 — Household can edit note, tax, exclude, and reimbursement on Inbox multi-txn groups without One by one (2026-09-07) → docs/DECISIONS.md
-- #707 — Household can edit amount, date, account, and descriptor on Inbox multi-txn groups without One by one (2026-09-07) → docs/DECISIONS.md
-- #708 — Household can download transactions CSV from Trends without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #709 — Household can enable push notifications from Forecast without leaving for Settings (2026-09-07) → docs/DECISIONS.md
-- #710 — Household can edit a card statement from Calendar without leaving for Cards (2026-09-07) → docs/DECISIONS.md
-- #711 — Household can deepen Plaid history from Home without leaving for Accounts (2026-09-07) → docs/DECISIONS.md
-- #712 — Household can set a loan payment payee from Calendar without leaving for Accounts (2026-09-07) → docs/DECISIONS.md
-- #713 — Household can deepen Plaid history from Cards without leaving for Accounts (2026-09-07) → docs/DECISIONS.md
-- #714 — Household can act on a Forecast cash dip without leaving for Accounts (2026-09-07) → docs/DECISIONS.md
-- #715 — Household can act on a Calendar cash dip without leaving for Accounts (2026-09-07) → docs/DECISIONS.md
-- #716 — Household can edit already-saved from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
-- #718 — Inbox File of an aggregate or masked bank-name group mints a durable auto-file rule (2026-09-07) → docs/DECISIONS.md
-- #719 — Household can edit goal target from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
-- #720 — Household can edit goal monthly from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
-- #721 — Household can edit goal target date from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
-- #722 — Household can rename a savings goal from Coach without leaving for Goals (2026-09-07) → docs/DECISIONS.md
-- #723 — Activity merchant-wide recategorize of aggregate/masked mints the durable auto-file rule (2026-09-07) → docs/DECISIONS.md
+- #485 — O.20j first slice: `countsInFlows` honors the transfer category leaf (2026-08-20) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #486 — O.20j R6: Overdraft Transfer from Brokerage is a transfer, not a fee (2026-08-20) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #487 — O.20j: filed transfer category is detector evidence (2026-08-20) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #488 — Ask "will I run out of money?" uses Cash flow radar (2026-08-20) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #489 — Public "Explore the demo" CTA uses the mutation-form recipe (2026-08-20) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #490 — O.10a: Ask merchant match is exact store identity (2026-08-20) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #491 — O.20j: hand-file to Transfer stamps `isTransfer` immediately (2026-08-20) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #492 — Header Sign out uses the mutation-form recipe (2026-08-20) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #493 — Ideal savings percent is the Settings dial, never a hardcoded 40% (2026-08-20) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #494 — Ask "what should I cut?" uses the Coach opportunities list (2026-08-20) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #495 — Coach/Ask cut list skips money-dial categories (2026-08-21) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #496 — Ask "when can I retire?" uses the Coach FI card (2026-08-21) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #497 — Ask "is my lifestyle creeping?" uses the Coach lifestyle-creep card (2026-08-21) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #498 — Ask "how many months of runway?" uses the Coach room-for-error card (2026-08-21) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #499 — P.2 reconciled; Ask phrases the conscious-spending buckets (2026-08-21) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #500 — P1.2 staying-wealthy row composes three Coach signals (2026-08-21) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #501 — Build docs reframed from loop engineering to graph engineering (2026-08-22) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #502 — P2.2 memory-dividend reflection on the life-energy card, gated to buys outside the dials (2026-08-23) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #503 — C14 "past enough" Coast-FI framing on the FI card; P1.1 closed as a skip (2026-08-23) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #504 — P1.3 "My Rich Life" vision line: one stored string, two fences (2026-08-23) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #505 — Ask `rich_life` intent: the stored line routed, and the empty state named (2026-08-23) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #506 — Ask "what should I cut?": the FI counterfactual over exactly the list printed (2026-08-24) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #507 — Ask "what should I cut?": radar/cash-dip re-walk, speak only if it moves (2026-08-24) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #508 — /coach-card radiation of the cut FI + radar sentences (2026-08-24) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #509 — Standing: commit and push at the end of every slice (2026-08-24) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #510 — W.6(b) next extra dollar, ranked from rates on file (2026-08-24) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #511 — W.6(b) Ask P1: `should I` is not the ranking proxy (2026-08-24) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #512 — W.6(d) drawdown on FI date (2026-08-24) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #513 — W.6(c) category fulfillment curve (2026-08-24) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #514 — P1.4 income lever (raise → FI delta) (2026-08-25) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #515 — P1.5 investing ladder + fee-drag (2026-08-25) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #516 — Reports interest & fees YTD (2026-08-25) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #517 — Mortgage extra-principal what-if (2026-08-25) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #518 — PAW expected-net-worth lens (2026-08-25) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #519 — Idle cash past a 6-month cushion (2026-08-26) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #520 — C14 Giving YTD on /reports (2026-08-26) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #521 — C14 Giving goal preset on /goals (2026-08-26) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #522 — C14 Education goal preset on /goals (2026-08-26) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #523 — C2 dashboard cushion line pairs the radar dip (coach-principles plan §4 Dashboard row): a pure composer `cushionLineFor(status, firstNegativeDate, runwayMonths)` (src/lib/engine/radar/cushion-line.ts) returns `COACH_COPY… → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #524 — C5 time-window-of-life line closes the coach-principles plan's last C5 gap (§3 row: "no ... time-window-of-life framing" — the one-line's "buy experiences while you can"; §6's two C5 sentences — the dials "spend there pr… → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #525 — P0.4 assign-to-zero leftover line on /budgets (2026-08-28) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #526 — D.3 standing-read audit: INDEX ≤220, EDGE_CASES next to tests, closed TASKS waves out (2026-08-28) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #527 — Opt-in "Remember me on this device" at email/password sign-in (2026-08-28) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #528 — Employer-match Settings rung for next-dollar (2026-08-29) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #529 — Tax-advantaged contribution-room Settings rung (2026-08-31) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #530 — Change category click persists; Simplifi aliases are clickable (2026-08-31) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #531 — Simplifi CSV recategorizes matching existing rows (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #532 — Needs a category chip is a real link (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #533 — Over-plan copy is the pattern remainder, not this-month spend (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #534 — Today payment-due rows name the account (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #535 — You're covered names this cycle (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #536 — Inbox copy does not promise auto-file quality (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #537 — Strip bank-feed tokens that are not a payee (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #538 — Cursor and Moonshot file software (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #539 — Direct Starbucks is coffee; delivery-app Starbucks is Food Delivery (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #540 — CSV import is any source, not a Simplifi standup matcher (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #541 — Sign-in accepts a correct password wrapped in autofill whitespace (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #542 — POS prefixes are not a payee name (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #543 — Home Needs a category goes to Activity, not Inbox (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #544 — CSV import accepts Debit/Credit and Net Amount (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #545 — Uncategorized figures go to Needs a category, not Inbox (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #546 — CSV paste helper names Debit/Credit and Net Amount (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #547 — First-run CSV import creates the spending account (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #548 — File transactions goes to Needs a category, not Inbox (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #549 — Empty Home offers bank or CSV, not a 30-second Cash-Needed promise (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #550 — CSV import accepts Withdrawal/Deposit and names amount alternatives (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #551 — Signup and reset hash the trimmed password (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #552 — CSV Debit/Credit headers may carry a unit in parentheses (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #553 — CSV import accepts Post Date and Trans Date (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #554 — Empty Home connect heading names CSV, not only a bank (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #555 — CSV paste helper and bank guides name Post Date and Withdrawal/Deposit (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #556 — Sign-in and first-run empty name CSV, not bank-only (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #557 — CSV import accepts Merchant, Amount (USD), and Trans. Date (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #558 — CSV import drops a trailing time from Excel and Sheets dates (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #559 — CSV import accepts US hyphen dates MM-DD-YYYY (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #560 — Missing-amount CSV error names Withdrawal/Deposit (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #561 — CSV import accepts Run Date (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #562 — CSV import accepts US two-digit years (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #563 — CSV paste helper names Run Date and two-digit years (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #564 — Inbox copy is merchant-group review, not Needs a category (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #565 — Unrecognized CSV date error names two-digit years (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #566 — Activity period names calendar years (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #567 — Reports range names calendar years (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #568 — First-run CSV records a typed current balance (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #569 — CSV import can create another account (2026-09-01) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #570 — CSV import finds the header under a bank preamble (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #571 — CSV import accepts accounting parentheses amounts (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #572 — CSV import skips bank footer totals (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #573 — CSV import accepts trailing-minus amounts (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #574 — CSV import accepts CR/DR amount marks (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #575 — Home Step 1 names bank or CSV (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #576 — Settings Bank connections names CSV (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #577 — Activity register heading matches the nav (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #578 — Reports nav names trailing months or a year (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #579 — Household can name each spending-plan envelope (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #580 — Household can name a repeating bill (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #581 — Household can rename a savings goal (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #582 — Household can change a reserve's true cost (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #583 — Household can change how often a typed reserve comes around (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #584 — Household can record that a repeating bill paid this cycle (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #585 — Household can file an Inbox merchant group in one go (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #586 — Inbox file saves a rule for the next same payee (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #587 — One-row Inbox pick of a merchantless payee still saves the rule (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #588 — All-similar of a merchantless payee files the group and saves the rule (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #589 — Merchant-wide recategorize of a merchantless payee files the group (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #590 — Spend-class all-similar of a merchantless payee files the group (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #591 — Take a repeating bill off the spending plan (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #592 — Take an unnamed repeating bill off the spending plan (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #593 — Put a repeating bill back on the spending plan (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #594 — Turn a repeating bill into a reserve from the spending plan (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #595 — Turn a named no-payee repeating bill into a reserve from the spending plan (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #596 — Turn a named no-payee repeating bill into a reserve from Settings Fixed costs (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #597 — Take a repeating bill off the plan from Settings Fixed costs (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #598 — Put a repeating bill back on the plan from Settings Fixed costs (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #599 — Household can change a savings goal's target without deleting it (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #600 — Household can change a savings goal's monthly contribution without deleting it (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #601 — Household can change a savings goal's target date without deleting it (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #602 — Household can clear a savings goal's monthly contribution without deleting it (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #603 — Household can clear a savings goal's target date without deleting it (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #604 — Household can rename a payee on a transaction without writing a rule (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #605 — Household can change a repeating bill’s amount on the spending plan (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #606 — Household can change a repeating bill’s amount from Settings Fixed costs (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #607 — Household can clear a repeating bill’s amount back to what the app detected (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #608 — Household can change how often a repeating bill comes around (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #609 — Household can change a repeating bill’s cadence from Settings Fixed costs (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #610 — Household can clear a repeating bill’s cadence back to what the app detected (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #611 — Household can change a transaction’s amount (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #612 — Household can change a transaction’s date (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #613 — Household can change a transaction’s account (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #614 — Household can clear a payee rename back to the bank name (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #615 — Household can clear a repeating bill’s name back to what the app detected (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #616 — Household can flip a transaction in or out (2026-09-02) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #617 — Household can change the bank text on a transaction (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #618 — After a household edits bank text, the row re-matches (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #619 — After a household flips a transaction in or out, the row re-matches (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #620 — After a household changes a transaction’s amount, the row re-matches (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #621 — After a household changes a transaction’s date, the row re-matches (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #622 — After a household changes a transaction’s account, the row re-matches (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #623 — Household can record how much is already saved toward a savings goal (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #624 — Household can rename a payee on an Inbox merchant group without writing a rule (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #625 — Household can rename a payee from Home’s recent charges without writing a rule (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #626 — Household can file a category from a Home recent charge that still needs one (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #627 — Household can change the category of an already-filed Home recent charge (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #628 — Household can change a Home recent-charge date without opening detail (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #629 — Household can change a Home recent-charge amount without opening detail (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #630 — Household can flip a Home recent charge in or out without opening detail (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #631 — Household can change which account a Home recent charge belongs to without opening detail (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #632 — Household can change the bank text on a Home recent charge without opening detail (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #633 — Household can rename a card from the Cards page without opening Accounts (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #634 — Household can add a card statement from the Cards page without opening Accounts (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #635 — Preview build skips prisma db push when DATABASE_URL is unset (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #636 — Completed slices land on main the same turn (standing order, 2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #637 — Household can add a card from the Cards page without opening Accounts (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #638 — Home recent charges line up; compact direction says Money out (2026-09-03) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #639 — Household can add or edit a Home recent-charge note without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #640 — Household can set a tax tag on a Home recent charge without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #641 — Household can change an Inbox charge amount without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #642 — Household can change an Inbox charge date without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #643 — Household can flip an Inbox charge in or out without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #644 — Household can change which account an Inbox charge belongs to without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #645 — Household can change the bank text on an Inbox charge without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #646 — Household can add or edit an Inbox charge note without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #647 — Household can set a tax tag on an Inbox charge without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #648 — Household can change an Activity charge amount without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #649 — Household can change an Activity charge date without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #650 — Household can flip an Activity charge in or out without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #651 — Household can change which account an Activity charge belongs to without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #652 — Household can change the bank text on an Activity charge without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #653 — Household can rename a debt-free goal without opening a separate flow (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #654 — Household can add or edit an Activity charge note without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #655 — Household can set a tax tag on an Activity charge without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #656 — Household can edit a debt-free goal's target, date, and monthly without a separate flow (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #657 — Household can rename a payee on Activity without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #658 — Household can rename a Recurring / Subscriptions display name without a dead-end flow (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #659 — Household can change a budget target on the By-category row (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #660 — Household can save a debt-free goal from the Goals planner (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #661 — Household can mark Paid this cycle from Recurring Coming up (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #662 — Activity payee rename keeps the merchant filter link (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #663 — Household can exclude a Home recent charge from totals without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #664 — Household can exclude an Inbox charge from totals without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #665 — Household can exclude an Activity charge from totals without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #666 — Household can track reimbursement on a Home recent charge without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #667 — Household can track reimbursement on an Inbox charge without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #668 — Household can track reimbursement on an Activity charge without opening detail (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #669 — Household can mark Paid this cycle from the Spending plan Fixed list (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #670 — Household can change a Recurring monthly amount without leaving for Spending plan (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #671 — Household can change a Recurring cadence without leaving for Spending plan (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #672 — Household can rename a Recurring Coming up display name without a dead end (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #673 — Household can mark Not a bill from the Spending plan Fixed list (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #674 — Household can mark Not a bill from Recurring Coming up (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #675 — Home payee rename keeps the merchant filter link (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #676 — Inbox payee rename keeps the merchant filter link (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #677 — Detail payee rename keeps the merchant filter link (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #678 — Fixed bill rename keeps the merchant filter link (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #679 — Household can change Coming up amount and cadence without leaving for Spending plan (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #680 — Household can edit reserves on Settings Fixed without leaving for Spending plan (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #681 — Household can edit a card statement without leaving for Accounts (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #682 — Household can reconnect a broken Plaid feed from the dashboard (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #683 — Household can change Coach money dials without leaving for Settings (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #684 — Household can reconnect SimpleFIN from the dashboard alert (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #685 — Household can save a retirement what-if as the default without leaving for Settings (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #686 — Household can set employer match and tax room from Coach without leaving for Settings (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #687 — Household can set Rich Life from Coach without leaving for Settings (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #688 — Household can sync from the stale-data banner without leaving for Accounts (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #689 — Household can repair transfer marks from Accounts without leaving for Settings (2026-09-06) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #690 — Household can confirm the payment account from Home without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #691 — Household can manage custom categories from Budgets without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #692 — Household can manage built-in categories from Budgets without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #693 — Household can forget learned phrases from Ask without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #694 — Household can manage household membership from Coach without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #695 — Household can download tax-year CSV from Reports without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #696 — Household can download net worth export from Investments without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #697 — Household can enable push notifications from Cards without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #698 — Household can download transactions CSV from Activity without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #699 — Household can set the reserve holding account from Spending plan without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #700 — Household can enable push notifications from Home without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #701 — Household can manage built-in categories from Rules without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #702 — Household can manage custom categories from Rules without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #703 — Household can see self-audit on Trust without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #704 — Household can manage categories from Inbox without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #705 — Household can forget learned phrases from Trust without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #706 — Household can edit note, tax, exclude, and reimbursement on Inbox multi-txn groups without One by one (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #707 — Household can edit amount, date, account, and descriptor on Inbox multi-txn groups without One by one (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #708 — Household can download transactions CSV from Trends without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #709 — Household can enable push notifications from Forecast without leaving for Settings (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #710 — Household can edit a card statement from Calendar without leaving for Cards (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #711 — Household can deepen Plaid history from Home without leaving for Accounts (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #712 — Household can set a loan payment payee from Calendar without leaving for Accounts (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #713 — Household can deepen Plaid history from Cards without leaving for Accounts (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #714 — Household can act on a Forecast cash dip without leaving for Accounts (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #715 — Household can act on a Calendar cash dip without leaving for Accounts (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #716 — Household can edit already-saved from Coach without leaving for Goals (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #718 — Inbox File of an aggregate or masked bank-name group mints a durable auto-file rule (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #719 — Household can edit goal target from Coach without leaving for Goals (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #720 — Household can edit goal monthly from Coach without leaving for Goals (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #721 — Household can edit goal target date from Coach without leaving for Goals (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #722 — Household can rename a savings goal from Coach without leaving for Goals (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
+- #723 — Activity merchant-wide recategorize of aggregate/masked mints the durable auto-file rule (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
 - #724 — M.4 slice 2: shared page-chrome tokens, chrome restyle, brand-tinted dark theme (2026-09-10) → docs/DECISIONS.md
 - #725 — CI repair: four red e2e specs + Needs-a-category aria-pressed (2026-09-10) → docs/DECISIONS.md
 - #726 — Household can edit plan figures from Home without leaving for Spending plan (2026-09-10) → docs/DECISIONS.md
@@ -726,3 +726,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #731 — Household can put a bill back on the plan from Recurring without leaving for Spending plan (2026-09-10) → docs/DECISIONS.md
 - #732 — Household can download net worth export from Accounts without leaving for Investments (2026-09-10) → docs/DECISIONS.md
 - #733 — Household can download net worth export from Home without leaving for Investments (2026-09-10) → docs/DECISIONS.md
+- #734 — M.4 slice 3: section-label token, lead-column cap, body-wash scrolls (2026-09-11) → docs/DECISIONS.md
