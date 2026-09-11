@@ -13,6 +13,7 @@ import { getTransferFlagRepairPreview } from '@/server/transfer-flag-repair';
 import { isDemoUser } from '@/lib/demo-user';
 import { PAGE_LEAD_CLASS, PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { buttonVariants } from '@/components/ui/button';
 
 export const metadata = { title: "Accounts" };
 
@@ -55,6 +56,28 @@ export default async function AccountsPage({
       {/* currency-guard disclosure (#135 residual) — nothing rendered for all-USD users */}
       <CurrencyExclusionBanner summary={data.withheld} />
       <AccountsList data={data} detail={detail} />
+      <Card data-testid="accounts-net-worth-export-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Take your net worth with you</CardDescription>
+          <CardTitle className="text-base">Net worth export</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <a
+            href="/api/export?format=net-worth-csv"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            data-testid="export-net-worth-csv"
+          >
+            Net worth (CSV)
+          </a>
+          <a
+            href="/api/export?format=net-worth-pdf"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            data-testid="export-net-worth-pdf"
+          >
+            Net worth report (PDF)
+          </a>
+        </CardContent>
+      </Card>
       {/* After the list, not inside the net-worth / row pair: a card in the
           middle of a hit-tested page hides the first target behind the 380px
           nav (#516 category-bar timeout). Expected-NW lives on mine-scope

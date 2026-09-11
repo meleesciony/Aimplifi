@@ -3102,3 +3102,7 @@ invent an auto-file quality claim.
 **Context.** PutBillBackOnPlanButton lived on Spending plan and Settings Fixed costs for `billsTakenOff`. Recurring already mounts take-off (#730) and Convert (#729), but restoring a taken-off bill still required leaving.
 **Decision.** On /recurring, when non-demo and `getSpendingPlan().billsTakenOff` is non-empty, mount the same PutBillBackOnPlanButton list (`recurring-bills-taken-off` / `recurring-bill-taken-off-row`). Same writer; bill-rename-actions already revalidates /recurring. No Settings remount. No PushOptIn / deepen / Sync / Coach Goals / category / CSV / Trust invent.
 **Locked.** `test_regression__household_can_put_bill_back_on_plan_from_recurring_without_leaving_for_spending_plan`.
+## #732 — Household can download net worth export from Accounts without leaving for Investments (2026-09-10)
+**Context.** Net worth CSV/PDF lived on Investments (#696) and Settings. Accounts already shows the net-worth headline and trend, but downloading still required leaving.
+**Decision.** Mount the same `/api/export?format=net-worth-csv` and `net-worth-pdf` links on /accounts (`accounts-net-worth-export-card` / `export-net-worth-csv` / `export-net-worth-pdf`), after AccountsList. Same export routes. No Settings remount. No PushOptIn / deepen / Sync / Coach Goals / category / CSV parser / Trust invent.
+**Locked.** `test_regression__household_can_download_net_worth_export_from_accounts_without_leaving_for_investments`.
