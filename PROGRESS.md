@@ -16,7 +16,7 @@
 
 **Gate.** `bash scripts/verify.sh` (run 2, after the critic fixes) -> **VERIFY GREEN, exit 0**: tsc 0, probes tsc 0, eslint 0, unit **8,354 passed + 1 expected fail + 1 skipped / 623 files** (+39 over the #736 baseline = this slice's tests), next build clean. docs-lint clean (241 files); ledger suite 20/20. Playwright mobile-380 on the fresh build: `goal-progress` **1/1**, phase4 goals **1/1**.
 
-**Ship.** SHIP_PLACEHOLDER
+**Ship.** `e739981a` pushed to `origin/main` (no `prisma/` diff - database untouched). GitHub Actions verify run **34634294883 → `success`** (read via `gh run watch`; `scripts/ci-status.sh` exits 4 under WSL bash because `gh` is not on that PATH - the verdict was read directly, not inferred). Vercel production `dpl_HBj2JyqeXKCCpQpupfKs6YbdHzsC` → **READY**, aliased to `www.aimplifi.app`. Live probe (demo session, since both routes are auth-gated): /goals lead reads "Every goal shows how far along you are, whether your monthly amount makes your date..."; a throwaway "Live pace check" $6,000 / $500 goal rendered bar + "0% funded" + "No date yet" + "$6,000.00 to go, counting the $0.00 you've marked saved. At $500.00/mo this is funded by Jun 2027. Set a date to check your pace."; Home showed the Goals card ("Your goal needs a monthly amount or a date", "$0.00 marked saved of $6,000.00 · 0% funded"); the goal was then deleted and the demo row confirmed back to its worked example.
 
 **Next.** Ask answering "am I on track for <goal>?" against stored rows (Ask today only inverse-plans a NEW amount+date); a behind-pace nudge kind; seeded demo goals so the live demo /goals is not the empty worked example. M.4 per-route visual direction stays owner-deferred.
 

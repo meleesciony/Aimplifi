@@ -25,7 +25,7 @@ rates) — no other doc may restate them.
 
 **Gate.** `bash scripts/verify.sh` (run 2, after the critic fixes) → ✅ VERIFY GREEN, exit 0: tsc 0, probes tsc 0, eslint 0, unit **8,354 passed + 1 expected fail + 1 skipped / 623 files**, `next build` clean. Playwright mobile-380 on the fresh build: `goal-progress.spec.ts` **1/1** (no-date → on-track → 25% + 3 months ahead → behind with "$375.00/mo gets you there on time ($75.00/mo more)"; Home headline, basis line, row, link), phase4 goals **1/1**.
 
-**Ship.** SHIP_PLACEHOLDER
+**Ship.** `e739981a` on `origin/main`; CI verify run 34634294883 **success**; Vercel `dpl_HBj2JyqeXKCCpQpupfKs6YbdHzsC` READY on `www.aimplifi.app`; live /goals lead + a throwaway demo goal's card and Home row read in a demo session, then deleted (demo row restored). Ops note: `scripts/ci-status.sh` exits 4 under WSL bash (`gh: command not found`) - run `gh` from PowerShell until the script resolves the Windows `gh`.
 
 **Still open.** Ask against stored goals ("am I on track for my Japan trip?"); a behind-pace nudge; seeded demo goals. Wave 0 ops owner-blocked. M.4 visual direction owner-deferred.
 
