@@ -18,7 +18,7 @@
 
 **Gate.** bash scripts/verify.sh (run 2, post-fix) -> **VERIFY GREEN, exit 0**: tsc 0, probes tsc 0, eslint 0, unit **8,315 passed + 1 expected fail + 1 skipped / 623 files**, next build clean. Playwright m4-page-chrome **4/4** on the fresh build.
 
-**Ship.** Landed `692fe505` on `main`. GitHub Actions `verify` run **34933264003 = SUCCESS** (full VERIFY_E2E=1 suite). Live `https://www.aimplifi.app/sign-in` 200; the served stylesheet carries the slice marker (`sm:max-w-2xl` lead + `background-attachment:local` persist from slices 2-3, and the label token's `text-xs font-medium uppercase tracking-wide` class ships from `page-chrome.ts` unchanged).
+**Ship.** Landed `692fe505` on `main`, docs state `290e7f78`. GitHub Actions `verify` run **34626408618 = SUCCESS** on `290e7f78` (the slice run 34626069152 was cancelled by the docs push - superseded, re-read on the newest sha). Vercel Production deployment **6398151276 = success** (`https://aimplifi-162ibogn8-reiforge.vercel.app`), aliased to `www.aimplifi.app`. Live probes: `/sign-in` 200; the served stylesheet carries the token utilities (`.tracking-wide`, `.uppercase`, `.justify-center`) and `body{background-attachment:local}`; live sign-in HTML contains `justify-center`. CSS byte-diff vs the local build is a decimal-precision wobble in Tailwind's oklch→lab color fallbacks only (0 class-rule difference across 481 rules), not a content difference.
 
 **Next.** M.4 remaining per-route visual direction is owner-deferred ("beauty later, after the feature set"); next feature surface per TASKS.md open rows: Wave U/O.20 residuals or the named near-done rows (L.10 marker flip, L.30 critic pass owed, K.5 8-of-10). No open P1/P2 from this slice's critic.
 

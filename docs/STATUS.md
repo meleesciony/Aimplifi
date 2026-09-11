@@ -25,7 +25,7 @@ rates) — no other doc may restate them.
 
 **Gate.** bash scripts/verify.sh (run 2, after the P1 fix) → ✅ VERIFY GREEN, exit 0: tsc 0, probes tsc 0, eslint 0, unit **8,315 passed + 1 expected fail + 1 skipped / 623 files**, next build clean. Playwright m4-page-chrome **4/4** against the fresh build (19 routes × 380+1440 no overflow; budgets label weight 500; hero centered).
 
-**Ship.** `692fe505` on `main` (after `41a7a0c9`, the ledger cut). CI + live probe: see the PROGRESS ship line for this session.
+**Ship.** `692fe505` on `main`, docs state `290e7f78`. GitHub Actions `verify` run **34626408618 = SUCCESS** on the head sha (the slice run was cancelled by the docs push; re-read on the newest sha). Vercel Production **6398151276 = success** (`https://aimplifi-162ibogn8-reiforge.vercel.app`, aliased to `www.aimplifi.app`); live `/sign-in` 200 and its stylesheet carries the token's utilities + `background-attachment:local`.
 
 ## ✅ BUILT 2026-09-11 - M.4 slice 3: near-twin section labels + lead-column cap + body-wash scroll fix (DECISIONS #734)
 
