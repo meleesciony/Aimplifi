@@ -725,3 +725,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #730 — Household can take a repeating bill off the plan from Recurring without leaving for Spending plan (2026-09-10) → docs/DECISIONS.md
 - #731 — Household can put a bill back on the plan from Recurring without leaving for Spending plan (2026-09-10) → docs/DECISIONS.md
 - #732 — Household can download net worth export from Accounts without leaving for Investments (2026-09-10) → docs/DECISIONS.md
+- #733 — Household can download net worth export from Home without leaving for Investments (2026-09-10) → docs/DECISIONS.md

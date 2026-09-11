@@ -3106,3 +3106,7 @@ invent an auto-file quality claim.
 **Context.** Net worth CSV/PDF lived on Investments (#696) and Settings. Accounts already shows the net-worth headline and trend, but downloading still required leaving.
 **Decision.** Mount the same `/api/export?format=net-worth-csv` and `net-worth-pdf` links on /accounts (`accounts-net-worth-export-card` / `export-net-worth-csv` / `export-net-worth-pdf`), after AccountsList. Same export routes. No Settings remount. No PushOptIn / deepen / Sync / Coach Goals / category / CSV parser / Trust invent.
 **Locked.** `test_regression__household_can_download_net_worth_export_from_accounts_without_leaving_for_investments`.
+## #733 — Household can download net worth export from Home without leaving for Investments (2026-09-10)
+**Context.** Net worth CSV/PDF lived on Investments (#696), Settings, and Accounts (#732). Home already mounts NetWorthCard with the headline and trend, but downloading still required leaving.
+**Decision.** Mount the same `/api/export?format=net-worth-csv` and `net-worth-pdf` links on /dashboard after NetWorthCard (`home-net-worth-export-card` / `export-net-worth-csv` / `export-net-worth-pdf`). Same export routes. No Settings remount. No PushOptIn / deepen / Sync / Coach Goals / category / CSV parser / Trust invent.
+**Locked.** `test_regression__household_can_download_net_worth_export_from_home_without_leaving_for_investments`.

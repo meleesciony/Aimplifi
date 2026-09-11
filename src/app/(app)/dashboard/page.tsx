@@ -19,6 +19,7 @@ import { ConnectAccountsButton } from '@/components/finance/connect-accounts-but
 import { PushOptIn } from '@/components/settings/push-optin';
 import { PAGE_STACK_CLASS } from '@/components/finance/page-chrome';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { buttonVariants } from '@/components/ui/button';
 import { getVapidPublicKey } from '@/lib/push';
 import { TopSpendingCard } from '@/components/finance/top-spending-card';
 import { HouseholdScopeToggle } from '@/components/dashboard/household-scope-toggle';
@@ -372,6 +373,28 @@ export default async function DashboardPage({
       <SpendingInsightsCard trends={trends} />
 
       <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} runwayMonths={coach.runwayMonths} />
+      <Card data-testid="home-net-worth-export-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Take your net worth with you</CardDescription>
+          <CardTitle className="text-base">Net worth export</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <a
+            href="/api/export?format=net-worth-csv"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            data-testid="export-net-worth-csv"
+          >
+            Net worth (CSV)
+          </a>
+          <a
+            href="/api/export?format=net-worth-pdf"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            data-testid="export-net-worth-pdf"
+          >
+            Net worth report (PDF)
+          </a>
+        </CardContent>
+      </Card>
       {/* Mine-scope only: household net worth is a different set than the
           FI card's income. Mixing them would invent a household PAW number. */}
       {requestedScope === 'mine' && (
