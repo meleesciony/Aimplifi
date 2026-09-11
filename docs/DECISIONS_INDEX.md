@@ -727,3 +727,5 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #732 — Household can download net worth export from Accounts without leaving for Investments (2026-09-10) → docs/DECISIONS.md
 - #733 — Household can download net worth export from Home without leaving for Investments (2026-09-10) → docs/DECISIONS.md
 - #734 — M.4 slice 3: section-label token, lead-column cap, body-wash scrolls (2026-09-11) → docs/DECISIONS.md
+- #735 — TASKS.md ledger cut: eight closed waves rotated verbatim (2026-09-11) → docs/DECISIONS.md
+- #736 — M.4 slice 4: the residual near-twin labels onto the token (2026-09-11) → docs/DECISIONS.md

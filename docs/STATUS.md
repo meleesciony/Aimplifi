@@ -15,6 +15,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-11 — TASKS.md ledger cut + M.4 slice 4: residual section labels onto the token (DECISIONS #735, #736)
+
+**Ledger cut (#735).** The rotation commit's named next cut: eight fully-closed wave sections (O, O.16, O.12, O.18, O.19 totals, C, G, O.19 accounts — zero status-badged rows, each range re-verified row-by-row; Wave O's owner requests confirmed shipped via the done-row archive + #725) moved verbatim to `docs/archive/TASKS_DONE_ARCHIVE.md` under a dated marker. TASKS.md 143 KB → 126.5 KB; the rest is open rows' live status cells. docs-lint clean; ledger suite 20/20.
+
+**Slice 4 (#736).** The ~13 residual near-twin section-label literals from slice 3's critic now render PAGE_SECTION_LABEL_CLASS across 8 files (budgets/triage/rules/settings category h3 pairs with mb-2 kept; household-card, learned-phrases, household-sharing-card h3s; the spending-plan hero <p> pair with `justify-center`). Charter exclusions named: badge pills, nav/list-group headers, onboarding brand caption.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1 — fixed same-session.** P1-1: the token is a flex row; the spending-plan hero labels lost the parent's text-center effect (flex items pack to start) and left-aligned beside the centered amount on all three hero branches — fixed with the recurring-view `justify-center` precedent. P2-1: the new e2e was tautological on spending-plan (weight was already 500) — replaced with a real alignment lock (justifyContent center + label/amount centers within 1px), which demonstrably fails-old (caught the stale pre-fix build).
+
+**Gate.** bash scripts/verify.sh (run 2, after the P1 fix) → ✅ VERIFY GREEN, exit 0: tsc 0, probes tsc 0, eslint 0, unit **8,315 passed + 1 expected fail + 1 skipped / 623 files**, next build clean. Playwright m4-page-chrome **4/4** against the fresh build (19 routes × 380+1440 no overflow; budgets label weight 500; hero centered).
+
+**Ship.** `692fe505` on `main` (after `41a7a0c9`, the ledger cut). CI + live probe: see the PROGRESS ship line for this session.
+
 ## ✅ BUILT 2026-09-11 - M.4 slice 3: near-twin section labels + lead-column cap + body-wash scroll fix (DECISIONS #734)
 
 **The report.** The tree held slice 3 interrupted before its gates. Closed the three #724 residual P2s: 7 near-twin section-label literals render PAGE_SECTION_LABEL_CLASS (spend-class-panel's h3 keeps mb-2); PAGE_LEAD_CLASS capped at max-w-md with PAGE_LEAD_WIDE_CLASS re-opening the wide routes (accounts, goals, rules, triage, ask); body gradient background-attachment: local.

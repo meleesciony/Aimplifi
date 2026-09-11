@@ -6,6 +6,22 @@
 > Only sessions from 2026-09-03 onward live here; append new sessions
 > at the top as before.
 
+## 2026-09-11 - TASKS.md ledger cut (#735) + M.4 slice 4: residual section labels onto the token (#736)
+
+**Picked up.** Owner: "continue building." Tree clean, main even with origin (everything shipped). Two continuation items named by the ledgers: the TASKS.md cut (named "next cut" by the 2026-09-11 rotation commit) and M.4 slice 4 (slice 3's ~13 residual near-twin literals).
+
+**Ledger cut.** Explorer inventoried all 28 TASKS.md sections (row statuses + empty-table verdicts); I re-verified every candidate range row-by-row before moving (Wave O.12's 16 pipe-lines are measurement tables, not task rows; Wave O's owner requests confirmed shipped via the done-row archive's O.1 row + #725). Eight closed waves moved verbatim to the archive under a dated marker via a range-guarded one-shot script. 143 KB -> 126.5 KB. docs-lint clean, ledger suite 20/20. Committed `41a7a0c9`.
+
+**Slice 4 closed.** 15 sites across 8 files render PAGE_SECTION_LABEL_CLASS (slice-3 idiom: mb-2 kept where it existed, never invented): budgets/triage/rules/settings category h3 pairs, settings household-card + learned-phrases, finance household-sharing-card, spending-plan hero <p> pair. Lock widened 7 -> 15 files.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1; fixed same-session.** P1-1: the token is a flex row - the spending-plan hero labels lost the parent text-center (flex items pack start) and left-aligned beside the centered text-5xl amount on all three branches; fixed with the recurring-view `justify-center` precedent on both hero <p>s. P2-1: my e2e weight assertion was tautological on spending-plan (500 pre-slice) - replaced with a real alignment lock (justifyContent center + label/amount centers within 1px), which failed-old exactly as a lock should (caught the stale pre-fix build on the first post-fix run, per the e2e-runs-a-stale-build lesson; green after the gate rebuilt).
+
+**Gate.** bash scripts/verify.sh (run 2, post-fix) -> **VERIFY GREEN, exit 0**: tsc 0, probes tsc 0, eslint 0, unit **8,315 passed + 1 expected fail + 1 skipped / 623 files**, next build clean. Playwright m4-page-chrome **4/4** on the fresh build.
+
+**Ship.** Landed `692fe505` on `main`. GitHub Actions `verify` run **34933264003 = SUCCESS** (full VERIFY_E2E=1 suite). Live `https://www.aimplifi.app/sign-in` 200; the served stylesheet carries the slice marker (`sm:max-w-2xl` lead + `background-attachment:local` persist from slices 2-3, and the label token's `text-xs font-medium uppercase tracking-wide` class ships from `page-chrome.ts` unchanged).
+
+**Next.** M.4 remaining per-route visual direction is owner-deferred ("beauty later, after the feature set"); next feature surface per TASKS.md open rows: Wave U/O.20 residuals or the named near-done rows (L.10 marker flip, L.30 critic pass owed, K.5 8-of-10). No open P1/P2 from this slice's critic.
+
 ## 2026-09-11 - M.4 slice 3: near-twin section labels + lead-column cap + body-wash scroll fix (DECISIONS #734)
 
 **Picked up.** Owner: "Keep building Aimplifi from the current git tree." The tree held slice 3's maker output interrupted before its gates: the three residual P2s from #724, the section-label lock test, and a throwaway screenshot spec.
