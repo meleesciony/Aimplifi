@@ -60,4 +60,38 @@ test.describe('M.4 page-chrome walkthrough', () => {
     const navClass = await page.getByTestId('main-nav').locator('a').nth(1).getAttribute('class');
     expect(navClass).toContain('rounded-full');
   });
+
+  // M.4 slice 4: the migrated card/panel labels now render through the shared
+  // token — computed weight 500 (font-medium), not the old h3 font-semibold.
+  test('section labels render the shared token scale on budgets and spending-plan', async ({ page }) => {
+    await page.goto('/sign-in', { waitUntil: 'networkidle' });
+    await page.click('[data-testid=demo-sign-in]');
+    await page.waitForURL('**/dashboard**', { timeout: 30000 });
+    await page.goto('/budgets', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(400);
+    const categoriesLabel = page
+      .getByTestId('budgets-categories-card')
+      .locator('h3')
+      .first();
+    await expect(categoriesLabel).toHaveText(/Your categories/i);
+    const weight = await categoriesLabel.evaluate((el) => getComputedStyle(el).fontWeight);
+    expect(weight).toBe('500');
+    await page.goto('/spending-plan', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(400);
+    const heroLabel = page
+      .getByTestId('spending-plan-hero')
+      .locator('p')
+      .first();
+    await expect(heroLabel).toHaveText(/Guilt-free to spend/i);
+    // The token is a flex row: text-align:center on the parent cannot center a
+    // flex item, so the hero eyebrow must carry justify-center itself or it
+    // left-aligns beside the centered amount (critic P1-1).
+    const heroJustify = await heroLabel.evaluate((el) => getComputedStyle(el).justifyContent);
+    expect(heroJustify).toBe('center');
+    const amount = page.getByTestId('safe-to-spend');
+    const labelCenter = await heroLabel.evaluate((el) => el.getBoundingClientRect());
+    const amountCenter = await amount.evaluate((el) => el.getBoundingClientRect());
+    expect(Math.abs((labelCenter.left + labelCenter.right) / 2 - (amountCenter.left + amountCenter.right) / 2))
+      .toBeLessThanOrEqual(1);
+  });
 });

@@ -1,7 +1,13 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
-import { PAGE_LEAD_CLASS, PAGE_LEAD_WIDE_CLASS, PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
+import {
+  PAGE_LEAD_CLASS,
+  PAGE_LEAD_WIDE_CLASS,
+  PAGE_SECTION_LABEL_CLASS,
+  PAGE_STACK_CLASS,
+  PAGE_TITLE_CLASS,
+} from '@/components/finance/page-chrome';
 import { EmptyTriage } from '@/components/onboarding/route-empty';
 import { AccuracyCard } from '@/components/triage/accuracy-card';
 import { BackfillButton } from '@/components/triage/backfill-button';
@@ -72,7 +78,7 @@ export default async function TriagePage() {
           </CardHeader>
           <CardContent className="space-y-5">
             <div data-testid="inbox-custom-categories">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
                 Your categories
               </h3>
               <CustomCategoryManager
@@ -82,7 +88,7 @@ export default async function TriagePage() {
               />
             </div>
             <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
                 Built-in categories
               </h3>
               <CategoryManager

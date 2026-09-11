@@ -12,6 +12,7 @@
 import { useState, useTransition } from 'react';
 import { forgetLearnedPhrase } from '@/server/vocab-actions';
 import type { LearnedPhrase } from '@/server/vocab';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 
 /** Plain-language name for each intent kind a learned phrase may route to. */
 const KIND_LABEL: Record<string, string> = {
@@ -68,7 +69,7 @@ export function LearnedPhrases({ phrases }: { phrases: readonly LearnedPhrase[] 
 
   return (
     <div data-testid="learned-phrases" className="space-y-2 border-t pt-2">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h3 className={PAGE_SECTION_LABEL_CLASS}>
         Phrasings Aimplifi learned from you
       </h3>
       <p className="text-xs text-muted-foreground">

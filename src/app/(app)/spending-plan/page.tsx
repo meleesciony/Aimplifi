@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { PlanFiguresForm } from '@/components/finance/plan-figures-form';
 import { PlanRowActionLink } from '@/components/finance/plan-row-action-link';
@@ -91,7 +92,7 @@ export default async function SpendingPlanPage() {
           data-testid="spending-plan-hero"
           className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-sm"
         >
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <p className={`${PAGE_SECTION_LABEL_CLASS} justify-center`}>
             Guilt-free to spend
           </p>
           <p className="mt-2 text-sm text-muted-foreground" data-testid="spending-plan-empty">
@@ -132,7 +133,7 @@ export default async function SpendingPlanPage() {
         data-testid="spending-plan-hero"
         className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-sm"
       >
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <p className={`${PAGE_SECTION_LABEL_CLASS} justify-center`}>
           {positive ? 'Guilt-free to spend' : 'Over plan'}
         </p>
         <p

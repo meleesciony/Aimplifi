@@ -1,7 +1,13 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/auth';
-import { PAGE_LEAD_CLASS, PAGE_LEAD_WIDE_CLASS, PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
+import {
+  PAGE_LEAD_CLASS,
+  PAGE_LEAD_WIDE_CLASS,
+  PAGE_SECTION_LABEL_CLASS,
+  PAGE_STACK_CLASS,
+  PAGE_TITLE_CLASS,
+} from '@/components/finance/page-chrome';
 import {
   KeywordRuleBuilder,
   type RulePrefillView,
@@ -220,7 +226,7 @@ export default async function RulesPage({
         </CardHeader>
         <CardContent className="space-y-5">
           <div data-testid="rules-custom-categories">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
               Your categories
             </h3>
             <CustomCategoryManager
@@ -230,7 +236,7 @@ export default async function RulesPage({
             />
           </div>
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
               Built-in categories
             </h3>
             <CategoryManager

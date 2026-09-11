@@ -23,6 +23,7 @@ import { formatCents, cents } from '@/lib/money';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 
 const TYPE_LABEL: Record<string, string> = {
   CHECKING: 'Checking',
@@ -79,7 +80,7 @@ export function HouseholdSharingCard({
       <CardContent className="space-y-4">
         {view.sharedWithMe.length > 0 && (
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className={PAGE_SECTION_LABEL_CLASS}>
               Shared with you
             </h3>
             <ul className="mt-1 divide-y">
@@ -115,7 +116,7 @@ export function HouseholdSharingCard({
         )}
 
         <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className={PAGE_SECTION_LABEL_CLASS}>
             Share your accounts
           </h3>
           {view.mine.length === 0 ? (

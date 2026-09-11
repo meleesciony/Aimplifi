@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
+import {
+  PAGE_SECTION_LABEL_CLASS,
+  PAGE_STACK_CLASS,
+  PAGE_TITLE_CLASS,
+} from '@/components/finance/page-chrome';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
@@ -354,7 +358,7 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-5">
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
               Your categories
             </h3>
             <CustomCategoryManager
@@ -364,7 +368,7 @@ export default async function SettingsPage() {
             />
           </div>
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
               Built-in categories
             </h3>
             {/* Both are off for the demo, for two DIFFERENT reasons. Renaming: it is

@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
+import {
+  PAGE_SECTION_LABEL_CLASS,
+  PAGE_STACK_CLASS,
+  PAGE_TITLE_CLASS,
+} from '@/components/finance/page-chrome';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CATEGORIES, categoryName, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
@@ -539,7 +543,7 @@ export default async function BudgetsPage() {
         </CardHeader>
         <CardContent className="space-y-5">
           <div data-testid="budgets-custom-categories-card">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
               Your categories
             </h3>
             <CustomCategoryManager
@@ -549,7 +553,7 @@ export default async function BudgetsPage() {
             />
           </div>
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
               Built-in categories
             </h3>
             <CategoryManager

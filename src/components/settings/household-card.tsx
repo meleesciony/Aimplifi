@@ -31,6 +31,7 @@ import type { HouseholdView } from '@/server/household';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 
 const fieldClass =
   'h-9 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground';
@@ -111,7 +112,7 @@ function NoHousehold({
     <div className="space-y-4">
       {view.invites.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className={PAGE_SECTION_LABEL_CLASS}>
             You&apos;re invited
           </h3>
           {view.invites.map((invite) => (
@@ -259,7 +260,7 @@ function MemberView({
 
       {view.pendingInvites.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className={PAGE_SECTION_LABEL_CLASS}>
             Pending invites
           </h3>
           {view.pendingInvites.map((i) => (
