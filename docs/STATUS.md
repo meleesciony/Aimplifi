@@ -25,7 +25,7 @@ rates) — no other doc may restate them.
 
 **Rotation.** Four ledgers cut under the 40KB ceiling, verbatim: DECISIONS #485-#723 → DECISIONS_ARCHIVE_485_to_723.md (live = #724+); PROGRESS 2026-08-20..2026-08-31 → PROGRESS_ARCHIVE_2026-08-20_to_2026-08-31.md; STATUS BUILT/records through 2026-08-19 → STATUS_ARCHIVE_2026-07_to_2026-08-19.md (OPEN/FOUND/DECIDED + 2026-09 BUILT stay live); REGRESSION rows 2026-08-20..2026-09-02 → REGRESSION_LEDGER_ARCHIVE_2026-08-20_to_2026-09-02.md. Index regenerated (712 entries); ledger-decisions-index unit test green; docs-lint clean. TASKS.md (139.9KB, no line-level [x] rows) is the named next cut.
 
-**Ship.** (this entry: sha / CI run / Vercel / live probe appended post-push)
+**Ship.** Landed `6cf6f3d0` on `main` (rebased over the parallel session's #726-#733 feature commits; my decision renumbered #726 -> #734). GitHub Actions `verify` run **34615048819 = SUCCESS** (full VERIFY_E2E=1 suite on the merged tree). Live `https://www.aimplifi.app/sign-in` 200 and its served stylesheet carries `background-attachment:local` - the slice marker unique to this change.
 ## ✅ BUILT 2026-09-10 — CI repair: four red e2e specs + Needs-a-category aria-pressed (DECISIONS #725)
 
 **The report.** Slice 2 left CI `verify` run `34511385651` red on four pre-existing e2e + one flaky a11y scan. Those were the next leftover.

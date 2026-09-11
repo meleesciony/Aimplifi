@@ -12,7 +12,7 @@
 
 **Closed.** The 7 near-twin section-label literals (allocation-drilldown, forecast-view, recurring-view, retirement-outlook-card, spend-class-panel, top-spending-card, ask-view) render through PAGE_SECTION_LABEL_CLASS; spend-class-panel's h3 keeps its mb-2 (the tokenization had silently dropped it - repaired before any gate). PAGE_LEAD_CLASS caps at max-w-md (a ceiling, not a width: the max-w-md routes can no longer be overreached) and new PAGE_LEAD_WIDE_CLASS re-opens sm:max-w-2xl on the five wide routes (accounts, goals, rules, triage, ask). Body gradient scrolls with the document (background-attachment: local - iOS Safari ignores fixed, and fixed forces a paint on every scroll frame). Locks: tests/unit/section-label-tokens.test.ts (7 files) + page-chrome.test.ts (7 tests, including the WIDE wiring lock the critic asked for).
 
-**Ship.** (this entry: sha / CI run / Vercel / live probe appended post-push)
+**Ship.** Landed `6cf6f3d0` on `main` (rebased over the parallel session's #726-#733 feature commits; my decision renumbered #726 -> #734). GitHub Actions `verify` run **34615048819 = SUCCESS** (full VERIFY_E2E=1 suite on the merged tree). Live `https://www.aimplifi.app/sign-in` 200 and its served stylesheet carries `background-attachment:local` - the slice marker unique to this change.
 ## 2026-09-10 — CI repair: four red e2e specs + Needs-a-category aria-pressed (DECISIONS #725)
 
 **Picked up.** Owner: "continue." Slice 2 (#724) next line: first fix the four red CI e2e specs + the `<a aria-pressed>` defect, then M.4 continues.
