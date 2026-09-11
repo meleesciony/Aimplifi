@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
-import { PAGE_LEAD_CLASS, PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
+import { PAGE_LEAD_CLASS, PAGE_LEAD_WIDE_CLASS, PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { EmptyTriage } from '@/components/onboarding/route-empty';
 import { AccuracyCard } from '@/components/triage/accuracy-card';
 import { BackfillButton } from '@/components/triage/backfill-button';
@@ -47,7 +47,7 @@ export default async function TriagePage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className={PAGE_TITLE_CLASS}>Inbox</h1>
-          <p className={PAGE_LEAD_CLASS} data-testid="inbox-subtitle">
+          <p className={`${PAGE_LEAD_CLASS} ${PAGE_LEAD_WIDE_CLASS}`} data-testid="inbox-subtitle">
             {INBOX_PAGE_SUBTITLE}
           </p>
         </div>

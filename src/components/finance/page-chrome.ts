@@ -12,7 +12,16 @@
  */
 export const PAGE_TITLE_CLASS = 'text-2xl font-semibold tracking-tight sm:text-3xl';
 
-export const PAGE_LEAD_CLASS = 'mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground';
+/**
+ * The lead's column cap is a ceiling, not a set width: routes whose whole
+ * column is narrower than 2xl (max-w-md forms, the error page) must not
+ * have a lead that overreaches its own container, so the token caps at md
+ * and the wide routes re-open the column explicitly.
+ */
+export const PAGE_LEAD_CLASS = 'mt-1 max-w-md text-sm leading-relaxed text-muted-foreground';
+
+/** Re-open the lead's column on wide routes (pairs with PAGE_LEAD_CLASS). */
+export const PAGE_LEAD_WIDE_CLASS = 'sm:max-w-2xl';
 
 export const PAGE_STACK_CLASS = 'space-y-5 sm:space-y-6';
 

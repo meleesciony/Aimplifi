@@ -12,6 +12,7 @@ import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transact
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import type { Cadence } from '@/lib/engine/recurring/detect';
 import type { WithheldAccountSummary } from '@/lib/providers/currency';
 import type { RecurringData } from '@/server/recurring';
@@ -382,7 +383,7 @@ export function RecurringView({
         data-testid="recurring-hero"
         className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-sm"
       >
-        <p className="flex items-center justify-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <p className={`${PAGE_SECTION_LABEL_CLASS} justify-center`}>
           <Repeat className="size-3.5" aria-hidden /> Monthly recurring
         </p>
         <p

@@ -10,7 +10,12 @@
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, CornerDownLeft, Sparkles } from 'lucide-react';
-import { PAGE_LEAD_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
+import {
+  PAGE_LEAD_CLASS,
+  PAGE_LEAD_WIDE_CLASS,
+  PAGE_SECTION_LABEL_CLASS,
+  PAGE_TITLE_CLASS,
+} from '@/components/finance/page-chrome';
 import { askAssistant, correctFromAsk, undoAskCorrection } from '@/server/assistant';
 import { saveDebtFreeGoal, saveRetirementAge, saveSavingsGoal } from '@/server/goal-actions';
 import { forgetLearnedPhrase } from '@/server/vocab-actions';
@@ -255,7 +260,7 @@ export function AskView({
         <h1 className={`flex items-center gap-2 ${PAGE_TITLE_CLASS}`}>
           <Sparkles className="size-5 text-brand-500" aria-hidden /> Ask Aimplifi
         </h1>
-        <p className={PAGE_LEAD_CLASS}>
+        <p className={`${PAGE_LEAD_CLASS} ${PAGE_LEAD_WIDE_CLASS}`}>
           Ask about your money in plain language. Every answer is computed from your own accounts and
           transactions — nothing is made up.
         </p>
@@ -536,7 +541,7 @@ export function AskView({
 
       {!answer && !pending && (
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Try asking</p>
+          <p className={PAGE_SECTION_LABEL_CLASS}>Try asking</p>
           <ul className="mt-2 flex flex-wrap gap-2">
             {suggestions.map((s) => (
               <li key={s}>

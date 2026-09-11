@@ -29,6 +29,7 @@ import { BreakdownPanel } from '@/components/finance/breakdown-panel';
 import { CHART_SERIES } from '@/lib/ui/chart-colors';
 import { allocationPercent } from '@/components/finance/allocation-format';
 import { usePanelToggleFocus } from '@/components/finance/use-panel-toggle-focus';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 
 const ALLOC_COLORS = CHART_SERIES;
 
@@ -40,7 +41,7 @@ export function AllocationDrilldown({ segments }: { segments: AllocationSegment[
 
   return (
     <div data-testid="investments-allocation">
-      <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <div className={PAGE_SECTION_LABEL_CLASS}>
         <PieChart className="size-3.5" aria-hidden /> Allocation
       </div>
       {/* The picture: the legend below carries the labels AND the controls

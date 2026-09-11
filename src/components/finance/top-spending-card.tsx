@@ -7,6 +7,7 @@ import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-
 import { reportsNotCountedYetCopy } from '@/lib/engine/glass-box/category-breakdown';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 import { SURFACE_CARD_CLASS } from '@/components/finance/surface-card-styles';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { CHART_SERIES } from '@/lib/ui/chart-colors';
 
 const PALETTE = CHART_SERIES;
@@ -73,7 +74,7 @@ export function TopSpendingCard({
           href="/reports"
           subjectKey="top-spending"
           data-testid="dashboard-top-spending-link"
-          className="flex items-center gap-2 rounded-sm text-xs font-medium uppercase tracking-wide text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
+          className={`${PAGE_SECTION_LABEL_CLASS} rounded-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2`}
         >
           <PieChart className="size-3.5" aria-hidden /> Top spending →
         </TrackedActedLink>

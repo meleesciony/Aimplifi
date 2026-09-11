@@ -261,7 +261,10 @@ html {
       color-mix(in oklch, var(--color-brand-500) 14%, transparent),
       transparent 70%
     );
-    background-attachment: fixed;
+    /* Scroll with the document: iOS Safari ignores `fixed` here, and a fixed
+       attachment forces a paint on every scroll frame. The brand wash belongs
+       to the top of the page, not pinned to the viewport. */
+    background-attachment: local;
   }
   html {
     @apply font-sans;

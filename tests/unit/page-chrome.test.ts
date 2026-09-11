@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   PAGE_LEAD_CLASS,
+  PAGE_LEAD_WIDE_CLASS,
   PAGE_SECTION_LABEL_CLASS,
   PAGE_STACK_CLASS,
   PAGE_TITLE_CLASS,
@@ -24,6 +27,35 @@ describe('PAGE_LEAD_CLASS', () => {
   it('keeps supporting copy secondary', () => {
     for (const util of ['text-sm', 'text-muted-foreground']) {
       expect(PAGE_LEAD_CLASS.split(' ')).toContain(util);
+    }
+  });
+
+  it('caps the lead column at md so max-w-md routes cannot be overreached', () => {
+    expect(PAGE_LEAD_CLASS.split(' ')).toContain('max-w-md');
+    expect(PAGE_LEAD_CLASS.split(' ')).not.toContain('max-w-2xl');
+  });
+});
+
+describe('PAGE_LEAD_WIDE_CLASS', () => {
+  it('re-opens the lead column only from sm up', () => {
+    expect(PAGE_LEAD_WIDE_CLASS.split(' ')).toEqual(['sm:max-w-2xl']);
+  });
+
+  // Dropping the WIDE pair from a consumer silently narrows that lead from
+  // 2xl to md — too narrow to ever trip the horizontal-overflow e2e — so the
+  // wiring itself is locked, in the same readFileSync style as the
+  // section-label lock.
+  const WIDE_LEAD_ROUTES = [
+    'src/app/(app)/accounts/page.tsx',
+    'src/app/(app)/goals/page.tsx',
+    'src/app/(app)/rules/page.tsx',
+    'src/app/(app)/triage/page.tsx',
+    'src/components/finance/ask-view.tsx',
+  ];
+
+  it('is wired into every wide-route lead', () => {
+    for (const file of WIDE_LEAD_ROUTES) {
+      expect(readFileSync(resolve(file), 'utf8')).toContain('PAGE_LEAD_WIDE_CLASS');
     }
   });
 });

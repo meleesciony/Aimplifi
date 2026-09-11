@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth } from '@/auth';
-import { PAGE_LEAD_CLASS, PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
+import { PAGE_LEAD_CLASS, PAGE_LEAD_WIDE_CLASS, PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import {
   KeywordRuleBuilder,
   type RulePrefillView,
@@ -182,7 +182,7 @@ export default async function RulesPage({
 
       <div>
         <h1 className={PAGE_TITLE_CLASS}>Rules</h1>
-        <p className={PAGE_LEAD_CLASS}>
+        <p className={`${PAGE_LEAD_CLASS} ${PAGE_LEAD_WIDE_CLASS}`}>
           Tell Aimplifi how to file a transaction and it follows the words you typed rather than
           guessing at the payee. Useful when the bank text changes every time: a fund name, a store
           number, or a transaction id that never repeats. A rule does not override a payment detected as

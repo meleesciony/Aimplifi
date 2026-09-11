@@ -21,6 +21,7 @@ import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { saveRetirementWhatIfDefaults } from '@/server/settings-actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { cents, formatCents } from '@/lib/money';
 import {
   buildRetirementInputs,
@@ -303,9 +304,7 @@ export function RetirementOutlookCard({
         {/* Interactive what-if — explore different ages / inflation; recomputes instantly. */}
         <div className="space-y-2 rounded-md border border-input p-3" data-testid="retirement-whatif">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Try a different plan
-            </span>
+            <span className={PAGE_SECTION_LABEL_CLASS}>Try a different plan</span>
             {dirty ? (
               <button
                 type="button"

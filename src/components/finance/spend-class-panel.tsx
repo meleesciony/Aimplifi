@@ -23,6 +23,7 @@ import {
   CATEGORY_NAME_LINK_CLASS,
   spendClassMonthRegisterHref,
 } from '@/lib/engine/transactions/links';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 
 export type SpendClassFixedRow = SpendClassCategoryRow & {
   /** Monthly amount in the Plan rollup (budget target else typical). */
@@ -145,7 +146,7 @@ function ClassList({
 }) {
   return (
     <div className="mt-4" data-testid={testId}>
-      <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
         <Link
           href={registerHref}
           className={CATEGORY_NAME_LINK_CLASS}

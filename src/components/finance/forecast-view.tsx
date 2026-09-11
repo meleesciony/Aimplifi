@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { forecastDayBasis } from '@/lib/engine/forecast/panel';
+import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { BreakdownPanel } from '@/components/finance/breakdown-panel';
 import { usePanelToggleFocus } from '@/components/finance/use-panel-toggle-focus';
 import type { CashFlowForecastData } from '@/server/forecast';
@@ -52,9 +53,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
           doesn&apos;t include card payments (see the cash-needed card) or one-off spending, so
           treat it as a planning estimate.
         </p>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Projected balance in {data.horizonDays} days
-        </p>
+        <p className={PAGE_SECTION_LABEL_CLASS}>Projected balance in {data.horizonDays} days</p>
         <p
           data-testid="forecast-projected"
           className="mt-1 text-4xl font-bold tabular-nums tracking-tight sm:text-5xl"
