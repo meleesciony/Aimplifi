@@ -16,6 +16,8 @@
 
 **Gate.** `bash scripts/verify.sh` → **VERIFY GREEN, exit 0**: tsc 0, probes tsc 0, eslint 0, unit **8,388 passed + 1 expected fail + 1 skipped / 625 files + 1 skipped**, next build clean. Playwright mobile-380 on the fresh build: `goal-status-ask` **1/1** (throwaway "Pace check"; card sentence === Ask `ask-answer`; headline `Pace check — On pace.`; source `/goals`).
 
+**Ship.** `b27986a1` pushed to `origin/main` (no `prisma/` diff — database untouched). GitHub Actions verify run **34647434237 → success** (read via `gh run watch`; 16m2s). Vercel production `dpl_2ci7DbwztXw36kq7yfRzzQSK6JWd` → **READY**, aliased to `www.aimplifi.app` (sha `b27986a1`). Live probe (demo session): Ask "how am I doing on my spending last month?" answered **You spent $4,587.00 last month.** with the reports source — the cycle-3 failure mode (that phrasing becoming unknown) is not on the live site. Demo has no seeded goals, so a named on-track question is unknown until GL.4.
+
 **Next.** GL.3 behind-pace nudge; GL.4 seeded demo goals; GL.5 1200-month cap. M.4 visual direction owner-deferred.
 
 ## 2026-09-11 - Goals: progress + pace on every savings goal, and a Home Goals card (DECISIONS #737)

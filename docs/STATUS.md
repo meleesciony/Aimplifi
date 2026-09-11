@@ -25,6 +25,8 @@ rates) — no other doc may restate them.
 
 **Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN, exit 0: tsc 0, probes tsc 0, eslint 0, unit **8,388 passed + 1 expected fail + 1 skipped / 625 files**, `next build` clean. Playwright mobile-380: `goal-status-ask.spec.ts` **1/1**.
 
+**Ship.** `b27986a1` on `origin/main`; CI verify run 34647434237 **success**; Vercel `dpl_2ci7DbwztXw36kq7yfRzzQSK6JWd` READY on `www.aimplifi.app`. Live demo Ask: "how am I doing on my spending last month?" → "You spent $4,587.00 last month." (not unknown). Named on-track questions need a stored row — demo has none (GL.4).
+
 **Still open.** GL.3 behind-pace nudge; GL.4 seeded demo goals (live demo Ask cannot show a match); GL.5 1200-month cap. Wave 0 ops owner-blocked. M.4 visual direction owner-deferred.
 
 ## ✅ BUILT 2026-09-11 — Goals: progress + pace on every savings goal, and a Home Goals card (DECISIONS #737)
