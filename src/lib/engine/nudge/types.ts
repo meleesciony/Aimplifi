@@ -17,6 +17,20 @@ import type { Opportunity, OpportunityKind } from '@/lib/engine/fi/insights';
 import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
 import type { IncomePauseState, PauseCadence } from '@/lib/engine/income/pause';
 import type {
+  GoalPaceNudgeRow,
+  GoalProgress,
+  GoalSentenceContext,
+} from '@/lib/engine/goals/progress';
+
+/** The goal_behind_pace context group (see Proposal.goalNudge). */
+export interface GoalNudgeContext {
+  name: string;
+  /** The caller's own goalProgress verdict — the feed re-derives nothing. */
+  progress: GoalProgress;
+  /** The goal fields the pace sentence names, verbatim from the same read. */
+  sentence: GoalSentenceContext;
+}
+import type {
   FrozenFundingFigure,
   FrozenNothingDueRow,
 } from '@/lib/engine/account/feed-dropped-view';
@@ -35,6 +49,7 @@ export type ProposalKind =
   | 'cash_needed_shortfall'
   | 'unusual_charge'
   | 'income_pause'
+  | 'goal_behind_pace'
   | OpportunityKind;
 
 export interface Proposal {
@@ -116,6 +131,14 @@ export interface Proposal {
   cadence: PauseCadence | null;
   runwayMonths: number | null;
   runwayWindowMonths: number | null;
+  /**
+   * Verbatim display context for a goal_behind_pace proposal (TASKS GL.3); null for
+   * every other kind (the fundingFrozen precedent — one structured context field, never
+   * recomputed). `progress` is the caller's own `goalProgress` verdict and `sentence`
+   * the goal fields its card sentence renders with, so the feed's detail line is the
+   * card's sentence rendered from the same inputs — one copy truth, byte-identical.
+   */
+  goalNudge: GoalNudgeContext | null;
   isEstimated: boolean;
   /**
    * The funding account this proposal's figure is walked forward from, when its bank has stopped
@@ -180,6 +203,13 @@ export interface NudgeInput {
    * is in force, so the mutation is always visible and undoable.
    */
   incomePauses?: readonly IncomePauseState[];
+  /**
+   * Behind-pace savings goals (TASKS GL.3): `goalProgress` rows with pace 'behind' or
+   * 'date-passed', passed in by the caller — the feed re-derives NOTHING about pace (the
+   * cards and Ask render the same engine's verdict). Optional so pre-existing callers
+   * and tests stay valid; absent means "no slipping goal", identical to [].
+   */
+  goalPaceRows?: readonly GoalPaceNudgeRow[];
   /**
    * The coach's `monthsOfRunway` figure, passed through verbatim for income_pause
    * display context only (see Proposal.runwayMonths). Optional; omitted or a

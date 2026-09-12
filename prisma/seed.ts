@@ -61,6 +61,7 @@ async function main() {
   // a P2003 foreign-key violation on category.deleteMany():
   await prisma.categoryPrediction.deleteMany();
   await prisma.budget.deleteMany();
+  await prisma.goal.deleteMany();
   await prisma.merchant.deleteMany();
   await prisma.category.deleteMany();
   await prisma.holding.deleteMany();
@@ -74,6 +75,9 @@ async function main() {
   await prisma.holding.createMany({ data: data.holdings });
   await prisma.statement.createMany({ data: data.statements });
   await prisma.cardPayment.createMany({ data: data.cardPayments });
+  // Seeded savings goals (GL.4) — the live demo's /goals and Home Goals card open
+  // populated, and the behind goal drives the goal_behind_pace nudge.
+  await prisma.goal.createMany({ data: data.goals });
 
   // ── Phase 2: categories, merchants, categorized transactions ──
   await prisma.category.createMany({
@@ -237,6 +241,7 @@ async function main() {
     scheduled: data.scheduled.length,
     snapshots: data.snapshots.length,
     holdings: data.holdings.length,
+    goals: data.goals.length,
   };
   console.log('Seeded:', JSON.stringify(counts));
 }

@@ -139,6 +139,23 @@ export interface SeedHolding {
   priceCents: number; // current price per share
 }
 
+/**
+ * A seeded savings goal (GL.4). `kind: null` = a plain savings goal — exactly what the
+ * live `createGoal` writer stores for one, so every reader (goals list, Home card,
+ * Ask, coach blueprint) treats a seeded row identically to a hand-made one. Dates are
+ * derived from asOf so any `--asOf` stays coherent.
+ */
+export interface SeedGoal {
+  id: string;
+  userId: string;
+  name: string;
+  targetCents: number;
+  savedCents: number;
+  targetDate: ISODate | null;
+  monthlyContributionCents: number | null;
+  kind: null;
+}
+
 export interface SeedData {
   asOf: ISODate;
   user: SeedUser;
@@ -150,6 +167,7 @@ export interface SeedData {
   scheduled: SeedScheduled[];
   snapshots: SeedSnapshot[];
   holdings: SeedHolding[];
+  goals: SeedGoal[];
 }
 
 // ── descriptor pool (≥40 distinct messy raw forms; docs/SEED_SPEC.md) ───────
@@ -618,6 +636,44 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
     { id: 'hold-nvda', accountId: 'acct-brokerage', symbol: 'NVDA', name: 'NVIDIA Corp.', quantity: 30, costBasisCents: 600000, priceCents: 48000 },
   ];
 
+  // ── seeded savings goals (GL.4): one on pace, one behind, so the live demo's /goals
+  // and Home Goals card open populated (and the behind one drives the goal_behind_pace
+  // nudge). Dates are derived from asOf; the seed clock stays DEFAULT_AS_OF in
+  // production (businessToday precedence 2), so these mean what they say. Names avoid
+  // every e2e-created demo goal ('Japan trip', 'Education', 'Giving') and every
+  // Ask-spec phrasing noun, so no known route changes its answer. Hand math (asOf
+  // 2026-06-10, today = the seed clock):
+  //   Vacation Fund  $2,400 target · $800 saved · $200/mo · no date
+  //     → monthsToFunded = ceil(1600/200) = 8, funded by Feb 2027 — a plain no-date goal.
+  //   New Car Fund   $6,000 target · $600 saved · $150/mo · Jun 2027
+  //     → targetMonths (to the month END) = 12; monthsToFunded = ceil(5400/150) = 36
+  //     → BEHIND by 24 months; required monthly = ceil(5400/12) = $450 → gap $300.
+  // The demo's biweekly $50 checking→savings transfer (an existing seed fact) reads as
+  // the plausible origin of the saved figures — nothing on the goals page claims an
+  // account, so no fixture link is fabricated.
+  const goals: SeedGoal[] = [
+    {
+      id: 'goal-demo-vacation',
+      userId: user.id,
+      name: 'Vacation Fund',
+      targetCents: 240000,
+      savedCents: 80000,
+      targetDate: null,
+      monthlyContributionCents: 20000,
+      kind: null,
+    },
+    {
+      id: 'goal-demo-car',
+      userId: user.id,
+      name: 'New Car Fund',
+      targetCents: 600000,
+      savedCents: 60000,
+      targetDate: isoDate(`${addMonthsClamped(asOf, 12).slice(0, 7)}-01`),
+      monthlyContributionCents: 15000,
+      kind: null,
+    },
+  ];
+
   return {
     asOf,
     user,
@@ -629,6 +685,7 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
     scheduled,
     snapshots,
     holdings,
+    goals,
   };
 }
 

@@ -27,6 +27,7 @@ function prop(o: Partial<Proposal> & { kind: ProposalKind; tier: ProposalTier })
     cadence: null,
     runwayMonths: null,
     runwayWindowMonths: null,
+    goalNudge: null,
     isEstimated: false,
     fundingFrozen: null,
     dismissed: false,

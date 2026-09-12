@@ -21,16 +21,22 @@ describe('Debt-free goals reuse target/date/monthly controls', () => {
     expect(debtBlock).not.toContain('GoalSavedControl');
 
     const actions = readFileSync(resolve('src/server/goal-actions.ts'), 'utf8');
-    for (const fn of ['updateGoalTarget', 'updateGoalMonthly', 'updateGoalTargetDate', 'clearGoalMonthly', 'clearGoalTargetDate']) {
+    // Slice each function's REAL extent (to the next export), not a magic byte
+    // window: GL.5 grew updateGoalTargetDate past any fixed window, and a window
+    // can both false-negative (here) and bleed into the next export (false-positive).
+    const fnBlock = (fn: string): string => {
       const start = actions.indexOf(`export async function ${fn}`);
       expect(start).toBeGreaterThan(-1);
-      const block = actions.slice(start, start + 1100);
+      const next = actions.indexOf('\nexport ', start + 1);
+      return actions.slice(start, next === -1 ? actions.length : next);
+    };
+    for (const fn of ['updateGoalTarget', 'updateGoalMonthly', 'updateGoalTargetDate', 'clearGoalMonthly', 'clearGoalTargetDate']) {
+      const block = fnBlock(fn);
       expect(block).toMatch(/OR:\s*\[\s*\{\s*kind:\s*null\s*\}/);
       expect(block).toContain('RESERVE_KIND');
     }
     // already-saved stays savings-only
-    const savedStart = actions.indexOf('export async function updateGoalSaved');
-    const savedBlock = actions.slice(savedStart, savedStart + 900);
+    const savedBlock = fnBlock('updateGoalSaved');
     expect(savedBlock).toContain('where: { id, userId, kind: null }');
     expect(savedBlock).not.toMatch(/OR:\s*\[/);
   });

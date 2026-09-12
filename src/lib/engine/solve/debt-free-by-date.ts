@@ -27,10 +27,28 @@
  * never a fake yes and never a figure-less refusal.
  */
 import { type DebtInput, type DebtStrategy, planDebtPayoff } from '@/lib/engine/debt/payoff';
-import { type ISODate, addMonthsClamped, compareDates } from '@/lib/dates';
+import { type ISODate, addMonthsClamped, compareDates, monthKey, monthWindow } from '@/lib/dates';
 
 /** 100 years — mirrors payoff.ts / fi.ts MAX_MONTHS; nothing is reachable past this. */
 const MAX_MONTHS = 1200;
+
+/**
+ * The planning horizon, exported for writers that must refuse a target date past it
+ * (TASKS GL.5): past 1200 months `wholeMonthsUntil` saturates, so a >100-year date
+ * would be planned against the cap while the reader reads their own far figure.
+ */
+export const MAX_PLANNING_MONTHS = MAX_MONTHS;
+
+/**
+ * GL.5 (critic P1-3): the horizon is a WRITER's rule shared by every date-saving path,
+ * not just the /goals editor. True when the target's month-END deadline lies past
+ * today + MAX_PLANNING_MONTHS — the same month-granular judgment the pace engine makes
+ * (GP-L), because a month pick stores the 1st while every deadline judges the month's
+ * end. ONE home next to the cap so the rule and its constant cannot drift apart.
+ */
+export function isBeyondPlanningHorizon(today: ISODate, target: ISODate): boolean {
+  return compareDates(monthWindow(monthKey(target)).to, addMonthsClamped(today, MAX_MONTHS + 1)) >= 0;
+}
 
 /** Same 60-iteration cap as coastFI (fi.ts) — ample for any cent-scale binary search. */
 const BISECTION_ITERATIONS = 60;

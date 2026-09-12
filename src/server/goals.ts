@@ -8,9 +8,11 @@ import type { ISODate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import {
   GOAL_PACE_ATTENTION_RANK,
+  type GoalPaceNudgeRow,
   type GoalProgress,
   goalProgress,
   goalTargetDate,
+  isGoalPaceNudgeWorthy,
 } from '@/lib/engine/goals/progress';
 
 export interface GoalProgressRow {
@@ -71,4 +73,27 @@ export async function getGoalProgressRows(userId: string, today: ISODate): Promi
       GOAL_PACE_ATTENTION_RANK[a.progress.pace] - GOAL_PACE_ATTENTION_RANK[b.progress.pace] ||
       a.name.localeCompare(b.name),
   );
+}
+
+/**
+ * The rows the Today feed should warn about (TASKS GL.3), reshaped from rows the caller
+ * already fetched — no second read. `goalProgress` rows with pace 'behind' or
+ * 'date-passed' (isGoalPaceNudgeWorthy), carrying the SAME verdict and sentence context
+ * the cards render, so the feed re-derives nothing about pace.
+ */
+export function goalPaceNudgeRowsFrom(rows: readonly GoalProgressRow[]): GoalPaceNudgeRow[] {
+  return rows
+    .filter((r) => isGoalPaceNudgeWorthy(r.progress.pace))
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      progress: r.progress,
+      sentence: {
+        targetCents: r.targetCents,
+        savedCents: r.savedCents,
+        monthlyContributionCents: r.monthlyContributionCents,
+        targetDate: r.targetDate,
+        today: r.today,
+      },
+    }));
 }

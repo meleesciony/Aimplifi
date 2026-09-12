@@ -89,6 +89,21 @@ exercises same-day aggregation; one due date in history falls on a weekend ✔).
   total due ≈ $5,412.33 across three cards with a real shortfall vs. projected
   checking — final exact numbers fixed in Phase 1 + hand-verified.
 
+## Savings goals (GL.4, 2026-09-11)
+Two seeded savings goals on the demo user (`kind: null` — the exact shape the live
+`createGoal` writer stores), so the live demo's /goals and Home Goals card open
+populated and the behind goal drives the `goal_behind_pace` Today-feed nudge. Dates
+derive from `--asOf` (target = the 1st of asOf+12 months); at the shipped default
+(2026-06-10) the hand math is:
+- **Vacation Fund** — $2,400.00 target, $800.00 saved, $200/mo, NO date → no-date pace,
+  funded in 8 months (Feb 2027), 33% funded (floored bps 3333).
+- **New Car Fund** — $6,000.00 target, $600.00 saved, $150/mo, due Jun 2027 →
+  BEHIND by 24 months (36 to fund vs 12 to the date); required monthly $450.00,
+  gap $300.00/mo (`centsAtStake` of the demo's goal nudge).
+Names deliberately avoid the names demo e2e specs create and delete ('Japan trip',
+'Education', 'Giving') so those specs stay exact. The demo user is read-only for
+visitors as everywhere else.
+
 ## Determinism ✔
 Same `--asOf` ⇒ identical dataset (assert via row counts + a checksum over a stable
 serialization in `seed.test.ts`).

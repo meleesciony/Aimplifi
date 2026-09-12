@@ -6,6 +6,8 @@
  */
 import { expect, test, type Page } from './helpers/test';
 import AxeBuilder from '@axe-core/playwright';
+import Database from 'better-sqlite3';
+import { E2E_DB_URL } from '../setup/test-db';
 
 /** "$5,412.33" / "− $1,234.56" / "-$0.50" → signed integer cents. */
 function textToCents(s: string): number {
@@ -104,12 +106,51 @@ test('spending plan: the breakdown lines sum to "Guilt-free to spend" exactly', 
 });
 
 test('spending plan: every $0.00 line says WHICH zero it is (TASKS L.29)', async ({ page }) => {
-  await signIn(page);
+  // GL.4 moved the demo's savings zero (the demo seed now carries two goals, so
+  // its savings line is goal-derived at $350.00 — locked on /budgets by the
+  // conscious-buckets spec). The
+  // L.29 lock itself needs a world where a zero row BINDS by construction, so it
+  // runs on a throwaway user with no goals and no savings target (the trends-caps
+  // fixture idiom): one income month → pattern, no fixed rows → an honest $0.00
+  // savings row with the unset label + control.
+  const email = `e2e-glassbox-zero-${Date.now()}-${Math.floor(Math.random() * 1e6)}@aimplifi.test`;
+  await page.goto('/sign-in');
+  await page.getByTestId('auth-toggle').click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill('e2e-password-123');
+  await page.getByTestId('auth-submit').click();
+  await page.waitForURL('**/dashboard', { timeout: 20000 });
+
+  // One checking account + two complete months of filed paycheck income (the
+  // conscious-buckets fixture idiom) so the plan pattern exists and the savings
+  // row renders its honest unset-$0 state — no goals, no savings target.
+  const db = new Database(E2E_DB_URL.replace(/^file:/, ''), {
+    timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000,
+  });
+  try {
+    const user = db.prepare('SELECT id FROM User WHERE email = ?').get(email) as { id: string };
+    const stamp = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    const checkingId = `e2e-gb-chk-${stamp}`;
+    db.prepare(
+      `INSERT INTO Account (id, userId, provider, providerRef, name, type, mask, currentBalanceCents, currency)
+       VALUES (?, ?, 'manual', ?, 'Everyday Checking', 'CHECKING', '0977', 500000, 'USD')`,
+    ).run(checkingId, user.id, `ref-gb-chk-${stamp}`);
+    const txn = db.prepare(
+      `INSERT INTO "Transaction" (id, accountId, date, amountCents, rawDescriptor, categoryId, status, isTransfer, isSplitParent)
+       VALUES (?, ?, ?, ?, ?, ?, 'POSTED', 0, 0)`,
+    );
+    [['2026-04-05', 500_000], ['2026-05-05', 500_000]].forEach(([date, amount], i) => {
+      txn.run(`e2e-gb-inc-${i}-${stamp}`, checkingId, date as string, amount as number, 'E2E PAYCHECK', 'paycheck');
+    });
+    db.prepare('UPDATE User SET paymentAccountId = ? WHERE id = ?').run(checkingId, user.id);
+  } finally {
+    db.close();
+  }
+
   await page.goto('/spending-plan');
-  await expect(page.getByTestId('spending-plan-hero')).toBeVisible();
+  await expect(page.getByTestId('spending-plan-hero')).toBeVisible({ timeout: 20000 });
 
   const rows = await page.getByTestId('plan-row').all();
-  // Three identity rows since 2026-08-01 (see the sum test above).
   expect(rows.length).toBeGreaterThanOrEqual(3);
   let zeros = 0;
   for (const row of rows) {
@@ -126,9 +167,7 @@ test('spending plan: every $0.00 line says WHICH zero it is (TASKS L.29)', async
   // assert the fixture's hard case is actually present).
   expect(zeros).toBeGreaterThanOrEqual(1);
 
-  // …and the parenthesis test alone is too weak to fail on a revert: the demo's one
-  // zero row read 'Planned savings (goals)' before L.29, which also has a
-  // parenthesis (critic P1-2). So pin the demo's actual zero, and its control.
+  // The savings zero specifically: unset label + the /settings control that exists.
   const savings = page.getByTestId('plan-row').filter({ hasText: 'Planned savings' });
   await expect(savings.getByTestId('plan-row-label')).toContainText(
     'Planned savings (no monthly amount set)',

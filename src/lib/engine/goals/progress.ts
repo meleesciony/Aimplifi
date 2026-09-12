@@ -184,3 +184,41 @@ export const GOAL_PACE_ATTENTION_RANK: Record<GoalPace, number> = {
   'on-track': 4,
   funded: 5,
 };
+
+/**
+ * The slice of a goal row the nudge feed needs (TASKS GL.3). The feed re-derives nothing
+ * about pace — the caller passes `goalProgress` rows whose pace already says 'behind' or
+ * 'date-passed', so the feed can never disagree with the card about WHO is slipping.
+ */
+export interface GoalPaceNudgeRow {
+  /** The stored Goal.id — the dismissal fact's identity half. */
+  id: string;
+  name: string;
+  progress: GoalProgress;
+  /**
+   * The card-sentence context for the SAME goal (fields the sentence names), carried
+   * verbatim so the feed renders the card's own `goalPaceSentence` — one copy truth.
+   */
+  sentence: GoalSentenceContext;
+}
+
+/** The fields a projecting goal sentence names, beyond the verdict itself (#737 GP-M). */
+export interface GoalSentenceContext {
+  targetCents: number;
+  /** The hand-typed saved figure the verdict starts from — named in every projection. */
+  savedCents: number;
+  monthlyContributionCents: number | null;
+  targetDate: ISODate | null;
+  /** The business "today" the progress was computed on (for "is here" vs "has passed"). */
+  today: ISODate;
+}
+
+/**
+ * True when a goal's pace should surface as a `goal_behind_pace` nudge: the pledge lands
+ * after the target date ('behind') or the date itself has already passed with money to go
+ * ('date-passed'). Lives HERE, next to the pace enum, so a future pace change and this
+ * predicate are edited in one place (the fence-by-construction lesson).
+ */
+export function isGoalPaceNudgeWorthy(pace: GoalPace): boolean {
+  return pace === 'behind' || pace === 'date-passed';
+}

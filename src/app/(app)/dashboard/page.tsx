@@ -40,7 +40,7 @@ import { getConnectionAlerts, getDataFreshness } from '@/server/connection-healt
 import { getCashFlowRadar } from '@/server/radar';
 import { eligibleTransferSources } from '@/lib/engine/radar/radar';
 import { getReturnMoment } from '@/server/return-moment';
-import { getGoalProgressRows } from '@/server/goals';
+import { getGoalProgressRows, goalPaceNudgeRowsFrom } from '@/server/goals';
 import { GoalsProgressCard } from '@/components/finance/goals-progress-card';
 import { isoDate } from '@/lib/dates';
 import { ReturnMomentCard } from '@/components/dashboard/return-moment-card';
@@ -110,6 +110,20 @@ export default async function DashboardPage({
   const linkedBank = bankLinks.linkedBank;
   const canDeepenHistory = !isDemoUser(session.user.id) && bankLinks.plaidCount > 0;
 
+  const [returnMoment, goalRows] = await Promise.all([
+    getReturnMoment(session.user.id, {
+      today: radar.radar.today,
+      review: coach.review,
+      opportunities: coach.opportunities,
+      radar: radar.radar,
+    }),
+    // #737 — savings goals with progress + pace, on the same business "today" as
+    // /goals (coach.today), so the two surfaces judge a date alike.
+    getGoalProgressRows(session.user.id, isoDate(coach.today)),
+  ]);
+  // GL.3 — the behind-pace nudge rides on the SAME goal rows the Home Goals card
+  // renders, so the feed can never disagree with the card about who is slipping.
+
   const frozenDueRows = frozenNothingDueRows({
     cards: [...data.payInFull.cards, ...data.payInFull.unknownDueDateCards],
     loans: data.loanObligations,
@@ -130,21 +144,10 @@ export default async function DashboardPage({
     runwayWindowMonths: coach.fi.monthlySavingsMonths,
     paymentAccountName: data.paymentAccountName,
     frozenDues: frozenDueRows,
+    goalPaceRows: goalPaceNudgeRowsFrom(goalRows),
   } as const;
   const nudgeFeed = buildNudgeFeed({ ...nudgeInput, dismissedKeys: nudgeDismissedKeys });
   const nudgeFeedAll = buildNudgeFeed({ ...nudgeInput, dismissedKeys: new Set<string>() });
-
-  const [returnMoment, goalRows] = await Promise.all([
-    getReturnMoment(session.user.id, {
-      today: radar.radar.today,
-      review: coach.review,
-      opportunities: coach.opportunities,
-      radar: radar.radar,
-    }),
-    // #737 — savings goals with progress + pace, on the same business "today" as
-    // /goals (coach.today), so the two surfaces judge a date alike.
-    getGoalProgressRows(session.user.id, isoDate(coach.today)),
-  ]);
 
   const paymentAccounts = data.accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))

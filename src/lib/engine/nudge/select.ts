@@ -11,13 +11,14 @@
  * same NOTIFY_DUE_WINDOW_DAYS constant — shared inputs, not re-derived.
  */
 import { type Cents, ZERO } from '@/lib/money';
-import { compareDates, type ISODate } from '@/lib/dates';
+import { compareDates, monthKey, monthWindow, type ISODate } from '@/lib/dates';
 import type { PaymentReminder } from '@/lib/engine/reminders/select';
 import type { RadarResult } from '@/lib/engine/radar/radar';
 import { type CashNeededResult, undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
 import type { Opportunity } from '@/lib/engine/fi/insights';
 import type { UnusualCharge } from '@/lib/engine/anomaly/detect';
 import type { IncomePauseState } from '@/lib/engine/income/pause';
+import type { GoalPaceNudgeRow } from '@/lib/engine/goals/progress';
 import { frozenNothingDueNote } from '@/lib/engine/account/feed-dropped-view';
 import {
   NOTIFY_DUE_WINDOW_DAYS,
@@ -89,6 +90,7 @@ function paymentProposal(r: PaymentReminder, today: ISODate, dismissed: Readonly
     cadence: null,
     runwayMonths: null,
     runwayWindowMonths: null,
+    goalNudge: null, // no goal_behind_pace context on this kind
     isEstimated: r.isEstimated,
     fundingFrozen: null, // not projected from the funding balance
     dismissed: dismissed.has(dismissKey),
@@ -123,6 +125,7 @@ function dipProposal(
     cadence: null,
     runwayMonths: null,
     runwayWindowMonths: null,
+    goalNudge: null, // no goal_behind_pace context on this kind
     isEstimated: radar.includesEstimatedDues,
     // The dip IS the radar's verdict re-printed as an instruction, so the fact comes from the
     // radar's own starting account — the account it walked from, labelled as the radar labels it —
@@ -176,6 +179,7 @@ function shortfallProposal(
     cadence: null,
     runwayMonths: null,
     runwayWindowMonths: null,
+    goalNudge: null, // no goal_behind_pace context on this kind
     isEstimated,
     // `cn.fundingFrozen` carries the drop date and the balance but deliberately not the name, so
     // the surface's own label completes it (TASKS L.20).
@@ -234,6 +238,7 @@ function opportunityProposal(o: Opportunity, today: ISODate, dismissed: Readonly
     cadence: null,
     runwayMonths: null,
     runwayWindowMonths: null,
+    goalNudge: null, // no goal_behind_pace context on this kind
     isEstimated: o.isEstimate,
     fundingFrozen: null, // not projected from the funding balance
     dismissed: dismissed.has(dismissKey),
@@ -271,6 +276,7 @@ function unusualProposal(u: UnusualCharge, today: ISODate, dismissed: ReadonlySe
     cadence: null,
     runwayMonths: null,
     runwayWindowMonths: null,
+    goalNudge: null, // no goal_behind_pace context on this kind
     isEstimated: false, // a real posted charge, never an estimate
     fundingFrozen: null, // not projected from the funding balance
     dismissed: dismissed.has(dismissKey),
@@ -339,7 +345,70 @@ function incomePauseProposal(
       runwayMonths !== undefined && Number.isFinite(runwayMonths) && runwayMonths > 0
         ? runwayWindowMonths
         : null,
+    goalNudge: null, // no goal_behind_pace context on this kind
     isEstimated: false, // the missed deposit is a fact; the runway figure discloses its own basis
+    fundingFrozen: null, // not projected from the funding balance
+    dismissed: dismissed.has(dismissKey),
+  };
+}
+
+/**
+ * Behind-pace goal proposal (TASKS GL.3): a savings goal whose pledge misses its date,
+ * or whose date has passed with money still to go. ACTION tier — like unusual_charge
+ * and income_pause, it asks for a decision ("raise the pledge, move the date, or accept
+ * the later date") with no payment deadline, so it never competes with CRITICAL warnings
+ * and is dismissable. Never pushed (notify/select is untouched): a pace verdict is
+ * coaching, not an obligation.
+ *
+ * The dismissal fact is the goal PLUS its target month
+ * (`goal_behind_pace:<goalId>:<YYYY-MM>`): a dateless goal can't pace, so the target
+ * month is what the verdict was computed against — raising the pledge past it, moving
+ * the date, or funding the goal all change the fact and the row returns with a fresh
+ * verdict; re-dismissing the same unchanged fact stays gone (the per-fact idiom of
+ * unusual_charge's txnId). When the goal has NO date ('date-passed' is unreachable
+ * then, but the shape is total): the goal id alone.
+ *
+ * Every figure is verbatim from `goalProgress`: centsAtStake is gapMonthlyCents — the
+ * EXTRA per month that closes the gap, not the whole pledge (labeled at the copy
+ * boundary) — and 0 for a passed date, where no monthly closes a date that is gone;
+ * sortDate is the target month's END, the same month-granular deadline the cards judge
+ * pace on (GP-L), so within-ACTION ordering agrees with the verdict.
+ */
+function goalBehindPaceProposal(
+  row: GoalPaceNudgeRow,
+  today: ISODate,
+  dismissed: ReadonlySet<string>,
+): Proposal {
+  const tier: ProposalTier = 'action';
+  const p = row.progress;
+  // The target date lives on the SENTENCE context (the goal's stored field), not on the
+  // verdict — `GoalProgress` carries months and cents, never the raw date.
+  const targetDate = row.sentence.targetDate;
+  const monthOf = targetDate === null ? null : monthKey(targetDate);
+  const key = monthOf ? `goal_behind_pace:${row.id}:${monthOf}` : `goal_behind_pace:${row.id}`;
+  const dismissKey = dismissKeyFor(tier, key, today);
+  return {
+    kind: 'goal_behind_pace',
+    tier,
+    key,
+    dismissKey,
+    subjectKey: subjectKey('goal_behind_pace'),
+    // The target month's END (month-granular, GP-L) for both paces — the same
+    // deadline the verdict was judged on, so the "dated …" disclosure names the
+    // date the pace means, never the stored 1st-of-month the reader never chose.
+    sortDate: targetDate === null ? null : monthWindow(monthKey(targetDate)).to,
+    daysUntil: null,
+    centsAtStake: (p.gapMonthlyCents ?? 0) as Cents, // verbatim — the extra monthly needed, not the whole pledge
+    autopayCents: ZERO, // not a payment_due proposal
+    merchant: null,
+    accountName: null,
+    typicalCents: null,
+    typicalCount: null,
+    cadence: null,
+    runwayMonths: null,
+    runwayWindowMonths: null,
+    goalNudge: { name: row.name, progress: p, sentence: row.sentence }, // verbatim context group
+    isEstimated: false, // a pace verdict over stored fields, never an estimate
     fundingFrozen: null, // not projected from the funding balance
     dismissed: dismissed.has(dismissKey),
   };
@@ -408,6 +477,7 @@ export function buildNudgeFeed(input: NudgeInput): NudgeFeed {
     ...(input.incomePauses ?? []).map((p) =>
       incomePauseProposal(p, input.runwayMonths, input.runwayWindowMonths, today, dismissed),
     ),
+    ...(input.goalPaceRows ?? []).map((g) => goalBehindPaceProposal(g, today, dismissed)),
   ];
   const dip = dipProposal(radar, today, dismissed);
   if (dip) proposals.push(dip);

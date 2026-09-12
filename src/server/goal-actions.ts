@@ -8,15 +8,16 @@ import { prisma } from '@/lib/db';
 import { cents, formatCents, parseDollarInput } from '@/lib/money';
 import { auditLog, requireUserId } from '@/server/authz';
 import { getProvider } from '@/lib/providers/demo';
-import { formatMonth, isoDate, type ISODate } from '@/lib/dates';
 import { loadDebtAccounts } from '@/server/debt';
 import { getSpendingPlan } from '@/server/spending-plan';
 import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { goalNameError } from '@/lib/engine/goals/goal-name';
-import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
+import { MAX_PLANNING_MONTHS, isBeyondPlanningHorizon, solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
 import { solveSavingsGoalByDate } from '@/lib/engine/solve/savings-goal-by-date';
 import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
+import { businessToday } from '@/lib/business-today';
+import { addMonthsClamped, formatMonth, isoDate, monthKey, type ISODate } from '@/lib/dates';
 
 export interface GoalFormResult {
   ok: boolean;
@@ -91,6 +92,12 @@ export async function saveDebtFreeGoal(targetDateRaw: string): Promise<void> {
   }
 
   const today = getProvider().today(userId) as ISODate;
+  // GL.5 — the horizon is every writer's rule (critic P1-3): the savings solver only
+  // unreachables a PAST date, so a far-future one would saturate wholeMonthsUntil at
+  // the 1200 cap and persist a plan computed against the cap.
+  if (isBeyondPlanningHorizon(today, targetDate)) {
+    throw new Error('Pick a date within 100 years — plans past that can’t be funded on a real timeline.');
+  }
   const [debts, plan] = await Promise.all([loadDebtAccounts(userId), getSpendingPlan(userId)]);
   const result = solveDebtFreeByDate({
     debts,
@@ -142,6 +149,12 @@ export async function saveSavingsGoal(targetDateRaw: string, goalAmountCentsRaw:
   if (!Number.isFinite(goalAmountCents) || goalAmountCents <= 0) throw new Error('Invalid goal amount');
 
   const today = getProvider().today(userId) as ISODate;
+  // GL.5 — the horizon is every writer's rule (critic P1-3): the savings solver only
+  // unreachables a PAST date, so a far-future one would saturate wholeMonthsUntil at
+  // the 1200 cap and persist a plan computed against the cap.
+  if (isBeyondPlanningHorizon(today, targetDate)) {
+    throw new Error('Pick a date within 100 years — plans past that can’t be funded on a real timeline.');
+  }
   const plan = await getSpendingPlan(userId);
   const result = solveSavingsGoalByDate({
     goalAmountCents,
@@ -387,7 +400,8 @@ export async function updateGoalMonthly(
  * Change a savings goal's target date already on /goals. Name, target,
  * saved, and monthly contribution stay put. Reserves are refused;
  * debt-free goals are allowed. Demo cannot learn. Month (YYYY-MM) stores as the first of
- * that month. Does not re-solve monthly from the date.
+ * that month. Does not re-solve monthly from the date. Refuses a target month past
+ * the shared 1200-month planning horizon (GL.5) — the same refusal every writer runs.
  */
 export async function updateGoalTargetDate(
   goalId: string,
@@ -416,6 +430,19 @@ export async function updateGoalTargetDate(
     return {
       ok: false,
       errors: { targetDate: 'Enter a month — like 2027-06.' },
+    };
+  }
+  // GL.5 — the same 1200-month horizon every planner runs on, judged on the target
+  // month's END (the shared predicate's one home is next to the cap). Past it the
+  // solver's month count saturates at MAX_MONTHS, so a >100-year date would be solved
+  // against the cap while the card printed the reader's own far figure — an overstated
+  // required monthly and a fake lag.
+  if (isBeyondPlanningHorizon(businessToday(userId), next)) {
+    return {
+      ok: false,
+      errors: {
+        targetDate: `Pick a month within 100 years (${formatMonth(monthKey(addMonthsClamped(businessToday(userId), MAX_PLANNING_MONTHS)))} or earlier) — plans past that can’t be funded on a real timeline.`,
+      },
     };
   }
 

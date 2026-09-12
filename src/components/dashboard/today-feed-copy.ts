@@ -18,6 +18,7 @@
 import { type ISODate, formatISODate } from '@/lib/dates';
 import { type Cents, formatCents } from '@/lib/money';
 import type { Proposal } from '@/lib/engine/nudge/types';
+import { goalPaceSentence } from '@/lib/engine/goals/progress-copy';
 import {
   frozenFundingNote,
   frozenProjectionNote,
@@ -55,15 +56,21 @@ export function whenPhrase(daysUntil: number | null): string {
 /** The raw, verbatim fields behind a proposal — shown in the "why" disclosure. */
 export function whyInputs(p: Proposal): string {
   const money = formatCents(p.centsAtStake as Cents);
-  // Per-kind money semantics (#249 critic P2-4 / #251): an unusual charge is already
-  // SPENT and a paused income's figure is money that DIDN'T arrive — "at stake"
-  // would misstate either.
+  // Per-kind money semantics (#249 critic P2-4 / #251 / GL.3): an unusual charge is
+  // already SPENT, a paused income's figure is money that DIDN'T arrive, and a
+  // behind-pace goal's figure is the EXTRA monthly needed — except on a PASSED date,
+  // where gap is 0 and NO monthly helps (the card says "Pick a new date"): the
+  // why-line names the fact instead of printing a $0 remedy.
   const parts = [
     p.kind === 'unusual_charge'
       ? `a ${money} charge`
       : p.kind === 'income_pause'
         ? `an expected ${money} deposit`
-        : `${money} at stake`,
+        : p.kind === 'goal_behind_pace'
+          ? p.goalNudge?.progress.pace === 'date-passed'
+            ? 'the target month has passed'
+            : `${money}/mo more needed`
+          : `${money} at stake`,
   ];
   if (p.sortDate) parts.push(`dated ${formatISODate(p.sortDate as ISODate)}`);
   if (p.daysUntil !== null) parts.push(`${p.daysUntil} day${p.daysUntil === 1 ? '' : 's'} out`);
@@ -229,6 +236,23 @@ export function proposalCopy(p: Proposal): { title: string; detail: string } {
         title: 'This bill may be negotiable',
         detail: `Negotiating could save around ${money}/mo (estimated). Details in Recurring below.`,
       };
+    case 'goal_behind_pace': {
+      // centsAtStake = the EXTRA monthly that closes the gap (gapMonthlyCents) —
+      // never the whole pledge, and 0 for a passed date, where no monthly helps.
+      // The title names the pace the way the goal card's badge does ('Date passed'
+      // vs 'Behind pace' — GOAL_PACE_LABEL): a row whose detail says the date is
+      // gone must not headline as "behind pace". The detail is the goal card's
+      // own pace sentence rendered from the SAME verbatim context group
+      // (goalNudge) the /goals card and Home render with — one copy truth,
+      // byte-identical to the card (the GL.2 invariant), never a second wording
+      // of the verdict.
+      const g = p.goalNudge!;
+      return {
+        title:
+          g.progress.pace === 'date-passed' ? `${g.name}’s date has passed` : `${g.name} is behind pace`,
+        detail: goalPaceSentence(g.progress, g.sentence),
+      };
+    }
     default: {
       const _exhaustive: never = p.kind;
       return _exhaustive;

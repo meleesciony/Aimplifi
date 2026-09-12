@@ -155,23 +155,23 @@ test('each bucket amount opens a panel whose rows sum to exactly that amount', a
       legendCents['conscious-guilt-free'],
   ).toBe(incomeCents);
 
-  // The savings bucket is one row by construction. This demo's savings is
-  // PROVABLY always $0 — no savings target, no goals (the seed creates neither,
-  // and the settings dial is demo-fenced, settings-actions.ts) — so the pin
-  // below is a fixture fact, and the control assertion binds. The working-
-  // figure state (no control beside a real number) is exercised by the
-  // throwaway test at the bottom of this file — never a dead branch here.
-  expect(legendCents['conscious-savings']).toBe(0);
-  const savingsAction = page.getByTestId('conscious-savings-row-action');
-  await expect(savingsAction).toBeVisible();
-  await expect(savingsAction).toHaveAttribute('href', '/settings');
+  // The savings bucket is one row by construction. GL.4 (2026-09-11): the demo
+  // seed now carries two savings goals ($200.00 + $150.00 monthly), so the
+  // savings figure is GOAL-DERIVED at $350.00 — "Planned savings (goals)" with
+  // NO control beside it (the action is authored only for the unset-$0 row,
+  // row-labels.ts `savingsLabel`). The old "$0 and no goals" fixture fact is
+  // gone by design; the unset-$0 control branch is pinned on the throwaway
+  // glass-box zero fixture, and the working-figure no-control branch below.
+  expect(legendCents['conscious-savings']).toBe(350_00);
+  await expect(page.getByTestId('conscious-savings-row-action')).toHaveCount(0);
 
   // C.11 / audit P1-14: a one-row panel certifies nothing, so it prints no
   // penny-match — one amount beside the figure it IS. And the provenance
   // clause appears only where every amount is data-derived: the demo's Fixed
   // term is (no overrides, no budget targets in the seed); the savings term
-  // never is — goals and targets are chosen by the reader, not computed, and
-  // the unset $0 asserts nothing either.
+  // never is — goals and targets are chosen by the reader, not computed —
+  // and with the GL.4 goals the guilt-free identity is no longer all-derived
+  // either (planned savings > $0 disqualifies it, trace.ts `dataDerived`).
   await expect(page.getByTestId('conscious-fixed-reconciled')).toContainText(
     'This amount is the whole figure',
   );
@@ -181,6 +181,13 @@ test('each bucket amount opens a panel whose rows sum to exactly that amount', a
   await expect(page.getByTestId('conscious-savings-reconciled')).not.toContainText(
     'nothing is invented',
   );
+  await expect(page.getByTestId('conscious-guilt-free-reconciled')).not.toContainText(
+    'nothing is invented',
+  );
+  // The guilt-free panel still reconciles (rows sum to the headline) but no
+  // longer claims provenance: with the GL.4 goals its identity includes a
+  // reader-chosen figure, so "nothing is invented" would be false — the
+  // clause is gated off (trace.ts `dataDerived`), the penny-match stays.
   await expect(page.getByTestId('conscious-guilt-free-reconciled')).toContainText(
     'matched to the penny',
   );

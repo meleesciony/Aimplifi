@@ -11,7 +11,11 @@
  */
 import { compareDates, formatMonth, monthKey, monthWindow, type ISODate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
-import type { GoalPace, GoalProgress } from './progress';
+import type { GoalPace, GoalProgress, GoalSentenceContext } from './progress';
+
+// One definition (critic P2-2): the sentence context lives with the verdict that
+// consumes it; this module re-exports it for its own signature and every copy consumer.
+export type { GoalSentenceContext } from './progress';
 
 const fmt = (n: number) => formatCents(cents(n));
 const month = (d: ISODate) => formatMonth(monthKey(d));
@@ -48,16 +52,6 @@ export function goalsHeadline(paces: readonly GoalPace[]): string {
   const funded = paces.filter((p) => p === 'funded').length;
   if (funded === n) return n === 1 ? 'Your goal is funded' : `All ${n} goals funded`;
   return n === 1 ? 'Your goal is on pace' : `All ${n} goals on pace`;
-}
-
-export interface GoalSentenceContext {
-  targetCents: number;
-  /** The hand-typed saved figure the verdict starts from — named in every projection. */
-  savedCents: number;
-  monthlyContributionCents: number | null;
-  targetDate: ISODate | null;
-  /** The business "today" the progress was computed on (for "is here" vs "has passed"). */
-  today: ISODate;
 }
 
 export function goalPaceSentence(p: GoalProgress, goal: GoalSentenceContext): string {

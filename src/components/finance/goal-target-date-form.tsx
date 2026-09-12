@@ -11,8 +11,20 @@ import { clearGoalTargetDate, updateGoalTargetDate, type GoalFormResult } from '
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { formatMonth } from '@/lib/dates';
+import { MAX_PLANNING_MONTHS } from '@/lib/engine/solve/debt-free-by-date';
 
 const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreground';
+
+/** Native month-input ceiling: 1200 months (the planners' shared horizon) from the
+ * viewer's local month. Advisory only — the server re-checks the same horizon on the
+ * server's own clock and its refusal wins; this just keeps impossible picks out of
+ * the picker (P2-1: the two clocks agree for a real signed-in user, which is the
+ * only writer this control serves — the demo is fenced). */
+function maxMonthValue(): string {
+  const d = new Date();
+  const horizon = new Date(d.getFullYear(), d.getMonth() + MAX_PLANNING_MONTHS, 1);
+  return `${horizon.getFullYear()}-${String(horizon.getMonth() + 1).padStart(2, '0')}`;
+}
 
 export function GoalTargetDateControl({
   goalId,
@@ -88,9 +100,14 @@ export function GoalTargetDateControl({
           name="targetDate"
           type="month"
           required
+          max={maxMonthValue()}
           defaultValue={month}
           aria-invalid={result?.errors?.targetDate ? true : undefined}
-          aria-describedby={result?.errors?.targetDate ? 'goal-target-date-error' : undefined}
+          aria-describedby={
+            result?.errors?.targetDate
+              ? 'goal-target-date-error goal-target-date-hint'
+              : 'goal-target-date-hint'
+          }
           className={`w-40 ${inputCls}`}
           data-testid="goal-target-date-input"
         />
@@ -124,6 +141,11 @@ export function GoalTargetDateControl({
           {result.errors.targetDate}
         </p>
       ) : null}
+      {/* The ceiling, always described to the input (own id — the error replaces
+          the describedby pairing, it must not evict the hint from AT). */}
+      <p id="goal-target-date-hint" className="text-xs text-muted-foreground">
+        Goals can be planned up to 100 years out ({formatMonth(maxMonthValue())} at the latest).
+      </p>
       {result?.error ? (
         <p className="text-xs text-red-500" role="alert" data-testid="goal-target-date-form-error">
           {result.error}

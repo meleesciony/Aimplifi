@@ -1,8 +1,9 @@
 /**
  * Ask `goal_status` (DECISIONS #738). A named stored savings goal answers with
  * the SAME pace sentence the /goals card prints — not a newly inverse-planned
- * amount+date. Isolation: throwaway user (demo has no seeded goals), on the
- * server's DEMO_TODAY (2026-06-10).
+ * amount+date. Isolation: throwaway user (the demo row now carries GL.4's seeded
+ * goals, but this spec's names are its own), on the server's DEMO_TODAY
+ * (2026-06-10).
  */
 import { execSync } from 'node:child_process';
 import { expect, test, type Locator } from './helpers/test';
