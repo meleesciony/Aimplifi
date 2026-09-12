@@ -15,7 +15,19 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
-## ✅ BUILT 2026-09-11 — Ask answers on-track for a stored savings goal (DECISIONS #738)
+## ✅ BUILT 2026-09-11 — The goals wave closes: behind-pace nudge, seeded demo goals, the 1200-month horizon (DECISIONS #739)
+
+**The report.** Three TASKS Wave GL dead ends closed in one slice: the Today feed now warns about a slipping savings goal (GL.3 `goal_behind_pace`, ACTION tier, `centsAtStake` = the extra monthly needed, dismissal keyed goal+target-month, detail = the goal card's own sentence); the live demo opens with two seeded goals (GL.4 — Vacation Fund on pace/no-date, New Car Fund behind by 24 months with a $300/mo gap) so /goals, Home, and the feed are populated for a first visitor; and the 1200-month planning horizon is a WRITER's rule (GL.5) — the /goals editor refuses a month past Jun 2126 with an inline error naming the ceiling, the month input carries `max` + an always-described hint, and BOTH Ask save writers refuse the same horizon (they previously would have persisted a year-2200 plan computed at the saturated cap).
+
+**Critic (fresh context): cycle 1 FAIL 3 P1 — all fixed same-session; cycle 2 PASS (0 P0, 0 P1).** Cycle-1 P1s: demo plan e2e pinned the pre-seed $0 savings world (glass-box L.29 moved to a throwaway fixture where unset binds; demo pins retargeted to the goal-derived $350 "Planned savings (goals)" with no control; the demo guilt-free panel keeps its penny-match and loses "nothing is invented"); the date-passed row said "behind pace" with a "$0.00/mo more needed" why-line (title + why now branch on pace); Ask save writers bypassed the horizon (shared `isBeyondPlanningHorizon` beside the cap, called before solve/persist).
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN, exit 0: tsc 0, probes tsc 0, eslint 0, unit **8,407 passed + 1 expected fail + 1 skipped / 629 files** (seed log counts `goals: 2`), `next build` clean. Playwright mobile-380 on the fresh build: `goal-demo-and-nudge` **2/2** (demo Home "1 of 2 goals needs a look" behind-first, /goals badges + sentences, dashboard nudge row with the card sentence; throwaway user: 2126-08 server-refused inline, 3200-01 client-blocked, 2027-06 saves, cleanup) + glass-box, conscious-buckets, goal-progress, goal-status-ask, education/giving presets, today-feed.
+
+**Ship.** `d8947c89` on `origin/main` (no `prisma/schema.prisma` diff — database untouched; only `prisma/seed.ts`). CI verify run + Vercel + live probe: see PROGRESS 2026-09-11 #739 entry.
+
+**Still open.** Wave 0 ops owner-blocked. M.4 visual direction owner-deferred. Wave 2/3/4 rows per TASKS.md.
+
+
 
 **The report.** After #737 the /goals card and Home knew pace; Ask could only inverse-plan a new amount + date. A reader with three named goals could not ask about any of them.
 

@@ -6,6 +6,22 @@
 > Only sessions from 2026-09-03 onward live here; append new sessions
 > at the top as before.
 
+## 2026-09-11 - The goals wave closes: behind-pace nudge + seeded demo goals + the 1200-month horizon (DECISIONS #739)
+
+**Picked up.** Owner: "continue as a world class dev and personal finance guru." Tree clean, main even with origin (GL.2 #738 shipped). Named next by the ledgers: GL.3 behind-pace nudge, GL.4 seeded demo goals, GL.5 1200-month cap. One close-out slice, engine-first, no new money math (every figure is `goalProgress` / the shared solvers).
+
+**Closed.** GL.3: nudge kind `goal_behind_pace` (ACTION, dismissable, never pushed) built ONLY from the caller's `goalProgress` rows (`goalPaceNudgeRowsFrom`, `isGoalPaceNudgeWorthy` = behind | date-passed) - the feed re-derives nothing about pace; `centsAtStake` = `gapMonthlyCents` verbatim (0 on a passed date); `sortDate` = the target month's END (GP-L); dismissal fact `goal_behind_pace:<goalId>:<YYYY-MM>` (a moved date returns, unchanged stays gone); detail = the card's own `goalPaceSentence` from a verbatim context group (`Proposal.goalNudge`); title/why branch on pace (critic P1-2 fix: "date has passed" + the fact, never a $0 remedy). Engagement set gains `nudge:goal_behind_pace`. GL.4: two seeded savings goals in `buildSeedData` (kind null, dates from `--asOf`; Vacation Fund no-date 8-mo/33% floored; New Car Fund Jun 2027 BEHIND 24 months, gap $300/mo), `prisma.goal.createMany` + wipe + log count. GL.5: shared `isBeyondPlanningHorizon` (month-END vs today+1201) beside the cap, called by `updateGoalTargetDate` (inline error naming the horizon month) AND both Ask save writers (critic P1-3: the solver only unreachables PAST dates, so a 2200 target persisted a plan computed at the saturated cap); month input `max` + always-describedby'd ceiling hint. First cut of the refusal used `wholeMonthsUntil > 1200` - dead by construction (the count saturates AT 1200); repaired pre-gate to the date comparison.
+
+**Demo ripples (critic P1-1, fixed same-session).** The demo plan panel now reads "Planned savings (goals)" $350.00: glass-box's L.29 which-zero lock moved to a throwaway fixture (inline income seeding, unset binds by construction); conscious-buckets pins 350_00/no-control and the guilt-free panel keeps its penny-match while losing "nothing is invented" (reader-chosen figure enters the identity). spending-plan-month-edge uses throwaway users - unaffected; budget composition keeps "not set" (target still null).
+
+**Critic (fresh context): cycle 1 FAIL 3 P1 -> all fixed same-session; cycle 2 PASS (0 P0, 0 P1).** Residual P2s named in DECISIONS #739.
+
+**Gate.** bash scripts/verify.sh (run 3, post-critic-fixes) -> **VERIFY GREEN, exit 0**: tsc 0, probes tsc 0, eslint 0, unit **8,407 passed + 1 expected fail + 1 skipped / 629 files**, next build clean. Playwright mobile-380 on the fresh build: goal-demo-and-nudge **2/2** (demo Home "1 of 2 goals needs a look" behind-first, /goals both cards, dashboard `nudge-goal_behind_pace` with the card sentence; throwaway user: 2126-08 server-refused inline, 3200-01 client-blocked, 2027-06 saves, cleanup) + glass-box, conscious-buckets, goal-progress, goal-status-ask, education/giving presets, today-feed. docs-lint clean (241 files); ledger suite 20/20 after reindex (726 entries).
+
+**Ship.** `d8947c89` pushed to `origin/main` (no `prisma/schema.prisma` diff - database untouched; only seed.ts). GitHub Actions verify run **[CI-RUN] = [CI-VERDICT]**. Vercel production **[DPL]** -> [READY], aliased to `www.aimplifi.app`. Live probe: [LIVE-PROBE].
+
+**Next.** Wave GL closed (GL.1-GL.5 all done). Open queue: Wave 2/3/4 rows per TASKS.md; Wave 0 ops owner-blocked; M.4 visual direction owner-deferred.
+
 ## 2026-09-11 - Ask answers on-track for a stored savings goal (DECISIONS #738)
 
 **Picked up.** Owner: "continue." Tree held GL.2 in progress after #737: Ask still only inverse-planned a NEW amount+date.
