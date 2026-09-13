@@ -18,7 +18,7 @@
 
 **Gate.** bash scripts/verify.sh run 5 (final) → **VERIFY GREEN, exit 0**: tsc 0, probes tsc 0, eslint 0, unit **8,413 passed + 1 expected fail + 1 skipped / 629 files**, next build clean. FAIL-OLD (clean stash-revert rerun): insights.test.ts **7 failed | 52 passed** pre-fix → 59/59 restored (independently reproduced by the critic). Playwright mobile-380 on the fresh build: `o20h-one-definition` **1/1** (register action menu → Fixed → badge flips with you-set-this → December panel row 1→0) + `coach-creep-verdict` **3/3** + `o20d-bars` **7/7**.
 
-**Ship.** `e36eee79` pushed to origin/main (no prisma/ diff — database untouched). Vercel on the sha: **success** (commit status). Live probe (demo session on www.aimplifi.app): /coach creep panel renders "the same Fixed or Discretionary label the register shows", old divergence sentence gone, December lists 15 rows, verdict "Spending is outpacing income". CI run 34737014759 — verdict recorded in docs/STATUS.md when read.
+**Ship.** `e36eee79` pushed to origin/main (no prisma/ diff — database untouched). Vercel on the sha: **success** (commit status). Live probe (demo session on www.aimplifi.app): /coach creep panel renders "the same Fixed or Discretionary label the register shows", old divergence sentence gone, December lists 15 rows, verdict "Spending is outpacing income". **CI verify run 34737014759 = success on `e36eee79`** (full VERIFY_E2E=1, watched to conclusion; docs push `026f29ed` supersedes — verdict belongs to the slice sha).
 
 **Next.** Wave 2/3/4 rows per TASKS.md; Wave 0 ops owner-blocked; M.4 owner-deferred. The O.20h residual (category-grain cuts figure) carries a revisit condition.
 
