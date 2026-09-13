@@ -22,7 +22,7 @@ import { CATEGORIES } from '@/lib/engine/categorize/categories';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { detectTransfers } from '@/lib/engine/categorize/transfers';
 import { detectRecurring } from '@/lib/engine/recurring/detect';
-import { NO_RECURRING_OVERRIDES } from '@/lib/engine/recurring/override';
+import { NO_RECURRING_OVERRIDES, overrideKey } from '@/lib/engine/recurring/override';
 import { cents } from '@/lib/money';
 import { isoDate } from '@/lib/dates';
 
@@ -393,8 +393,24 @@ describe('savings opportunities ranked by compounded impact', () => {
 });
 
 describe('lifestyle-creep detector on the engineered seed rise', () => {
+  // The pure seed's rows arrive UNCATEGORIZED (categoryId null — categories are
+  // applied at ingest, prisma/seed.ts Phase 2). The register-parity rule (O.20h
+  // critic P1-1) counts by the STORED label, so this lock mirrors the shipped
+  // ingest step — categorize every row exactly as seed.ts writes it — before
+  // running the engine. Running it on the raw nulls would measure an empty bar
+  // and prove nothing about the demo.
+  const seedTxns = seed.transactions.map((t) => ({
+    ...t,
+    categoryId: categorize({
+      rawDescriptor: t.rawDescriptor,
+      amountCents: t.amountCents,
+      date: t.date,
+      accountId: t.accountId,
+      isTransfer: t.isTransfer,
+    }).categoryId,
+  }));
   it('flags the final-6-months discretionary rise against flat income', () => {
-    const creep = detectLifestyleCreep(seed.transactions, isoDate('2026-06-10'));
+    const creep = detectLifestyleCreep(seedTxns, isoDate('2026-06-10'));
     expect(creep.flagged).toBe(true);
     expect(creep.spendGrowthBps).toBeGreaterThan(creep.incomeGrowthBps + 500);
     expect(creep.monthlyDiscretionaryCents).toHaveLength(6);
@@ -422,6 +438,10 @@ describe('creep bars carry their rows out of the summing loop (O.20d)', () => {
     accountId: 'a',
     isTransfer: false,
     status: 'POSTED' as const,
+    // Every row a provider writes carries a stored category (the pipeline's
+    // verdict or the reader's correction); the critic cycle-1 P1-1 rule counts
+    // by that stored label alone, so these fixtures state it like the DB does.
+    categoryId: over.categoryId ?? 'coffee',
     ...over,
   });
 
@@ -496,8 +516,7 @@ describe('creep bars carry their rows out of the summing loop (O.20d)', () => {
       txn('2026-01-10', -12000),
       txn('2026-01-18', 10000, { categoryId: 'shopping', id: 'refund-jan' }), // AMZN return filed to shopping
       txn('2026-01-25', 250000, { categoryId: 'income', id: 'paycheck-jan' }), // income is NOT a refund flag
-    ];
-    const creep = detectLifestyleCreep(txns, isoDate('2026-06-10'), 6);
+    ];    const creep = detectLifestyleCreep(txns, isoDate('2026-06-10'), 6);
     const jan = creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!;
     expect(jan.hasDiscretionaryRefunds).toBe(true);
     expect(jan.amountCents).toBe(17000); // the $100.00 refund never nets the bar
@@ -788,26 +807,207 @@ describe('creep income series counts only income rows, and says when it cannot m
   });
 });
 
+describe('one discretionary definition: the creep bar classifies with the register (O.20h)', () => {
+  const txn = (
+    date: string,
+    amountCents: number,
+    over: Partial<Parameters<typeof detectLifestyleCreep>[0][number]> = {},
+  ) => ({
+    id: `o20h-${date}-${amountCents}`,
+    date,
+    amountCents,
+    rawDescriptor: 'STARBUCKS 800-782-7282',
+    accountId: 'a',
+    isTransfer: false,
+    status: 'POSTED' as const,
+    ...over,
+  });
+  /** A paycheck in every window month — the coverage `incomeMeasured` needs. */
+  const paychecks = (perMonthCents: Record<string, number>) =>
+    Object.entries(perMonthCents).map(([m, c]) =>
+      txn(`${m}-25`, c, { categoryId: 'paycheck', id: `pay-${m}`, rawDescriptor: 'ACH DEPOSIT ACME PAYROLL' }),
+    );
+  const WINDOW = ['2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05'];
+  const flat = Object.fromEntries(WINDOW.map((m) => [m, 500_000]));
+  const today = isoDate('2026-06-10');
+  // The pure seed ingested (categories applied exactly as prisma/seed.ts Phase 2
+  // writes them) — the shipped label set the register-parity rule counts by.
+  const seedTxns = seed.transactions.map((t) => ({
+    ...t,
+    categoryId: categorize({
+      rawDescriptor: t.rawDescriptor,
+      amountCents: t.amountCents,
+      date: t.date,
+      accountId: t.accountId,
+      isTransfer: t.isTransfer,
+    }).categoryId,
+  }));
+
+  it('FAIL-OLD, executed: a row the reader marked Fixed leaves the bar and the panel', () => {
+    // The O.20h defect itself: a gym membership filed to a discretionary
+    // category but overridden Fixed. OLD counted it by category; NEW honors the
+    // reader's verdict — the register's "Fixed · you set this" badge now agrees
+    // with the bar that counts it.
+    const rows = [
+      ...paychecks(flat),
+      ...WINDOW.map((m, i) =>
+        txn(`${m}-10`, i < 3 ? -100_000 : -200_000, {
+          categoryId: 'fitness',
+          id: `gym-${m}`,
+          rawDescriptor: 'PLANET FITNESS #0123',
+          spendClassOverride: 'fixed',
+        }),
+      ),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    // The bar is EMPTY on the Fixed rows: spend side unmeasured, first-half
+    // median 0, nothing to grow from — the label the reader set is the truth.
+    expect(creep.discretionaryBaselineCents).toBe(0);
+    expect(creep.spendMeasured).toBe(false);
+    expect(creep.flagged).toBe(false);
+    for (const m of creep.monthlyDiscretionaryCents) expect(m.rows).toHaveLength(0);
+  });
+
+  it('FAIL-OLD, executed: an overridden guilt-free row a non-discretionary category would refuse now counts', () => {
+    // The mirror direction — the reader's "this is discretionary" verdict on a
+    // non-discretionary category now counts, so the two labels agree in BOTH
+    // directions of the override.
+    const rows = [
+      ...paychecks(flat),
+      ...WINDOW.map((m) => txn(`${m}-10`, -80_000, { categoryId: 'groceries', id: `g-${m}`, spendClassOverride: 'guilt-free' })),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    const jan = creep.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!;
+    expect(jan.amountCents).toBe(80_000);
+    expect(jan.rows.map((r) => r.transactionId)).toEqual(['g-2026-01']);
+  });
+
+  it('a recurring-bill merchant (detected series) classifies fixed and leaves the bar', () => {
+    // The guess tier of the ladder: a real detected outflow series makes its
+    // payee a bill, so its charges read Fixed in the register — and now in the
+    // bar. FAIL-OLD: the category flag counted them.
+    const spends = WINDOW.map((m, i) =>
+      txn(`${m}-07`, -90_000, { categoryId: 'fitness', id: `gym-${m}`, rawDescriptor: `PLANET FITNESS #0${100 + i}` }),
+    );
+    const others = [
+      ...paychecks(flat),
+      ...WINDOW.map((m, i) =>
+        txn(`${m}-10`, -(50_000 + i * 100), { categoryId: 'shopping', id: `buy-${m}`, rawDescriptor: `E2E STORE ${String.fromCharCode(65 + i)}` }),
+      ),
+    ];
+    const series = detectRecurring(
+      [...spends, ...others].map((t) => ({ ...t, id: t.id as string })).filter((t) => t.status === 'POSTED'),
+      today,
+      NO_RECURRING_OVERRIDES,
+    );
+    const fixedMerchants = new Set(
+      series
+        .filter((s) => s.typicalAmountCents < 0)
+        .map((s) => overrideKey(s.merchantCanonical)),
+    );
+    expect(fixedMerchants.size).toBe(1); // the engineered Planet Fitness series, only
+    const withGuess = detectLifestyleCreep([...spends, ...others], today, 6, undefined, undefined, new Set(), fixedMerchants);
+    // FAIL-OLD contrast, same rows without the guess: the gym counted by its
+    // category flag (140,100 = 50,100 shopping + 90,000 gym in January).
+    const withoutGuess = detectLifestyleCreep([...spends, ...others], today);
+    const jan = withGuess.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!;
+    expect(withoutGuess.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!.amountCents).toBe(140_100);
+    expect(withoutGuess.monthlyDiscretionaryCents.find((m) => m.month === '2026-01')!.rows.map((r) => r.transactionId)).toContain('gym-2026-01');
+    // With the guess, the gym leaves the bar — the register labels it Fixed.
+    expect(jan.amountCents).toBe(50_100);
+    expect(jan.rows.map((r) => r.transactionId)).toEqual(['buy-2026-01']);
+    expect(withGuess.monthlyDiscretionaryCents.every((m) => m.rows.every((r) => !r.transactionId!.startsWith('gym-')))).toBe(true);
+  });
+
+  it('critic cycle-1 P1-1: a NULL-category row counts by no label the register does not show', () => {
+    // The pipeline would file "STARBUCKS" to coffee (discretionary) — and the
+    // OLD engine counted it through that guess. The register shows this row
+    // with NO label at all ("No class yet"), because `getTransactions` hands
+    // the raw null to `classifySpendClass`, which refuses it. FAIL-OLD on BOTH
+    // engines: the pre-O.20h taxonomy rule counted it by the guess, and the
+    // first O.20h cut classified the RESOLVED category — the same guess. The
+    // shipped rule passes the raw row, so an unlabeled row can never count by
+    // a label the reader cannot see.
+    const rows = [
+      ...paychecks(flat),
+      ...WINDOW.map((m) => txn(`${m}-12`, -60_000, { id: `unfiled-${m}`, rawDescriptor: 'STARBUCKS 800-782-7282', categoryId: null })),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    expect(creep.spendMeasured).toBe(false);
+    for (const m of creep.monthlyDiscretionaryCents) expect(m.rows).toHaveLength(0);
+  });
+
+  it('an unresolvable uncategorized row also leaves the bar — the register shows it no class to disagree with', () => {
+    // The classifier's refusal case that survives: a descriptor the pipeline
+    // cannot resolve either. (Companion to the null-category lock above: the
+    // register's "No class yet" chip covers both spellings of "no category yet"
+    // — raw null and the 'uncategorized' placeholder — and the bar refuses both.)
+    const rows = [
+      ...paychecks(flat),
+      ...WINDOW.map((m) => txn(`${m}-12`, -60_000, { id: `unfiled-${m}`, rawDescriptor: 'ZZQ IMPORTS LLC 4471' })),
+    ];
+    const creep = detectLifestyleCreep(rows, today);
+    expect(creep.spendMeasured).toBe(false);
+    for (const m of creep.monthlyDiscretionaryCents) expect(m.rows).toHaveLength(0);
+  });
+
+  it('the NO-input defaults keep existing callers byte-identical (the pure seed rides the taxonomy flag)', () => {
+    // No overrides, no recurring-bill merchants: `classifySpendClass` reduces to
+    // the taxonomy flag over budgetable categories, so every fixture and the
+    // pure seed (ingested — no RecurringSeries rows and no overrides; the
+    // SEEDED DEMO DB does write 12 detected series, and the shipped demo page
+    // loads them through the same unfenced loader; that is the demo register's
+    // own classification, which this fix makes the demo bar agree with) measure
+    // exactly as before.
+    const noInput = detectLifestyleCreep(seedTxns, isoDate('2026-06-10'));
+    const withEmpty = detectLifestyleCreep(
+      seedTxns,
+      isoDate('2026-06-10'),
+      6,
+      undefined,
+      undefined,
+      new Set<string>(),
+      new Set<string>(),
+    );
+    expect(withEmpty.flagged).toBe(noInput.flagged);
+    expect(withEmpty.spendGrowthBps).toBe(noInput.spendGrowthBps);
+    expect(withEmpty.incomeGrowthBps).toBe(noInput.incomeGrowthBps);
+    expect(withEmpty.incomeBaselineCents).toBe(noInput.incomeBaselineCents);
+    expect(withEmpty.discretionaryBaselineCents).toBe(noInput.discretionaryBaselineCents);
+    expect(withEmpty.monthlyDiscretionaryCents.map((m) => m.amountCents)).toEqual(
+      noInput.monthlyDiscretionaryCents.map((m) => m.amountCents),
+    );
+    expect(withEmpty.monthlyDiscretionaryCents.map((m) => m.rows.length)).toEqual(
+      noInput.monthlyDiscretionaryCents.map((m) => m.rows.length),
+    );
+    // The engineered seed rise still flags with no reader input.
+    expect(withEmpty.flagged).toBe(true);
+  });
+});
+
 describe('creepPanelBasis (O.20d)', () => {
   it('embeds the rendered figure and names what counts and what never does', () => {
     const basis = creepPanelBasis('May 2026', cents(12000), false, 0, true);
     expect(basis.length).toBeGreaterThanOrEqual(2);
     expect(basis[0]).toBe(
-      'The $120.00 is May 2026’s discretionary spending: posted purchases in a discretionary category — dining out, shopping, entertainment, and the other categories the app treats as discretionary.',
+      'The $120.00 is May 2026’s discretionary spending: the posted purchases your Fixed/Discretionary split labels Discretionary — dining out, shopping, entertainment, and the rest.',
     );
     expect(basis[1]).toContain('transfers, pending rows, and rows you’ve excluded are never in it');
   });
 
-  it('re-review F2 — always admits it counts by category, not by the Fixed/Discretionary setting', () => {
-    // The register labels a detected gym membership "Fixed"; this bar counts it
-    // anyway, because "discretionary" here is the category's taxonomy flag. The
-    // panel lists the row, so the contradiction is now visible to the reader and
-    // must be stated rather than discovered.
+  it('re-review F2 (closed by O.20h) — the bar states the register’s own Fixed/Discretionary basis', () => {
+    // The divergence this disclosure used to excuse is GONE: the detector
+    // classifies rows with `classifySpendClass` — the reader's verdict, then
+    // the recurring-bill guess, then the taxonomy flag — the exact labels the
+    // register badges and /budgets lists. The old "counts by category, not by
+    // the setting" admission is deleted with the divergence it described; what
+    // must hold now is the positive admission rule naming the unified basis.
     for (const hasRefunds of [false, true]) {
       const basis = creepPanelBasis('May 2026', cents(12000), hasRefunds, 0, true);
-      const admission = basis.find((s) => s.includes('not by the Fixed or Discretionary setting'));
+      const admission = basis.find((s) => s.includes('the same Fixed or Discretionary label the register shows'));
       expect(admission).toBeDefined();
-      expect(admission).toContain('marked Fixed is still counted here');
+      expect(admission).toContain('your own verdict first');
+      expect(basis.join(' ')).not.toContain('not by the Fixed or Discretionary setting');
     }
   });
 
@@ -823,27 +1023,27 @@ describe('creepPanelBasis (O.20d)', () => {
   });
 
   it('discloses the gross-vs-net basis only when a discretionary credit occurred', () => {
-    expect(creepPanelBasis('May 2026', cents(12000), false, 0, true)).toHaveLength(3);
+    expect(creepPanelBasis('May 2026', cents(12000), false, 0, true)).toHaveLength(2);
     const withRefund = creepPanelBasis('May 2026', cents(12000), true, 0, true);
-    expect(withRefund).toHaveLength(4);
-    expect(withRefund[3]).toContain('does not reduce this figure');
+    expect(withRefund).toHaveLength(3);
+    expect(withRefund[2]).toContain('does not reduce it');
     // F7: the sentence describes a CREDIT, not "a refund you filed" — the same
     // branch catches a bike sold and filed to 'shopping', and a category the app
     // guessed rather than one the reader chose.
-    expect(withRefund[3]).not.toContain('you filed');
+    expect(withRefund[2]).not.toContain('you filed');
     // O.20g — the sentence used to explain the gross-ness by naming where the
     // credit went ("counts as money in"). A return filed to a discretionary
     // category or to Refund is now refused by `isIncomeFlowRow` and never
     // reaches the income series, so that clause became false at exactly the
     // canonical case the disclosure exists for. It may not come back.
-    expect(withRefund[3]).not.toContain('counts as money in');
+    expect(withRefund[2]).not.toContain('counts as money in');
     // Nor may it be replaced by the opposite claim, which is false for the OTHER
     // row this branch catches: an uncategorized credit the pipeline files to a
     // discretionary category IS admitted as income (an inflow the reader never
     // labelled may be a deposit — the F7 argument). The sentence asserts only
     // what holds for every row that reaches it.
-    expect(withRefund[3]).not.toContain('not counted as income');
-    expect(withRefund[3]).not.toContain("isn't counted as income");
+    expect(withRefund[2]).not.toContain('not counted as income');
+    expect(withRefund[2]).not.toContain("isn't counted as income");
   });
 });
 

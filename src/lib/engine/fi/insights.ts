@@ -14,6 +14,10 @@ import { categorize } from '@/lib/engine/categorize/pipeline';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId } from '@/lib/engine/categorize/categories';
+// O.20h: the creep bar classifies rows with the register's own classifier. The
+// cycle here is type-only in the other direction (spend-class imports TxnLike),
+// which TypeScript elides — the runtime graph is acyclic.
+import { classifySpendClass } from '@/lib/engine/spending-plan/spend-class';
 import type { RecurringSeriesResult } from '@/lib/engine/recurring/detect';
 // U.16: the handover-day sentence has ONE author (`category-breakdown`), so the
 // three transaction panels that can show it cannot state it in different words.
@@ -416,8 +420,10 @@ export interface CreepResult {
 
 /**
  * Compares discretionary-spend growth against income growth over the final
- * `windowMonths` full months. Discretionary = categories marked discretionary
- * in the system category set, resolved via the live categorization pipeline.
+ * `windowMonths` full months. Discretionary = the row's Fixed/Discretionary
+ * SPEND CLASS (`classifySpendClass` — the reader's own per-row verdict, then
+ * the recurring-bill merchant guess, then the category's taxonomy flag), so
+ * this bar and the register now state one definition (O.20h).
  */
 export function detectLifestyleCreep(
   transactions: readonly TxnLike[],
@@ -431,6 +437,14 @@ export function detectLifestyleCreep(
   // (`getReconciliationHandoverDates`). Empty = the truth for a reader with no
   // combined accounts, so an existing caller changes nothing by not passing it.
   handoverKeys: ReadonlySet<string> = new Set<string>(),
+  // O.20h: the canonical payees the reader's recurring bills resolve to — the
+  // same set the register and /budgets classify with. Empty = no recurring-bill
+  // guess, so an existing caller changes nothing by not passing it. NOT demo-
+  // fenced: the demo's register badge already reads the seeded RecurringSeries
+  // through the same unfenced loader, so passing it keeps the demo bar and the
+  // demo register one definition (the pure seed, which has no series, rides
+  // the taxonomy flag unchanged).
+  fixedMerchants: ReadonlySet<string> = new Set<string>(),
 ): CreepResult {
   const lastFullMonthStart = addMonthsClamped(isoDate(`${monthKey(today)}-01`), 0);
   const months: string[] = [];
@@ -475,8 +489,14 @@ export function detectLifestyleCreep(
       if (isIncomeFlowRow(t, excludedFlowIds)) {
         income.set(month, income.get(month)! + t.amountCents);
       }
-      // The same stored-category resolution the spend branch uses — the flag
-      // must not drift from what the spend side counts by.
+      // The refund trigger resolves an UNFILED credit through the pipeline
+      // fallback (the spend branch deliberately does not: critic cycle-1 P1-1 —
+      // a null-category row counts by no label the register does not show).
+      // Different jobs: this trigger answers "where did the credit GO" (the F7
+      // guard needs the guessed filing to catch a bike sold and filed nowhere),
+      // the spend branch answers "which row is IN this figure" (the register's
+      // own null refuses). The `wouldCount` predicate below consumes the guess
+      // only for that trigger.
       const categoryId =
         t.categoryId ??
         categorize({
@@ -497,24 +517,49 @@ export function detectLifestyleCreep(
       // withheld from it, so disclosing it would explain a divergence that does
       // not exist on this figure — and an uncategorized inflow may be a deposit,
       // not a return, which the sentence must not assert (F7).
-      if (meta.get(categoryId)?.discretionary || categoryId === 'refund') {
+      //
+      // Critic cycle-1 P2-4 (O.20h): "discretionary" here is the FIGURE's own
+      // basis now — the spend class. The trigger mirrors the spend branch's
+      // admission (same classifier, sign flipped): a credit whose debit twin
+      // would have counted in this bar raises the sentence; one whose twin the
+      // reader marked Fixed (or whose payee is a recurring bill) does not, so
+      // the panel never explains gross-ness with money the bar does not carry.
+      // A refund filed to 'refund' has no sign-twin to ask, so it keeps the
+      // F1 flag (a return to Refund always explains a gross bar).
+      const wouldCount =
+        categoryId === 'refund' ||
+        classifySpendClass({ ...t, amountCents: -t.amountCents, categoryId }, meta, fixedMerchants) === 'guilt-free';
+      if (wouldCount) {
         discRefunds.set(month, true);
       }
       continue;
     }
-    // The STORED category is the truth — it reflects the user's triage
-    // corrections (cycle-1 H2: re-categorizing here ignored them, so budgets
-    // and the creep detector could permanently disagree). The pipeline is
-    // only a fallback for uncategorized rows.
-    const categoryId =
-      t.categoryId ??
-      categorize({
-        rawDescriptor: t.rawDescriptor,
-        amountCents: t.amountCents,
-        date: t.date,
-        accountId: t.accountId,
-      }).categoryId;
-    if (meta.get(categoryId)?.discretionary) {
+    if (
+      // O.20h — ONE definition of a discretionary row, the one the register and
+      // /budgets label with: `classifySpendClass` (the reader's per-row verdict,
+      // then the recurring-bill merchant guess, then the taxonomy flag). The
+      // category flag alone was the F2 divergence: a gym membership the
+      // register labeled "Fixed · you set this" was still counted here while
+      // this panel listed it beside a re-file link that could not move the
+      // number.
+      //
+      // Critic P1-1 (cycle 1): the classifier must read the REGISTER'S input —
+      // the raw row, pipeline fallback and all — exactly as
+      // `getTransactions`/`getTransactionDetail` hand the row to
+      // `classifySpendClass` (they pass the raw null through; the classifier's
+      // own `!id` refusal renders the "No class yet" chip). The first cut of
+      // this slice resolved a null through the read-time pipeline first, which
+      // counted unfiled rows by a label the reader cannot see anywhere — the
+      // same contradiction shape this slice exists to close. The pipeline
+      // fallback lives ONLY in the income branch above: that trigger answers
+      // where a CREDIT went (the F7 guard needs the guessed filing), while this
+      // branch answers which row is IN the figure.
+      classifySpendClass(
+        t,
+        meta,
+        fixedMerchants,
+      ) === 'guilt-free'
+    ) {
       discSpend.set(month, discSpend.get(month)! - t.amountCents);
       // Carry the row out of the SAME loop that summed the figure (O.20d): the
       // panel rows are these rows, so they cannot disagree with the bar.
@@ -631,26 +676,25 @@ export function creepPanelBasis(
   statesATally: boolean,
 ): readonly [string, ...string[]] {
   const out: [string, string, ...string[]] = [
-    `The ${formatCents(amountCents)} is ${monthLabel}’s discretionary spending: posted purchases in a discretionary category — dining out, shopping, entertainment, and the other categories the app treats as discretionary.`,
-    `Each row counts by the category you filed it under (the app guesses only for uncategorized rows); transfers, pending rows, and rows you’ve excluded are never in it.`,
+    `The ${formatCents(amountCents)} is ${monthLabel}’s discretionary spending: the posted purchases your Fixed/Discretionary split labels Discretionary — dining out, shopping, entertainment, and the rest.`,
+    `Each row counts by the same Fixed or Discretionary label the register shows it — your own verdict first, the app’s guess when you haven’t set one; transfers, pending rows, and rows you’ve excluded are never in it.`,
   ];
-  // Re-review F2: "discretionary" means two different things in this product.
-  // Here it is the CATEGORY's taxonomy flag; in the register and in /budgets it
-  // is the Fixed/Discretionary spend class, which honours a recurring-bill guess
-  // and the reader's own override (#397: "the reader's verdict on THIS row
-  // wins"). So a gym membership the register labels "Fixed · you set this" is
-  // still counted here, and listing the rows — which this slice added — turns
-  // that divergence into two visible, contradictory labels for one charge.
-  // Unifying the two definitions moves a live figure on three surfaces and is
-  // queued as its own critic-gated slice; until then the panel says so rather
-  // than letting the reader discover it.
-  out.push(
-    `This counts by category, not by the Fixed or Discretionary setting on a row — a charge you’ve marked Fixed is still counted here.`,
-  );
+  // Re-review F2 (closed by O.20h): this bar used to count by the CATEGORY's
+  // taxonomy flag while the register and /budgets labeled the same row by its
+  // Fixed/Discretionary spend class — so a gym membership reading "Fixed · you
+  // set this" in the register was still counted here, and this panel listed it
+  // beside a re-file link that could not move the number. The detector now
+  // classifies with `classifySpendClass` itself (the reader's verdict, then the
+  // recurring-bill guess, then the flag), so the disclosure that explained the
+  // divergence is deleted with the divergence it described — a bar that counts
+  // by the register's own labels needs no sentence excusing the difference.
+  // What replaced it is the positive admission rule in sentence 1: it states
+  // what IS counted, so every row the classifier refuses (Fixed-verdict rows,
+  // recurring-bill merchants, uncategorized rows) is covered by construction.
   if (hasDiscretionaryRefunds) {
-    // The bar is GROSS spend: a credit posted to a discretionary category (or
-    // filed to Refund) never nets this figure — stated exactly when one
-    // occurred, never claimed when none did (critic P2-2).
+    // The bar is GROSS spend: a credit whose debit twin would have counted in
+    // this figure (or one filed to Refund) never nets it — stated exactly when
+    // one occurred, never claimed when none did (critic P2-2).
     //
     // "A credit posted", not "a refund you filed" (F7): the same branch catches
     // a bike sold and filed to 'shopping', which is not a refund, and a category
@@ -668,8 +712,13 @@ export function creepPanelBasis(
     // asserts only what holds for every row that reaches it: this figure is not
     // reduced. Where the credit is counted is a claim for a surface that knows
     // which of the two rows it has.
+    //
+    // Critic cycle-1 P2-4 (O.20h): the trigger keys on the FIGURE's basis (the
+    // spend class of the sign-flipped twin), so the sentence no longer says
+    // "discretionary category" — a reader who marked their gym rows Fixed gets
+    // no gross-bar explanation for a gym refund their bar does not carry.
     out.push(
-      `A credit posted to a discretionary category this month — a return, cashback, or anything filed to Refund — does not reduce this figure.`,
+      `A credit this month whose matching purchase would count in this figure — a return, cashback, or anything filed to Refund — does not reduce it.`,
     );
   }
   // U.16, and the SAME sentence the category and month-flow panels print: one

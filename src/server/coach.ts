@@ -48,6 +48,7 @@ import {
 } from '@/lib/engine/glass-box/month-flow-breakdown';
 import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { getPayeeRenames } from '@/server/payee-names';
+import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merchants';
 import {
   categoryMatchesMoneyDial,
   type DiscretionaryCategorySpend,
@@ -352,10 +353,13 @@ export async function getCoachData(
   const snap = await provider.getFinanceSnapshot(userId);
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('User not found');
-  const [meta, dialCatalog, payeeNames] = await Promise.all([
+  const [meta, dialCatalog, payeeNames, fixedMerchants] = await Promise.all([
     getCategoryMeta(userId), // custom-category aware creep (DECISIONS #111)
     loadDialCatalog(userId),
     getPayeeRenames(userId),
+    // O.20h: the creep bar classifies rows with the same recurring-bill guess
+    // the register and /budgets label with — one load, one definition.
+    getRecurringBillMerchantCanonicals(userId),
   ]);
   const moneyDialIds = resolvedMoneyDialIds(user.moneyDials, dialCatalog);
   // U.35: off the snapshot above, not a later `getReconciliationHandoverKeys`.
@@ -387,6 +391,9 @@ export async function getCoachData(
     excludeFromTotals: t.excludeFromTotals ?? false,
     // O.15: carried for the outstanding-reimbursements line below.
     reimbursement: (t as { reimbursement?: string | null }).reimbursement ?? null,
+    // O.20h: the creep engine classifies with the reader's per-row verdict, so
+    // this bar and the register's "Fixed · you set this" badge cannot disagree.
+    spendClassOverride: (t as { spendClassOverride?: string | null }).spendClassOverride ?? null,
   }));
 
   const allFlows = monthlyFlows(txns, snap.loanPaymentFlowExclusions?.excludeIds);
@@ -513,7 +520,7 @@ export async function getCoachData(
   // construction (the fence), so demo always sees the unconfirmed nudge.
   const confirmedPauses = await getConfirmedIncomePauses(userId);
   const incomePauses = incomePausesForFeed(series, today, confirmedPauses);
-  const creep = detectLifestyleCreep(txns, today, 6, meta, snap.loanPaymentFlowExclusions?.excludeIds, handoverKeys);
+  const creep = detectLifestyleCreep(txns, today, 6, meta, snap.loanPaymentFlowExclusions?.excludeIds, handoverKeys, fixedMerchants);
   // documented rounding rule, not Math.round (consistency with monthlySavings above)
   const avgMonthlyExpenses = cents(roundHalfAwayFromZero(expenses6 / Math.max(1, last6.length)));
   const runway = monthsOfRunway(liquid, avgMonthlyExpenses);

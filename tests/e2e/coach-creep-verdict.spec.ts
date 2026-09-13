@@ -95,8 +95,13 @@ function seedCreepFixture(
       // one — with a $1,500/mo price increase, which correctly outranks the
       // creep line in the recap's watch role (`watch-price-increase` is first in
       // the floor's chain) and made the assertion below fail on a page that was
-      // behaving exactly as designed. The creep bar counts by CATEGORY, so
-      // varying the payee changes nothing this test is about.
+      // behaving exactly as designed. (O.20h: the creep bar now counts by the
+      // row's Fixed/Discretionary SPEND CLASS — the register's own label. This
+      // spec seeds SQL directly and never syncs, so the throwaway user has no
+      // stored recurring-bill merchants and the guess tier never engages here;
+      // varying the payee is still what keeps these six rows from being
+      // detected as one series at any future sync, and keeps every row on the
+      // category's guilt-free suggestion, which is what this test is about.)
       txn.run(
         `e2e-buy-${i}-${stamp}`,
         checkingId,
