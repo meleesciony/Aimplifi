@@ -127,8 +127,8 @@ test('trends: a new-merchant row expands into its own rows with a through-date b
   await expect(
     panel.getByText(
       'These are the rows the figure counts. Pending charges are included; income, transfers ' +
-        'between your own accounts, the container row left by a split, and anything you marked ' +
-        'as not your spending are left out.',
+        'between your own accounts, the container row left by a split, anything you marked as not ' +
+        'your spending, and an inflow nobody has filed yet are left out.',
     ),
   ).toBeVisible();
 
