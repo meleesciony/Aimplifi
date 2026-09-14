@@ -9,8 +9,7 @@
  * interest stay out of that path. When no earned leaves exist, fall back to
  * broad income minus untouchable leaves (demo + Income-only filers).
  */
-import { countsInFlows, type TxnLike } from '@/lib/engine/fi/insights';
-import { isIncomeCategoryId } from '@/lib/engine/categorize/categories';
+import { countsInFlows, isIncomeFlowRow, type TxnLike } from '@/lib/engine/fi/insights';
 import { monthKey } from '@/lib/dates';
 
 /** Leaves that are earned pay for the guilt-free allocation. */
@@ -62,12 +61,20 @@ export function isGenericIncomePayRow(t: TxnLike): boolean {
  * Broad income used only when a month has no earned-pay rows: Income-group
  * (and uncategorized positives), minus untouchable investment/interest and
  * mobile-deposit transfers.
+ *
+ * The income test is DELEGATED to `isIncomeFlowRow` (O.20c) rather than
+ * restated: this function's old inline copy of the rule was missing the
+ * `'uncategorized'` store, so a deposit the categorizer could not place counted
+ * here as income while `monthlyFlows` netted it against spending — the exact
+ * two-definitions-of-one-row shape O.20c closes. One predicate, two surfaces.
+ * The two guards in front are this path's OWN question (which income is
+ * spendable allocation) and stay: an untouchable yield row and a mobile-banking
+ * internal deposit are not allocation income even when they ARE income.
  */
 export function isFallbackGuiltFreeIncomeRow(t: TxnLike): boolean {
-  if (!countsInFlows(t) || t.amountCents <= 0) return false;
+  if (t.amountCents <= 0) return false;
   if (isUntouchableIncomeRow(t)) return false;
-  if (t.categoryId === 'refund') return false;
-  return !t.categoryId || (t.categoryId !== 'refund' && isIncomeCategoryId(t.categoryId));
+  return isIncomeFlowRow(t);
 }
 
 export interface MonthlyIncomeCents {

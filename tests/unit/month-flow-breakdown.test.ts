@@ -55,14 +55,17 @@ const FIXTURE: MonthFlowSourceTxn[] = [
   row({ id: 'pay-1', amountCents: 300_000, date: '2026-06-01', categoryId: 'paycheck' }),
   // The `refund` LEAF — positive, Income GROUP, and deliberately NOT income.
   row({ id: 'refund-leaf', amountCents: 900, date: '2026-06-21', categoryId: 'refund' }),
-  // The three classes the flow SPLIT decides, each of which a "refunds are
+  // The two classes the flow SPLIT decides, each of which a "refunds are
   // netted against spending" sentence would describe falsely. Both critics
-  // found these; neither fixture row existed when the sentence was first
-  // written, which is exactly why it was wrong.
-  //   (a) no category at all → INCOME (`!categoryId`)
+  // found the original asymmetry; O.20c collapsed it into one rule.
+  //   (a) no category at all → INCOME (`!categoryId`). DEFENSIVE: the probe
+  //       measured 0 such rows live and no writer produces one (the seed maps
+  //       every row through `categorize`, which never returns null), so this is
+  //       a branch the predicate keeps for pure-engine callers, not a population.
   row({ id: 'unfiled-null', amountCents: 60_000, date: '2026-06-06', categoryId: null }),
-  //   (b) filed to `uncategorized` → NOT income (group is 'Transfers & Other'),
-  //       so an unidentified deposit nets against SPENDING
+  //   (b) filed to `uncategorized` → ALSO income (O.20c): the placeholder store
+  //       and the raw null are the same fact — nobody has labelled this row —
+  //       so an unfiled inflow no longer nets against SPENDING.
   row({ id: 'unfiled-uncat', amountCents: 25_000, date: '2026-06-08', categoryId: 'uncategorized' }),
   //   (c) a NEGATIVE row in an income category → spending (a payroll clawback)
   row({ id: 'clawback', amountCents: -50_000, date: '2026-06-15', categoryId: 'paycheck' }),
@@ -202,9 +205,11 @@ describe('month-flow breakdowns — the populations the two could disagree about
 
   it('purchases are oriented as spend, so the rows sum to the positive bar', () => {
     expect(expense.rows.find((r) => r.transactionId === 'buy-1')?.amountCents).toBe(4500);
-    // 4500 + 2000 − 1500 − 900 − 25000 + 50000 = 29100, and that is the bar.
-    expect(expense.sumCents).toBe(29_100);
-    expect(expense.headlineCents).toBe(29_100);
+    // 4500 + 2000 − 1500 − 900 + 50000 = 54100, and that is the bar. The
+    // `unfiled-uncat` inflow is NO LONGER in this panel (O.20c): it left
+    // spending for income, exactly as its raw-null twin always did.
+    expect(expense.sumCents).toBe(54_100);
+    expect(expense.headlineCents).toBe(54_100);
   });
 
   it('an inflow with NO category counts as income', () => {
@@ -214,11 +219,14 @@ describe('month-flow breakdowns — the populations the two could disagree about
     expect(ids(expense)).not.toContain('unfiled-null');
   });
 
-  it('an inflow filed to Uncategorized does NOT — it nets against spending', () => {
-    // The mirror of the case above, and the reason the basis sentence names
-    // both: 'uncategorized' sits in 'Transfers & Other', not Income.
-    expect(expense.rows.find((r) => r.transactionId === 'unfiled-uncat')?.amountCents).toBe(-25_000);
-    expect(ids(income)).not.toContain('unfiled-uncat');
+  it('an inflow filed to Uncategorized ALSO counts as income (O.20c, one rule for both stores)', () => {
+    // The mirror of the case above, and the defect O.20c exists to close: the
+    // raw null and the 'uncategorized' placeholder are the SAME fact — nobody
+    // has labelled this row — so they must land on the same side. Before the
+    // fix this positive NETTED spending down while its identical-looking twin
+    // counted as income.
+    expect(income.rows.find((r) => r.transactionId === 'unfiled-uncat')?.amountCents).toBe(25_000);
+    expect(ids(expense)).not.toContain('unfiled-uncat');
   });
 
   it('an OUTFLOW in an income category is spending, not negative income', () => {
@@ -298,15 +306,24 @@ describe('month-flow breakdowns — the basis each panel states', () => {
     expect(MONTH_FLOW_BASIS.income).toMatch(/posted income only/i);
   });
 
-  it('names all THREE consequences of the flow split, not just refunds', () => {
+  it('names every consequence of the flow split, not just refunds', () => {
     // Each of these is a row class the panels actually render, and a sentence
     // that named only refunds was falsified by rows inside the panel it
     // described. See the module docblock.
     expect(MONTH_FLOW_BASIS.expense, 'outflow in an income category').toMatch(
       /going out counts here even when it sits in an income category/i,
     );
-    expect(MONTH_FLOW_BASIS.expense, 'inflow filed to Uncategorized').toMatch(/Uncategorized/);
-    expect(MONTH_FLOW_BASIS.income, 'inflow with no category').toMatch(/no category at all/i);
+    // O.20c: the expense sentence may NO LONGER claim that a deposit sitting in
+    // Uncategorized reduces the figure — that clause became false when the two
+    // unfiled stores collapsed to one rule. Asserted as an inversion, so
+    // restoring the old copy fails here rather than shipping quietly.
+    expect(MONTH_FLOW_BASIS.expense).not.toMatch(/Uncategorized, reduces this figure/i);
+    expect(MONTH_FLOW_BASIS.expense, 'both unfiled stores left out').toMatch(
+      /an inflow with no category, or one still sitting in\s+Uncategorized, does not/i,
+    );
+    expect(MONTH_FLOW_BASIS.income, 'inflow with no category, and the placeholder').toMatch(
+      /no category at all or still sits\s+in Uncategorized/i,
+    );
     expect(MONTH_FLOW_BASIS.income, 'the refund leaf').toMatch(/counts against that month/i);
   });
 

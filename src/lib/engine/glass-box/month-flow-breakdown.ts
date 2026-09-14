@@ -124,25 +124,26 @@ export interface MonthFlowBreakdown {
  * follows those clauses is the flow SPLIT, and it was got wrong twice before
  * it was got right, because the split is not the rule it looks like:
  *
- *   `isIncomeFlowRow = amountCents > 0 && (!categoryId || (categoryId !== 'refund' && group === 'Income'))`
+ *   `isIncomeFlowRow = amountCents > 0 && (!categoryId || categoryId === 'uncategorized' || (categoryId !== 'refund' && group === 'Income'))`
  *
- * Three consequences, each of which puts a row on screen that a "refunds are
+ * Two consequences, each of which puts a row on screen that a "refunds are
  * netted against spending" sentence describes falsely:
  *
- *   1. A positive row with NO category at all counts as INCOME (`!categoryId` —
- *      a live population, see `server/backfill.ts:94`).
- *   2. A positive row filed to `uncategorized` does NOT, because that category's
- *      group is 'Transfers & Other' — so an unidentified deposit lands in
- *      SPENDING as a negative row. Two unfiled inflows that look identical to a
- *      reader therefore land on opposite sides; the sentences name both cases
- *      rather than pretending the app has one rule for "unfiled".
- *   3. A NEGATIVE row filed to an income category is spending (a payroll
+ *   1. A positive row with NO category at all, OR one sitting in the
+ *      `'uncategorized'` placeholder, counts as INCOME (O.20c — one definition
+ *      for both stores of the same fact: nobody has labelled this row). Before
+ *      O.20c only the raw-null store counted, so two unfiled inflows that look
+ *      identical to a reader landed on opposite sides and the `'uncategorized'`
+ *      one silently REDUCED spending. Measured live: the null store held 0 rows
+ *      and the placeholder one held a single $10,000 brokerage funding.
+ *   2. A NEGATIVE row filed to an income category is spending (a payroll
  *      clawback adds to the spending bar), because the split tests the sign
  *      first.
  *
- * Two independent critics found this, from opposite directions and each with
- * half of it. Derive this set by running the predicate over its whole domain —
- * never by editing the previous sentence to add the case you just heard about.
+ * Two independent critics found the original asymmetry, from opposite directions
+ * and each with half of it; O.20c collapsed it into one rule. Derive this set by
+ * running the predicate over its whole domain — never by editing the previous
+ * sentence to add the case you just heard about.
  *
  * Note the deliberate disagreement with `BREAKDOWN_BASIS` one module over: that
  * one says pending charges ARE counted, because they are, in the figures it
@@ -157,13 +158,15 @@ export const MONTH_FLOW_BASIS: Record<MonthFlow, string> = {
     'you excluded from totals are all left out. Money going out counts here even when it ' +
     'sits in an income category, and money coming in counts against this total as a ' +
     'negative row unless it counts as income — so a return filed to what it was bought ' +
-    'from, or a deposit still sitting in Uncategorized, reduces this figure.',
+    'from reduces this figure, and an inflow with no category, or one still sitting in ' +
+    'Uncategorized, does not.',
   income:
     'Posted income only — transfers between your own accounts, deposits still pending, ' +
     'split containers (the pieces they were split into are counted instead) and anything ' +
     'you excluded from totals are all left out. Money coming in counts here when its ' +
-    'category is an income one, and also when it carries no category at all; a return ' +
-    'filed to what it was bought from counts against that month’s spending instead.',
+    'category is an income one, and also when it carries no category at all or still sits ' +
+    'in Uncategorized; a return filed to what it was bought from counts against that ' +
+    'month’s spending instead.',
 };
 
 /**

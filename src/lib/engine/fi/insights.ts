@@ -95,13 +95,32 @@ export function countsInFlows(t: TxnLike, excludedFlowIds?: ReadonlySet<string>)
 /**
  * The exact rows `monthlyFlows` counts as INCOME, exported so the Glass-Box
  * trace (GLASSBOX_PLAN) cites the same rows the flows summed — one predicate,
- * two surfaces, no drift. A positive counts as income when it has no category,
- * or an Income-group category other than the 'refund' leaf (a merchandise
- * return nets against spend instead — #166).
+ * two surfaces, no drift.
+ *
+ * ONE definition of an unidentified inflow (O.20c): a positive with NO stored
+ * category OR sitting in the `'uncategorized'` placeholder leaf counts as
+ * income. Both stores mean the same fact — nobody has labelled this row — and
+ * the app already applies the reader's-less sign rule to an unfiled OUTFLOW
+ * (`isSpendRow` resolves a null to `'uncategorized'` and admits it as spending
+ * on its sign alone), so the symmetric treatment of an unfiled inflow is income
+ * on ITS sign alone. Before O.20c the two stores split: a raw null counted as
+ * income while `'uncategorized'` (group 'Transfers & Other') did not, so the
+ * same-lookng deposit landed on opposite sides and silently REDUCED the month's
+ * spending. Measured live before the fix (`scripts/audit-probes/o20c-...mts`):
+ * the null store held 0 rows corpus-wide and the `'uncategorized'` store held
+ * one — a $10,000 brokerage funding on a checking account, whose only honest
+ * treatment is to stop reducing spending.
+ *
+ * The `'refund'` leaf stays the one deliberate exception: a manually-filed
+ * "Refund" is a merchandise return and nets against spend (#166).
  */
 export function isIncomeFlowRow(t: TxnLike, excludedFlowIds?: ReadonlySet<string>): boolean {
   if (!countsInFlows(t, excludedFlowIds) || t.amountCents <= 0) return false;
-  return !t.categoryId || (t.categoryId !== 'refund' && isIncomeCategoryId(t.categoryId));
+  return (
+    !t.categoryId ||
+    t.categoryId === 'uncategorized' ||
+    (t.categoryId !== 'refund' && isIncomeCategoryId(t.categoryId))
+  );
 }
 
 export interface MonthlyFlow {
@@ -125,9 +144,10 @@ export interface MonthlyFlow {
  * merchandise return, and counting it as income would inflate income AND
  * expenses versus the same return filed to its purchase category (#166 critic
  * F1); tax refunds and reimbursements DO count as income (they aren't offsets
- * of a tracked purchase). A positive with no/unknown category stays income
- * (we don't net an ambiguous inflow against spend). A month's expenses never
- * go below 0.
+ * of a tracked purchase). An UNFILED positive — no category, or the
+ * `'uncategorized'` placeholder — stays income (O.20c: both stores are the same
+ * fact, and an ambiguous inflow is never netted against spend). A month's
+ * expenses never go below 0.
  */
 export function monthlyFlows(
   transactions: readonly TxnLike[],
@@ -706,12 +726,12 @@ export function creepPanelBasis(
     // refused by `isIncomeFlowRow` and no longer reaches the income series. It
     // is not replaced by the opposite claim ("it isn't counted as income
     // either"), which would be false in the other direction for the row this
-    // branch also catches — an UNCATEGORIZED credit that the pipeline files to a
-    // discretionary category is admitted as income, because an inflow the reader
-    // never labelled may be a deposit (the F7 argument). So the sentence now
-    // asserts only what holds for every row that reaches it: this figure is not
-    // reduced. Where the credit is counted is a claim for a surface that knows
-    // which of the two rows it has.
+    // branch also catches — an unfiled credit, which O.20c made income directly
+    // in BOTH stores (no category, or the 'uncategorized' placeholder), because
+    // an inflow the reader never labelled may be a deposit (the F7 argument). So
+    // the sentence now asserts only what holds for every row that reaches it:
+    // this figure is not reduced. Where the credit is counted is a claim for a
+    // surface that knows which of the two rows it has.
     //
     // Critic cycle-1 P2-4 (O.20h): the trigger keys on the FIGURE's basis (the
     // spend class of the sign-flipped twin), so the sentence no longer says

@@ -220,8 +220,8 @@ export interface CategoryBreakdown {
  */
 export const BREAKDOWN_BASIS =
   'These are the rows the figure counts. Pending charges are included; income, transfers ' +
-  'between your own accounts, the container row left by a split, and anything you marked ' +
-  'as not your spending are left out.';
+  'between your own accounts, the container row left by a split, anything you marked as not ' +
+  'your spending, and an inflow nobody has filed yet are left out.';
 
 /**
  * The clamp's own sentence (C.26), printed only when the clamp actually held

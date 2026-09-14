@@ -18,6 +18,7 @@ import {
 } from '@/lib/engine/fi/insights';
 import { isSpendRow } from '@/lib/engine/reports/reports';
 import { generateMoneyReview } from '@/lib/engine/fi/coach-copy';
+import { isFallbackGuiltFreeIncomeRow } from '@/lib/engine/spending-plan/income-pattern';
 import { CATEGORIES } from '@/lib/engine/categorize/categories';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { detectTransfers } from '@/lib/engine/categorize/transfers';
@@ -328,6 +329,81 @@ describe('test_regression__monthly-flows-income-leaves: Income-GROUP leaves coun
     ])[0];
     expect(f.incomeCents).toBe(0);
     expect(f.expensesCents).toBe(25000);
+  });
+});
+
+describe('test_regression__o20c: ONE definition of an unidentified inflow', () => {
+  // TASKS O.20c, measured live before the fix by
+  // `scripts/audit-probes/o20c-unidentified-inflow.mts`: `isIncomeFlowRow`'s
+  // `!t.categoryId` branch admitted a raw-null positive as income while a
+  // positive in the `'uncategorized'` placeholder leaf (group 'Transfers &
+  // Other') did NOT — so two unfiled deposits that look identical to a reader
+  // landed on OPPOSITE sides, and the placeholder one silently REDUCED the
+  // month's spending. The corpus held 0 null-store rows and one placeholder row
+  // (a $10,000 brokerage funding), so the placeholder side is the live
+  // population and the null branch was a pure-engine convenience.
+  //
+  // The fix is the app's own sign rule, symmetric in both directions: an unfiled
+  // OUTFLOW already counts as spending on its sign alone (`isSpendRow` resolves
+  // null→'uncategorized' and admits it), so an unfiled INFLOW counts as income
+  // on ITS sign alone. Every spelling of "nobody labelled this row" is asserted
+  // here, not just the one the report named.
+
+  it('a positive in the Uncategorized placeholder counts as income (was: netted against spend)', () => {
+    const f = monthlyFlows([
+      { date: '2026-09-04', amountCents: 1_000_000, rawDescriptor: 'Funds Transfer from Brokerage -7383', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'uncategorized' },
+      { date: '2026-09-05', amountCents: -2_000_000, rawDescriptor: 'STORE', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'shopping' },
+    ])[0];
+    // FAIL-OLD: with the `|| t.categoryId === 'uncategorized'` clause removed
+    // from `isIncomeFlowRow`, income is 0 and expenses fall to 1,000,000 —
+    // exactly the "a funding reduced my spending" defect.
+    expect(f.incomeCents).toBe(1_000_000);
+    expect(f.expensesCents).toBe(2_000_000);
+  });
+
+  it('the two unfiled stores now agree: null and Uncategorized land on the SAME side', () => {
+    const rows = [
+      { date: '2026-06-06', amountCents: 60_000, rawDescriptor: 'DEPOSIT', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: null },
+      { date: '2026-06-08', amountCents: 25_000, rawDescriptor: 'DEPOSIT', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'uncategorized' },
+    ];
+    const f = monthlyFlows(rows)[0];
+    expect(f.incomeCents).toBe(85_000);
+    expect(f.expensesCents).toBe(0);
+    // One rule, two stores: both predicates answer identically.
+    expect(rows.filter((r) => isIncomeFlowRow(r)).length).toBe(2);
+  });
+
+  it('a positive in an ORDINARY spend category still nets spending (the refund convention holds)', () => {
+    // O.20c narrows to the UNFILED stores only. A return the reader filed to
+    // what it was bought from is a deliberate answer and keeps netting.
+    const f = monthlyFlows([
+      { date: '2026-06-02', amountCents: -45_000, rawDescriptor: 'AMZN', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'shopping' },
+      { date: '2026-06-20', amountCents: 15_000, rawDescriptor: 'AMZN REFUND', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'shopping' },
+    ])[0];
+    expect(f.incomeCents).toBe(0);
+    expect(f.expensesCents).toBe(30_000);
+  });
+
+  it('the "refund" leaf still nets, and a custom category is still not income', () => {
+    const f = monthlyFlows([
+      { date: '2026-06-01', amountCents: 300_000, rawDescriptor: 'PAYROLL', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'paycheck' },
+      { date: '2026-06-12', amountCents: 10_000, rawDescriptor: 'TV RETURN', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'refund' },
+      { date: '2026-06-13', amountCents: 5_000, rawDescriptor: 'GOLF SHOP REFUND', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'cl_custom123' },
+    ])[0];
+    expect(f.incomeCents).toBe(300_000);
+    expect(f.expensesCents).toBe(0); // refunds net down, floored at 0
+  });
+
+  it('the income-baseline path agrees with monthlyFlows on an Uncategorized deposit (one predicate)', () => {
+    // The guilt-free income pattern re-stated this split by hand and was missing
+    // the placeholder store, so its fallback income disagreed with the flows
+    // engine on the very row this slice is about. It now delegates.
+    const rows = [
+      { date: '2026-06-01', amountCents: 500_000, rawDescriptor: 'PAYROLL', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'paycheck' },
+      { date: '2026-06-15', amountCents: 10_000, rawDescriptor: 'Funds Transfer from Brokerage', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: 'uncategorized' },
+    ];
+    expect(isFallbackGuiltFreeIncomeRow(rows[1]!)).toBe(true);
+    expect(isIncomeFlowRow(rows[1]!)).toBe(true);
   });
 });
 

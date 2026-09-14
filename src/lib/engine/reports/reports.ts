@@ -209,6 +209,12 @@ export function spendWindowRegisterDates(w: SpendWindow): { from: string; to: st
  * Glass-Box trace (GLASSBOX_PLAN) selects contributing rows with the SAME
  * predicate the breakdown summed — by construction, never a re-derivation
  * that can drift. Any change here changes both surfaces together.
+ *
+ * O.20c: an unfiled INFLOW (no category, or the 'uncategorized' placeholder) is
+ * not spending. The chart's income predicate counts both stores as income, so
+ * the card must not keep counting the same row as a NEGATIVE spend contribution
+ * — the pre-fix card let a $10,000 brokerage funding NET a category bucket down.
+ * A positive in a REAL spend category still nets (the refund convention).
  */
 export function isSpendRow(
   t: ReportTxn,
@@ -241,6 +247,15 @@ export function isSpendRow(
   const id = t.categoryId ?? 'uncategorized';
   if (id === 'transfer') return false;
   if (meta.get(id)?.group === 'Income') return false; // income isn't spending
+  // O.20c: an UNFILED inflow is income — the same rule `isIncomeFlowRow` now
+  // applies to both stores of "nobody labelled this row" (a raw null and the
+  // 'uncategorized' placeholder). Before this, the card counted such a row as
+  // SPENDING and let it NET the bucket down while the chart counted it as
+  // income: one row, two opposite verdicts, and the card's direction was the
+  // dangerous one — it deleted real spending. A positive row in a REAL spend
+  // category is untouched here: that is the documented refund convention (a
+  // return offsets the purchase it reverses).
+  if (t.amountCents > 0 && id === 'uncategorized') return false;
   return true;
 }
 

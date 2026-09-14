@@ -512,10 +512,16 @@ describe("C.25 critic P1-C — Ask names the loan payment instead of denying it"
 
 describe("O.18e-FU3 — the appended excluded-loan clause names the answer's figures", () => {
   const tf = { fromYm: "2026-07", toYm: "2026-07", label: "July 2026" };
-  const row = (r: { id: string; date: string; amountCents: number }): AskTxnRow => ({
+  // O.20c: a refund counts only when the reader FILED it to a spend category —
+  // that is the documented refund convention (a return offsets what it was bought
+  // from). An UNFILED positive is income in both stores now, so it neither nets
+  // spending here nor appears in this answer. The fixture therefore files its
+  // refund, which is what a real one looks like; an unfiled credit is covered by
+  // the O.20c locks in insights.test.ts / month-flow-breakdown.test.ts.
+  const row = (r: { id: string; date: string; amountCents: number; categoryId?: string | null }): AskTxnRow => ({
     ...r,
     status: "POSTED",
-    categoryId: null,
+    categoryId: r.categoryId ?? null,
     merchantCategoryId: null,
     aggregateMerchant: false,
     isTransfer: false,
@@ -527,7 +533,7 @@ describe("O.18e-FU3 — the appended excluded-loan clause names the answer's fig
   it("refunds-only branch: the clause says 'not in these figures', never 'not as spending'", () => {
     const rows = [
       row({ id: "mtg-jul", date: "2026-07-06", amountCents: -621_707 }),
-      row({ id: "ref-jul", date: "2026-07-20", amountCents: 15_000 }),
+      row({ id: "ref-jul", date: "2026-07-20", amountCents: 15_000, categoryId: "rent" }),
     ];
     const res = merchantSpend(rows, tf, "truist mortg olb mtgpmt", "2026-07-31", undefined, new Set(["mtg-jul"]));
     expect(res.count).toBe(1); // the refund stays in the answer

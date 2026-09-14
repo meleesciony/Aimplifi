@@ -733,3 +733,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #738 — Ask answers on-track for a stored savings goal (2026-09-11) → docs/DECISIONS.md
 - #739 — The goals wave closes: behind-pace nudge, seeded demo goals, the 1200-month horizon (2026-09-11) → docs/DECISIONS.md
 - #740 — One discretionary definition: the creep bar classifies with the register (O.20h) (2026-09-12) → docs/DECISIONS.md
+- #741 — One definition of an unidentified inflow: it is income (O.20c) (2026-09-14) → docs/DECISIONS.md

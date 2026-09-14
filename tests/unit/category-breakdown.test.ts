@@ -64,6 +64,13 @@ const MIXED: BreakdownSourceTxn[] = [
   row({ id: 'x5', amountCents: 500000, categoryId: 'paycheck' }),
   row({ id: 'x6', amountCents: -5000, date: '2026-05-28' }),
   row({ id: 'x7', amountCents: -5000, date: '2026-07-02' }),
+  // O.20c: an UNFILED inflow is not spending, in either store. Before the fix
+  // this row was admitted and NETTED its bucket down — the card deleted real
+  // spending while the chart counted the same row as income.
+  row({ id: 'x8', amountCents: 1_000_000, categoryId: 'uncategorized', merchantName: 'Funds Transfer from Brokerage' }),
+  // The raw-null store is DEFENSIVE (measured 0 rows live; no writer produces
+  // one), kept because the predicate must cover pure-engine callers too.
+  row({ id: 'x9', amountCents: 60_000, categoryId: null, merchantName: 'Unfiled Deposit' }),
 ];
 
 const headlinesFrom = (txns: readonly BreakdownSourceTxn[]) =>
@@ -114,6 +121,8 @@ describe('buildCategoryBreakdowns — parity with the figure it explains', () =>
     ['an income row', 'x5'],
     ['the month before', 'x6'],
     ['the month after', 'x7'],
+    ['an unfiled inflow in the Uncategorized placeholder (O.20c)', 'x8'],
+    ['an unfiled inflow with no category at all (O.20c)', 'x9'],
   ])('never lists %s', (_label, id) => {
     const out = buildCategoryBreakdowns(MIXED, WHOLE_MONTH, headlinesFrom(MIXED));
     const listed = Object.values(out).flatMap((b) => b.rows.map((r) => r.transactionId));
@@ -408,6 +417,10 @@ describe('the panel copy', () => {
       'transfers between',
       'the container row left by a split',
       'not your spending',
+      // O.20c widened the predicate by one clause; the sentence claims to be a
+      // COMPLETE enumeration, so a clause quietly missing from it would silently
+      // widen what readers think they are looking at.
+      'an inflow nobody has filed yet',
     ]) {
       expect(BREAKDOWN_BASIS).toContain(clause);
     }

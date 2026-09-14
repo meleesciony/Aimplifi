@@ -6,8 +6,12 @@ MEDIAN income across two halves of a 6-month window, and flags when spending out
 restaurant night is not creep.
 
 **What counts as income.** The one predicate `monthlyFlows` uses — `isIncomeFlowRow`: a positive,
-POSTED, non-transfer row with either NO stored category or an Income-group category that is not the
-`refund` leaf. Before O.20g this series admitted every positive row, so a merchandise return was
+POSTED, non-transfer row with either NO stored category, OR the `uncategorized` placeholder leaf, OR
+an Income-group category that is not the `refund` leaf. (O.20c collapsed the first two into one rule:
+both stores mean "nobody labelled this row", and before the fix the raw-null store counted as income
+while the placeholder store netted against spending — two identical-looking deposits on opposite
+sides. Measured live: the null store held 0 rows and the placeholder one held a single $10,000
+brokerage funding.) Before O.20g this series admitted every positive row, so a merchandise return was
 income here while being netted against spend one function away (#166). Hand-verified: flat $5,000
 income for six months, discretionary $1,000 → $2,000, plus two $20,000 returns filed to `refund` in
 the second half → income growth **0 bps** (was 40,000 bps), spend growth **5,000 bps**, `flagged`
