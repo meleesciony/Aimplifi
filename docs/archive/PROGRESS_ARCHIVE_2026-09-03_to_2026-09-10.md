@@ -1,0 +1,120 @@
+# PROGRESS archive
+
+> HISTORICAL
+> Sessions 2026-09-03 (five) and the 2026-09-10 M.4 slice 2 session moved verbatim from PROGRESS.md on
+> 2026-09-16 (ledger-ceiling rotation; older sessions live in the earlier archive files).
+
+## 2026-09-03 — Home recent row alignment + Money out (DECISIONS #638)
+
+**Picked up.** Owner: Home Recent transactions not lined up; “what does Out mean?” Beauty later, after the feature set.
+
+**Closed.** 3-column grid (payee / dollars / Open); meta wraps on a second line. Compact direction uses Money in / Money out. Wave M.4 restated, not started. Critic cycle 1 PASS (0 P0, 0 P1). Residual P2s: silent toggle, aria-label vs visible name, demo empty third track, source-string lock only.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes tsc 0, eslint 0, `next build` clean). Unit **8,183 passed + 1 expected fail + 1 skipped / 537 files + 1 skipped**. E2E mobile-380: `transaction-return-c15` 3/3, `phase1-cash-needed` 2/2 (port 3100 freed of stale `next-server` 13550 first).
+
+**Walkthrough.** Demo Home recents at 380px: dollars in one column, no In/Out chips. Signed-in Costco -$212.40: payee left, amount, Open, second line **Money out**. C.15 Open reached detail.
+
+**Ship.** Landed `dc74a020` on `main`. GitHub Actions `verify` run **33808709791** = SUCCESS. Vercel Production deployment **6253396769** SUCCESS (`dc74a020`, `https://aimplifi-j5b85v6i7-reiforge.vercel.app`). Live `https://www.aimplifi.app/dashboard` → 307 `/sign-in` (auth). The Money out control is signed-in-only, so the public HTML marker is UNVERIFIED.
+
+**Next.** Wave 0 ops remain owner-blocked. Beauty (M.4) stays later.
+
+## 2026-09-03 — Cards add-card from Cards page (DECISIONS #637)
+
+**Picked up.** Owner: "continue." #634 closed statement add on Cards.
+Wave 0 ops owner-blocked. Next dead-end on the same page: empty Cards
+sent “Add a card manually” to Accounts, and a populated Cards page
+had no add affordance.
+
+**Closed.** Own non-demo Cards mounts `CardAddControl` → existing
+`addManualAccount` with type locked to CREDIT. Demo not mounted.
+Accounts list unchanged. Critic cycle 1 FAIL 2 P1 (unlabeled amount;
+unknown-due named Accounts / a bank statement); cycle 2 PASS.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **8,182 passed + 1 expected
+fail + 1 skipped / 536 files + 1 skipped**. E2E cards-add **1/1**,
+connect-affordances **1/1**, cards-statement **1/1** on mobile-380
+(port 3100 free).
+
+**Ship.** Landed `16590072` on `main`. GitHub Actions `verify` run
+**33803882007** = SUCCESS (11m22s) on that sha. Main push run
+**33803879999** cancelled in 2s (concurrency). Vercel Production
+deployment **6252565100** SUCCESS (`1659007`,
+`https://aimplifi-oqgy252zq-reiforge.vercel.app`). Live
+`https://www.aimplifi.app/cards` → 307 `/sign-in` (auth). The add
+control is demo-fenced, so the public HTML has no `cards-add-open`
+marker — that probe is UNVERIFIED without a signed-in non-demo
+session.
+
+**Next.** Wave 0 ops remain owner-blocked.
+
+## 2026-09-03 — Standing order: land completed slices on main (#636)
+
+**Picked up.** Owner: cloud work felt lost; they check live, not a PR.
+"That's a standing order."
+
+**Closed.** Recorded in CLAUDE.md rule 5, AGENTS.md, and
+`.cursor/rules/always-commit-push.mdc`. An unmerged PR is unshipped.
+Five older drafts stay open in STATUS (conflict / red / stale) — not
+merged to satisfy the order.
+
+**Next.** This slice lands on `main` the same turn.
+
+## 2026-09-03 — Vercel Preview build without DATABASE_URL (DECISIONS #635)
+
+**Picked up.** Owner: one CI check failing on PR #19. GitHub Actions
+`verify` on `4cdd178e` was SUCCESS. The red check is Vercel Preview
+(`dpl_HA7A6meJUf1sbbxiZW84biNovePg`), ~16s, before `next build`.
+
+**Closed.** `vercel.json` `buildCommand` is now `scripts/vercel-build.sh`.
+Unset `DATABASE_URL` skips postgres schema + `db push` and generates the
+SQLite client. Set `DATABASE_URL` keeps the Production path.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **8,180 passed
++ 1 expected fail + 1 skipped / 534 files + 1 skipped**.
+
+**Ship.** Pushed `fff6590e`. GitHub Actions `verify` run **33788118783**
+= SUCCESS (14m46s). Vercel Preview `Hqp49gcMN8kXxkukq7CHHXZo3mHU` SUCCESS
+(was FAILURE `dpl_HA7A6meJUf1sbbxiZW84biNovePg`). Live
+`https://aimplifi-9f63nivkc-reiforge.vercel.app/` → 307 `/sign-in`;
+`/sign-in` 200 with `data-testid="auth-form"` and title Aimplifi.
+
+**Next.** Wave 0 ops remain owner-blocked.
+
+## 2026-09-03 — Cards statement from Cards page (DECISIONS #634)
+
+**Picked up.** Owner: "continue." #633 closed card rename on Cards.
+Wave 0 ops owner-blocked. Next dead-end on the same page: “No due date
+yet” named Accounts as the only place to enter a statement.
+
+**Closed.** Own manual CREDIT cards in that panel mount
+`CardStatementControl` → existing `setManualCardStatement`. Demo /
+linked / partner stay without a writer. Dated cards unchanged.
+
+**Critic (fresh context): PASS — 0 P0, 0 P1.** Residual P2s recorded
+(colliding testids, catch-all reload, intro still names Accounts).
+Tap-target P2 fixed this slice.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
+tsc 0, eslint 0, `next build` clean). Unit **8,177 passed + 1 expected
+fail + 1 skipped / 533 files + 1 skipped**. E2E
+`cards-statement.spec.ts` **1/1** on mobile-380. Browser walkthrough
+on a throwaway user: add from Cards, card left “No due date yet”.
+
+**Next.** Wave 0 ops remain owner-blocked.
+
+## 2026-09-10 - M.4 slice 2: page-chrome tokens + chrome restyle + dark retint (DECISIONS #724)
+
+**Picked up.** "Continue building." The tree held the slice-2 maker output (page-chrome.ts tokens + migrations + chrome restyle + .dark retint), interrupted before gates - DECISIONS.md ended at #723. Picked it up from the ledger, not from memory.
+
+**Blocked, then repaired.** Verify run 1: 3 unit failures, none in the slice - a 2026-09-08 core.autocrlf re-smudge had rewritten 586 worktree files to CRLF while the index stayed all-LF (bash -n broke on pipefail\r; a 4500-char source window overflowed). Byte-level CRLF-to-LF rewrite (content-identical; git diff stayed 33 files), .gitattributes pins LF. Run 2 residue: tests/unit/vercel-build.test.ts has never passed on this machine - bash is WSL (stub PATH does not survive; DATABASE_URL needs WSLENV). Made platform-aware with probes for each leg; Linux path unchanged. Logged as a lesson (docs/lessons/wsl-is-the-bash-env-and-boundary.md) + 2 REGRESSION_LEDGER rows.
+
+**Walkthrough.** tests/e2e/m4-page-chrome.spec.ts (the temp walkthrough, promoted): 19 (app) routes x 380px+1440px, no horizontal overflow anywhere; desktop h1 renders at 30px (the shared scale); desktop nav links pill-shaped; demo banner renders as a pill; hero font weight >=600. Screenshots reviewed: dark dashboard at 380 and accounts at 1440 render coherently in the retinted theme. Learned the app is hard-coded dark (root layout), so the retint is the identity, not a mode.
+
+**Critic (fresh context): cycle 1 FAIL 3 P1; fixed same-session.** All three were the staging boundary, none the visual work: 5 WSL-written junk cmds.log files staged (removed from disk+index); the deleted temp spec still staged while its replacement was untracked (unstaged; replacement committed); the new INDEX lesson line was 248 chars > the 220 ceiling (shortened; standing-reads green). P2s fixed in-slice: 2 byte-identical trends-view section labels migrated to the token; the new-user welcome h1 (empty-dashboard) got PAGE_TITLE_CLASS. Remaining P2s recorded, not blocking: 7 near-twin label literals, max-w-2xl dead on max-w-md pages, background-attachment fixed.
+
+**Gate.** bash scripts/verify.sh (run 5, after the ledger-index repair) -> **VERIFY GREEN, exit 0, 365s**: tsc 0, probes tsc 0, eslint 0, unit **8,288 passed + 1 expected fail + 1 skipped / 614 files + 1 skipped (615)**, `next build` clean. E2E skipped locally (VERIFY_E2E=1 not set); slice's e2e evidence is the promoted walkthrough spec, run 3/3 green earlier this session (CI runs the full VERIFY_E2E=1 gate on push).
+
+**Ship.** Landed `795b0dc1` on `main` the same turn. Vercel READY: live `https://www.aimplifi.app/sign-in` serves the slice marker (`shadow-lg ring-1 ring-foreground/5`). CI `verify` run `34511385651` FAILURE - **all failures pre-existing**: 4 failed + 1 flaky vs 5 failed + 2 flaky on the prior run `34099812006` (a strict subset; red identically without this push). Named: `budget-targets`/`connection-health`/`pwa-offline`/`wealth-target` e2e (the last stale since `c28c2211` changed the dials link href) + `phase5-a11y` flaky on the pre-existing `<a aria-pressed>` in `transaction-filters.tsx`. None touched by this diff. Recorded in docs/STATUS.md; repair is the next slice's opener.
+
+**Next.** M.4 continues: remaining near-twin section labels + per-route visual direction, one or two routes per slice. First fix the four red e2e specs + the a11y `aria-pressed` defect, then ledger rotation (all five live ledgers exceed the 40 KB ceiling).

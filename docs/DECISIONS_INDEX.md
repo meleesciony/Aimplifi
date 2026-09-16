@@ -716,21 +716,22 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #721 — Household can edit goal target date from Coach without leaving for Goals (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
 - #722 — Household can rename a savings goal from Coach without leaving for Goals (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
 - #723 — Activity merchant-wide recategorize of aggregate/masked mints the durable auto-file rule (2026-09-07) → docs/archive/DECISIONS_ARCHIVE_485_to_723.md
-- #724 — M.4 slice 2: shared page-chrome tokens, chrome restyle, brand-tinted dark theme (2026-09-10) → docs/DECISIONS.md
-- #725 — CI repair: four red e2e specs + Needs-a-category aria-pressed (2026-09-10) → docs/DECISIONS.md
-- #726 — Household can edit plan figures from Home without leaving for Spending plan (2026-09-10) → docs/DECISIONS.md
-- #727 — Household can edit a card statement from Home Cash Needed without leaving for Cards (2026-09-10) → docs/DECISIONS.md
-- #728 — Household can edit a dated card statement from Home Cash Needed without leaving for Cards (2026-09-10) → docs/DECISIONS.md
-- #729 — Household can convert a repeating bill to a reserve from Recurring without leaving for Spending plan (2026-09-10) → docs/DECISIONS.md
-- #730 — Household can take a repeating bill off the plan from Recurring without leaving for Spending plan (2026-09-10) → docs/DECISIONS.md
-- #731 — Household can put a bill back on the plan from Recurring without leaving for Spending plan (2026-09-10) → docs/DECISIONS.md
-- #732 — Household can download net worth export from Accounts without leaving for Investments (2026-09-10) → docs/DECISIONS.md
-- #733 — Household can download net worth export from Home without leaving for Investments (2026-09-10) → docs/DECISIONS.md
-- #734 — M.4 slice 3: section-label token, lead-column cap, body-wash scrolls (2026-09-11) → docs/DECISIONS.md
-- #735 — TASKS.md ledger cut: eight closed waves rotated verbatim (2026-09-11) → docs/DECISIONS.md
-- #736 — M.4 slice 4: the residual near-twin labels onto the token (2026-09-11) → docs/DECISIONS.md
+- #724 — M.4 slice 2: shared page-chrome tokens, chrome restyle, brand-tinted dark theme (2026-09-10) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #725 — CI repair: four red e2e specs + Needs-a-category aria-pressed (2026-09-10) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #726 — Household can edit plan figures from Home without leaving for Spending plan (2026-09-10) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #727 — Household can edit a card statement from Home Cash Needed without leaving for Cards (2026-09-10) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #728 — Household can edit a dated card statement from Home Cash Needed without leaving for Cards (2026-09-10) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #729 — Household can convert a repeating bill to a reserve from Recurring without leaving for Spending plan (2026-09-10) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #730 — Household can take a repeating bill off the plan from Recurring without leaving for Spending plan (2026-09-10) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #731 — Household can put a bill back on the plan from Recurring without leaving for Spending plan (2026-09-10) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #732 — Household can download net worth export from Accounts without leaving for Investments (2026-09-10) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #733 — Household can download net worth export from Home without leaving for Investments (2026-09-10) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #734 — M.4 slice 3: section-label token, lead-column cap, body-wash scrolls (2026-09-11) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #735 — TASKS.md ledger cut: eight closed waves rotated verbatim (2026-09-11) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
+- #736 — M.4 slice 4: the residual near-twin labels onto the token (2026-09-11) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
 - #737 — Goal progress + pace: how far along, and does the pledge make the date (2026-09-11) → docs/DECISIONS.md
 - #738 — Ask answers on-track for a stored savings goal (2026-09-11) → docs/DECISIONS.md
 - #739 — The goals wave closes: behind-pace nudge, seeded demo goals, the 1200-month horizon (2026-09-11) → docs/DECISIONS.md
 - #740 — One discretionary definition: the creep bar classifies with the register (O.20h) (2026-09-12) → docs/DECISIONS.md
 - #741 — One definition of an unidentified inflow: it is income (O.20c) (2026-09-14) → docs/DECISIONS.md
+- #742 — The debt-payoff path names a balance the bank stopped sharing (L.19 surface 5) (2026-09-16) → docs/DECISIONS.md
