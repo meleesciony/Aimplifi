@@ -1800,9 +1800,17 @@ export function answerDebtFreeByDate(
   // The total is `Σ max(0, balance)` over every debt handed in (debt-free-by-date.ts), so the set
   // the figure is over is exactly the positive-balance debts — resolved here against that rule,
   // not against the prop as a whole.
+  // The label names what THIS outcome prints: the unreachable branch has no extra-per-month fact
+  // (only `Total debt`), so naming one there would qualify a figure the reader cannot see.
   const frozenNote = frozenDebtPlanNote(
     frozenDebtRows(debts, new Set(debts.filter((d) => d.balanceCents > 0).map((d) => d.id))),
-    { figureLabel: 'the total debt and the extra needed to clear it', nextStep: 'accounts-route' },
+    {
+      figureLabel:
+        result.outcome === 'unreachable'
+          ? 'the total debt'
+          : 'the total debt and the extra needed to clear it',
+      nextStep: 'accounts-route',
+    },
   );
   return frozenNote ? { ...answer, detail: withDetail(answer.detail, frozenNote) } : answer;
 }

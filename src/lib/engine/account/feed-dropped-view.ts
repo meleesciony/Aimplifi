@@ -1344,11 +1344,16 @@ export function frozenRadarPushNote(funding: FrozenFunding): string {
  *
  * KIND decides the mechanism, as everywhere in this file. A card that is still in use has taken
  * charges AND payments since the drop, so its real balance may sit on either side of the frozen
- * one; a loan only ever goes down, so its real balance can only be lower. Neither branch claims
- * what that does to the dates or the interest, because the two Ask answers print DIFFERENT
- * figures from the same balance (a payoff month; an extra-per-month toward a date the reader
- * chose) and a direction that is true for one is not automatically true for the other. The
- * balance's direction is the one honest claim shared by every surface, so it is the one stated.
+ * one. A loan claims NO direction, matching `frozenLoanNote`: the first cut said "can only be
+ * lower", and the critic (P1-1) showed that false on rows this codebase itself produces —
+ * `plaid-map.ts` folds every non-mortgage `loan` subtype into `LOAN`, including Plaid's revolving
+ * `line of credit` and `home equity`, whose real balance RISES on a draw; and even an amortising
+ * loan accrues interest daily and can carry a missed payment above the frozen figure. The only
+ * true loan claim is that nothing about it has been confirmed since, so that is the one made.
+ * Neither branch claims what the staleness does to the dates or the interest, because the two
+ * Ask answers print DIFFERENT figures from the same balance (a payoff month; an extra-per-month
+ * toward a date the reader chose) and a claim true for one is not automatically true for the
+ * other.
  *
  * NO OWNERSHIP ARGUMENT, deliberately and unlike its siblings: `loadDebtAccounts` reads the
  * personal snapshot only, which is never household-merged, so every row that reaches this
@@ -1389,9 +1394,13 @@ export function frozenDebtPlanNote(
   const cards = rows.filter((r) => r.kind === 'card');
   const loans = rows.filter((r) => r.kind === 'loan');
   if (cards.length > 0 && loans.length > 0) {
-    return [frozenDebtPlanNote(cards, opts), frozenDebtPlanNote(loans, opts)]
-      .filter((s): s is string => s != null)
-      .join(' ');
+    // Two claims, ONE remedy: the same Accounts sentence is true of every row, so it is said once,
+    // at the end, over the whole set (critic P2-2 — the first cut printed it twice).
+    const bare = { ...opts, nextStep: 'nothing' as const };
+    return `${frozenDebtPlanNote(cards, bare)} ${frozenDebtPlanNote(loans, bare)}${nextStepClause(
+      opts.nextStep,
+      true,
+    )}`;
   }
   const kind = rows[0].kind;
   const tail = nextStepClause(opts.nextStep, rows.length > 1);
@@ -1403,10 +1412,10 @@ export function frozenDebtPlanNote(
     const when = formatISODate(rows[0].frozenSince as ISODate, 'long');
     return kind === 'card'
       ? `${opener} ${name} on ${when}, so the balance behind ${opts.figureLabel} is the last one we saw — nothing that has happened on the card since is in it, including any payment you have made or any new charge, so the real balance may be higher or lower than the one used here.${tail}`
-      : `${opener} ${name} on ${when}, so the balance behind ${opts.figureLabel} is the last one it sent — any payment you have made since is not taken off it, so the real balance may be lower than the one used here.${tail}`;
+      : `${opener} ${name} on ${when}, so the balance behind ${opts.figureLabel} is the last one it sent — nothing about this loan has been confirmed since, so the real balance may not be the one used here.${tail}`;
   }
   const names = nameSet(labelsOf(rows));
   return kind === 'card'
     ? `${opener} ${rows.length} of the cards behind ${opts.figureLabel} (${names}), so their balances are the last ones we saw — nothing that has happened on them since is in ${opts.figureLabel}, including payments you have made or new charges, so the real balances may be higher or lower than the ones used here.${tail}`
-    : `${opener} ${rows.length} of the loans behind ${opts.figureLabel} (${names}), so their balances are the last ones sent — payments you have made since are not taken off them, so the real balances may be lower than the ones used here.${tail}`;
+    : `${opener} ${rows.length} of the loans behind ${opts.figureLabel} (${names}), so their balances are the last ones sent — nothing about these loans has been confirmed since, so the real balances may not be the ones used here.${tail}`;
 }

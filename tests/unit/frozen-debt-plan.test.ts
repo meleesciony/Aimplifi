@@ -20,16 +20,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { isoDate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
-import {
-  FROZEN_DEBT_PLAN_TESTID,
-  frozenDebtPlanNote,
-} from '@/lib/engine/account/feed-dropped-view';
+import { frozenDebtPlanNote } from '@/lib/engine/account/feed-dropped-view';
 import { planDebtPayoff, type DebtAccount } from '@/lib/engine/debt/payoff';
 import { solveDebtFreeByDate } from '@/lib/engine/solve/debt-free-by-date';
 import { answerDebtFreeByDate, answerDebtPayoff } from '@/lib/engine/assistant/answer';
 import { loadDebtAccounts } from '@/server/debt';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 const TODAY = isoDate('2026-06-10');
 const DROPPED = '2026-05-28';
@@ -63,7 +58,8 @@ const FROZEN_LOAN = debt({ ...HEALTHY_LOAN, id: 'frozen-loan', frozenSince: DROP
 
 const OPTS = { figureLabel: 'this payoff plan', nextStep: 'accounts-route' } as const;
 const CARD_SENTENCE = `Your bank stopped sharing Chase Sapphire on ${DROPPED_LONG}, so the balance behind this payoff plan is the last one we saw — nothing that has happened on the card since is in it, including any payment you have made or any new charge, so the real balance may be higher or lower than the one used here. Accounts shows the connection and how to fix or remove it.`;
-const LOAN_SENTENCE = `Your bank stopped sharing Auto Loan on ${DROPPED_LONG}, so the balance behind this payoff plan is the last one it sent — any payment you have made since is not taken off it, so the real balance may be lower than the one used here. Accounts shows the connection and how to fix or remove it.`;
+const LOAN_SENTENCE = `Your bank stopped sharing Auto Loan on ${DROPPED_LONG}, so the balance behind this payoff plan is the last one it sent — nothing about this loan has been confirmed since, so the real balance may not be the one used here. Accounts shows the connection and how to fix or remove it.`;
+const REMEDY_ONE = ' Accounts shows the connection and how to fix or remove it.';
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 describe('frozenDebtPlanNote — the sentence, per kind', () => {
@@ -73,22 +69,26 @@ describe('frozenDebtPlanNote — the sentence, per kind', () => {
     ).toBe(CARD_SENTENCE);
   });
 
-  it('a loan: one direction, because a loan only ever goes down', () => {
-    expect(
-      frozenDebtPlanNote([{ label: 'Auto Loan', frozenSince: DROPPED, kind: 'loan' }], OPTS),
-    ).toBe(LOAN_SENTENCE);
+  it('a loan: NO direction — a line of credit is a LOAN here and a draw pushes the real balance UP (critic P1-1)', () => {
+    const note = frozenDebtPlanNote([{ label: 'Auto Loan', frozenSince: DROPPED, kind: 'loan' }], OPTS);
+    expect(note).toBe(LOAN_SENTENCE);
+    // The understating claim is the dangerous one: the reader must never be told the debt can
+    // only be smaller than shown.
+    expect(note).not.toMatch(/only be lower|may be lower/);
   });
 
-  it('a card and a loan are two claims, never one sentence true of neither', () => {
-    expect(
-      frozenDebtPlanNote(
-        [
-          { label: 'Auto Loan', frozenSince: DROPPED, kind: 'loan' },
-          { label: 'Chase Sapphire', frozenSince: DROPPED, kind: 'card' },
-        ],
-        OPTS,
-      ),
-    ).toBe(`${CARD_SENTENCE} ${LOAN_SENTENCE}`);
+  it('a card and a loan are two claims with ONE remedy, said once over the set (critic P2-2)', () => {
+    const note = frozenDebtPlanNote(
+      [
+        { label: 'Auto Loan', frozenSince: DROPPED, kind: 'loan' },
+        { label: 'Chase Sapphire', frozenSince: DROPPED, kind: 'card' },
+      ],
+      OPTS,
+    );
+    expect(note).toBe(
+      `${CARD_SENTENCE.slice(0, -REMEDY_ONE.length)} ${LOAN_SENTENCE.slice(0, -REMEDY_ONE.length)} Accounts shows the connection and how to fix or remove them.`,
+    );
+    expect(note?.split('Accounts shows').length).toBe(2);
   });
 
   it('several cards name the set, and two that paint identically are said to', () => {
@@ -115,7 +115,7 @@ describe('frozenDebtPlanNote — the sentence, per kind', () => {
         { figureLabel: 'the total debt and the extra needed to clear it', nextStep: 'accounts-route' },
       ),
     ).toBe(
-      'Your banks stopped sharing 2 of the loans behind the total debt and the extra needed to clear it (Auto Loan, Student Loan), so their balances are the last ones sent — payments you have made since are not taken off them, so the real balances may be lower than the ones used here. Accounts shows the connection and how to fix or remove them.',
+      'Your banks stopped sharing 2 of the loans behind the total debt and the extra needed to clear it (Auto Loan, Student Loan), so their balances are the last ones sent — nothing about these loans has been confirmed since, so the real balances may not be the ones used here. Accounts shows the connection and how to fix or remove them.',
     );
   });
 
@@ -280,20 +280,31 @@ describe('Ask — "be debt-free by <date>"', () => {
     const a = answerDebtFreeByDate(r, 'June 2027', '2027-06-30', TODAY, 0, debts);
     expect(a.detail?.endsWith(` ${BY_DATE_CARD}`)).toBe(true);
     expect(a.detail).not.toContain('Auto Loan');
-    expect(a.facts).toContainEqual({
-      label: 'Extra needed',
-      value: `$${(r.requiredExtraMonthlyCents! / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}/mo`,
-    });
+    // $23,300 over 12 months is ~$1,942/mo of principal; less the $420 of minimums, plus a year
+    // of interest on the declining balances, the solver lands on $1,629.23 — pinned as a literal,
+    // integer cents in, formatted string out (no float in the expectation; critic P2-4).
+    expect(r.requiredExtraMonthlyCents).toBe(162_923);
+    expect(a.facts).toContainEqual({ label: 'Extra needed', value: '$1,629.23/mo' });
+    // The note qualifies the figures and never moves them: facts are byte-identical to the run
+    // with nothing frozen.
+    const live = debts.map((d) => debt({ ...d, frozenSince: null }));
+    expect(a.facts).toEqual(
+      answerDebtFreeByDate(solve(live, '2027-06-30'), 'June 2027', '2027-06-30', TODAY, 0, live).facts,
+    );
     // The save action survives: DISCLOSE, never wall off (a-refusal-learns-one-intention).
     expect(a.action?.kind).toBe('save_debt_free_goal');
   });
 
-  it('the unreachable branch prints the total debt, so it too is qualified', () => {
+  it('the unreachable branch prints ONLY the total debt, so that is the figure it names (critic P2-1)', () => {
     const debts = [FROZEN_CARD];
     const r = solve(debts, '2026-06-30');
     expect(r.outcome).toBe('unreachable');
     const a = answerDebtFreeByDate(r, 'June 2026', '2026-06-30', TODAY, 0, debts);
-    expect(a.detail).toBe(`Try a later date and I’ll work out the payment it would take. ${BY_DATE_CARD}`);
+    expect(a.facts.map((f) => f.label)).toEqual(['Total debt']);
+    expect(a.detail).toBe(
+      `Try a later date and I’ll work out the payment it would take. ${CARD_SENTENCE.replace('this payoff plan', 'the total debt')}`,
+    );
+    expect(a.detail).not.toContain('extra needed');
   });
 
   it('a frozen debt with NO balance is outside the total, so it is not named (the Σ max(0,·) rule)', () => {
@@ -317,18 +328,6 @@ describe('Ask — "be debt-free by <date>"', () => {
   });
 });
 
-// ════════════════════════════════════════════════════════════════════════════════════════════════
-describe('/goals — the planner renders the note, resolved against the list it prints', () => {
-  it('test_regression__debt_planner_names_a_frozen_balance_behind_its_date', () => {
-    const planner = readFileSync(resolve('src/components/finance/debt-freedom-planner.tsx'), 'utf8');
-    expect(planner).toContain('frozenDebtPlanNote(');
-    expect(planner).toContain(`data-testid={FROZEN_DEBT_PLAN_TESTID}`);
-    expect(FROZEN_DEBT_PLAN_TESTID).toBe('debt-planner-frozen');
-    // Resolved against the rows the order list prints, not the prop (the L.15 rule).
-    expect(planner).toContain('active.perDebt.map((d) => d.id)');
-    // The planner is typed to the READ PATH's shape, so the compiler asks for the fact.
-    expect(planner).toContain('debts: DebtAccount[];');
-    const page = readFileSync(resolve('src/app/(app)/goals/page.tsx'), 'utf8');
-    expect(page).toContain('loadDebtAccounts(userId)');
-  });
-});
+// /goals — the planner's render is locked in tests/unit/debt-freedom-planner-render.test.tsx
+// (jsdom); the wiring from `loadDebtAccounts` to the page is locked by
+// tests/e2e/debt-plan-frozen.spec.ts.
