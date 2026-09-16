@@ -27,6 +27,8 @@ rates) — no other doc may restate them.
 
 **Code lives on branch `o20j-mask-column-identity` as draft PR #24, not on `main`.** Local verify of that tree was GREEN (8444 passed + 1 expected fail + 1 skipped / 629 files) — a green local gate is not a critic pass. Resume from the branch; do not re-derive from HEAD.
 
+**Ledger on `main`.** `d2e146d1` (docs only — the identity union is not in that tree). CI verify **35151281286 = SUCCESS** (full VERIFY_E2E=1). Vercel Production `dpl_DMsPr3qg7mk97BDLzbd3GGYBKH9w` READY on the same sha. Live: this HUMAN GATE heading is on `origin/main`; `unionSameMaskColumnIdentity` is absent from `src/` on `main`.
+
 ## ✅ BUILT 2026-09-16 — The debt-payoff path names a balance the bank stopped sharing (L.19 surface 5, DECISIONS #742)
 
 **The gap.** TASKS L.19 (5) — the one surface DECISIONS #305 left open: `loadDebtAccounts` narrowed each liability to the engine's `DebtInput` and dropped `feedDroppedAt`, so /goals' Debt Freedom planner ("Debt-free by Jan 2034" + total interest) and both Ask debt answers (a payoff month; an extra-per-month toward a chosen date) amortised a frozen balance with nothing said — and each is one save button from a persisted goal target.
