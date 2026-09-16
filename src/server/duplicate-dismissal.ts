@@ -22,21 +22,36 @@ export function duplicatePairDismissKey(aId: string, bId: string): string {
 }
 
 /**
+ * The set of `dup:` pair-keys this user has dismissed.
+ *
+ * Two failure directions, one query: the advisory warning fails OPEN (a fault
+ * shows MORE warnings); money identity fails CLOSED (a fault must not fold
+ * accounts the user separated — O.20j cycle-2 P1-2).
+ */
+export async function getDismissedDuplicateKeysForMoney(
+  userId: string,
+): Promise<ReadonlySet<string> | 'unavailable'> {
+  if (userId === DEMO_USER_ID) return new Set();
+  try {
+    const rows = await prisma.nudgeDismissal.findMany({
+      where: { userId, dismissKey: { startsWith: 'dup:' } },
+      select: { dismissKey: true },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+    return new Set(rows.map((r) => r.dismissKey));
+  } catch {
+    return 'unavailable';
+  }
+}
+
+/**
  * The set of `dup:` pair-keys this user has dismissed, read at /accounts build time to filter
  * the advisory duplicate warning. Demo-fenced (the shared `user-demo` row must never persist
  * one visitor's dismissal for the next) and fail-OPEN (on any DB fault it returns empty, so a
  * fault shows MORE warnings, never HIDES a real duplicate — the nudge-store contract).
  */
 export async function getDismissedDuplicateKeys(userId: string): Promise<ReadonlySet<string>> {
-  if (userId === DEMO_USER_ID) return new Set();
-  try {
-    const rows = await prisma.nudgeDismissal.findMany({
-      where: { userId, dismissKey: { startsWith: 'dup:' } },
-      select: { dismissKey: true },
-      take: 500,
-    });
-    return new Set(rows.map((r) => r.dismissKey));
-  } catch {
-    return new Set();
-  }
+  const keys = await getDismissedDuplicateKeysForMoney(userId);
+  return keys === 'unavailable' ? new Set() : keys;
 }

@@ -26,6 +26,7 @@ import {
 } from '@/lib/engine/categorize/transfers';
 import { refreshTransferFlags } from '@/lib/providers/transfer-refresh';
 import { runBackfillForUser } from '@/server/backfill';
+import { duplicatePairDismissKey } from '@/server/duplicate-dismissal';
 import { getReviewCount, getTriageGroups, getTriageItems, similarTransactionsWhere } from '@/server/triage';
 import { undoCorrections } from '@/server/triage-actions';
 
@@ -278,10 +279,12 @@ describe('planTransferUpdates (pure)', () => {
     });
 
     it('test_regression__o20j_converse_leak_spend_category_not_touched_by_filed_leaf_rule', () => {
-      // Converse leak (still OPEN on O.20j): isTransfer=true under a real spend
-      // category must NOT be "fixed" by re-filing to transfer. This slice only
-      // ADDS flags when the category leaf is already transfer — never clears,
-      // never files a spend row from the filed-leaf rule alone.
+      // Converse leak: isTransfer=true under a real spend category must NOT be
+      // "fixed" by re-filing to transfer. The filed-leaf rule only ADDS flags
+      // when the category leaf is already transfer — never clears, never files
+      // a spend row from the filed-leaf rule alone. (Unconfirmed same-type +
+      // mask-COLUMN identity, not this rule, is what stops a TRAVEL CREDIT on
+      // copy B from overturning a purchase on copy A — O.20j 2026-09-16.)
       const plan = planTransferUpdates([
         txn({
           id: 'rent-flagged',
@@ -673,6 +676,262 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
     const eurRow = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-ine` } });
     expect(eurRow.isTransfer).toBe(true);
     expect(eurRow.categoryId).toBe('uncategorized'); // withheld accounts get no system writes
+  });
+
+  it('test_regression__o20j_unconfirmed_duplicate_card_copies_do_not_overturn_a_purchase', async () => {
+    // Live 8-row shape: two CREDIT copies (two Plaid items, same mask COLUMN)
+    // — a purchase on one, a filed-transfer statement credit on the other.
+    // Without same-mask-column identity the filed leaf propagates and overturns
+    // the purchase; with it they are one card. (SimpleFIN never writes mask;
+    // the measured pair is Plaid-item vs Plaid-item.)
+    const plaidCard = (
+      await prisma.account.create({
+        data: {
+          userId: USER,
+          provider: 'plaid',
+          providerRef: 'tpf-amex-plaid',
+          name: 'CREDIT CARD',
+          type: 'CREDIT',
+          mask: '0977',
+          plaidItemId: 'item-amex-a',
+          currentBalanceCents: -12_345,
+          currency: 'USD',
+        },
+      })
+    ).id;
+    const plaidCard2 = (
+      await prisma.account.create({
+        data: {
+          userId: USER,
+          provider: 'plaid',
+          providerRef: 'tpf-amex-plaid-2',
+          name: 'CREDIT CARD',
+          type: 'CREDIT',
+          mask: '0977',
+          plaidItemId: 'item-amex-b',
+          currentBalanceCents: -12_345,
+          currency: 'USD',
+        },
+      })
+    ).id;
+    await prisma.transaction.createMany({
+      data: [
+        {
+          id: `${USER}-rental`,
+          accountId: plaidCard,
+          date: '2024-12-09',
+          amountCents: -3_325,
+          rawDescriptor: 'Budget Car Rental',
+          categoryId: 'dining',
+          confidenceBps: 9000,
+          needsReview: false,
+        },
+        {
+          id: `${USER}-credit`,
+          accountId: plaidCard2,
+          date: '2024-12-09',
+          amountCents: 3_325,
+          rawDescriptor: 'TRAVEL CREDIT $300/YEAR',
+          categoryId: 'transfer',
+          confidenceBps: 9000,
+          needsReview: false,
+          isTransfer: true,
+        },
+      ],
+    });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 0, overturned: 0, filed: 0 });
+    const rental = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-rental` } });
+    expect(rental.isTransfer).toBe(false);
+    expect(rental.categoryId).toBe('dining');
+  });
+
+  it('test_regression__o20j_dismissed_same_mask_copies_still_pair', async () => {
+    // "Not a duplicate" governs the money, not just the warning: a dismissed
+    // same-mask pair stays two accounts, so the filed-transfer leaf still
+    // propagates and the purchase is overturned (the pre-identity outcome).
+    const plaidCard = (
+      await prisma.account.create({
+        data: {
+          userId: USER,
+          provider: 'plaid',
+          providerRef: 'tpf-dismiss-plaid',
+          name: 'CREDIT CARD',
+          type: 'CREDIT',
+          mask: '0977',
+          plaidItemId: 'item-dismiss-a',
+          currentBalanceCents: -12_345,
+          currency: 'USD',
+        },
+      })
+    ).id;
+    const plaidCard2 = (
+      await prisma.account.create({
+        data: {
+          userId: USER,
+          provider: 'plaid',
+          providerRef: 'tpf-dismiss-plaid-2',
+          name: 'CREDIT CARD',
+          type: 'CREDIT',
+          mask: '0977',
+          plaidItemId: 'item-dismiss-b',
+          currentBalanceCents: -12_345,
+          currency: 'USD',
+        },
+      })
+    ).id;
+    await prisma.nudgeDismissal.create({
+      data: { userId: USER, dismissKey: duplicatePairDismissKey(plaidCard, plaidCard2) },
+    });
+    await prisma.transaction.createMany({
+      data: [
+        {
+          id: `${USER}-rental-d`,
+          accountId: plaidCard,
+          date: '2024-12-09',
+          amountCents: -3_325,
+          rawDescriptor: 'Budget Car Rental',
+          categoryId: 'dining',
+          confidenceBps: 9000,
+          needsReview: false,
+        },
+        {
+          id: `${USER}-credit-d`,
+          accountId: plaidCard2,
+          date: '2024-12-09',
+          amountCents: 3_325,
+          rawDescriptor: 'TRAVEL CREDIT $300/YEAR',
+          categoryId: 'transfer',
+          confidenceBps: 9000,
+          needsReview: false,
+          isTransfer: true,
+        },
+      ],
+    });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 0, overturned: 1, filed: 0 });
+    const rental = await prisma.transaction.findUniqueOrThrow({ where: { id: `${USER}-rental-d` } });
+    expect(rental.isTransfer).toBe(true);
+    expect(rental.categoryId).toBe('dining');
+  });
+
+  it('test_regression__o20j_identical_balance_checkings_with_different_last4_still_pair', async () => {
+    // Owner-confirmed distinct checkings: same type, identical balance,
+    // different last-4. The advisory detector labels this HIGH. Identity must
+    // not fold them, or a genuine transfer between them disappears.
+    const his = (
+      await prisma.account.create({
+        data: {
+          userId: USER,
+          provider: 'plaid',
+          providerRef: 'tpf-his-chk',
+          name: 'His Checking',
+          type: 'CHECKING',
+          mask: '4034',
+          plaidItemId: 'item-his',
+          currentBalanceCents: 100_000,
+          currency: 'USD',
+        },
+      })
+    ).id;
+    const hers = (
+      await prisma.account.create({
+        data: {
+          userId: USER,
+          provider: 'plaid',
+          providerRef: 'tpf-hers-chk',
+          name: 'Her Checking',
+          type: 'CHECKING',
+          mask: '1192',
+          plaidItemId: 'item-hers',
+          currentBalanceCents: 100_000,
+          currency: 'USD',
+        },
+      })
+    ).id;
+    await prisma.transaction.createMany({
+      data: [
+        {
+          id: `${USER}-sent-bal`,
+          accountId: his,
+          date: '2026-06-10',
+          amountCents: -80_000,
+          rawDescriptor: 'ZEBRA HOUSEHOLD MOVE',
+          categoryId: 'uncategorized',
+          confidenceBps: 5000,
+          needsReview: true,
+        },
+        {
+          id: `${USER}-got-bal`,
+          accountId: hers,
+          date: '2026-06-11',
+          amountCents: 80_000,
+          rawDescriptor: 'ZEBRA HOUSEHOLD MOVE IN',
+          categoryId: 'uncategorized',
+          confidenceBps: 5000,
+          needsReview: true,
+        },
+      ],
+    });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 2, overturned: 0, filed: 2 });
+  });
+
+  it('test_regression__o20j_year_in_name_does_not_fold_a_null_mask_checking', async () => {
+    // The advisory detector reads "Emergency Fund (2025)" as last-4 2025.
+    // A null MASK COLUMN is not a last-4, so a genuine transfer between that
+    // fund and a checking whose mask really is 2025 must still pair.
+    const fund = (
+      await prisma.account.create({
+        data: {
+          userId: USER,
+          provider: 'simplefin',
+          providerRef: 'tpf-ef-2025',
+          name: 'Emergency Fund (2025)',
+          type: 'CHECKING',
+          mask: null,
+          currentBalanceCents: 50_000,
+          currency: 'USD',
+        },
+      })
+    ).id;
+    const other = (
+      await prisma.account.create({
+        data: {
+          userId: USER,
+          provider: 'plaid',
+          providerRef: 'tpf-chk-2025',
+          name: 'Other Checking',
+          type: 'CHECKING',
+          mask: '2025',
+          plaidItemId: 'item-chk-2025',
+          currentBalanceCents: 60_000,
+          currency: 'USD',
+        },
+      })
+    ).id;
+    await prisma.transaction.createMany({
+      data: [
+        {
+          id: `${USER}-sent-yr`,
+          accountId: fund,
+          date: '2026-06-10',
+          amountCents: -25_000,
+          rawDescriptor: 'ZEBRA FUND MOVE',
+          categoryId: 'uncategorized',
+          confidenceBps: 5000,
+          needsReview: true,
+        },
+        {
+          id: `${USER}-got-yr`,
+          accountId: other,
+          date: '2026-06-11',
+          amountCents: 25_000,
+          rawDescriptor: 'ZEBRA FUND MOVE IN',
+          categoryId: 'uncategorized',
+          confidenceBps: 5000,
+          needsReview: true,
+        },
+      ],
+    });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 2, overturned: 0, filed: 2 });
   });
 });
 
