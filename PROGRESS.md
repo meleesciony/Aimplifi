@@ -20,7 +20,9 @@
 
 **Ledgers.** DECISIONS #742; REGRESSION_LEDGER two rows; TASKS L.19 → [x]; STATUS BUILT entry with four named residuals (sharpest: the saved goal card is silent after save). Ceiling cut: DECISIONS #724–#736 → `docs/archive/DECISIONS_ARCHIVE_724_to_736.md` (44.6 → 36 KB), index regenerated.
 
-**Ship.** Branch `cursor/l19-debt-plan-frozen-64db` → PR → merge to `main` same turn (DECISIONS #636); ship-gate + live probe recorded below once read.
+**Ship.** `19152a3d` landed on `origin/main` (fast-forward of PR #23, same turn per DECISIONS #636; no `prisma/` diff — database untouched). CI verify: run 35113323242 = **success** on the branch push, 35113236398 = success on the PR, **35115110437 = SUCCESS on `main`** (full VERIFY_E2E=1, watched to conclusion via `scripts/ci-status.sh`). Vercel Production deployment 6484384476 = success ("Deployment has completed"). Live probe (demo session on www.aimplifi.app, 7/7): /goals planner renders with NO frozen note (the demo has nothing frozen — the abstention); the /goals client chunks carry the new loan sentence ("nothing about this loan has been confirmed since") and NOT the retracted "not taken off it" one — a marker no pre-slice build can serve; Ask's debt-free answer renders with no "stopped sharing" note.
+
+**Next.** L.19 residual (1) — the saved debt-free goal card is silent after save (STATUS). Wave 2/3/4 rows per TASKS.md; Wave 0 ops owner-blocked; M.4 owner-deferred.
 
 ## 2026-09-14 — O.20c: one definition of an unidentified inflow — it is income (DECISIONS #741)
 
