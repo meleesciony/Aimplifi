@@ -135,7 +135,7 @@ describe('share rounding (non-divisible) — engine + formatter', () => {
     });
     expect(r.requiredExtraMonthlyCents).toBe(10_000);
     expect(r.shareOfSafeToSpendBps).toBe(1_333); // round(10000/75000*10000)=round(1333.33)
-    const a = answerDebtFreeByDate(r, 'June 2027', '2027-06-10', '2026-06-10', 0);
+    const a = answerDebtFreeByDate(r, 'June 2027', '2027-06-10', '2026-06-10', 0, []);
     expect(a.headline).toMatch(/13% of your guilt-free spending/);
     expect(a.facts).toContainEqual({ label: 'Share of guilt-free spending', value: '13%' });
   });
@@ -176,7 +176,7 @@ describe('answerDebtFreeByDate — honest copy per outcome', () => {
       withinSafeToSpend: true,
       totalBalanceCents: 0,
     };
-    const a = answerDebtFreeByDate(r, 'December 2027', '2027-12-31', '2026-06-10', 0);
+    const a = answerDebtFreeByDate(r, 'December 2027', '2027-12-31', '2026-06-10', 0, []);
     expect(a.headline).toMatch(/already debt-free/i);
     expect(a.action).toBeUndefined();
   });
@@ -192,7 +192,7 @@ describe('answerDebtFreeByDate — honest copy per outcome', () => {
       withinSafeToSpend: null,
       totalBalanceCents: 500_000,
     };
-    const a = answerDebtFreeByDate(r, 'June 2026', '2026-06-30', '2026-06-10', 0);
+    const a = answerDebtFreeByDate(r, 'June 2026', '2026-06-30', '2026-06-10', 0, []);
     expect(a.headline).toMatch(/too soon/i);
     expect(a.action).toBeUndefined();
     expect(a.facts).toContainEqual({ label: 'Total debt', value: '$5,000.00' });
@@ -207,7 +207,7 @@ describe('answerDebtFreeByDate — honest copy per outcome', () => {
       shareOfSafeToSpendBps: 0,
       withinSafeToSpend: true,
     };
-    const a = answerDebtFreeByDate(r, 'December 2027', '2027-12-31', '2026-06-10', 0);
+    const a = answerDebtFreeByDate(r, 'December 2027', '2027-12-31', '2026-06-10', 0, []);
     expect(a.headline).toMatch(/on track/i);
     expect(a.headline).toMatch(/no extra/i);
     expect(a.action).toEqual({ kind: 'save_debt_free_goal', targetDate: '2027-12-31', label: 'December 2027' });
@@ -224,7 +224,7 @@ describe('answerDebtFreeByDate — honest copy per outcome', () => {
       shareOfSafeToSpendBps: 1_000,
       withinSafeToSpend: true,
     };
-    const a = answerDebtFreeByDate(r, 'June 2027', '2027-06-30', '2026-06-10', 0);
+    const a = answerDebtFreeByDate(r, 'June 2027', '2027-06-30', '2026-06-10', 0, []);
     expect(a.headline).toMatch(/add about \$100\.00\/mo/);
     expect(a.headline).toMatch(/10% of your guilt-free spending/);
     expect(a.facts).toContainEqual({ label: 'Share of guilt-free spending', value: '10%' });
@@ -242,7 +242,7 @@ describe('answerDebtFreeByDate — honest copy per outcome', () => {
       withinSafeToSpend: false,
       totalBalanceCents: 1_200_000,
     };
-    const a = answerDebtFreeByDate(r, 'September 2026', '2026-09-30', '2026-06-10', 0);
+    const a = answerDebtFreeByDate(r, 'September 2026', '2026-09-30', '2026-06-10', 0, []);
     expect(a.headline).toMatch(/\$4,000\.00\/mo/);
     expect(a.headline).toMatch(/400% of your guilt-free spending/);
     expect(a.headline).toMatch(/beyond a single month/i);
@@ -260,7 +260,7 @@ describe('answerDebtFreeByDate — honest copy per outcome', () => {
       shareOfSafeToSpendBps: null, // safe-to-spend ≤ 0
       withinSafeToSpend: null,
     };
-    const a = answerDebtFreeByDate(r, 'June 2027', '2027-06-30', '2026-06-10', 0);
+    const a = answerDebtFreeByDate(r, 'June 2027', '2027-06-30', '2026-06-10', 0, []);
     expect(a.headline).toMatch(/\$100\.00\/mo/);
     expect(a.headline).toMatch(/over your monthly plan|budget you don't have yet/i);
     expect(a.headline).not.toMatch(/%/); // no share %, no fake-affordable framing
@@ -279,7 +279,7 @@ describe('answerDebtFreeByDate — honest copy per outcome', () => {
       withinSafeToSpend: null,
       totalBalanceCents: 500_000,
     };
-    const a = answerDebtFreeByDate(r, 'the end of 2020', '2020-12-31', '2026-06-10', 0);
+    const a = answerDebtFreeByDate(r, 'the end of 2020', '2020-12-31', '2026-06-10', 0, []);
     expect(a.headline).toMatch(/already behind us/i);
     expect(a.headline).not.toMatch(/too soon/i);
   });

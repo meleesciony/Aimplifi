@@ -13,7 +13,11 @@ import { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
-import { planDebtPayoff, type DebtInput, type DebtStrategy } from '@/lib/engine/debt/payoff';
+import { planDebtPayoff, type DebtAccount, type DebtStrategy } from '@/lib/engine/debt/payoff';
+import {
+  FROZEN_DEBT_PLAN_TESTID,
+  frozenDebtPlanNote,
+} from '@/lib/engine/account/feed-dropped-view';
 import { addMonthsClamped, formatMonth, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { saveDebtFreeGoal } from '@/server/goal-actions';
@@ -28,7 +32,8 @@ export function DebtFreedomPlanner({
   today,
   canSaveGoal = false,
 }: {
-  debts: DebtInput[];
+  /** From `loadDebtAccounts` — carries `frozenSince`, which the engine never reads (TASKS L.19). */
+  debts: DebtAccount[];
   today: string;
   /** Demo cannot learn — Save as goal only for a real household. */
   canSaveGoal?: boolean;
@@ -63,6 +68,20 @@ export function DebtFreedomPlanner({
   const interestSavedCents = Math.max(0, snowball.totalInterestCents - avalanche.totalInterestCents);
   const showTradeoff = snowball.firstPayoffMonth !== null && interestSavedCents > 0;
 
+  // TASKS L.19 — resolved against the rows the order list below actually PRINTS (`active.perDebt`),
+  // not against the prop, so a claim about the plan is checked against the plan (the L.15 rule).
+  // The two coincide today (every debt reaches `perDebt`, cleared or not), which is why the
+  // resolution is cheap; the day the engine drops a row, the disclosure drops it too.
+  const frozenNote = useMemo(() => {
+    const printed = new Set(active.perDebt.map((d) => d.id));
+    return frozenDebtPlanNote(
+      debts
+        .filter((d) => d.frozenSince != null && printed.has(d.id))
+        .map((d) => ({ label: d.name, frozenSince: d.frozenSince as string, kind: d.kind })),
+      { figureLabel: 'this payoff plan', nextStep: 'accounts-route' },
+    );
+  }, [debts, active]);
+
   return (
     <Card data-testid="debt-planner">
       <CardHeader className="pb-2">
@@ -73,6 +92,13 @@ export function DebtFreedomPlanner({
         <p className="text-sm text-muted-foreground">
           {heroDate ? COACH_COPY.debtFreeHero(heroDate) : COACH_COPY.debtNotClearing()}
         </p>
+        {/* Above the save control on purpose: a saved debt-free goal persists this plan's total
+            as its target, so the reader must see what that total rests on before saving it. */}
+        {frozenNote ? (
+          <p className="text-xs text-muted-foreground" data-testid={FROZEN_DEBT_PLAN_TESTID}>
+            {frozenNote}
+          </p>
+        ) : null}
         {canSaveGoal && heroTargetDate ? (
           <div className="pt-2">
             <Button

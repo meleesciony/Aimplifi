@@ -54,6 +54,7 @@ import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import {
   currentCycleAmountSource,
   frozenCardsNote,
+  frozenDebtPlanNote,
   frozenFundingNote,
   frozenListedBalancesNote,
   frozenNothingDueNote,
@@ -72,7 +73,7 @@ import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactu
 import { runwayTitle, type CreepResult, type Opportunity } from '@/lib/engine/fi/insights';
 import type { StayingWealthyRow } from '@/lib/engine/fi/staying-wealthy';
 import type { NextDollarPlan } from '@/lib/engine/fi/next-dollar';
-import type { DebtPayoffResult } from '@/lib/engine/debt/payoff';
+import type { DebtAccount, DebtPayoffResult } from '@/lib/engine/debt/payoff';
 import type { DebtFreeByDateResult } from '@/lib/engine/solve/debt-free-by-date';
 import type { SavingsGoalByDateResult } from '@/lib/engine/solve/savings-goal-by-date';
 import type { RetireAtAgeResult } from '@/lib/engine/solve/retire-at-age';
@@ -1676,15 +1677,45 @@ export function answerCashNeeded(
 
 // ─── debt payoff (when am I debt-free) ──────────────────────────────────────
 
-export function answerDebtPayoff(plan: DebtPayoffResult, today: string, debtCount: number): AssistantAnswer {
+/**
+ * TASKS L.19 — the frozen debts among a set an answer is about, as `frozenDebtPlanNote` rows.
+ * `printed` is the id set the surface actually states a figure over (the L.15 rule: a claim about
+ * a computed set is checked against that set, never against its input).
+ */
+function frozenDebtRows(
+  debts: readonly DebtAccount[],
+  printed: ReadonlySet<string>,
+): { label: string; frozenSince: string; kind: 'card' | 'loan' }[] {
+  return debts
+    .filter((d) => d.frozenSince != null && printed.has(d.id))
+    .map((d) => ({ label: d.name, frozenSince: d.frozenSince as string, kind: d.kind }));
+}
+
+export function answerDebtPayoff(
+  plan: DebtPayoffResult,
+  today: string,
+  /**
+   * The debts the plan was computed over — from `loadDebtAccounts`, so each carries `frozenSince`.
+   * REQUIRED as the list rather than its count (TASKS L.19): the count alone was the narrowing
+   * that let this answer print a payoff month from a balance the bank stopped confirming.
+   */
+  debts: readonly DebtAccount[],
+): AssistantAnswer {
   const source: AssistantSource = { label: 'See debt plan', href: '/goals' };
+  const debtCount = debts.length;
   if (debtCount === 0) {
     return { kind: 'debt_payoff', headline: 'You have no tracked debts right now — nothing to pay down.', facts: [], source };
   }
+  // Resolved against `plan.perDebt` — the rows the planner this answer points at actually lists.
+  const frozenNote = frozenDebtPlanNote(
+    frozenDebtRows(debts, new Set(plan.perDebt.map((d) => d.id))),
+    { figureLabel: 'this payoff plan', nextStep: 'accounts-route' },
+  );
   if (plan.monthsToDebtFree === null) {
     return {
       kind: 'debt_payoff',
       headline: COACH_COPY.debtNotClearing(),
+      detail: withDetail(undefined, frozenNote),
       facts: [
         { label: 'Debts', value: String(debtCount) },
         { label: 'Interest so far', value: fmt(plan.totalInterestCents) },
@@ -1696,7 +1727,10 @@ export function answerDebtPayoff(plan: DebtPayoffResult, today: string, debtCoun
   return {
     kind: 'debt_payoff',
     headline: COACH_COPY.debtAskAnswer(monthLabel, 'least-interest (avalanche)'),
-    detail: 'Snowball (smallest balance first) is one tap away on the planner if momentum matters more.',
+    detail: withDetail(
+      'Snowball (smallest balance first) is one tap away on the planner if momentum matters more.',
+      frozenNote,
+    ),
     facts: [
       { label: 'Debts', value: String(debtCount) },
       { label: 'Months', value: String(plan.monthsToDebtFree) },
@@ -1753,6 +1787,31 @@ export function answerDebtFreeByDate(
  * to fund, so an answer that cannot name the reserve declares "beyond
  * budget" over money the user already set aside.
  */
+  unallocatedSavingsCents: number,
+  /**
+   * The debts the solver was handed (TASKS L.19), each carrying `frozenSince`. REQUIRED for the
+   * same reason as the reserve: every branch below prints the total debt, and the reachable ones
+   * print an extra-per-month solved from it, so an answer that cannot see which balance stopped
+   * updating asserts an amount to add each month over a figure the bank stopped confirming.
+   */
+  debts: readonly DebtAccount[],
+): AssistantAnswer {
+  const answer = debtFreeByDateAnswer(result, label, targetDate, today, unallocatedSavingsCents);
+  // The total is `Σ max(0, balance)` over every debt handed in (debt-free-by-date.ts), so the set
+  // the figure is over is exactly the positive-balance debts — resolved here against that rule,
+  // not against the prop as a whole.
+  const frozenNote = frozenDebtPlanNote(
+    frozenDebtRows(debts, new Set(debts.filter((d) => d.balanceCents > 0).map((d) => d.id))),
+    { figureLabel: 'the total debt and the extra needed to clear it', nextStep: 'accounts-route' },
+  );
+  return frozenNote ? { ...answer, detail: withDetail(answer.detail, frozenNote) } : answer;
+}
+
+function debtFreeByDateAnswer(
+  result: DebtFreeByDateResult,
+  label: string,
+  targetDate: string,
+  today: string,
   unallocatedSavingsCents: number,
 ): AssistantAnswer {
   if (result.outcome === 'already-debt-free') {

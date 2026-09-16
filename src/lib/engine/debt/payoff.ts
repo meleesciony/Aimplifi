@@ -30,6 +30,21 @@ export interface DebtInput {
   minimumPaymentCents: number;
 }
 
+/**
+ * A debt as the READ PATH (`server/debt.ts`) hands it to a surface — the engine's input plus the
+ * provenance a surface needs to qualify what it prints. `planDebtPayoff` takes `DebtInput` and is
+ * structurally blind to these fields: no figure changes with or without them (TASKS L.19 — the
+ * DISCLOSE, ADJUST NOTHING stance of `feed-dropped-view.ts`). Both fields are REQUIRED so that a
+ * consumer which forgets to carry them fails to compile rather than printing a payoff date from a
+ * balance the bank stopped confirming, under nothing (the narrowing #305 diagnosed).
+ */
+export interface DebtAccount extends DebtInput {
+  /** CREDIT → 'card'; LOAN → 'loan'. A frozen card and a frozen loan go stale in different ways. */
+  kind: 'card' | 'loan';
+  /** YYYY-MM-DD the bank stopped sharing this account (`Account.feedDroppedAt`), else null. */
+  frozenSince: string | null;
+}
+
 export interface DebtPlanInput {
   debts: DebtInput[];
   strategy: DebtStrategy;

@@ -46,11 +46,21 @@ describe('debt_payoff routing', () => {
 });
 
 describe('answerDebtPayoff', () => {
-  const debts = [{ id: 'l', name: 'Auto Loan', balanceCents: 1_430_000, aprBps: 649, minimumPaymentCents: 38_500 }];
+  const debts = [
+    {
+      id: 'l',
+      name: 'Auto Loan',
+      balanceCents: 1_430_000,
+      aprBps: 649,
+      minimumPaymentCents: 38_500,
+      kind: 'loan' as const,
+      frozenSince: null,
+    },
+  ];
 
   it('phrases a debt-free date from the engine result and links the planner', () => {
     const plan = planDebtPayoff({ debts, strategy: 'avalanche', extraMonthlyCents: 0 });
-    const a = answerDebtPayoff(plan, today, debts.length);
+    const a = answerDebtPayoff(plan, today, debts);
     expect(a.kind).toBe('debt_payoff');
     expect(a.headline).toMatch(/debt-free/i);
     expect(a.source?.href).toBe('/goals');
@@ -59,7 +69,7 @@ describe('answerDebtPayoff', () => {
 
   it('handles the no-debt case gracefully', () => {
     const plan = planDebtPayoff({ debts: [], strategy: 'avalanche', extraMonthlyCents: 0 });
-    const a = answerDebtPayoff(plan, today, 0);
+    const a = answerDebtPayoff(plan, today, []);
     expect(a.headline).toMatch(/no tracked debts/i);
     expect(a.facts).toEqual([]);
   });

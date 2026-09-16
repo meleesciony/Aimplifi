@@ -1323,3 +1323,90 @@ export function frozenRadarPushNote(funding: FrozenFunding): string {
     'long',
   )} — if the real balance is lower, the dip comes sooner and the amount is larger.`;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════════
+ * TASKS L.19 — the debt-payoff path: /goals' Debt Freedom planner and the two Ask debt answers.
+ *
+ * DECISIONS #305 closed the Today feed, the undatable loan and the PDF export and recorded this
+ * path as the one surface it deliberately left open: `loadDebtAccounts` mapped each liability to
+ * the engine's `DebtInput` and dropped `feedDroppedAt` on the way — the same server-side
+ * NARROWING that decision diagnosed three times over. Downstream, `planDebtPayoff` amortises a
+ * frozen balance exactly as it would a live one and prints "Debt-free by June 2028" and a total
+ * interest, and `solveDebtFreeByDate` prints an extra-per-month, over a balance the bank stopped
+ * confirming, with nothing said.
+ *
+ * ITS OWN BUILDER, not `frozenTotalNote`: that sentence says a stale figure "is still counted in"
+ * a total, and a payoff plan is not a total — the frozen balance is the STARTING POINT every
+ * month of the amortisation walks forward from, so the claim to make is about what the plan is
+ * worked out from, not what a sum contains. And not `frozenCardsNote` either: that one is about a
+ * DUE (what the bank's last statement asked for this cycle), while here the figure is the whole
+ * balance, over years.
+ *
+ * KIND decides the mechanism, as everywhere in this file. A card that is still in use has taken
+ * charges AND payments since the drop, so its real balance may sit on either side of the frozen
+ * one; a loan only ever goes down, so its real balance can only be lower. Neither branch claims
+ * what that does to the dates or the interest, because the two Ask answers print DIFFERENT
+ * figures from the same balance (a payoff month; an extra-per-month toward a date the reader
+ * chose) and a direction that is true for one is not automatically true for the other. The
+ * balance's direction is the one honest claim shared by every surface, so it is the one stated.
+ *
+ * NO OWNERSHIP ARGUMENT, deliberately and unlike its siblings: `loadDebtAccounts` reads the
+ * personal snapshot only, which is never household-merged, so every row that reaches this
+ * builder is the reader's own. The second person is therefore safe here by construction. If the
+ * read path ever gains a household scope, this builder must gain `ownership` the day it does —
+ * the L.18 critic P1-1 defect (an imperative addressed to whoever is not paying) is exactly
+ * what would otherwise ship.
+ * ════════════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+/** /goals: the note qualifying the planner's date, order and interest. */
+export const FROZEN_DEBT_PLAN_TESTID = 'debt-planner-frozen';
+
+/** A debt this plan pays down, labelled as the plan lists it. */
+export interface FrozenDebtRow {
+  readonly label: string;
+  /** YYYY-MM-DD — a row is only passed in when it IS frozen. */
+  readonly frozenSince: string;
+  readonly kind: 'card' | 'loan';
+}
+
+/**
+ * The claim for a payoff plan one or more of whose balances stopped updating.
+ *
+ * `figureLabel` is the noun this surface actually prints — "this payoff plan" on the planner and
+ * the forward Ask answer, "the total debt and the extra needed to clear it" on the by-date
+ * answer — for the reason `frozenTotalNote` makes it required: a builder that names the figure
+ * itself is right on one surface and wrong on the rest.
+ *
+ * Split by kind before anything else, exactly as `frozenNothingDueNote` splits: a card and a
+ * loan go stale by different mechanisms and cannot share a sentence.
+ */
+export function frozenDebtPlanNote(
+  rows: readonly FrozenDebtRow[],
+  opts: { figureLabel: string; nextStep: FrozenNextStep },
+): string | null {
+  if (rows.length === 0) return null;
+  const cards = rows.filter((r) => r.kind === 'card');
+  const loans = rows.filter((r) => r.kind === 'loan');
+  if (cards.length > 0 && loans.length > 0) {
+    return [frozenDebtPlanNote(cards, opts), frozenDebtPlanNote(loans, opts)]
+      .filter((s): s is string => s != null)
+      .join(' ');
+  }
+  const kind = rows[0].kind;
+  const tail = nextStepClause(opts.nextStep, rows.length > 1);
+  // Every row is the reader's own — see the header above — so `stoppedSharing` is always handed
+  // 'reader' and says "Your bank" / "Your banks".
+  const opener = stoppedSharing(rows.length, rows.map(() => 'reader' as const));
+  if (rows.length === 1) {
+    const name = renderSafe(rows[0].label);
+    const when = formatISODate(rows[0].frozenSince as ISODate, 'long');
+    return kind === 'card'
+      ? `${opener} ${name} on ${when}, so the balance behind ${opts.figureLabel} is the last one we saw — nothing that has happened on the card since is in it, including any payment you have made or any new charge, so the real balance may be higher or lower than the one used here.${tail}`
+      : `${opener} ${name} on ${when}, so the balance behind ${opts.figureLabel} is the last one it sent — any payment you have made since is not taken off it, so the real balance may be lower than the one used here.${tail}`;
+  }
+  const names = nameSet(labelsOf(rows));
+  return kind === 'card'
+    ? `${opener} ${rows.length} of the cards behind ${opts.figureLabel} (${names}), so their balances are the last ones we saw — nothing that has happened on them since is in ${opts.figureLabel}, including payments you have made or new charges, so the real balances may be higher or lower than the ones used here.${tail}`
+    : `${opener} ${rows.length} of the loans behind ${opts.figureLabel} (${names}), so their balances are the last ones sent — payments you have made since are not taken off them, so the real balances may be lower than the ones used here.${tail}`;
+}

@@ -9,10 +9,17 @@
  * estimated when no Account-level minimum is stored, matching the Cash-Needed
  * engine's floor (max $35, 1% of balance); LOANs use their stored
  * `minimumPaymentCents` (added in #96) and fall back to 0 (extra-only payoff).
+ *
+ * `frozenSince` rides out verbatim (TASKS L.19). This map used to be the narrowing that
+ * stripped `feedDroppedAt` before the /goals planner and both Ask debt answers ever saw it, so
+ * they printed a debt-free date and an extra-per-month from a balance the bank had stopped
+ * confirming, in silence — the #305 disease, on the one surface that decision left open.
+ * Personal scope only (`getFinanceSnapshot(userId)` is never household-merged), so every row
+ * here is the reader's own; the disclosure may say "your bank".
  */
 import { getProvider } from '@/lib/providers/demo';
 import { roundHalfAwayFromZero } from '@/lib/money';
-import type { DebtInput } from '@/lib/engine/debt/payoff';
+import type { DebtAccount } from '@/lib/engine/debt/payoff';
 import { accountLabel } from '@/lib/engine/account/display-name';
 
 /** $35 floor — mirrors estimateMinimumPayment in the Cash-Needed engine. */
@@ -26,8 +33,11 @@ function minimumFor(type: string, balanceCents: number, stored: number | null | 
   return 0; // a loan without a stored minimum relies on the extra payment
 }
 
-export async function loadDebtAccounts(userId: string): Promise<DebtInput[]> {
+export async function loadDebtAccounts(userId: string): Promise<DebtAccount[]> {
   const snap = await getProvider().getFinanceSnapshot(userId);
+  // A reconciliation PREDECESSOR is zeroed by the snapshot boundary, so the `> 0` filter already
+  // keeps it out of the plan — and therefore out of the disclosure, which is resolved against the
+  // debts the plan prints (the L.18 critic P0-1 shape: never announce a zeroed row as counted).
   return snap.accounts
     .filter((a) => (a.type === 'CREDIT' || a.type === 'LOAN') && a.currentBalanceCents > 0)
     .map((a) => ({
@@ -36,6 +46,8 @@ export async function loadDebtAccounts(userId: string): Promise<DebtInput[]> {
       balanceCents: a.currentBalanceCents,
       aprBps: a.aprBps ?? 0,
       minimumPaymentCents: minimumFor(a.type, a.currentBalanceCents, a.minimumPaymentCents),
+      kind: a.type === 'CREDIT' ? ('card' as const) : ('loan' as const),
+      frozenSince: a.feedDroppedAt ?? null,
     }))
     // largest APR first as a stable default ordering for display before any strategy is applied
     .sort((x, y) => y.aprBps - x.aprBps);

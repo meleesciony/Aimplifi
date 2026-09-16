@@ -706,7 +706,7 @@ async function buildAnswer(
       // so the answer can never drift from the dedicated view.
       const debts = await loadDebtAccounts(userId);
       const plan = planDebtPayoff({ debts, strategy: 'avalanche', extraMonthlyCents: 0 });
-      return answerDebtPayoff(plan, today, debts.length);
+      return answerDebtPayoff(plan, today, debts);
     }
     case 'debt_free_by_date': {
       // Inverse planner: SAME debt read-path + safe-to-spend the dedicated views use, so
@@ -722,7 +722,7 @@ async function buildAnswer(
         today: today as ISODate,
         safeToSpendCents: plan.leftToSpendCents,
       });
-      return answerDebtFreeByDate(result, intent.label, intent.targetDate, today, plan.unallocatedSavingsCents);
+      return answerDebtFreeByDate(result, intent.label, intent.targetDate, today, plan.unallocatedSavingsCents, debts);
     }
     case 'savings_goal_by_date': {
       // Inverse savings planner (DECISIONS #126): the user STATED the amount + date; we
