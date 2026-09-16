@@ -15,6 +15,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ⛔ HUMAN GATE 2026-09-16 — O.20j converse-leak identity (critic budget exhausted, DECISIONS #743)
+
+**Do not land the working-tree identity union on `main`.** Hostile critic cycle 4 of 4 = **FAIL 0 P0 + 1 P1**. The attempted rule (same-type + mask COLUMN ≥4, different ingest connections, dismissal/same-connection as a *component* veto) is still unsound: the veto walks the `(type, mask)` group while the union unifies `root()`, so a confirmed H.7 predecessor that shares a last-4 can fold two accounts on ONE Plaid item (including a pair the user dismissed) and a genuine transfer between them stops flagging **and** filing. Executed by the cycle-4 critic: `$2,500` phantom income + `$2,500` phantom expense via O.20c's unfiled-inflow rule, and H.7b would *clear* those flags. **Fix named, not applied:** evaluate the veto over the component `root()` would produce, not over the mask group; lock with a non-empty `confirmed` map plus a dismissal and a same-item pair.
+
+**What is measured and must not be forgotten.** Live converse: 94 rows, $180,466.86 outflow / $37,949.79 inflow withheld. 61 FLAG RIGHT (~$205k genuine transfers, stale category). 33 FLAG WRONG / $12,878. H.7b never run (0 runs); would clear 25 today. 8 remaining WRONG ($237.08, CREDIT CARD last-4 `0977`, two Plaid items vs a filed `TRAVEL CREDIT`) are the prevention target. Demo 0 converse. Reader-side "count converse as spend" is killed (would dump ~$180k of real transfers into spending). `countsInFlows` / `isSpendRow` / auto-run H.7b were correctly left untouched.
+
+**Cycle history (all four spent).** C1: HIGH detector as money identity (year-in-name, balance-only spouse cards) — fixed. C2: dismissal edge-skip, fail-OPEN dismissals, same-item edge-skip — fixed as *component* vetoes + `'unavailable'` fail-closed. C3: same-connection still an edge skip via a third copy — fixed as group veto. C4: confirmed-map back door, above.
+
+**Residuals (not the P1).** Plaid+SimpleFIN copies cannot fold (SimpleFIN never writes `mask`; the live 0977 pair is Plaid-item vs Plaid-item). The 8 existing flags stay until the owner taps H.7b. Union does not read `currency`. Dismissal read is `take: 500` / `orderBy createdAt desc`.
+
+**Code lives on branch `o20j-mask-column-identity` as draft PR #24, not on `main`.** Local verify of that tree was GREEN (8444 passed + 1 expected fail + 1 skipped / 629 files) — a green local gate is not a critic pass. Resume from the branch; do not re-derive from HEAD.
+
 ## ✅ BUILT 2026-09-16 — The debt-payoff path names a balance the bank stopped sharing (L.19 surface 5, DECISIONS #742)
 
 **The gap.** TASKS L.19 (5) — the one surface DECISIONS #305 left open: `loadDebtAccounts` narrowed each liability to the engine's `DebtInput` and dropped `feedDroppedAt`, so /goals' Debt Freedom planner ("Debt-free by Jan 2034" + total interest) and both Ask debt answers (a payoff month; an extra-per-month toward a chosen date) amortised a frozen balance with nothing said — and each is one save button from a persisted goal target.

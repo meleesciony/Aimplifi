@@ -11,6 +11,16 @@ considered. Append-only.
 > Only entries #737 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #743 — O.20j converse-leak identity: do not ship; critic budget exhausted (2026-09-16)
+
+**Context.** Remaining converse leak after #485/#487/#491: 8 spend rows ($237.08) flagged because two Plaid items of CREDIT CARD last-4 `0977` still pair a purchase with a filed `TRAVEL CREDIT` on the other copy. Cycle 1 of using HIGH `detectDuplicateAccounts` as pairing identity FAIL (year-in-name, balance-only spouse cards). Cycles 2–3 narrowed to mask COLUMN + component vetoes for dismissal and same-connection. Cycle 4 FAIL: that veto still walks the mask *group* while the union unifies `root()`, so a confirmed H.7 predecessor is a back door that can fold two accounts on ONE Plaid item (including a dismissed pair) and refuse a genuine transfer. H.7b is not auto-run (#428). L.19 already occupies #742.
+
+**Decision.** Stop. Do not land the identity union on `main`. The named close is: evaluate the veto over the component `root()` would produce, not the mask group, and lock it with a non-empty `confirmed` map plus a dismissal and a same-item pair. Until that lands, the 8 flags stay until the owner taps /settings (H.7b). Do not "count converse as spend" (measured: would dump ~$180k of real transfers into spending). Do not change `countsInFlows` / `isSpendRow`.
+
+**Locked (on branch `o20j-mask-column-identity`, not `main`).** `tests/unit/transfer-pair-identity.test.ts` (year-in-name, balance-only, dismissal component, `'unavailable'`, same-item, third-copy same-item). FAIL-OLD: without the union, `test_regression__o20j_unconfirmed_duplicate_card_copies_do_not_overturn_a_purchase` receives `overturned: 1`.
+
+**Gate.** Local verify on the unshipped tree: VERIFY GREEN, 8444 passed + 1 expected fail + 1 skipped / 629 files. Critic cycle 4 FAIL 1 P1. Human gate.
+
 ## #737 - Goal progress + pace: how far along, and does the pledge make the date (2026-09-11)
 
 **Context.** Owner: "continue building this app out. make it extremely user friendly and insightful towards goals." Explorer map: the /goals card answered one question ("how many months at this pledge?" + FI delay) and never the two a saver asks - "how far along am I?" and "will I make my date?"; no % funded anywhere, no on-track/off-track against `targetDate`, editing a date never re-solved the monthly, Home was silent about goals. Both engines needed already existed: `goalFundingMonths` (the flat timeline) and `solveSavingsGoalByDate` (Ask's inverse planner).

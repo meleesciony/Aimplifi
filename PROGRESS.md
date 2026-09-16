@@ -8,6 +8,16 @@
 > Only sessions from 2026-09-10 (CI repair) onward live here; append new sessions
 > at the top as before.
 
+## 2026-09-16 — O.20j converse-leak identity: critic budget exhausted (DECISIONS #743)
+
+**Picked up.** Owner: "continue." Strongest open money-visible row: O.20j converse leak. Measured first (read-only Neon): 94 converse rows; 8 remaining WRONG flags ($237.08) are CREDIT CARD last-4 `0977` copies (two Plaid items) pairing a spend row with a filed `TRAVEL CREDIT`. Reader-side "count as spend" killed (~$180k of real transfers). H.7b never run. L.19 already occupies #742.
+
+**Stopped at the human gate.** Maker built same-type + mask-COLUMN identity (not the advisory HIGH detector). Four critic cycles, last one 0 P0 + 1 P1: the veto walks the mask group while the union unifies `root()`, so a confirmed H.7 chain is an unguarded back door. Named fix is unevaluated (budget 4/4). **Did not land on `main`.** Code is on branch `o20j-mask-column-identity` (draft PR #24). `main` keeps L.19 (#742) plus this stop.
+
+**Gates on the unshipped tree (not a ship).** `bash scripts/verify.sh` VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8444 passed + 1 expected fail + 1 skipped / 629 files**, next build clean. FAIL-OLD: identity removed → `{ overturned: 1 }` vs expected 0. Playwright `transfer-flag-repair.spec.ts` mobile-380 **1/1**. Critic cycle 4 independently reproduced the 8444 count.
+
+**Next.** Human gate, or a new session on the branch that closes P1-1 (veto over the `root()` component) before any ship.
+
 ## 2026-09-16 — L.19 (5): the debt-payoff path names a balance the bank stopped sharing (DECISIONS #742)
 
 **Picked up.** Owner: "Continue building this out towards production." Tree clean, main even with origin (O.20c #741 shipped, CI 34886003435 success). Queue scan: Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic. Strongest open money-visible row: **L.19 (5)** — the debt-payoff path, the one surface DECISIONS #305 left printing a figure over a frozen balance; the TASKS row still read "(2), (3), (5) remain open" though #305 had closed (2) and (3). Plan node restated 7 acceptance assertions (A1–A7 in the critic brief).
