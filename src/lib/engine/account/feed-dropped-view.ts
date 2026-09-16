@@ -1350,10 +1350,14 @@ export function frozenRadarPushNote(funding: FrozenFunding): string {
  * `line of credit` and `home equity`, whose real balance RISES on a draw; and even an amortising
  * loan accrues interest daily and can carry a missed payment above the frozen figure. The only
  * true loan claim is that nothing about it has been confirmed since, so that is the one made.
- * Neither branch claims what the staleness does to the dates or the interest, because the two
- * Ask answers print DIFFERENT figures from the same balance (a payoff month; an extra-per-month
- * toward a date the reader chose) and a claim true for one is not automatically true for the
- * other.
+ * Neither branch claims what the staleness does to the dates, the interest or the extra. NOT
+ * because the consequence differs by surface — it does not: the solver's own monotonicity
+ * (debt-free-by-date.ts) runs through the starting balance too, so a HIGHER real balance means a
+ * later month, more interest and a larger extra on every surface alike (the first cut's comment
+ * said otherwise; critic P2-2). It is because the balance's OWN direction is unknown on both
+ * branches (a card: either way; a loan: none claimed), so the only honest consequence sentence is
+ * "later or earlier", which tells the reader nothing the balance sentence has not. A surface that
+ * can name the costly direction must know the balance went up, and none of these can.
  *
  * NO OWNERSHIP ARGUMENT, deliberately and unlike its siblings: `loadDebtAccounts` reads the
  * personal snapshot only, which is never household-merged, so every row that reaches this

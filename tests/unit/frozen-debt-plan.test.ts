@@ -310,8 +310,13 @@ describe('Ask — "be debt-free by <date>"', () => {
   it('a frozen debt with NO balance is outside the total, so it is not named (the Σ max(0,·) rule)', () => {
     const debts = [debt({ ...FROZEN_CARD, balanceCents: 0 }), HEALTHY_LOAN];
     const r = solve(debts, '2027-06-30');
+    expect(r.outcome).toBe('reachable');
+    expect(r.withinSafeToSpend).toBe(false);
     const a = answerDebtFreeByDate(r, 'June 2027', '2027-06-30', TODAY, 0, debts);
-    expect(a.detail).not.toContain('stopped sharing');
+    // Pinned to the branch's golden, not to the absence of one phrase (the file's own rule).
+    expect(a.detail).toBe(
+      'A later date would ask less of your budget each month. Illustration, not advice — assumes the least-interest (avalanche) order and APRs as entered.',
+    );
   });
 
   it('with nothing frozen the reachable answer is the GOLDEN one', () => {
