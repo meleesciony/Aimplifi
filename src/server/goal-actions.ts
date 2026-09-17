@@ -120,6 +120,11 @@ export async function saveDebtFreeGoal(targetDateRaw: string): Promise<void> {
       monthlyContributionCents: result.requiredExtraMonthlyCents ?? 0,
       // Render with the solver's own date on /goals, not the savings-goal timeline (DECISIONS #125).
       kind: 'debt_free',
+      // L.19 residual (1), DECISIONS #746: the total above was summed over `debts` — the same
+      // rows the planner's frozen note is resolved against — so if any of them carried
+      // `feedDroppedAt`, the row records the save day and the /goals card says so. Judged on the
+      // solver's INPUT, not re-derived later: today's stamps cannot say what was true at the save.
+      frozenAtSave: debts.some((d) => d.frozenSince !== null) ? today : null,
     },
   });
   await auditLog(userId, 'goal.create', { kind: 'debt_free_by_date', targetDate });
@@ -307,7 +312,10 @@ export async function updateGoalTarget(
 
   const updated = await prisma.goal.updateMany({
     where: { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }] },
-    data: { targetCents },
+    // DECISIONS #746: a hand-typed total is the reader's own figure, so a debt-free row's
+    // "includes the last balance we saw" fact no longer describes it — cleared with the write.
+    // Savings rows never carry the stamp, so the null is a no-op there.
+    data: { targetCents, frozenAtSave: null },
   });
   if (updated.count === 0) {
     return { ok: false, error: "That goal isn't on your list, so nothing changed." };

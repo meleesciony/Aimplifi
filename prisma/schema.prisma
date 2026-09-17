@@ -865,6 +865,17 @@ model Goal {
   // Null on typed reserves (no series behind them). Additive + nullable: existing
   // rows and the demo seed compute identically.
   merchantCanonical        String?
+  // TASKS L.19 residual (1), DECISIONS #746. Calendar date (YYYY-MM-DD, the provider's
+  // "today") on which a 'debt_free' goal was saved, set ONLY when at least one debt
+  // behind its solved total carried `Account.feedDroppedAt` at that moment — the
+  // saved `targetCents` then includes a balance the bank had stopped sharing, and
+  // the /goals card says so. Null = "no such fact recorded": every pre-existing row
+  // and every savings/reserve row, which must render NO note (a re-resolve against
+  // today's feedDroppedAt would over-claim for a debt that froze AFTER the save,
+  // which is why this is a column and not a read-time join). Cleared when the reader
+  // hand-types a new target — that total is theirs, not the frozen balance's.
+  // Additive + nullable: existing rows and the demo seed compute identically.
+  frozenAtSave             String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

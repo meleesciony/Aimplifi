@@ -1479,3 +1479,49 @@ export function frozenNextDollarNote(
     ? `${opener} ${name} on ${when}, so the past-due amount that ranks it here is from the last statement it sent — a payment you have already made may not be counted, so the card may not be past due at all.${tail}`
     : `${opener} ${name} on ${when}, so what we know about this loan is the last thing it sent — nothing about it has been confirmed since, including whether it is still open.${tail}`;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════════
+ * TASKS L.19 residual (1) — the SAVED debt-free goal on /goals (DECISIONS #746).
+ *
+ * #742 qualified the planner's figures and the two Ask answers; its critic (P2-6) named the hop
+ * after them: `saveDebtFreeGoal` persists the solver's `totalBalanceCents` as `Goal.targetCents`,
+ * and the /goals card prints "$9,000.00 of debt" from that row forever after, with nothing said —
+ * the #305 PDF shape (a durable artifact built from a frozen figure), one save button later.
+ *
+ * A COLUMN, not a read-time join. The claim is about the moment of the save: "at least one balance
+ * in this total was one the bank had stopped sharing WHEN IT WAS COMPUTED". Today's `feedDroppedAt`
+ * cannot say that — a debt that froze after the save would be announced as having tainted a total
+ * it never touched (over-claim), and one that has since returned would be silent over a total it
+ * did (under-claim) — and `Goal` carries no `createdAt` to bound either. So `saveDebtFreeGoal`
+ * stamps `Goal.frozenAtSave` (the save-day calendar date) iff any solved debt carried
+ * `frozenSince`, and null means NO FACT RECORDED: every row saved before the column existed renders
+ * nothing, because "we did not record it" is not "it was fine".
+ *
+ * ONE CLAIM, weakest direction. The row does not store which debts were frozen or their kind, so
+ * this sentence may not borrow the card/loan mechanisms its siblings split on: it says the total
+ * INCLUDES the last balance seen for at least one debt, which is "not necessarily what you owed"
+ * — true of a card (either direction) and of a loan (no direction) alike. It names no bank ("the
+ * bank behind at least one of the debts") because the frozen debts may sit at different banks,
+ * and it offers NO remedy of its own: the card's existing next sentence — re-check in Ask, which
+ * works from today's balances — already is the remedy, and pointing at Accounts would assert that
+ * the connection is still broken, which a save-time fact cannot know (`nextStep: 'nothing'` shape).
+ *
+ * The stamp is CLEARED by `updateGoalTarget`: a hand-typed total is the reader's own figure, and
+ * a note that it "includes the last balance we saw" would then be false. Date, monthly and name
+ * edits leave the total alone and so leave the stamp alone.
+ * ════════════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+/** /goals: the note under a saved debt-free goal whose total was computed over a frozen balance. */
+export const FROZEN_SAVED_DEBT_GOAL_TESTID = 'goal-debt-free-frozen';
+
+/**
+ * The claim for a saved debt-free goal whose `frozenAtSave` is set. `null` for a null, missing or
+ * empty stamp (an empty string is not a date — the #745 P2-1 rule), so every unstamped row is
+ * byte-identical to before the column existed.
+ */
+export function frozenSavedDebtGoalNote(frozenAtSave: string | null | undefined): string | null {
+  if (!frozenAtSave) return null;
+  const when = formatISODate(frozenAtSave as ISODate, 'long');
+  return `When this goal was saved on ${when}, the bank behind at least one of the debts in it had stopped sharing that balance, so the debt total here includes the last balance we saw for that debt — not necessarily what you owed on it that day.`;
+}
