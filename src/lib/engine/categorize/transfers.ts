@@ -6,6 +6,7 @@
  * two of the user's own accounts within ±3 days.
  */
 import { daysBetween, isoDate } from '@/lib/dates';
+import { registrationsConflict } from '@/lib/engine/account/registration';
 import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
 import { normalizeMerchant } from './normalize';
 
@@ -38,10 +39,15 @@ export interface TransferTxn {
   categoryId?: string | null;
   /**
    * The id of the REAL account this row sits on, when the user has confirmed
-   * that two rows are the same account (H.7 cycle 2). A reconciled pair — the
-   * same card arriving from two providers — makes a purchase and its own refund
-   * look like two accounts, which defeats the same-account exclusion below and
-   * manufactures a transfer out of two copies of one row.
+   * that two rows are the same account (H.7 cycle 2) OR when two unconfirmed
+   * copies share a type and a MASK COLUMN across different ingest connections
+   * (O.20j converse leak: two Plaid items of last-4 0977 still paired a Lyft
+   * with its own TRAVEL CREDIT). The advisory duplicate detector is NOT this
+   * field's source — that detector also fires HIGH on name-embedded years
+   * and on identical-balance spouse cards, which is too wide for money. A
+   * reconciled — or same-mask-column — pair makes a purchase and its own
+   * refund look like two accounts, which defeats the same-account exclusion
+   * below and manufactures a transfer out of two copies of one row.
    *
    * Absent (the default) it IS `accountId`, so nothing changes for anyone who
    * does not pass it. Deliberately an identity rather than a filter on the
@@ -56,6 +62,215 @@ export interface TransferTxn {
 /** The account a row really belongs to: its confirmed identity, else itself. */
 function identityOf(t: TransferTxn): string {
   return t.accountIdentityId ?? t.accountId;
+}
+
+/**
+ * Same format as `duplicatePairDismissKey` (`dup:${sortedIds}`). Kept here so
+ * this module stays engine-pure; the two must stay byte-identical (locked).
+ */
+export function transferIdentityDismissKey(aId: string, bId: string): string {
+  return aId < bId ? `dup:${aId}|${bId}` : `dup:${bId}|${aId}`;
+}
+
+/**
+ * Fold unconfirmed same-type copies that share a MASK COLUMN into the confirmed
+ * identity map the pair rule already reads.
+ *
+ * WHY THIS EXISTS (O.20j converse leak, measured 2026-09-16, reproduced cycle 2).
+ * Confirmed reconciliation already equated two copies of one card. Unconfirmed
+ * copies with the same last-4 were still two `accountId`s, so a Lyft on copy A
+ * paired with a filed-`transfer` TRAVEL CREDIT on copy B. The remaining
+ * prevention target was 8 converse flags / $237.08 on CREDIT last-4 `0977`
+ * arriving through two Plaid items. Cycle 3 reproduced a BARE-MASK union
+ * refusing those 8 and minting 0; that number is NOT this function's live
+ * result. The shipped rule is narrower: same type + mask COLUMN ≥4, different
+ * ingest connections, plus institution / currency / registration vetoes, a
+ * stable group order, and a component veto that includes confirmed H.7
+ * terminals. Mixed-type over-veto can refuse the 0977 fold when a confirmed
+ * terminal has a different type (named residual). HIGH-confidence detector
+ * pairs are a wider disjunction (mask OR identical balance, and name-embedded
+ * years on a null mask column) that the detector itself declares advisory;
+ * this function does not call it.
+ *
+ * Cycle-2/3 critic: a dismissed pair, or any same-connection pair, vetoes the
+ * whole (type, mask) component — not just the edge — so a third copy cannot
+ * re-join two accounts the user (or ingest) says are distinct. Same-provider
+ * same-connection rows are the detector's skip (evaluatePair): ingest already
+ * dedups inside one SimpleFIN/manual connection, and two Plaid rows from
+ * ONE item are two real accounts. A dismissal-read fault (`'unavailable'`)
+ * skips this union entirely so a DB blip cannot fold accounts the user
+ * separated. Masks shorter than 4 characters after trim are ignored (Plaid's
+ * 2–4 alphanumeric; a 2-char collision is 1-in-100).
+ *
+ * Cycle-4 critic: that veto still walked the MASK GROUP while the union
+ * unifies `root()`. A confirmed H.7 predecessor (often a SimpleFIN copy
+ * with a null mask, so it never sits in the group) is a back door: two
+ * accounts on ONE Plaid item, or a pair the user dismissed, fold through
+ * the terminal and a genuine transfer between them stops flagging AND
+ * filing. The veto now walks the component `root()` would produce — every
+ * account already sharing a root with the group, plus the group's own
+ * ids — so a confirmed chain cannot smuggle a forbidden pair. Mixed types
+ * in that component also veto: a CREDIT last-4 must not become a CHECKING
+ * identity through a cross-type confirmed link. Institution, currency, and
+ * registration vetoes (new-budget cycle 1) also walk this component. Group
+ * keys are sorted so unordered `findMany` cannot pick which bridged group
+ * folds. A missing `byId` record fails closed.
+ *
+ * Does not merge accounts, drop balances, or write `isTransfer`.
+ */
+export type TransferIdentityAccount = {
+  id: string;
+  type: string;
+  mask: string | null;
+  provider: string;
+  plaidItemId?: string | null;
+  /** Plaid `ins_*` when known. Both present and different ⇒ two banks. */
+  institutionId?: string | null;
+  /** ISO-4217; null = USD, same as the advisory detector. */
+  currency?: string | null;
+  /** Feed name, never the owner's nickname (L.7). Registration reads this. */
+  name: string;
+  subtype?: string | null;
+};
+
+function usableMask(mask: string | null): string | null {
+  const t = mask?.trim() ?? '';
+  return t.length >= 4 ? t : null;
+}
+
+/** Byte-identical to `normalizeCurrency` in `duplicates.ts` (null = USD). */
+function identityCurrency(c: string | null | undefined): string {
+  return (c ?? 'USD').toUpperCase();
+}
+
+/** Same skip `evaluatePair` uses: ingest already dedups inside one connection. */
+function sameIngestConnection(a: TransferIdentityAccount, b: TransferIdentityAccount): boolean {
+  if (a.provider !== b.provider) return false;
+  if (a.provider === 'plaid') {
+    return a.plaidItemId == null || b.plaidItemId == null || a.plaidItemId === b.plaidItemId;
+  }
+  return true;
+}
+
+function institutionsConflict(a: TransferIdentityAccount, b: TransferIdentityAccount): boolean {
+  const ia = a.institutionId?.trim() || null;
+  const ib = b.institutionId?.trim() || null;
+  if (!ia || !ib) return false;
+  return ia !== ib;
+}
+
+function pairBlocked(
+  aId: string,
+  bId: string,
+  byId: ReadonlyMap<string, TransferIdentityAccount>,
+  dismissedKeys: ReadonlySet<string>,
+): boolean {
+  if (aId === bId) return false;
+  if (dismissedKeys.has(transferIdentityDismissKey(aId, bId))) return true;
+  const a = byId.get(aId);
+  const b = byId.get(bId);
+  // Critic P2-1: a dangling confirmed id is not evidence the pair is safe.
+  if (!a || !b) return true;
+  if (sameIngestConnection(a, b)) return true;
+  if (a.type !== b.type) return true;
+  if (institutionsConflict(a, b)) return true;
+  if (identityCurrency(a.currency) !== identityCurrency(b.currency)) return true;
+  return registrationsConflict(a, b);
+}
+
+function anyPairBlocked(
+  ids: ReadonlySet<string>,
+  byId: ReadonlyMap<string, TransferIdentityAccount>,
+  dismissedKeys: ReadonlySet<string>,
+): boolean {
+  const list = [...ids];
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      if (pairBlocked(list[i]!, list[j]!, byId, dismissedKeys)) return true;
+    }
+  }
+  return false;
+}
+
+export function unionSameMaskColumnIdentity(
+  confirmed: ReadonlyMap<string, string>,
+  accounts: readonly TransferIdentityAccount[],
+  dismissedKeys: ReadonlySet<string> | 'unavailable' = new Set(),
+): Map<string, string> {
+  if (dismissedKeys === 'unavailable') return new Map(confirmed);
+  const parent = new Map(confirmed);
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const root = (id: string): string => {
+    let cur = id;
+    const seen = new Set<string>();
+    while (parent.has(cur) && parent.get(cur) !== cur) {
+      if (seen.has(cur)) break;
+      seen.add(cur);
+      cur = parent.get(cur)!;
+    }
+    return cur;
+  };
+  const knownIds = (): Set<string> => {
+    const ids = new Set<string>(byId.keys());
+    for (const [k, v] of parent) {
+      ids.add(k);
+      ids.add(v);
+    }
+    return ids;
+  };
+  /** Every id already sharing a `root()` with the seed, plus the seed itself. */
+  const componentOf = (seedIds: readonly string[]): Set<string> => {
+    const rootSet = new Set(seedIds.map(root));
+    const members = new Set<string>();
+    for (const id of knownIds()) {
+      if (rootSet.has(root(id))) members.add(id);
+    }
+    for (const r of rootSet) members.add(r);
+    return members;
+  };
+  const groups = new Map<string, TransferIdentityAccount[]>();
+  for (const a of accounts) {
+    const mask = usableMask(a.mask);
+    if (!mask) continue;
+    const k = `${a.type}|${mask}`;
+    const list = groups.get(k);
+    if (list) list.push(a);
+    else groups.set(k, [a]);
+  }
+  // Sorted keys: Map insertion followed `accounts` order, which used to be
+  // unordered prisma `findMany`. Bridged groups must fold in one order.
+  const groupKeys = [...groups.keys()].sort();
+  for (const k of groupKeys) {
+    const group = groups.get(k)!;
+    if (group.length < 2) continue;
+    group.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    // Cycle-4: veto the component `root()` would produce, not the mask group.
+    // A confirmed SimpleFIN terminal (null mask) sits outside the group and
+    // used to smuggle same-item / dismissed pairs through.
+    if (anyPairBlocked(componentOf(group.map((a) => a.id)), byId, dismissedKeys)) continue;
+    for (let i = 0; i < group.length; i++) {
+      const a = group[i]!;
+      for (let j = i + 1; j < group.length; j++) {
+        const b = group[j]!;
+        const ra = root(a.id);
+        const rb = root(b.id);
+        if (ra === rb) continue;
+        const canon = ra < rb ? ra : rb;
+        parent.set(ra, canon);
+        parent.set(rb, canon);
+      }
+    }
+  }
+  const ids = new Set<string>(parent.keys());
+  for (const a of accounts) {
+    if (usableMask(a.mask)) ids.add(a.id);
+  }
+  const out = new Map<string, string>();
+  for (const id of ids) {
+    const r = root(id);
+    if (r !== id) out.set(id, r);
+  }
+  return out;
 }
 
 /**

@@ -8,6 +8,18 @@
 > Only sessions from 2026-09-10 (CI repair) onward live here; append new sessions
 > at the top as before.
 
+## 2026-09-17 — O.20j identity: component veto + detector prereqs (owner unblocked)
+
+**Picked up.** Owner: "continue and fix everything.....what do you need from me." Nothing needed. New critic budget. Named cycle-4 close: veto over the component `root()` would produce. New-budget cycle 1 critic FAIL 0 P0 + 3 P1: last-4-only wider than the advisory detector; unordered `findMany` picked which bridged group folded; cycle-3 `$237.08` claim stale.
+
+**Closed in the tree (not yet on `main`).** `unionSameMaskColumnIdentity` skips a mask-group union when any pair in the current `root()` component is dismissed, same-connection, mixed-type, different present `institutionId`s, different currency (null=USD), or `registrationsConflict`. Missing `byId` records fail closed. Group keys sorted by `type|mask`. Cycle-3 `$237.08` claim downgraded; mixed-type over-veto named residual. Intended 0977 fold still holds when both Plaid copies share an institution and the SimpleFIN terminal has none. H.7b not auto-run.
+
+**Gate.** `bash scripts/verify.sh` VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8477 passed + 1 expected fail + 1 skipped / 631 files**, next build clean. FAIL-OLD (`git checkout HEAD -- transfers.ts`): **12 failed | 22 passed**. Playwright `transfer-flag-repair.spec.ts` mobile-380 **1/1**. Identity+filing files: **72 passed**.
+
+**Critic (fresh context, isolated worktree `C:\dev\_critic_o20j2`, now removed).** Cycle 2 of the new budget: **PASS 0 P0 / 0 P1** (5 P2s named in STATUS). Independently reproduced verify 8477, FAIL-OLD 12|22, 44 own probes + 4,000-corpus fuzz. Cycle-4 back door closed first-hand.
+
+**Shipped.** DECISIONS #744. Next: merge PR #24 to `main`, `ci-status`, live Vercel READY. H.7b not auto-run.
+
 ## 2026-09-16 — O.20j converse-leak identity: critic budget exhausted (DECISIONS #743)
 
 **Picked up.** Owner: "continue." Strongest open money-visible row: O.20j converse leak. Measured first (read-only Neon): 94 converse rows; 8 remaining WRONG flags ($237.08) are CREDIT CARD last-4 `0977` copies (two Plaid items) pairing a spend row with a filed `TRAVEL CREDIT`. Reader-side "count as spend" killed (~$180k of real transfers). H.7b never run. L.19 already occupies #742.

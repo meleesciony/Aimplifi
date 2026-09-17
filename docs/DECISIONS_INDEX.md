@@ -736,3 +736,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #741 — One definition of an unidentified inflow: it is income (O.20c) (2026-09-14) → docs/DECISIONS.md
 - #742 — The debt-payoff path names a balance the bank stopped sharing (L.19 surface 5) (2026-09-16) → docs/DECISIONS.md
 - #743 — O.20j converse-leak identity: do not ship; critic budget exhausted (2026-09-16) → docs/DECISIONS.md
+- #744 — O.20j converse-leak identity: mask COLUMN + detector prereqs (2026-09-17) → docs/DECISIONS.md
