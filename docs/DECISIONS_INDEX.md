@@ -729,11 +729,12 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #734 — M.4 slice 3: section-label token, lead-column cap, body-wash scrolls (2026-09-11) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
 - #735 — TASKS.md ledger cut: eight closed waves rotated verbatim (2026-09-11) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
 - #736 — M.4 slice 4: the residual near-twin labels onto the token (2026-09-11) → docs/archive/DECISIONS_ARCHIVE_724_to_736.md
-- #737 — Goal progress + pace: how far along, and does the pledge make the date (2026-09-11) → docs/DECISIONS.md
-- #738 — Ask answers on-track for a stored savings goal (2026-09-11) → docs/DECISIONS.md
-- #739 — The goals wave closes: behind-pace nudge, seeded demo goals, the 1200-month horizon (2026-09-11) → docs/DECISIONS.md
+- #737 — Goal progress + pace: how far along, and does the pledge make the date (2026-09-11) → docs/archive/DECISIONS_ARCHIVE_737_to_739.md
+- #738 — Ask answers on-track for a stored savings goal (2026-09-11) → docs/archive/DECISIONS_ARCHIVE_737_to_739.md
+- #739 — The goals wave closes: behind-pace nudge, seeded demo goals, the 1200-month horizon (2026-09-11) → docs/archive/DECISIONS_ARCHIVE_737_to_739.md
 - #740 — One discretionary definition: the creep bar classifies with the register (O.20h) (2026-09-12) → docs/DECISIONS.md
 - #741 — One definition of an unidentified inflow: it is income (O.20c) (2026-09-14) → docs/DECISIONS.md
 - #742 — The debt-payoff path names a balance the bank stopped sharing (L.19 surface 5) (2026-09-16) → docs/DECISIONS.md
 - #743 — O.20j converse-leak identity: do not ship; critic budget exhausted (2026-09-16) → docs/DECISIONS.md
 - #744 — O.20j converse-leak identity: mask COLUMN + detector prereqs (2026-09-17) → docs/DECISIONS.md
+- #745 — The next-dollar ranking names the frozen debt it points at (L.19 residual 5) (2026-09-17) → docs/DECISIONS.md

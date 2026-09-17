@@ -1806,8 +1806,11 @@ export const COACH_COPY = {
    */
   nextDollarFrozenNote: (plan: NextDollarPlan): string | null => {
     const named = nextDollarNamedDebt(plan);
+    // Truthy, not `!= null`: an empty-string stamp is not a date, and `formatISODate` would
+    // paint "Tue, undefined 0, 0" (critic P2-1). No writer produces one; the guard is for
+    // the reader, not the writer.
     return frozenNextDollarNote(
-      named && named.frozenSince != null
+      named && named.frozenSince
         ? {
             label: named.name,
             frozenSince: named.frozenSince,

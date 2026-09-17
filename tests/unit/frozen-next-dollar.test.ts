@@ -195,6 +195,10 @@ describe('COACH_COPY.nextDollarFrozenNote — about the debt on screen, never on
     expect(COACH_COPY.nextDollarFrozenNote(p)).toBeNull();
   });
 
+  it('an empty-string stamp is not a date → null, never "Tue, undefined 0, 0" (critic P2-1)', () => {
+    expect(COACH_COPY.nextDollarFrozenNote(plan({ debts: [debt({ ...PERSONAL_LOAN, frozenSince: '' })] }))).toBeNull();
+  });
+
   it('nothing frozen → null', () => {
     expect(COACH_COPY.nextDollarFrozenNote(plan({ debts: [STORE_CARD, AUTO_LOAN], runwayMonths: 1.5 }))).toBeNull();
     expect(COACH_COPY.nextDollarFrozenNote(plan({ debts: [PERSONAL_LOAN] }))).toBeNull();
@@ -235,12 +239,14 @@ describe('nextDollar — DISCLOSE, ADJUST NOTHING', () => {
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 describe('Ask — "where should my next dollar go?"', () => {
-  it('the note leads the detail, in the same position the /coach card gives it; facts untouched', () => {
+  it('the note follows the why, in the same position the /coach card gives it; facts untouched', () => {
     const frozen = plan({ debts: [FROZEN_PERSONAL_LOAN, AUTO_LOAN] });
     const live = plan({ debts: [PERSONAL_LOAN, AUTO_LOAN] });
     const a = answerNextDollar(frozen);
     const golden = answerNextDollar(live);
-    expect(a.detail).toBe(`${LOAN_SENTENCE} ${golden.detail}`);
+    const why = COACH_COPY.nextDollarWhy(live);
+    expect(golden.detail?.startsWith(`${why} `)).toBe(true);
+    expect(a.detail).toBe(`${why} ${LOAN_SENTENCE} ${golden.detail!.slice(why.length + 1)}`);
     expect(a.headline).toBe(golden.headline);
     expect(a.facts).toEqual(golden.facts);
     expect(a.facts).toEqual([{ label: 'Personal Loan', value: '12.00% APR' }]);

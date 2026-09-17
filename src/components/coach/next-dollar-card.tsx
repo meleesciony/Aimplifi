@@ -26,13 +26,15 @@ export function NextDollarCard({ plan }: { plan: NextDollarPlan }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 text-sm text-muted-foreground">
-        {/* Directly under the instruction it qualifies, before the reasoning that leans on it. */}
+        <p data-testid="next-dollar-why">{COACH_COPY.nextDollarWhy(plan)}</p>
+        {/* Directly after the reasoning, on every branch: the headline names the debt on the two
+            debt destinations, but on the investing branch only the why introduces the loan it
+            lost to — a caveat before that first mention read as a non sequitur (critic P2-2). */}
         {frozenNote ? (
           <p className="text-xs" data-testid={FROZEN_NEXT_DOLLAR_TESTID}>
             {frozenNote}
           </p>
         ) : null}
-        <p data-testid="next-dollar-why">{COACH_COPY.nextDollarWhy(plan)}</p>
         <p data-testid="next-dollar-skipped">{COACH_COPY.nextDollarSkipped(plan)}</p>
         <p data-testid="next-dollar-cards">{COACH_COPY.nextDollarCardsNote()}</p>
         <p data-testid="next-dollar-assumptions">{COACH_COPY.nextDollarAssumptions(plan)}</p>

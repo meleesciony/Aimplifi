@@ -6,14 +6,31 @@ the state-writer edge updates. It is also the only home for live counts (test to
 rates) — no other doc may restate them.
 
 > Sections through 2026-08-19 live in `docs/archive/STATUS_ARCHIVE_2026-07_to_2026-08-19.md`
-> (rotated 2026-09-11); only current-wave BUILT entries and OPEN/FOUND/DECIDED items
-> remain here.
+> (rotated 2026-09-11) and the BUILT entries 2026-09-03 through 2026-09-11 in
+> `docs/archive/STATUS_ARCHIVE_2026-09-03_to_2026-09-11.md` (rotated 2026-09-17); only
+> current-wave BUILT entries and OPEN/FOUND/DECIDED items remain here.
 >
 > Entries from 2026-06/2026-07 (BUILT/CLOSED history) were moved verbatim to
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04, and the 2026-08
 > BUILT/CLOSED history to `docs/archive/STATUS_ARCHIVE_2026-08.md` on 2026-08-27, to
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
+
+## ✅ BUILT 2026-09-17 — The next-dollar ranking names the frozen debt it points at (L.19 residual 5, DECISIONS #745)
+
+**The gap.** #742's critic named it: `src/server/coach.ts` built the next-dollar ranking's loans from `snap.accounts` without `feedDroppedAt`, and its past-due cards from `CardObligation`s that carried `frozenSince` and dropped it — so /coach's "Your next dollar" card and Ask's `next_dollar` answer said "Next extra dollar: <loan> (12.00% APR)", an instruction naming one debt to send money to, over a balance the bank had stopped confirming, with nothing said.
+
+**Shipped.** `NextDollarDebt.frozenSince` (REQUIRED, both `classifyDebts` inputs) rides out of `coach.ts` for loans AND past-due cards; the ranking never reads it (byte-identity locked). New `frozenNextDollarNote` (its own builder — the ranking amortises nothing; the stale thing is the PREMISE that admits the debt): card → "the past-due amount that ranks it here is from the last statement it sent — a payment you have already made may not be counted, so the card may not be past due at all"; loan → no direction, no rate claim — "nothing about it has been confirmed since, including whether it is still open". Resolved against the debt the copy PRINTS (`nextDollarNamedDebt`, beside the sentences it mirrors), rendered directly after the why on the card (`next-dollar-frozen`) and in the Ask detail. Demo and every unfrozen plan byte-identical. No schema change.
+
+**Critic (fresh context, isolated worktree): cycle 1 PASS 0 P0 / 0 P1 / 3 P2 — all fixed same-session** (empty-string stamp painted "Tue, undefined 0, 0"; investing-branch note preceded the loan's first mention; `nextStep: 'partner'` accepted beside a reader opener). The critic independently reproduced 927/927 on the touched files, tsc 0, eslint 0, FAIL-OLD 2|23, an 810-case selector↔copy grid, and probed superseded predecessors (zeroed, never ranked), estimated obligations (never past due), MORTGAGE rows and the demo.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN, exit 0: tsc 0, probes tsc 0, eslint 0, unit **8510 passed + 1 expected fail + 1 skipped / 633 files + 1 skipped**, `next build` clean; docs-lint clean (245 files). FAIL-OLD vs `9892cd44` `coach.ts`: **2 failed | 23 passed**. Playwright mobile-380 on the fresh build: `next-dollar-frozen` **2/2** + `phase3-coach` 1/1 (+ `ask.spec.ts` 31/31 on the pre-P2-fix build).
+
+**Ledger cut.** `REGRESSION_LEDGER.md` 44.5 → 10 KB (113 rows dated 2026-09-03..09-11 → `docs/archive/REGRESSION_LEDGER_ARCHIVE_2026-09-03_to_2026-09-11.md`, selected by DATE since the live file was not date-ordered); `docs/STATUS.md` 42.5 → ~31 KB (six BUILT sections #637–#736 → `docs/archive/STATUS_ARCHIVE_2026-09-03_to_2026-09-11.md`); `docs/DECISIONS.md` 43.2 → 29.7 KB (#737–#739, the closed goals wave → `docs/archive/DECISIONS_ARCHIVE_737_to_739.md`). Index regenerated (732 entries); ledger suite 20/20.
+
+**CI + live.** Recorded below this entry after the push (rule 5).
+
+**Still open / residuals.** (1) The saved debt-free goal card (STATUS #742 residual (1)) needs a schema column — `Goal` has no `createdAt`; see the #742 residual list. (2) `frozenNextDollarNote` takes one row by design; if the copy ever prints two debts on one branch, the selector must return a list. (3) Playwright and `next build` were not run by the critic (port 3100 is contended by WSL relay on this machine — it forwarded an unrelated `~/rakazo-host` process; the Windows-side relay was killed by PID, the WSL process left alone). Wave 0 ops owner-blocked. M.4 owner-deferred.
 
 ## ✅ BUILT 2026-09-17 — O.20j converse-leak identity: mask COLUMN + detector prereqs (DECISIONS #744)
 
@@ -57,7 +74,7 @@ rates) — no other doc may restate them.
 
 **Ledger cut.** `docs/DECISIONS.md` was 44.6 KB; #724–#736 rotated verbatim to `docs/archive/DECISIONS_ARCHIVE_724_to_736.md` (now 36 KB; index regenerated, 729 entries).
 
-**Still open / residuals.** (1) **Saved debt-free goal is silent after save** (critic P2-6): `saveDebtFreeGoal` persists `totalBalanceCents` from `loadDebtAccounts` as the target and the /goals goal card prints it with no frozen note — the same shape as #305's PDF finding, one hop later; the planner note above the save control is the only warning. Fix needs the goal card to know the target's basis (a `frozenAtSave` or a re-resolve against current `feedDroppedAt`). (2) `stoppedSharing` says "Your banks" for two frozen rows at one institution — inherited from the L.18 builders. (3) The `perDebt` resolution in the planner and `answerDebtPayoff` is the identity today (the engine echoes every row) — kept as the L.15 resolution point. (4) `text-xs` muted contrast unmeasured (UNVERIFIED, pre-existing token). (5) **A second debt read path still strips the fact** (the late cycle-1 critic's P2-4): `src/server/coach.ts` builds the next-dollar `loans` from `snap.accounts` without `feedDroppedAt`, and `next-dollar.ts` has no frozen handling — the coach names a specific loan to put the next dollar toward over a balance the bank may have stopped confirming. Outside #305's enumerated debt-payoff path, so not this slice's defect; same disease, next cut. Wave 0 ops owner-blocked. M.4 owner-deferred. Wave 2/3/4 rows per TASKS.md.
+**Still open / residuals.** (1) **Saved debt-free goal is silent after save** (critic P2-6): `saveDebtFreeGoal` persists `totalBalanceCents` from `loadDebtAccounts` as the target and the /goals goal card prints it with no frozen note — the same shape as #305's PDF finding, one hop later; the planner note above the save control is the only warning. Fix needs the goal card to know the target's basis (a `frozenAtSave` or a re-resolve against current `feedDroppedAt`). (2) `stoppedSharing` says "Your banks" for two frozen rows at one institution — inherited from the L.18 builders. (3) The `perDebt` resolution in the planner and `answerDebtPayoff` is the identity today (the engine echoes every row) — kept as the L.15 resolution point. (4) `text-xs` muted contrast unmeasured (UNVERIFIED, pre-existing token). (5) ~~A second debt read path still strips the fact~~ — **CLOSED 2026-09-17 (DECISIONS #745, BUILT entry above)**: `coach.ts` now carries `feedDroppedAt` onto both the loans and the past-due cards of the next-dollar ranking, and the card + Ask answer name the frozen debt they point at. **Fact learned about (1), recorded so it is not re-derived:** `Goal` has no `createdAt` column, so "this target was computed from a frozen balance" cannot be judged at render time — a re-resolve against today's `feedDroppedAt` would over-claim for a debt that froze AFTER the save. The honest close needs an additive column (`Goal.frozenAtSave` or `createdAt`), i.e. a `prisma db push` on deploy; existing rows would carry no fact and must render no note. Wave 0 ops owner-blocked. M.4 owner-deferred. Wave 2/3/4 rows per TASKS.md.
 
 ## ✅ BUILT 2026-09-14 — One definition of an unidentified inflow: it is income (O.20c, DECISIONS #741)
 
@@ -128,97 +145,6 @@ rates) — no other doc may restate them.
 **Ship.** `e739981a` on `origin/main`; CI verify run 34634294883 **success**; Vercel `dpl_HBj2JyqeXKCCpQpupfKs6YbdHzsC` READY on `www.aimplifi.app`; live /goals lead + a throwaway demo goal's card and Home row read in a demo session, then deleted (demo row restored). Ops note: `scripts/ci-status.sh` exits 4 under WSL bash (`gh: command not found`) - run `gh` from PowerShell until the script resolves the Windows `gh`.
 
 **Still open.** Ask against stored goals ("am I on track for my Japan trip?"); a behind-pace nudge; seeded demo goals. Wave 0 ops owner-blocked. M.4 visual direction owner-deferred.
-
-## ✅ BUILT 2026-09-11 — TASKS.md ledger cut + M.4 slice 4: residual section labels onto the token (DECISIONS #735, #736)
-
-**Ledger cut (#735).** The rotation commit's named next cut: eight fully-closed wave sections (O, O.16, O.12, O.18, O.19 totals, C, G, O.19 accounts — zero status-badged rows, each range re-verified row-by-row; Wave O's owner requests confirmed shipped via the done-row archive + #725) moved verbatim to `docs/archive/TASKS_DONE_ARCHIVE.md` under a dated marker. TASKS.md 143 KB → 126.5 KB; the rest is open rows' live status cells. docs-lint clean; ledger suite 20/20.
-
-**Slice 4 (#736).** The ~13 residual near-twin section-label literals from slice 3's critic now render PAGE_SECTION_LABEL_CLASS across 8 files (budgets/triage/rules/settings category h3 pairs with mb-2 kept; household-card, learned-phrases, household-sharing-card h3s; the spending-plan hero <p> pair with `justify-center`). Charter exclusions named: badge pills, nav/list-group headers, onboarding brand caption.
-
-**Critic (fresh context): cycle 1 FAIL 1 P1 — fixed same-session.** P1-1: the token is a flex row; the spending-plan hero labels lost the parent's text-center effect (flex items pack to start) and left-aligned beside the centered amount on all three hero branches — fixed with the recurring-view `justify-center` precedent. P2-1: the new e2e was tautological on spending-plan (weight was already 500) — replaced with a real alignment lock (justifyContent center + label/amount centers within 1px), which demonstrably fails-old (caught the stale pre-fix build).
-
-**Gate.** bash scripts/verify.sh (run 2, after the P1 fix) → ✅ VERIFY GREEN, exit 0: tsc 0, probes tsc 0, eslint 0, unit **8,315 passed + 1 expected fail + 1 skipped / 623 files**, next build clean. Playwright m4-page-chrome **4/4** against the fresh build (19 routes × 380+1440 no overflow; budgets label weight 500; hero centered).
-
-**Ship.** `692fe505` on `main`, docs state `290e7f78`. GitHub Actions `verify` run **34626408618 = SUCCESS** on the head sha (the slice run was cancelled by the docs push; re-read on the newest sha). Vercel Production **6398151276 = success** (`https://aimplifi-162ibogn8-reiforge.vercel.app`, aliased to `www.aimplifi.app`); live `/sign-in` 200 and its stylesheet carries the token's utilities + `background-attachment:local`.
-
-## ✅ BUILT 2026-09-11 - M.4 slice 3: near-twin section labels + lead-column cap + body-wash scroll fix (DECISIONS #734)
-
-**The report.** The tree held slice 3 interrupted before its gates. Closed the three #724 residual P2s: 7 near-twin section-label literals render PAGE_SECTION_LABEL_CLASS (spend-class-panel's h3 keeps mb-2); PAGE_LEAD_CLASS capped at max-w-md with PAGE_LEAD_WIDE_CLASS re-opening the wide routes (accounts, goals, rules, triage, ask); body gradient background-attachment: local.
-
-**Gate.** bash scripts/verify.sh → ✅ VERIFY GREEN: tsc 0, eslint 0, unit **8,297 passed + 1 expected fail + 1 skipped / 616 files**, next build clean. Playwright mobile-380: m4-page-chrome **3/3** (19 routes × 380+1440, no horizontal overflow) + phase1-cash-needed **2/2**.
-
-**Critic (fresh context): cycle 1 FAIL 1 P1 - fixed same-session.** The P1 was staging: the untracked lock test sat beside the throwaway capture spec + shots/ + scratch logs, so a commit habit could ship the slice without its lock (or ship the throwaway). Scratch deleted; lock staged explicitly. Residual P2s: ~13 near-twin literals outside the 7-file charter (triage/rules h3s, budgets/settings/spending-plan/household cards) - slice 4 candidates; the near-twin lock regex is order-heuristic; gap-1.5→gap-2 micro-deltas on /investments + /recurring accepted and named.
-
-**Rotation.** Four ledgers cut under the 40KB ceiling, verbatim: DECISIONS #485-#723 → DECISIONS_ARCHIVE_485_to_723.md (live = #724+); PROGRESS 2026-08-20..2026-08-31 → PROGRESS_ARCHIVE_2026-08-20_to_2026-08-31.md; STATUS BUILT/records through 2026-08-19 → STATUS_ARCHIVE_2026-07_to_2026-08-19.md (OPEN/FOUND/DECIDED + 2026-09 BUILT stay live); REGRESSION rows 2026-08-20..2026-09-02 → REGRESSION_LEDGER_ARCHIVE_2026-08-20_to_2026-09-02.md. Index regenerated (712 entries); ledger-decisions-index unit test green; docs-lint clean. TASKS.md (139.9KB, no line-level [x] rows) is the named next cut.
-
-**Ship.** Landed `6cf6f3d0` on `main` (rebased over the parallel session's #726-#733 feature commits; my decision renumbered #726 -> #734). GitHub Actions `verify` run **34615048819 = SUCCESS** (full VERIFY_E2E=1 suite on the merged tree). Live `https://www.aimplifi.app/sign-in` 200 and its served stylesheet carries `background-attachment:local` - the slice marker unique to this change.
-## ✅ BUILT 2026-09-10 — CI repair: four red e2e specs + Needs-a-category aria-pressed (DECISIONS #725)
-
-**The report.** Slice 2 left CI `verify` run `34511385651` red on four pre-existing e2e + one flaky a11y scan. Those were the next leftover.
-
-**Shipped.** Specs follow the shipped UI. Budget Clear is inside the row editor — open `budget-row-target-*`, then after clear assert the first-run hint and the gone row (a collapsed `budget-clear-*` count-0 does not prove the target left). Failed-sync alert locks `couldn't sync` / `Reconnect it so your numbers stay current` plus in-place SimpleFIN reconnect. Wealth-target dials link is `#coach-money-dials` and that target is on /coach. Needs-a-category chip stays a pre-hydration `<a>`; `aria-current` when on; no `aria-pressed` (axe `aria-allowed-attr`).
-
-**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8,288 passed + 1 expected fail + 1 skipped / 614 files + 1 skipped (615)**, `next build` clean. Playwright mobile-380 **17/17** on the repaired specs + phase5-a11y, then **2/2** after the clear-outcome strengthen.
-
-**Critic (fresh context): PASS — 0 P0, 0 P1.** Residual P2s: `aria-current` is not toggle semantics; dials jump is existence-locked not click-tested.
-
-**Ship.** `ad9c0f77` on `main`. GitHub Actions `verify` run `34516971264` = SUCCESS. Vercel Production `dpl_6eQqSWvabbbv1SdV9y9bQRU2bCqn` READY (`https://aimplifi-bupvp09n8-reiforge.vercel.app`, aliased to `www.aimplifi.app`). Live `/sign-in` 200. The repaired chip and reconnect alert are signed-in-only — public HTML marker UNVERIFIED.
-
-**Still open.** M.4 slice 3 (section labels + dashboard/accounts). Ledger rotation (ceiling). Wave 0 ops owner-blocked.
-
-## ✅ BUILT 2026-09-10 — M.4 slice 2: page-chrome tokens, chrome restyle, brand-tinted dark theme (DECISIONS #724)
-
-**Shipped.** Four shared page-chrome tokens (title / lead / stack / section label) in `src/components/finance/page-chrome.ts`, unit-locked; every visible page h1 + lead migrated (16 routes + the new-user welcome card); two byte-identical trends-view section labels onto the token. Shell chrome: sticky translucent header, pill desktop nav, mobile bottom-bar active indicator (shape, not color), demo banner as a pill, sign-in card elevation, rounded-lg auth inputs, surface cards with a 1-ring hairline. `.dark` retinted with brand-green chroma (oklch hue 165) — the app renders hard-coded dark (root layout), so the retint is the identity, not a mode; light `:root` untouched. className/CSS only: no copy, figure, adjacency, testid, or logic change.
-
-**Boundary repairs (own REGRESSION_LEDGER rows).** A 2026-09-08 `core.autocrlf=true` re-smudge had put CRLF on 586 worktree files while the index stayed LF: byte-identical repair + `.gitattributes` `* text=auto eol=lf`. `vercel-build.test.ts` never passed on Windows — `bash` here is WSL (PATH/env do not cross as the test assumed; DATABASE_URL needs WSLENV): made platform-aware, Linux path unchanged. Lesson: `docs/lessons/wsl-is-the-bash-env-and-boundary.md`.
-
-**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (run 5, exit 0, 365s): tsc 0, probes tsc 0, eslint 0, unit **8,288 passed + 1 expected fail + 1 skipped / 614 files + 1 skipped (615)**, `next build` clean.
-
-**Walkthrough.** `tests/e2e/m4-page-chrome.spec.ts` 3/3: 19 (app) routes × 380px+1440px with no horizontal overflow; desktop h1 renders 30px; desktop nav links pill-shaped; demo banner renders as a pill; hero font weight ≥600. Retinted screenshots reviewed: dashboard 380px, accounts 1440px, sign-in — all render coherently.
-
-**Critic (fresh context): cycle 1 FAIL 3 P1 — all fixed same-session.** Junk WSL cmds.log files staged (removed from disk+index); deleted temp spec still staged (replaced by the promoted `m4-page-chrome.spec.ts`); new lessons INDEX line over the 220-char ceiling. Contrast re-check passed (all text pairs AA-preserved). Open P2s for M.4 continuation: 7 near-twin section-label literals (allocation-drilldown, forecast-view, recurring-view, retirement-outlook-card, spend-class-panel, top-spending-card, ask-view); PAGE_LEAD_CLASS `max-w-2xl` dead on `max-w-md` routes (transactions/import, transactions/new, error); `background-attachment: fixed` body gradient (scroll repaints, ignored by iOS Safari).
-
-**Ship.** `795b0dc1` on `main` (pushed 2026-09-10). Live `https://www.aimplifi.app/sign-in` serves the slice marker (`shadow-lg ring-1 ring-foreground/5`, sign-in card elevation) — deployment READY. **CI `verify` run `34511385651` FAILURE — all failures proven pre-existing** at ship time; repaired in #725.
-
-## ✅ BUILT 2026-09-03 — Home recent charges line up; compact direction says Money out (DECISIONS #638)
-
-**The report.** Owner: Home Recent transactions were not lined up, and compact “Out” did not say what it meant. Beauty later, after the feature set.
-
-**Shipped.** 3-column grid (payee / dollars / Open). Meta wraps on a second line. Compact direction uses Money in / Money out, same as detail. Writes stay siblings of the C.15 Open Link. Amounts stay `shrink-0`. Wave M.4 restated, not started.
-
-**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN. Unit **8,183 passed + 1 expected fail + 1 skipped / 537 files + 1 skipped**. E2E mobile-380: `transaction-return-c15` 3/3, `phase1-cash-needed` 2/2.
-
-**Critic (fresh context): cycle 1 PASS — 0 P0, 0 P1.** Residual P2s: silent toggle, aria-label vs visible name, demo empty third track, source-string lock only.
-
-**Ship.** `dc74a020` on `main`. CI `33808709791` SUCCESS. Vercel Production `6253396769` SUCCESS (`https://aimplifi-j5b85v6i7-reiforge.vercel.app`). Live `https://www.aimplifi.app/dashboard` → 307 `/sign-in` (auth). The Money out control is signed-in-only, so the public HTML has no `home-recent-direction` marker — that probe is UNVERIFIED without a signed-in session.
-
-## ✅ BUILT 2026-09-03 — Add a card from the Cards page (DECISIONS #637)
-
-**The report.** Standing leftover after #634: Cards empty still sent
-“Add a card manually” to Accounts, and a populated Cards page had no
-add affordance.
-
-**Shipped.** `CardAddControl` on both Cards empty (`cards-empty-manual`)
-and the populated page (`cards-add-open`). Same writer as Accounts
-(`addManualAccount`); type locked to CREDIT. Demo not mounted.
-Balance still refuses $0. Writer also revalidates `/cards`.
-
-**Does not** add loans or other liabilities from Cards. Does not
-collect APR / due day on create (statement add remains #634). Linked
-cards still come from Connect.
-
-**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN (tsc 0, probes
-tsc 0, eslint 0, `next build` clean). Unit **8,182 passed + 1 expected
-fail + 1 skipped / 536 files + 1 skipped**. E2E cards-add **1/1**,
-connect-affordances **1/1**, cards-statement **1/1** on mobile-380.
-
-**Critic (fresh context): cycle 1 FAIL 2 P1; cycle 2 PASS — 0 P0, 0 P1.**
-P1-1: amount unlabeled. P1-2: unknown-due named Accounts / a bank
-statement. Residual P2s: empty-state still mentions the plan; household
-add does not say “your” card; `$500`/`1,234` still rejected.
-
-**Ship.** `16590072` on `main`. CI `33803882007` SUCCESS. Vercel
-Production `6252565100` SUCCESS. Public `/cards` is auth-gated.
 
 ## K.2 CORRECTION — Plaid is at the 90-day DEFAULT, not the 730-day ceiling (2026-08-07)
 

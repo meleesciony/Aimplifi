@@ -2621,11 +2621,12 @@ export function answerNextDollar(plan: NextDollarPlan): AssistantAnswer {
     kind: 'next_dollar',
     headline: COACH_COPY.nextDollarHeadline(plan),
     detail: [
-      // TASKS L.19 residual (5): the same qualifier the /coach card prints under its headline,
-      // in the same position — before the reasoning that leans on the named debt. Null (and
-      // filtered out) when nothing named is frozen, so the answer is byte-identical.
-      COACH_COPY.nextDollarFrozenNote(plan),
       COACH_COPY.nextDollarWhy(plan),
+      // TASKS L.19 residual (5): the same qualifier the /coach card prints, in the same position
+      // — directly after the reasoning, which is the first sentence to name the debt on the
+      // investing branch (critic P2-2). Null (and filtered out) when nothing named is frozen, so
+      // the answer is byte-identical.
+      COACH_COPY.nextDollarFrozenNote(plan),
       COACH_COPY.nextDollarSkipped(plan),
       COACH_COPY.nextDollarCardsNote(),
       COACH_COPY.nextDollarAssumptions(plan),

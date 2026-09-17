@@ -41,14 +41,27 @@ describe('NextDollarCard — the frozen note under the instruction', () => {
     expect(note.textContent).toBe(
       'Your bank stopped sharing Personal Loan on Thu, May 28, 2026, so what we know about this loan is the last thing it sent — nothing about it has been confirmed since, including whether it is still open. Accounts shows the connection and how to fix or remove it.',
     );
-    // Under the headline it qualifies, and BEFORE the reasoning that leans on the named debt.
+    // Directly AFTER the reasoning, and before the skipped-rungs line: on the investing branch
+    // the why is the first sentence to name the loan, so the caveat may not precede it (critic
+    // P2-2) — one position on every branch.
     const headline = screen.getByTestId('next-dollar-headline');
     const why = screen.getByTestId('next-dollar-why');
+    const skipped = screen.getByTestId('next-dollar-skipped');
     expect(headline.textContent).toBe('Next extra dollar: Personal Loan (12.00% APR)');
-    expect(headline.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(note.compareDocumentPosition(why) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(why.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note.compareDocumentPosition(skipped) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // DISCLOSE, never wall off: the instruction and its reasoning still render.
     expect(why.textContent).toContain('Personal Loan is 12.00%');
+  });
+
+  it('investing branch: the losing loan is introduced by the why BEFORE the note names it (critic P2-2)', () => {
+    render(<NextDollarCard plan={plan([{ ...LOAN, name: 'Auto Loan', aprBps: 649 }])} />);
+    expect(screen.getByTestId('next-dollar-headline').textContent).toBe('Next extra dollar: investing');
+    const why = screen.getByTestId('next-dollar-why');
+    const note = screen.getByTestId(FROZEN_NEXT_DOLLAR_TESTID);
+    expect(why.textContent).toContain('The Auto Loan is 6.49%');
+    expect(note.textContent).toContain('Your bank stopped sharing Auto Loan');
+    expect(why.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('nothing frozen → no note element at all, not an empty one', () => {

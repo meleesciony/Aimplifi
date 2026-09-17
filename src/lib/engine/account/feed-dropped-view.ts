@@ -1467,7 +1467,8 @@ export const FROZEN_NEXT_DOLLAR_TESTID = 'next-dollar-frozen';
  */
 export function frozenNextDollarNote(
   row: FrozenDebtRow | null,
-  opts: { nextStep: FrozenNextStep },
+  /** `'partner'` is excluded by type: the opener is the reader's own bank (critic P2-3). */
+  opts: { nextStep: Exclude<FrozenNextStep, 'partner'> },
 ): string | null {
   if (row === null) return null;
   const name = renderSafe(row.label);
