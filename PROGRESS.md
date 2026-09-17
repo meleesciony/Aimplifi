@@ -22,7 +22,9 @@
 
 **Ledgers.** DECISIONS #745; REGRESSION_LEDGER two rows; STATUS BUILT + #742 residual (5) closed with the `createdAt` fact on (1); TASKS L.19 row note. Ceiling cuts: REGRESSION_LEDGER 44.5 → 10 KB, STATUS 42.5 → ~31 KB, DECISIONS 43.2 → 29.7 KB (#737–#739; verbatim archives, HISTORICAL banners, docs-lint clean, index 732 entries, ledger suite 20/20).
 
-**Ship.** Recorded below after the push.
+**Ship.** `2930799d` + `cc8a8ae6` on `origin/main` (no `prisma/` diff). CI verify **35255710898 = SUCCESS** on `cc8a8ae6` (full VERIFY_E2E=1, 15m09s). Vercel Production `dpl_2BMtVkUCRZD5ZyZPU8KkbRvgb9Dy` READY, aliased to `www.aimplifi.app`. Live demo probe: /coach card order headline → why → skipped → cards → assumptions, `next-dollar-frozen` count 0; Ask next-dollar answer = golden, no "stopped sharing" (the abstention — demo has no frozen rows; the speaking branch is e2e-proven, live render UNVERIFIED by construction).
+
+**Next.** Strongest open money-visible rows: #742 residual (1) (needs `Goal.createdAt`/`frozenAtSave` — a schema change; check the prisma diff rule before pushing); O.20j residual (2) null-`institutionId` Plaid items fold on last-4 alone; H.7 / L.30 critic passes owed. Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic.
 
 ## 2026-09-17 — O.20j identity: component veto + detector prereqs (owner unblocked)
 
