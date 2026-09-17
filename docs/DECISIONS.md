@@ -11,6 +11,16 @@ considered. Append-only.
 > Only entries #737 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #744 — O.20j converse-leak identity: mask COLUMN + detector prereqs (2026-09-17)
+
+**Context.** #743 stopped the slice at critic cycle 4 of 4: the veto walked the mask group while the union unifies `root()`, so a confirmed H.7 terminal could fold two accounts on one Plaid item. Owner unblocked a new critic budget. New-budget cycle 1 FAIL 0 P0 + 3 P1: last-4-only was wider than the advisory detector (Chase vs Ally $2,000 vanished); unordered `findMany` picked which bridged group folded; the cycle-3 `$237.08` claim was stale vs mixed-type over-veto.
+
+**Decision.** Land the identity union. Same-type + mask COLUMN ≥4 across different ingest connections folds into the H.7 map. A group is skipped when any pair in the current `root()` component is dismissed, same-connection, mixed-type, both-`institutionId`s-present-and-different, different currency (null = USD), or `registrationsConflict`. Missing account records fail closed. Group keys are sorted by `type|mask`. `isTransfer` stays add-only on sync. H.7b is not auto-run; the 8 existing `$237.08` flags stay until /settings repair. Do not change `countsInFlows` / `isSpendRow`. Do not treat the cycle-3 8-flag number as this function's live result.
+
+**Locked.** `tests/unit/transfer-pair-identity.test.ts` (year-in-name, balance-only, dismissal / `'unavailable'` / same-item component, confirmed-bridge, institution / currency / Roth, 0977 still folds, order-independence, Chase→Ally $2,000 still flags). FAIL-OLD vs `71d22d54`: **12 failed | 22 passed**.
+
+**Gate.** Local verify GREEN: 8477 passed + 1 expected fail + 1 skipped / 631 files. Hostile critic cycle 2 of the new budget (fresh context, isolated worktree): **PASS 0 P0 / 0 P1**. Playwright `transfer-flag-repair.spec.ts` mobile-380 1/1 (maker; critic left that spec UNVERIFIED because it drives the repair card).
+
 ## #743 — O.20j converse-leak identity: do not ship; critic budget exhausted (2026-09-16)
 
 **Context.** Remaining converse leak after #485/#487/#491: 8 spend rows ($237.08) flagged because two Plaid items of CREDIT CARD last-4 `0977` still pair a purchase with a filed `TRAVEL CREDIT` on the other copy. Cycle 1 of using HIGH `detectDuplicateAccounts` as pairing identity FAIL (year-in-name, balance-only spouse cards). Cycles 2–3 narrowed to mask COLUMN + component vetoes for dismissal and same-connection. Cycle 4 FAIL: that veto still walks the mask *group* while the union unifies `root()`, so a confirmed H.7 predecessor is a back door that can fold two accounts on ONE Plaid item (including a dismissed pair) and refuse a genuine transfer. H.7b is not auto-run (#428). L.19 already occupies #742.

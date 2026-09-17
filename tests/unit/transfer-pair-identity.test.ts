@@ -7,11 +7,15 @@
  * card. Confirmed reconciliation already equated those copies; unconfirmed
  * copies with the same mask COLUMN did not, so `matchTransferPairs` treated
  * two copies of one movement as a transfer. Measured live
- * (scripts/audit-probes/o20j-converse-leak.mts) on the BARE-MASK arm: unioning
- * same-type + same mask COLUMN into identity refuses those 8 flags and mints
- * 0. The advisory detector is not this function's source — HIGH also fires
- * on name-embedded years and on identical-balance spouse cards (critic cycle 1).
- * Dismissed pairs ("Not a duplicate") stay two accounts.
+ * (scripts/audit-probes/o20j-converse-leak.mts) on the BARE-MASK arm only:
+ * that wider union refused those 8 flags and minted 0. That number is NOT
+ * this function's live result — the shipped rule is narrower (institution /
+ * currency / registration vetoes, stable group order, mixed-type component
+ * veto). Mixed-type over-veto can refuse the 0977 fold when a confirmed
+ * terminal has a different type (named residual). The advisory detector is
+ * not this function's source — HIGH also fires on name-embedded years and
+ * on identical-balance spouse cards (critic cycle 1). Dismissed pairs
+ * ("Not a duplicate") stay two accounts.
  */
 import { describe, expect, it } from 'vitest';
 

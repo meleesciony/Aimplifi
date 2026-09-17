@@ -16,7 +16,9 @@
 
 **Gate.** `bash scripts/verify.sh` VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8477 passed + 1 expected fail + 1 skipped / 631 files**, next build clean. FAIL-OLD (`git checkout HEAD -- transfers.ts`): **12 failed | 22 passed**. Playwright `transfer-flag-repair.spec.ts` mobile-380 **1/1**. Identity+filing files: **72 passed**.
 
-**Next.** Fresh-context critic cycle 2 of the new budget. Do not merge PR #24 until 0 P0 / 0 P1.
+**Critic (fresh context, isolated worktree `C:\dev\_critic_o20j2`, now removed).** Cycle 2 of the new budget: **PASS 0 P0 / 0 P1** (5 P2s named in STATUS). Independently reproduced verify 8477, FAIL-OLD 12|22, 44 own probes + 4,000-corpus fuzz. Cycle-4 back door closed first-hand.
+
+**Shipped.** DECISIONS #744. Next: merge PR #24 to `main`, `ci-status`, live Vercel READY. H.7b not auto-run.
 
 ## 2026-09-16 — O.20j converse-leak identity: critic budget exhausted (DECISIONS #743)
 
