@@ -18,7 +18,7 @@
 
 **Critic (fresh context, isolated worktree `C:\dev\_critic_o20j2`, now removed).** Cycle 2 of the new budget: **PASS 0 P0 / 0 P1** (5 P2s named in STATUS). Independently reproduced verify 8477, FAIL-OLD 12|22, 44 own probes + 4,000-corpus fuzz. Cycle-4 back door closed first-hand.
 
-**Shipped.** DECISIONS #744. Next: merge PR #24 to `main`, `ci-status`, live Vercel READY. H.7b not auto-run.
+**Shipped.** DECISIONS #744. PR #24 merged to `main` as `c3ff71b26`. CI verify **35188955926 = SUCCESS**. Vercel Production `dpl_CNL5qQfa7GigLhjvMPhbxWQzgFEW` READY on `www.aimplifi.app`. H.7b not auto-run.
 
 ## 2026-09-16 — O.20j converse-leak identity: critic budget exhausted (DECISIONS #743)
 
