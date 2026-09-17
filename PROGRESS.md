@@ -21,7 +21,7 @@
 
 **Env.** Playwright chromium was not installed on this VM (`npx playwright install chromium`, 113 MB); the e2e server needs `AUTH_SECRET` + `DEMO_TODAY` (the CI values) — the #742 lesson, re-applied.
 
-**Ledgers.** DECISIONS #746 (+ index, 733 entries); REGRESSION_LEDGER two rows; STATUS BUILT + #745/#742 residual (1) closed; TASKS L.19 row note. Ceiling cut: PROGRESS 43.2 → 25.7 KB (the 2026-09-10 CI repair through the 2026-09-11 goals wave, six sessions, verbatim → `docs/archive/PROGRESS_ARCHIVE_2026-09-10_to_2026-09-11.md`); docs-lint clean (247 files). TASKS.md (132 KB) remains the standing next cut.
+**Ledgers.** DECISIONS #746 (+ index, 733 entries); REGRESSION_LEDGER two rows; STATUS BUILT + #745/#742 residual (1) closed; TASKS L.19 row note. Ceiling cut: PROGRESS 43.2 → 25.7 KB (the 2026-09-10 CI repair through the 2026-09-11 goals wave, six sessions, verbatim → `docs/archive/PROGRESS_ARCHIVE_2026-09-10_to_2026-09-11.md`); docs-lint clean (247 files). STATUS 40.1 → 26.9 KB (BUILT #737–#740 verbatim → `docs/archive/STATUS_ARCHIVE_2026-09-11_to_2026-09-12.md`). TASKS.md (132 KB) remains the standing next cut.
 
 **Ship.** Recorded below after the push.
 
