@@ -15,6 +15,19 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## 🔧 IN FLIGHT 2026-09-17 — O.20j identity P1 close (owner unblocked, new critic budget)
+
+**Owner 2026-09-17:** "continue and fix everything." Nothing needed from the owner. On `o20j-mask-column-identity`:
+
+- Cycle-4 close: the veto walks the component `root()` would produce (confirmed H.7 terminals included), not the mask group. Mixed types in that component also veto.
+- New-budget cycle 1 critic (isolated worktree, FAIL 0 P0 + 3 P1): last-4-only union was wider than the advisory detector; unordered `findMany` picked which bridged group folded; the cycle-3 `$237.08` claim was stale vs mixed-type over-veto. Closed in the tree: veto when both `institutionId`s are present and differ, when currency (null=USD) differs, or when `registrationsConflict`; group keys sorted by `type|mask`; `$237.08` claim downgraded; missing `byId` fail-closed; `componentOf` simplified.
+
+**Locks.** Cycle-4: `test_regression__o20j_confirmed_bridge_does_not_defeat_a_dismissal`, `_does_not_fold_same_item_accounts`, `_two_mask_groups_bridged_by_confirmed_stay_two_accounts`, `_confirmed_bridge_does_not_equate_cross_type`, plus the two planTransferUpdates unfile locks. Cycle-1-of-new-budget: `_different_institutions_same_last4_are_two_accounts`, `_different_currency_same_last4_are_two_accounts`, `_roth_and_traditional_same_last4_are_two_accounts`, `_0977_still_folds_when_both_plaid_copies_share_an_institution`, `_missing_account_record_fails_closed`, `_identity_does_not_depend_on_account_order`, `_chase_ally_same_last4_transfer_still_flags`, `_purchase_refund_does_not_depend_on_account_order`.
+
+**Do not merge PR #24 until the cycle-2 critic returns 0 P0 / 0 P1.** H.7b is not auto-run. The 8 existing `$237.08` flags stay until /settings repair. Mixed-type over-veto (a confirmed CHECKING terminal can refuse a CREDIT 0977 fold) is a named residual; live converse numbers were not re-measured this pass.
+
+**Gate this session.** `bash scripts/verify.sh` → ✅ VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8477 passed + 1 expected fail + 1 skipped / 631 files**, `next build` clean. FAIL-OLD (`HEAD` function vs current tests): **12 failed | 22 passed**. Playwright `transfer-flag-repair.spec.ts` mobile-380 **1/1**.
+
 ## ⛔ HUMAN GATE 2026-09-16 — O.20j converse-leak identity (critic budget exhausted, DECISIONS #743)
 
 **Do not land the working-tree identity union on `main`.** Hostile critic cycle 4 of 4 = **FAIL 0 P0 + 1 P1**. The attempted rule (same-type + mask COLUMN ≥4, different ingest connections, dismissal/same-connection as a *component* veto) is still unsound: the veto walks the `(type, mask)` group while the union unifies `root()`, so a confirmed H.7 predecessor that shares a last-4 can fold two accounts on ONE Plaid item (including a pair the user dismissed) and a genuine transfer between them stops flagging **and** filing. Executed by the cycle-4 critic: `$2,500` phantom income + `$2,500` phantom expense via O.20c's unfiled-inflow rule, and H.7b would *clear* those flags. **Fix named, not applied:** evaluate the veto over the component `root()` would produce, not over the mask group; lock with a non-empty `confirmed` map plus a dismissal and a same-item pair.
@@ -23,7 +36,7 @@ rates) — no other doc may restate them.
 
 **Cycle history (all four spent).** C1: HIGH detector as money identity (year-in-name, balance-only spouse cards) — fixed. C2: dismissal edge-skip, fail-OPEN dismissals, same-item edge-skip — fixed as *component* vetoes + `'unavailable'` fail-closed. C3: same-connection still an edge skip via a third copy — fixed as group veto. C4: confirmed-map back door, above.
 
-**Residuals (not the P1).** Plaid+SimpleFIN copies cannot fold (SimpleFIN never writes `mask`; the live 0977 pair is Plaid-item vs Plaid-item). The 8 existing flags stay until the owner taps H.7b. Union does not read `currency`. Dismissal read is `take: 500` / `orderBy createdAt desc`.
+**Residuals (not the P1).** Plaid+SimpleFIN copies cannot fold (SimpleFIN never writes `mask`; the live 0977 pair is Plaid-item vs Plaid-item). The 8 existing flags stay until the owner taps H.7b. Dismissal read is `take: 500` / `orderBy createdAt desc`. (2026-09-17: union now reads `currency`, `institutionId`, and registration; mixed-type over-veto is the named residual.)
 
 **Code lives on branch `o20j-mask-column-identity` as draft PR #24, not on `main`.** Local verify of that tree was GREEN (8444 passed + 1 expected fail + 1 skipped / 629 files) — a green local gate is not a critic pass. Resume from the branch; do not re-derive from HEAD.
 

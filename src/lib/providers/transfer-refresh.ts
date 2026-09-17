@@ -17,16 +17,22 @@
  * arriving twice — made a purchase and its own refund look like two accounts.
  * H.7 passes each row its confirmed IDENTITY. O.20j extends that map with
  * unconfirmed same-type copies that share a MASK COLUMN (the probe's
- * BARE-MASK arm, not the advisory detector): measured live, those were the last
- * 8 converse-leak flags the repair could not reach ($237.08 of
- * Lyft/parking/rental-car paired with a TRAVEL CREDIT on the other copy of a
- * CREDIT CARD last-4 0977 arriving through two Plaid items). The detector's
- * HIGH band is wider (year-in-name, balance-only spouse cards) and stays
- * advisory. Dismissed pairs ("Not a duplicate") stay two accounts, and a
- * dismissal-read fault skips this union rather than folding. Same-connection
- * rows (one SimpleFIN, or one Plaid item) are not folded. The identity is still
- * an identity rather than a filter on the read — cycle 1's filtered-read P1
- * still holds.
+ * BARE-MASK arm, not the advisory detector), plus institution / currency /
+ * registration vetoes the detector already applies. Cycle 3 measured 8
+ * converse-leak flags / $237.08 on CREDIT last-4 0977 (two Plaid items vs a
+ * filed TRAVEL CREDIT) against a wider union; that number is not this
+ * function's live result until `o20j-converse-leak.mts` re-runs. Mixed-type
+ * over-veto can refuse the 0977 fold when a confirmed terminal has a
+ * different type (named residual). The detector's HIGH band is wider
+ * (year-in-name, balance-only spouse cards) and stays advisory. Dismissed
+ * pairs ("Not a duplicate") stay two accounts, and a dismissal-read fault
+ * skips this union rather than folding. Same-connection rows (one SimpleFIN,
+ * or one Plaid item) are not folded. The veto walks the component `root()`
+ * would produce, not the mask group, so a confirmed H.7 terminal (null mask)
+ * cannot smuggle a dismissed or same-item pair through. Group iteration is
+ * sorted by `type|mask` so unordered `findMany` cannot pick the fold.
+ * The identity is still an identity rather than a filter on the read —
+ * cycle 1's filtered-read P1 still holds.
  *
  * The fix passes each row its confirmed IDENTITY rather than filtering the read.
  * Cycle 1 did filter the read, through `getReconciliationTxnKeep`, and a critic
@@ -69,7 +75,7 @@ const NO_COMPETING_VERDICT_WHERE = {
  * worlds (the a-guard-must-read-what-it-guards lesson).
  */
 export async function loadTransferSweepRows(userId: string) {
-  const [rows, confirmed, accounts, dismissed] = await Promise.all([
+  const [rows, confirmed, accountRows, dismissed, items] = await Promise.all([
     prisma.transaction.findMany({
       where: { account: { userId }, isSplitParent: false },
       select: {
@@ -99,16 +105,39 @@ export async function loadTransferSweepRows(userId: string) {
     activeAccountIdentityMap(userId),
     prisma.account.findMany({
       where: { userId },
-      select: { id: true, type: true, mask: true, provider: true, plaidItemId: true },
+      orderBy: { id: 'asc' },
+      select: {
+        id: true,
+        type: true,
+        mask: true,
+        provider: true,
+        plaidItemId: true,
+        institutionId: true,
+        currency: true,
+        name: true,
+        subtype: true,
+      },
     }),
     getDismissedDuplicateKeysForMoney(userId),
+    prisma.plaidItem.findMany({
+      where: { userId },
+      select: { itemId: true, institutionId: true },
+    }),
   ]);
+  const institutionByItem = new Map(items.map((i) => [i.itemId, i.institutionId]));
+  const accounts = accountRows.map((a) => ({
+    ...a,
+    // Live connection is authoritative (same join combine-connections uses);
+    // the row stamp is last-known after disconnect deletes the PlaidItem.
+    institutionId: (a.plaidItemId ? institutionByItem.get(a.plaidItemId) : undefined) ?? a.institutionId ?? null,
+  }));
   // O.20j: unconfirmed same-type copies that share a MASK COLUMN are the same
-  // identity the pair rule already honours for confirmed links. Measured
-  // live on the shipped function (cycle 3 critic, not only the probe's
-  // BARE-MASK arm): refuses 8 false flags ($237.08) and mints 0.
-  // The advisory detector is not consulted (year-in-name / balance-only HIGH
-  // are too wide for money). Dismissed pairs stay two accounts.
+  // identity the pair rule already honours for confirmed links. Cycle 3
+  // measured 8 false flags / $237.08 on last-4 0977 against a wider union;
+  // re-measure before treating that as this function's live result. Mixed-type
+  // over-veto is a named residual. The advisory detector is not consulted
+  // (year-in-name / balance-only HIGH are too wide for money). Dismissed pairs
+  // stay two accounts.
   const identity = unionSameMaskColumnIdentity(confirmed, accounts, dismissed);
   return rows.map((r) => ({
     ...r,

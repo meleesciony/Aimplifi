@@ -58,8 +58,24 @@ function acct(
     mask: '0977',
     provider: 'plaid',
     plaidItemId: `item-${over.id}`,
+    name: over.id,
     ...over,
   };
+}
+
+/** Order-independent partition of ids (roots may rename; membership must not). */
+function partitionOf(map: ReadonlyMap<string, string>, ids: readonly string[]): string {
+  const buckets = new Map<string, string[]>();
+  for (const id of ids) {
+    const r = rootOf(map, id);
+    const list = buckets.get(r);
+    if (list) list.push(id);
+    else buckets.set(r, [id]);
+  }
+  return [...buckets.values()]
+    .map((g) => [...g].sort().join(','))
+    .sort()
+    .join('|');
 }
 
 /** The live 8-row shape: purchase on copy A, filed-transfer statement credit on copy B. */
@@ -206,12 +222,240 @@ describe('unionSameMaskColumnIdentity', () => {
   });
 
   it('folds a same-mask copy into an already-confirmed chain', () => {
+    // The live 0977 shape: Plaid copy confirmed onto a SimpleFIN terminal
+    // (null mask, so it never sits in the mask group) plus a second Plaid
+    // item of the same last-4. Different connections, same type → fold.
+    const confirmed = new Map([['old-card', 'live-card']]);
+    const out = unionSameMaskColumnIdentity(confirmed, [
+      acct({ id: 'old-card', plaidItemId: 'item-1' }),
+      acct({ id: 'live-card', mask: null, provider: 'simplefin', plaidItemId: null }),
+      acct({ id: 'third-copy', plaidItemId: 'item-2' }),
+    ]);
+    expect(rootOf(out, 'old-card')).toBe(rootOf(out, 'third-copy'));
+    expect(rootOf(out, 'third-copy')).toBe(rootOf(out, 'live-card'));
+  });
+
+  it('test_regression__o20j_confirmed_bridge_does_not_defeat_a_dismissal', () => {
+    // Cycle-4 P1: veto walked the mask group; union unifies root(). A
+    // confirmed SimpleFIN terminal (null mask) sat outside the group, so a
+    // pair the user dismissed still folded through it.
+    const confirmed = new Map([['old-card', 'live-card']]);
+    const dismissed = new Set([transferIdentityDismissKey('third-copy', 'live-card')]);
+    const out = unionSameMaskColumnIdentity(
+      confirmed,
+      [
+        acct({ id: 'old-card', plaidItemId: 'item-1' }),
+        acct({ id: 'live-card', mask: null, provider: 'simplefin', plaidItemId: null }),
+        acct({ id: 'third-copy', plaidItemId: 'item-2' }),
+      ],
+      dismissed,
+    );
+    expect(rootOf(out, 'third-copy')).not.toBe(rootOf(out, 'live-card'));
+    expect(rootOf(out, 'third-copy')).not.toBe(rootOf(out, 'old-card'));
+    expect(rootOf(out, 'old-card')).toBe(rootOf(out, 'live-card'));
+  });
+
+  it('test_regression__o20j_confirmed_bridge_does_not_fold_same_item_accounts', () => {
+    // Cycle-4 P1: live-card and third-copy sit on ONE Plaid item (two real
+    // accounts). The confirmed predecessor shares last-4 with third-copy and
+    // is not in the mask group (null mask). Must not fold.
+    const confirmed = new Map([['old-card', 'live-card']]);
+    const out = unionSameMaskColumnIdentity(confirmed, [
+      acct({ id: 'old-card', plaidItemId: 'item-1' }),
+      acct({ id: 'live-card', mask: null, plaidItemId: 'item-9' }),
+      acct({ id: 'third-copy', plaidItemId: 'item-9' }),
+    ]);
+    expect(rootOf(out, 'third-copy')).not.toBe(rootOf(out, 'live-card'));
+    expect(rootOf(out, 'third-copy')).not.toBe(rootOf(out, 'old-card'));
+  });
+
+  it('test_regression__o20j_two_mask_groups_bridged_by_confirmed_stay_two_accounts', () => {
+    // Cycle-4 probe D: two last-4s both confirmed onto one terminal. X and Y
+    // share no mask, sit on one Plaid item, and are dismissed — yet the old
+    // veto never saw them in the same group.
+    const confirmed = new Map([
+      ['predA', 'T'],
+      ['predB', 'T'],
+    ]);
+    const dismissed = new Set([transferIdentityDismissKey('x-acct', 'y-acct')]);
+    const out = unionSameMaskColumnIdentity(
+      confirmed,
+      [
+        acct({ id: 'predA', type: 'CHECKING', mask: '1111', plaidItemId: 'item-dead-a' }),
+        acct({ id: 'predB', type: 'CHECKING', mask: '2222', plaidItemId: 'item-dead-b' }),
+        acct({
+          id: 'T',
+          type: 'CHECKING',
+          mask: null,
+          provider: 'simplefin',
+          plaidItemId: null,
+        }),
+        acct({ id: 'x-acct', type: 'CHECKING', mask: '1111', plaidItemId: 'item-live' }),
+        acct({ id: 'y-acct', type: 'CHECKING', mask: '2222', plaidItemId: 'item-live' }),
+      ],
+      dismissed,
+    );
+    expect(rootOf(out, 'x-acct')).not.toBe(rootOf(out, 'y-acct'));
+  });
+
+  it('test_regression__o20j_confirmed_bridge_does_not_equate_cross_type', () => {
+    // Cycle-4 probe F: a CREDIT last-4 must not become a CHECKING identity
+    // through a cross-type confirmed link.
+    const out = unionSameMaskColumnIdentity(new Map([['pred-card', 'live-checking']]), [
+      acct({ id: 'pred-card', type: 'CREDIT', mask: '4001', plaidItemId: 'item-1' }),
+      acct({
+        id: 'live-checking',
+        type: 'CHECKING',
+        mask: null,
+        provider: 'simplefin',
+        plaidItemId: null,
+      }),
+      acct({ id: 'other-card', type: 'CREDIT', mask: '4001', plaidItemId: 'item-2' }),
+    ]);
+    expect(rootOf(out, 'other-card')).not.toBe(rootOf(out, 'live-checking'));
+    expect(rootOf(out, 'pred-card')).toBe(rootOf(out, 'live-checking'));
+  });
+
+  it('test_regression__o20j_different_institutions_same_last4_are_two_accounts', () => {
+    // Critic P1-1: Chase checking vs Ally checking, both last-4 1234.
+    const out = unionSameMaskColumnIdentity(new Map(), [
+      acct({
+        id: 'chase-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        plaidItemId: 'item-chase',
+        institutionId: 'ins_chase',
+        name: 'Chase Total Checking',
+      }),
+      acct({
+        id: 'ally-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        plaidItemId: 'item-ally',
+        institutionId: 'ins_ally',
+        name: 'Ally Spending',
+      }),
+    ]);
+    expect(rootOf(out, 'chase-chk')).not.toBe(rootOf(out, 'ally-chk'));
+    expect(out.size).toBe(0);
+  });
+
+  it('test_regression__o20j_different_currency_same_last4_are_two_accounts', () => {
+    const out = unionSameMaskColumnIdentity(new Map(), [
+      acct({
+        id: 'usd-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        plaidItemId: 'item-usd',
+        currency: 'USD',
+      }),
+      acct({
+        id: 'eur-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        plaidItemId: 'item-eur',
+        currency: 'EUR',
+      }),
+    ]);
+    expect(rootOf(out, 'usd-chk')).not.toBe(rootOf(out, 'eur-chk'));
+    expect(out.size).toBe(0);
+  });
+
+  it('test_regression__o20j_roth_and_traditional_same_last4_are_two_accounts', () => {
+    const out = unionSameMaskColumnIdentity(new Map(), [
+      acct({
+        id: 'roth',
+        type: 'INVESTMENT',
+        mask: '5351',
+        plaidItemId: 'item-roth',
+        name: 'Roth IRA',
+        subtype: 'roth',
+      }),
+      acct({
+        id: 'trad',
+        type: 'INVESTMENT',
+        mask: '5351',
+        plaidItemId: 'item-trad',
+        name: 'Traditional IRA',
+        subtype: 'traditional',
+      }),
+    ]);
+    expect(rootOf(out, 'roth')).not.toBe(rootOf(out, 'trad'));
+    expect(out.size).toBe(0);
+  });
+
+  it('test_regression__o20j_0977_still_folds_when_both_plaid_copies_share_an_institution', () => {
+    // P-WIDER-4: the live 0977 pair is two Plaid items of one card. Institution,
+    // currency, and registration must not refuse that fold.
+    const confirmed = new Map([['old-card', 'live-card']]);
+    const out = unionSameMaskColumnIdentity(confirmed, [
+      acct({ id: 'old-card', plaidItemId: 'item-1', institutionId: 'ins_chase' }),
+      acct({
+        id: 'live-card',
+        mask: null,
+        provider: 'simplefin',
+        plaidItemId: null,
+        institutionId: null,
+      }),
+      acct({ id: 'third-copy', plaidItemId: 'item-2', institutionId: 'ins_chase' }),
+    ]);
+    expect(rootOf(out, 'old-card')).toBe(rootOf(out, 'third-copy'));
+    expect(rootOf(out, 'third-copy')).toBe(rootOf(out, 'live-card'));
+  });
+
+  it('test_regression__o20j_missing_account_record_fails_closed', () => {
+    // Critic P2-1: a confirmed terminal absent from `accounts` is not a
+    // license to fold the unconfirmed copy.
     const confirmed = new Map([['old-card', 'live-card']]);
     const out = unionSameMaskColumnIdentity(confirmed, [
       acct({ id: 'old-card', plaidItemId: 'item-1' }),
       acct({ id: 'third-copy', plaidItemId: 'item-2' }),
     ]);
-    expect(rootOf(out, 'old-card')).toBe(rootOf(out, 'third-copy'));
+    expect(rootOf(out, 'third-copy')).not.toBe(rootOf(out, 'old-card'));
+    expect(rootOf(out, 'old-card')).toBe(rootOf(out, 'live-card'));
+  });
+
+  it('test_regression__o20j_identity_does_not_depend_on_account_order', () => {
+    const confirmed = new Map([
+      ['predA', 'T'],
+      ['predB', 'T'],
+    ]);
+    const accounts = [
+      acct({ id: 'predA', type: 'CHECKING', mask: '1111', plaidItemId: 'item-dead-a' }),
+      acct({ id: 'predB', type: 'CHECKING', mask: '2222', plaidItemId: 'item-dead-b' }),
+      acct({
+        id: 'T',
+        type: 'CHECKING',
+        mask: null,
+        provider: 'simplefin',
+        plaidItemId: null,
+      }),
+      acct({ id: 'x-acct', type: 'CHECKING', mask: '1111', plaidItemId: 'item-live' }),
+      acct({ id: 'y-acct', type: 'CHECKING', mask: '2222', plaidItemId: 'item-live' }),
+    ];
+    const ids = accounts.map((a) => a.id);
+    const forward = unionSameMaskColumnIdentity(confirmed, accounts);
+    const reverse = unionSameMaskColumnIdentity(confirmed, [...accounts].reverse());
+    expect(partitionOf(reverse, ids)).toBe(partitionOf(forward, ids));
+    // 1111 sorts before 2222: x folds onto T, y stays its own account.
+    expect(rootOf(forward, 'x-acct')).toBe(rootOf(forward, 'T'));
+    expect(rootOf(forward, 'y-acct')).not.toBe(rootOf(forward, 'T'));
+    let seed = 0x9e3779b9;
+    const shuffle = (src: TransferIdentityAccount[]): TransferIdentityAccount[] => {
+      const a = [...src];
+      for (let i = a.length - 1; i > 0; i--) {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        const j = seed % (i + 1);
+        const tmp = a[i]!;
+        a[i] = a[j]!;
+        a[j] = tmp;
+      }
+      return a;
+    };
+    for (let n = 0; n < 20; n++) {
+      const shuffled = unionSameMaskColumnIdentity(confirmed, shuffle(accounts));
+      expect(partitionOf(shuffled, ids)).toBe(partitionOf(forward, ids));
+    }
   });
 
   it('the dismiss-key format is byte-identical to duplicatePairDismissKey', () => {
@@ -362,6 +606,182 @@ describe('planTransferUpdates: same-mask-column copies do not pair (O.20j)', () 
     ]);
     expect(plan.flagIds.sort()).toEqual(['landed', 'sent']);
     expect(plan.fileIds.sort()).toEqual(['landed', 'sent']);
+  });
+
+  it('test_regression__o20j_confirmed_bridge_does_not_unfile_a_same_item_transfer', () => {
+    const confirmed = new Map([['old-card', 'live-card']]);
+    const identity = unionSameMaskColumnIdentity(confirmed, [
+      acct({ id: 'old-card', type: 'CHECKING', mask: '1234', plaidItemId: 'item-1' }),
+      acct({ id: 'live-card', type: 'CHECKING', mask: null, plaidItemId: 'item-9' }),
+      acct({ id: 'third-copy', type: 'CHECKING', mask: '1234', plaidItemId: 'item-9' }),
+    ]);
+    const plan = planTransferUpdates([
+      txn({
+        id: 'sent',
+        accountId: 'live-card',
+        accountIdentityId: rootOf(identity, 'live-card'),
+        accountType: 'CHECKING',
+        amountCents: -250_000,
+        rawDescriptor: 'ZEBRA BRIDGE MOVE',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+      txn({
+        id: 'landed',
+        accountId: 'third-copy',
+        accountIdentityId: rootOf(identity, 'third-copy'),
+        accountType: 'CHECKING',
+        amountCents: 250_000,
+        rawDescriptor: 'ZEBRA BRIDGE MOVE IN',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+    ]);
+    expect(plan.flagIds.sort()).toEqual(['landed', 'sent']);
+    expect(plan.fileIds.sort()).toEqual(['landed', 'sent']);
+  });
+
+  it('test_regression__o20j_confirmed_two_mask_groups_do_not_unfile_a_dismissed_transfer', () => {
+    const confirmed = new Map([
+      ['predA', 'T'],
+      ['predB', 'T'],
+    ]);
+    const dismissed = new Set([transferIdentityDismissKey('x-acct', 'y-acct')]);
+    const identity = unionSameMaskColumnIdentity(
+      confirmed,
+      [
+        acct({ id: 'predA', type: 'CHECKING', mask: '1111', plaidItemId: 'item-dead-a' }),
+        acct({ id: 'predB', type: 'CHECKING', mask: '2222', plaidItemId: 'item-dead-b' }),
+        acct({
+          id: 'T',
+          type: 'CHECKING',
+          mask: null,
+          provider: 'simplefin',
+          plaidItemId: null,
+        }),
+        acct({ id: 'x-acct', type: 'CHECKING', mask: '1111', plaidItemId: 'item-live' }),
+        acct({ id: 'y-acct', type: 'CHECKING', mask: '2222', plaidItemId: 'item-live' }),
+      ],
+      dismissed,
+    );
+    const plan = planTransferUpdates([
+      txn({
+        id: 'sent',
+        accountId: 'x-acct',
+        accountIdentityId: rootOf(identity, 'x-acct'),
+        accountType: 'CHECKING',
+        amountCents: -250_000,
+        rawDescriptor: 'ZEBRA MOVE',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+      txn({
+        id: 'landed',
+        accountId: 'y-acct',
+        accountIdentityId: rootOf(identity, 'y-acct'),
+        accountType: 'CHECKING',
+        amountCents: 250_000,
+        rawDescriptor: 'ZEBRA MOVE IN',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+    ]);
+    expect(plan.flagIds.sort()).toEqual(['landed', 'sent']);
+    expect(plan.fileIds.sort()).toEqual(['landed', 'sent']);
+  });
+
+  it('test_regression__o20j_chase_ally_same_last4_transfer_still_flags', () => {
+    // Critic P1-1 executed: $2,000 Chase→Ally with last-4 1234 was swallowed
+    // when the union treated them as one account. They are two banks.
+    const identity = unionSameMaskColumnIdentity(new Map(), [
+      acct({
+        id: 'chase-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        plaidItemId: 'item-chase',
+        institutionId: 'ins_chase',
+        name: 'Chase Total Checking',
+      }),
+      acct({
+        id: 'ally-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        plaidItemId: 'item-ally',
+        institutionId: 'ins_ally',
+        name: 'Ally Spending',
+      }),
+    ]);
+    const plan = planTransferUpdates([
+      txn({
+        id: 'out',
+        accountId: 'chase-chk',
+        accountIdentityId: rootOf(identity, 'chase-chk'),
+        accountType: 'CHECKING',
+        amountCents: -200_000,
+        rawDescriptor: 'CHASE TO ALLY',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+      txn({
+        id: 'inn',
+        accountId: 'ally-chk',
+        accountIdentityId: rootOf(identity, 'ally-chk'),
+        accountType: 'CHECKING',
+        amountCents: 200_000,
+        rawDescriptor: 'FROM CHASE',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+    ]);
+    expect(plan.flagIds.sort()).toEqual(['inn', 'out']);
+    expect(plan.fileIds.sort()).toEqual(['inn', 'out']);
+  });
+
+  it('test_regression__o20j_purchase_refund_does_not_depend_on_account_order', () => {
+    // Critic P1-2: unordered findMany made one order ignore a purchase/refund
+    // (correct fold) and the reverse file it as a transfer.
+    const confirmed = new Map([
+      ['predA', 'T'],
+      ['predB', 'T'],
+    ]);
+    const accounts = [
+      acct({ id: 'predA', type: 'CHECKING', mask: '1111', plaidItemId: 'item-dead-a' }),
+      acct({ id: 'predB', type: 'CHECKING', mask: '2222', plaidItemId: 'item-dead-b' }),
+      acct({
+        id: 'T',
+        type: 'CHECKING',
+        mask: null,
+        provider: 'simplefin',
+        plaidItemId: null,
+      }),
+      acct({ id: 'x-acct', type: 'CHECKING', mask: '1111', plaidItemId: 'item-live' }),
+      acct({ id: 'y-acct', type: 'CHECKING', mask: '2222', plaidItemId: 'item-live' }),
+    ];
+    for (const order of [accounts, [...accounts].reverse()]) {
+      const identity = unionSameMaskColumnIdentity(confirmed, order);
+      const plan = planTransferUpdates([
+        txn({
+          id: 'purchase',
+          accountId: 'predA',
+          accountIdentityId: rootOf(identity, 'predA'),
+          accountType: 'CHECKING',
+          amountCents: -4_500,
+          rawDescriptor: 'STORE PURCHASE',
+          categoryId: 'shopping',
+        }),
+        txn({
+          id: 'refund',
+          accountId: 'x-acct',
+          accountIdentityId: rootOf(identity, 'x-acct'),
+          accountType: 'CHECKING',
+          amountCents: 4_500,
+          rawDescriptor: 'STORE REFUND',
+          categoryId: 'shopping',
+        }),
+      ]);
+      expect(plan.flagIds).toEqual([]);
+      expect(plan.fileIds).toEqual([]);
+    }
   });
 });
 
