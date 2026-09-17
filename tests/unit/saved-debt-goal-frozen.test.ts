@@ -28,6 +28,7 @@ import {
 import { getProvider } from '@/lib/providers/demo';
 import { addMonthsClamped, type ISODate } from '@/lib/dates';
 import {
+  clearGoalMonthly,
   clearGoalTargetDate,
   renameGoal,
   saveDebtFreeGoal,
@@ -59,10 +60,60 @@ describe('frozenSavedDebtGoalNote — one claim, weakest direction', () => {
     expect(frozenSavedDebtGoalNote(null)).toBeNull();
     expect(frozenSavedDebtGoalNote(undefined)).toBeNull();
     expect(frozenSavedDebtGoalNote('')).toBeNull();
+    expect(frozenSavedDebtGoalNote(null, { stamp: '', extraCents: 50_000 })).toBeNull();
   });
 
   it('the testid is the one the /goals card renders', () => {
     expect(FROZEN_SAVED_DEBT_GOAL_TESTID).toBe('goal-debt-free-frozen');
+  });
+
+  it('both stamps + a suggested extra: the sentence names the total AND the extra', () => {
+    const note = frozenSavedDebtGoalNote(SAVED_ON, { stamp: SAVED_ON, extraCents: 50_000 }) as string;
+    expect(note).toBe(
+      'When this goal was saved on Thu, Sep 17, 2026, the bank behind at least one of the debts in it had stopped sharing that balance, so the debt total and the suggested extra here were both worked out from the last balance we saw for that debt — not necessarily what you owed on it that day.',
+    );
+    expect(note).not.toContain(' it suggests');
+    expect(note).not.toContain('its ');
+  });
+
+  it('both stamps + extra 0: the sentence names the total AND the on-track claim', () => {
+    const note = frozenSavedDebtGoalNote(SAVED_ON, { stamp: SAVED_ON, extraCents: 0 }) as string;
+    expect(note).toBe(
+      'When this goal was saved on Thu, Sep 17, 2026, the bank behind at least one of the debts in it had stopped sharing that balance, so the debt total and the on-track claim here were both worked out from the last balance we saw for that debt — not necessarily what you owed on it that day.',
+    );
+    expect(note).not.toContain(' it suggests');
+    expect(note).not.toContain('its ');
+  });
+
+  it('extra stamp only: names the extra, never the total a typed target replaced', () => {
+    const note = frozenSavedDebtGoalNote(null, { stamp: SAVED_ON, extraCents: 75_000 }) as string;
+    expect(note).toBe(
+      'When this goal was saved on Thu, Sep 17, 2026, the bank behind at least one of the debts in it had stopped sharing that balance, so the suggested extra here was worked out from the last balance we saw for that debt — not necessarily what you owed on it that day.',
+    );
+    expect(note).not.toContain('the debt total here');
+    expect(note).not.toContain(' it suggests');
+    expect(note).not.toContain('its ');
+  });
+
+  it('extra stamp only + extra 0: names the on-track claim as "here", never "its" (the bank is the nearest noun)', () => {
+    const note = frozenSavedDebtGoalNote(null, { stamp: SAVED_ON, extraCents: 0 }) as string;
+    expect(note).toBe(
+      'When this goal was saved on Thu, Sep 17, 2026, the bank behind at least one of the debts in it had stopped sharing that balance, so the on-track claim here was worked out from the last balance we saw for that debt — not necessarily what you owed on it that day.',
+    );
+    expect(note).not.toContain('its on-track claim');
+    expect(note).not.toContain('the debt total here');
+    expect(note).not.toContain(' it suggests');
+    expect(note).not.toContain('its ');
+  });
+
+  it('an extra stamp without extraCents does not invent the on-track claim', () => {
+    expect(frozenSavedDebtGoalNote(null, { stamp: SAVED_ON })).toBeNull();
+    expect(frozenSavedDebtGoalNote(SAVED_ON, { stamp: SAVED_ON })).toBe(SENTENCE);
+  });
+
+  it('a missing extra stamp is not a fact — pre-#747 rows stay total-only (under-claim)', () => {
+    expect(frozenSavedDebtGoalNote(SAVED_ON, { stamp: null, extraCents: 50_000 })).toBe(SENTENCE);
+    expect(frozenSavedDebtGoalNote(SAVED_ON, { extraCents: 50_000 })).toBe(SENTENCE);
   });
 });
 
@@ -147,14 +198,21 @@ describe('saveDebtFreeGoal — the writer records the fact the solver was handed
     expect(debts.map((d) => d.frozenSince)).toEqual([DROPPED, null]);
     const { today, goal } = await saveAs(frozen.U);
     expect(goal.frozenAtSave).toBe(today);
+    expect(goal.frozenExtraAtSave).toBe(today);
     // DISCLOSE, ADJUST NOTHING: the persisted total is the same Σ over the same rows.
     expect(goal.targetCents).toBe(900_000 + 1_430_000);
-    expect(frozenSavedDebtGoalNote(goal.frozenAtSave)).toMatch(/^When this goal was saved on /);
+    expect(
+      frozenSavedDebtGoalNote(goal.frozenAtSave, {
+        stamp: goal.frozenExtraAtSave,
+        extraCents: goal.monthlyContributionCents ?? 0,
+      }),
+    ).toMatch(/^When this goal was saved on /);
   });
 
   it('nothing frozen → frozenAtSave is null (the literal), never a date', async () => {
     const { goal } = await saveAs(live.U);
     expect(goal.frozenAtSave).toBeNull();
+    expect(goal.frozenExtraAtSave).toBeNull();
     expect(goal.targetCents).toBe(900_000 + 1_430_000);
     expect(frozenSavedDebtGoalNote(goal.frozenAtSave)).toBeNull();
   });
@@ -164,11 +222,12 @@ describe('saveDebtFreeGoal — the writer records the fact the solver was handed
     expect(debts.map((d) => d.name)).toEqual(['Freedom Card']);
     const { goal } = await saveAs(zero.U);
     expect(goal.frozenAtSave).toBeNull();
+    expect(goal.frozenExtraAtSave).toBeNull();
     expect(goal.targetCents).toBe(900_000);
   });
 });
 
-describe('the stamp follows the total: cleared by a hand-typed target, kept by every other edit', () => {
+describe('the stamps follow their figures: total stamp by a hand-typed target, extra stamp by a hand-typed monthly', () => {
   const U = `l19-saved-edits-${Date.now()}-${process.pid}`;
   let spy: ReturnType<typeof vi.spyOn>;
 
@@ -194,6 +253,7 @@ describe('the stamp follows the total: cleared by a hand-typed target, kept by e
         targetDate: '2029-09-30',
         monthlyContributionCents: 50_000,
         frozenAtSave: SAVED_ON,
+        frozenExtraAtSave: SAVED_ON,
       },
     });
   }
@@ -206,6 +266,7 @@ describe('the stamp follows the total: cleared by a hand-typed target, kept by e
     const row = await prisma.goal.findUniqueOrThrow({ where: { id: goal.id } });
     expect(row.targetCents).toBe(2_000_000);
     expect(row.frozenAtSave).toBeNull();
+    expect(row.frozenExtraAtSave).toBe(SAVED_ON);
   });
 
   it('re-saving the pre-filled, UNCHANGED total keeps the stamp — the fact is as true as it was (critic P2-3)', async () => {
@@ -218,6 +279,7 @@ describe('the stamp follows the total: cleared by a hand-typed target, kept by e
     const row = await prisma.goal.findUniqueOrThrow({ where: { id: goal.id } });
     expect(row.targetCents).toBe(2_330_000);
     expect(row.frozenAtSave).toBe(SAVED_ON);
+    expect(row.frozenExtraAtSave).toBe(SAVED_ON);
   });
 
   it('a refused target write (blank) leaves the stamp in place — nothing changed, so nothing is un-said', async () => {
@@ -228,9 +290,10 @@ describe('the stamp follows the total: cleared by a hand-typed target, kept by e
     const row = await prisma.goal.findUniqueOrThrow({ where: { id: goal.id } });
     expect(row.targetCents).toBe(2_330_000);
     expect(row.frozenAtSave).toBe(SAVED_ON);
+    expect(row.frozenExtraAtSave).toBe(SAVED_ON);
   });
 
-  it('date, monthly, name and cleared-date edits leave the total alone and so keep the stamp', async () => {
+  it('date, name and cleared-date edits leave both stamps; a CHANGED monthly keeps the total stamp and clears the extra', async () => {
     const goal = await stampedRow();
 
     const date = new FormData();
@@ -253,5 +316,26 @@ describe('the stamp follows the total: cleared by a hand-typed target, kept by e
     expect(row.name).toBe('Card-free by spring');
     expect(row.targetDate).toBeNull();
     expect(row.frozenAtSave).toBe(SAVED_ON);
+    expect(row.frozenExtraAtSave).toBeNull();
+  });
+
+  it('re-saving the pre-filled, UNCHANGED monthly keeps the extra stamp (the live $500.00 path)', async () => {
+    const goal = await stampedRow();
+    const fd = new FormData();
+    fd.set('monthly', '$500.00');
+    expect((await updateGoalMonthly(goal.id, fd)).ok).toBe(true);
+    const row = await prisma.goal.findUniqueOrThrow({ where: { id: goal.id } });
+    expect(row.monthlyContributionCents).toBe(50_000);
+    expect(row.frozenAtSave).toBe(SAVED_ON);
+    expect(row.frozenExtraAtSave).toBe(SAVED_ON);
+  });
+
+  it('clearing a monthly drops the extra stamp and keeps the total stamp', async () => {
+    const goal = await stampedRow();
+    expect((await clearGoalMonthly(goal.id)).ok).toBe(true);
+    const row = await prisma.goal.findUniqueOrThrow({ where: { id: goal.id } });
+    expect(row.monthlyContributionCents).toBeNull();
+    expect(row.frozenAtSave).toBe(SAVED_ON);
+    expect(row.frozenExtraAtSave).toBeNull();
   });
 });

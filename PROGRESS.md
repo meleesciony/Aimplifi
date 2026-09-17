@@ -9,6 +9,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-10_to_2026-09-11.md` (rotated 2026-09-17).
 > Only sessions from 2026-09-12 onward live here; append new sessions at the top as before.
 
+## 2026-09-17 — L.19 residual (1) follow-up: the saved debt-free goal card names the extra / on-track line (DECISIONS #747)
+
+**Picked up.** Owner: "continue" on delayed critic notifications for a JSON snapshot that a parallel session had already occupied as #746 (`frozenAtSave` date stamp, `956e6492`). Strongest open money-visible row: #746 critic P2-4 (Suggested / on-track still silent). Did not rebase the JSON named-debt blob (would duplicate #746); added a twin stamp on the landed design.
+
+**Closed.** Additive nullable `Goal.frozenExtraAtSave`; monthly/clear writers; note names every still-stamped figure with "worked out from" on extra/on-track arms. Money byte-identical.
+
+**Gate.** `bash scripts/verify.sh` (post-cycle-3 copy) → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8529 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**, next build clean. FAIL-OLD extra-stamp writes stripped: **2 failed | 15 passed**. Playwright mobile-380 `debt-plan-frozen` re-run this ship turn on the "worked out from" pin.
+
+**Critic (fresh context, isolated worktree `C:\dev\_critic_l19e`): cycle 1 FAIL 1 P1 → cycle 2 FAIL 1 P1 → cycle 3 FAIL 1 P1 → cycle 4 PASS 0 P0 / 0 P1.** Pronoun-to-bank (two branches) then false "includes" on a monthly; all closed and FAIL-OLD'd by the critic. Cycle 4 independently reproduced tsc 0, eslint 0, full vitest 8529, four mutations each 1-failed.
+
+**Ledgers.** DECISIONS #747 (+ index); REGRESSION_LEDGER two rows; STATUS BUILT + #746 residual (1) closed; TASKS L.19 row note. P2s in STATUS (card extra>0 pairing, combined-arm date, `/coach` extra, solver date, Suggested: over a typed monthly).
+
+**Ship.** Recorded below after the push. Schema: `prisma/` diff present (`frozenExtraAtSave`) — `prisma db push` on deploy.
+
 ## 2026-09-17 — L.19 residual (1): the saved debt-free goal card names the frozen balance its total was computed from (DECISIONS #746)
 
 **Picked up.** Owner: "Continue." Cloud agent (Cursor), branch `cursor/l19-saved-debt-goal-frozen-0408`; local main fast-forwarded to `07800184` (#745 shipped). Queue scan: Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic; O.10b latent (0 live instances). Strongest open money-visible row needing no owner input: the #745 session's own named next — L.19 residual (1), the saved debt-free goal card, which #745 declined because `Goal` has no `createdAt`. Explorer (fresh context) mapped the writer, every debt-free reader (only /goals), the Goal model, the seed and the #742 tests.

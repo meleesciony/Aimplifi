@@ -1506,22 +1506,78 @@ export function frozenNextDollarNote(
  * works from today's balances — already is the remedy, and pointing at Accounts would assert that
  * the connection is still broken, which a save-time fact cannot know (`nextStep: 'nothing'` shape).
  *
- * The stamp is CLEARED by `updateGoalTarget`: a hand-typed total is the reader's own figure, and
- * a note that it "includes the last balance we saw" would then be false. Date, monthly and name
- * edits leave the total alone and so leave the stamp alone.
+ * The TOTAL stamp is CLEARED by `updateGoalTarget` when the cents CHANGE: a hand-typed total is
+ * the reader's own figure. The EXTRA stamp (`frozenExtraAtSave`) is CLEARED by `updateGoalMonthly`
+ * when the cents CHANGE, and by `clearGoalMonthly` (always a real change). A no-op re-save of
+ * either pre-filled input keeps its stamp. Date and name edits leave both alone.
+ *
+ * DECISIONS #747: the card also prints "Suggested: about $X/mo" / "On track … no extra needed"
+ * from the same save. Naming those in the total-only sentence would be false once the reader
+ * types a monthly, and leaving them silent over a still-solver extra is the #746 P2-4 gap. Each
+ * stamp names only the figure it still describes. A monthly extra and an on-track claim are
+ * derived from the frozen balance — they do not contain it — so those arms use "worked out from",
+ * never "includes" (the total-only #746 arm keeps "includes" because a total is a sum).
+ * A missing extra stamp (every pre-#747 row) is not a fact — the sentence stays total-only
+ * (under-claim, never a false extra hedge).
  * ════════════════════════════════════════════════════════════════════════════════════════════════
  */
 
 /** /goals: the note under a saved debt-free goal whose total was computed over a frozen balance. */
 export const FROZEN_SAVED_DEBT_GOAL_TESTID = 'goal-debt-free-frozen';
 
+function isSavedDebtGoalStamp(stamp: string | null | undefined): stamp is string {
+  return typeof stamp === 'string' && stamp.length > 0;
+}
+
 /**
- * The claim for a saved debt-free goal whose `frozenAtSave` is set. `null` for a null, missing or
- * empty stamp (an empty string is not a date — the #745 P2-1 rule), so every unstamped row is
- * byte-identical to before the column existed.
+ * The figures this note is still allowed to name. `includeTarget` follows `frozenAtSave`;
+ * `includeExtra` follows `frozenExtraAtSave`. `extraCents` picks extra vs on-track wording
+ * and is never itself a stamp — a typed extra of $0 is still a typed extra (the extra stamp
+ * is already gone).
  */
-export function frozenSavedDebtGoalNote(frozenAtSave: string | null | undefined): string | null {
-  if (!frozenAtSave) return null;
-  const when = formatISODate(frozenAtSave as ISODate, 'long');
-  return `When this goal was saved on ${when}, the bank behind at least one of the debts in it had stopped sharing that balance, so the debt total here includes the last balance we saw for that debt — not necessarily what you owed on it that day.`;
+function frozenSavedDebtGoalFigureLabel(
+  includeTarget: boolean,
+  includeExtra: boolean,
+  extraCents: number,
+): string | null {
+  if (!includeTarget && !includeExtra) return null;
+  if (includeTarget && includeExtra) {
+    return extraCents > 0
+      ? 'the debt total and the suggested extra here were both worked out from'
+      : 'the debt total and the on-track claim here were both worked out from';
+  }
+  if (includeTarget) return 'the debt total here includes';
+  // Extra-only: a monthly extra / on-track claim is derived from the frozen
+  // balance, it does not contain it (critic cycle 3 P1). Never "it"/"its" —
+  // the preceding clause's nearest noun is the bank (cycles 1–2).
+  return extraCents > 0
+    ? 'the suggested extra here was worked out from'
+    : 'the on-track claim here was worked out from';
+}
+
+/**
+ * The claim for a saved debt-free goal that still carries at least one save-day stamp.
+ * `null` for a null, missing or empty stamp on BOTH columns (an empty string is not a date —
+ * the #745 P2-1 rule), so every unstamped row is byte-identical to before the columns existed.
+ * The one-arg form (total stamp only) is the #746 sentence; pass `extra` to name the monthly.
+ */
+export function frozenSavedDebtGoalNote(
+  frozenAtSave: string | null | undefined,
+  extra: { stamp?: string | null; extraCents?: number } = {},
+): string | null {
+  const includeTarget = isSavedDebtGoalStamp(frozenAtSave);
+  // A stamp without extraCents is not enough to name the monthly: defaulting
+  // missing cents to 0 would print the on-track claim over a real extra
+  // (critic cycle 1 P2-3). Absence → under-claim.
+  const includeExtra =
+    isSavedDebtGoalStamp(extra.stamp) && typeof extra.extraCents === 'number';
+  const figure = frozenSavedDebtGoalFigureLabel(
+    includeTarget,
+    includeExtra,
+    extra.extraCents ?? 0,
+  );
+  if (!figure) return null;
+  const whenStamp = includeTarget ? frozenAtSave : extra.stamp;
+  const when = formatISODate(whenStamp as ISODate, 'long');
+  return `When this goal was saved on ${when}, the bank behind at least one of the debts in it had stopped sharing that balance, so ${figure} the last balance we saw for that debt — not necessarily what you owed on it that day.`;
 }

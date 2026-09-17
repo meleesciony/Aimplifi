@@ -103,7 +103,11 @@ test('the Debt Freedom planner and both Ask debt answers name the frozen card, n
   await expect(savedNote).toBeVisible();
   await expect(savedNote).toContainText('When this goal was saved on');
   await expect(savedNote).toContainText('had stopped sharing that balance');
-  await expect(savedNote).toContainText('the debt total here includes the last balance we saw');
+  // Planner save uses the on-track date, so extra is $0 and the note names both figures.
+  await expect(savedNote).toContainText(
+    'the debt total and the on-track claim here were both worked out from the last balance we saw',
+  );
+  await expect(savedNote).not.toContainText(' it suggests');
   // A save-day fact: no kind, no bank, no direction, no remedy of its own — the card's own
   // "re-check in Ask" sentence above it is the remedy.
   await expect(savedNote).not.toContainText(cardName);

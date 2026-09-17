@@ -876,6 +876,14 @@ model Goal {
   // hand-types a new target — that total is theirs, not the frozen balance's.
   // Additive + nullable: existing rows and the demo seed compute identically.
   frozenAtSave             String?
+  // DECISIONS #747 (critic P2-4 on #746). Twin of frozenAtSave for the monthly the
+  // save persisted: `monthlyContributionCents` is the solver's extra (or 0 =
+  // on-track) over the same frozen balances. Null = no fact recorded. Cleared when
+  // the reader CHANGES or clears the monthly — that figure is then theirs. A
+  // no-op re-save of the pre-filled monthly keeps it. Independent of frozenAtSave
+  // so a typed total still lets the extra speak, and a typed extra still lets the
+  // total speak. Additive + nullable: pre-#747 rows render the total-only sentence.
+  frozenExtraAtSave        String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

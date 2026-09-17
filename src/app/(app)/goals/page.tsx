@@ -141,10 +141,14 @@ export default async function GoalsPage() {
           // the "moves your FI date back" framing (which is backwards for paying down debt).
           if (goal.kind === 'debt_free') {
             const extra = goal.monthlyContributionCents ?? 0;
-            // L.19 residual (1), DECISIONS #746: the "$X of debt" above is the total the save
-            // computed; when that computation included a balance the bank had stopped sharing,
-            // the row says so (null stamp = nothing recorded = nothing rendered).
-            const frozenNote = frozenSavedDebtGoalNote(goal.frozenAtSave);
+            // L.19 residual (1), DECISIONS #746/#747: the "$X of debt" and the Suggested /
+            // on-track line are the figures the save computed; each still-solver figure is
+            // named only while its own stamp is set (null = nothing recorded = that figure
+            // is not named).
+            const frozenNote = frozenSavedDebtGoalNote(goal.frozenAtSave, {
+              stamp: goal.frozenExtraAtSave,
+              extraCents: extra,
+            });
             return (
               <Card key={goal.id} data-testid={`goal-${goal.id}`}>
                 <CardHeader className="pb-2">

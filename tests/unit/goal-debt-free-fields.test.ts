@@ -23,10 +23,12 @@ describe('Debt-free goals reuse target/date/monthly controls', () => {
     expect(debtBlock).toContain('GoalTargetDateControl');
     expect(debtBlock).toContain('GoalMonthlyControl');
     expect(debtBlock).not.toContain('GoalSavedControl');
-    // DECISIONS #746 (critic P2-2): the save-day note is resolved from the row's OWN stamp and
+    // DECISIONS #746 (critic P2-2): the save-day note is resolved from the row's OWN stamps and
     // rendered under its testid — a wiring that no unit test reached (a mutation reading
     // `goal.targetDate` survived the whole suite; only the e2e caught it).
-    expect(debtBlock).toContain('frozenSavedDebtGoalNote(goal.frozenAtSave)');
+    expect(debtBlock).toContain('frozenSavedDebtGoalNote(goal.frozenAtSave');
+    expect(debtBlock).toContain('goal.frozenExtraAtSave');
+    expect(debtBlock).toContain('extraCents: extra');
     expect(debtBlock).toContain('FROZEN_SAVED_DEBT_GOAL_TESTID');
 
     const actions = readFileSync(resolve('src/server/goal-actions.ts'), 'utf8');

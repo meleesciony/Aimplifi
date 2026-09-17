@@ -114,6 +114,10 @@ export async function saveDebtFreeGoal(targetDateRaw: string): Promise<void> {
   // records the save day and the /goals card says so. Judged on the solver's INPUT, not re-derived
   // later: today's stamps cannot say what was true at the save.
   const frozenAtSave = debts.some((d) => d.frozenSince !== null) ? today : null;
+  // #747: the extra (or the 0 = on-track) is solved over the same rows, so it
+  // gets the same save-day fact. Independent column so a later target edit
+  // does not silence the extra, and a later monthly edit does not silence the total.
+  const frozenExtraAtSave = frozenAtSave;
 
   await prisma.goal.create({
     data: {
@@ -126,9 +130,15 @@ export async function saveDebtFreeGoal(targetDateRaw: string): Promise<void> {
       // Render with the solver's own date on /goals, not the savings-goal timeline (DECISIONS #125).
       kind: 'debt_free',
       frozenAtSave,
+      frozenExtraAtSave,
     },
   });
-  await auditLog(userId, 'goal.create', { kind: 'debt_free_by_date', targetDate, frozenAtSave });
+  await auditLog(userId, 'goal.create', {
+    kind: 'debt_free_by_date',
+    targetDate,
+    frozenAtSave,
+    frozenExtraAtSave,
+  });
   revalidatePath('/goals');
 }
 
@@ -399,9 +409,24 @@ export async function updateGoalMonthly(
     };
   }
 
+  const scope = { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }] };
+  const current = await prisma.goal.findFirst({
+    where: scope,
+    select: { monthlyContributionCents: true },
+  });
+  if (!current) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+  // DECISIONS #747: the extra stamp describes the MONTHLY. A hand-typed monthly is
+  // the reader's own figure, so a debt-free row's "suggested extra here" fact no
+  // longer describes it. Re-saving the pre-filled, unchanged monthly leaves the
+  // fact as true as it was (the #746 P2-3 quiet-direction rule, on this stamp).
   const updated = await prisma.goal.updateMany({
-    where: { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }] },
-    data: { monthlyContributionCents: monthlyCents },
+    where: scope,
+    data:
+      monthlyCents === current.monthlyContributionCents
+        ? { monthlyContributionCents: monthlyCents }
+        : { monthlyContributionCents: monthlyCents, frozenExtraAtSave: null },
   });
   if (updated.count === 0) {
     return { ok: false, error: "That goal isn't on your list, so nothing changed." };
@@ -491,7 +516,8 @@ export async function clearGoalMonthly(goalId: string): Promise<GoalFormResult> 
 
   const updated = await prisma.goal.updateMany({
     where: { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }], monthlyContributionCents: { gt: 0 } },
-    data: { monthlyContributionCents: null },
+    // A clear always changes the value (`gt: 0` → null), so the extra stamp goes with it.
+    data: { monthlyContributionCents: null, frozenExtraAtSave: null },
   });
   if (updated.count === 0) {
     return { ok: false, error: "That goal isn't on your list, so nothing changed." };
