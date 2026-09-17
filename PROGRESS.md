@@ -21,7 +21,7 @@
 
 **Ledgers.** DECISIONS #747 (+ index); REGRESSION_LEDGER two rows; STATUS BUILT + #746 residual (1) closed; TASKS L.19 row note. P2s in STATUS (card extra>0 pairing, combined-arm date, `/coach` extra, solver date, Suggested: over a typed monthly).
 
-**Ship.** Recorded below after the push. Schema: `prisma/` diff present (`frozenExtraAtSave`) — `prisma db push` on deploy.
+**Ship.** `e7b8b20d` on `origin/main`. Schema: `prisma/` diff — `frozenExtraAtSave`, `prisma db push` on deploy. CI verify **35281568662 = SUCCESS** (full VERIFY_E2E=1, 14m22s). Vercel Production `dpl_HurMKFK3JwStCo2J7UkPfNhqdcrQ` READY, aliased to `www.aimplifi.app`. Live `/goals` 307 `/sign-in`; note is server-rendered (demo abstains; speaking branch is e2e).
 
 ## 2026-09-17 — L.19 residual (1): the saved debt-free goal card names the frozen balance its total was computed from (DECISIONS #746)
 
