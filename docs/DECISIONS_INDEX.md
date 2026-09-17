@@ -738,3 +738,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #743 — O.20j converse-leak identity: do not ship; critic budget exhausted (2026-09-16) → docs/DECISIONS.md
 - #744 — O.20j converse-leak identity: mask COLUMN + detector prereqs (2026-09-17) → docs/DECISIONS.md
 - #745 — The next-dollar ranking names the frozen debt it points at (L.19 residual 5) (2026-09-17) → docs/DECISIONS.md
+- #746 — The saved debt-free goal card names the frozen balance its total was computed from (L.19 residual 1) (2026-09-17) → docs/DECISIONS.md

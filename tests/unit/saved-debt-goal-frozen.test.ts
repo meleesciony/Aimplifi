@@ -208,6 +208,18 @@ describe('the stamp follows the total: cleared by a hand-typed target, kept by e
     expect(row.frozenAtSave).toBeNull();
   });
 
+  it('re-saving the pre-filled, UNCHANGED total keeps the stamp — the fact is as true as it was (critic P2-3)', async () => {
+    // GoalTargetControl pre-fills the input with the stored total; tapping Save without editing
+    // writes the same Σ back. The stamp describes that total, so it must survive the no-op.
+    const goal = await stampedRow();
+    const fd = new FormData();
+    fd.set('target', '$23,300.00');
+    expect((await updateGoalTarget(goal.id, fd)).ok).toBe(true);
+    const row = await prisma.goal.findUniqueOrThrow({ where: { id: goal.id } });
+    expect(row.targetCents).toBe(2_330_000);
+    expect(row.frozenAtSave).toBe(SAVED_ON);
+  });
+
   it('a refused target write (blank) leaves the stamp in place — nothing changed, so nothing is un-said', async () => {
     const goal = await stampedRow();
     const fd = new FormData();
