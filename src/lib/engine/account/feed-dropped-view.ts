@@ -1423,3 +1423,58 @@ export function frozenDebtPlanNote(
     ? `${opener} ${rows.length} of the cards behind ${opts.figureLabel} (${names}), so their balances are the last ones we saw — nothing that has happened on them since is in ${opts.figureLabel}, including payments you have made or new charges, so the real balances may be higher or lower than the ones used here.${tail}`
     : `${opener} ${rows.length} of the loans behind ${opts.figureLabel} (${names}), so their balances are the last ones sent — nothing about these loans has been confirmed since, so the real balances may not be the ones used here.${tail}`;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════════
+ * TASKS L.19 residual (5) — the next-dollar ranking: /coach's "Your next dollar" card and Ask's
+ * `next_dollar` answer, which print the SAME `NextDollarPlan` through COACH_COPY.
+ *
+ * DECISIONS #742 closed the debt-payoff path and its critic named this one: `src/server/coach.ts`
+ * built the ranking's loans from `snap.accounts` without `feedDroppedAt`, and the past-due cards
+ * from obligations that carried it and dropped it on the way. Downstream the card says "Next extra
+ * dollar: <this loan> (12.00% APR)" — an INSTRUCTION naming one debt to send money to — over a
+ * balance the bank stopped confirming, with nothing said.
+ *
+ * ITS OWN BUILDER, not `frozenDebtPlanNote`: that one qualifies an amortisation ("the balance
+ * behind this payoff plan"), and the ranking amortises nothing. What is at stake here is the
+ * PREMISE that puts the debt in the ranking at all — a card is admitted only because a past-due
+ * amount remains, a loan only because a balance does — and the premise is what went stale. The
+ * rate is not claimed to be stale or fresh: a variable rate the bank stopped sending would be
+ * stale too, and the assumptions line already says every rate is the one on file.
+ *
+ * KIND decides the mechanism. A CARD is here because its last statement's due went unpaid on the
+ * bank's books; a payment the reader has since made may not have reached us (the payment side
+ * may or may not have been seen from the paying account), so the honest claim is that it may not
+ * be past due at all. A LOAN claims NO direction — the `frozenDebtPlanNote` critic P1-1 rule: a
+ * line of credit is a LOAN here and a draw pushes the real balance UP — and the one thing a
+ * ranking that names it needs the reader to hear is that nothing confirms it is still open.
+ *
+ * ONE ROW, not a list: the copy names at most one debt per plan (the winner, or on the investing
+ * branch the installment that lost the comparison), and the resolution against WHICH one is the
+ * copy's job (`nextDollarNamedDebt` in coach-copy.ts), beside the sentences that print the name.
+ *
+ * NO OWNERSHIP ARGUMENT, for the same reason as `frozenDebtPlanNote`: `getCoachData` reads the
+ * personal snapshot, which is never household-merged, so the row is the reader's own by
+ * construction. The day that read path gains a household scope, this gains `ownership`.
+ * ════════════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+/** /coach: the note under the next-dollar headline, qualifying the debt it names. */
+export const FROZEN_NEXT_DOLLAR_TESTID = 'next-dollar-frozen';
+
+/**
+ * The claim for a next-dollar ranking whose named debt stopped updating. `null` when the plan
+ * names no frozen debt, so an unaffected surface is byte-identical.
+ */
+export function frozenNextDollarNote(
+  row: FrozenDebtRow | null,
+  opts: { nextStep: FrozenNextStep },
+): string | null {
+  if (row === null) return null;
+  const name = renderSafe(row.label);
+  const when = formatISODate(row.frozenSince as ISODate, 'long');
+  const opener = stoppedSharing(1, ['reader']);
+  const tail = nextStepClause(opts.nextStep, false);
+  return row.kind === 'card'
+    ? `${opener} ${name} on ${when}, so the past-due amount that ranks it here is from the last statement it sent — a payment you have already made may not be counted, so the card may not be past due at all.${tail}`
+    : `${opener} ${name} on ${when}, so what we know about this loan is the last thing it sent — nothing about it has been confirmed since, including whether it is still open.${tail}`;
+}

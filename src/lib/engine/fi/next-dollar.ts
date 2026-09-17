@@ -31,6 +31,15 @@ export interface NextDollarDebt {
   kind: NextDollarDebtKind;
   balanceCents: number;
   aprBps: number;
+  /**
+   * `Account.feedDroppedAt` (YYYY-MM-DD) when the bank stopped sharing this row, else null.
+   * TASKS L.19 residual (5): this map used to be the NARROWING that stripped the fact before the
+   * /coach card and Ask's next-dollar answer named a debt to send extra money to — the #742
+   * disease one read path over. The ranking below never reads it (locked byte-identical); it
+   * exists so the copy can qualify the debt it names. REQUIRED, not optional, so the server
+   * boundary has to answer — an omitted field is how the last narrowing shipped.
+   */
+  frozenSince: string | null;
 }
 
 /**
@@ -91,12 +100,14 @@ export function classifyDebts(input: {
     name: string;
     balanceCents: number;
     aprBps: number | null;
+    frozenSince: string | null;
   }[];
   pastDueCards: readonly {
     id: string;
     name: string;
     remainingDueCents: Cents | number;
     aprBps: number | null;
+    frozenSince: string | null;
   }[];
 }): NextDollarDebt[] {
   const out: NextDollarDebt[] = [];
@@ -110,6 +121,7 @@ export function classifyDebts(input: {
       kind: 'revolving',
       balanceCents: remaining,
       aprBps: apr,
+      frozenSince: c.frozenSince,
     });
   }
   for (const l of input.loans) {
@@ -123,6 +135,7 @@ export function classifyDebts(input: {
       kind: 'installment',
       balanceCents: l.balanceCents,
       aprBps: l.aprBps,
+      frozenSince: l.frozenSince,
     });
   }
   return out;

@@ -35,6 +35,7 @@ describe('W.6(b) /coach next-dollar payload', () => {
                 name: d.nextDollar.highestInstallment.name,
                 balanceCents: d.nextDollar.highestInstallment.balanceCents,
                 aprBps: d.nextDollar.highestInstallment.aprBps,
+                frozenSince: d.nextDollar.highestInstallment.frozenSince,
               },
             ]
           : [],

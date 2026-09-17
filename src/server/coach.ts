@@ -587,16 +587,24 @@ export async function getCoachData(
         name: c.cardName,
         remainingDueCents: c.remainingDueCents,
         aprBps: acct?.aprBps ?? null,
+        // TASKS L.19 residual (5): the obligation already carries the stamp (L.18); the
+        // "past due" that ranks this card is from the last statement the bank sent.
+        frozenSince: c.frozenSince,
       };
     });
   const loanRows = snap.accounts.filter(
     (a) => (a.type === 'LOAN' || a.type === 'MORTGAGE') && a.currentBalanceCents > 0,
   );
+  // TASKS L.19 residual (5): `feedDroppedAt` rides out with the balance. This map was the
+  // narrowing that dropped it, so the next-dollar card named a loan to send extra money to over
+  // a balance the bank had stopped confirming, with nothing said (the #742 disease). The
+  // ranking never reads it; the copy qualifies the debt it names.
   const loans = loanRows.map((a) => ({
     id: a.id,
     name: accountLabel(a),
     balanceCents: a.currentBalanceCents,
     aprBps: a.aprBps ?? null,
+    frozenSince: a.feedDroppedAt ?? null,
   }));
   const nextDollarPlan = nextDollar({
     debts: classifyDebts({ loans, pastDueCards }),

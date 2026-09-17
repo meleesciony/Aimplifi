@@ -21,6 +21,7 @@ const storeCard: NextDollarDebt = {
   kind: 'revolving',
   balanceCents: 43_50,
   aprBps: 3199,
+  frozenSince: null,
 };
 const autoLoan: NextDollarDebt = {
   id: 'acct-autoloan',
@@ -28,6 +29,7 @@ const autoLoan: NextDollarDebt = {
   kind: 'installment',
   balanceCents: 1_430_000,
   aprBps: 649,
+  frozenSince: null,
 };
 const priceyLoan: NextDollarDebt = {
   id: 'acct-personal',
@@ -35,6 +37,7 @@ const priceyLoan: NextDollarDebt = {
   kind: 'installment',
   balanceCents: 500_000,
   aprBps: 1200,
+  frozenSince: null,
 };
 
 function plan(over: Partial<NextDollarInput> = {}) {
@@ -53,10 +56,10 @@ describe('classifyDebts', () => {
   it('keeps installment loans with a positive balance, including known 0 APR, and skips a null APR', () => {
     const debts = classifyDebts({
       loans: [
-        { id: 'l1', name: 'Auto Loan', balanceCents: 1_430_000, aprBps: 649 },
-        { id: 'l0', name: 'Paid off', balanceCents: 0, aprBps: 499 },
-        { id: 'l2', name: 'Zero-APR', balanceCents: 10_000, aprBps: 0 },
-        { id: 'l3', name: 'Unknown APR', balanceCents: 50_000, aprBps: null },
+        { id: 'l1', name: 'Auto Loan', balanceCents: 1_430_000, aprBps: 649, frozenSince: null },
+        { id: 'l0', name: 'Paid off', balanceCents: 0, aprBps: 499, frozenSince: null },
+        { id: 'l2', name: 'Zero-APR', balanceCents: 10_000, aprBps: 0, frozenSince: null },
+        { id: 'l3', name: 'Unknown APR', balanceCents: 50_000, aprBps: null, frozenSince: null },
       ],
       pastDueCards: [],
     });
@@ -69,10 +72,10 @@ describe('classifyDebts', () => {
     const debts = classifyDebts({
       loans: [],
       pastDueCards: [
-        { id: 'c1', name: 'Store Card', remainingDueCents: cents(4350), aprBps: 3199 },
-        { id: 'c2', name: 'Settled', remainingDueCents: cents(0), aprBps: 2499 },
-        { id: 'c3', name: 'Promo', remainingDueCents: cents(9000), aprBps: 0 },
-        { id: 'c4', name: 'Unknown APR', remainingDueCents: cents(9000), aprBps: null },
+        { id: 'c1', name: 'Store Card', remainingDueCents: cents(4350), aprBps: 3199, frozenSince: null },
+        { id: 'c2', name: 'Settled', remainingDueCents: cents(0), aprBps: 2499, frozenSince: null },
+        { id: 'c3', name: 'Promo', remainingDueCents: cents(9000), aprBps: 0, frozenSince: null },
+        { id: 'c4', name: 'Unknown APR', remainingDueCents: cents(9000), aprBps: null, frozenSince: null },
       ],
     });
     expect(debts).toEqual([
@@ -82,6 +85,7 @@ describe('classifyDebts', () => {
         kind: 'revolving',
         balanceCents: 4350,
         aprBps: 3199,
+        frozenSince: null,
       },
     ]);
   });
@@ -157,6 +161,7 @@ describe('nextDollar — EDGE_CASES §Next-dollar', () => {
       kind: 'revolving',
       balanceCents: 90_000,
       aprBps: 0,
+      frozenSince: null,
     };
     const p = plan({ debts: [promo, autoLoan], runwayMonths: 4.2 });
     expect(p.destination).toBe('invest');
@@ -169,6 +174,7 @@ describe('nextDollar — EDGE_CASES §Next-dollar', () => {
       kind: 'revolving',
       balanceCents: 10_000,
       aprBps: 500,
+      frozenSince: null,
     };
     const p = plan({ debts: [cheapCard], runwayMonths: 4.2 });
     expect(p.destination).toBe('invest');

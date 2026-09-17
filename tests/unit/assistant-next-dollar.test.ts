@@ -29,6 +29,7 @@ const demoPlan = nextDollar({
       kind: 'installment',
       balanceCents: 1_430_000,
       aprBps: 649,
+      frozenSince: null,
     },
   ],
   expectedReturnBps: 700,

@@ -2621,11 +2621,17 @@ export function answerNextDollar(plan: NextDollarPlan): AssistantAnswer {
     kind: 'next_dollar',
     headline: COACH_COPY.nextDollarHeadline(plan),
     detail: [
+      // TASKS L.19 residual (5): the same qualifier the /coach card prints under its headline,
+      // in the same position — before the reasoning that leans on the named debt. Null (and
+      // filtered out) when nothing named is frozen, so the answer is byte-identical.
+      COACH_COPY.nextDollarFrozenNote(plan),
       COACH_COPY.nextDollarWhy(plan),
       COACH_COPY.nextDollarSkipped(plan),
       COACH_COPY.nextDollarCardsNote(),
       COACH_COPY.nextDollarAssumptions(plan),
-    ].join(' '),
+    ]
+      .filter((s): s is string => s !== null)
+      .join(' '),
     facts: plan.debt
       ? [{ label: plan.debt.name, value: `${(plan.debt.aprBps / 100).toFixed(2)}% APR` }]
       : [],

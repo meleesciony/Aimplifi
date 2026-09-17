@@ -1499,6 +1499,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
       kind: 'installment' as const,
       balanceCents: 1_430_000,
       aprBps: 649,
+      frozenSince: null,
     };
     const store = {
       id: 'acct-store',
@@ -1506,6 +1507,7 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
       kind: 'revolving' as const,
       balanceCents: 4350,
       aprBps: 3199,
+      frozenSince: null,
     };
     const base = {
       expectedReturnBps: 700,
@@ -1607,6 +1609,25 @@ const ALL_STRINGS: { label: string; text: string; isProjection: boolean }[] = [
         isProjection: false,
       },
       { label: 'nextDollarCardsNote', text: COACH_COPY.nextDollarCardsNote(), isProjection: false },
+      // TASKS L.19 residual (5) — the frozen qualifier on the named debt, both kinds. Built from
+      // frozen fixtures so the scanned text is the SENTENCE, never a null that passes silently.
+      ...(() => {
+        const frozenCard = COACH_COPY.nextDollarFrozenNote({
+          ...revolving,
+          debt: { ...store, frozenSince: '2026-05-28' },
+        });
+        const frozenLoan = COACH_COPY.nextDollarFrozenNote({
+          ...installment,
+          debt: { ...installment.debt, frozenSince: '2026-05-28' },
+        });
+        if (frozenCard === null || frozenLoan === null) {
+          throw new Error('nextDollarFrozenNote returned null for a frozen fixture');
+        }
+        return [
+          { label: 'nextDollarFrozenNote:card', text: frozenCard, isProjection: false },
+          { label: 'nextDollarFrozenNote:loan', text: frozenLoan, isProjection: false },
+        ];
+      })(),
       { label: 'nextDollarAssumptions:default', text: COACH_COPY.nextDollarAssumptions(invest), isProjection: true },
       {
         label: 'nextDollarAssumptions:chosen',

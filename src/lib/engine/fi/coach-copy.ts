@@ -9,7 +9,10 @@
 
 import { cents, formatCents, type Cents } from '@/lib/money';
 import { formatISODate, formatMonth, type ISODate } from '@/lib/dates';
-import type { FrozenFunding } from '@/lib/engine/account/feed-dropped-view';
+import {
+  frozenNextDollarNote,
+  type FrozenFunding,
+} from '@/lib/engine/account/feed-dropped-view';
 import type { Opportunity, CreepResult, MonthlyFlow } from './insights';
 import type { CutCounterfactual } from './counterfactual';
 import type { DrawdownCounterfactual } from './drawdown';
@@ -36,7 +39,7 @@ import type { IdleCash } from '@/lib/engine/fi/idle-cash';
 import type { PawLens } from '@/lib/engine/networth/paw-lens';
 import type { FulfillmentCategory, FulfillmentCurve } from './fulfillment';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
-import type { EmployerMatch, NextDollarPlan } from './next-dollar';
+import type { EmployerMatch, NextDollarDebt, NextDollarPlan } from './next-dollar';
 import type { DialOwnership } from '@/lib/engine/settings/dials';
 import { formatTargetBand, formatTargetBps } from '@/lib/engine/spending-plan/conscious';
 // The basis sentence decides WHICH claim to make from the same engine the figures come from —
@@ -154,6 +157,22 @@ export function wealthTargetPlanUnproven(
   historicalCents: number,
 ): boolean {
   return basis === 'settings-savings-pct' && historicalCents <= 0;
+}
+
+/**
+ * The one debt the next-dollar sentences below PRINT, or null. Mirrors the branches of
+ * `nextDollarHeadline` / `nextDollarWhy` exactly: the winner on the two debt destinations, and on
+ * the investing fall-through the installment that lost the comparison (the why names it). Every
+ * other destination prints no debt. Lives here, beside those sentences, because a guard must read
+ * what it guards — a frozen note resolved against the plan's ranked set would qualify a row the
+ * reader cannot see (TASKS L.19 residual (5)).
+ */
+export function nextDollarNamedDebt(plan: NextDollarPlan): NextDollarDebt | null {
+  if (plan.destination === 'revolving_debt' || plan.destination === 'installment_debt') {
+    return plan.debt;
+  }
+  if (plan.destination === 'invest') return plan.highestInstallment;
+  return null;
 }
 
 export const COACH_COPY = {
@@ -1779,6 +1798,25 @@ export const COACH_COPY = {
   },
   nextDollarCardsNote: () =>
     `Cards that are not past due are a this-cycle cash question, not an extra-pay destination.`,
+  /**
+   * TASKS L.19 residual (5) — qualifies the debt the headline / why above NAME when the bank
+   * stopped sharing it. Resolved through `nextDollarNamedDebt`, beside those sentences, so the
+   * note is about the row on screen and never about one the plan ranked but did not print.
+   * `null` when nothing named is frozen — the card and the Ask answer render byte-identically.
+   */
+  nextDollarFrozenNote: (plan: NextDollarPlan): string | null => {
+    const named = nextDollarNamedDebt(plan);
+    return frozenNextDollarNote(
+      named && named.frozenSince != null
+        ? {
+            label: named.name,
+            frozenSince: named.frozenSince,
+            kind: named.kind === 'revolving' ? 'card' : 'loan',
+          }
+        : null,
+      { nextStep: 'accounts-route' },
+    );
+  },
   nextDollarAssumptions: (plan: NextDollarPlan) => {
     const ret = returnClause(plan.expectedReturnBps, {
       returnIsDefault: plan.returnIsDefault,
