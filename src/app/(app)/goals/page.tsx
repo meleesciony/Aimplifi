@@ -10,7 +10,11 @@ import { GoalPaceLine, GoalProgressBlock } from '@/components/finance/goal-progr
 import { isoDate } from '@/lib/dates';
 import { RESERVE_KIND } from '@/lib/engine/spending-plan/reserves';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
-import { frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
+import {
+  FROZEN_SAVED_DEBT_GOAL_TESTID,
+  frozenSavedDebtGoalNote,
+  frozenTotalNote,
+} from '@/lib/engine/account/feed-dropped-view';
 import { cents, formatCents } from '@/lib/money';
 import { getCoachData } from '@/server/coach';
 import { loadDebtAccounts } from '@/server/debt';
@@ -137,6 +141,10 @@ export default async function GoalsPage() {
           // the "moves your FI date back" framing (which is backwards for paying down debt).
           if (goal.kind === 'debt_free') {
             const extra = goal.monthlyContributionCents ?? 0;
+            // L.19 residual (1), DECISIONS #746: the "$X of debt" above is the total the save
+            // computed; when that computation included a balance the bank had stopped sharing,
+            // the row says so (null stamp = nothing recorded = nothing rendered).
+            const frozenNote = frozenSavedDebtGoalNote(goal.frozenAtSave);
             return (
               <Card key={goal.id} data-testid={`goal-${goal.id}`}>
                 <CardHeader className="pb-2">
@@ -157,13 +165,18 @@ export default async function GoalsPage() {
                     />
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="text-sm" data-testid="goal-debt-free">
+                <CardContent className="space-y-2 text-sm" data-testid="goal-debt-free">
                   <p className="text-muted-foreground">
                     {extra > 0
                       ? `Suggested: about ${formatCents(cents(extra))}/mo on top of your minimums (least-interest order). `
                       : 'On track at your current payments — no extra needed. '}
                     Re-check in Ask Aimplifi as your balances change.
                   </p>
+                  {frozenNote && (
+                    <p className="text-xs text-muted-foreground" data-testid={FROZEN_SAVED_DEBT_GOAL_TESTID}>
+                      {frozenNote}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             );

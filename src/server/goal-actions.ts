@@ -109,6 +109,11 @@ export async function saveDebtFreeGoal(targetDateRaw: string): Promise<void> {
   if (result.outcome === 'unreachable' || result.outcome === 'already-debt-free') {
     throw new Error('That date has no debt-free plan to save');
   }
+  // L.19 residual (1), DECISIONS #746: the total below is summed over `debts` — the same rows the
+  // planner's frozen note is resolved against — so if any of them carried `feedDroppedAt`, the row
+  // records the save day and the /goals card says so. Judged on the solver's INPUT, not re-derived
+  // later: today's stamps cannot say what was true at the save.
+  const frozenAtSave = debts.some((d) => d.frozenSince !== null) ? today : null;
 
   await prisma.goal.create({
     data: {
@@ -120,9 +125,10 @@ export async function saveDebtFreeGoal(targetDateRaw: string): Promise<void> {
       monthlyContributionCents: result.requiredExtraMonthlyCents ?? 0,
       // Render with the solver's own date on /goals, not the savings-goal timeline (DECISIONS #125).
       kind: 'debt_free',
+      frozenAtSave,
     },
   });
-  await auditLog(userId, 'goal.create', { kind: 'debt_free_by_date', targetDate });
+  await auditLog(userId, 'goal.create', { kind: 'debt_free_by_date', targetDate, frozenAtSave });
   revalidatePath('/goals');
 }
 
@@ -305,9 +311,19 @@ export async function updateGoalTarget(
     };
   }
 
+  const scope = { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }] };
+  const current = await prisma.goal.findFirst({ where: scope, select: { targetCents: true } });
+  if (!current) {
+    return { ok: false, error: "That goal isn't on your list, so nothing changed." };
+  }
+  // DECISIONS #746: the stamp describes the TOTAL. A hand-typed total is the reader's own
+  // figure, so a debt-free row's "includes the last balance we saw" fact no longer describes it
+  // and is cleared with the write. Re-saving the pre-filled, unchanged total leaves the fact as
+  // true as it was, so it stays (critic P2-3 — the quiet direction). Savings rows never carry
+  // the stamp, so the null is a no-op there.
   const updated = await prisma.goal.updateMany({
-    where: { id, userId, OR: [{ kind: null }, { kind: { not: RESERVE_KIND } }] },
-    data: { targetCents },
+    where: scope,
+    data: targetCents === current.targetCents ? { targetCents } : { targetCents, frozenAtSave: null },
   });
   if (updated.count === 0) {
     return { ok: false, error: "That goal isn't on your list, so nothing changed." };

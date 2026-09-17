@@ -14,11 +14,20 @@ describe('Debt-free goals reuse target/date/monthly controls', () => {
     const page = readFileSync(resolve('src/app/(app)/goals/page.tsx'), 'utf8');
     const debtStart = page.indexOf("goal.kind === 'debt_free'");
     expect(debtStart).toBeGreaterThan(-1);
-    const debtBlock = page.slice(debtStart, debtStart + 1800);
+    // The block's REAL extent (to the savings branch that follows), not a magic byte window —
+    // the #746 note grew the block past the old 1800 bytes (same rule as fnBlock below).
+    const debtEnd = page.indexOf('const impact = goalFIImpact(', debtStart);
+    expect(debtEnd).toBeGreaterThan(debtStart);
+    const debtBlock = page.slice(debtStart, debtEnd);
     expect(debtBlock).toContain('GoalTargetControl');
     expect(debtBlock).toContain('GoalTargetDateControl');
     expect(debtBlock).toContain('GoalMonthlyControl');
     expect(debtBlock).not.toContain('GoalSavedControl');
+    // DECISIONS #746 (critic P2-2): the save-day note is resolved from the row's OWN stamp and
+    // rendered under its testid — a wiring that no unit test reached (a mutation reading
+    // `goal.targetDate` survived the whole suite; only the e2e caught it).
+    expect(debtBlock).toContain('frozenSavedDebtGoalNote(goal.frozenAtSave)');
+    expect(debtBlock).toContain('FROZEN_SAVED_DEBT_GOAL_TESTID');
 
     const actions = readFileSync(resolve('src/server/goal-actions.ts'), 'utf8');
     // Slice each function's REAL extent (to the next export), not a magic byte
