@@ -28,6 +28,8 @@
 
 **Gates on the unshipped tree (not a ship).** `bash scripts/verify.sh` VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8444 passed + 1 expected fail + 1 skipped / 629 files**, next build clean. FAIL-OLD: identity removed → `{ overturned: 1 }` vs expected 0. Playwright `transfer-flag-repair.spec.ts` mobile-380 **1/1**. Critic cycle 4 independently reproduced the 8444 count.
 
+**Ledger landed.** `d2e146d1` on `origin/main` (docs only; #743 because L.19 occupies #742). CI verify **35151281286 = SUCCESS**. Vercel Production READY. Draft PR #24 retitled to #743 and rebased onto this sha (`71d22d54`); still draft — do not merge.
+
 **Next.** Human gate, or a new session on the branch that closes P1-1 (veto over the `root()` component) before any ship.
 
 ## 2026-09-16 — L.19 (5): the debt-payoff path names a balance the bank stopped sharing (DECISIONS #742)

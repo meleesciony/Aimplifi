@@ -37,6 +37,8 @@ rates) — no other doc may restate them.
 
 **Cycle history (first budget, all four spent).** C1: HIGH detector as money identity (year-in-name, balance-only spouse cards) — fixed. C2: dismissal edge-skip, fail-OPEN dismissals, same-item edge-skip — fixed as *component* vetoes + `'unavailable'` fail-closed. C3: same-connection still an edge skip via a third copy — fixed as group veto. C4: confirmed-map back door — closed on the #744 tree.
 
+**Ledger on `main`.** `d2e146d1` (docs only — the identity union is not in that tree). CI verify **35151281286 = SUCCESS** (full VERIFY_E2E=1). Vercel Production `dpl_DMsPr3qg7mk97BDLzbd3GGYBKH9w` READY on the same sha. Live: this HUMAN GATE heading is on `origin/main`; `unionSameMaskColumnIdentity` is absent from `src/` on `main`.
+
 ## ✅ BUILT 2026-09-16 — The debt-payoff path names a balance the bank stopped sharing (L.19 surface 5, DECISIONS #742)
 
 **The gap.** TASKS L.19 (5) — the one surface DECISIONS #305 left open: `loadDebtAccounts` narrowed each liability to the engine's `DebtInput` and dropped `feedDroppedAt`, so /goals' Debt Freedom planner ("Debt-free by Jan 2034" + total interest) and both Ask debt answers (a payoff month; an extra-per-month toward a chosen date) amortised a frozen balance with nothing said — and each is one save button from a persisted goal target.
