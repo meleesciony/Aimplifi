@@ -339,6 +339,27 @@ describe('combineDuplicateConnectionsFor — the owner’s Chase pair', () => {
     expect(c.predecessor.id).toBe(`${uid}-a2`);
     expect(c.successor.id).toBe(`${uid}-a1`);
   });
+
+  it('test_regression__o20j_present_null_live_name_does_not_inherit_a_stamp_and_offer_a_continue', async () => {
+    // #752 critic P2-1: `item?.institution ?? stamp` made a live pre-backfill
+    // item look named, so the ladder's both-null name fallback proved SAME
+    // and offered an irreversible continue while the live bank is unknown.
+    await prisma.plaidItem.update({
+      where: { itemId: 'item-first' },
+      data: { institution: null, institutionId: null },
+    });
+    await prisma.plaidItem.update({
+      where: { itemId: 'item-second' },
+      data: { institution: 'Chase', institutionId: null },
+    });
+    await prisma.account.updateMany({
+      where: { userId: uid },
+      data: { institutionId: null, institutionName: 'Chase' },
+    });
+    await fakeDisconnect(uid, 'item-second');
+    const view = await getAccountsView(uid);
+    expect(view.reconciliationCandidates).toEqual([]);
+  });
 });
 
 describe('demo golden-safety', () => {
@@ -1131,7 +1152,11 @@ describe('buildCombineInputs — live item institutionId, not the stamp (O.20j #
     lastSyncError: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
   });
-  const acct = (opts: { plaidItemId: string | null; institutionId: string | null }) => ({
+  const acct = (opts: {
+    plaidItemId: string | null;
+    institutionId: string | null;
+    institutionName?: string | null;
+  }) => ({
     id: 'acct-card',
     name: 'CREDIT CARD',
     provider: 'plaid',
@@ -1142,7 +1167,7 @@ describe('buildCombineInputs — live item institutionId, not the stamp (O.20j #
     currency: 'USD',
     persistentAccountId: null,
     institutionId: opts.institutionId,
-    institutionName: 'Chase',
+    institutionName: opts.institutionName === undefined ? 'Chase' : opts.institutionName,
   });
 
   it('test_regression__o20j_present_null_item_does_not_inherit_the_account_stamp', () => {
@@ -1170,5 +1195,56 @@ describe('buildCombineInputs — live item institutionId, not the stamp (O.20j #
       new Map(),
     );
     expect(engineAccounts[0].institutionId).toBe('ins_56');
+  });
+});
+
+describe('buildCombineInputs — live item institutionName, not the stamp (O.20j #752 P2-1)', () => {
+  const item = (institution: string | null) => ({
+    itemId: 'item-live',
+    institution,
+    institutionId: null,
+    lastSyncedAt: '2026-07-24',
+    lastSyncError: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  });
+  const acct = (opts: { plaidItemId: string | null; institutionName: string | null }) => ({
+    id: 'acct-card',
+    name: 'CREDIT CARD',
+    provider: 'plaid',
+    plaidItemId: opts.plaidItemId,
+    mask: '0977',
+    type: 'CREDIT',
+    subtype: 'credit card',
+    currency: 'USD',
+    persistentAccountId: null,
+    institutionId: null,
+    institutionName: opts.institutionName,
+  });
+
+  it('test_regression__o20j_present_null_item_name_does_not_inherit_the_account_stamp', () => {
+    const { engineAccounts } = buildCombineInputs(
+      [item(null)],
+      [acct({ plaidItemId: 'item-live', institutionName: 'Chase' })],
+      new Map(),
+    );
+    expect(engineAccounts[0].institutionName).toBeNull();
+  });
+
+  it('a missing item still uses the name stamp (disconnect last-known)', () => {
+    const { engineAccounts } = buildCombineInputs(
+      [],
+      [acct({ plaidItemId: 'item-dead', institutionName: 'Chase' })],
+      new Map(),
+    );
+    expect(engineAccounts[0].institutionName).toBe('Chase');
+  });
+
+  it('a live Chase name still wins over a null stamp', () => {
+    const { engineAccounts } = buildCombineInputs(
+      [item('Chase')],
+      [acct({ plaidItemId: 'item-live', institutionName: null })],
+      new Map(),
+    );
+    expect(engineAccounts[0].institutionName).toBe('Chase');
   });
 });

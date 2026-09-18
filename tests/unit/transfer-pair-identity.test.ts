@@ -29,6 +29,7 @@ import { describe, expect, it } from 'vitest';
 import {
   planTransferUpdates,
   resolveLiveInstitutionId,
+  resolveLiveInstitutionName,
   transferIdentityDismissKey,
   unionSameMaskColumnIdentity,
   type TransferIdentityAccount,
@@ -1094,5 +1095,40 @@ describe('resolveLiveInstitutionId (O.20j residual 4)', () => {
     );
     expect(combine).not.toMatch(/item\?\.institutionId\s*\?\?\s*a\.institutionId/);
     expect(accounts).not.toMatch(/item\?\.institutionId\s*\?\?\s*a\.institutionId/);
+  });
+});
+
+describe('resolveLiveInstitutionName (O.20j residual 7 / #752 P2-1)', () => {
+  it('a present live-null name does not fall through to the stamp', () => {
+    const items = new Map<string, string | null>([['item-a', null]]);
+    expect(resolveLiveInstitutionName('item-a', 'Chase', items)).toBeNull();
+  });
+
+  it('falls back to the stamp when the item is gone (disconnect)', () => {
+    expect(resolveLiveInstitutionName('item-dead', 'Chase', new Map())).toBe('Chase');
+  });
+
+  it('the live name wins over a stale stamp', () => {
+    const items = new Map<string, string | null>([['item-a', 'Chase']]);
+    expect(resolveLiveInstitutionName('item-a', 'Ally', items)).toBe('Chase');
+  });
+
+  it('a live name still wins over a null stamp', () => {
+    const items = new Map<string, string | null>([['item-a', 'Chase']]);
+    expect(resolveLiveInstitutionName('item-a', null, items)).toBe('Chase');
+  });
+
+  it('test_regression__o20j_combine_and_accounts_call_the_name_join_not_the_inline_fallthrough', () => {
+    // #752 critic P2-1: the name join still inlined `item?.institution ?? stamp`.
+    const combine = readFileSync(resolve('src/server/combine-connections.ts'), 'utf8');
+    const accounts = readFileSync(resolve('src/server/transactions.ts'), 'utf8');
+    expect(combine).toContain(
+      'resolveLiveInstitutionName(a.plaidItemId, a.institutionName, institutionNameByItem)',
+    );
+    expect(accounts).toContain(
+      'resolveLiveInstitutionName(a.plaidItemId, a.institutionName, institutionNameByItem)',
+    );
+    expect(combine).not.toMatch(/item\?\.institution\s*\?\?\s*a\.institutionName/);
+    expect(accounts).not.toMatch(/item\?\.institution\s*\?\?\s*a\.institutionName/);
   });
 });

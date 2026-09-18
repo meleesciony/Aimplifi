@@ -146,23 +146,41 @@ export type TransferIdentityAccount = {
 };
 
 /**
- * Live PlaidItem.institutionId wins when the item row exists — including a
- * present null (pre-backfill). The Account stamp is last-known only after
- * disconnect deletes the item. Critic P2-1 on #749: `??` treated a present
- * null like a missing key and fell through to a stale stamp, so #748's
- * fail-closed rule never ran. Critic P2-2 on #748: live 0977 is stamp NULL
- * + item `ins_56`; a stamp-only fixture stays green under a join regression
- * that would refuse that fold.
+ * Live PlaidItem field wins when the item row exists — including a present
+ * null (pre-backfill). The Account stamp is last-known only after disconnect
+ * deletes the item. Critic P2-1 on #749: `??` treated a present null like a
+ * missing key and fell through to a stale stamp, so #748's fail-closed rule
+ * never ran. Critic P2-1 on #752: the name join still inlined `??`, so a
+ * present-null live name inherited the stamp and the identity ladder's
+ * both-null name fallback could prove SAME. Critic P2-2 on #748: live 0977
+ * is stamp NULL + item `ins_56`; a stamp-only fixture stays green under a
+ * join regression that would refuse that fold.
  */
+function resolveLiveInstitutionField(
+  plaidItemId: string | null | undefined,
+  accountStamp: string | null | undefined,
+  liveByItem: ReadonlyMap<string, string | null>,
+): string | null {
+  if (plaidItemId != null && plaidItemId !== '' && liveByItem.has(plaidItemId)) {
+    return liveByItem.get(plaidItemId) ?? null;
+  }
+  return accountStamp ?? null;
+}
+
 export function resolveLiveInstitutionId(
   plaidItemId: string | null | undefined,
   accountStamp: string | null | undefined,
   institutionByItem: ReadonlyMap<string, string | null>,
 ): string | null {
-  if (plaidItemId != null && plaidItemId !== '' && institutionByItem.has(plaidItemId)) {
-    return institutionByItem.get(plaidItemId) ?? null;
-  }
-  return accountStamp ?? null;
+  return resolveLiveInstitutionField(plaidItemId, accountStamp, institutionByItem);
+}
+
+export function resolveLiveInstitutionName(
+  plaidItemId: string | null | undefined,
+  accountStamp: string | null | undefined,
+  institutionNameByItem: ReadonlyMap<string, string | null>,
+): string | null {
+  return resolveLiveInstitutionField(plaidItemId, accountStamp, institutionNameByItem);
 }
 
 function usableMask(mask: string | null): string | null {

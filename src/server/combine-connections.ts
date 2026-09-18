@@ -50,7 +50,7 @@ import {
   type CombineDirection,
   type UncombinableConnections,
 } from '@/lib/engine/account/combine-connections';
-import { resolveLiveInstitutionId } from '@/lib/engine/categorize/transfers';
+import { resolveLiveInstitutionId, resolveLiveInstitutionName } from '@/lib/engine/categorize/transfers';
 import { isSupportedCurrency } from '@/lib/providers/currency';
 import { duplicatePairDismissKey } from '@/server/duplicate-dismissal';
 import { confirmReconciliationFor } from '@/server/reconciliation';
@@ -124,8 +124,8 @@ export function buildCombineInputs(
   accounts: readonly CombineAccountRow[],
   earliestTxnDateByAccountId: ReadonlyMap<string, string>,
 ) {
-  const institutionByItem = new Map(items.map((i) => [i.itemId, i]));
   const institutionIdByItem = new Map(items.map((i) => [i.itemId, i.institutionId]));
+  const institutionNameByItem = new Map(items.map((i) => [i.itemId, i.institution]));
   const earliestByItem = new Map<string, string>();
   for (const a of accounts) {
     if (a.provider !== 'plaid' || !a.plaidItemId) continue;
@@ -144,7 +144,6 @@ export function buildCombineInputs(
     linkedAtKey: i.createdAt.toISOString(),
   }));
   const engineAccounts: CombineConnectionAccount[] = accounts.map((a) => {
-    const item = a.plaidItemId ? institutionByItem.get(a.plaidItemId) : undefined;
     return {
       id: a.id,
       // The FEED's name, deliberately — TASKS L.7 critic F1 (P0). The identity LADDER never
@@ -161,9 +160,9 @@ export function buildCombineInputs(
       plaidItemId: a.plaidItemId,
       // The live connection is authoritative, including a present null (pre-backfill).
       // The row's own stamp is last-known only after disconnect deletes the item
-      // (Map.has — same join as the transfer writer, #750 critic P2-1).
+      // (Map.has — same join as the transfer writer, #750 critic P2-1 / #752 P2-1).
       institutionId: resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionIdByItem),
-      institutionName: item?.institution ?? a.institutionName ?? null,
+      institutionName: resolveLiveInstitutionName(a.plaidItemId, a.institutionName, institutionNameByItem),
       mask: a.mask,
       type: a.type,
       subtype: a.subtype,
