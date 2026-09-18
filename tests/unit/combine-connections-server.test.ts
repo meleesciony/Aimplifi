@@ -1196,6 +1196,15 @@ describe('buildCombineInputs — live item institutionId, not the stamp (O.20j #
     );
     expect(engineAccounts[0].institutionId).toBe('ins_56');
   });
+
+  it('test_regression__o20j_padded_plaid_item_id_does_not_inherit_the_account_stamp', () => {
+    const { engineAccounts } = buildCombineInputs(
+      [item(null)],
+      [acct({ plaidItemId: ' item-live', institutionId: 'ins_stale' })],
+      new Map(),
+    );
+    expect(engineAccounts[0].institutionId).toBeNull();
+  });
 });
 
 describe('buildCombineInputs — live item institutionName, not the stamp (O.20j #752 P2-1)', () => {

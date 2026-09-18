@@ -152,17 +152,20 @@ export type TransferIdentityAccount = {
  * missing key and fell through to a stale stamp, so #748's fail-closed rule
  * never ran. Critic P2-1 on #752: the name join still inlined `??`, so a
  * present-null live name inherited the stamp and the identity ladder's
- * both-null name fallback could prove SAME. Critic P2-2 on #748: live 0977
- * is stamp NULL + item `ins_56`; a stamp-only fixture stays green under a
- * join regression that would refuse that fold.
+ * both-null name fallback could prove SAME. Critic P2-1 on #753: a padded
+ * `plaidItemId` missed `Map.has` and inherited the stamp the same way.
+ * Empty / whitespace-only is not a key — stamp is last-known. Critic P2-2
+ * on #748: live 0977 is stamp NULL + item `ins_56`; a stamp-only fixture
+ * stays green under a join regression that would refuse that fold.
  */
 function resolveLiveInstitutionField(
   plaidItemId: string | null | undefined,
   accountStamp: string | null | undefined,
   liveByItem: ReadonlyMap<string, string | null>,
 ): string | null {
-  if (plaidItemId != null && plaidItemId !== '' && liveByItem.has(plaidItemId)) {
-    return liveByItem.get(plaidItemId) ?? null;
+  const key = plaidItemId?.trim() ?? '';
+  if (key !== '' && liveByItem.has(key)) {
+    return liveByItem.get(key) ?? null;
   }
   return accountStamp ?? null;
 }

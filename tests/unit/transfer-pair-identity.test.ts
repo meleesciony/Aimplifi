@@ -1132,3 +1132,25 @@ describe('resolveLiveInstitutionName (O.20j residual 7 / #752 P2-1)', () => {
     expect(accounts).not.toMatch(/item\?\.institution\s*\?\?\s*a\.institutionName/);
   });
 });
+
+describe('resolveLiveInstitutionField — trimmed plaidItemId (#753 P2-1 / P2-2)', () => {
+  it('test_regression__o20j_padded_plaid_item_id_does_not_inherit_the_stamp', () => {
+    // #753 critic P2-1: " item-a" missed Map.has and fell through to the stamp.
+    const items = new Map<string, string | null>([['item-a', null]]);
+    expect(resolveLiveInstitutionId(' item-a', 'ins_stale', items)).toBeNull();
+    expect(resolveLiveInstitutionId('item-a ', 'ins_stale', items)).toBeNull();
+    expect(resolveLiveInstitutionName('\titem-a', 'Chase', items)).toBeNull();
+  });
+
+  it('a padded id still presents a live ins_56 over a null stamp', () => {
+    const items = new Map<string, string | null>([['item-a', 'ins_56']]);
+    expect(resolveLiveInstitutionId(' item-a ', null, items)).toBe('ins_56');
+  });
+
+  it('whitespace-only plaidItemId is missing — stamp is last-known', () => {
+    const items = new Map<string, string | null>([['item-a', null]]);
+    expect(resolveLiveInstitutionId('', 'ins_stale', items)).toBe('ins_stale');
+    expect(resolveLiveInstitutionId('   ', 'ins_stale', items)).toBe('ins_stale');
+    expect(resolveLiveInstitutionName('', 'Chase', items)).toBe('Chase');
+  });
+});
