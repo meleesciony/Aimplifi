@@ -23,7 +23,9 @@
  * filed TRAVEL CREDIT) against a wider union; that number is not this
  * function's live result until `o20j-converse-leak.mts` re-runs. Mixed-type
  * over-veto can refuse the 0977 fold when a confirmed terminal has a
- * different type (named residual). The detector's HIGH band is wider
+ * different type (named residual). Live 0977 presents `ins_56` via
+ * `resolveLiveInstitutionId` (PlaidItem over a NULL stamp — #748 residual 4).
+ * The detector's HIGH band is wider
  * (year-in-name, balance-only spouse cards) and stays advisory. Dismissed
  * pairs ("Not a duplicate") stay two accounts, and a dismissal-read fault
  * skips this union rather than folding. Same-connection rows (one SimpleFIN,
@@ -49,6 +51,7 @@ import {
   NON_COMPETING_CATEGORY_IDS,
   PAIR_TRANSFER_CONFIDENCE_BPS,
   planTransferUpdates,
+  resolveLiveInstitutionId,
   unionSameMaskColumnIdentity,
 } from '@/lib/engine/categorize/transfers';
 import { getDismissedDuplicateKeysForMoney } from '@/server/duplicate-dismissal';
@@ -129,7 +132,9 @@ export async function loadTransferSweepRows(userId: string) {
     ...a,
     // Live connection is authoritative (same join combine-connections uses);
     // the row stamp is last-known after disconnect deletes the PlaidItem.
-    institutionId: (a.plaidItemId ? institutionByItem.get(a.plaidItemId) : undefined) ?? a.institutionId ?? null,
+    // Live 0977: stamp NULL, item ins_56 — resolveLiveInstitutionId is the
+    // only expression that presents that id (STATUS #748 residual 4).
+    institutionId: resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionByItem),
   }));
   // O.20j: unconfirmed same-type copies that share a MASK COLUMN are the same
   // identity the pair rule already honours for confirmed links. Cycle 3

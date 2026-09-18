@@ -17,11 +17,16 @@
  * on identical-balance spouse cards (critic cycle 1). Dismissed pairs
  * ("Not a duplicate") stay two accounts. Residual (2): two Plaid items with
  * a missing `ins_*` must not fold on last-4 — an absence is not a bank.
+ * Residual (4): live 0977 is stamp NULL + PlaidItem `ins_56`; the fold reads
+ * `resolveLiveInstitutionId`, not the account stamp.
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
   planTransferUpdates,
+  resolveLiveInstitutionId,
   transferIdentityDismissKey,
   unionSameMaskColumnIdentity,
   type TransferIdentityAccount,
@@ -480,6 +485,37 @@ describe('unionSameMaskColumnIdentity', () => {
     ]);
     expect(rootOf(out, 'old-card')).toBe(rootOf(out, 'third-copy'));
     expect(rootOf(out, 'third-copy')).toBe(rootOf(out, 'live-card'));
+  });
+
+  it('test_regression__o20j_live_0977_join_is_item_ins_over_a_null_stamp', () => {
+    // #748 critic P2-2: live shape is Account.institutionId NULL +
+    // PlaidItem.institutionId ins_56. The fold must read the join, not the
+    // stamp — a stamp-only map keeps the filing fixture green and refuses
+    // the live pair.
+    const items = new Map<string, string | null>([
+      ['item-1', 'ins_56'],
+      ['item-2', 'ins_56'],
+    ]);
+    const joined = [
+      acct({ id: 'card-a', plaidItemId: 'item-1', institutionId: null }),
+      acct({ id: 'card-b', plaidItemId: 'item-2', institutionId: null }),
+    ].map((a) => ({
+      ...a,
+      institutionId: resolveLiveInstitutionId(a.plaidItemId, a.institutionId, items),
+    }));
+    const out = unionSameMaskColumnIdentity(new Map(), joined);
+    expect(joined.map((a) => a.institutionId)).toEqual(['ins_56', 'ins_56']);
+    expect(rootOf(out, 'card-a')).toBe(rootOf(out, 'card-b'));
+  });
+
+  it('test_regression__o20j_stamp_only_0977_does_not_stand_in_for_the_join', () => {
+    // Same two rows, stamps still null, no item map → fail closed (the
+    // join regression: ignore PlaidItem, keep the stamp). Must NOT fold.
+    const out = unionSameMaskColumnIdentity(new Map(), [
+      acct({ id: 'card-a', plaidItemId: 'item-1', institutionId: null }),
+      acct({ id: 'card-b', plaidItemId: 'item-2', institutionId: null }),
+    ]);
+    expect(out.size).toBe(0);
   });
 
   it('test_regression__o20j_missing_account_record_fails_closed', () => {
@@ -977,5 +1013,39 @@ describe('H.7b repair reach after same-mask-column identity (O.20j)', () => {
     const plan = planTransferFlagRepair(flagged);
     expect(plan.clearIds).toEqual([]);
     expect(plan.endorsedCount).toBe(2);
+  });
+});
+
+describe('resolveLiveInstitutionId (O.20j residual 4)', () => {
+  it('presents the live 0977 join: stamp null, item ins_56', () => {
+    const items = new Map<string, string | null>([['item-a', 'ins_56']]);
+    expect(resolveLiveInstitutionId('item-a', null, items)).toBe('ins_56');
+  });
+
+  it('falls back to the stamp when the item is gone (disconnect)', () => {
+    expect(resolveLiveInstitutionId('item-dead', 'ins_56', new Map())).toBe('ins_56');
+  });
+
+  it('the live item wins over a stale stamp', () => {
+    const items = new Map<string, string | null>([['item-a', 'ins_56']]);
+    expect(resolveLiveInstitutionId('item-a', 'ins_stale', items)).toBe('ins_56');
+  });
+
+  it('missing both is null — last-4 is not a bank', () => {
+    expect(resolveLiveInstitutionId('item-a', null, new Map())).toBeNull();
+    expect(resolveLiveInstitutionId(null, null, new Map())).toBeNull();
+  });
+
+  it('test_regression__o20j_transfer_refresh_calls_the_join_not_the_stamp', () => {
+    // Critic P2-2: a wiring lock the unit suite can reach. Deleting the
+    // helper call (or restoring the inlined stamp-only expression) dies here.
+    const src = readFileSync(resolve('src/lib/providers/transfer-refresh.ts'), 'utf8');
+    const loadStart = src.indexOf('export async function loadTransferSweepRows');
+    expect(loadStart).toBeGreaterThan(-1);
+    const loadEnd = src.indexOf('export async function refreshTransferFlags', loadStart);
+    expect(loadEnd).toBeGreaterThan(loadStart);
+    const load = src.slice(loadStart, loadEnd);
+    expect(load).toContain('resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionByItem)');
+    expect(load).not.toMatch(/institutionId:\s*a\.institutionId/);
   });
 });

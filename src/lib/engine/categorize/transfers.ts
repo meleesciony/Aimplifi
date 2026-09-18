@@ -145,6 +145,24 @@ export type TransferIdentityAccount = {
   subtype?: string | null;
 };
 
+/**
+ * Live PlaidItem.institutionId wins; the Account stamp is last-known after
+ * disconnect deletes the item (same join combine-connections uses). Critic
+ * P2-2 on #748: live 0977 is stamp NULL + item `ins_56`. A stamp-only
+ * fixture stays green under a join regression that would refuse that fold.
+ */
+export function resolveLiveInstitutionId(
+  plaidItemId: string | null | undefined,
+  accountStamp: string | null | undefined,
+  institutionByItem: ReadonlyMap<string, string | null>,
+): string | null {
+  const fromItem =
+    plaidItemId != null && plaidItemId !== ''
+      ? institutionByItem.get(plaidItemId)
+      : undefined;
+  return fromItem ?? accountStamp ?? null;
+}
+
 function usableMask(mask: string | null): string | null {
   const t = mask?.trim() ?? '';
   return t.length >= 4 ? t : null;
