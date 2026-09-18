@@ -9,6 +9,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-10_to_2026-09-11.md` (rotated 2026-09-17).
 > Only sessions from 2026-09-12 onward live here; append new sessions at the top as before.
 
+## 2026-09-18 — O.20j residual (6): combine and /accounts use the Map.has institution join (DECISIONS #752)
+
+**Picked up.** Owner: "Continue." Tree even with `origin/main` at `d7d014e4` (#751 ship-gate; CI 35378504138 SUCCESS). Queue scan: Wave 0 ops owner-executed (walkthrough shipped; writes still owner-run). Strongest money-identity residual: #750 critic P2-1 — combine and `/accounts` still inlined `??`.
+
+**Closed.** Both surfaces call `resolveLiveInstitutionId`. Present null stays null; disconnect stamp remains.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8549 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**, next build clean. FAIL-OLD `??`: **3 failed | 95 skipped**. Playwright mobile-380 `combine-connections` **2/2**.
+
+**Critic (fresh context, `/tmp/_critic_o20j_r6`): cycle 1 PASS 0 P0 / 0 P1 / 4 P2.** Independently: tsc 0, 98/98, FAIL-OLD 3|95, kill-call 5 died. P2s in STATUS.
+
+**Ledgers.** DECISIONS #752 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j residual (6).
+
 ## 2026-09-18 — Owner Yes on ops walkthrough + two live writes (DECISIONS #751)
 
 **Picked up.** Owner: "3. Yes. 4. Yes." after the four optional items. Tree even with `origin/main` at `8a8287fe` (#750 ship-gate).

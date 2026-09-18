@@ -744,3 +744,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #749 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (2026-09-18) → docs/DECISIONS.md
 - #750 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (2026-09-18) → docs/DECISIONS.md
 - #751 — Owner Yes on the ops walkthrough and the two live-data writes (2026-09-18) → docs/DECISIONS.md
+- #752 — O.20j residual (6): combine and /accounts use the Map.has institution join (2026-09-18) → docs/DECISIONS.md

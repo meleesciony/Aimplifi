@@ -19,6 +19,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-18 — O.20j residual (6): combine and /accounts use the Map.has institution join (DECISIONS #752)
+
+**The hole.** #750 critic P2-1: `buildCombineInputs` and `/accounts` `identityOf` inlined `item?.institutionId ?? stamp`, so a present-null live item inherited the stamp and the identity ladder could prove SAME / offer a combine while the transfer writer fail-closed.
+
+**Shipped.** Both surfaces call `resolveLiveInstitutionId` (Map.has). Present null stays null; missing item still uses the stamp. Live 0977 unchanged. Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
+
+**Critic (fresh context, `/tmp/_critic_o20j_r6`): cycle 1 PASS 0 P0 / 0 P1 / 4 P2.** Independently: tsc 0, eslint 0, 98/98, FAIL-OLD **3 failed | 95 skipped**, kill-call stamp-only **5 failed**. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8549 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**. Playwright mobile-380 `combine-connections` **2/2**.
+
+**CI + live.** Recorded after the push.
+
+**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) **This-cycle P2-1:** `institutionName` still uses `item?.institution ?? stamp`. (5) **P2-2 / #750 P2-2–P2-3:** `plaidItemId` not trimmed; `''` skips the map. (6) **P2-3:** `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (7) Disconnect stamp-fallback fold/filing lock still helper-golden only. (8) Mixed live `ins_56` + live-null not in the transfer suite. (9) `anyPairBlocked` O(n²). (10) Raw `provider === 'plaid'`. (11) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
+
 ## DECIDED 2026-09-18 — Owner Yes on ops walkthrough + two live writes (DECISIONS #751)
 
 Owner: **"3. Yes. 4. Yes."** First-timer steps live in `docs/OPS_WALKTHROUGH.md`
@@ -41,7 +53,7 @@ Vercel `dpl_AQAigaAKyGswkes9coT5bhpUqyxU` READY.
 
 **CI + live.** `261cbddb` on `origin/main` (PR #29). No `prisma/` diff — database untouched. **CI verify run 35370637485 = SUCCESS** on `261cbddb` (`main`, full `VERIFY_E2E=1`, 15m15s, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_GNBd6UC2ZYJhcFz6iHXgK4hRenkp` **READY** on `261cbddb`, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. The join is server-only (no new UI copy); `raw.githubusercontent.com` on that sha finds `institutionByItem.has(plaidItemId)` in `transfers.ts` vs the prior production sha `0b89152e` still carrying `fromItem ?? accountStamp ?? null`. H.7b not auto-run. Live 0977 re-measure in this VM is **UNVERIFIED** (no `DATABASE_URL`).
 
-**Still open / residuals.** (1) Mixed-type over-veto (cycle-4 lock still refuses CREDIT≡CHECKING). (2) Third Plaid-null copy poisons a group (#748 P2-1). (3) Dismissal `take: 500`. (4) **Critic P2-1:** combine-connections and `/accounts` still inline `??`. (5) **P2-2:** `plaidItemId` is not trimmed. (6) **P2-3:** empty-string `plaidItemId` skips the map and can fold onto a live sibling; null `plaidItemId` does not (same-connection). (7) **P2-4:** present map value `''` returns `''`; present `null` returns `null` (`institutionsConflict` still fail-closes via trim). (8) **P2-5:** disconnect stamp-fallback has no fold/filing lock (helper golden only). (9) **P2-6:** mixed live `ins_56` + live-null fail-closes through the helper but is not in the shipped suite. (10) `anyPairBlocked` O(n²). (11) Raw `provider === 'plaid'`. (12) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-blocked. M.4 owner-deferred.
+**Still open / residuals.** (1) Mixed-type over-veto (cycle-4 lock still refuses CREDIT≡CHECKING). (2) Third Plaid-null copy poisons a group (#748 P2-1). (3) Dismissal `take: 500`. (4) ~~**Critic P2-1:** combine-connections and `/accounts` still inline `??`~~ — **CLOSED 2026-09-18 (DECISIONS #752):** both call `resolveLiveInstitutionId`. (5) **P2-2:** `plaidItemId` is not trimmed (carried as #752 P2-2). (6) **P2-3:** empty-string `plaidItemId` skips the map (carried). (7) **P2-4:** present map value `''` returns `''`; present `null` returns `null`. (8) **P2-5:** disconnect stamp-fallback has no fold/filing lock (helper golden only). (9) **P2-6:** mixed live `ins_56` + live-null fail-closes through the helper but is not in the shipped suite. (10) `anyPairBlocked` O(n²). (11) Raw `provider === 'plaid'`. (12) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed. M.4 owner-deferred.
 
 ## ✅ BUILT 2026-09-18 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (DECISIONS #749)
 

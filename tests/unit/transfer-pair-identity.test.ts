@@ -1086,8 +1086,12 @@ describe('resolveLiveInstitutionId (O.20j residual 4)', () => {
     // writer fail-closed. One helper, three callers.
     const combine = readFileSync(resolve('src/server/combine-connections.ts'), 'utf8');
     const accounts = readFileSync(resolve('src/server/transactions.ts'), 'utf8');
-    expect(combine).toContain('resolveLiveInstitutionId(');
-    expect(accounts).toContain('resolveLiveInstitutionId(');
+    expect(combine).toContain(
+      'resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionIdByItem)',
+    );
+    expect(accounts).toContain(
+      'resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionIdByItem)',
+    );
     expect(combine).not.toMatch(/item\?\.institutionId\s*\?\?\s*a\.institutionId/);
     expect(accounts).not.toMatch(/item\?\.institutionId\s*\?\?\s*a\.institutionId/);
   });

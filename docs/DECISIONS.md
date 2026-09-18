@@ -13,6 +13,16 @@ considered. Append-only.
 > Only entries #742 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #752 — O.20j residual (6): combine and /accounts use the Map.has institution join (2026-09-18)
+
+**Context.** #750 critic P2-1: `buildCombineInputs` and `/accounts` `identityOf` still inlined `item?.institutionId ?? stamp`. A present-null live PlaidItem inherited the account stamp, so the identity ladder could prove SAME and offer a combine while the transfer writer fail-closed.
+
+**Decision.** Both surfaces call `resolveLiveInstitutionId` (Map.has). Present null stays null; missing item still uses the stamp (disconnect). Live 0977 (`ins_56` over a null stamp) is unchanged. `isTransfer` add-only. H.7b not auto-run. No schema change. `institutionName` still uses `??` (critic P2-1 this cycle: names are ignored whenever either side has an id; both-null name match is the documented ladder fallback).
+
+**Locked.** `tests/unit/combine-connections-server.test.ts`: present-null + stale stamp → `engineAccounts[0].institutionId` null; missing item → stamp; live `ins_56` over null stamp; `getAccountsView` present-null + matching stamps → no combine offer, `bank-id-missing`. `tests/unit/transfer-pair-identity.test.ts`: both files call `resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionIdByItem)`. FAIL-OLD (`??` restored): **3 failed | 95 skipped**.
+
+**Critic (fresh context, isolated worktree `/tmp/_critic_o20j_r6`): cycle 1 PASS 0 P0 / 0 P1 / 4 P2.** Independently: tsc 0, eslint 0, 98/98, FAIL-OLD 3|95, kill-call stamp-only 5 failed. P2s in STATUS.
+
 ## #751 — Owner Yes on the ops walkthrough and the two live-data writes (2026-09-18)
 
 **Context.** After #750 the owner asked what they still needed to do. Four optional
