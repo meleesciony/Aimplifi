@@ -21,6 +21,8 @@
 
 **Ledgers.** DECISIONS #752 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j residual (6).
 
+**Ship.** `40cd842f` on `origin/main`. No `prisma/` schema diff. **CI verify run 35382534980 = SUCCESS** on `40cd842f` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_35bium7tBfWZg4EECtTKuZA5C1Fj` **READY** on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`. Marker: `raw.githubusercontent.com` on `40cd842f` finds `resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionIdByItem)` in `combine-connections.ts`; prior `d7d014e4` still has `item?.institutionId ?? a.institutionId ?? null`. H.7b not auto-run.
+
 ## 2026-09-18 — Owner Yes on ops walkthrough + two live writes (DECISIONS #751)
 
 **Picked up.** Owner: "3. Yes. 4. Yes." after the four optional items. Tree even with `origin/main` at `8a8287fe` (#750 ship-gate).

@@ -27,7 +27,7 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context, `/tmp/_critic_o20j_r6`): cycle 1 PASS 0 P0 / 0 P1 / 4 P2.** Independently: tsc 0, eslint 0, 98/98, FAIL-OLD **3 failed | 95 skipped**, kill-call stamp-only **5 failed**. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8549 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**. Playwright mobile-380 `combine-connections` **2/2**.
 
-**CI + live.** Recorded after the push.
+**CI + live.** `40cd842f` on `origin/main`. No `prisma/` diff. **CI verify run 35382534980 = SUCCESS** on `40cd842f` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_35bium7tBfWZg4EECtTKuZA5C1Fj` **READY**, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`. Marker: `combine-connections.ts` on that sha calls `resolveLiveInstitutionId(...)`; `d7d014e4` still has `item?.institutionId ?? a.institutionId ?? null`. H.7b not auto-run.
 
 **Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) **This-cycle P2-1:** `institutionName` still uses `item?.institution ?? stamp`. (5) **P2-2 / #750 P2-2–P2-3:** `plaidItemId` not trimmed; `''` skips the map. (6) **P2-3:** `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (7) Disconnect stamp-fallback fold/filing lock still helper-golden only. (8) Mixed live `ins_56` + live-null not in the transfer suite. (9) `anyPairBlocked` O(n²). (10) Raw `provider === 'plaid'`. (11) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
 
