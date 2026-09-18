@@ -540,6 +540,7 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
   let CARD = '';
 
   async function wipe() {
+    await prisma.plaidItem.deleteMany({ where: { userId: USER } });
     await prisma.account.deleteMany({ where: { userId: USER } });
     await prisma.user.deleteMany({ where: { id: USER } });
   }
@@ -551,6 +552,7 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
   afterAll(wipe);
 
   beforeEach(async () => {
+    await prisma.plaidItem.deleteMany({ where: { userId: USER } });
     await prisma.account.deleteMany({ where: { userId: USER } });
     CHECKING = (
       await prisma.account.create({
@@ -684,9 +686,19 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
     // last-4 0977 Plaid items, both live, both `PlaidItem.institutionId =
     // ins_56`, both Account.institutionId stamp NULL. The transfer-refresh
     // join (live item ?? stamp) therefore presents `ins_56` on both copies.
-    // This fixture stamps the account as a stand-in for that join result
-    // (no PlaidItem row here — STATUS residual 4). Without identity the
-    // filed leaf overturns the purchase; with it they are one card.
+    // This fixture IS that join: PlaidItem rows carry ins_56, the Account
+    // stamp stays null. A stamp-only stand-in (STATUS #748 residual 4)
+    // would keep this green under a join regression that refuses the live
+    // fold. Without identity the filed leaf overturns the purchase; with
+    // it they are one card.
+    const itemA = `${USER}-item-a`;
+    const itemB = `${USER}-item-b`;
+    await prisma.plaidItem.createMany({
+      data: [
+        { userId: USER, itemId: itemA, accessToken: 'enc:a', institutionId: 'ins_56' },
+        { userId: USER, itemId: itemB, accessToken: 'enc:b', institutionId: 'ins_56' },
+      ],
+    });
     const plaidCard = (
       await prisma.account.create({
         data: {
@@ -696,8 +708,8 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
           name: 'CREDIT CARD',
           type: 'CREDIT',
           mask: '0977',
-          plaidItemId: 'item-amex-a',
-          institutionId: 'ins_56',
+          plaidItemId: itemA,
+          institutionId: null,
           currentBalanceCents: -12_345,
           currency: 'USD',
         },
@@ -712,8 +724,8 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
           name: 'CREDIT CARD',
           type: 'CREDIT',
           mask: '0977',
-          plaidItemId: 'item-amex-b',
-          institutionId: 'ins_56',
+          plaidItemId: itemB,
+          institutionId: null,
           currentBalanceCents: -12_345,
           currency: 'USD',
         },
