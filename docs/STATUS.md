@@ -9,15 +9,29 @@ rates) — no other doc may restate them.
 > (rotated 2026-09-11) and the BUILT entries 2026-09-03 through 2026-09-11 in
 > `docs/archive/STATUS_ARCHIVE_2026-09-03_to_2026-09-11.md` (rotated 2026-09-17), and the BUILT
 > entries for #737–#740 (2026-09-11/12) in `docs/archive/STATUS_ARCHIVE_2026-09-11_to_2026-09-12.md`
-> (rotated 2026-09-17), and the BUILT entry for #741 (2026-09-14) in
-> `docs/archive/STATUS_ARCHIVE_2026-09-14.md` (rotated 2026-09-18); only current-wave
-> BUILT entries and OPEN/FOUND/DECIDED items remain here.
+> (rotated 2026-09-17), the BUILT entry for #741 (2026-09-14) in
+> `docs/archive/STATUS_ARCHIVE_2026-09-14.md` (rotated 2026-09-18), and the BUILT
+> entry for #745 (2026-09-17) in `docs/archive/STATUS_ARCHIVE_2026-09-17-745.md`
+> (rotated 2026-09-18); only current-wave BUILT entries and OPEN/FOUND/DECIDED
+> items remain here.
 >
 > Entries from 2026-06/2026-07 (BUILT/CLOSED history) were moved verbatim to
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04, and the 2026-08
 > BUILT/CLOSED history to `docs/archive/STATUS_ARCHIVE_2026-08.md` on 2026-08-27, to
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
+
+## ✅ BUILT 2026-09-18 — O.20j residual (7): present-null institution name does not inherit the stamp (DECISIONS #753)
+
+**The hole.** #752 critic P2-1: `buildCombineInputs` and `/accounts` `identityOf` still inlined `item?.institution ?? stamp`. A present-null live PlaidItem inherited the account name stamp, so the identity ladder's both-null name fallback could prove SAME and offer an irreversible continue while the live bank is unknown.
+
+**Shipped.** Both surfaces call `resolveLiveInstitutionName` (same `Map.has` join as the id helper). Present null stays null; missing item still uses the stamp. Live 0977 unchanged. Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
+
+**Critic (fresh context, `/tmp/_critic_o20j_r7`): cycle 1 PASS 0 P0 / 0 P1 / 3 P2.** Independently: tsc 0, eslint 0, 130/130, FAIL-OLD **3 failed | 1 passed | 103 skipped**, kill-call stamp-only **4 failed | 126 passed**. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8558 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**. Playwright mobile-380 `combine-connections` **2/2** (`AUTH_SECRET` + `DEMO_TODAY` CI values).
+
+**CI + live.** This entry records the local gate; the ship sha lands in the follow-up docs commit. No `prisma/` diff. H.7b not auto-run.
+
+**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) **This-cycle P2-1:** `plaidItemId` is not trimmed (padded id misses `Map.has` and inherits the stamp). (5) **P2-2:** empty-string `plaidItemId` skips the map. (6) **P2-3:** present map value `''` returns `''`, not `null`. (7) `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (8) Disconnect stamp-fallback fold/filing lock still helper-golden only. (9) Mixed live `ins_56` + live-null not in the transfer suite. (10) `anyPairBlocked` O(n²). (11) Raw `provider === 'plaid'`. (12) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
 
 ## ✅ BUILT 2026-09-18 — O.20j residual (6): combine and /accounts use the Map.has institution join (DECISIONS #752)
 
@@ -29,7 +43,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `40cd842f` on `origin/main`. No `prisma/` diff. **CI verify run 35382534980 = SUCCESS** on `40cd842f` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_35bium7tBfWZg4EECtTKuZA5C1Fj` **READY**, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`. Marker: `combine-connections.ts` on that sha calls `resolveLiveInstitutionId(...)`; `d7d014e4` still has `item?.institutionId ?? a.institutionId ?? null`. H.7b not auto-run.
 
-**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) **This-cycle P2-1:** `institutionName` still uses `item?.institution ?? stamp`. (5) **P2-2 / #750 P2-2–P2-3:** `plaidItemId` not trimmed; `''` skips the map. (6) **P2-3:** `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (7) Disconnect stamp-fallback fold/filing lock still helper-golden only. (8) Mixed live `ins_56` + live-null not in the transfer suite. (9) `anyPairBlocked` O(n²). (10) Raw `provider === 'plaid'`. (11) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
+**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) ~~**This-cycle P2-1:** `institutionName` still uses `item?.institution ?? stamp`~~ — **CLOSED 2026-09-18 (DECISIONS #753):** both call `resolveLiveInstitutionName`. (5) **P2-2 / #750 P2-2–P2-3:** `plaidItemId` not trimmed; `''` skips the map (carried as #753 P2-1/P2-2). (6) **P2-3:** `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (7) Disconnect stamp-fallback fold/filing lock still helper-golden only. (8) Mixed live `ins_56` + live-null not in the transfer suite. (9) `anyPairBlocked` O(n²). (10) Raw `provider === 'plaid'`. (11) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
 
 ## DECIDED 2026-09-18 — Owner Yes on ops walkthrough + two live writes (DECISIONS #751)
 
@@ -110,22 +124,6 @@ Vercel `dpl_AQAigaAKyGswkes9coT5bhpUqyxU` READY.
 **CI + live.** PR #25 merged to `main` the same turn as **`956e6492`** (DECISIONS #636). `prisma/` diff = the one additive nullable `Goal.frozenAtSave` column; the Vercel build log shows `prisma db push` against the live Neon database succeed ("Your database is now in sync with your Prisma schema. Done in 517ms") — no existing row touched. **CI verify run 35273843014 = SUCCESS on `956e6492`** (`main`, full `VERIFY_E2E=1`, 14m59s, `scripts/ci-status.sh` exit 0; the branch sha `cc77ef9b` was also green on 35272299484 push + 35272352630 pull_request). Vercel Production `dpl_7qq56Da5dQG6WSc2Yiv5px1xcHZi` **READY** on `956e6492`, aliases include `www.aimplifi.app`. Live probe (Playwright demo session on production): `/goals` renders 200 with 30 `goal-*` elements, `goal-debt-free` count 0 (the demo has no saved debt-free goal) and **`goal-debt-free-frozen` count 0** — the ABSTENTION, the only branch production can show without writing a goal into the shared demo row. `git grep frozenAtSave 956e6492 -- src prisma` = 15 hits vs 0 on the prior production sha `07800184`. The speaking branch is proven by `debt-plan-frozen.spec.ts` (local + CI); its live render is **UNVERIFIED** by construction.
 
 **Still open / residuals.** (1) ~~**Critic P2-4:** the card's "Suggested: about $X/mo" is solved over the same frozen balances and the note is scoped to the total only~~ — **CLOSED 2026-09-17 (DECISIONS #747):** `Goal.frozenExtraAtSave`. (2) **Critic P2-6:** "saved on <date>" is `businessToday`'s server-local calendar date (inherited from #58, shared by every "today"; Vercel `TZ` UNVERIFIED). (3) `text-xs` muted contrast unmeasured (pre-existing token). Wave 0 ops owner-blocked. M.4 owner-deferred.
-
-## ✅ BUILT 2026-09-17 — The next-dollar ranking names the frozen debt it points at (L.19 residual 5, DECISIONS #745)
-
-**The gap.** #742's critic named it: `src/server/coach.ts` built the next-dollar ranking's loans from `snap.accounts` without `feedDroppedAt`, and its past-due cards from `CardObligation`s that carried `frozenSince` and dropped it — so /coach's "Your next dollar" card and Ask's `next_dollar` answer said "Next extra dollar: <loan> (12.00% APR)", an instruction naming one debt to send money to, over a balance the bank had stopped confirming, with nothing said.
-
-**Shipped.** `NextDollarDebt.frozenSince` (REQUIRED, both `classifyDebts` inputs) rides out of `coach.ts` for loans AND past-due cards; the ranking never reads it (byte-identity locked). New `frozenNextDollarNote` (its own builder — the ranking amortises nothing; the stale thing is the PREMISE that admits the debt): card → "the past-due amount that ranks it here is from the last statement it sent — a payment you have already made may not be counted, so the card may not be past due at all"; loan → no direction, no rate claim — "nothing about it has been confirmed since, including whether it is still open". Resolved against the debt the copy PRINTS (`nextDollarNamedDebt`, beside the sentences it mirrors), rendered directly after the why on the card (`next-dollar-frozen`) and in the Ask detail. Demo and every unfrozen plan byte-identical. No schema change.
-
-**Critic (fresh context, isolated worktree): cycle 1 PASS 0 P0 / 0 P1 / 3 P2 — all fixed same-session** (empty-string stamp painted "Tue, undefined 0, 0"; investing-branch note preceded the loan's first mention; `nextStep: 'partner'` accepted beside a reader opener). The critic independently reproduced 927/927 on the touched files, tsc 0, eslint 0, FAIL-OLD 2|23, an 810-case selector↔copy grid, and probed superseded predecessors (zeroed, never ranked), estimated obligations (never past due), MORTGAGE rows and the demo.
-
-**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN, exit 0: tsc 0, probes tsc 0, eslint 0, unit **8510 passed + 1 expected fail + 1 skipped / 633 files + 1 skipped**, `next build` clean; docs-lint clean (245 files). FAIL-OLD vs `9892cd44` `coach.ts`: **2 failed | 23 passed**. Playwright mobile-380 on the fresh build: `next-dollar-frozen` **2/2** + `phase3-coach` 1/1 (+ `ask.spec.ts` 31/31 on the pre-P2-fix build).
-
-**Ledger cut.** `REGRESSION_LEDGER.md` 44.5 → 10 KB (113 rows dated 2026-09-03..09-11 → `docs/archive/REGRESSION_LEDGER_ARCHIVE_2026-09-03_to_2026-09-11.md`, selected by DATE since the live file was not date-ordered); `docs/STATUS.md` 42.5 → ~31 KB (six BUILT sections #637–#736 → `docs/archive/STATUS_ARCHIVE_2026-09-03_to_2026-09-11.md`); `docs/DECISIONS.md` 43.2 → 29.7 KB (#737–#739, the closed goals wave → `docs/archive/DECISIONS_ARCHIVE_737_to_739.md`). Index regenerated (732 entries); ledger suite 20/20.
-
-**CI + live.** `2930799d` (slice) + `cc8a8ae6` (critic fixes + ledgers) on `origin/main`; no `prisma/` diff — database untouched. **CI verify run 35255710898 = SUCCESS on `cc8a8ae6`** (full `VERIFY_E2E=1`, 15m09s, watched to conclusion via `gh run view` — `scripts/ci-status.sh` exits 4 under WSL bash, the #737 precedent). Vercel Production `dpl_2BMtVkUCRZD5ZyZPU8KkbRvgb9Dy` **READY** on `cc8a8ae6`, aliases include `www.aimplifi.app`. Live probe (demo session on production): /coach next-dollar card renders `next-dollar-headline` → `next-dollar-why` ("The Auto Loan is 6.49%…") → `next-dollar-skipped` → cards → assumptions with **`next-dollar-frozen` count 0**, and Ask "Where should my next dollar go?" answers the golden four-sentence detail with no "stopped sharing" — the ABSTENTION (the demo has no frozen rows), which is the only branch production can show without writing a frozen account into the live database. The speaking branch is proven by `next-dollar-frozen.spec.ts` (local + CI) and `git grep frozenNextDollarNote cc8a8ae6` (3 hits) confirms the code is in the deployed sha; a live render of the note itself is **UNVERIFIED** on production by construction.
-
-**Still open / residuals.** (1) ~~The saved debt-free goal card needs a schema column~~ — **CLOSED 2026-09-17 (DECISIONS #746, BUILT entry above)**: `Goal.frozenAtSave`. (2) `frozenNextDollarNote` takes one row by design; if the copy ever prints two debts on one branch, the selector must return a list. (3) Playwright and `next build` were not run by the critic (port 3100 is contended by WSL relay on this machine — it forwarded an unrelated `~/rakazo-host` process; the Windows-side relay was killed by PID, the WSL process left alone). Wave 0 ops owner-blocked. M.4 owner-deferred.
 
 ## ✅ BUILT 2026-09-17 — O.20j converse-leak identity: mask COLUMN + detector prereqs (DECISIONS #744)
 

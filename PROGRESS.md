@@ -6,8 +6,24 @@
 > The five 2026-09-03 sessions and the 2026-09-10 M.4 slice 2 session live in
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-03_to_2026-09-10.md` (rotated 2026-09-16), and the
 > 2026-09-10 CI repair through the 2026-09-11 goals wave (#725, #734-#739) in
-> `docs/archive/PROGRESS_ARCHIVE_2026-09-10_to_2026-09-11.md` (rotated 2026-09-17).
+> `docs/archive/PROGRESS_ARCHIVE_2026-09-10_to_2026-09-11.md` (rotated 2026-09-17), and the
+> 2026-09-17 L.19 residual 5 session (#745) in
+> `docs/archive/PROGRESS_ARCHIVE_2026-09-17-745.md` (rotated 2026-09-18).
 > Only sessions from 2026-09-12 onward live here; append new sessions at the top as before.
+
+## 2026-09-18 — O.20j residual (7): present-null institution name does not inherit the stamp (DECISIONS #753)
+
+**Picked up.** Owner: "Continue." Tree even with `origin/main` at `205d1bc9` (#752 ship-gate; CI 35382534980 SUCCESS). Queue scan: Wave 0 ops owner-executed (writes still owner-run). Strongest money-identity residual: #752 critic P2-1 — combine and `/accounts` still inlined `item?.institution ?? stamp`.
+
+**Closed.** Both surfaces call `resolveLiveInstitutionName` (shared `Map.has` field helper). Present null stays null; disconnect stamp remains.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8558 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**, next build clean. FAIL-OLD `??`: **3 failed | 1 passed | 103 skipped**. Playwright mobile-380 `combine-connections` **2/2**.
+
+**Critic (fresh context, `/tmp/_critic_o20j_r7`): cycle 1 PASS 0 P0 / 0 P1 / 3 P2.** Independently: tsc 0, 130/130, FAIL-OLD 3|1|103, kill-call 4 died. P2s in STATUS.
+
+**Ledgers.** DECISIONS #753 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j residual (7). STATUS #745 BUILT and this file's #745 session rotated verbatim to `docs/archive/`.
+
+**Ship.** Code `94303701` on the feature branch; land on `main` this turn. No `prisma/` schema diff. H.7b not auto-run.
 
 ## 2026-09-18 — O.20j residual (6): combine and /accounts use the Map.has institution join (DECISIONS #752)
 
@@ -106,24 +122,6 @@
 **Ledgers.** DECISIONS #746 (+ index, 733 entries); REGRESSION_LEDGER two rows; STATUS BUILT + #745/#742 residual (1) closed; TASKS L.19 row note. Ceiling cut: PROGRESS 43.2 → 25.7 KB (the 2026-09-10 CI repair through the 2026-09-11 goals wave, six sessions, verbatim → `docs/archive/PROGRESS_ARCHIVE_2026-09-10_to_2026-09-11.md`); docs-lint clean (247 files). STATUS 40.1 → 26.9 KB (BUILT #737–#740 verbatim → `docs/archive/STATUS_ARCHIVE_2026-09-11_to_2026-09-12.md`). TASKS.md (132 KB) remains the standing next cut.
 
 **Ship.** `e93c9642` + `5b8581d0` + `cc77ef9b` on PR #25, merged to `main` the same turn as **`956e6492`** (DECISIONS #636). `prisma/` diff = the one additive nullable `Goal.frozenAtSave` column; the Vercel build log shows `prisma db push` against Neon (`ep-proud-sound-atpgfoct`, db `pulse`): "Your database is now in sync with your Prisma schema. Done in 517ms" — no existing row touched. CI verify: 35272299484 (push) + 35272352630 (pull_request) = success on `cc77ef9b`; **35273843014 = SUCCESS on `956e6492` (`main`, full VERIFY_E2E=1, 14m59s, `scripts/ci-status.sh` exit 0)**. Vercel Production `dpl_7qq56Da5dQG6WSc2Yiv5px1xcHZi` **READY** on `956e6492`, aliases include `www.aimplifi.app`. Live probe (Playwright demo session on production): `/goals` 200, `demo-banner` 1, 30 `goal-*` elements render post-schema-change, `goal-debt-free` count **0** (the demo has no saved debt-free goal) and `goal-debt-free-frozen` count **0**, neither "When this goal was saved" nor "stopped sharing that balance" in the DOM — the ABSTENTION, the only branch production can show without writing a goal into the shared demo row (the shared-demo lesson). `git grep frozenAtSave 956e6492 -- src prisma` = 15 hits / 4 files vs **0 on the prior production sha `07800184`** — a marker no earlier build can serve. The speaking branch (a saved card that names the frozen balance) is proven by `debt-plan-frozen.spec.ts` locally and in CI; its live render is **UNVERIFIED** by construction.
-
-## 2026-09-17 — L.19 residual (5): the next-dollar ranking names the frozen debt it points at (DECISIONS #745)
-
-**Picked up.** Owner: "continue building as a world class dev." Tree clean, main even with origin (#744 shipped). Queue scan: Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic. Strongest open money-visible row needing no owner input: the #742 critic's named next cut — `coach.ts` strips `feedDroppedAt` before the next-dollar ranking names a debt to send extra money to. Residual (1) examined and not taken: `Goal` has no `createdAt`, so a frozen-at-save claim needs a schema column (recorded in STATUS).
-
-**Closed.** `NextDollarDebt.frozenSince` required at the boundary; `coach.ts` carries it for loans (`feedDroppedAt`) and past-due cards (`CardObligation.frozenSince`); ranking byte-identical. `frozenNextDollarNote` (kind-split; card = premise may be false; loan = no direction, no rate claim) resolved through `nextDollarNamedDebt` beside the copy it mirrors; rendered after the why on the card and in the Ask detail.
-
-**Gate.** `bash scripts/verify.sh` ×2 (pre- and post-critic) → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8510 passed + 1 expected fail + 1 skipped / 633 files + 1 skipped** (8508 before the two critic-fix locks), next build clean. FAIL-OLD (`coach.ts` at `9892cd44`): **2 failed | 23 passed**. Playwright mobile-380 fresh build: `next-dollar-frozen` 2/2, `phase3-coach` 1/1, `ask` 31/31.
-
-**Critic (fresh context, isolated worktree `C:\dev\_critic_l19nd`): cycle 1 PASS 0 P0 / 0 P1 / 3 P2, all fixed same-session** (`''` stamp; investing-branch order; `'partner'` nextStep). Independently reproduced 927/927, tsc 0, eslint 0, FAIL-OLD 2|23; 810-case selector↔copy grid; superseded/estimated/MORTGAGE/demo probes.
-
-**Env note.** Playwright's `webServer` timed out once: WSL's localhost relay had bound Windows port 3100 to an unrelated `~/rakazo-host` process (the owner's other project, started mid-session). Killed the Windows-side relay by PID; left the WSL process alone. Not a code defect.
-
-**Ledgers.** DECISIONS #745; REGRESSION_LEDGER two rows; STATUS BUILT + #742 residual (5) closed with the `createdAt` fact on (1); TASKS L.19 row note. Ceiling cuts: REGRESSION_LEDGER 44.5 → 10 KB, STATUS 42.5 → ~31 KB, DECISIONS 43.2 → 29.7 KB (#737–#739; verbatim archives, HISTORICAL banners, docs-lint clean, index 732 entries, ledger suite 20/20).
-
-**Ship.** `2930799d` + `cc8a8ae6` on `origin/main` (no `prisma/` diff). CI verify **35255710898 = SUCCESS** on `cc8a8ae6` (full VERIFY_E2E=1, 15m09s). Vercel Production `dpl_2BMtVkUCRZD5ZyZPU8KkbRvgb9Dy` READY, aliased to `www.aimplifi.app`. Live demo probe: /coach card order headline → why → skipped → cards → assumptions, `next-dollar-frozen` count 0; Ask next-dollar answer = golden, no "stopped sharing" (the abstention — demo has no frozen rows; the speaking branch is e2e-proven, live render UNVERIFIED by construction).
-
-**Next.** Strongest open money-visible rows: #742 residual (1) (needs `Goal.createdAt`/`frozenAtSave` — a schema change; check the prisma diff rule before pushing); O.20j residual (2) null-`institutionId` Plaid items fold on last-4 alone; H.7 / L.30 critic passes owed. Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic.
 
 ## 2026-09-17 — O.20j identity: component veto + detector prereqs (owner unblocked)
 

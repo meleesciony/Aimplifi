@@ -13,6 +13,16 @@ considered. Append-only.
 > Only entries #742 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #753 — O.20j residual (7): present-null institution name does not inherit the stamp (2026-09-18)
+
+**Context.** #752 critic P2-1: `buildCombineInputs` and `/accounts` `identityOf` still inlined `item?.institution ?? stamp`. A present-null live PlaidItem inherited the account name stamp, so the identity ladder's both-null name fallback could prove SAME and offer an irreversible continue while the live bank is unknown.
+
+**Decision.** Both surfaces call `resolveLiveInstitutionName` (same `Map.has` join as the id helper, shared `resolveLiveInstitutionField`). Present null stays null; missing item still uses the stamp (disconnect). Live 0977 (`ins_56` over a null stamp) is unchanged. `isTransfer` add-only. H.7b not auto-run. No schema change. Whitespace / empty-string `plaidItemId` stays residual (this-cycle P2-1/P2-2).
+
+**Locked.** `tests/unit/combine-connections-server.test.ts`: present-null + stale name stamp → `engineAccounts[0].institutionName` null; missing item → stamp; live Chase over null stamp; `getAccountsView` present-null live name + matching stamps after disconnect → `reconciliationCandidates []`. `tests/unit/transfer-pair-identity.test.ts`: both files call `resolveLiveInstitutionName(a.plaidItemId, a.institutionName, institutionNameByItem)`. FAIL-OLD (`??` restored): **3 failed | 1 passed | 103 skipped**.
+
+**Critic (fresh context, isolated worktree `/tmp/_critic_o20j_r7`): cycle 1 PASS 0 P0 / 0 P1 / 3 P2.** Independently: tsc 0, eslint 0, 130/130, FAIL-OLD 3|1|103, kill-call stamp-only 4 failed. P2s in STATUS.
+
 ## #752 — O.20j residual (6): combine and /accounts use the Map.has institution join (2026-09-18)
 
 **Context.** #750 critic P2-1: `buildCombineInputs` and `/accounts` `identityOf` still inlined `item?.institutionId ?? stamp`. A present-null live PlaidItem inherited the account stamp, so the identity ladder could prove SAME and offer a combine while the transfer writer fail-closed.
