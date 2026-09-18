@@ -13,6 +13,16 @@ considered. Append-only.
 > Only entries #742 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #755 — O.20j residual (9): trim live-map keys so a padded stored itemId still joins (2026-09-18)
+
+**Context.** #754 critic P2-1: lookup was trimmed, map keys were raw `itemId`. A padded stored `PlaidItem.itemId` missed `Map.has` and inherited the Account stamp — the #754 inversion.
+
+**Decision.** `liveInstitutionByItem` trims the insert key. Empty / whitespace-only stored ids are not keys. Combine, `/accounts`, and the transfer sweep all call it. Live 0977 unchanged. `isTransfer` add-only. H.7b not auto-run. No schema change. Sibling `plaidItemId ===` and present map value `''` stay residual.
+
+**Locked.** `tests/unit/transfer-pair-identity.test.ts`: padded stored key + clean fk stays present-null; padded stored key still presents `ins_56`; whitespace-only stored id is not a key; three callers use the helper. `tests/unit/combine-connections-server.test.ts`: padded `itemId` + clean fk → `institutionId` null. FAIL-OLD (untrimmed helper): **3 failed | 113 skipped** (maker, filtered); critic independently **4 failed | 1 passed | 111 skipped**.
+
+**Critic (fresh context, isolated worktree `/tmp/_critic_o20j_r9`): cycle 1 PASS 0 P0 / 0 P1 / 3 P2.** Independently: tsc 0, eslint 0, 116/116, FAIL-OLD 4|1|111, kill-call skip empty-key guard 1 failed. P2s in STATUS.
+
 ## #754 — O.20j residual (8): trim plaidItemId before the live institution join (2026-09-18)
 
 **Context.** #753 critic P2-1 / P2-2: `resolveLiveInstitutionField` looked up `plaidItemId` without trimming. A padded id (`" item-a"`) missed `Map.has` and inherited the Account stamp, so a present-null live item looked identified.

@@ -12,14 +12,27 @@ rates) — no other doc may restate them.
 > (rotated 2026-09-17), the BUILT entry for #741 (2026-09-14) in
 > `docs/archive/STATUS_ARCHIVE_2026-09-14.md` (rotated 2026-09-18), and the BUILT
 > entry for #745 (2026-09-17) in `docs/archive/STATUS_ARCHIVE_2026-09-17-745.md`
-> (rotated 2026-09-18); only current-wave BUILT entries and OPEN/FOUND/DECIDED
-> items remain here.
+> (rotated 2026-09-18), and the BUILT entry for #750 (2026-09-18) in
+> `docs/archive/STATUS_ARCHIVE_2026-09-18-750.md` (rotated 2026-09-18); only
+> current-wave BUILT entries and OPEN/FOUND/DECIDED items remain here.
 >
 > Entries from 2026-06/2026-07 (BUILT/CLOSED history) were moved verbatim to
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04, and the 2026-08
 > BUILT/CLOSED history to `docs/archive/STATUS_ARCHIVE_2026-08.md` on 2026-08-27, to
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
+
+## ✅ BUILT 2026-09-18 — O.20j residual (9): trim live-map keys so a padded stored itemId still joins (DECISIONS #755)
+
+**The hole.** #754 critic P2-1: lookup trimmed, map keys raw. A padded stored `itemId` missed `Map.has` and inherited the stamp.
+
+**Shipped.** `liveInstitutionByItem` trims the insert key. Empty / whitespace-only stored ids are not keys. Three join callers use the helper. Live 0977 unchanged. Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
+
+**Critic (fresh context, `/tmp/_critic_o20j_r9`): cycle 1 PASS 0 P0 / 0 P1 / 3 P2.** Independently: tsc 0, eslint 0, 116/116, FAIL-OLD **4 failed | 1 passed | 111 skipped**, kill-call skip empty-key **1 failed | 4 passed | 111 skipped**. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8567 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**. Playwright mobile-380 `combine-connections` **2/2**.
+
+**CI + live.** This entry records the local gate; the ship sha lands in the follow-up. No `prisma/` diff. H.7b not auto-run.
+
+**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) **This-cycle P2-1:** sibling `plaidItemId ===` sites stay untrimmed. (5) **P2-2:** present map value `''` returns `''`. (6) **P2-3:** remaining raw `itemId` maps (`plaidSyncedByItem`, combine-connections-card) are not this join. (7) `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (8) Disconnect stamp-fallback fold/filing lock still helper-golden only. (9) Mixed live `ins_56` + live-null not in the transfer suite. (10) `anyPairBlocked` O(n²). (11) Raw `provider === 'plaid'`. (12) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
 
 ## ✅ BUILT 2026-09-18 — O.20j residual (8): trim plaidItemId before the live institution join (DECISIONS #754)
 
@@ -31,7 +44,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `09d51409` on `origin/main` (PR #34 merged). No `prisma/` diff. **CI verify run 35389703386 = SUCCESS** on `09d51409` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_FJgPcT7MpweCoEEuW9Ps5bWiuyaz` **READY** on that sha, target production, aliases include `aimplifi-git-main-reiforge.vercel.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Marker: `raw.githubusercontent.com` on `09d51409` finds `const key = plaidItemId?.trim() ?? ''`; `71ee2c3a` still has `liveByItem.has(plaidItemId)`. H.7b not auto-run.
 
-**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) **This-cycle P2-1:** map keys are raw `itemId` (trim inversion if the stored key is also padded). (5) **P2-2:** present map value `''` returns `''`. (6) **P2-3:** sibling `plaidItemId ===` sites (`accountsOf`, `sameIngestConnection`, `isAccountLive`) stay untrimmed. (7) `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (8) Disconnect stamp-fallback fold/filing lock still helper-golden only. (9) Mixed live `ins_56` + live-null not in the transfer suite. (10) `anyPairBlocked` O(n²). (11) Raw `provider === 'plaid'`. (12) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
+**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) ~~**This-cycle P2-1:** map keys are raw `itemId`~~ — **CLOSED 2026-09-18 (DECISIONS #755):** `liveInstitutionByItem` trims insert keys. (5) **P2-2:** present map value `''` returns `''` (carried as #755 P2-2). (6) **P2-3:** sibling `plaidItemId ===` sites stay untrimmed (carried as #755 P2-1). (7) `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (8) Disconnect stamp-fallback fold/filing lock still helper-golden only. (9) Mixed live `ins_56` + live-null not in the transfer suite. (10) `anyPairBlocked` O(n²). (11) Raw `provider === 'plaid'`. (12) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
 
 ## ✅ BUILT 2026-09-18 — O.20j residual (7): present-null institution name does not inherit the stamp (DECISIONS #753)
 
@@ -68,18 +81,6 @@ fire still **UNVERIFIED** (24h production `requestPath` group: zero `/api/cron/*
 lines — Hobby ~1h retention). Do not undo GENUINE/UNTESTABLE links. Do not flip
 `DATA_PROVIDER=plaid`. Shipped `19fc703e` on `main`; CI **35376970883 SUCCESS**;
 Vercel `dpl_AQAigaAKyGswkes9coT5bhpUqyxU` READY.
-
-## ✅ BUILT 2026-09-18 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (DECISIONS #750)
-
-**The hole.** #749 critic P2-1: `Map.get` + `??` treated a present-null PlaidItem like a missing key, so a stale Account stamp became the live id and #748's fail-closed rule never ran. Matching stale stamps then folded on last-4.
-
-**Shipped.** `resolveLiveInstitutionId` uses `Map.has`. Present null stays null; missing key still uses the stamp (disconnect). Live 0977 unchanged. Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
-
-**Critic (fresh context, `/tmp/_critic_o20j_r5`): cycle 1 PASS 0 P0 / 0 P1 / 6 P2.** Independently: tsc 0, 87/87, FAIL-OLD **3 failed | 84 passed**, ignore-map **7 failed | 80 passed**, Map.has always-true **1 failed | 86 passed**. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8544 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**. Playwright mobile-380 `transfer-flag-repair` **1/1**.
-
-**CI + live.** `261cbddb` on `origin/main` (PR #29). No `prisma/` diff — database untouched. **CI verify run 35370637485 = SUCCESS** on `261cbddb` (`main`, full `VERIFY_E2E=1`, 15m15s, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_GNBd6UC2ZYJhcFz6iHXgK4hRenkp` **READY** on `261cbddb`, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. The join is server-only (no new UI copy); `raw.githubusercontent.com` on that sha finds `institutionByItem.has(plaidItemId)` in `transfers.ts` vs the prior production sha `0b89152e` still carrying `fromItem ?? accountStamp ?? null`. H.7b not auto-run. Live 0977 re-measure in this VM is **UNVERIFIED** (no `DATABASE_URL`).
-
-**Still open / residuals.** (1) Mixed-type over-veto (cycle-4 lock still refuses CREDIT≡CHECKING). (2) Third Plaid-null copy poisons a group (#748 P2-1). (3) Dismissal `take: 500`. (4) ~~**Critic P2-1:** combine-connections and `/accounts` still inline `??`~~ — **CLOSED 2026-09-18 (DECISIONS #752):** both call `resolveLiveInstitutionId`. (5) **P2-2:** `plaidItemId` is not trimmed (carried as #752 P2-2). (6) **P2-3:** empty-string `plaidItemId` skips the map (carried). (7) **P2-4:** present map value `''` returns `''`; present `null` returns `null`. (8) **P2-5:** disconnect stamp-fallback has no fold/filing lock (helper golden only). (9) **P2-6:** mixed live `ins_56` + live-null fail-closes through the helper but is not in the shipped suite. (10) `anyPairBlocked` O(n²). (11) Raw `provider === 'plaid'`. (12) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed. M.4 owner-deferred.
 
 ## ✅ BUILT 2026-09-18 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (DECISIONS #749)
 
