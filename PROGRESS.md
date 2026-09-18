@@ -23,7 +23,7 @@
 
 **Ledgers.** DECISIONS #755 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j residual (9). STATUS #750 BUILT rotated verbatim to `docs/archive/STATUS_ARCHIVE_2026-09-18-750.md`.
 
-**Ship.** This entry records the local gate; the ship sha lands in the follow-up. No `prisma/` schema diff. H.7b not auto-run.
+**Ship.** `64598fff` on `origin/main` (PR #35 ff-merged). No `prisma/` schema diff. **CI verify run 35404635879 = SUCCESS** on `64598fff` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_3PNcfzFNDWx75yh8fddRD8tMccKG` **READY** on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`. Marker: `raw.githubusercontent.com` on `64598fff` finds `liveInstitutionByItem(items, (i) => i.institutionId)` in `combine-connections.ts`; prior `65b61e52` still has `new Map(items.map((i) => [i.itemId, i.institutionId]))`. H.7b not auto-run.
 
 ## 2026-09-18 — O.20j residual (8): trim plaidItemId before the live institution join (DECISIONS #754)
 
