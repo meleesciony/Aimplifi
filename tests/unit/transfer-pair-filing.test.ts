@@ -828,6 +828,83 @@ describe('refreshTransferFlags + triage exclusion (integration)', () => {
     expect(rental.isTransfer).toBe(true);
   });
 
+  it('test_regression__o20j_live_null_item_stale_stamp_still_overturns_a_purchase', async () => {
+    // #749 critic P2-1 through the real writer: PlaidItem rows exist with
+    // institutionId NULL (pre-backfill) while both Account stamps say
+    // ins_56. `??` would present the stamp, fold the copies, and refuse
+    // the overturn. Map.has keeps them unproven — last-4 is not a bank.
+    const itemA = `${USER}-item-live-null-a`;
+    const itemB = `${USER}-item-live-null-b`;
+    await prisma.plaidItem.createMany({
+      data: [
+        { userId: USER, itemId: itemA, accessToken: 'enc:ln-a', institutionId: null },
+        { userId: USER, itemId: itemB, accessToken: 'enc:ln-b', institutionId: null },
+      ],
+    });
+    const plaidCard = (
+      await prisma.account.create({
+        data: {
+          userId: USER,
+          provider: 'plaid',
+          providerRef: 'tpf-amex-live-null-a',
+          name: 'CREDIT CARD',
+          type: 'CREDIT',
+          mask: '0977',
+          plaidItemId: itemA,
+          institutionId: 'ins_56',
+          currentBalanceCents: -12_345,
+          currency: 'USD',
+        },
+      })
+    ).id;
+    const plaidCard2 = (
+      await prisma.account.create({
+        data: {
+          userId: USER,
+          provider: 'plaid',
+          providerRef: 'tpf-amex-live-null-b',
+          name: 'CREDIT CARD',
+          type: 'CREDIT',
+          mask: '0977',
+          plaidItemId: itemB,
+          institutionId: 'ins_56',
+          currentBalanceCents: -12_345,
+          currency: 'USD',
+        },
+      })
+    ).id;
+    await prisma.transaction.createMany({
+      data: [
+        {
+          id: `${USER}-rental-live-null`,
+          accountId: plaidCard,
+          date: '2024-12-09',
+          amountCents: -3_325,
+          rawDescriptor: 'Budget Car Rental',
+          categoryId: 'dining',
+          confidenceBps: 9000,
+          needsReview: false,
+        },
+        {
+          id: `${USER}-credit-live-null`,
+          accountId: plaidCard2,
+          date: '2024-12-09',
+          amountCents: 3_325,
+          rawDescriptor: 'TRAVEL CREDIT $300/YEAR',
+          categoryId: 'transfer',
+          confidenceBps: 9000,
+          needsReview: false,
+          isTransfer: true,
+        },
+      ],
+    });
+    expect(await refreshTransferFlags(USER)).toEqual({ flagged: 0, overturned: 1, filed: 0 });
+    const rental = await prisma.transaction.findUniqueOrThrow({
+      where: { id: `${USER}-rental-live-null` },
+    });
+    expect(rental.isTransfer).toBe(true);
+  });
+
   it('test_regression__o20j_dismissed_same_mask_copies_still_pair', async () => {
     // "Not a duplicate" governs the money, not just the warning: a dismissed
     // same-mask pair stays two accounts, so the filed-transfer leaf still

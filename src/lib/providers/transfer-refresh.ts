@@ -25,6 +25,8 @@
  * over-veto can refuse the 0977 fold when a confirmed terminal has a
  * different type (named residual). Live 0977 presents `ins_56` via
  * `resolveLiveInstitutionId` (PlaidItem over a NULL stamp — #748 residual 4).
+ * A present PlaidItem whose id is null does not fall through to the stamp
+ * (#749 residual 5 / #748 fail-closed).
  * The detector's HIGH band is wider
  * (year-in-name, balance-only spouse cards) and stays advisory. Dismissed
  * pairs ("Not a duplicate") stay two accounts, and a dismissal-read fault
@@ -130,10 +132,10 @@ export async function loadTransferSweepRows(userId: string) {
   const institutionByItem = new Map(items.map((i) => [i.itemId, i.institutionId]));
   const accounts = accountRows.map((a) => ({
     ...a,
-    // Live connection is authoritative (same join combine-connections uses);
-    // the row stamp is last-known after disconnect deletes the PlaidItem.
-    // Live 0977: stamp NULL, item ins_56 — resolveLiveInstitutionId is the
-    // only expression that presents that id (STATUS #748 residual 4).
+    // Live connection is authoritative when the item row exists (including
+    // a present null). The row stamp is last-known after disconnect deletes
+    // the PlaidItem. Live 0977: stamp NULL, item ins_56. A live-null item
+    // must not inherit a stale stamp (STATUS #749 residual 4 / P2-1).
     institutionId: resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionByItem),
   }));
   // O.20j: unconfirmed same-type copies that share a MASK COLUMN are the same

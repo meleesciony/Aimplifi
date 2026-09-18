@@ -146,21 +146,23 @@ export type TransferIdentityAccount = {
 };
 
 /**
- * Live PlaidItem.institutionId wins; the Account stamp is last-known after
- * disconnect deletes the item (same join combine-connections uses). Critic
- * P2-2 on #748: live 0977 is stamp NULL + item `ins_56`. A stamp-only
- * fixture stays green under a join regression that would refuse that fold.
+ * Live PlaidItem.institutionId wins when the item row exists — including a
+ * present null (pre-backfill). The Account stamp is last-known only after
+ * disconnect deletes the item. Critic P2-1 on #749: `??` treated a present
+ * null like a missing key and fell through to a stale stamp, so #748's
+ * fail-closed rule never ran. Critic P2-2 on #748: live 0977 is stamp NULL
+ * + item `ins_56`; a stamp-only fixture stays green under a join regression
+ * that would refuse that fold.
  */
 export function resolveLiveInstitutionId(
   plaidItemId: string | null | undefined,
   accountStamp: string | null | undefined,
   institutionByItem: ReadonlyMap<string, string | null>,
 ): string | null {
-  const fromItem =
-    plaidItemId != null && plaidItemId !== ''
-      ? institutionByItem.get(plaidItemId)
-      : undefined;
-  return fromItem ?? accountStamp ?? null;
+  if (plaidItemId != null && plaidItemId !== '' && institutionByItem.has(plaidItemId)) {
+    return institutionByItem.get(plaidItemId) ?? null;
+  }
+  return accountStamp ?? null;
 }
 
 function usableMask(mask: string | null): string | null {

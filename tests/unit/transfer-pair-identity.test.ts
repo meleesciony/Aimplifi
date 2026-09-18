@@ -19,6 +19,8 @@
  * a missing `ins_*` must not fold on last-4 — an absence is not a bank.
  * Residual (4): live 0977 is stamp NULL + PlaidItem `ins_56`; the fold reads
  * `resolveLiveInstitutionId`, not the account stamp.
+ * Residual (5): a present PlaidItem whose `institutionId` is null does not
+ * fall through to the Account stamp — last-known is only for disconnect.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -506,6 +508,27 @@ describe('unionSameMaskColumnIdentity', () => {
     const out = unionSameMaskColumnIdentity(new Map(), joined);
     expect(joined.map((a) => a.institutionId)).toEqual(['ins_56', 'ins_56']);
     expect(rootOf(out, 'card-a')).toBe(rootOf(out, 'card-b'));
+  });
+
+  it('test_regression__o20j_live_null_item_ignores_a_stale_matching_stamp', () => {
+    // #749 critic P2-1: Map.get + ?? treats a present-null item like a
+    // missing key. Two live pre-backfill Plaid items with matching stale
+    // stamps would then fold on last-4 — the #748 hole, one hop later.
+    const items = new Map<string, string | null>([
+      ['item-1', null],
+      ['item-2', null],
+    ]);
+    const joined = [
+      acct({ id: 'card-a', plaidItemId: 'item-1', institutionId: 'ins_stale' }),
+      acct({ id: 'card-b', plaidItemId: 'item-2', institutionId: 'ins_stale' }),
+    ].map((a) => ({
+      ...a,
+      institutionId: resolveLiveInstitutionId(a.plaidItemId, a.institutionId, items),
+    }));
+    const out = unionSameMaskColumnIdentity(new Map(), joined);
+    expect(joined.map((a) => a.institutionId)).toEqual([null, null]);
+    expect(out.size).toBe(0);
+    expect(rootOf(out, 'card-a')).not.toBe(rootOf(out, 'card-b'));
   });
 
   it('test_regression__o20j_stamp_only_0977_does_not_stand_in_for_the_join', () => {
@@ -1029,6 +1052,13 @@ describe('resolveLiveInstitutionId (O.20j residual 4)', () => {
   it('the live item wins over a stale stamp', () => {
     const items = new Map<string, string | null>([['item-a', 'ins_56']]);
     expect(resolveLiveInstitutionId('item-a', 'ins_stale', items)).toBe('ins_56');
+  });
+
+  it('a present live-null item does not fall through to the stamp', () => {
+    // #749 critic P2-1: Map.has, not ??. Disconnect (no key) still uses the
+    // stamp — the case above. A live item with null ins_* is unproven.
+    const items = new Map<string, string | null>([['item-a', null]]);
+    expect(resolveLiveInstitutionId('item-a', 'ins_stale', items)).toBeNull();
   });
 
   it('missing both is null — last-4 is not a bank', () => {
