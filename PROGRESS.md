@@ -21,7 +21,7 @@
 
 **Ledgers.** DECISIONS #750 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j note.
 
-**Ship.** (this turn.) No `prisma/` schema diff.
+**Ship.** `261cbddb` on `origin/main` (PR #29 rebase-merged; feature-branch shas `bab1c0c6` / `a5df27b8` rewritten as `bb86f15a` / `261cbddb`). No `prisma/` schema diff. CI verify **35370637485 = SUCCESS** on `261cbddb` (`main`, full `VERIFY_E2E=1`, 15m15s, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_GNBd6UC2ZYJhcFz6iHXgK4hRenkp` READY on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Server-only marker: `raw.githubusercontent.com` on `261cbddb` finds `institutionByItem.has(plaidItemId)` in `transfers.ts`; prior production sha `0b89152e` still has `fromItem ?? accountStamp ?? null`.
 
 ## 2026-09-18 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (DECISIONS #749)
 
