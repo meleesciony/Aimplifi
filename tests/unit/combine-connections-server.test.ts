@@ -1205,6 +1205,16 @@ describe('buildCombineInputs — live item institutionId, not the stamp (O.20j #
     );
     expect(engineAccounts[0].institutionId).toBeNull();
   });
+
+  it('test_regression__o20j_padded_map_key_does_not_inherit_the_account_stamp', () => {
+    // #754 critic P2-1 inversion: stored itemId is padded, fk is clean.
+    const { engineAccounts } = buildCombineInputs(
+      [{ ...item(null), itemId: ' item-live' }],
+      [acct({ plaidItemId: 'item-live', institutionId: 'ins_stale' })],
+      new Map(),
+    );
+    expect(engineAccounts[0].institutionId).toBeNull();
+  });
 });
 
 describe('buildCombineInputs — live item institutionName, not the stamp (O.20j #752 P2-1)', () => {

@@ -53,6 +53,7 @@ import {
   NON_COMPETING_CATEGORY_IDS,
   PAIR_TRANSFER_CONFIDENCE_BPS,
   planTransferUpdates,
+  liveInstitutionByItem,
   resolveLiveInstitutionId,
   unionSameMaskColumnIdentity,
 } from '@/lib/engine/categorize/transfers';
@@ -129,7 +130,7 @@ export async function loadTransferSweepRows(userId: string) {
       select: { itemId: true, institutionId: true },
     }),
   ]);
-  const institutionByItem = new Map(items.map((i) => [i.itemId, i.institutionId]));
+  const institutionByItem = liveInstitutionByItem(items, (i) => i.institutionId);
   const accounts = accountRows.map((a) => ({
     ...a,
     // Live connection is authoritative when the item row exists (including

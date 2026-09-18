@@ -50,7 +50,11 @@ import {
   type CombineDirection,
   type UncombinableConnections,
 } from '@/lib/engine/account/combine-connections';
-import { resolveLiveInstitutionId, resolveLiveInstitutionName } from '@/lib/engine/categorize/transfers';
+import {
+  liveInstitutionByItem,
+  resolveLiveInstitutionId,
+  resolveLiveInstitutionName,
+} from '@/lib/engine/categorize/transfers';
 import { isSupportedCurrency } from '@/lib/providers/currency';
 import { duplicatePairDismissKey } from '@/server/duplicate-dismissal';
 import { confirmReconciliationFor } from '@/server/reconciliation';
@@ -124,8 +128,8 @@ export function buildCombineInputs(
   accounts: readonly CombineAccountRow[],
   earliestTxnDateByAccountId: ReadonlyMap<string, string>,
 ) {
-  const institutionIdByItem = new Map(items.map((i) => [i.itemId, i.institutionId]));
-  const institutionNameByItem = new Map(items.map((i) => [i.itemId, i.institution]));
+  const institutionIdByItem = liveInstitutionByItem(items, (i) => i.institutionId);
+  const institutionNameByItem = liveInstitutionByItem(items, (i) => i.institution);
   const earliestByItem = new Map<string, string>();
   for (const a of accounts) {
     if (a.provider !== 'plaid' || !a.plaidItemId) continue;

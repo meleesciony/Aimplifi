@@ -28,6 +28,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   planTransferUpdates,
+  liveInstitutionByItem,
   resolveLiveInstitutionId,
   resolveLiveInstitutionName,
   transferIdentityDismissKey,
@@ -1152,5 +1153,41 @@ describe('resolveLiveInstitutionField — trimmed plaidItemId (#753 P2-1 / P2-2)
     expect(resolveLiveInstitutionId('', 'ins_stale', items)).toBe('ins_stale');
     expect(resolveLiveInstitutionId('   ', 'ins_stale', items)).toBe('ins_stale');
     expect(resolveLiveInstitutionName('', 'Chase', items)).toBe('Chase');
+  });
+});
+
+describe('liveInstitutionByItem — trimmed map keys (#754 P2-1)', () => {
+  it('test_regression__o20j_padded_map_key_does_not_inherit_the_stamp', () => {
+    // #754 critic P2-1: lookup trims, map keys were raw itemId. A padded
+    // stored key missed Map.has and inherited the stamp — the #754 inversion.
+    const items = liveInstitutionByItem([{ itemId: ' item-a', institutionId: null }], (i) => i.institutionId);
+    expect(resolveLiveInstitutionId('item-a', 'ins_stale', items)).toBeNull();
+    expect(resolveLiveInstitutionId(' item-a', 'ins_stale', items)).toBeNull();
+    expect(resolveLiveInstitutionName('item-a', 'Chase', items)).toBeNull();
+  });
+
+  it('a padded stored key still presents a live ins_56 over a null stamp', () => {
+    const items = liveInstitutionByItem([{ itemId: 'item-a ', institutionId: 'ins_56' }], (i) => i.institutionId);
+    expect(resolveLiveInstitutionId('item-a', null, items)).toBe('ins_56');
+  });
+
+  it('whitespace-only stored itemId is not a key — stamp is last-known', () => {
+    const items = liveInstitutionByItem([{ itemId: '   ', institutionId: null }], (i) => i.institutionId);
+    expect(items.size).toBe(0);
+    expect(resolveLiveInstitutionId('item-a', 'ins_stale', items)).toBe('ins_stale');
+  });
+
+  it('test_regression__o20j_transfer_combine_and_accounts_build_the_map_with_trimmed_keys', () => {
+    const refresh = readFileSync(resolve('src/lib/providers/transfer-refresh.ts'), 'utf8');
+    const combine = readFileSync(resolve('src/server/combine-connections.ts'), 'utf8');
+    const accounts = readFileSync(resolve('src/server/transactions.ts'), 'utf8');
+    expect(refresh).toContain('liveInstitutionByItem(items, (i) => i.institutionId)');
+    expect(combine).toContain('liveInstitutionByItem(items, (i) => i.institutionId)');
+    expect(combine).toContain('liveInstitutionByItem(items, (i) => i.institution)');
+    expect(accounts).toContain('liveInstitutionByItem(plaidItems, (i) => i.institutionId)');
+    expect(accounts).toContain('liveInstitutionByItem(plaidItems, (i) => i.institution)');
+    expect(refresh).not.toMatch(/new Map\(items\.map\(\(i\) => \[i\.itemId/);
+    expect(combine).not.toMatch(/new Map\(items\.map\(\(i\) => \[i\.itemId/);
+    expect(accounts).not.toMatch(/new Map\(plaidItems\.map\(\(i\) => \[i\.itemId/);
   });
 });

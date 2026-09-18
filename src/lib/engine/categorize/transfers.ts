@@ -154,10 +154,24 @@ export type TransferIdentityAccount = {
  * present-null live name inherited the stamp and the identity ladder's
  * both-null name fallback could prove SAME. Critic P2-1 on #753: a padded
  * `plaidItemId` missed `Map.has` and inherited the stamp the same way.
- * Empty / whitespace-only is not a key — stamp is last-known. Critic P2-2
- * on #748: live 0977 is stamp NULL + item `ins_56`; a stamp-only fixture
- * stays green under a join regression that would refuse that fold.
+ * Empty / whitespace-only is not a key — stamp is last-known. Critic P2-1
+ * on #754: map keys were raw `itemId`, so a padded stored key missed the
+ * trimmed lookup (the #754 inversion) and inherited the stamp the same way.
+ * Critic P2-2 on #748: live 0977 is stamp NULL + item `ins_56`; a stamp-only
+ * fixture stays green under a join regression that would refuse that fold.
  */
+export function liveInstitutionByItem<T extends { itemId: string }>(
+  items: readonly T[],
+  pick: (item: T) => string | null,
+): Map<string, string | null> {
+  const out = new Map<string, string | null>();
+  for (const item of items) {
+    const key = item.itemId.trim();
+    if (key !== '') out.set(key, pick(item));
+  }
+  return out;
+}
+
 function resolveLiveInstitutionField(
   plaidItemId: string | null | undefined,
   accountStamp: string | null | undefined,
