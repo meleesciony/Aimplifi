@@ -13,6 +13,16 @@ considered. Append-only.
 > Only entries #742 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #750 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (2026-09-18)
+
+**Context.** #749 critic P2-1: `resolveLiveInstitutionId` used `Map.get` + `??`, so a *present* PlaidItem whose `institutionId` is `null` (pre-backfill) fell through to `Account.institutionId`. Two live copies with matching stale stamps then folded on last-4 — #748's fail-closed rule never ran. Map.has mutation on the #749 tree killed 0 tests.
+
+**Decision.** `Map.has`: a present item (including null) is live and unproven; return `get(...) ?? null`. The stamp is last-known only after disconnect deletes the item (key absent). Live 0977 (`ins_56` over a null stamp) is unchanged. `isTransfer` add-only. H.7b not auto-run. No schema change. Mixed-type over-veto stays residual (1). combine-connections / `/accounts` keep their inline `??` (critic P2-1; not the transfer writer).
+
+**Locked.** `tests/unit/transfer-pair-identity.test.ts`: helper golden (present-null + stale stamp → null); `test_regression__o20j_live_null_item_ignores_a_stale_matching_stamp` (joined ids stay null, no fold). `tests/unit/transfer-pair-filing.test.ts`: `test_regression__o20j_live_null_item_stale_stamp_still_overturns_a_purchase` (`{ overturned: 1 }`). FAIL-OLD (`??` restored): **3 failed | 84 passed**. Critic ignore-map: **7 failed | 80 passed**. Map.has always-true: **1 failed | 86 passed** (disconnect stamp fallback).
+
+**Critic (fresh context, isolated worktree `/tmp/_critic_o20j_r5`): cycle 1 PASS 0 P0 / 0 P1 / 6 P2.** Independently: tsc 0, 87/87, FAIL-OLD 3|84. P2s in STATUS.
+
 ## #749 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (2026-09-18)
 
 **Context.** #748's critic P2-2: the filing 0977 lock stamped `Account.institutionId = ins_56` and never created a `PlaidItem` row. Live 0977 is the opposite (stamp NULL, item `ins_56`). A join regression to stamp-only would keep that fixture green and refuse the live fold, so a dining purchase vs a filed TRAVEL CREDIT would overturn again.

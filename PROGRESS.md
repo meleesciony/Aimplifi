@@ -9,6 +9,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-10_to_2026-09-11.md` (rotated 2026-09-17).
 > Only sessions from 2026-09-12 onward live here; append new sessions at the top as before.
 
+## 2026-09-18 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (DECISIONS #750)
+
+**Picked up.** Owner: "Continue." Tree even with `origin/main` at `0b89152e` (#749 ship-gate docs). Queue scan: Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic. Mixed-type over-veto stays locked fail-closed by cycle-4. Strongest actionable money-identity row: #749 critic P2-1 — a present map entry whose value is `null` fell through to the stamp.
+
+**Closed.** `resolveLiveInstitutionId` uses `Map.has`; present null stays null; disconnect (no key) still uses the stamp. Live 0977 fold unchanged.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8544 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**, next build clean. FAIL-OLD `??`: **3 failed | 84 passed**. Playwright mobile-380 `transfer-flag-repair` **1/1**.
+
+**Critic (fresh context, `/tmp/_critic_o20j_r5`): cycle 1 PASS 0 P0 / 0 P1 / 6 P2.** Independently reproduced tsc 0, 87/87, FAIL-OLD 3|84. P2s in STATUS.
+
+**Ledgers.** DECISIONS #750 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j note.
+
+**Ship.** (this turn.) No `prisma/` schema diff.
+
 ## 2026-09-18 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (DECISIONS #749)
 
 **Picked up.** Owner: "continue." Tree even with `origin/main` at `bd989510` (#748 shipped). Queue scan: Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic; L.19 stored-figure residuals closed. Mixed-type over-veto (#748 residual 1) is locked fail-closed by cycle-4 (`CREDIT` must not become `CHECKING` via a confirmed terminal). Strongest actionable money-identity row: #748 critic P2-2 — the filing fixture stamped the account and never created a PlaidItem.
