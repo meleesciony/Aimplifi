@@ -23,7 +23,7 @@
 
 **Ledgers.** DECISIONS #754 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j residual (8).
 
-**Ship.** This entry records the local gate; the ship sha lands in the follow-up. No `prisma/` schema diff. H.7b not auto-run.
+**Ship.** `09d51409` on `origin/main` (PR #34 ff-merged). No `prisma/` schema diff. **CI verify run 35389703386 = SUCCESS** on `09d51409` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_FJgPcT7MpweCoEEuW9Ps5bWiuyaz` **READY** on that sha, target production. Live unsigned `/` → 307 `/sign-in`. Marker: `raw.githubusercontent.com` on `09d51409` finds `const key = plaidItemId?.trim() ?? ''`; prior `71ee2c3a` still has `liveByItem.has(plaidItemId)`. H.7b not auto-run.
 
 ## 2026-09-18 — O.20j residual (7): present-null institution name does not inherit the stamp (DECISIONS #753)
 
