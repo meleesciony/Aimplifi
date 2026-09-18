@@ -21,7 +21,7 @@
 
 **Ledgers.** DECISIONS #749 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j note.
 
-**Ship.** (this turn — CI + live still to read.) No `prisma/` schema diff.
+**Ship.** `439d0650` on `origin/main` (PR #27 rebase-merged; feature-branch shas `16be7d28` / `0107216c` rewritten). No `prisma/` schema diff. CI verify **35356213456 = SUCCESS** on `439d0650` (`main`, full `VERIFY_E2E=1`, 10m58s, `gh run view` conclusion success). Vercel Production `dpl_2pmQnGNBYKyqfJi8kaLdhtBeCGZN` READY on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Server-only marker: `raw.githubusercontent.com` on `439d0650` finds `export function resolveLiveInstitutionId(` in `src/lib/engine/categorize/transfers.ts`; **0 hits** on the prior production sha `bd989510`.
 
 ## 2026-09-17 — O.20j residual (2): a Plaid side without `ins_*` does not fold on last-4 (DECISIONS #748)
 
