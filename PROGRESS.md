@@ -21,7 +21,7 @@
 
 **Ledgers.** DECISIONS #748 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j note. P2s in STATUS (third-null over-veto; filing fixture vs live join).
 
-**Ship.** (this turn.) No `prisma/` schema diff. Identity is server-only.
+**Ship.** `2f2f3e23` on `origin/main`. No `prisma/` schema diff. CI verify **35312463045 = SUCCESS** (14m57s, full `VERIFY_E2E=1`). Vercel Production `dpl_EWXhQSiTdZkkWiFhKn8dUdngvYjx` READY on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`. Server-only marker: `a Plaid side that lacks`.
 
 ## 2026-09-17 — L.19 residual (1) follow-up: the saved debt-free goal card names the extra / on-track line (DECISIONS #747)
 
