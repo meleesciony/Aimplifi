@@ -15,7 +15,8 @@
  * terminal has a different type (named residual). The advisory detector is
  * not this function's source — HIGH also fires on name-embedded years and
  * on identical-balance spouse cards (critic cycle 1). Dismissed pairs
- * ("Not a duplicate") stay two accounts.
+ * ("Not a duplicate") stay two accounts. Residual (2): two Plaid items with
+ * a missing `ins_*` must not fold on last-4 — an absence is not a bank.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -57,12 +58,16 @@ function rootOf(map: ReadonlyMap<string, string>, id: string): string {
 function acct(
   over: Partial<TransferIdentityAccount> & Pick<TransferIdentityAccount, 'id'>,
 ): TransferIdentityAccount {
+  const provider = over.provider ?? 'plaid';
   return {
     type: 'CREDIT',
     mask: '0977',
     provider: 'plaid',
     plaidItemId: `item-${over.id}`,
     name: over.id,
+    // Plaid fixtures share a bank unless the test is ABOUT a missing or
+    // different `ins_*`. SimpleFIN never carries Plaid's id (expected-null).
+    institutionId: provider === 'plaid' ? 'ins_chase' : null,
     ...over,
   };
 }
@@ -116,6 +121,8 @@ describe('unionSameMaskColumnIdentity', () => {
   });
 
   it('equates same-type copies that share a MASK COLUMN so one lookup is the same root', () => {
+    // They also share a bank (`acct` defaults Plaid to ins_chase). Last-4
+    // alone is not identity — see residual (2) below.
     const out = unionSameMaskColumnIdentity(new Map(), [
       acct({ id: 'card-a', plaidItemId: 'item-1' }),
       acct({ id: 'card-b', plaidItemId: 'item-2' }),
@@ -342,6 +349,74 @@ describe('unionSameMaskColumnIdentity', () => {
     ]);
     expect(rootOf(out, 'chase-chk')).not.toBe(rootOf(out, 'ally-chk'));
     expect(out.size).toBe(0);
+  });
+
+  it('test_regression__o20j_plaid_plaid_missing_institution_ids_do_not_fold_on_last4', () => {
+    // Residual (2): pre-backfill Plaid items carry null ins_*. Last-4 is not a
+    // bank — Chase vs Ally with no id must stay two accounts, same as when
+    // the ids are present and different.
+    const bothNull = unionSameMaskColumnIdentity(new Map(), [
+      acct({ id: 'card-a', plaidItemId: 'item-1', institutionId: null }),
+      acct({ id: 'card-b', plaidItemId: 'item-2', institutionId: null }),
+    ]);
+    expect(rootOf(bothNull, 'card-a')).not.toBe(rootOf(bothNull, 'card-b'));
+    expect(bothNull.size).toBe(0);
+
+    const oneNull = unionSameMaskColumnIdentity(new Map(), [
+      acct({ id: 'known', plaidItemId: 'item-1', institutionId: 'ins_chase' }),
+      acct({ id: 'unknown', plaidItemId: 'item-2', institutionId: null }),
+    ]);
+    expect(rootOf(oneNull, 'known')).not.toBe(rootOf(oneNull, 'unknown'));
+    expect(oneNull.size).toBe(0);
+
+    const blank = unionSameMaskColumnIdentity(new Map(), [
+      acct({ id: 'ws-a', plaidItemId: 'item-1', institutionId: '   ' }),
+      acct({ id: 'ws-b', plaidItemId: 'item-2', institutionId: '' }),
+    ]);
+    expect(rootOf(blank, 'ws-a')).not.toBe(rootOf(blank, 'ws-b'));
+    expect(blank.size).toBe(0);
+  });
+
+  it('test_regression__o20j_unproven_plaid_does_not_fold_onto_a_non_plaid_last4', () => {
+    // Critic P1-2: last-4 is not a bank even when the other side is SimpleFIN,
+    // manual, or demo. A Plaid row with no `ins_*` is unproven against anyone.
+    const sfin = unionSameMaskColumnIdentity(new Map(), [
+      acct({
+        id: 'plaid-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        plaidItemId: 'item-1',
+        institutionId: null,
+      }),
+      acct({
+        id: 'sfin-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        provider: 'simplefin',
+        plaidItemId: null,
+        institutionId: null,
+      }),
+    ]);
+    expect(rootOf(sfin, 'plaid-chk')).not.toBe(rootOf(sfin, 'sfin-chk'));
+    expect(sfin.size).toBe(0);
+
+    const manual = unionSameMaskColumnIdentity(new Map(), [
+      acct({
+        id: 'plaid-card',
+        mask: '0977',
+        plaidItemId: 'item-1',
+        institutionId: null,
+      }),
+      acct({
+        id: 'manual-card',
+        mask: '0977',
+        provider: 'manual',
+        plaidItemId: null,
+        institutionId: null,
+      }),
+    ]);
+    expect(rootOf(manual, 'plaid-card')).not.toBe(rootOf(manual, 'manual-card'));
+    expect(manual.size).toBe(0);
   });
 
   it('test_regression__o20j_different_currency_same_last4_are_two_accounts', () => {
@@ -730,6 +805,104 @@ describe('planTransferUpdates: same-mask-column copies do not pair (O.20j)', () 
         id: 'inn',
         accountId: 'ally-chk',
         accountIdentityId: rootOf(identity, 'ally-chk'),
+        accountType: 'CHECKING',
+        amountCents: 200_000,
+        rawDescriptor: 'FROM CHASE',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+    ]);
+    expect(plan.flagIds.sort()).toEqual(['inn', 'out']);
+    expect(plan.fileIds.sort()).toEqual(['inn', 'out']);
+  });
+
+  it('test_regression__o20j_plaid_plaid_missing_institution_same_last4_transfer_still_flags', () => {
+    // Residual (2) money lock: the Chase→Ally $2,000 shape, but both items
+    // pre-backfill (null ins_*). Folding them on last-4 would swallow a real
+    // transfer the same way present-and-different ids used to.
+    const identity = unionSameMaskColumnIdentity(new Map(), [
+      acct({
+        id: 'chase-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        plaidItemId: 'item-chase',
+        institutionId: null,
+        name: 'Chase Total Checking',
+      }),
+      acct({
+        id: 'ally-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        plaidItemId: 'item-ally',
+        institutionId: null,
+        name: 'Ally Spending',
+      }),
+    ]);
+    expect(rootOf(identity, 'chase-chk')).not.toBe(rootOf(identity, 'ally-chk'));
+    const plan = planTransferUpdates([
+      txn({
+        id: 'out',
+        accountId: 'chase-chk',
+        accountIdentityId: rootOf(identity, 'chase-chk'),
+        accountType: 'CHECKING',
+        amountCents: -200_000,
+        rawDescriptor: 'CHASE TO ALLY',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+      txn({
+        id: 'inn',
+        accountId: 'ally-chk',
+        accountIdentityId: rootOf(identity, 'ally-chk'),
+        accountType: 'CHECKING',
+        amountCents: 200_000,
+        rawDescriptor: 'FROM CHASE',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+    ]);
+    expect(plan.flagIds.sort()).toEqual(['inn', 'out']);
+    expect(plan.fileIds.sort()).toEqual(['inn', 'out']);
+  });
+
+  it('test_regression__o20j_unproven_plaid_plus_simplefin_same_last4_transfer_still_flags', () => {
+    // Critic P1-2 money lock: Plaid(null ins_*) + SimpleFIN(null) sharing a
+    // last-4 must not swallow a $2,000 transfer.
+    const identity = unionSameMaskColumnIdentity(new Map(), [
+      acct({
+        id: 'chase-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        plaidItemId: 'item-chase',
+        institutionId: null,
+        name: 'Chase Total Checking',
+      }),
+      acct({
+        id: 'sfin-chk',
+        type: 'CHECKING',
+        mask: '1234',
+        provider: 'simplefin',
+        plaidItemId: null,
+        institutionId: null,
+        name: 'Ally Spending',
+      }),
+    ]);
+    expect(rootOf(identity, 'chase-chk')).not.toBe(rootOf(identity, 'sfin-chk'));
+    const plan = planTransferUpdates([
+      txn({
+        id: 'out',
+        accountId: 'chase-chk',
+        accountIdentityId: rootOf(identity, 'chase-chk'),
+        accountType: 'CHECKING',
+        amountCents: -200_000,
+        rawDescriptor: 'CHASE TO ALLY',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+      txn({
+        id: 'inn',
+        accountId: 'sfin-chk',
+        accountIdentityId: rootOf(identity, 'sfin-chk'),
         accountType: 'CHECKING',
         amountCents: 200_000,
         rawDescriptor: 'FROM CHASE',

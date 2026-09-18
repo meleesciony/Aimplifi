@@ -87,7 +87,8 @@ export function transferIdentityDismissKey(aId: string, bId: string): string {
  * ingest connections, plus institution / currency / registration vetoes, a
  * stable group order, and a component veto that includes confirmed H.7
  * terminals. Mixed-type over-veto can refuse the 0977 fold when a confirmed
- * terminal has a different type (named residual). HIGH-confidence detector
+ * terminal has a different type (named residual). Plaid–Plaid with a missing
+ * `ins_*` does not fold on last-4 (residual 2). HIGH-confidence detector
  * pairs are a wider disjunction (mask OR identical balance, and name-embedded
  * years on a null mask column) that the detector itself declares advisory;
  * this function does not call it.
@@ -112,9 +113,14 @@ export function transferIdentityDismissKey(aId: string, bId: string): string {
  * ids — so a confirmed chain cannot smuggle a forbidden pair. Mixed types
  * in that component also veto: a CREDIT last-4 must not become a CHECKING
  * identity through a cross-type confirmed link. Institution, currency, and
- * registration vetoes (new-budget cycle 1) also walk this component. Group
- * keys are sorted so unordered `findMany` cannot pick which bridged group
- * folds. A missing `byId` record fails closed.
+ * registration vetoes (new-budget cycle 1) also walk this component. Residual
+ * (2): two Plaid items that both lack `ins_*` (pre-backfill) used to fold on
+ * last-4 alone — an absence is not a bank. A Plaid side that lacks `ins_*`
+ * now fails closed against ANY counterpart; SimpleFIN's expected-null does
+ * not veto a Plaid counterpart that HAS an id, so 0977 (Plaid `ins_56` +
+ * SimpleFIN null) still folds. Group keys are sorted so
+ * unordered `findMany` cannot pick which bridged group folds. A missing `byId`
+ * record fails closed.
  *
  * Does not merge accounts, drop balances, or write `isTransfer`.
  */
@@ -124,7 +130,13 @@ export type TransferIdentityAccount = {
   mask: string | null;
   provider: string;
   plaidItemId?: string | null;
-  /** Plaid `ins_*` when known. Both present and different ⇒ two banks. */
+  /**
+   * Plaid `ins_*` when known. Both present and different ⇒ two banks.
+   * Two Plaid items with either id missing ⇒ unproven, never same (last-4 is
+   * not a bank). A Plaid side that lacks `ins_*` is unproven against ANY
+   * counterpart. SimpleFIN's expected-null does not veto a Plaid counterpart
+   * that HAS an id.
+   */
   institutionId?: string | null;
   /** ISO-4217; null = USD, same as the advisory detector. */
   currency?: string | null;
@@ -155,8 +167,13 @@ function sameIngestConnection(a: TransferIdentityAccount, b: TransferIdentityAcc
 function institutionsConflict(a: TransferIdentityAccount, b: TransferIdentityAccount): boolean {
   const ia = a.institutionId?.trim() || null;
   const ib = b.institutionId?.trim() || null;
-  if (!ia || !ib) return false;
-  return ia !== ib;
+  if (ia && ib) return ia !== ib;
+  // Residual (2) + critic P1-2: last-4 is not a bank. A Plaid side that lacks
+  // `ins_*` is unproven against ANY counterpart — not only against another
+  // Plaid item. SimpleFIN's expected-null is fine next to a Plaid row that
+  // HAS an id (0977: ins_chase + SimpleFIN null still folds).
+  if ((a.provider === 'plaid' && !ia) || (b.provider === 'plaid' && !ib)) return true;
+  return false;
 }
 
 function pairBlocked(

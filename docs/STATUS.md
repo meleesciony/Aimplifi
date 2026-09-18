@@ -17,6 +17,20 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-17 — O.20j residual (2): a Plaid side without `ins_*` does not fold on last-4 (DECISIONS #748)
+
+**The hole.** #744 folded unconfirmed same-type copies on a MASK COLUMN ≥4. `institutionsConflict` only vetoed when both `ins_*` ids were present and different, so two pre-backfill Plaid items with null ids still folded on last-4 — Chase vs Ally with no id was one account, and a $2,000 transfer vanished.
+
+**Shipped.** A Plaid side that lacks `ins_*` (null / blank / whitespace) fails closed against ANY counterpart. Both ids present ⇒ conflict iff they differ (unchanged). Plaid-with-id + SimpleFIN null still folds (0977). Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
+
+**Measured.** `scripts/audit-probes/o20j-0977-institution-ids.mts` (read-only): 2 CREDIT `0977` Plaid items, both live, both `PlaidItem.institutionId = ins_56`, both Account stamp NULL → join presents `ins_56`. Prevention fold is ON for the live pair.
+
+**Critic (fresh context, `C:\dev\_critic_o20j_r2`): cycle 1 FAIL 0 P0 / 2 P1 → cycle 2 PASS 0 P0 / 0 P1 / 2 P2.** Cycle 1: unmeasured live premise; Plaid(null)+SimpleFIN still folded. Cycle 2 independently: tsc 0, 77/77, FAIL-OLD **5 failed | 72 passed**, both-Plaid mutation killed the two P1-2 locks, re-measured live 0977.
+
+**Gate.** `bash scripts/verify.sh` (post-cycle-2) → ✅ VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8534 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**, `next build` clean. Playwright mobile-380 `transfer-flag-repair.spec.ts` **1/1** (no UI change). FAIL-OLD vs pre-slice function: **5 failed | 72 passed**.
+
+**Still open / residuals.** (1) Mixed-type over-veto (carried from #744). (2) **Cycle-2 P2-1:** a third Plaid-null copy in the same (type, mask) component vetoes the whole group, so two proven `ins_56` copies do not fold while a straggler remains (fail-closed; not live on 0977, n=2). (3) Dismissal `take: 500`. (4) **Cycle-2 P2-2:** the filing 0977 lock stamps `Account.institutionId` (no `PlaidItem` row); live is the opposite (stamp null, item `ins_56`) — a join regression to stamp-only would keep the fixture green and refuse the live fold. (5) `anyPairBlocked` O(component²). (6) Raw `provider === 'plaid'` case (carried). (7) The 8 existing `$237.08` flags stay until the owner taps H.7b. Wave 0 ops owner-blocked. M.4 owner-deferred.
+
 ## ✅ BUILT 2026-09-17 — The saved debt-free goal card names the extra / on-track line the same frozen save computed (L.19 residual 1 follow-up, DECISIONS #747)
 
 **The gap.** #746's critic P2-4: after save, the /goals card printed "Suggested: about $X/mo" or "On track at your current payments — no extra needed" from the solver's extra over the same frozen balances, and the note was scoped to the total only. A wider claim on `frozenAtSave` would be false once the reader typed a monthly.
@@ -75,7 +89,7 @@ rates) — no other doc may restate them.
 
 **Do not treat the cycle-3 8-flag / `$237.08` number as this function's live result.** Mixed-type over-veto can refuse the 0977 fold when a confirmed terminal has a different type.
 
-**Still open / residuals (critic cycle 2 P2s, none blocking).** (1) Mixed-type over-veto, above. (2) Two Plaid items with null `institutionId` (pre-backfill) still fold on last-4 alone — an absence is never a difference; unnamed until now. (3) Dismissal read `take: 500`. (4) No shipped test locks the `PlaidItem` → `institutionId` join (the pure function is locked; the join was proven by the critic's throwaway DB probe). (5) `anyPairBlocked` is O(component²) per group; benign at realistic sizes, 1s at 120 accounts in one component. (6) Raw `provider === 'plaid'` matches `evaluatePair`. (7) The 8 existing `$237.08` flags stay until the owner taps H.7b. Wave 0 ops owner-blocked. M.4 owner-deferred.
+**Still open / residuals (critic cycle 2 P2s, none blocking).** (1) Mixed-type over-veto, above. (2) ~~Two Plaid items with null `institutionId` (pre-backfill) still fold on last-4 alone~~ — **CLOSED 2026-09-17 (DECISIONS #748):** a Plaid side that lacks `ins_*` fails closed against any counterpart; live 0977 items carry `PlaidItem.institutionId = ins_56`. (3) Dismissal read `take: 500`. (4) No shipped test locks the `PlaidItem` → `institutionId` join — raised in stakes by #748 (STATUS #748 residual 4). (5) `anyPairBlocked` is O(component²) per group; benign at realistic sizes, 1s at 120 accounts in one component. (6) Raw `provider === 'plaid'` matches `evaluatePair`. (7) The 8 existing `$237.08` flags stay until the owner taps H.7b. Wave 0 ops owner-blocked. M.4 owner-deferred.
 
 ## ⛔ HUMAN GATE 2026-09-16 — O.20j converse-leak identity (critic budget exhausted, DECISIONS #743) — SUPERSEDED by #744
 

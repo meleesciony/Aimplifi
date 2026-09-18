@@ -9,6 +9,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-10_to_2026-09-11.md` (rotated 2026-09-17).
 > Only sessions from 2026-09-12 onward live here; append new sessions at the top as before.
 
+## 2026-09-17 — O.20j residual (2): a Plaid side without `ins_*` does not fold on last-4 (DECISIONS #748)
+
+**Picked up.** Owner: "continue." Tree clean on `471bbe4a` (#747 shipped). Queue scan: Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic; L.19 stored-figure residuals closed. Strongest open money-visible row: #744 critic P2-2 — two Plaid items with null `institutionId` still folded on last-4.
+
+**Closed.** `institutionsConflict`: both ids present ⇒ differ; a Plaid side lacking `ins_*` fails closed against any counterpart; Plaid-with-id + SimpleFIN null still folds. Live 0977: both items `ins_56` via the join (account stamp null). Cycle 1 P1s (unmeasured premise; Plaid(null)+SimpleFIN fold) closed same-session.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8534 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**, next build clean. FAIL-OLD: **5 failed | 72 passed**. Playwright mobile-380 `transfer-flag-repair` **1/1**.
+
+**Critic (fresh context, `C:\dev\_critic_o20j_r2`): cycle 1 FAIL 2 P1 → cycle 2 PASS 0 P0 / 0 P1 / 2 P2.** Independently reproduced tsc 0, 77/77, FAIL-OLD 5|72, both-Plaid mutation, live 0977 `ins_56`.
+
+**Ledgers.** DECISIONS #748 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j note. P2s in STATUS (third-null over-veto; filing fixture vs live join).
+
+**Ship.** (this turn.) No `prisma/` schema diff. Identity is server-only.
+
 ## 2026-09-17 — L.19 residual (1) follow-up: the saved debt-free goal card names the extra / on-track line (DECISIONS #747)
 
 **Picked up.** Owner: "continue" on delayed critic notifications for a JSON snapshot that a parallel session had already occupied as #746 (`frozenAtSave` date stamp, `956e6492`). Strongest open money-visible row: #746 critic P2-4 (Suggested / on-track still silent). Did not rebase the JSON named-debt blob (would duplicate #746); added a twin stamp on the landed design.
