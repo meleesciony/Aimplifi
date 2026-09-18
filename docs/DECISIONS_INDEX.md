@@ -743,3 +743,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #748 — O.20j residual (2): a Plaid side without `ins_*` does not fold on last-4 (2026-09-17) → docs/DECISIONS.md
 - #749 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (2026-09-18) → docs/DECISIONS.md
 - #750 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (2026-09-18) → docs/DECISIONS.md
+- #751 — Owner Yes on the ops walkthrough and the two live-data writes (2026-09-18) → docs/DECISIONS.md

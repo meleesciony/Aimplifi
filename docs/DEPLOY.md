@@ -103,7 +103,7 @@ Optional, add only if/when you want the feature:
 | `CRON_SECRET` | protects the `/api/cron/*` sweep routes if you wire Vercel Cron |
 | `RESEND_API_KEY` + `REMINDER_FROM_EMAIL` | actually send payment-reminder emails AND the weekly digest (otherwise both are dormant — reminders still show in-app). Wire `/api/cron/reminders` (daily) and `/api/cron/digest` (weekly, e.g. `{ "path": "/api/cron/digest", "schedule": "0 13 * * 1" }` — Monday 13:00) in `vercel.json`, both guarded by `CRON_SECRET`. The digest dedups once per ISO week, so a slipped run sends at most one. |
 | `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` | turn on Web-Push notifications (payment-due + cash-flow-radar heads-ups). Generate once with `npx web-push generate-vapid-keys`; `VAPID_SUBJECT` is a `mailto:` you own. All three unset = dormant (no push UI, nothing sent). Then wire `/api/cron/notify` (e.g. `{ "path": "/api/cron/notify", "schedule": "0 13 * * *" }` in `vercel.json`) alongside the reminders/sync crons, guarded by `CRON_SECRET`. |
-| `SENTRY_DSN` and/or `NEXT_PUBLIC_SENTRY_DSN` | turn on production error tracking (Gap 6 §2 / DECISIONS #189). Create a Sentry project → copy the DSN. Server prefers `SENTRY_DSN`; client error boundaries use either. Both unset = dormant (no network, verify/demo unchanged). Optional: `SENTRY_ENVIRONMENT` (defaults to `VERCEL_ENV`), `SENTRY_RELEASE` (defaults to `VERCEL_GIT_COMMIT_SHA`). CSP `connect-src` widens to `*.ingest.sentry.io` only when a DSN is set. No third-party script tag — thin fetch envelope client in `lib/errors.ts`. |
+| `SENTRY_DSN` and/or `NEXT_PUBLIC_SENTRY_DSN` | turn on production error tracking (Gap 6 §2 / DECISIONS #189). Create a Sentry project → copy the DSN. Server prefers `SENTRY_DSN`; client error boundaries use either. Both unset = dormant (no network, verify/demo unchanged). Optional: `SENTRY_ENVIRONMENT` (defaults to `VERCEL_ENV`), `SENTRY_RELEASE` (defaults to `VERCEL_GIT_COMMIT_SHA`). CSP `connect-src` widens to `*.ingest.sentry.io` only when a DSN is set. No third-party script tag — thin fetch envelope client in `lib/errors.ts`. First-timer: `docs/OPS_WALKTHROUGH.md` §C — **Projects → Create Project → Next.js**, then Vercel **Settings → Environment Variables** → `SENTRY_DSN` → **Deployments → ⋯ → Redeploy**. Do **not** run `npx @sentry/wizard`. Proof is Settings → **Activation checklist** → **Error tracking (Sentry)** = **Live**. |
 
 ## 5. Deploy
 
@@ -125,13 +125,24 @@ DATABASE_URL="postgresql://…/pulse?sslmode=require" npx prisma db seed -- --fo
 ```
 
 To add (or refresh) just the **demo investment holdings** without wiping anything — safe
-even on a DB that already has real data — use the additive-only script instead:
+even on a DB that already has real data — use the additive-only script instead.
+First-timer steps that never paste the URL into chat: `docs/OPS_WALKTHROUGH.md` §E
+(`npm run seed:demo-holdings` with the existing `.env.prod.tmp` on `C:\dev\Aimplifi`).
 
 ```bash
-DATABASE_URL="postgresql://…/pulse?sslmode=require" npx tsx scripts/seed-demo-holdings.ts
+# Do not paste this URL into chat. Load it from .env.prod.tmp or Vercel.
+DATABASE_URL="postgresql://…/pulse?sslmode=require" npm run seed:demo-holdings
 ```
 
 If you'd rather not offer a demo at all, skip this — real signups don't need it.
+
+## 8. Verify cron jobs fire (first-timer)
+
+The six `/api/cron/*` paths are already in `vercel.json`. Fire is still
+UNVERIFIED until someone reads a **200** in Vercel **View Logs**. One-action
+steps: `docs/OPS_WALKTHROUGH.md` §B (Vercel project → **Settings → Cron Jobs**
+→ **View Logs** after 11:00 UTC). Hobby keeps runtime logs about one hour and
+may fire anytime inside the scheduled hour.
 
 ## 7. First logins + the privacy check
 

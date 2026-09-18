@@ -13,6 +13,28 @@ considered. Append-only.
 > Only entries #742 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #751 — Owner Yes on the ops walkthrough and the two live-data writes (2026-09-18)
+
+**Context.** After #750 the owner asked what they still needed to do. Four optional
+items were named. Owner, verbatim: **"3. Yes. 4. Yes."** — (3) a first-timer
+walkthrough for Neon backups, cron fire, and Sentry; (4) undo the nine
+`unsupported` Combined-accounts supersessions and seed demo holdings on
+production.
+
+**Decision.** Write the walkthrough from official / in-app labels
+(`docs/OPS_WALKTHROUGH.md`). Do not invent a bulk-undo script — U.15 (b) already
+has per-link **Undo** on `/accounts`, reversible via `undoneAt`. Do not run
+`prisma db seed`. Seed holdings only via `npm run seed:demo-holdings` (additive,
+demo `acct-brokerage`, INVESTMENT-gated). This VM has no `DATABASE_URL` and will
+not decrypt Vercel env, so the two writes stay owner-executed. Do not flip
+`DATA_PROVIDER=plaid`. Do not undo GENUINE / UNTESTABLE links. Sentry is DSN-only
+(no `@sentry/wizard`); #203's "deferred paid tracking" still holds — Developer
+plan + `SENTRY_DSN` is enough. Cron fire stays UNVERIFIED until the owner reads a
+200 in Vercel **View Logs** after 11:00 UTC (Hobby ~1h log retention; a 24h
+`requestPath` group on 2026-09-18 returned zero `/api/cron/*` lines).
+
+**Locked.** Docs only. No money-math change. No schema change.
+
 ## #750 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (2026-09-18)
 
 **Context.** #749 critic P2-1: `resolveLiveInstitutionId` used `Map.get` + `??`, so a *present* PlaidItem whose `institutionId` is `null` (pre-backfill) fell through to `Account.institutionId`. Two live copies with matching stale stamps then folded on last-4 — #748's fail-closed rule never ran. Map.has mutation on the #749 tree killed 0 tests.

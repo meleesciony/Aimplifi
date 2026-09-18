@@ -9,13 +9,26 @@ rates) — no other doc may restate them.
 > (rotated 2026-09-11) and the BUILT entries 2026-09-03 through 2026-09-11 in
 > `docs/archive/STATUS_ARCHIVE_2026-09-03_to_2026-09-11.md` (rotated 2026-09-17), and the BUILT
 > entries for #737–#740 (2026-09-11/12) in `docs/archive/STATUS_ARCHIVE_2026-09-11_to_2026-09-12.md`
-> (rotated 2026-09-17); only current-wave BUILT entries and OPEN/FOUND/DECIDED items remain here.
+> (rotated 2026-09-17), and the BUILT entry for #741 (2026-09-14) in
+> `docs/archive/STATUS_ARCHIVE_2026-09-14.md` (rotated 2026-09-18); only current-wave
+> BUILT entries and OPEN/FOUND/DECIDED items remain here.
 >
 > Entries from 2026-06/2026-07 (BUILT/CLOSED history) were moved verbatim to
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04, and the 2026-08
 > BUILT/CLOSED history to `docs/archive/STATUS_ARCHIVE_2026-08.md` on 2026-08-27, to
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
+
+## DECIDED 2026-09-18 — Owner Yes on ops walkthrough + two live writes (DECISIONS #751)
+
+Owner: **"3. Yes. 4. Yes."** First-timer steps live in `docs/OPS_WALKTHROUGH.md`
+(Neon History window, Vercel **Settings → Cron Jobs → View Logs**, Sentry
+`SENTRY_DSN` + Redeploy + Settings **Activation checklist**, Combined-accounts
+**Worth a look:** Undo only, `npm run seed:demo-holdings`). This VM cannot
+execute the two writes (no `DATABASE_URL`; will not decrypt Vercel env). Cron
+fire still **UNVERIFIED** (24h production `requestPath` group: zero `/api/cron/*`
+lines — Hobby ~1h retention). Do not undo GENUINE/UNTESTABLE links. Do not flip
+`DATA_PROVIDER=plaid`.
 
 ## ✅ BUILT 2026-09-18 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (DECISIONS #750)
 
@@ -144,20 +157,6 @@ rates) — no other doc may restate them.
 **Ledger cut.** `docs/DECISIONS.md` was 44.6 KB; #724–#736 rotated verbatim to `docs/archive/DECISIONS_ARCHIVE_724_to_736.md` (now 36 KB; index regenerated, 729 entries).
 
 **Still open / residuals.** (1) ~~**Saved debt-free goal is silent after save**~~ — **CLOSED 2026-09-17 (DECISIONS #746, BUILT entry above; `Goal.frozenAtSave`)**. Original finding (critic P2-6): `saveDebtFreeGoal` persists `totalBalanceCents` from `loadDebtAccounts` as the target and the /goals goal card prints it with no frozen note — the same shape as #305's PDF finding, one hop later; the planner note above the save control is the only warning. Fix needs the goal card to know the target's basis (a `frozenAtSave` or a re-resolve against current `feedDroppedAt`). (2) `stoppedSharing` says "Your banks" for two frozen rows at one institution — inherited from the L.18 builders. (3) The `perDebt` resolution in the planner and `answerDebtPayoff` is the identity today (the engine echoes every row) — kept as the L.15 resolution point. (4) `text-xs` muted contrast unmeasured (UNVERIFIED, pre-existing token). (5) ~~A second debt read path still strips the fact~~ — **CLOSED 2026-09-17 (DECISIONS #745, BUILT entry above)**: `coach.ts` now carries `feedDroppedAt` onto both the loans and the past-due cards of the next-dollar ranking, and the card + Ask answer name the frozen debt they point at. **Fact learned about (1), recorded so it is not re-derived:** `Goal` has no `createdAt` column, so "this target was computed from a frozen balance" cannot be judged at render time — a re-resolve against today's `feedDroppedAt` would over-claim for a debt that froze AFTER the save. The honest close needs an additive column (`Goal.frozenAtSave` or `createdAt`), i.e. a `prisma db push` on deploy; existing rows would carry no fact and must render no note. Wave 0 ops owner-blocked. M.4 owner-deferred. Wave 2/3/4 rows per TASKS.md.
-
-## ✅ BUILT 2026-09-14 — One definition of an unidentified inflow: it is income (O.20c, DECISIONS #741)
-
-**The report.** TASKS O.20c (owner-reported, live, P1, money-visible): two unfiled deposits that look identical to a reader landed on OPPOSITE sides of the same figure — a positive stored with no category counted as INCOME, while the same positive sitting in the `uncategorized` placeholder NETTED the month's spending down.
-
-**Shipped.** `isIncomeFlowRow` now admits BOTH stores of "nobody labelled this row" (raw null AND the `'uncategorized'` placeholder) — the app's own sign rule, symmetric with how an unfiled OUTFLOW already counts as spending. `isSpendRow` gained the matching clause, so the "Spending by category" card can no longer count that row as negative spend: one row, one side, both surfaces. `MONTH_FLOW_BASIS` copy re-derived (the expense sentence's now-false clause deleted; the income sentence states the unified rule); `BREAKDOWN_BASIS` gained the clause naming the new drop. `isFallbackGuiltFreeIncomeRow` now delegates to `isIncomeFlowRow` instead of re-stating the rule by hand. A mid-slice regression (a loan-payment answer emptying because its fixture refund was unfiled) was found by the full suite and repaired; the O.18e-FU3 fixture now files its refund.
-
-**Critic (fresh context): cycle 1 FAIL 1 P1 + 2 P2 — all fixed same-session.** The P1 was ledger integrity (a "Locked." pointer naming a nonexistent test id and an untouched file), not code. The critic independently reproduced the probe, the full suite, both typechecks and FAIL-OLD, and swept the whole category domain through both predicates finding no remaining opposite-side disagreement for any positive row.
-
-**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN, exit 0: tsc 0, probes tsc 0, eslint 0, unit **8,420 passed + 1 expected fail + 1 skipped / 629 files**, `next build` clean. FAIL-OLD (stash-revert): **6 failed | 80 passed** pre-fix. Playwright mobile-380: 7 specs on the changed surfaces, **17 passed**.
-
-**CI + live.** CI verify run **34882946348 = SUCCESS** on `d774c1ef` (full VERIFY_E2E=1, 11m40s); each docs-only push superseded it, and the ship-gate read on the **newest sha is run 34886003435 = SUCCESS on `042751b6`** (full VERIFY_E2E=1, watched to conclusion). The first run (34880225584 on `3918c1f2`) was **failure** on `trends-new-merchant-panel.spec.ts` — this slice's own copy widening; the spec pinned the disclosure sentence verbatim and was re-pointed at the shipped copy (never weakened), recorded in REGRESSION_LEDGER. Vercel production deployment **6443592177 = success** on `3918c1f2`. Live probe (demo session, mobile-380): the `uncategorized` category panel renders "**and an inflow nobody has filed yet are left out**"; the month-flow expense panel renders "**an inflow with no category, or one still sitting in Uncategorized, does not**" with the old false clause gone; the income panel renders "**no category at all or still sits in Uncategorized**".
-
-**Still open.** Wave 0 ops owner-blocked. M.4 owner-deferred. Wave 2/3/4 rows per TASKS.md. Named residuals: the raw-null store is defensive (0 live rows, no writer produces one); the `'refund'` leaf nets the chart's month expenses while the card drops it — a pre-existing divergence the reports page's own basis-gap disclosure covers, not introduced here.
 
 ## K.2 CORRECTION — Plaid is at the 90-day DEFAULT, not the 730-day ceiling (2026-08-07)
 

@@ -9,6 +9,16 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-10_to_2026-09-11.md` (rotated 2026-09-17).
 > Only sessions from 2026-09-12 onward live here; append new sessions at the top as before.
 
+## 2026-09-18 — Owner Yes on ops walkthrough + two live writes (DECISIONS #751)
+
+**Picked up.** Owner: "3. Yes. 4. Yes." after the four optional items. Tree even with `origin/main` at `8a8287fe` (#750 ship-gate).
+
+**Closed (docs).** First-timer walkthrough `docs/OPS_WALKTHROUGH.md` (Neon History window, Vercel Cron Jobs View Logs, Sentry DSN + Redeploy + Activation checklist, Combined-accounts Worth a look Undo, seed-demo-holdings). Pointers in BACKUP_AND_RECOVERY.md + DEPLOY.md. Two writes not executed here: no `DATABASE_URL`. Cron fire still UNVERIFIED (24h `requestPath` group: 0 `/api/cron/*` lines).
+
+**Gate.** Docs-only; `bash scripts/verify.sh` run this session after the commit.
+
+**Ledgers.** DECISIONS #751; STATUS DECIDED; TASKS 0.3 / 0.6 / O.20e / U.15 (b).
+
 ## 2026-09-18 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (DECISIONS #750)
 
 **Picked up.** Owner: "Continue." Tree even with `origin/main` at `0b89152e` (#749 ship-gate docs). Queue scan: Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic. Mixed-type over-veto stays locked fail-closed by cycle-4. Strongest actionable money-identity row: #749 critic P2-1 — a present map entry whose value is `null` fell through to the stamp.

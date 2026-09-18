@@ -1,7 +1,7 @@
 # Backup & Recovery
 
 *The note for "what survives if this machine's disk dies, and how to get it all back."*
-Last updated 2026-06-26.
+Last updated 2026-09-18.
 
 ## TL;DR
 
@@ -58,3 +58,16 @@ own env vars configured in the Vercel dashboard, independent of the dev machine.
 - Re-upload `.env.local` to the Drive folder whenever a secret changes.
 - Note: `keys/plaid_recovery_code.txt` is gitignored and, despite its name, is **not**
   a Plaid recovery code — it's a personal investment prompt. Don't rely on the name.
+
+## Neon History window (first-timer)
+
+Neon already keeps managed backups for the production database. The owner
+action on TASKS 0.6 is to set how far back Instant restore can reach.
+
+One-action-per-step walkthrough: `docs/OPS_WALKTHROUGH.md` §A (labels from
+<https://neon.com/docs/introduction/history-window> — Console → project →
+**Settings** → **Instant restore** → **History window** slider → **Save**).
+
+Published caps: Free 6 hours · Launch 7 days · Scale 30 days. A slider of
+zero turns Instant restore off. Do not click **Restore** unless data is
+actually lost — that overwrite hits every database on the branch.
