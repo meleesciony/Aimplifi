@@ -17,7 +17,7 @@
 
 **Gate.** Docs-only; `bash scripts/verify.sh` run this session after the commit.
 
-**Ledgers.** DECISIONS #751; STATUS DECIDED; TASKS 0.3 / 0.6 / O.20e / U.15 (b).
+**Ledgers.** DECISIONS #751; STATUS DECIDED; TASKS 0.3 / 0.6 / O.20e / U.15 (b). STATUS #741 BUILT rotated verbatim to `docs/archive/STATUS_ARCHIVE_2026-09-14.md` (live file was over the ~40 KB ceiling).
 
 ## 2026-09-18 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (DECISIONS #750)
 
