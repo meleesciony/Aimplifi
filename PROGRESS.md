@@ -23,7 +23,7 @@
 
 **Ledgers.** DECISIONS #753 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j residual (7). STATUS #745 BUILT and this file's #745 session rotated verbatim to `docs/archive/`.
 
-**Ship.** Code `94303701` on the feature branch; land on `main` this turn. No `prisma/` schema diff. H.7b not auto-run.
+**Ship.** `0324a0be` on `origin/main`. No `prisma/` schema diff. **CI verify run 35385735109 = SUCCESS** on `0324a0be` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_6CuNCMKgGskRonBeFbDCpvxvfGE9` **READY** on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`. Marker: `raw.githubusercontent.com` on `0324a0be` finds `resolveLiveInstitutionName(a.plaidItemId, a.institutionName, institutionNameByItem)` in both server files; prior `205d1bc9` still has `item?.institution ?? a.institutionName ?? null`. H.7b not auto-run.
 
 ## 2026-09-18 — O.20j residual (6): combine and /accounts use the Map.has institution join (DECISIONS #752)
 
