@@ -11,6 +11,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-17-745.md` (rotated 2026-09-18).
 > Only sessions from 2026-09-12 onward live here; append new sessions at the top as before.
 
+## 2026-09-18 — O.20j residual (8): trim plaidItemId before the live institution join (DECISIONS #754)
+
+**Picked up.** Owner: "Continue." Tree even with `origin/main` at `71ee2c3a` (#753 ship-gate; CI 35385735109 SUCCESS). Queue scan: Wave 0 ops owner-executed (writes still owner-run). Strongest money-identity residual: #753 critic P2-1 / P2-2 — a padded `plaidItemId` missed `Map.has` and inherited the stamp.
+
+**Closed.** Shared helper trims the lookup key. Empty / whitespace-only is missing (stamp). Map keys and sibling `===` stay untrimmed. Present map value `''` still returns `''`.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8562 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**, next build clean. FAIL-OLD untrimmed `has`: **3 failed | 108 skipped**. Playwright mobile-380 `combine-connections` **2/2**.
+
+**Critic (fresh context, `/tmp/_critic_o20j_r8`): cycle 1 PASS 0 P0 / 0 P1 / 3 P2.** Independently: tsc 0, 111/111, FAIL-OLD 3|108, kill-call value-trim 3 died. P2s in STATUS.
+
+**Ledgers.** DECISIONS #754 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j residual (8).
+
+**Ship.** This entry records the local gate; the ship sha lands in the follow-up. No `prisma/` schema diff. H.7b not auto-run.
+
 ## 2026-09-18 — O.20j residual (7): present-null institution name does not inherit the stamp (DECISIONS #753)
 
 **Picked up.** Owner: "Continue." Tree even with `origin/main` at `205d1bc9` (#752 ship-gate; CI 35382534980 SUCCESS). Queue scan: Wave 0 ops owner-executed (writes still owner-run). Strongest money-identity residual: #752 critic P2-1 — combine and `/accounts` still inlined `item?.institution ?? stamp`.

@@ -13,6 +13,16 @@ considered. Append-only.
 > Only entries #742 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #754 — O.20j residual (8): trim plaidItemId before the live institution join (2026-09-18)
+
+**Context.** #753 critic P2-1 / P2-2: `resolveLiveInstitutionField` looked up `plaidItemId` without trimming. A padded id (`" item-a"`) missed `Map.has` and inherited the Account stamp, so a present-null live item looked identified.
+
+**Decision.** Trim the lookup key. Empty / whitespace-only is missing (stamp is last-known). Live 0977 unchanged. `isTransfer` add-only. H.7b not auto-run. No schema change. Map keys and sibling `plaidItemId ===` sites stay untrimmed (this-cycle P2s). Present map value `''` still returns `''`.
+
+**Locked.** `tests/unit/transfer-pair-identity.test.ts`: padded present-null stays null; padded live `ins_56` over null stamp; whitespace-only uses stamp. `tests/unit/combine-connections-server.test.ts`: padded fk + present-null item → `institutionId` null. FAIL-OLD (untrimmed `has`): **3 failed | 108 skipped**.
+
+**Critic (fresh context, isolated worktree `/tmp/_critic_o20j_r8`): cycle 1 PASS 0 P0 / 0 P1 / 3 P2.** Independently: tsc 0, eslint 0, 111/111, FAIL-OLD 3|108, kill-call value-trim 3 failed. P2s in STATUS.
+
 ## #753 — O.20j residual (7): present-null institution name does not inherit the stamp (2026-09-18)
 
 **Context.** #752 critic P2-1: `buildCombineInputs` and `/accounts` `identityOf` still inlined `item?.institution ?? stamp`. A present-null live PlaidItem inherited the account name stamp, so the identity ladder's both-null name fallback could prove SAME and offer an irreversible continue while the live bank is unknown.

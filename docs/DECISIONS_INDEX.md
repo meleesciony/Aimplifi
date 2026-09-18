@@ -746,3 +746,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #751 — Owner Yes on the ops walkthrough and the two live-data writes (2026-09-18) → docs/DECISIONS.md
 - #752 — O.20j residual (6): combine and /accounts use the Map.has institution join (2026-09-18) → docs/DECISIONS.md
 - #753 — O.20j residual (7): present-null institution name does not inherit the stamp (2026-09-18) → docs/DECISIONS.md
+- #754 — O.20j residual (8): trim plaidItemId before the live institution join (2026-09-18) → docs/DECISIONS.md
