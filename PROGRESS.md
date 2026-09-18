@@ -15,7 +15,7 @@
 
 **Closed (docs).** First-timer walkthrough `docs/OPS_WALKTHROUGH.md` (Neon History window, Vercel Cron Jobs View Logs, Sentry DSN + Redeploy + Activation checklist, Combined-accounts Worth a look Undo, seed-demo-holdings). Pointers in BACKUP_AND_RECOVERY.md + DEPLOY.md. Two writes not executed here: no `DATABASE_URL`. Cron fire still UNVERIFIED (24h `requestPath` group: 0 `/api/cron/*` lines).
 
-**Gate.** Docs-only; `bash scripts/verify.sh` run this session after the commit.
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8544 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**, next build clean. Docs-only (no UI/e2e).
 
 **Ledgers.** DECISIONS #751; STATUS DECIDED; TASKS 0.3 / 0.6 / O.20e / U.15 (b). STATUS #741 BUILT rotated verbatim to `docs/archive/STATUS_ARCHIVE_2026-09-14.md` (live file was over the ~40 KB ceiling).
 
