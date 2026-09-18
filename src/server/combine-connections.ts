@@ -50,6 +50,7 @@ import {
   type CombineDirection,
   type UncombinableConnections,
 } from '@/lib/engine/account/combine-connections';
+import { resolveLiveInstitutionId } from '@/lib/engine/categorize/transfers';
 import { isSupportedCurrency } from '@/lib/providers/currency';
 import { duplicatePairDismissKey } from '@/server/duplicate-dismissal';
 import { confirmReconciliationFor } from '@/server/reconciliation';
@@ -124,6 +125,7 @@ export function buildCombineInputs(
   earliestTxnDateByAccountId: ReadonlyMap<string, string>,
 ) {
   const institutionByItem = new Map(items.map((i) => [i.itemId, i]));
+  const institutionIdByItem = new Map(items.map((i) => [i.itemId, i.institutionId]));
   const earliestByItem = new Map<string, string>();
   for (const a of accounts) {
     if (a.provider !== 'plaid' || !a.plaidItemId) continue;
@@ -157,9 +159,10 @@ export function buildCombineInputs(
       name: a.name,
       provider: a.provider,
       plaidItemId: a.plaidItemId,
-      // The live connection is authoritative; the row's own stamp is the last-known value for a
-      // row whose connection has been disconnected (and deleted) — see plaid-identity.ts.
-      institutionId: item?.institutionId ?? a.institutionId ?? null,
+      // The live connection is authoritative, including a present null (pre-backfill).
+      // The row's own stamp is last-known only after disconnect deletes the item
+      // (Map.has — same join as the transfer writer, #750 critic P2-1).
+      institutionId: resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionIdByItem),
       institutionName: item?.institution ?? a.institutionName ?? null,
       mask: a.mask,
       type: a.type,

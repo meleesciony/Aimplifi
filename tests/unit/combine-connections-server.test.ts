@@ -848,6 +848,22 @@ describe('the money-and-boundary critic findings, locked', () => {
 describe('when the app will NOT offer a combine, it says why', () => {
   beforeEach(() => seed());
 
+  it('a present-null item does not inherit a matching stamp and still names the missing bank ID', async () => {
+    // #750 critic P2-1: `item?.institutionId ?? stamp` made a live pre-backfill
+    // item look identified, so the ladder could prove SAME and offer a combine
+    // while the transfer writer fail-closed. The stamp is last-known only after
+    // disconnect deletes the item.
+    await prisma.plaidItem.update({ where: { itemId: 'item-second' }, data: { institutionId: null } });
+    await prisma.account.updateMany({
+      where: { userId: uid },
+      data: { institutionId: 'ins_56', institutionName: 'Chase' },
+    });
+    const view = await getAccountsView(uid);
+    expect(view.combinableConnections).toEqual([]);
+    expect(view.uncombinableConnections).toHaveLength(1);
+    expect(view.uncombinableConnections[0].kind).toBe('bank-id-missing');
+  });
+
   it('names the missing bank ID — the reason the owner saw nothing at all', async () => {
     // The ladder refuses to scope a comparison it cannot place at ONE institution, so a
     // connection linked before the institutionId column existed blocks the offer until the
@@ -1103,5 +1119,56 @@ describe('buildCombineInputs — the per-connection depth fold (H.6c critic P1: 
     const map = new Map([['sf-acct', '2020-01-01']]);
     const { engineItems } = buildCombineInputs([item], [acct('chk'), acct('sf-acct', 'simplefin')], map);
     expect(engineItems[0].earliestTxnDate).toBeNull();
+  });
+});
+
+describe('buildCombineInputs — live item institutionId, not the stamp (O.20j #750 P2-1)', () => {
+  const item = (institutionId: string | null) => ({
+    itemId: 'item-live',
+    institution: 'Chase',
+    institutionId,
+    lastSyncedAt: '2026-07-24',
+    lastSyncError: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  });
+  const acct = (opts: { plaidItemId: string | null; institutionId: string | null }) => ({
+    id: 'acct-card',
+    name: 'CREDIT CARD',
+    provider: 'plaid',
+    plaidItemId: opts.plaidItemId,
+    mask: '0977',
+    type: 'CREDIT',
+    subtype: 'credit card',
+    currency: 'USD',
+    persistentAccountId: null,
+    institutionId: opts.institutionId,
+    institutionName: 'Chase',
+  });
+
+  it('test_regression__o20j_present_null_item_does_not_inherit_the_account_stamp', () => {
+    const { engineAccounts } = buildCombineInputs(
+      [item(null)],
+      [acct({ plaidItemId: 'item-live', institutionId: 'ins_stale' })],
+      new Map(),
+    );
+    expect(engineAccounts[0].institutionId).toBeNull();
+  });
+
+  it('a missing item still uses the stamp (disconnect last-known)', () => {
+    const { engineAccounts } = buildCombineInputs(
+      [],
+      [acct({ plaidItemId: 'item-dead', institutionId: 'ins_56' })],
+      new Map(),
+    );
+    expect(engineAccounts[0].institutionId).toBe('ins_56');
+  });
+
+  it('a live item with ins_56 still wins over a null stamp (0977 shape)', () => {
+    const { engineAccounts } = buildCombineInputs(
+      [item('ins_56')],
+      [acct({ plaidItemId: 'item-live', institutionId: null })],
+      new Map(),
+    );
+    expect(engineAccounts[0].institutionId).toBe('ins_56');
   });
 });

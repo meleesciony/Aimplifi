@@ -31,6 +31,7 @@ import { getRecurringBillMerchantCanonicals } from '@/server/recurring-bill-merc
 import { similarTransactionsWhere } from '@/server/triage';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { classifySpendClass } from '@/lib/engine/spending-plan/spend-class';
+import { resolveLiveInstitutionId } from '@/lib/engine/categorize/transfers';
 
 /**
  * The label a row shows for its category — the reader's own vocabulary first.
@@ -1437,13 +1438,15 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
   // through the item map. Supplied for every row; the ladder itself refuses cross-provider and
   // abstains where the institution is unknown, so a non-Plaid row simply never proves anything.
   const itemById = new Map(plaidItems.map((i) => [i.itemId, i]));
+  const institutionIdByItem = new Map(plaidItems.map((i) => [i.itemId, i.institutionId]));
   const identityOf = (a: (typeof accounts)[number]) => {
     const item = a.plaidItemId ? itemById.get(a.plaidItemId) : undefined;
     return {
       provider: a.provider,
-      // The live connection is authoritative; the row's own stamp is the last-known value for
-      // a row whose connection has been disconnected (and deleted) — see plaid.ts removeItem.
-      institutionId: item?.institutionId ?? a.institutionId ?? null,
+      // The live connection is authoritative, including a present null (pre-backfill).
+      // The row's own stamp is last-known only after disconnect deletes the item
+      // (Map.has — same join as the transfer writer, #750 critic P2-1).
+      institutionId: resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionIdByItem),
       institutionName: item?.institution ?? a.institutionName ?? null,
       mask: a.mask,
       type: a.type,

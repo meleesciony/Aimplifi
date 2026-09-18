@@ -1078,4 +1078,17 @@ describe('resolveLiveInstitutionId (O.20j residual 4)', () => {
     expect(load).toContain('resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionByItem)');
     expect(load).not.toMatch(/institutionId:\s*a\.institutionId/);
   });
+
+  it('test_regression__o20j_combine_and_accounts_call_the_same_join_not_the_inline_fallthrough', () => {
+    // #750 critic P2-1: combine-connections and /accounts inlined
+    // `item?.institutionId ?? stamp`, so a present-null item inherited the
+    // stamp and the identity ladder could prove SAME while the transfer
+    // writer fail-closed. One helper, three callers.
+    const combine = readFileSync(resolve('src/server/combine-connections.ts'), 'utf8');
+    const accounts = readFileSync(resolve('src/server/transactions.ts'), 'utf8');
+    expect(combine).toContain('resolveLiveInstitutionId(');
+    expect(accounts).toContain('resolveLiveInstitutionId(');
+    expect(combine).not.toMatch(/item\?\.institutionId\s*\?\?\s*a\.institutionId/);
+    expect(accounts).not.toMatch(/item\?\.institutionId\s*\?\?\s*a\.institutionId/);
+  });
 });
