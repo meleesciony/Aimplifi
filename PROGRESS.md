@@ -9,6 +9,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-10_to_2026-09-11.md` (rotated 2026-09-17).
 > Only sessions from 2026-09-12 onward live here; append new sessions at the top as before.
 
+## 2026-09-18 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (DECISIONS #749)
+
+**Picked up.** Owner: "continue." Tree even with `origin/main` at `bd989510` (#748 shipped). Queue scan: Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic; L.19 stored-figure residuals closed. Mixed-type over-veto (#748 residual 1) is locked fail-closed by cycle-4 (`CREDIT` must not become `CHECKING` via a confirmed terminal). Strongest actionable money-identity row: #748 critic P2-2 — the filing fixture stamped the account and never created a PlaidItem.
+
+**Closed.** `resolveLiveInstitutionId`; `loadTransferSweepRows` calls it; filing fixture is stamp NULL + two `PlaidItem` rows `ins_56`.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8541 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**, next build clean. FAIL-OLD stamp-only: **2 failed | 82 passed**. Playwright mobile-380 `transfer-flag-repair` **1/1**.
+
+**Critic (fresh context, `/tmp/_critic_o20j_r4`): cycle 1 PASS 0 P0 / 0 P1 / 4 P2.** Independently reproduced tsc 0, 84/84, FAIL-OLD 2|82, ignore-map 4|80. P2s in STATUS.
+
+**Ledgers.** DECISIONS #749 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j note.
+
+**Ship.** (this turn — CI + live still to read.) No `prisma/` schema diff.
+
 ## 2026-09-17 — O.20j residual (2): a Plaid side without `ins_*` does not fold on last-4 (DECISIONS #748)
 
 **Picked up.** Owner: "continue." Tree clean on `471bbe4a` (#747 shipped). Queue scan: Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic; L.19 stored-figure residuals closed. Strongest open money-visible row: #744 critic P2-2 — two Plaid items with null `institutionId` still folded on last-4.

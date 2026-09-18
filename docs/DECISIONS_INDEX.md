@@ -741,3 +741,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #746 — The saved debt-free goal card names the frozen balance its total was computed from (L.19 residual 1) (2026-09-17) → docs/DECISIONS.md
 - #747 — The saved debt-free goal card names the extra / on-track line the same frozen save computed (L.19 residual 1 follow-up) (2026-09-17) → docs/DECISIONS.md
 - #748 — O.20j residual (2): a Plaid side without `ins_*` does not fold on last-4 (2026-09-17) → docs/DECISIONS.md
+- #749 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (2026-09-18) → docs/DECISIONS.md

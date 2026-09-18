@@ -13,6 +13,16 @@ considered. Append-only.
 > Only entries #742 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #749 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (2026-09-18)
+
+**Context.** #748's critic P2-2: the filing 0977 lock stamped `Account.institutionId = ins_56` and never created a `PlaidItem` row. Live 0977 is the opposite (stamp NULL, item `ins_56`). A join regression to stamp-only would keep that fixture green and refuse the live fold, so a dining purchase vs a filed TRAVEL CREDIT would overturn again.
+
+**Decision.** Extract `resolveLiveInstitutionId` (live item wins; stamp is last-known after disconnect deletes the item — same `??` join combine-connections already inlines). `loadTransferSweepRows` is the only transfer-identity caller; it must call the helper, not the stamp. The filing fixture is the measured shape: two `PlaidItem` rows with `ins_56`, both account stamps null, unique `${userId}-item-*` ids. `isTransfer` stays add-only. H.7b not auto-run. No schema change. Mixed-type over-veto stays residual (1); cycle-4 still refuses CREDIT≡CHECKING through a confirmed terminal.
+
+**Locked.** `tests/unit/transfer-pair-identity.test.ts`: helper goldens (item over null stamp; stamp after missing item; item over stale stamp; missing both → null); live-shape fold through the helper; stamp-null without a map does not fold; `loadTransferSweepRows` source lock on `resolveLiveInstitutionId(a.plaidItemId, a.institutionId, institutionByItem)`. `tests/unit/transfer-pair-filing.test.ts`: live-shape Prisma fixture, `{ overturned: 0 }`. FAIL-OLD (stamp-only `a.institutionId ?? null` in transfer-refresh): **2 failed | 82 passed**. Ignore-map mutation (critic): **4 failed | 80 passed**.
+
+**Critic (fresh context, isolated worktree `/tmp/_critic_o20j_r4`): cycle 1 PASS 0 P0 / 0 P1 / 4 P2.** Independently: tsc 0, 84/84, FAIL-OLD 2|82, ignore-map 4|80, Map.has (live-null no fallthrough) 0 died. P2s in STATUS.
+
 ## #748 — O.20j residual (2): a Plaid side without `ins_*` does not fold on last-4 (2026-09-17)
 
 **Context.** #744's critic P2-2: two Plaid items with null `institutionId` (pre-backfill) still folded on last-4 alone. `institutionsConflict` treated a missing id as "not a difference", so last-4 became money identity. Cycle 1 of this slice FAIL 2 P1: the live 0977 premise was unmeasured, and Plaid(null) still folded onto SimpleFIN/manual/demo on last-4 (`flagIds: []` on a $2,000 transfer).
