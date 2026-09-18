@@ -28,7 +28,8 @@ Owner: **"3. Yes. 4. Yes."** First-timer steps live in `docs/OPS_WALKTHROUGH.md`
 execute the two writes (no `DATABASE_URL`; will not decrypt Vercel env). Cron
 fire still **UNVERIFIED** (24h production `requestPath` group: zero `/api/cron/*`
 lines — Hobby ~1h retention). Do not undo GENUINE/UNTESTABLE links. Do not flip
-`DATA_PROVIDER=plaid`.
+`DATA_PROVIDER=plaid`. Shipped `19fc703e` on `main`; CI **35376970883 SUCCESS**;
+Vercel `dpl_AQAigaAKyGswkes9coT5bhpUqyxU` READY.
 
 ## ✅ BUILT 2026-09-18 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (DECISIONS #750)
 

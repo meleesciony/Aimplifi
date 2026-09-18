@@ -19,6 +19,8 @@
 
 **Ledgers.** DECISIONS #751; STATUS DECIDED; TASKS 0.3 / 0.6 / O.20e / U.15 (b). STATUS #741 BUILT rotated verbatim to `docs/archive/STATUS_ARCHIVE_2026-09-14.md` (live file was over the ~40 KB ceiling).
 
+**Ship.** `19fc703e` on `origin/main`. No `prisma/` diff. **CI verify run 35376970883 = SUCCESS** on `19fc703e` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_AQAigaAKyGswkes9coT5bhpUqyxU` **READY** on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Marker: `raw.githubusercontent.com` on `19fc703e` finds `Worth a look:` / `History window` / `SENTRY_DSN` in `docs/OPS_WALKTHROUGH.md`. Two live writes still owner-executed.
+
 ## 2026-09-18 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (DECISIONS #750)
 
 **Picked up.** Owner: "Continue." Tree even with `origin/main` at `0b89152e` (#749 ship-gate docs). Queue scan: Wave 0 ops owner-blocked; M.4 owner-deferred; Wave 2/3/4 strategic. Mixed-type over-veto stays locked fail-closed by cycle-4. Strongest actionable money-identity row: #749 critic P2-1 — a present map entry whose value is `null` fell through to the stamp.
