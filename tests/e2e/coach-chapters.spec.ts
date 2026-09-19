@@ -52,6 +52,7 @@ test('unread Coach chapters stay header-sized at 380 until a jump opens them', a
 
   await page.getByTestId('coach-chapter-nav').getByRole('link', { name: 'Trajectory' }).click();
   await expect(traj).toHaveAttribute('open', '');
+  await expect(traj).toBeFocused();
   const opened = await traj.boundingBox();
   expect(opened, 'opened trajectory').toBeTruthy();
   if (!opened) return;
@@ -65,8 +66,12 @@ test('unread Coach chapters stay header-sized at 380 until a jump opens them', a
   if (!habitsBox) return;
   expect(habitsBox.height).toBeLessThan(140);
 
+  const marker = await traj.locator(':scope > summary').evaluate((el) => getComputedStyle(el).listStyleType);
+  expect(marker).toMatch(/disclosure|disc/);
+
   await traj.locator(':scope > summary').click();
   await expect(traj).not.toHaveAttribute('open');
   await page.getByTestId('coach-chapter-nav').getByRole('link', { name: 'Trajectory' }).click();
   await expect(traj).toHaveAttribute('open', '');
+  await expect(traj).toBeFocused();
 });

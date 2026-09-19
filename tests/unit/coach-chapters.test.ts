@@ -31,6 +31,10 @@ describe('Coach chapter source order', () => {
     expect(chapter).toContain('<details');
     expect(chapter).toContain('hashchange');
     expect(chapter).toContain("getAttribute('href')");
+    expect(chapter).toContain('el.focus()');
+    expect(chapter).toContain('tabIndex={-1}');
+    expect(chapter).toContain('<span className="mt-1 block');
+    expect(chapter).not.toContain('<p className="mt-1');
     expect(chapter).not.toContain('marker:content-none');
     expect(chapter).not.toContain('list-none');
     expect(chapter).not.toContain('::-webkit-details-marker');

@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #760 — Home chapter jump nav, focus on open, valid summary lead (2026-09-19)
+
+**Context.** #759 residuals the owner can use: no Home jump nav; hash/nav open did not move focus; `<p>` inside `<summary>` is outside the HTML summary model; marker locked only by source grep.
+
+**Decision.** After the open daily loop (radar last), a `home-chapter-nav` jumps to Adjust / Picture / Setup. Setup link and chapter share one `showHomeSetup` flag. Hash or `#id` click opens the chapter and focuses it (`tabIndex={-1}`). Leads are a `<span className="mt-1 block…">`. Native `listStyleType` locked in e2e. Focus ring stays visible. No schema change. Coach SSR and M.4 restyle stay residual.
+
+**Locked.** `tests/unit/home-chapters.test.ts` (radar < nav < adjust; `showHomeSetup` used ≥3 times; span lead; `el.focus()`). Playwright `home-chapters.spec.ts` (nav opens Picture, Adjust closed, focused; hash focused; painted `disclosure|disc`). Coach same-hash + focus + marker.
+
+**Critic (fresh context): cycle 1 PASS UX 9 / 0 P0 / 0 P1 / 5 P2.** P2-1/P2-2 closed same-session (outline kept; one setup flag).
+
 ## #759 — Coach chapters: native marker, same-hash re-open, coaching voice (2026-09-19)
 
 **Context.** #757 P2s: Coach summaries hid the disclosure triangle; a second Trajectory tap was a no-op; Trajectory/Habits leads talked about page structure. #758 P2-4: Home hash-open untested.

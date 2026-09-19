@@ -183,6 +183,7 @@ export default async function DashboardPage({
   );
 
   const vapidPublicKey = getVapidPublicKey();
+  const showHomeSetup = canDeepenHistory || Boolean(vapidPublicKey);
 
   // Manual undated cards on Cash Needed: same writers as Cards/Calendar
   // (DECISIONS #727). Viewer-owned manual CREDIT only; demo stays read-only.
@@ -314,6 +315,20 @@ export default async function DashboardPage({
         runwayMonths={coach.runwayMonths}
       />
 
+      <nav aria-label="Home chapters" className="flex flex-wrap gap-x-4 gap-y-1 text-sm" data-testid="home-chapter-nav">
+        <a href="#home-adjust" className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+          Adjust the plan
+        </a>
+        <a href="#home-picture" className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+          The picture
+        </a>
+        {showHomeSetup && (
+          <a href="#home-setup" className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+            Home setup
+          </a>
+        )}
+      </nav>
+
       <HomeChapter
         id="home-adjust"
         title="Adjust the plan"
@@ -408,7 +423,7 @@ export default async function DashboardPage({
         )}
       </HomeChapter>
 
-      {(canDeepenHistory || vapidPublicKey) && (
+      {showHomeSetup && (
         <HomeChapter
           id="home-setup"
           title="Home setup"

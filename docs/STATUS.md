@@ -22,6 +22,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-19 — Home chapter jump nav, focus on open, valid summary lead (DECISIONS #760)
+
+**The hole.** #759 residuals: no Home jump nav; hash/nav did not move focus; `<p>` in `<summary>`; marker locked by grep only.
+
+**Shipped.** `home-chapter-nav` after radar, before Adjust. Hash/nav open + focus. Span leads. Painted `listStyleType` e2e. One `showHomeSetup` flag. No schema change.
+
+**Critic (fresh context): cycle 1 PASS UX 9 / 0 P0 / 0 P1 / 5 P2** (P2-1 outline / P2-2 setup flag closed same-session). Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**; after P2 polish: tsc 0, eslint touched 0, chapter units 2/2, next build clean. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 2/2, home-chapters 4/4 (**6/6**).
+
+**CI + live.** Pending this push.
+
+**Still open / residuals.** (1) **P2-3:** `listStyleType` is not a `::marker` visual lock. (2) **P2-4:** nav vs radar is source-order, not a painted y-assert. (3) **P2-5:** nav links are `text-sm` (same as Coach). (4) e2e harness still auto-opens chapters. (5) Coach SSR still ships every card. (6) M.4 route-by-route restyle owner-eyeball-gated.
+
 ## ✅ BUILT 2026-09-19 — Coach chapters: native marker, same-hash re-open, coaching voice (DECISIONS #759)
 
 **The hole.** #757 P2s: hidden Coach triangle, Trajectory tap no-op, IA-voice leads. #758 P2-4: Home hash-open untested.
@@ -32,7 +44,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `eb4848c3` on `origin/main`. No `prisma/` diff. **CI verify run 35453050602 = SUCCESS**. Vercel Production `dpl_2xExX9An6YeS7xbq4VE4kPSYv8Pe` **READY**, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`. Demo Coach 390: Trajectory/Habits closed; leads “Your savings rate…” / “Your money dials…”; summary `list-style-type: disclosure-closed`. Marker: raw `eb4848c3` `coach-chapter.tsx` has `getAttribute('href')` and no hide tokens.
 
-**Still open / residuals.** (1) **P2-1:** marker locked by source grep, not a painted `::marker`. (2) **P2-2:** `<p>` inside `<summary>` is outside the HTML summary model. (3) **P2-3:** hash/nav open does not move focus. (4) e2e harness still auto-opens chapters. (5) Coach SSR still ships every card. (6) No Home chapter jump nav. (7) M.4 route-by-route restyle owner-eyeball-gated.
+**Still open / residuals.** (1) ~~**P2-1:** marker locked by source grep~~ — **CLOSED #760:** e2e `listStyleType` `/disclosure|disc/`. (2) ~~**P2-2:** `<p>` inside `<summary>`~~ — **CLOSED #760:** `<span className="mt-1 block…">`. (3) ~~**P2-3:** hash/nav open does not move focus~~ — **CLOSED #760.** (4) e2e harness still auto-opens chapters. (5) Coach SSR still ships every card. (6) ~~No Home chapter jump nav~~ — **CLOSED #760.** (7) M.4 route-by-route restyle owner-eyeball-gated.
 
 ## ✅ BUILT 2026-09-19 — Home chapters: daily loop open, dump closed (DECISIONS #758)
 

@@ -32,14 +32,18 @@ export function HomeChapter({
     if (w.__AIMPLIFI_E2E_OPEN_HOME && !w.__AIMPLIFI_E2E_KEEP_HOME_CLOSED) {
       el.open = true;
     }
+    const reveal = () => {
+      el.open = true;
+      el.focus();
+    };
     const applyHash = () => {
-      if (window.location.hash === `#${id}`) el.open = true;
+      if (window.location.hash === `#${id}`) reveal();
     };
     const onClick = (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
       const link = target.closest('a');
-      if (link?.getAttribute('href') === `#${id}`) el.open = true;
+      if (link?.getAttribute('href') === `#${id}`) reveal();
     };
     applyHash();
     window.addEventListener('hashchange', applyHash);
@@ -55,12 +59,13 @@ export function HomeChapter({
       ref={ref}
       id={id}
       data-testid={`home-chapter-${id}`}
+      tabIndex={-1}
       open={defaultOpen || undefined}
-      className="space-y-5 sm:space-y-6"
+      className="scroll-mt-20 space-y-5 sm:space-y-6"
     >
       <summary className="cursor-pointer border-b border-border/60 pb-3 ps-4">
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">{lead}</p>
+        <span className="mt-1 block max-w-2xl text-sm leading-relaxed text-muted-foreground">{lead}</span>
       </summary>
       {children}
     </details>

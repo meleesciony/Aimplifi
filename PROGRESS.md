@@ -13,6 +13,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-12_to_2026-09-14.md` (rotated 2026-09-19).
 > Only sessions from 2026-09-16 onward live here; append new sessions at the top as before.
 
+## 2026-09-19 — Home chapter jump nav, focus on open, valid summary lead (DECISIONS #760)
+
+**Picked up.** Owner: “continue.” Strongest leftover the owner can use: #759 residual (6) no Home jump nav, plus focus and valid summary markup.
+
+**Closed.** Nav after radar; reveal focuses the chapter; span leads; painted marker e2e; one `showHomeSetup` flag.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**, next build clean. After same-session P2 polish: tsc 0, eslint touched 0, chapter units 2/2, next rebuild clean. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 2/2, home-chapters 4/4 (**6/6**).
+
+**Critic (fresh context): cycle 1 PASS UX 9 / 0 P0 / 0 P1 / 5 P2.** P2-1/P2-2 closed same-session.
+
+**Ledgers.** DECISIONS #760 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #760.
+
+**Ship.** Pending this turn's push + CI + live marker.
+
 ## 2026-09-19 — Coach chapters: native marker, same-hash re-open, coaching voice (DECISIONS #759)
 
 **Picked up.** Owner: “continue.” Strongest leftover the owner can see: #757 Coach P2s (hidden triangle, dead Trajectory tap, IA-voice leads).

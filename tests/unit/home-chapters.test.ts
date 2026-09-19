@@ -17,6 +17,7 @@ describe('Home chapter source order', () => {
     const welcome = page.indexOf('<ReturnMomentCard');
     const adjust = page.indexOf('id="home-adjust"');
     const radar = page.indexOf('<CashFlowRadarCard');
+    const nav = page.indexOf('data-testid="home-chapter-nav"');
     const picture = page.indexOf('id="home-picture"');
     const setup = page.indexOf('id="home-setup"');
 
@@ -27,7 +28,12 @@ describe('Home chapter source order', () => {
     expect(goals).toBeLessThan(stale);
     expect(stale).toBeLessThan(welcome);
     expect(welcome).toBeLessThan(radar);
-    expect(radar).toBeLessThan(adjust);
+    expect(radar).toBeLessThan(nav);
+    expect(nav).toBeLessThan(adjust);
+    expect(page.slice(nav, adjust)).toContain('#home-adjust');
+    expect(page.slice(nav, adjust)).toContain('#home-picture');
+    expect(page).toContain('const showHomeSetup = canDeepenHistory || Boolean(vapidPublicKey)');
+    expect((page.match(/showHomeSetup/g) ?? []).length).toBeGreaterThanOrEqual(3);
     expect(adjust).toBeLessThan(picture);
     expect(picture).toBeLessThan(setup);
 
@@ -54,6 +60,10 @@ describe('Home chapter source order', () => {
     expect(chapter).toContain('<details');
     expect(chapter).toContain('hashchange');
     expect(chapter).toContain("getAttribute('href')");
+    expect(chapter).toContain('el.focus()');
+    expect(chapter).toContain('tabIndex={-1}');
+    expect(chapter).toContain('<span className="mt-1 block');
+    expect(chapter).not.toContain('<p className="mt-1');
     expect(chapter).not.toContain('marker:content-none');
   });
 });

@@ -61,4 +61,23 @@ test('a hash jump opens Picture even when the rest stay closed', async ({ page }
   await expect(picture).toHaveAttribute('open', '');
   await expect(page.getByTestId('home-chapter-home-adjust')).not.toHaveAttribute('open');
   await expect(page.getByTestId('net-worth-amount')).toBeVisible();
+  await expect(picture).toBeFocused();
+});
+
+test('Home chapter nav opens Picture and moves focus', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 800 });
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+
+  const picture = page.getByTestId('home-chapter-home-picture');
+  await expect(page.getByTestId('home-chapter-nav')).toBeVisible();
+  const marker = await picture.locator(':scope > summary').evaluate((el) => getComputedStyle(el).listStyleType);
+  expect(marker).toMatch(/disclosure|disc/);
+
+  await page.getByTestId('home-chapter-nav').getByRole('link', { name: 'The picture' }).click();
+  await expect(picture).toHaveAttribute('open', '');
+  await expect(page.getByTestId('home-chapter-home-adjust')).not.toHaveAttribute('open');
+  await expect(page.getByTestId('net-worth-amount')).toBeVisible();
+  await expect(picture).toBeFocused();
 });

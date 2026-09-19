@@ -752,3 +752,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #757 — Visual IA: grouped sidebar, Home stage, Coach chapters (2026-09-19) → docs/DECISIONS.md
 - #758 — Home chapters: daily loop open, Adjust / Picture / Setup closed (2026-09-19) → docs/DECISIONS.md
 - #759 — Coach chapters: native marker, same-hash re-open, coaching voice (2026-09-19) → docs/DECISIONS.md
+- #760 — Home chapter jump nav, focus on open, valid summary lead (2026-09-19) → docs/DECISIONS.md
