@@ -25,7 +25,7 @@
 
 **Ledgers.** DECISIONS #758 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #758.
 
-**Ship.** Pending this turn's push + CI + live marker.
+**Ship.** `64173200` on `origin/main`. No `prisma/` schema diff. **CI verify run 35448886067 = SUCCESS**. Vercel Production `dpl_Ebo4UwJRwsQp1YyN5jm24hjoHUAS` **READY**. Live demo Home 390: Adjust / Picture closed. Marker: `home-chapter.tsx` on that sha.
 
 ## 2026-09-19 — Visual IA: grouped sidebar, Home stage, Coach chapters (DECISIONS #757)
 
