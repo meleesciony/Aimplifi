@@ -25,7 +25,7 @@
 
 **Ledgers.** DECISIONS #760 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #760.
 
-**Ship.** Pending this turn's push + CI + live marker.
+**Ship.** `19dec793` on `origin/main`. No `prisma/` schema diff. **CI verify run 35457883847 = SUCCESS**. Vercel Production `dpl_4gNKGsxYWkhTnvxDLAqQnUx9bt3n` **READY**. Live demo Home 390: chapter nav after radar; chapters closed. Marker: `home-chapter-nav` on that sha.
 
 ## 2026-09-19 — Coach chapters: native marker, same-hash re-open, coaching voice (DECISIONS #759)
 

@@ -30,7 +30,7 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): cycle 1 PASS UX 9 / 0 P0 / 0 P1 / 5 P2** (P2-1 outline / P2-2 setup flag closed same-session). Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**; after P2 polish: tsc 0, eslint touched 0, chapter units 2/2, next build clean. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 2/2, home-chapters 4/4 (**6/6**).
 
-**CI + live.** Pending this push.
+**CI + live.** `19dec793` on `origin/main`. No `prisma/` diff. **CI verify run 35457883847 = SUCCESS**. Vercel Production `dpl_4gNKGsxYWkhTnvxDLAqQnUx9bt3n` **READY**, aliases include `www.aimplifi.app`. Live demo Home 390: `home-chapter-nav` after radar; Adjust/Picture closed; links Adjust the plan / The picture / Home setup. Marker: raw `19dec793` has `home-chapter-nav`.
 
 **Still open / residuals.** (1) **P2-3:** `listStyleType` is not a `::marker` visual lock. (2) **P2-4:** nav vs radar is source-order, not a painted y-assert. (3) **P2-5:** nav links are `text-sm` (same as Coach). (4) e2e harness still auto-opens chapters. (5) Coach SSR still ships every card. (6) M.4 route-by-route restyle owner-eyeball-gated.
 
