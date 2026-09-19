@@ -25,7 +25,7 @@
 
 **Ledgers.** DECISIONS #759 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #759.
 
-**Ship.** Pending this turn's push + CI + live marker.
+**Ship.** `eb4848c3` on `origin/main`. No `prisma/` schema diff. **CI verify run 35453050602 = SUCCESS**. Vercel Production `dpl_2xExX9An6YeS7xbq4VE4kPSYv8Pe` **READY**. Live demo Coach 390: Trajectory/Habits closed; native disclosure marker (`disclosure-closed`). Marker: `getAttribute('href')` on that sha.
 
 ## 2026-09-19 — Home chapters: daily loop open, dump closed (DECISIONS #758)
 

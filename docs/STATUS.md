@@ -30,7 +30,7 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): cycle 1 PASS UX 9 / 0 P0 / 0 P1 / 3 P2.** Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 2/2, home-chapters 3/3, desktop-header 1/1 (**6/6**).
 
-**CI + live.** Pending this push.
+**CI + live.** `eb4848c3` on `origin/main`. No `prisma/` diff. **CI verify run 35453050602 = SUCCESS**. Vercel Production `dpl_2xExX9An6YeS7xbq4VE4kPSYv8Pe` **READY**, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`. Demo Coach 390: Trajectory/Habits closed; leads “Your savings rate…” / “Your money dials…”; summary `list-style-type: disclosure-closed`. Marker: raw `eb4848c3` `coach-chapter.tsx` has `getAttribute('href')` and no hide tokens.
 
 **Still open / residuals.** (1) **P2-1:** marker locked by source grep, not a painted `::marker`. (2) **P2-2:** `<p>` inside `<summary>` is outside the HTML summary model. (3) **P2-3:** hash/nav open does not move focus. (4) e2e harness still auto-opens chapters. (5) Coach SSR still ships every card. (6) No Home chapter jump nav. (7) M.4 route-by-route restyle owner-eyeball-gated.
 
