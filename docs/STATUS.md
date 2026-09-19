@@ -30,7 +30,7 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): cycle 3 PASS UX 9 / 0 P0 / 0 P1 / 4 P2.** Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8583 passed + 1 expected fail + 1 skipped / 636 files + 1 skipped**. Playwright (new build): home-stage 2/2, phase1 2/2, trends 3/3, mobile-nav 2/2, forecast 3/3, card-unknown-due 3/3, dashboard-duplicate-disclosure 5/5 (**21/21**).
 
-**CI + live.** `bec0b32e` CI verify run **35424012696 FAILED** (home fold; Trends `What changed` strict-mode 2). Fix in this follow-on push. Live + new CI pending that push.
+**CI + live.** `b92219e2` on `origin/main`. No `prisma/` diff. **CI verify run 35426137075 = SUCCESS** (`main`; prior `bec0b32e` run 35424012696 FAILED on fold + Trends collision). Vercel Production `dpl_AKbNTBWUnN3RpydQtKgwabMCiG7w` **READY** on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200 with brand-mark + h1. Demo Home: `cash-needed-dues` closed, due-date-list hidden, Trends nav "Category movers…". Marker: `raw.githubusercontent.com` on `b92219e2` finds `cash-needed-dues` and `Category movers`; `bec0b32e` Trends description still started with `What changed`.
 
 **Still open / residuals.** (1) **P2-1:** chapter summaries hide the disclosure marker with no chevron. (2) **P2-2:** same-hash Trajectory re-click is a no-op. (3) **P2-3:** Trajectory lead is IA voice. (4) **P2-4:** Habits collapse and desktop description text are not e2e-locked. (5) Home below the stage is still a long stack. (6) Coach SSR still ships every card in the DOM. (7) M.4 route-by-route restyle remains owner-eyeball-gated.
 

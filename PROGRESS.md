@@ -25,7 +25,7 @@
 
 **Ledgers.** DECISIONS #757 (+ index); REGRESSION_LEDGER two rows; STATUS BUILT; TASKS M.4 #757.
 
-**Ship.** Follow-on push + `ci-status.sh` + live marker this turn.
+**Ship.** `b92219e2` on `origin/main`. No `prisma/` schema diff. **CI verify run 35426137075 = SUCCESS**. Vercel Production `dpl_AKbNTBWUnN3RpydQtKgwabMCiG7w` **READY**, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200 with brand-mark + h1. Demo Home: dues details closed. Marker: raw `b92219e2` has `cash-needed-dues` + `Category movers`.
 
 ## 2026-09-19 — O.20j residual (10): trim sibling plaidItemId === so same-item copies stay two accounts (DECISIONS #756)
 
