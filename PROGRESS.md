@@ -13,6 +13,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-12_to_2026-09-14.md` (rotated 2026-09-19).
 > Only sessions from 2026-09-16 onward live here; append new sessions at the top as before.
 
+## 2026-09-19 — Coach chapters: native marker, same-hash re-open, coaching voice (DECISIONS #759)
+
+**Picked up.** Owner: “continue.” Strongest leftover the owner can see: #757 Coach P2s (hidden triangle, dead Trajectory tap, IA-voice leads).
+
+**Closed.** Native marker; click-to-open on same hash; Trajectory/Habits second-person; Home `#home-picture` lock. DECISIONS #742–#748 rotated to `docs/archive/DECISIONS_ARCHIVE_742_to_748.md`.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**, next build clean. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 2/2, home-chapters 3/3, desktop-header 1/1 (**6/6**).
+
+**Critic (fresh context): cycle 1 PASS UX 9 / 0 P0 / 0 P1 / 3 P2.**
+
+**Ledgers.** DECISIONS #759 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #759.
+
+**Ship.** Pending this turn's push + CI + live marker.
+
 ## 2026-09-19 — Home chapters: daily loop open, dump closed (DECISIONS #758)
 
 **Picked up.** Owner: “continue” after confirming mobile shipped. Strongest #757 residual: Home below the stage still a dump.

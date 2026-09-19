@@ -35,9 +35,19 @@ export function HomeChapter({
     const applyHash = () => {
       if (window.location.hash === `#${id}`) el.open = true;
     };
+    const onClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const link = target.closest('a');
+      if (link?.getAttribute('href') === `#${id}`) el.open = true;
+    };
     applyHash();
     window.addEventListener('hashchange', applyHash);
-    return () => window.removeEventListener('hashchange', applyHash);
+    document.addEventListener('click', onClick);
+    return () => {
+      window.removeEventListener('hashchange', applyHash);
+      document.removeEventListener('click', onClick);
+    };
   }, [id]);
 
   return (

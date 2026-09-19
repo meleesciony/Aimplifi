@@ -56,4 +56,17 @@ test('unread Coach chapters stay header-sized at 380 until a jump opens them', a
   expect(opened, 'opened trajectory').toBeTruthy();
   if (!opened) return;
   expect(opened.height).toBeGreaterThan(closed.height + 80);
+
+  const habits = page.getByTestId('coach-chapter-coach-habits');
+  await expect(habits).toBeVisible();
+  await expect(habits).not.toHaveAttribute('open');
+  const habitsBox = await habits.boundingBox();
+  expect(habitsBox, 'closed habits').toBeTruthy();
+  if (!habitsBox) return;
+  expect(habitsBox.height).toBeLessThan(140);
+
+  await traj.locator(':scope > summary').click();
+  await expect(traj).not.toHaveAttribute('open');
+  await page.getByTestId('coach-chapter-nav').getByRole('link', { name: 'Trajectory' }).click();
+  await expect(traj).toHaveAttribute('open', '');
 });

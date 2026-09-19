@@ -53,6 +53,7 @@ describe('Home chapter source order', () => {
     const chapter = readFileSync(resolve('src/components/finance/home-chapter.tsx'), 'utf8');
     expect(chapter).toContain('<details');
     expect(chapter).toContain('hashchange');
+    expect(chapter).toContain("getAttribute('href')");
     expect(chapter).not.toContain('marker:content-none');
   });
 });

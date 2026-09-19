@@ -30,5 +30,17 @@ describe('Coach chapter source order', () => {
     const chapter = readFileSync(resolve('src/components/finance/coach-chapter.tsx'), 'utf8');
     expect(chapter).toContain('<details');
     expect(chapter).toContain('hashchange');
+    expect(chapter).toContain("getAttribute('href')");
+    expect(chapter).not.toContain('marker:content-none');
+    expect(chapter).not.toContain('list-none');
+    expect(chapter).not.toContain('::-webkit-details-marker');
+
+    const trajLead = page.slice(traj, habits);
+    expect(trajLead).toContain('Your savings rate');
+    expect(trajLead).not.toContain('one chapter, not a feed');
+    expect(trajLead).not.toContain('long-game cards');
+    const habitsLead = page.slice(habits, page.indexOf('</CoachChapter>', habits));
+    expect(habitsLead).toContain('Your money dials');
+    expect(habitsLead).not.toContain('Inputs live here');
   });
 });

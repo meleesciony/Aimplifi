@@ -515,7 +515,7 @@ export default async function CoachPage() {
       <CoachChapter
         id="coach-trajectory"
         title="Trajectory"
-        lead="Savings rate, FI number, and the long-game cards — one chapter, not a feed."
+        lead="Your savings rate, FI number, and how the long game is tracking."
       >
       <div className="grid gap-4 lg:grid-cols-2">
         <SavingsRateCard
@@ -637,7 +637,7 @@ export default async function CoachPage() {
       <CoachChapter
         id="coach-habits"
         title="Habits"
-        lead="The dials and streaks that hold the plan. Inputs live here so they do not interrupt the numbers."
+        lead="Your money dials, streaks, and the rules that keep the plan going."
       >
       <div id="coach-rich-life" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-rich-life">
         <RichLifeForm current={dialUser.richLifeVision} canWrite={canWriteDials} reloadOnSuccess />

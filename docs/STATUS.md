@@ -22,6 +22,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-19 — Coach chapters: native marker, same-hash re-open, coaching voice (DECISIONS #759)
+
+**The hole.** #757 P2s: hidden Coach triangle, Trajectory tap no-op, IA-voice leads. #758 P2-4: Home hash-open untested.
+
+**Shipped.** Native disclosure marker on Coach. Click on `#id` opens the chapter even when the hash is unchanged. Trajectory/Habits leads are second-person money copy. Home hash `#home-picture` locked. No schema change.
+
+**Critic (fresh context): cycle 1 PASS UX 9 / 0 P0 / 0 P1 / 3 P2.** Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 2/2, home-chapters 3/3, desktop-header 1/1 (**6/6**).
+
+**CI + live.** Pending this push.
+
+**Still open / residuals.** (1) **P2-1:** marker locked by source grep, not a painted `::marker`. (2) **P2-2:** `<p>` inside `<summary>` is outside the HTML summary model. (3) **P2-3:** hash/nav open does not move focus. (4) e2e harness still auto-opens chapters. (5) Coach SSR still ships every card. (6) No Home chapter jump nav. (7) M.4 route-by-route restyle owner-eyeball-gated.
+
 ## ✅ BUILT 2026-09-19 — Home chapters: daily loop open, dump closed (DECISIONS #758)
 
 **The hole.** #757 residual (5): Home below the two numbers was still a long stack. Critic cycle 1: UX 6, Welcome back + radar hidden in closed chapters.
@@ -32,7 +44,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `64173200` on `origin/main`. No `prisma/` diff. **CI verify run 35448886067 = SUCCESS**. Vercel Production `dpl_Ebo4UwJRwsQp1YyN5jm24hjoHUAS` **READY**, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`. Demo Home 390: `Adjust the plan` and `The picture` present and closed (`open === false`). Marker: raw `64173200` has `home-chapter.tsx`.
 
-**Still open / residuals.** (1) **P2-3:** default e2e harness opens Home chapters. (2) **P2-4:** hash-open untested; no Home chapter jump nav. (3) Coach SSR still ships every card. (4) #757 Coach P2s (chevron / same-hash / Trajectory voice). (5) M.4 route-by-route restyle owner-eyeball-gated.
+**Still open / residuals.** (1) **P2-3:** default e2e harness opens Home chapters. (2) ~~**P2-4:** hash-open untested~~ — **CLOSED 2026-09-19 (DECISIONS #759):** `#home-picture` e2e; same-hash click-open. No Home jump nav remains. (3) Coach SSR still ships every card. (4) ~~#757 Coach P2s (chevron / same-hash / Trajectory voice)~~ — **CLOSED #759.** (5) M.4 route-by-route restyle owner-eyeball-gated.
 
 ## ✅ BUILT 2026-09-19 — Visual IA: grouped sidebar, Home stage, Coach chapters (DECISIONS #757)
 
@@ -44,7 +56,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `b92219e2` on `origin/main`. No `prisma/` diff. **CI verify run 35426137075 = SUCCESS** (`main`; prior `bec0b32e` run 35424012696 FAILED on fold + Trends collision). Vercel Production `dpl_AKbNTBWUnN3RpydQtKgwabMCiG7w` **READY** on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200 with brand-mark + h1. Demo Home: `cash-needed-dues` closed, due-date-list hidden, Trends nav "Category movers…". Marker: `raw.githubusercontent.com` on `b92219e2` finds `cash-needed-dues` and `Category movers`; `bec0b32e` Trends description still started with `What changed`.
 
-**Still open / residuals.** (1) **P2-1:** chapter summaries hide the disclosure marker with no chevron. (2) **P2-2:** same-hash Trajectory re-click is a no-op. (3) **P2-3:** Trajectory lead is IA voice. (4) **P2-4:** Habits collapse and desktop description text are not e2e-locked. (5) Home below the stage is still a long stack. (6) Coach SSR still ships every card in the DOM. (7) M.4 route-by-route restyle remains owner-eyeball-gated.
+**Still open / residuals.** (1) ~~**P2-1:** chapter summaries hide the disclosure marker~~ — **CLOSED #759.** (2) ~~**P2-2:** same-hash Trajectory re-click is a no-op~~ — **CLOSED #759.** (3) ~~**P2-3:** Trajectory lead is IA voice~~ — **CLOSED #759.** (4) ~~**P2-4:** Habits collapse and desktop description text are not e2e-locked~~ — **CLOSED #759.** (5) ~~Home below the stage is still a long stack~~ — **CLOSED #758.** (6) Coach SSR still ships every card in the DOM. (7) M.4 route-by-route restyle remains owner-eyeball-gated.
 
 ## ✅ BUILT 2026-09-19 — O.20j residual (10): trim sibling plaidItemId === so same-item copies stay two accounts (DECISIONS #756)
 

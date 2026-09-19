@@ -36,9 +36,19 @@ export function CoachChapter({
     const applyHash = () => {
       if (window.location.hash === `#${id}`) el.open = true;
     };
+    const onClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const link = target.closest('a');
+      if (link?.getAttribute('href') === `#${id}`) el.open = true;
+    };
     applyHash();
     window.addEventListener('hashchange', applyHash);
-    return () => window.removeEventListener('hashchange', applyHash);
+    document.addEventListener('click', onClick);
+    return () => {
+      window.removeEventListener('hashchange', applyHash);
+      document.removeEventListener('click', onClick);
+    };
   }, [id]);
 
   return (
@@ -50,7 +60,7 @@ export function CoachChapter({
       open={defaultOpen || undefined}
       className="space-y-5 sm:space-y-6"
     >
-      <summary className="cursor-pointer list-none border-b border-border/60 pb-3 marker:content-none [&::-webkit-details-marker]:hidden">
+      <summary className="cursor-pointer border-b border-border/60 pb-3 ps-4">
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
         <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">{lead}</p>
       </summary>

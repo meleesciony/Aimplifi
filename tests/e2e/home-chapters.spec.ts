@@ -49,3 +49,16 @@ test('Adjust the plan starts closed and still holds the plan figures', async ({ 
   await adjust.locator('summary').click();
   await expect(page.getByTestId('home-plan-figures')).toBeVisible();
 });
+
+test('a hash jump opens Picture even when the rest stay closed', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 800 });
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+  await page.goto('/dashboard#home-picture');
+
+  const picture = page.getByTestId('home-chapter-home-picture');
+  await expect(picture).toHaveAttribute('open', '');
+  await expect(page.getByTestId('home-chapter-home-adjust')).not.toHaveAttribute('open');
+  await expect(page.getByTestId('net-worth-amount')).toBeVisible();
+});

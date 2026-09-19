@@ -734,13 +734,13 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #739 — The goals wave closes: behind-pace nudge, seeded demo goals, the 1200-month horizon (2026-09-11) → docs/archive/DECISIONS_ARCHIVE_737_to_739.md
 - #740 — One discretionary definition: the creep bar classifies with the register (O.20h) (2026-09-12) → docs/archive/DECISIONS_ARCHIVE_740_to_741.md
 - #741 — One definition of an unidentified inflow: it is income (O.20c) (2026-09-14) → docs/archive/DECISIONS_ARCHIVE_740_to_741.md
-- #742 — The debt-payoff path names a balance the bank stopped sharing (L.19 surface 5) (2026-09-16) → docs/DECISIONS.md
-- #743 — O.20j converse-leak identity: do not ship; critic budget exhausted (2026-09-16) → docs/DECISIONS.md
-- #744 — O.20j converse-leak identity: mask COLUMN + detector prereqs (2026-09-17) → docs/DECISIONS.md
-- #745 — The next-dollar ranking names the frozen debt it points at (L.19 residual 5) (2026-09-17) → docs/DECISIONS.md
-- #746 — The saved debt-free goal card names the frozen balance its total was computed from (L.19 residual 1) (2026-09-17) → docs/DECISIONS.md
-- #747 — The saved debt-free goal card names the extra / on-track line the same frozen save computed (L.19 residual 1 follow-up) (2026-09-17) → docs/DECISIONS.md
-- #748 — O.20j residual (2): a Plaid side without `ins_*` does not fold on last-4 (2026-09-17) → docs/DECISIONS.md
+- #742 — The debt-payoff path names a balance the bank stopped sharing (L.19 surface 5) (2026-09-16) → docs/archive/DECISIONS_ARCHIVE_742_to_748.md
+- #743 — O.20j converse-leak identity: do not ship; critic budget exhausted (2026-09-16) → docs/archive/DECISIONS_ARCHIVE_742_to_748.md
+- #744 — O.20j converse-leak identity: mask COLUMN + detector prereqs (2026-09-17) → docs/archive/DECISIONS_ARCHIVE_742_to_748.md
+- #745 — The next-dollar ranking names the frozen debt it points at (L.19 residual 5) (2026-09-17) → docs/archive/DECISIONS_ARCHIVE_742_to_748.md
+- #746 — The saved debt-free goal card names the frozen balance its total was computed from (L.19 residual 1) (2026-09-17) → docs/archive/DECISIONS_ARCHIVE_742_to_748.md
+- #747 — The saved debt-free goal card names the extra / on-track line the same frozen save computed (L.19 residual 1 follow-up) (2026-09-17) → docs/archive/DECISIONS_ARCHIVE_742_to_748.md
+- #748 — O.20j residual (2): a Plaid side without `ins_*` does not fold on last-4 (2026-09-17) → docs/archive/DECISIONS_ARCHIVE_742_to_748.md
 - #749 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (2026-09-18) → docs/DECISIONS.md
 - #750 — O.20j residual (5): a present PlaidItem with null `ins_*` does not inherit the stamp (2026-09-18) → docs/DECISIONS.md
 - #751 — Owner Yes on the ops walkthrough and the two live-data writes (2026-09-18) → docs/DECISIONS.md
@@ -751,3 +751,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #756 — O.20j residual (10): trim sibling plaidItemId === so same-item copies stay two accounts (2026-09-19) → docs/DECISIONS.md
 - #757 — Visual IA: grouped sidebar, Home stage, Coach chapters (2026-09-19) → docs/DECISIONS.md
 - #758 — Home chapters: daily loop open, Adjust / Picture / Setup closed (2026-09-19) → docs/DECISIONS.md
+- #759 — Coach chapters: native marker, same-hash re-open, coaching voice (2026-09-19) → docs/DECISIONS.md
