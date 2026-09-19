@@ -271,7 +271,7 @@ export const NAV_DESTINATIONS: readonly NavDestination[] = [
   {
     href: '/trends',
     label: 'Trends',
-    description: 'What changed this month: category movers, biggest purchases and new merchants.',
+    description: 'Category movers, biggest purchases and new merchants this month.',
     keywords: ['changes', 'movers', 'pace', 'new merchants', 'compare', 'month over month'],
     group: 'explore',
     icon: TrendingUp,

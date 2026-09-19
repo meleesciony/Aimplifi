@@ -188,6 +188,7 @@ test('the hero and /cards call the same card the SAME thing', async ({ page }) =
 
   await page.goto('/dashboard');
   await expect(page.getByTestId('cash-needed-card')).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId('cash-needed-dues').locator('summary').click();
   const heroText = await page.getByTestId('due-date-list').innerText();
 
   await page.goto('/cards');

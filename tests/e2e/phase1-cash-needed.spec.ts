@@ -21,7 +21,7 @@ test('demo sign-in lands on the dashboard with guilt-free, cash-needed, and rece
   expect(guiltBox).not.toBeNull();
   expect(guiltBox!.y + guiltBox!.height).toBeLessThanOrEqual(800);
 
-  // Cash needed — liquidity for cards this cycle (still on Home, under guilt-free).
+  // Cash needed — liquidity for cards this cycle (Home stage, above guilt-free).
   const amount = page.getByTestId('cash-needed-amount');
   await expect(amount).toHaveText('$5,412.33');
   const headline = page.getByTestId('cash-needed-headline');
@@ -56,6 +56,7 @@ test('per-card breakdown shows each obligation and the scenario toggle works', a
   await page.goto('/sign-in');
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
+  await page.getByTestId('cash-needed-dues').locator('summary').click();
   await page.getByTestId('see-card-breakdown').click();
   await page.waitForURL('**/cards');
 

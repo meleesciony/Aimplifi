@@ -384,105 +384,103 @@ export function CashNeededCard({
           </Alert>
         )}
 
-        <ul className="space-y-1 text-xs sm:text-sm" data-testid="due-date-list">
-          {result.perDueDate.map((point) => (
-            <li
-              key={point.date}
-              className="grid grid-cols-[auto_1fr_auto] items-baseline gap-x-3 text-sm"
-            >
-              <span className="whitespace-nowrap text-muted-foreground">
-                {formatISODate(isoDate(point.date))}
-                <span className="ml-1 text-xs">({formatRelativeDays(today as ISODate, point.date)})</span>
-              </span>
-              <span className="min-w-0 break-words">
-                {point.cards
-                  .map(
-                    (c) =>
-                      `${painted(c.cardId, c.cardName)} ${formatCents(c.amountCents)}${c.autopayCents > 0 ? ' (autopay)' : ''}`,
-                  )
-                  .join(' + ')}
-              </span>
-              <span className="font-medium tabular-nums">{formatCents(point.dayTotalCents)}</span>
-            </li>
-          ))}
-          {result.upcoming.map((u) => (
-            <li
-              key={u.cardId}
-              className="grid grid-cols-[auto_1fr_auto] items-baseline gap-x-3 text-sm text-muted-foreground"
-            >
-              <span className="whitespace-nowrap">{formatISODate(isoDate(u.effectiveDueDate))}</span>
-              <span className="min-w-0 break-words">
-                {painted(u.cardId, u.cardName)} {formatCents(u.cashRequiredCents)}{' '}
-                <Badge variant="outline" className="ml-1 align-middle">
-                  est.
-                </Badge>
-              </span>
-              <span className="tabular-nums">next cycle</span>
-            </li>
-          ))}
-        </ul>
-
-        {(() => {
-          const seen = new Set<string>();
-          const dated: { cardId: string; cardName: string }[] = [];
-          for (const point of result.perDueDate) {
-            for (const c of point.cards) {
-              if (seen.has(c.cardId) || !statementWritable(c.cardId)) continue;
-              seen.add(c.cardId);
-              dated.push({ cardId: c.cardId, cardName: c.cardName });
+        <details className="text-sm" data-testid="cash-needed-dues">
+          <summary className="cursor-pointer text-muted-foreground">This cycle&apos;s dues</summary>
+          <ul className="mt-2 space-y-1 text-xs sm:text-sm" data-testid="due-date-list">
+            {result.perDueDate.map((point) => (
+              <li
+                key={point.date}
+                className="grid grid-cols-[auto_1fr_auto] items-baseline gap-x-3 text-sm"
+              >
+                <span className="whitespace-nowrap text-muted-foreground">
+                  {formatISODate(isoDate(point.date))}
+                  <span className="ml-1 text-xs">({formatRelativeDays(today as ISODate, point.date)})</span>
+                </span>
+                <span className="min-w-0 break-words">
+                  {point.cards
+                    .map(
+                      (c) =>
+                        `${painted(c.cardId, c.cardName)} ${formatCents(c.amountCents)}${c.autopayCents > 0 ? ' (autopay)' : ''}`,
+                    )
+                    .join(' + ')}
+                </span>
+                <span className="font-medium tabular-nums">{formatCents(point.dayTotalCents)}</span>
+              </li>
+            ))}
+            {result.upcoming.map((u) => (
+              <li
+                key={u.cardId}
+                className="grid grid-cols-[auto_1fr_auto] items-baseline gap-x-3 text-sm text-muted-foreground"
+              >
+                <span className="whitespace-nowrap">{formatISODate(isoDate(u.effectiveDueDate))}</span>
+                <span className="min-w-0 break-words">
+                  {painted(u.cardId, u.cardName)} {formatCents(u.cashRequiredCents)}{' '}
+                  <Badge variant="outline" className="ml-1 align-middle">
+                    est.
+                  </Badge>
+                </span>
+                <span className="tabular-nums">next cycle</span>
+              </li>
+            ))}
+          </ul>
+          {(() => {
+            const seen = new Set<string>();
+            const dated: { cardId: string; cardName: string }[] = [];
+            for (const point of result.perDueDate) {
+              for (const c of point.cards) {
+                if (seen.has(c.cardId) || !statementWritable(c.cardId)) continue;
+                seen.add(c.cardId);
+                dated.push({ cardId: c.cardId, cardName: c.cardName });
+              }
             }
-          }
-          for (const u of result.upcoming) {
-            if (seen.has(u.cardId) || !statementWritable(u.cardId)) continue;
-            seen.add(u.cardId);
-            dated.push({ cardId: u.cardId, cardName: u.cardName });
-          }
-          if (dated.length === 0) return null;
-          return (
-            <div className="space-y-2" data-testid="home-cash-needed-dated-statements">
-              <p className="text-xs text-muted-foreground">
-                Correct a manual card statement here — same write as Cards and Calendar.
-              </p>
-              {dated.map((c) => (
-                <div key={c.cardId} data-testid={`home-cash-needed-statement-${c.cardId}`}>
-                  <p className="text-xs font-medium">{painted(c.cardId, ownedName(c))}</p>
-                  <CardStatementControl
-                    accountId={c.cardId}
-                    billing={cardBilling[c.cardId]}
-                  />
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-
-        <div className="flex justify-between pt-1">
-          <Link
-            href="/forecast"
-            className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
-            data-testid="see-forecast"
-          >
-            {/* Audit P2: /forecast projects RECURRING income/bills only — it
-                excludes the card payments this card plans and one-off spending
-                (its own scope note says so). A bare "90-day forecast →" label
-                read as "the same numbers, longer window", so the link names
-                the basis. */}
-            90-day recurring forecast →
-          </Link>
-          <Link
-            href="/cards"
-            className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
-            data-testid="see-card-breakdown"
-          >
-            Per-card breakdown →
-          </Link>
-        </div>
-
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer select-none">
+            for (const u of result.upcoming) {
+              if (seen.has(u.cardId) || !statementWritable(u.cardId)) continue;
+              seen.add(u.cardId);
+              dated.push({ cardId: u.cardId, cardName: u.cardName });
+            }
+            if (dated.length === 0) return null;
+            return (
+              <div className="mt-2 space-y-2" data-testid="home-cash-needed-dated-statements">
+                <p className="text-xs text-muted-foreground">
+                  Correct a manual card statement here — same write as Cards and Calendar.
+                </p>
+                {dated.map((c) => (
+                  <div key={c.cardId} data-testid={`home-cash-needed-statement-${c.cardId}`}>
+                    <p className="text-xs font-medium">{painted(c.cardId, ownedName(c))}</p>
+                    <CardStatementControl
+                      accountId={c.cardId}
+                      billing={cardBilling[c.cardId]}
+                    />
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+          <div className="mt-2 flex justify-between">
+            <Link
+              href="/forecast"
+              className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              data-testid="see-forecast"
+            >
+              {/* Audit P2: /forecast projects RECURRING income/bills only — it
+                  excludes the card payments this card plans and one-off spending
+                  (its own scope note says so). A bare "90-day forecast →" label
+                  read as "the same numbers, longer window", so the link names
+                  the basis. */}
+              90-day recurring forecast →
+            </Link>
+            <Link
+              href="/cards"
+              className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              data-testid="see-card-breakdown"
+            >
+              Per-card breakdown →
+            </Link>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
             Assumptions ({result.assumptions.length})
-          </summary>
-          <ul className="mt-1 list-disc space-y-0.5 pl-4" data-testid="assumptions-list">
+          </p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-muted-foreground" data-testid="assumptions-list">
             {result.assumptions.map((a) => (
               <li key={a}>{a}</li>
             ))}

@@ -98,7 +98,7 @@ test('More sheet: every row says what it is for, and search finds a page by the 
   await expect(page.getByTestId('nav-spending-plan')).toContainText('guilt-free');
   await expect(page.getByTestId('nav-budgets')).toContainText('targets you set');
   await expect(page.getByTestId('nav-reports')).toContainText('trailing months');
-  await expect(page.getByTestId('nav-trends')).toContainText('changed this month');
+  await expect(page.getByTestId('nav-trends')).toContainText('Category movers');
 
   // 2. SEARCH finds a page by a word that is in neither its label nor its description.
   const search = page.getByTestId('nav-more-search');

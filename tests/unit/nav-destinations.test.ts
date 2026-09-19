@@ -59,7 +59,8 @@ describe('the catalogue describes every destination', () => {
     expect(by('/spending-plan')).toContain('guilt-free');
     expect(by('/budgets')).toContain('targets you set');
     expect(by('/reports')).toContain('named year');
-    expect(by('/trends')).toContain('changed');
+    expect(by('/trends')).toContain('movers');
+    expect(by('/trends')).not.toContain('what changed');
     const four = ['/spending-plan', '/budgets', '/reports', '/trends'].map(by);
     expect(new Set(four).size).toBe(4);
   });

@@ -165,6 +165,7 @@ test('the mixed case: a dated-cards total names the undatable card beside it', a
   await expect(note).toContainText(undatableName);
 
   // And the dated card is in the per-due-date rows, not the note.
+  await page.getByTestId('cash-needed-dues').locator('summary').click();
   await expect(page.getByTestId('due-date-list')).toContainText(datedName);
   await expect(note).not.toContainText(datedName);
 });

@@ -13,6 +13,7 @@ async function signIn(page: Page) {
 
 test('forecast is linked from the cash-needed card', async ({ page }) => {
   await signIn(page);
+  await page.getByTestId('cash-needed-dues').locator('summary').click();
   await expect(page.getByTestId('see-forecast')).toBeVisible();
 });
 

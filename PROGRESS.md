@@ -19,11 +19,13 @@
 
 **Closed.** Sidebar, Home stage, Coach `<details>` chapters, money tokens, BrandMark. Critic cycle 3 PASS UX 9 / 0 P0 / 0 P1.
 
-**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8583 passed + 1 expected fail + 1 skipped / 636 files + 1 skipped**, next build clean. Playwright: home-stage 2/2, coach-chapters 2/2 (380 collapse), phase1 2/2, desktop-header 1/1, mobile-nav 2/2, phase3-coach 1/1.
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8583 passed + 1 expected fail + 1 skipped / 636 files + 1 skipped**, next build clean. Playwright (rebuilt `next start` on 127.0.0.1:3100 + e2e sqlite): home-stage 2/2 (dues closed), phase1 2/2, trends 3/3, mobile-nav 2/2, forecast 3/3, card-unknown-due 3/3, dashboard-duplicate-disclosure 5/5 (**21/21**).
 
-**Ledgers.** DECISIONS #757 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #757.
+**CI-red on `bec0b32e`.** Run 35424012696: guilt-free past 800 on Linux chrome; `/trends` `What changed` matched sidebar + page. Fix: closed `cash-needed-dues` details; Trends description "Category movers…".
 
-**Ship.** Pending this turn's push + `ci-status.sh` + live marker.
+**Ledgers.** DECISIONS #757 (+ index); REGRESSION_LEDGER two rows; STATUS BUILT; TASKS M.4 #757.
+
+**Ship.** Follow-on push + `ci-status.sh` + live marker this turn.
 
 ## 2026-09-19 — O.20j residual (10): trim sibling plaidItemId === so same-item copies stay two accounts (DECISIONS #756)
 

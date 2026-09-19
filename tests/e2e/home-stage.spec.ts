@@ -19,6 +19,10 @@ test('phone home stage paints cash-needed above guilt-free', async ({ page }) =>
   if (!c || !g) return;
   expect(c.y).toBeLessThan(g.y);
   expect(g.y + g.height).toBeLessThanOrEqual(800);
+  // The due-date list used to sit open and push guilt-free past 800px on CI
+  // Linux chrome. It starts closed; open the summary to read the rows.
+  await expect(page.getByTestId('cash-needed-dues')).toBeVisible();
+  await expect(page.getByTestId('due-date-list')).toBeHidden();
 });
 
 test('desktop home stage puts cash-needed left of guilt-free', async ({ page }) => {
