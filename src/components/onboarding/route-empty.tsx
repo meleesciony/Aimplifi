@@ -46,7 +46,7 @@ function RouteEmptyShell({
 export function EmptyCoach() {
   return (
     <RouteEmptyShell
-      pageTitle="FI Coach"
+      pageTitle="Coach"
       cardTitle="Your savings rate, FI timeline, and money review live here"
       description="Once accounts and a few weeks of spending are in, Coach shows your savings rate, FI number, opportunities, and a monthly money review — educational framing, not advice."
       testId="coach-empty"

@@ -27,3 +27,16 @@ export const PAGE_STACK_CLASS = 'space-y-5 sm:space-y-6';
 
 export const PAGE_SECTION_LABEL_CLASS =
   'flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground';
+
+/**
+ * Stage money — the one number a page is answering. Cash-needed on Home,
+ * guilt-free on the spending-plan hero. Pair figures (the other number on
+ * the same stage) use MONEY_PAIR_CLASS so they cannot outshout the stage.
+ */
+export const MONEY_DISPLAY_CLASS =
+  'text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl';
+
+export const MONEY_PAIR_CLASS = 'text-2xl font-semibold tabular-nums';
+
+/** Negative / over-plan money. One red, not rose on one page and red on the next. */
+export const MONEY_NEGATIVE_CLASS = 'text-red-500';

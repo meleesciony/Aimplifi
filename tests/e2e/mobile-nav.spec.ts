@@ -28,6 +28,7 @@ test('More sheet: opens labelled destinations, navigates, Escape closes', async 
   const sheet = page.getByTestId('nav-more-sheet');
   await expect(sheet).toBeVisible();
   await expect(sheet.getByRole('heading', { name: 'More' })).toBeVisible();
+  await expect(page.getByTestId('nav-more-search')).toBeFocused();
 
   // Every secondary destination is labelled (icon + text), not icon-only.
   for (const id of [

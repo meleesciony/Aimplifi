@@ -6,6 +6,7 @@ import { auth } from '@/auth';
 import { AutomationBlueprintCard } from '@/components/coach/automation-blueprint-card';
 import { FICard } from '@/components/coach/fi-card';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { CoachChapter } from '@/components/finance/coach-chapter';
 import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { withheldInlineNote } from '@/lib/providers/currency';
 import { FROZEN_RUNWAY_TESTID, frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
@@ -162,20 +163,49 @@ export default async function CoachPage() {
 
   return (
     <div className={PAGE_STACK_CLASS}>
-      <h1 className={PAGE_TITLE_CLASS}>FI Coach</h1>
+      <h1 className={PAGE_TITLE_CLASS}>Coach</h1>
 
       {/* P1.3 — the reader's own one-line Rich Life, quiet atop the page. Only
           set (and only writable) by the same person; no line when unset. */}
       <RichLifeEcho vision={data.richLifeVision} />
-      <div id="coach-rich-life" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-rich-life">
-        <RichLifeForm current={dialUser.richLifeVision} canWrite={canWriteDials} reloadOnSuccess />
-      </div>
+      <nav aria-label="Coach chapters" className="flex flex-wrap gap-x-4 gap-y-1 text-sm" data-testid="coach-chapter-nav">
+        <a href="#coach-now" className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+          This month
+        </a>
+        <a href="#coach-trajectory" className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+          Trajectory
+        </a>
+        <a href="#coach-habits" className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+          Habits
+        </a>
+      </nav>
+      {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
+          vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
+      <CurrencyExclusionBanner summary={withheld} />
 
+      {/* C.25 (#403, critic P1-5): the savings rate, creep baseline and FI
+          number all read flows the exclusion moved — name what left, or say
+          nothing when nothing did. The sentence claims these figures only
+          (O.18e-FU): a universal "loan payments are not spending" could not
+          survive a surface that lists the rows, so every surface scopes its
+          claim. */}
+      {data.loanPaymentExclusions.map((e, i) => (
+        <p key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`} className="text-xs text-muted-foreground" data-testid="coach-loan-payment-basis">
+          {loanPaymentBasisSentence(e, 'figures')}
+        </p>
+      ))}
+
+      <CoachChapter
+        id="coach-now"
+        title="This month"
+        lead="What to do now: the extra dollar, the flags, the review."
+        defaultOpen
+      >
       {savingsGoals.length > 0 ? (
         <Card data-testid="coach-goals-saved-card">
           <CardHeader className="pb-2">
             <CardDescription>Savings goals</CardDescription>
-            <CardTitle className="text-base">Savings progress</CardTitle>
+            <CardTitle as="h3" className="text-base">Savings progress</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p className="text-muted-foreground">
@@ -236,22 +266,257 @@ export default async function CoachPage() {
         </Card>
       ) : null}
 
-      {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
-          vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
-      <CurrencyExclusionBanner summary={withheld} />
+      {/* O.15 — outstanding reimbursements: purchases the reader marked as
+          awaiting money back. Amounts copied verbatim (notify/select idiom);
+          the figure links to exactly the rows it counts (no dead ends). */}
+      {data.outstandingReimbursements.count > 0 && (
+        <Card data-testid="outstanding-reimbursements-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Money you&apos;re owed back</CardDescription>
+            <CardTitle as="h3" className="text-base" data-testid="outstanding-reimbursements-total">
+              {formatCents(data.outstandingReimbursements.totalCents)} awaiting reimbursement
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {data.outstandingReimbursements.count === 1
+                ? 'One purchase you marked as awaiting reimbursement.'
+                : `${data.outstandingReimbursements.count} purchases you marked as awaiting reimbursement.`}{' '}
+              They still count as spending until the money comes back.{' '}
+              <Link
+                href="/transactions?reimb=awaiting"
+                className="underline underline-offset-2 hover:text-foreground"
+                data-testid="outstanding-reimbursements-link"
+              >
+                See them
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* C.25 (#403, critic P1-5): the savings rate, creep baseline and FI
-          number all read flows the exclusion moved — name what left, or say
-          nothing when nothing did. The sentence claims these figures only
-          (O.18e-FU): a universal "loan payments are not spending" could not
-          survive a surface that lists the rows, so every surface scopes its
-          claim. */}
-      {data.loanPaymentExclusions.map((e, i) => (
-        <p key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`} className="text-xs text-muted-foreground" data-testid="coach-loan-payment-basis">
-          {loanPaymentBasisSentence(e, 'figures')}
-        </p>
-      ))}
+      {/* Big wins, never latte shame */}
+      <Card data-testid="opportunities-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Savings opportunities — big wins first</CardDescription>
+          <CardTitle as="h3" className="text-base">
+            Worth a look ({data.opportunities.length})
+          </CardTitle>
+          {data.moneyDials.length > 0 && (
+            <p className="text-sm text-muted-foreground">{COACH_COPY.moneyDials(data.moneyDials)}</p>
+          )}
+        </CardHeader>
+        <CardContent>
+          {data.opportunities.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground" data-testid="opportunities-empty">
+              Nothing to flag right now — check back after a few more weeks of spending data.
+            </p>
+          ) : (
+            <ul className="space-y-3 text-sm" data-testid="opportunities-list">
+              {data.opportunities.map((o, i) => (
+                <li key={i} className="space-y-0.5">
+                  {/* min-w-0: the name below truncates, and a truncating flex child
+                      with default min-width:auto pushes the shrink-0 badge off the row
+                      instead of clipping itself (the iOS flexbox lesson, and the rule
+                      this slice's own builder docblock states). */}
+                  <div className="flex min-w-0 items-baseline justify-between gap-2">
+                    {/* Same Merchant-Lens entry the register row uses (DECISIONS #250):
+                        the flagged name opens the merchant-filtered register, so the
+                        reader can see the charges behind the claim in one tap. */}
+                    <Link
+                      href={merchantRegisterHref(o.merchant)}
+                      data-testid="coach-opportunity-link"
+                      className={`truncate ${MERCHANT_LINK_CLASS}`}
+                    >
+                      {o.merchant}
+                    </Link>
+                    <Badge variant={o.isEstimate ? 'outline' : 'secondary'} className="shrink-0">
+                      {o.isEstimate ? `~${formatCents(o.monthlyCents)}/mo est.` : `${formatCents(o.monthlyCents)}/mo`}
+                    </Badge>
+                  </div>
+                  {i === 0 && (
+                    <p className="text-xs font-medium text-positive-600 dark:text-positive-400" data-testid="biggest-lever">
+                      {COACH_COPY.biggestLever()}
+                    </p>
+                  )}
+                  {/* the actionable line first; the compounding math in a quiet second line */}
+                  <p className="text-xs text-muted-foreground">
+                    {COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* W.10 — how the figures in the rows were worked out, once for the list. Rendered
+              only beside rows: with an empty list there is no figure for it to qualify, and a
+              basis sentence under "nothing to flag" describes money nobody was shown. The two
+              gates are the SAME predicate deliberately, and a test asserts the absence. */}
+          {cutFiSentence && (
+            <p className="mt-4 text-sm break-words" data-testid="opportunities-cut-fi">
+              {cutFiSentence}
+            </p>
+          )}
+          {cutRadarSentence && (
+            <p className="mt-2 text-xs text-muted-foreground break-words" data-testid="opportunities-cut-radar">
+              {cutRadarSentence}
+            </p>
+          )}
+          {data.opportunities.length > 0 && (
+            <p className="mt-4 text-xs text-muted-foreground" data-testid="opportunities-basis">
+              {COACH_COPY.opportunityBasis(
+                data.fi.expectedReturnBps,
+                data.fi.inflationBps,
+                dialOwnership,
+              )}
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card data-testid="creep-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Lifestyle creep</CardDescription>
+            <CardTitle as="h3" className="text-base">
+              {/* Audit P2: the verdict is a CLAIM about a set of transactions, so it
+                  must not be the thing you click — a link on a claim reads as the
+                  claim being clickable proof. The title states the verdict; the link
+                  below claims only the register filter that opens the set.
+
+                  O.20g: the verdict has THREE states — the third is the window the
+                  app cannot compare, which used to render as "Tracking income".
+                  Title, body and link are selected together in the engine, because
+                  a three-way rule in a .tsx cannot be locked by a test and these
+                  three must never disagree about which state they are in. */}
+              <span data-testid="creep-title">{creepCard.title}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm" data-testid="creep-verdict">
+              {creepCard.body}
+            </p>
+            <Link
+              href={creepCard.linkHref}
+              data-testid="coach-creep-link"
+              className="text-xs underline underline-offset-2 hover:text-foreground"
+            >
+              {creepCard.linkLabel}
+            </Link>
+            {/* O.20d: every bar opens the purchases the month figure was summed
+                from — the strip is now a set of real controls. */}
+            <LifestyleCreepChart creep={data.creep} />
+          </CardContent>
+        </Card>
+
+        <Card data-testid="runway-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Room for error</CardDescription>
+            <CardTitle as="h3" className="text-2xl tabular-nums" data-testid="runway-months">
+              {/* Audit P2: a negative runway has no month count to state as a
+                  fact — the body sentence below names what negative means. */}
+              {runwayTitle(data.runwayMonths)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{COACH_COPY.runway(data.runwayMonths)}</p>
+            {/* TASKS L.18 — the CHECKING/SAVINGS rows only: runway is cash ÷ average expenses, so a
+                frozen brokerage does not touch it and a frozen savings account is most of it. */}
+            {(() => {
+              const note = frozenTotalNote(data.frozenBalances.liquid, {
+                figureLabel: 'the cash side of this estimate',
+                nextStep: 'accounts-route',
+              });
+              return note ? (
+                <p className="mt-1 text-xs text-warning-500" data-testid={FROZEN_RUNWAY_TESTID}>
+                  {note}
+                </p>
+              ) : null;
+            })()}
+          </CardContent>
+        </Card>
+      </div>
+
+      <AutomationBlueprintCard steps={data.blueprint} />
+
+      <LifeEnergyCard items={data.lifeEnergy} hourlyWageCents={data.hourlyWageCents} />
+      <FulfillmentCard curve={data.fulfillment} />
+
+      {/* What Aimplifi caught (TASKS 1.3) — the cumulative value-receipts tally.
+          Honest by construction: counts + per-kind totals of what was surfaced,
+          never an outcome or "saved you $X" claim. Hidden until there's a catch. */}
+      {receipts.total > 0 && (
+        <Card data-testid="value-receipts-card">
+          <CardHeader className="pb-2">
+            <CardDescription>What Aimplifi caught</CardDescription>
+            <CardTitle as="h3" className="text-base" data-testid="value-receipts-headline">
+              {COACH_COPY.receiptsHeadline(receipts.total)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <ul className="space-y-2" data-testid="value-receipts-lines">
+              {receiptLines(receipts).map((line) => (
+                <li key={line} className="flex items-start gap-2">
+                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-positive-500" aria-hidden />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground">{COACH_COPY.receiptsFooter()}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card data-testid="money-review-card">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <CardDescription>Monthly Money Review</CardDescription>
+            {data.reviewPersonalized && (
+              <span
+                className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+                data-testid="review-personalized-badge"
+              >
+                {COACH_COPY.reviewPersonalizedBadge()}
+              </span>
+            )}
+          </div>
+          <CardTitle as="h3" className="text-base">{formatMonth(data.review.month)}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          {data.reviewLines.map((r) => {
+            // Legacy per-role test ids (improvement/watch/action → improvement/creep/next-action)
+            // keep the shipped /coach e2e green; the deterministic floor renders exactly these three.
+            const testId =
+              r.role === 'watch' ? 'review-creep' : r.role === 'action' ? 'review-next-action' : 'review-improvement';
+            const Icon = r.role === 'watch' ? Eye : r.role === 'action' ? CheckCircle2 : TrendingUp;
+            const tone = r.role === 'watch' ? 'text-warning-500' : 'text-positive-500';
+            return (
+              <p key={r.id} className="flex items-start gap-2" data-testid={testId}>
+                <Icon className={`mt-0.5 size-4 shrink-0 ${tone}`} aria-hidden />
+                <span>{r.line}</span>
+              </p>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* Your money rules — a short rulebook beats a perfect plan you won't keep
+          (Aliche · Get Good with Money; Sethi · your money rules) */}
+
+      <Card data-testid="coach-household-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Share planning with a partner — accounts stay private until you share them</CardDescription>
+          <CardTitle as="h3" className="text-base">Household</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <HouseholdCard view={householdView} />
+        </CardContent>
+      </Card>
+      </CoachChapter>
+      <CoachChapter
+        id="coach-trajectory"
+        title="Trajectory"
+        lead="Savings rate, FI number, and the long-game cards — one chapter, not a feed."
+      >
       <div className="grid gap-4 lg:grid-cols-2">
         <SavingsRateCard
           flows={data.flows}
@@ -368,6 +633,15 @@ export default async function CoachPage() {
       
         assumptionsHref="#coach-money-dials"
       />
+      </CoachChapter>
+      <CoachChapter
+        id="coach-habits"
+        title="Habits"
+        lead="The dials and streaks that hold the plan. Inputs live here so they do not interrupt the numbers."
+      >
+      <div id="coach-rich-life" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-rich-life">
+        <RichLifeForm current={dialUser.richLifeVision} canWrite={canWriteDials} reloadOnSuccess />
+      </div>
       <div id="coach-money-dials" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-money-dials">
         <MoneyDialsForm
           current={{
@@ -406,257 +680,10 @@ export default async function CoachPage() {
 
       {/* #254 Habit streaks — cleared-in-full + no-subscription-creep, basis inline */}
       <HabitStreaksCard cardCleared={data.streaks.cardCleared} noCreep={data.streaks.noCreep} />
-
-      {/* O.15 — outstanding reimbursements: purchases the reader marked as
-          awaiting money back. Amounts copied verbatim (notify/select idiom);
-          the figure links to exactly the rows it counts (no dead ends). */}
-      {data.outstandingReimbursements.count > 0 && (
-        <Card data-testid="outstanding-reimbursements-card">
-          <CardHeader className="pb-2">
-            <CardDescription>Money you&apos;re owed back</CardDescription>
-            <CardTitle className="text-base" data-testid="outstanding-reimbursements-total">
-              {formatCents(data.outstandingReimbursements.totalCents)} awaiting reimbursement
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              {data.outstandingReimbursements.count === 1
-                ? 'One purchase you marked as awaiting reimbursement.'
-                : `${data.outstandingReimbursements.count} purchases you marked as awaiting reimbursement.`}{' '}
-              They still count as spending until the money comes back.{' '}
-              <Link
-                href="/transactions?reimb=awaiting"
-                className="underline underline-offset-2 hover:text-foreground"
-                data-testid="outstanding-reimbursements-link"
-              >
-                See them
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Big wins, never latte shame */}
-      <Card data-testid="opportunities-card">
-        <CardHeader className="pb-2">
-          <CardDescription>Savings opportunities — big wins first</CardDescription>
-          <CardTitle className="text-base">
-            Worth a look ({data.opportunities.length})
-          </CardTitle>
-          {data.moneyDials.length > 0 && (
-            <p className="text-sm text-muted-foreground">{COACH_COPY.moneyDials(data.moneyDials)}</p>
-          )}
-        </CardHeader>
-        <CardContent>
-          {data.opportunities.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground" data-testid="opportunities-empty">
-              Nothing to flag right now — check back after a few more weeks of spending data.
-            </p>
-          ) : (
-            <ul className="space-y-3 text-sm" data-testid="opportunities-list">
-              {data.opportunities.map((o, i) => (
-                <li key={i} className="space-y-0.5">
-                  {/* min-w-0: the name below truncates, and a truncating flex child
-                      with default min-width:auto pushes the shrink-0 badge off the row
-                      instead of clipping itself (the iOS flexbox lesson, and the rule
-                      this slice's own builder docblock states). */}
-                  <div className="flex min-w-0 items-baseline justify-between gap-2">
-                    {/* Same Merchant-Lens entry the register row uses (DECISIONS #250):
-                        the flagged name opens the merchant-filtered register, so the
-                        reader can see the charges behind the claim in one tap. */}
-                    <Link
-                      href={merchantRegisterHref(o.merchant)}
-                      data-testid="coach-opportunity-link"
-                      className={`truncate ${MERCHANT_LINK_CLASS}`}
-                    >
-                      {o.merchant}
-                    </Link>
-                    <Badge variant={o.isEstimate ? 'outline' : 'secondary'} className="shrink-0">
-                      {o.isEstimate ? `~${formatCents(o.monthlyCents)}/mo est.` : `${formatCents(o.monthlyCents)}/mo`}
-                    </Badge>
-                  </div>
-                  {i === 0 && (
-                    <p className="text-xs font-medium text-positive-600 dark:text-positive-400" data-testid="biggest-lever">
-                      {COACH_COPY.biggestLever()}
-                    </p>
-                  )}
-                  {/* the actionable line first; the compounding math in a quiet second line */}
-                  <p className="text-xs text-muted-foreground">
-                    {COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-          {/* W.10 — how the figures in the rows were worked out, once for the list. Rendered
-              only beside rows: with an empty list there is no figure for it to qualify, and a
-              basis sentence under "nothing to flag" describes money nobody was shown. The two
-              gates are the SAME predicate deliberately, and a test asserts the absence. */}
-          {cutFiSentence && (
-            <p className="mt-4 text-sm break-words" data-testid="opportunities-cut-fi">
-              {cutFiSentence}
-            </p>
-          )}
-          {cutRadarSentence && (
-            <p className="mt-2 text-xs text-muted-foreground break-words" data-testid="opportunities-cut-radar">
-              {cutRadarSentence}
-            </p>
-          )}
-          {data.opportunities.length > 0 && (
-            <p className="mt-4 text-xs text-muted-foreground" data-testid="opportunities-basis">
-              {COACH_COPY.opportunityBasis(
-                data.fi.expectedReturnBps,
-                data.fi.inflationBps,
-                dialOwnership,
-              )}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card data-testid="creep-card">
-          <CardHeader className="pb-2">
-            <CardDescription>Lifestyle creep</CardDescription>
-            <CardTitle className="text-base">
-              {/* Audit P2: the verdict is a CLAIM about a set of transactions, so it
-                  must not be the thing you click — a link on a claim reads as the
-                  claim being clickable proof. The title states the verdict; the link
-                  below claims only the register filter that opens the set.
-
-                  O.20g: the verdict has THREE states — the third is the window the
-                  app cannot compare, which used to render as "Tracking income".
-                  Title, body and link are selected together in the engine, because
-                  a three-way rule in a .tsx cannot be locked by a test and these
-                  three must never disagree about which state they are in. */}
-              <span data-testid="creep-title">{creepCard.title}</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-sm" data-testid="creep-verdict">
-              {creepCard.body}
-            </p>
-            <Link
-              href={creepCard.linkHref}
-              data-testid="coach-creep-link"
-              className="text-xs underline underline-offset-2 hover:text-foreground"
-            >
-              {creepCard.linkLabel}
-            </Link>
-            {/* O.20d: every bar opens the purchases the month figure was summed
-                from — the strip is now a set of real controls. */}
-            <LifestyleCreepChart creep={data.creep} />
-          </CardContent>
-        </Card>
-
-        <Card data-testid="runway-card">
-          <CardHeader className="pb-2">
-            <CardDescription>Room for error</CardDescription>
-            <CardTitle className="text-2xl tabular-nums" data-testid="runway-months">
-              {/* Audit P2: a negative runway has no month count to state as a
-                  fact — the body sentence below names what negative means. */}
-              {runwayTitle(data.runwayMonths)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">{COACH_COPY.runway(data.runwayMonths)}</p>
-            {/* TASKS L.18 — the CHECKING/SAVINGS rows only: runway is cash ÷ average expenses, so a
-                frozen brokerage does not touch it and a frozen savings account is most of it. */}
-            {(() => {
-              const note = frozenTotalNote(data.frozenBalances.liquid, {
-                figureLabel: 'the cash side of this estimate',
-                nextStep: 'accounts-route',
-              });
-              return note ? (
-                <p className="mt-1 text-xs text-warning-500" data-testid={FROZEN_RUNWAY_TESTID}>
-                  {note}
-                </p>
-              ) : null;
-            })()}
-          </CardContent>
-        </Card>
-      </div>
-
-      <AutomationBlueprintCard steps={data.blueprint} />
-
-      <LifeEnergyCard items={data.lifeEnergy} hourlyWageCents={data.hourlyWageCents} />
-      <FulfillmentCard curve={data.fulfillment} />
-
-      {/* What Aimplifi caught (TASKS 1.3) — the cumulative value-receipts tally.
-          Honest by construction: counts + per-kind totals of what was surfaced,
-          never an outcome or "saved you $X" claim. Hidden until there's a catch. */}
-      {receipts.total > 0 && (
-        <Card data-testid="value-receipts-card">
-          <CardHeader className="pb-2">
-            <CardDescription>What Aimplifi caught</CardDescription>
-            <CardTitle className="text-base" data-testid="value-receipts-headline">
-              {COACH_COPY.receiptsHeadline(receipts.total)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <ul className="space-y-2" data-testid="value-receipts-lines">
-              {receiptLines(receipts).map((line) => (
-                <li key={line} className="flex items-start gap-2">
-                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-positive-500" aria-hidden />
-                  <span>{line}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="text-xs text-muted-foreground">{COACH_COPY.receiptsFooter()}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card data-testid="money-review-card">
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between gap-2">
-            <CardDescription>Monthly Money Review</CardDescription>
-            {data.reviewPersonalized && (
-              <span
-                className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
-                data-testid="review-personalized-badge"
-              >
-                {COACH_COPY.reviewPersonalizedBadge()}
-              </span>
-            )}
-          </div>
-          <CardTitle className="text-base">{formatMonth(data.review.month)}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          {data.reviewLines.map((r) => {
-            // Legacy per-role test ids (improvement/watch/action → improvement/creep/next-action)
-            // keep the shipped /coach e2e green; the deterministic floor renders exactly these three.
-            const testId =
-              r.role === 'watch' ? 'review-creep' : r.role === 'action' ? 'review-next-action' : 'review-improvement';
-            const Icon = r.role === 'watch' ? Eye : r.role === 'action' ? CheckCircle2 : TrendingUp;
-            const tone = r.role === 'watch' ? 'text-warning-500' : 'text-positive-500';
-            return (
-              <p key={r.id} className="flex items-start gap-2" data-testid={testId}>
-                <Icon className={`mt-0.5 size-4 shrink-0 ${tone}`} aria-hidden />
-                <span>{r.line}</span>
-              </p>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      {/* Your money rules — a short rulebook beats a perfect plan you won't keep
-          (Aliche · Get Good with Money; Sethi · your money rules) */}
-
-      <Card data-testid="coach-household-card">
-        <CardHeader className="pb-2">
-          <CardDescription>Share planning with a partner — accounts stay private until you share them</CardDescription>
-          <CardTitle className="text-base">Household</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <HouseholdCard view={householdView} />
-        </CardContent>
-      </Card>
-
       <Card data-testid="money-rules-card">
         <CardHeader className="pb-2">
           <CardDescription>Your money rules</CardDescription>
-          <CardTitle className="text-base">A few rules you keep</CardTitle>
+          <CardTitle as="h3" className="text-base">A few rules you keep</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground" data-testid="money-rules">
@@ -664,6 +691,7 @@ export default async function CoachPage() {
           </p>
         </CardContent>
       </Card>
+      </CoachChapter>
     </div>
   );
 }

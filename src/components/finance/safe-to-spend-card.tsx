@@ -3,7 +3,7 @@ import { cents, formatCents } from '@/lib/money';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
-import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
+import { MONEY_NEGATIVE_CLASS, MONEY_PAIR_CLASS, PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
 /**
@@ -47,7 +47,7 @@ export function SafeToSpendCard({
       ) : (
         <>
           <p
-            className={`mt-1.5 text-2xl font-bold tabular-nums ${ok ? 'text-foreground' : 'text-rose-500'}`}
+            className={`mt-1.5 ${MONEY_PAIR_CLASS} ${ok ? 'text-foreground' : MONEY_NEGATIVE_CLASS}`}
             data-testid="dashboard-safe-to-spend-amount"
           >
             {ok ? (

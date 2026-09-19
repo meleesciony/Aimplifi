@@ -261,7 +261,35 @@ export default async function DashboardPage({
         />
       )}
 
-      <SafeToSpendCard plan={plan} disclosures={plan.disclosures} />
+      {/* Stage: cash-needed first in the DOM so phones and desktop agree.
+          Guilt-free is the pair. Plan form is off this fold. */}
+      <div className="grid gap-3 lg:grid-cols-5 lg:gap-4" data-testid="home-stage">
+        <div className="lg:col-span-3">
+          <CashNeededCard
+            result={data.payInFull}
+            paymentAccountName={data.paymentAccountName}
+            today={data.today}
+            transferSource={transferSource}
+            householdName={data.scope === 'household' ? data.household?.name ?? null : null}
+            accountOwnerLabel={data.accountOwnerLabel}
+            cardDuplicates={data.cardDuplicates}
+            cardIdentity={cardIdentity}
+            canAddStatementById={canAddStatementById}
+            cardBilling={cardBilling}
+          />
+        </div>
+        <div className="lg:col-span-2">
+          <SafeToSpendCard plan={plan} disclosures={plan.disclosures} />
+        </div>
+      </div>
+
+      <RecentTransactionsCard recent={recent} canRenamePayee={!isDemoUser(session.user.id)} categoryGroups={categoryGroups} accounts={accounts} />
+
+      <TodayFeedCard
+        feed={nudgeFeed}
+        feedAll={nudgeFeedAll}
+        canManageIncomePause={session.user.id !== DEMO_USER_ID}
+      />
 
       <div data-testid="home-plan-figures">
         <PlanFiguresForm
@@ -277,27 +305,6 @@ export default async function DashboardPage({
           canEdit={!isDemoUser(session.user.id)}
         />
       </div>
-
-      <CashNeededCard
-        result={data.payInFull}
-        paymentAccountName={data.paymentAccountName}
-        today={data.today}
-        transferSource={transferSource}
-        householdName={data.scope === 'household' ? data.household?.name ?? null : null}
-        accountOwnerLabel={data.accountOwnerLabel}
-        cardDuplicates={data.cardDuplicates}
-        cardIdentity={cardIdentity}
-        canAddStatementById={canAddStatementById}
-        cardBilling={cardBilling}
-      />
-
-      <RecentTransactionsCard recent={recent} canRenamePayee={!isDemoUser(session.user.id)} categoryGroups={categoryGroups} accounts={accounts} />
-
-      <TodayFeedCard
-        feed={nudgeFeed}
-        feedAll={nudgeFeedAll}
-        canManageIncomePause={session.user.id !== DEMO_USER_ID}
-      />
 
       {returnMoment && <ReturnMomentCard moment={returnMoment} />}
 

@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * App navigation (DECISIONS #187 / Gap 3 §2):
- * - sm+: full labelled text links in the header (unchanged).
+ * App navigation (DECISIONS #187 / Gap 3 §2, revised #757):
+ * - sm+: grouped sidebar (primary / money / explore) — labels only;
+ *   replacing the wrapping 19-pill header that read as a sitemap.
  * - phones: five primary destinations in the fixed bottom tab bar; secondary
- *   destinations live in a labelled "More" sheet opened from the header —
- *   replacing the old 8 unlabeled top icons (ROADMAP / COMPETITIVE_GAP_PLAN).
+ *   destinations live in a labelled "More" sheet opened from the header.
  *
  * prefetch={false} on ALL nav links (#166): every revalidatePath invalidated
  * the router cache and re-fired ~12 nav prefetches at once; a post-action
@@ -17,6 +17,8 @@ import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Menu, Search, X } from 'lucide-react';
 
+import { BrandMark } from '@/components/brand-mark';
+import { SignOutButton } from '@/components/auth/sign-out-button';
 import {
   PRIMARY_DESTINATIONS,
   SHEET_DESTINATIONS,
@@ -24,26 +26,11 @@ import {
 } from '@/lib/nav/destinations';
 import { searchDestinations } from '@/lib/nav/search';
 
-/**
- * The three lists are now VIEWS of `NAV_DESTINATIONS`, not their own arrays.
- *
- * They used to be three hand-maintained tuples of `{href, label, icon, testid}` — fourteen bare
- * nouns, four of which are near-synonyms (Plan is /spending-plan, Spending is /budgets, and
- * Reports and Trends are both charts of spending). The owner's report was that finding anything
- * meant hunting a menu, and that "a new user wouldn't have this knowledge": with nothing but a
- * label to go on, choosing between those four IS knowledge you have to already have.
- *
- * Descriptions and search keywords live in `@/lib/nav/destinations` so they can be unit-tested
- * against each other (a description that fails to distinguish its neighbours is a test failure,
- * not a matter of taste) and so a route can never again be added to a menu without saying what
- * it is for.
- */
 const PRIMARY = PRIMARY_DESTINATIONS;
 const SHEET = SHEET_DESTINATIONS;
 
-function topLinkClass(active: boolean) {
-  // shrink-0 so wrapped desktop rows keep whole labels (never squash into Sign out).
-  return `shrink-0 rounded-full px-2 py-1 text-sm sm:px-2.5 sm:py-1.5 ${
+function sidebarLinkClass(active: boolean) {
+  return `flex min-w-0 items-start gap-2 rounded-lg px-2 py-1.5 text-sm ${
     active
       ? 'bg-accent font-medium text-foreground'
       : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -61,36 +48,44 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
 
   const closeMore = useCallback(() => {
     setMoreOpen(false);
-    // Reopening to someone else's leftover filter looks like a menu that has lost items — the
-    // exact "where did it go" this slice exists to remove.
     setQuery('');
   }, []);
 
-  // Escape closes the sheet; restore focus to the trigger.
-  // Route changes close via onClick on sheet + bottom-tab links (no pathname
-  // setState-in-effect — react-hooks/set-state-in-effect).
   useEffect(() => {
     if (!moreOpen) return;
+    document.getElementById(searchId)?.focus();
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        // `closeMore`, not a bare `setMoreOpen(false)`: there are THREE ways to close this sheet
-        // (Escape, the X, the backdrop) and closing now also has to reset the search. Escape was
-        // the one that took its own path and kept the filter, so reopening showed a menu missing
-        // most of its items — `fence-by-construction-not-per-call-site`, at the smallest scale.
         closeMore();
         moreBtnRef.current?.focus();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const sheet = document.getElementById('nav-more-sheet');
+      if (!sheet) return;
+      const focusable = [...sheet.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled])',
+      )];
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
       }
     }
     document.addEventListener('keydown', onKey);
-    // Soft lock: prevent background scroll while the sheet is open.
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [moreOpen, closeMore]);
+  }, [moreOpen, closeMore, searchId]);
 
   const secondaryActive = SHEET.some((i) => isActive(i.href));
 
@@ -98,52 +93,24 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
   const money = matches.filter((d) => d.group === 'money');
   const explore = matches.filter((d) => d.group === 'explore');
 
+  const wordmark = (
+    <Link
+      href="/dashboard"
+      className="flex shrink-0 items-center gap-2 text-base font-bold tracking-tight sm:text-lg"
+    >
+      <BrandMark className="size-5 sm:size-6" />
+      Aimplifi
+    </Link>
+  );
+
   return (
     <>
-      {/* flex-1 + wrap on sm+: links share the header row with Sign out (sibling)
-          without overlapping it; phones keep a single-line brand + More. */}
+      <div data-testid="main-nav">
       <nav
-        className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5 sm:gap-x-0.5 sm:gap-y-1"
+        className="flex min-w-0 items-center justify-between gap-3 border-b border-border/70 px-4 py-3 sm:hidden"
         aria-label="Main"
-        data-testid="main-nav"
       >
-        <Link href="/dashboard" className="mr-1 shrink-0 text-base font-bold tracking-tight sm:mr-2.5 sm:text-lg">
-          Aim<span className="text-brand-500">plifi</span>
-        </Link>
-
-        {/* Desktop: full labelled set */}
-        {PRIMARY.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            prefetch={false}
-            data-testid={item.testid}
-            aria-current={isActive(item.href) ? 'page' : undefined}
-            className={`hidden sm:inline-flex ${topLinkClass(isActive(item.href))}`}
-          >
-            {item.label}
-            {item.href === '/triage' && reviewBadge}
-          </Link>
-        ))}
-        {SHEET.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            prefetch={false}
-            // Desktop-only testids (phones use the More-sheet copies — never both
-            // mounted). Prefix keeps mobile e2e on nav-* sheet links unambiguous.
-            data-testid={`desktop-${item.testid}`}
-            aria-current={isActive(item.href) ? 'page' : undefined}
-            // The desktop row has no space for a description, so it carries one as a tooltip —
-            // "Plan" vs "Spending" vs "Reports" vs "Trends" is unguessable from the label here too.
-            title={item.description}
-            className={`hidden sm:inline-flex ${topLinkClass(isActive(item.href))}`}
-          >
-            {item.label}
-          </Link>
-        ))}
-
-        {/* Phones: one labelled More control replaces the old 8-icon strip */}
+        {wordmark}
         <button
           ref={moreBtnRef}
           type="button"
@@ -152,7 +119,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
           aria-controls="nav-more-sheet"
           aria-haspopup="dialog"
           onClick={() => setMoreOpen((o) => !o)}
-          className={`ml-auto flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium sm:hidden ${
+          className={`ml-auto flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium ${
             moreOpen || secondaryActive
               ? 'bg-brand-500/15 text-brand-500'
               : 'bg-accent/60 text-foreground'
@@ -161,10 +128,52 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
           {moreOpen ? <X className="size-4" aria-hidden /> : <Menu className="size-4" aria-hidden />}
           More
         </button>
+        <SignOutButton />
       </nav>
 
-      {/* More sheet — phones only; labelled 2-col grid (Gap 3 §2).
-          Fragment (not a flow wrapper) so opening it doesn't steal header flex space. */}
+      <aside
+        className="sticky top-0 hidden h-svh w-56 shrink-0 flex-col overflow-y-auto border-r border-border/70 bg-background/90 px-3 py-4 sm:flex"
+        aria-label="Main"
+        data-testid="desktop-sidebar"
+      >
+        <div className="mb-4 px-2">{wordmark}</div>
+        <SidebarGroup label="Daily">
+          {PRIMARY.map((item) => (
+            <SidebarRow
+              key={item.href}
+              item={item}
+              active={isActive(item.href)}
+              testid={item.testid}
+              reviewBadge={item.href === '/triage' ? reviewBadge : undefined}
+            />
+          ))}
+        </SidebarGroup>
+        <SidebarGroup label="Money & accounts">
+          {SHEET.filter((d) => d.group === 'money').map((item) => (
+            <SidebarRow
+              key={item.href}
+              item={item}
+              active={isActive(item.href)}
+              testid={`desktop-${item.testid}`}
+            />
+          ))}
+        </SidebarGroup>
+        <SidebarGroup label="Explore">
+          {SHEET.filter((d) => d.group === 'explore').map((item) => (
+            <SidebarRow
+              key={item.href}
+              item={item}
+              active={isActive(item.href)}
+              testid={`desktop-${item.testid}`}
+            />
+          ))}
+        </SidebarGroup>
+        <div className="mt-auto border-t border-border/60 pt-3">
+          <SignOutButton testId="desktop-sign-out-form" />
+        </div>
+      </aside>
+      </div>
+
       {moreOpen ? (
         <>
           <button
@@ -172,7 +181,10 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
             aria-label="Close menu"
             data-testid="nav-more-backdrop"
             className="fixed inset-0 z-[45] bg-black/50 backdrop-blur-[2px] sm:hidden"
-            onClick={closeMore}
+            onClick={() => {
+              closeMore();
+              moreBtnRef.current?.focus();
+            }}
           />
           <div
             id="nav-more-sheet"
@@ -181,8 +193,6 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
             aria-labelledby={sheetTitleId}
             data-testid="nav-more-sheet"
             className="nav-more-sheet pointer-events-auto fixed inset-x-0 bottom-0 z-50 flex max-h-[min(78vh,36rem)] flex-col rounded-t-2xl border-t border-border/80 bg-background shadow-[0_-12px_40px_rgba(0,0,0,0.35)] sm:hidden"
-            // Sit above the bottom tab bar + safe area so tabs stay reachable
-            // and the sheet doesn't cover the home indicator.
             style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
           >
             <div className="flex shrink-0 items-center justify-between px-4 pb-2 pt-3">
@@ -206,10 +216,6 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
               </button>
             </div>
 
-            {/* Search sits ABOVE the list and filters it; it never replaces it. An empty query
-                shows the whole menu, so a reader who ignores the box sees exactly what they saw
-                before it existed, and one who uses it can type their own word — "subscriptions"
-                for Recurring, "401k" for Investments — instead of recognising the app's. */}
             <div className="shrink-0 px-3 pb-3">
               <label htmlFor={searchId} className="sr-only">
                 Search all sections
@@ -234,8 +240,6 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
 
             <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
               {matches.length === 0 ? (
-                // A real state, given its own words. An empty list and a menu that failed to load
-                // look identical, and only one of them is the reader's fault.
                 <p className="px-1 py-6 text-center text-sm text-muted-foreground" data-testid="nav-more-empty">
                   Nothing here matches “{query}”. Try a word you would use for it — “bills”,
                   “targets”, “balance”.
@@ -282,10 +286,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
         </>
       ) : null}
 
-      {/* bottom tab bar — phones only; five primary destinations unchanged */}
       <nav
-        // pointer-events-none on the strip so content scrolled flush to the
-        // viewport bottom stays clickable; links re-enable their own events
         className="pb-safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-40 flex border-t border-border/70 bg-background/90 backdrop-blur-md sm:hidden"
         aria-label="Primary"
         data-testid="bottom-nav"
@@ -301,7 +302,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
               aria-current={active ? 'page' : undefined}
               data-testid={`bottom-${item.testid}`}
               onClick={closeMore}
-              className={`pointer-events-auto relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] ${
+              className={`pointer-events-auto relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${
                 active
                   ? 'text-brand-500 before:absolute before:inset-x-5 before:top-0 before:h-0.5 before:rounded-full before:bg-brand-500'
                   : 'text-muted-foreground'
@@ -320,13 +321,60 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
   );
 }
 
-/**
- * One destination in the More sheet: icon, name, and the line saying what it answers.
- *
- * Single column rather than the old 2-col tile grid, because the descriptions are the fix and
- * they do not fit two-up at 380px. The sheet already scrolls; fourteen legible rows beat fourteen
- * ambiguous nouns that happen to fit on one screen.
- */
+function SidebarGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-4">
+      <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <ul className="space-y-0.5">{children}</ul>
+    </div>
+  );
+}
+
+/** Labels that collide without a line of copy (Plan / Spending / Reports / Trends). */
+const DESCRIBED_SIDEBAR = new Set(['/spending-plan', '/budgets', '/reports', '/trends']);
+
+function SidebarRow({
+  item,
+  active,
+  testid,
+  reviewBadge,
+}: {
+  item: NavDestination;
+  active: boolean;
+  testid: string;
+  reviewBadge?: React.ReactNode;
+}) {
+  const Icon = item.icon;
+  const described = DESCRIBED_SIDEBAR.has(item.href);
+  return (
+    <li>
+      <Link
+        href={item.href}
+        prefetch={false}
+        data-testid={testid}
+        aria-current={active ? 'page' : undefined}
+        title={item.description}
+        className={sidebarLinkClass(active)}
+      >
+        <Icon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <span className="min-w-0">
+          <span className="flex items-center gap-1">
+            {item.label}
+            {reviewBadge}
+          </span>
+          {described ? (
+            <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
+              {item.description}
+            </span>
+          ) : null}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
 function SheetRow({
   item,
   active,
@@ -358,8 +406,6 @@ function SheetRow({
         >
           <Icon className="size-4" aria-hidden />
         </span>
-        {/* min-w-0 down to the text: the mobile-overflow lesson — every flex item in the chain,
-            or a long description pushes the row past the viewport on iOS Safari. */}
         <span className="min-w-0 flex-1">
           <span
             className={`block text-sm font-medium leading-tight ${

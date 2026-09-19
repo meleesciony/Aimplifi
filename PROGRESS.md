@@ -13,6 +13,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-12_to_2026-09-14.md` (rotated 2026-09-19).
 > Only sessions from 2026-09-16 onward live here; append new sessions at the top as before.
 
+## 2026-09-19 — Visual IA: grouped sidebar, Home stage, Coach chapters (DECISIONS #757)
+
+**Picked up.** Owner: “i agree; keep working on it until worst critic gets to a 9.” After the live UI review (Craft 6 / Identity 4 / Composition 5 / IA 4 / Mobile 7).
+
+**Closed.** Sidebar, Home stage, Coach `<details>` chapters, money tokens, BrandMark. Critic cycle 3 PASS UX 9 / 0 P0 / 0 P1.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8583 passed + 1 expected fail + 1 skipped / 636 files + 1 skipped**, next build clean. Playwright: home-stage 2/2, coach-chapters 2/2 (380 collapse), phase1 2/2, desktop-header 1/1, mobile-nav 2/2, phase3-coach 1/1.
+
+**Ledgers.** DECISIONS #757 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #757.
+
+**Ship.** Pending this turn's push + `ci-status.sh` + live marker.
+
 ## 2026-09-19 — O.20j residual (10): trim sibling plaidItemId === so same-item copies stay two accounts (DECISIONS #756)
 
 **Picked up.** Owner: "Continue." Tree even with `origin/main` at `81c93aad` (#755 ship-gate; CI 35404635879 SUCCESS). Queue scan: Wave 0 ops owner-executed (writes still owner-run). Strongest money-identity residual: #755 critic P2-1 — sibling `plaidItemId ===` untrimmed.

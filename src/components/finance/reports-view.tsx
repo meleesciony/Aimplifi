@@ -20,6 +20,7 @@ import {
 } from '@/lib/engine/glass-box/category-breakdown';
 import { MonthFlowPanel } from '@/components/finance/month-flow-panel';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { CATEGORY_LINK_CLASS } from '@/lib/engine/transactions/links';
 import { HOME_NEEDS_FILE_HREF, NEEDS_A_CATEGORY_LINK_LABEL } from '@/lib/copy/home-needs-file-copy';
 import { formatMonth } from '@/lib/dates';
@@ -285,7 +286,7 @@ export function ReportsView({
           vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
       <CurrencyExclusionBanner summary={withheld} />
       <div className="flex items-baseline justify-between">
-        <h1 className="text-lg font-semibold">Reports</h1>
+        <h1 className={PAGE_TITLE_CLASS}>Reports</h1>
         <Link href="/trends" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
           See trends →
         </Link>

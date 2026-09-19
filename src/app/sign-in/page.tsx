@@ -4,8 +4,9 @@ import { SESSION_IDLE_TIMEOUT_MINUTES, SESSION_REMEMBER_TIMEOUT_DAYS } from '@/a
 import { auth } from '@/auth';
 import { DemoSignInButton } from '@/components/auth/demo-sign-in-button';
 import { EmailPasswordForm } from '@/components/auth/email-password-form';
+import { BrandMark } from '@/components/brand-mark';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { SIGN_IN_DEMO_FOOTNOTE } from '@/lib/copy/onboarding-empty-copy';
 import { googleSignIn } from '@/server/auth-actions';
 
@@ -19,9 +20,10 @@ export default async function SignInPage() {
     <main className="relative flex min-h-screen items-center justify-center p-4">
       <Card className="relative w-full max-w-sm border-border/80 shadow-lg ring-1 ring-foreground/5">
         <CardHeader>
-          <CardTitle className="text-2xl font-semibold tracking-tight">
-            Aim<span className="text-brand-500">plifi</span>
-          </CardTitle>
+          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+            <BrandMark className="size-7" />
+            Aimplifi
+          </h1>
           <CardDescription className="leading-relaxed">
             Aimplifi makes you deliberately wealthier — a financial coach with a bank feed:
             it shows where your money actually goes, protects the spending you love, and
@@ -49,17 +51,19 @@ export default async function SignInPage() {
           <p className="text-xs text-muted-foreground" data-testid="sign-in-demo-footnote">
             {SIGN_IN_DEMO_FOOTNOTE}
           </p>
-          <p
-            className="text-[11px] leading-relaxed text-muted-foreground"
-            data-testid="session-timeout-notice"
-          >
-            For your security, Aimplifi signs you out after{' '}
-            {SESSION_IDLE_TIMEOUT_MINUTES} minutes without activity, so a closed laptop or a
-            shared computer doesn&rsquo;t stay signed in. Using the app keeps you signed in.
-            Check &ldquo;Remember me on this device&rdquo; to stay signed in for{' '}
-            {SESSION_REMEMBER_TIMEOUT_DAYS} days on this computer — not on a shared or public
-            one.
-          </p>
+          <details className="group text-[11px] leading-relaxed text-muted-foreground">
+            <summary className="cursor-pointer hover:text-foreground" data-testid="session-timeout-summary">
+              Session &amp; security
+            </summary>
+            <p className="mt-2" data-testid="session-timeout-notice">
+              For your security, Aimplifi signs you out after{' '}
+              {SESSION_IDLE_TIMEOUT_MINUTES} minutes without activity, so a closed laptop or a
+              shared computer doesn&rsquo;t stay signed in. Using the app keeps you signed in.
+              Check &ldquo;Remember me on this device&rdquo; to stay signed in for{' '}
+              {SESSION_REMEMBER_TIMEOUT_DAYS} days on this computer — not on a shared or public
+              one.
+            </p>
+          </details>
           <p id="auth-remember-hint" className="sr-only">
             Stays signed in for {SESSION_REMEMBER_TIMEOUT_DAYS} days on this device. Do not use
             on a shared or public computer.

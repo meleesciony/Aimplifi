@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  MONEY_DISPLAY_CLASS,
+  MONEY_NEGATIVE_CLASS,
+  MONEY_PAIR_CLASS,
   PAGE_LEAD_CLASS,
   PAGE_LEAD_WIDE_CLASS,
   PAGE_SECTION_LABEL_CLASS,
@@ -71,5 +74,30 @@ describe('PAGE_SECTION_LABEL_CLASS', () => {
     for (const util of ['text-xs', 'uppercase', 'tracking-wide', 'text-muted-foreground']) {
       expect(PAGE_SECTION_LABEL_CLASS.split(' ')).toContain(util);
     }
+  });
+});
+
+describe('money type tokens', () => {
+  it('does not let the spending-plan hero fight the display token with font-bold', () => {
+    const hero = readFileSync(resolve('src/app/(app)/spending-plan/page.tsx'), 'utf8');
+    expect(hero).toContain('MONEY_DISPLAY_CLASS');
+    expect(hero).not.toMatch(/font-bold \$\{MONEY_DISPLAY_CLASS\}/);
+  });
+
+  it('gives the stage number a display scale', () => {
+    for (const util of ['text-3xl', 'tabular-nums', 'sm:text-4xl']) {
+      expect(MONEY_DISPLAY_CLASS.split(' ')).toContain(util);
+    }
+  });
+
+  it('keeps the pair number smaller than the stage', () => {
+    expect(MONEY_PAIR_CLASS.split(' ')).toContain('text-2xl');
+    expect(MONEY_PAIR_CLASS.split(' ')).toContain('font-semibold');
+    expect(MONEY_PAIR_CLASS).not.toContain('text-3xl');
+    expect(MONEY_PAIR_CLASS).not.toContain('font-bold');
+  });
+
+  it('uses one red for negative money', () => {
+    expect(MONEY_NEGATIVE_CLASS).toBe('text-red-500');
   });
 });

@@ -22,6 +22,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-19 — Visual IA: grouped sidebar, Home stage, Coach chapters (DECISIONS #757)
+
+**The hole.** Live www.aimplifi.app review: wrapping 19-pill desktop nav, Home as a feature dump, Coach as a 7,076px essay. Critic cycle 1: UX 5, 4 P1s. Cycle 2: UX 7, 2 P1s (labeled feed; 19 bare nouns).
+
+**Shipped.** Grouped desktop sidebar (4 synonym rows described). Home `home-stage` cash-needed first; pair token; plan form off the fold; compact cash-needed so guilt-free finishes ≤800 at 380. Coach three `<details>` chapters, Now open, others closed until jump. Brand mark + uncolored wordmark; sign-in `<h1>`. Money display/pair/negative tokens. No schema change.
+
+**Critic (fresh context): cycle 3 PASS UX 9 / 0 P0 / 0 P1 / 4 P2.** Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8583 passed + 1 expected fail + 1 skipped / 636 files + 1 skipped**. Playwright: home-stage 2/2, coach-chapters 2/2, phase1 2/2, desktop-header 1/1, mobile-nav 2/2, phase3-coach 1/1.
+
+**CI + live.** Pending this push.
+
+**Still open / residuals.** (1) **P2-1:** chapter summaries hide the disclosure marker with no chevron. (2) **P2-2:** same-hash Trajectory re-click is a no-op. (3) **P2-3:** Trajectory lead is IA voice. (4) **P2-4:** Habits collapse and desktop description text are not e2e-locked. (5) Home below the stage is still a long stack. (6) Coach SSR still ships every card in the DOM. (7) M.4 route-by-route restyle remains owner-eyeball-gated.
+
 ## ✅ BUILT 2026-09-19 — O.20j residual (10): trim sibling plaidItemId === so same-item copies stay two accounts (DECISIONS #756)
 
 **The hole.** #755 critic P2-1: lookup and map keys trimmed, sibling `===` raw. A padded vs clean item id folded same-item copies on last-4.

@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation';
 import { DEMO_USER_ID, auth } from '@/auth';
 import { AppNav } from '@/components/app-nav';
 import { AutoSync } from '@/components/auto-sync';
-import { SignOutButton } from '@/components/auth/sign-out-button';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
@@ -13,8 +12,10 @@ async function ReviewBadge({ userId }: { userId: string }) {
   if (count === 0) return null;
   return (
     <span
+      role="status"
       className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-800 px-1 text-[10px] font-semibold text-white"
       data-testid="review-badge"
+      aria-label={`${count} to review`}
     >
       {count}
     </span>
@@ -47,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     })) !== null;
 
   return (
-    <div className="pb-bottom-nav mx-auto max-w-5xl px-4 sm:px-6">
+    <div className="sm:flex sm:min-h-screen">
       <AutoSync enabled={hasSimplefin} plaid={hasPlaid} />
       <a
         href="#content"
@@ -55,33 +56,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       >
         Skip to content
       </a>
-      {/* sticky glass header on desktop; on phones it stays static (the fixed
-          bottom tab bar is the primary nav there, and a sticky top bar trips a
-          mobile scroll-into-view quirk) */}
-      {/* items-center on phones (brand + More + Sign out on one row); items-start
-          on sm+ so a wrapped link row doesn't vertically center Sign out into it.
-          Sign-out shrink-0: never share width with the 13 desktop text links (#188). */}
-      <header className="-mx-4 flex items-center justify-between gap-3 border-b border-border/70 bg-background/90 px-4 py-3 sm:sticky sm:top-0 sm:z-30 sm:items-start sm:-mx-6 sm:bg-background/75 sm:px-6 sm:py-3.5 sm:backdrop-blur-md sm:supports-[backdrop-filter]:bg-background/55">
-        <AppNav reviewBadge={<ReviewBadge userId={session.user.id} />} />
-        <SignOutButton />
-      </header>
-      {isDemo && (
-        <p
-          className="mb-4 mt-3 inline-flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-xs text-muted-foreground"
-          data-testid="demo-banner"
-        >
-          <span className="inline-block size-1.5 shrink-0 rounded-full bg-brand-500" aria-hidden />
-          Demo dataset · fictional accounts · as of {formatISODate(isoDate(today), 'long')}
-        </p>
-      )}
-      <main id="content" tabIndex={-1} className="pt-4 outline-none sm:pt-6">
-        {children}
-      </main>
-      <footer className="mt-12 border-t border-border/70 pt-6 text-xs leading-relaxed text-muted-foreground">
-        Aimplifi is an educational tool, not financial advice. Projections
-        state their assumptions; verify amounts with your card issuer before
-        paying.
-      </footer>
+      <AppNav reviewBadge={<ReviewBadge userId={session.user.id} />} />
+      <div className="pb-bottom-nav mx-auto min-w-0 w-full max-w-5xl flex-1 px-4 sm:px-6">
+        {isDemo && (
+          <p
+            className="mb-2 mt-2 inline-flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-xs text-muted-foreground"
+            data-testid="demo-banner"
+          >
+            <span className="inline-block size-1.5 shrink-0 rounded-full bg-brand-500" aria-hidden />
+            Demo dataset · fictional accounts · as of {formatISODate(isoDate(today), 'long')}
+          </p>
+        )}
+        <main id="content" tabIndex={-1} className="pt-3 outline-none sm:pt-6">
+          {children}
+        </main>
+        <footer className="mt-12 border-t border-border/70 pt-6 text-xs leading-relaxed text-muted-foreground">
+          Aimplifi is an educational tool, not financial advice. Projections
+          state their assumptions; verify amounts with your card issuer before
+          paying.
+        </footer>
+      </div>
     </div>
   );
 }

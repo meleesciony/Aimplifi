@@ -749,3 +749,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #754 — O.20j residual (8): trim plaidItemId before the live institution join (2026-09-18) → docs/DECISIONS.md
 - #755 — O.20j residual (9): trim live-map keys so a padded stored itemId still joins (2026-09-18) → docs/DECISIONS.md
 - #756 — O.20j residual (10): trim sibling plaidItemId === so same-item copies stay two accounts (2026-09-19) → docs/DECISIONS.md
+- #757 — Visual IA: grouped sidebar, Home stage, Coach chapters (2026-09-19) → docs/DECISIONS.md

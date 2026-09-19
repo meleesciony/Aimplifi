@@ -16,6 +16,7 @@ import { resolveInvestmentScope } from '@/lib/engine/investments/scope';
 import { allocationSegments } from '@/lib/engine/investments/panel';
 import { AllocationDrilldown } from '@/components/finance/allocation-drilldown';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { RetirementOutlookCard } from '@/components/finance/retirement-outlook-card';
 import type { WithheldAccountSummary } from '@/lib/providers/currency';
 import type { InvestmentsView as InvestmentsData, RetirementOutlook } from '@/server/investments';
@@ -56,7 +57,7 @@ export function InvestmentsView({
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex items-baseline justify-between">
-        <h1 className="text-lg font-semibold">Investments</h1>
+        <h1 className={PAGE_TITLE_CLASS}>Investments</h1>
         <Link href="/accounts" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
           Accounts →
         </Link>

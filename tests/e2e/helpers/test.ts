@@ -57,6 +57,12 @@ async function installRevealDrain(context: BrowserContext): Promise<void> {
   if (installed.has(context)) return;
   installed.add(context);
   await context.addInitScript(revealDrainScript(REVEAL_DRAIN_INTERVAL_MS));
+  // Harness only: open Coach details so existing specs can reach Trajectory /
+  // Habits cards. Production first-paint stays closed. The collapse lock sets
+  // `__AIMPLIFI_E2E_KEEP_COACH_CLOSED` before navigation.
+  await context.addInitScript(() => {
+    (window as Window & { __AIMPLIFI_E2E_OPEN_COACH?: boolean }).__AIMPLIFI_E2E_OPEN_COACH = true;
+  });
 }
 
 export const test = base.extend({

@@ -53,4 +53,12 @@ describe('sign-in page demo CTA wiring (source lock)', () => {
     expect(button).toContain('data-testid="demo-sign-in"');
     expect(button).toContain('Explore the demo');
   });
+
+  it('test_regression__sign_in_has_a_real_h1_and_uncolored_wordmark', () => {
+    const page = readFileSync(join(process.cwd(), 'src/app/sign-in/page.tsx'), 'utf8');
+    expect(page).toMatch(/<h1[\s\S]*Aimplifi/);
+    expect(page).not.toContain('text-brand-500">plifi');
+    expect(page).toContain('BrandMark');
+  });
 });
+

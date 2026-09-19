@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { GlassBoxNumber } from '@/components/finance/glass-box';
+import { MONEY_DISPLAY_CLASS } from '@/components/finance/page-chrome';
 import {
   CARD_DUPLICATE_PAIR_TESTID,
   CARD_DUPLICATE_TESTID,
@@ -236,8 +237,8 @@ export function CashNeededCard({
   );
 
   return (
-    <Card data-testid="cash-needed-card" className="border-positive-900/40">
-      <CardHeader className="pb-2">
+    <Card data-testid="cash-needed-card" size="sm" className="border-positive-900/40">
+      <CardHeader className="pb-1.5">
         <CardDescription>Cash needed for cards this cycle</CardDescription>
         <GlassBoxNumber
           // TASKS L.15 (f): the tapped breakdown lists both rows of the pair inside the very
@@ -252,7 +253,7 @@ export function CashNeededCard({
             new Set(Object.keys(accountOwnerLabel)),
           )}
           amountTestId="cash-needed-amount"
-          amountClassName="text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl"
+          amountClassName={MONEY_DISPLAY_CLASS}
           engagementSubjectKey="cash-needed"
         >
           <p className="text-sm text-muted-foreground" data-testid="cash-needed-headline">
@@ -275,7 +276,7 @@ export function CashNeededCard({
           </p>
         </GlassBoxNumber>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-2">
         {/* Below the figure it qualifies and ABOVE the transfer instruction derived from it
             (the /cards placement rule): "Transfer $X by Friday" is the sentence a double-counted
             card corrupts, so the reader must meet the caveat before the imperative. */}
@@ -383,7 +384,7 @@ export function CashNeededCard({
           </Alert>
         )}
 
-        <ul className="space-y-1.5" data-testid="due-date-list">
+        <ul className="space-y-1 text-xs sm:text-sm" data-testid="due-date-list">
           {result.perDueDate.map((point) => (
             <li
               key={point.date}

@@ -15,7 +15,7 @@ import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { doSignOut } from '@/server/auth-actions';
 
-export function SignOutButton() {
+export function SignOutButton({ testId = 'sign-out-form' }: { testId?: string } = {}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +42,7 @@ export function SignOutButton() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="shrink-0 sm:pt-0.5" data-testid="sign-out-form">
+    <form onSubmit={onSubmit} className="shrink-0 sm:pt-0.5" data-testid={testId}>
       <Button variant="ghost" size="sm" type="submit" disabled={busy}>
         {busy ? '…' : 'Sign out'}
       </Button>

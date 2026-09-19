@@ -13,6 +13,16 @@ considered. Append-only.
 > Only entries #742 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #757 — Visual IA: grouped sidebar, Home stage, Coach chapters (2026-09-19)
+
+**Context.** Live review of www.aimplifi.app (1280 / 390) scored Craft 6 / Identity 4 / Composition 5 / IA 4 / Mobile 7. Desktop nav wrapped 19 pills; Home dumped the plan form between heroes; Coach was a 7,076px essay. Owner: keep working until the worst critic scores 9.
+
+**Decision.** Desktop: grouped sidebar (Daily / Money / Explore), labels only except Plan / Spending / Reports / Trends (one-line descriptions). Phones: five tabs + More sheet (descriptions + search focus + Tab trap). Home `home-stage`: cash-needed first in the DOM (left on desktop, above on 380); guilt-free is the pair (`MONEY_PAIR_CLASS`); plan form after recent + today. Cash-needed card `size="sm"` so both amounts finish inside 800px. Coach: h1 "Coach"; chapters This month / Trajectory / Habits in source order; unread chapters are `<details>` closed (Now `defaultOpen`); goals + household in Now; Rich Life + money rules in Habits. Brand: `BrandMark` + uncolored "Aimplifi"; sign-in real `<h1>`. Money tokens: `MONEY_DISPLAY_CLASS` / `MONEY_PAIR_CLASS` / `MONEY_NEGATIVE_CLASS`. No schema change.
+
+**Locked.** `tests/unit/desktop-sidebar.test.ts`, `tests/unit/coach-chapters.test.ts`, `tests/unit/home-plan-figures.test.ts`, `tests/unit/page-chrome.test.ts`, `tests/unit/demo-sign-in.test.ts`. Playwright: `home-stage.spec.ts` (380 y-order + 1280 x-order), `coach-chapters.spec.ts` (order + 380 collapse), `phase1-cash-needed.spec.ts` (guilt ≤800), `desktop-header.spec.ts`, `mobile-nav.spec.ts` (search focused). Harness `__AIMPLIFI_E2E_OPEN_COACH` opens chapters for existing Coach specs; collapse spec sets `KEEP_COACH_CLOSED`.
+
+**Critic (fresh context, cycle 3): PASS UX 9 / 0 P0 / 0 P1 / 4 P2.** Cycle 1 FAIL UX 5 (4 P1). Cycle 2 FAIL UX 7 (2 P1: labeled feed; 19 bare nouns). Cycle 3 closed both. P2s: no chapter chevron; same-hash re-click no-op; Trajectory lead voice; Habits/desktop description not e2e-locked.
+
 ## #756 — O.20j residual (10): trim sibling plaidItemId === so same-item copies stay two accounts (2026-09-19)
 
 **Context.** #755 critic P2-1: the live-map join trims keys, but `sameIngestConnection`, `accountsOf`, and the `/accounts` card filters still used raw `plaidItemId ===`. A padded vs clean stored item id looked like two connections, so same-item copies folded on last-4 and a genuine transfer could vanish; padded accounts also disappeared from combine.

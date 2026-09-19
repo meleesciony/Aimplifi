@@ -45,7 +45,7 @@ test.describe('M.4 page-chrome walkthrough', () => {
     expect(radius).not.toBe('0px');
   });
 
-  test('desktop-1440: page title uses the shared type scale and nav links are pill-shaped', async ({ page }) => {
+  test('desktop-1440: page title uses the shared type scale and the sidebar is grouped', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/sign-in', { waitUntil: 'networkidle' });
     await page.click('[data-testid=demo-sign-in]');
@@ -57,8 +57,15 @@ test.describe('M.4 page-chrome walkthrough', () => {
       .first()
       .evaluate((el) => getComputedStyle(el).fontSize);
     expect(titleSize).toBe('30px');
-    const navClass = await page.getByTestId('main-nav').locator('a').nth(1).getAttribute('class');
-    expect(navClass).toContain('rounded-full');
+    await expect(page.getByTestId('desktop-sidebar')).toBeVisible();
+    const sidebarHeight = await page.getByTestId('desktop-sidebar').evaluate((el) => el.getBoundingClientRect().height);
+    // A wrapping pill header was ~97px; the sidebar is a column, not a second header row.
+    expect(sidebarHeight).toBeGreaterThan(200);
+    const headerH = await page.evaluate(() => {
+      const nav = document.querySelector('[data-testid=main-nav] nav');
+      return nav ? getComputedStyle(nav).display === 'none' : true;
+    });
+    expect(headerH).toBe(true);
   });
 
   // M.4 slice 4: the migrated card/panel labels now render through the shared

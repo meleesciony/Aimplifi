@@ -38,7 +38,7 @@ describe('doSignOut (DECISIONS #492)', () => {
 
 describe('app layout Sign out wiring (source lock)', () => {
   it('test_regression__sign_out_uses_client_onsubmit_not_form_action', () => {
-    const layout = readFileSync(join(process.cwd(), 'src/app/(app)/layout.tsx'), 'utf8');
+    const layout = readFileSync(join(process.cwd(), 'src/components/app-nav.tsx'), 'utf8');
     expect(layout).toContain('SignOutButton');
     expect(layout).not.toMatch(/form\s+action=\{doSignOut\}/);
     expect(layout).not.toMatch(/async function doSignOut/);
@@ -52,7 +52,8 @@ describe('app layout Sign out wiring (source lock)', () => {
     expect(button).toContain('onSubmit');
     expect(button).toContain("window.location.assign('/sign-in')");
     expect(button).toContain('ActionDeadline');
-    expect(button).toContain('data-testid="sign-out-form"');
+    expect(button).toContain("testId = 'sign-out-form'");
+    expect(button).toContain('data-testid={testId}');
     expect(button).toContain('Sign out');
     expect(button).toContain('variant="ghost"');
     expect(button).toContain('size="sm"');

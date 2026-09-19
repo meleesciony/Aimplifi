@@ -11,7 +11,11 @@ describe('Home mounts PlanFiguresForm', () => {
     const page = readFileSync(resolve('src/app/(app)/dashboard/page.tsx'), 'utf8');
     expect(page).toContain('PlanFiguresForm');
     expect(page).toContain('home-plan-figures');
+    expect(page).toContain('home-stage');
     expect(page).toContain('SafeToSpendCard');
+    expect(page.indexOf('home-stage')).toBeLessThan(page.indexOf('home-plan-figures'));
+    expect(page.indexOf('CashNeededCard')).toBeLessThan(page.indexOf('SafeToSpendCard'));
+    expect(page.indexOf('CashNeededCard')).toBeLessThan(page.indexOf('home-plan-figures'));
     const actions = readFileSync(resolve('src/server/plan-override-actions.ts'), 'utf8');
     expect(actions).toContain('updatePlanFigures');
     expect(actions).toContain("revalidatePath('/dashboard')");

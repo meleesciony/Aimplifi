@@ -38,7 +38,7 @@ export default function PrivacyPage() {
           href="/sign-in"
           className="text-sm font-semibold tracking-tight text-foreground hover:opacity-80"
         >
-          Aim<span className="text-brand-500">plifi</span>
+          Aimplifi
         </Link>
         <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
           {PRIVACY_POLICY.title}

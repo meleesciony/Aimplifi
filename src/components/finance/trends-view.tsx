@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { ArrowDownRight, ArrowUpRight, Gauge, Receipt, Sparkles, Store } from 'lucide-react';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents, sumCents } from '@/lib/money';
-import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
+import { PAGE_SECTION_LABEL_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import {
   CATEGORY_LINK_CLASS,
@@ -250,7 +250,7 @@ export function TrendsView({
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex items-baseline justify-between">
-        <h1 className="text-lg font-semibold">Spending trends</h1>
+        <h1 className={PAGE_TITLE_CLASS}>Spending trends</h1>
         <Link href="/reports" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
           See full reports →
         </Link>

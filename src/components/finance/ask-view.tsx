@@ -74,6 +74,7 @@ export function AskView({
   const [forgotten, setForgotten] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
   const [openFactKey, setOpenFactKey] = useState<string | null>(null);
+  const [showAllStarters, setShowAllStarters] = useState(false);
   const [correctingTxnId, setCorrectingTxnId] = useState<string | null>(null);
   const [lastCorrectionId, setLastCorrectionId] = useState<string | null>(null);
   // 'savedStale' / 'undoneStale': the write COMMITTED but the refreshed answer
@@ -292,7 +293,7 @@ export function AskView({
         {pending && <p className="text-sm text-muted-foreground">Thinking…</p>}
 
         {error && !pending && (
-          <p data-testid="ask-error" className="text-sm text-rose-600 dark:text-rose-400">
+          <p data-testid="ask-error" className="text-sm text-red-500">
             {error}
           </p>
         )}
@@ -381,7 +382,7 @@ export function AskView({
               </p>
             )}
             {correctionState === 'error' && (
-              <p data-testid="ask-correction-error" className="mt-2 text-sm text-rose-600 dark:text-rose-400">
+              <p data-testid="ask-correction-error" className="mt-2 text-sm text-red-500">
                 Couldn’t update that category — please try again.
               </p>
             )}
@@ -485,7 +486,7 @@ export function AskView({
                   </Link>
                 )}
                 {saveState === 'error' && (
-                  <span className="text-xs text-rose-600 dark:text-rose-400">Couldn’t save that — please try again.</span>
+                  <span className="text-xs text-red-500">Couldn’t save that — please try again.</span>
                 )}
               </div>
             )}
@@ -543,7 +544,7 @@ export function AskView({
         <div>
           <p className={PAGE_SECTION_LABEL_CLASS}>Try asking</p>
           <ul className="mt-2 flex flex-wrap gap-2">
-            {suggestions.map((s) => (
+            {(showAllStarters ? suggestions : suggestions.slice(0, 6)).map((s) => (
               <li key={s}>
                 <button
                   type="button"
@@ -556,6 +557,16 @@ export function AskView({
               </li>
             ))}
           </ul>
+          {suggestions.length > 6 && !showAllStarters ? (
+            <button
+              type="button"
+              data-testid="ask-more-suggestions"
+              onClick={() => setShowAllStarters(true)}
+              className="mt-2 text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              More questions
+            </button>
+          ) : null}
         </div>
       )}
 

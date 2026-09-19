@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
+import { MONEY_DISPLAY_CLASS, MONEY_NEGATIVE_CLASS, PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { PlanFiguresForm } from '@/components/finance/plan-figures-form';
 import { PlanRowActionLink } from '@/components/finance/plan-row-action-link';
@@ -138,8 +138,8 @@ export default async function SpendingPlanPage() {
         </p>
         <p
           data-testid="safe-to-spend"
-          className={`mt-1 text-5xl font-bold tabular-nums tracking-tight ${
-            positive ? 'text-foreground' : 'text-red-500'
+          className={`mt-1 ${MONEY_DISPLAY_CLASS} ${
+            positive ? 'text-foreground' : MONEY_NEGATIVE_CLASS
           }`}
         >
           {formatCents(cents(positive ? p.leftToSpendCents : -p.leftToSpendCents))}

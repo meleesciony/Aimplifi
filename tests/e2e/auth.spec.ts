@@ -37,7 +37,7 @@ test('email/password sign-up → empty onboarding → sign out → sign back in'
   });
 
   const routeEmpties: Array<{ path: string; testId: string; h1: string }> = [
-    { path: '/coach', testId: 'coach-empty', h1: 'FI Coach' },
+    { path: '/coach', testId: 'coach-empty', h1: 'Coach' },
     { path: '/goals', testId: 'goals-empty', h1: 'Goals' },
     { path: '/calendar', testId: 'calendar-empty', h1: 'Cash-flow calendar' },
     // 2026-07-21 agent review A3: /triage joins the route-specific empties — a bare
