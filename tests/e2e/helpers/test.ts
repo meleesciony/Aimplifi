@@ -61,7 +61,12 @@ async function installRevealDrain(context: BrowserContext): Promise<void> {
   // Habits cards. Production first-paint stays closed. The collapse lock sets
   // `__AIMPLIFI_E2E_KEEP_COACH_CLOSED` before navigation.
   await context.addInitScript(() => {
-    (window as Window & { __AIMPLIFI_E2E_OPEN_COACH?: boolean }).__AIMPLIFI_E2E_OPEN_COACH = true;
+    const w = window as Window & {
+      __AIMPLIFI_E2E_OPEN_COACH?: boolean;
+      __AIMPLIFI_E2E_OPEN_HOME?: boolean;
+    };
+    w.__AIMPLIFI_E2E_OPEN_COACH = true;
+    w.__AIMPLIFI_E2E_OPEN_HOME = true;
   });
 }
 

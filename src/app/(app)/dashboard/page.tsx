@@ -17,6 +17,7 @@ import { StaleDataBanner } from '@/components/finance/stale-data-banner';
 import { ConnectionAlertsCard } from '@/components/finance/connection-alerts-card';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { PushOptIn } from '@/components/settings/push-optin';
+import { HomeChapter } from '@/components/finance/home-chapter';
 import { PAGE_STACK_CLASS } from '@/components/finance/page-chrome';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
@@ -291,23 +292,6 @@ export default async function DashboardPage({
         canManageIncomePause={session.user.id !== DEMO_USER_ID}
       />
 
-      <div data-testid="home-plan-figures">
-        <PlanFiguresForm
-          suggestedIncomeCents={plan.suggestedIncomeCents}
-          patternFixedCents={plan.patternFixedCents}
-          reserveMonthlyCents={plan.reserveMonthlyCents}
-          incomeOverrideCents={plan.incomeOverrideCents}
-          fixedOverrideCents={plan.fixedOverrideCents}
-          savingsTargetBps={plan.savingsTargetBps}
-          incomeSlideCents={plan.incomeSlideCents}
-          fixedSlideCents={plan.fixedSlideCents}
-          hasSlide={plan.hasSlide}
-          canEdit={!isDemoUser(session.user.id)}
-        />
-      </div>
-
-      {returnMoment && <ReturnMomentCard moment={returnMoment} />}
-
       <GoalsProgressCard rows={goalRows} />
 
       <CurrencyExclusionBanner summary={withheld} />
@@ -315,40 +299,7 @@ export default async function DashboardPage({
       <StaleDataBanner summary={freshness} canSync={!isDemoUser(session.user.id) && linkedBank} />
       <ConnectionAlertsCard alerts={connectionAlerts} />
 
-      {canDeepenHistory ? (
-        <Card data-testid="home-deepen-history-card">
-          <CardHeader className="pb-2">
-            <CardDescription>Bank history</CardDescription>
-            <CardTitle className="text-base">Only seeing a few months?</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>
-              Pull a longer window from a bank you already connected — same deepen control as
-              Accounts. Aimplifi never moves money.
-            </p>
-            <div data-testid="deepen-history-panel">
-              <ConnectAccountsButton deepenHistory />
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {vapidPublicKey ? (
-        <Card data-testid="home-notifications-card">
-          <CardHeader className="pb-2">
-            <CardDescription>Proactive heads-ups</CardDescription>
-            <CardTitle className="text-base">Notifications</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>
-              Get a push when a card payment is due within a few days or your checking is on track to
-              dip below $0. Aimplifi never moves money — these are heads-ups so nothing catches you by
-              surprise.
-            </p>
-            <PushOptIn publicKey={vapidPublicKey} />
-          </CardContent>
-        </Card>
-      ) : null}
+      {returnMoment && <ReturnMomentCard moment={returnMoment} />}
 
       {showOnboarding && (
         <OnboardingNudge
@@ -363,72 +314,141 @@ export default async function DashboardPage({
         runwayMonths={coach.runwayMonths}
       />
 
-      {/* C.25 (#403, critic P2-B): the savings-rate, top-spending and pace
-          cards below all read flows the exclusion moved — name what left, or
-          say nothing when nothing did. The same composer /coach uses, scoped
-          to these cards (O.18e-FU) — one helper, per-surface claim. */}
-      {coach.loanPaymentExclusions.map((e, i) => (
-        <p key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`} className="text-xs text-muted-foreground" data-testid="dashboard-loan-payment-basis">
-          {loanPaymentBasisSentence(e, 'cards')}
-        </p>
-      ))}
-
-      {/* Charts + savings dial — keep; cut redundant how-to, not visualizations. */}
-      <div className="grid gap-5 sm:grid-cols-2">
-        <SavingsRateCard
-          flows={coach.flows}
-          streak={coach.streak}
-          currentRateBps={coach.currentRateBps}
-          monthFlows={coach.monthFlows}
-          savingsTargetBps={coach.savingsTargetBps}
-        />
-        <TopSpendingCard
-          breakdown={reports.breakdown}
-          breakdowns={reports.breakdowns}
-          ym={reports.ym}
-          notCountedYetCents={reports.notCountedYetCents}
-        />
-      </div>
-
-      <SpendingInsightsCard trends={trends} />
-
-      <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} runwayMonths={coach.runwayMonths} />
-      <Card data-testid="home-net-worth-export-card">
-        <CardHeader className="pb-2">
-          <CardDescription>Take your net worth with you</CardDescription>
-          <CardTitle className="text-base">Net worth export</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <a
-            href="/api/export?format=net-worth-csv"
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            data-testid="export-net-worth-csv"
-          >
-            Net worth (CSV)
-          </a>
-          <a
-            href="/api/export?format=net-worth-pdf"
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            data-testid="export-net-worth-pdf"
-          >
-            Net worth report (PDF)
-          </a>
-        </CardContent>
-      </Card>
-      {/* Mine-scope only: household net worth is a different set than the
-          FI card's income. Mixing them would invent a household PAW number. */}
-      {requestedScope === 'mine' && (
-        <>
-          <PawLensCard
-            netWorthCents={data.netWorthCents}
-            monthlyIncomeCents={coach.fi.monthlyIncomeCents}
-            incomeWindowMonths={coach.fi.monthlySavingsMonths}
+      <HomeChapter
+        id="home-adjust"
+        title="Adjust the plan"
+        lead="Income, savings and fixed costs that feed the guilt-free figure."
+      >
+        <div data-testid="home-plan-figures">
+          <PlanFiguresForm
+            suggestedIncomeCents={plan.suggestedIncomeCents}
+            patternFixedCents={plan.patternFixedCents}
+            reserveMonthlyCents={plan.reserveMonthlyCents}
+            incomeOverrideCents={plan.incomeOverrideCents}
+            fixedOverrideCents={plan.fixedOverrideCents}
+            savingsTargetBps={plan.savingsTargetBps}
+            incomeSlideCents={plan.incomeSlideCents}
+            fixedSlideCents={plan.fixedSlideCents}
+            hasSlide={plan.hasSlide}
+            canEdit={!isDemoUser(session.user.id)}
           />
-          {/* Mine-scope only: household net worth is a different set than
-              personal checking+savings. Not on /accounts: getCoachData
-              throws with zero accounts. */}
-          <IdleCashCard result={coach.idleCash} frozenLiquid={coach.frozenBalances.liquid} />
-        </>
+        </div>
+      </HomeChapter>
+
+      <HomeChapter
+        id="home-picture"
+        title="The picture"
+        lead="Savings rate, spending, net worth and the longer view."
+      >
+        {/* C.25 (#403, critic P2-B): the savings-rate, top-spending and pace
+            cards below all read flows the exclusion moved — name what left, or
+            say nothing when nothing did. The same composer /coach uses, scoped
+            to these cards (O.18e-FU) — one helper, per-surface claim. */}
+        {coach.loanPaymentExclusions.map((e, i) => (
+          <p key={`${e.payee}:${e.loanName}:${e.paymentCents}:${i}`} className="text-xs text-muted-foreground" data-testid="dashboard-loan-payment-basis">
+            {loanPaymentBasisSentence(e, 'cards')}
+          </p>
+        ))}
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <SavingsRateCard
+            flows={coach.flows}
+            streak={coach.streak}
+            currentRateBps={coach.currentRateBps}
+            monthFlows={coach.monthFlows}
+            savingsTargetBps={coach.savingsTargetBps}
+          />
+          <TopSpendingCard
+            breakdown={reports.breakdown}
+            breakdowns={reports.breakdowns}
+            ym={reports.ym}
+            notCountedYetCents={reports.notCountedYetCents}
+          />
+        </div>
+
+        <SpendingInsightsCard trends={trends} />
+
+        <NetWorthCard current={data.netWorthCents} trend={data.netWorthTrend} runwayMonths={coach.runwayMonths} />
+        <Card data-testid="home-net-worth-export-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Take your net worth with you</CardDescription>
+            <CardTitle className="text-base">Net worth export</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <a
+              href="/api/export?format=net-worth-csv"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              data-testid="export-net-worth-csv"
+            >
+              Net worth (CSV)
+            </a>
+            <a
+              href="/api/export?format=net-worth-pdf"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              data-testid="export-net-worth-pdf"
+            >
+              Net worth report (PDF)
+            </a>
+          </CardContent>
+        </Card>
+        {/* Mine-scope only: household net worth is a different set than the
+            FI card's income. Mixing them would invent a household PAW number. */}
+        {requestedScope === 'mine' && (
+          <>
+            <PawLensCard
+              netWorthCents={data.netWorthCents}
+              monthlyIncomeCents={coach.fi.monthlyIncomeCents}
+              incomeWindowMonths={coach.fi.monthlySavingsMonths}
+            />
+            {/* Mine-scope only: household net worth is a different set than
+                personal checking+savings. Not on /accounts: getCoachData
+                throws with zero accounts. */}
+            <IdleCashCard result={coach.idleCash} frozenLiquid={coach.frozenBalances.liquid} />
+          </>
+        )}
+      </HomeChapter>
+
+      {(canDeepenHistory || vapidPublicKey) && (
+        <HomeChapter
+          id="home-setup"
+          title="Home setup"
+          lead="Longer bank history and push heads-ups — not the daily loop."
+        >
+          {canDeepenHistory ? (
+            <Card data-testid="home-deepen-history-card">
+              <CardHeader className="pb-2">
+                <CardDescription>Bank history</CardDescription>
+                <CardTitle className="text-base">Only seeing a few months?</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Pull a longer window from a bank you already connected — same deepen control as
+                  Accounts. Aimplifi never moves money.
+                </p>
+                <div data-testid="deepen-history-panel">
+                  <ConnectAccountsButton deepenHistory />
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {vapidPublicKey ? (
+            <Card data-testid="home-notifications-card">
+              <CardHeader className="pb-2">
+                <CardDescription>Proactive heads-ups</CardDescription>
+                <CardTitle className="text-base">Notifications</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Get a push when a card payment is due within a few days or your checking is on track to
+                  dip below $0. Aimplifi never moves money — these are heads-ups so nothing catches you by
+                  surprise.
+                </p>
+                <PushOptIn publicKey={vapidPublicKey} />
+              </CardContent>
+            </Card>
+          ) : null}
+        </HomeChapter>
       )}
     </div>
   );

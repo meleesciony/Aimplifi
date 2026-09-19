@@ -13,6 +13,16 @@ considered. Append-only.
 > Only entries #742 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #758 — Home chapters: daily loop open, Adjust / Picture / Setup closed (2026-09-19)
+
+**Context.** #757 residual (5): Home below the stage was still a feature dump. Owner: continue (including mobile). Cycle 1 critic FAIL UX 6: Welcome back and alarm-state radar sat inside closed chapters.
+
+**Decision.** After stage + recent + Today + goals + alert banners + onboarding + return-moment + cash-flow radar, unread Home chapters start closed: **Adjust the plan** (plan figures), **The picture** (savings / spending / insights / net worth / export / paw / idle), **Home setup** (deepen + push, only if either exists). Native disclosure marker kept. Alerts and radar stay in the open loop. No schema change.
+
+**Locked.** `tests/unit/home-chapters.test.ts` (source order; banners + return + radar before Adjust; chapters not `defaultOpen`). Playwright `home-chapters.spec.ts` (380: daily loop + radar visible; Picture/Adjust closed until summary click). Harness `__AIMPLIFI_E2E_OPEN_HOME`; collapse spec sets `KEEP_HOME_CLOSED`.
+
+**Critic (fresh context): cycle 1 FAIL UX 6 / 2 P1. Cycle 2 PASS UX 9 / 0 P0 / 0 P1 / 4 P2.** P2s: return vs banners (then banners-first); 4px then `ps-4` gutter; harness auto-open; no hash-nav.
+
 ## #757 — Visual IA: grouped sidebar, Home stage, Coach chapters (2026-09-19)
 
 **Context.** Live review of www.aimplifi.app (1280 / 390) scored Craft 6 / Identity 4 / Composition 5 / IA 4 / Mobile 7. Desktop nav wrapped 19 pills; Home dumped the plan form between heroes; Coach was a 7,076px essay. Owner: keep working until the worst critic scores 9.

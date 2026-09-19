@@ -13,6 +13,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-12_to_2026-09-14.md` (rotated 2026-09-19).
 > Only sessions from 2026-09-16 onward live here; append new sessions at the top as before.
 
+## 2026-09-19 — Home chapters: daily loop open, dump closed (DECISIONS #758)
+
+**Picked up.** Owner: “continue” after confirming mobile shipped. Strongest #757 residual: Home below the stage still a dump.
+
+**Closed.** Adjust / Picture / Setup start closed. Return-moment + radar stay in the open loop (cycle-1 P1s). Banners before welcome.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**, next build clean. Playwright (rebuilt `next start` 127.0.0.1:3100): home-chapters 2/2, home-stage 2/2, phase1 2/2, today-feed 7/7, idle-cash 1/1, paw-lens 1/1 (**16/16**).
+
+**Critic (fresh context): cycle 1 FAIL UX 6 / 2 P1. Cycle 2 PASS UX 9 / 0 P0 / 0 P1 / 4 P2.**
+
+**Ledgers.** DECISIONS #758 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #758.
+
+**Ship.** Pending this turn's push + CI + live marker.
+
 ## 2026-09-19 — Visual IA: grouped sidebar, Home stage, Coach chapters (DECISIONS #757)
 
 **Picked up.** Owner: “i agree; keep working on it until worst critic gets to a 9.” After the live UI review (Craft 6 / Identity 4 / Composition 5 / IA 4 / Mobile 7).

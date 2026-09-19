@@ -22,6 +22,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-19 — Home chapters: daily loop open, dump closed (DECISIONS #758)
+
+**The hole.** #757 residual (5): Home below the two numbers was still a long stack. Critic cycle 1: UX 6, Welcome back + radar hidden in closed chapters.
+
+**Shipped.** Closed chapters: Adjust (plan figures), Picture (savings / spending / net worth / …), Setup (deepen + push). Open loop: stage, recent, Today, goals, alert banners, onboarding, return-moment, cash-flow radar. Native disclosure marker. No schema change.
+
+**Critic (fresh context): cycle 2 PASS UX 9 / 0 P0 / 0 P1 / 4 P2.** Cycle 1 FAIL 2 P1. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**. Playwright: home-chapters 2/2, home-stage 2/2, phase1 2/2, today-feed 7/7, idle-cash 1/1, paw-lens 1/1 (**16/16**).
+
+**CI + live.** Pending this push.
+
+**Still open / residuals.** (1) **P2-3:** default e2e harness opens Home chapters. (2) **P2-4:** hash-open untested; no Home chapter jump nav. (3) Coach SSR still ships every card. (4) #757 Coach P2s (chevron / same-hash / Trajectory voice). (5) M.4 route-by-route restyle owner-eyeball-gated.
+
 ## ✅ BUILT 2026-09-19 — Visual IA: grouped sidebar, Home stage, Coach chapters (DECISIONS #757)
 
 **The hole.** Live www.aimplifi.app review: wrapping 19-pill desktop nav, Home as a feature dump, Coach as a 7,076px essay. Critic cycle 1: UX 5, 4 P1s. Cycle 2: UX 7, 2 P1s (labeled feed; 19 bare nouns).
