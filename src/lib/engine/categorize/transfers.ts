@@ -200,6 +200,16 @@ export function resolveLiveInstitutionName(
   return resolveLiveInstitutionField(plaidItemId, accountStamp, institutionNameByItem);
 }
 
+/** Trimmed equality for a stored Plaid item id. Empty / whitespace-only is not a match. */
+export function samePlaidItemId(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  const ka = a?.trim() ?? '';
+  const kb = b?.trim() ?? '';
+  return ka !== '' && ka === kb;
+}
+
 function usableMask(mask: string | null): string | null {
   const t = mask?.trim() ?? '';
   return t.length >= 4 ? t : null;
@@ -214,7 +224,10 @@ function identityCurrency(c: string | null | undefined): string {
 function sameIngestConnection(a: TransferIdentityAccount, b: TransferIdentityAccount): boolean {
   if (a.provider !== b.provider) return false;
   if (a.provider === 'plaid') {
-    return a.plaidItemId == null || b.plaidItemId == null || a.plaidItemId === b.plaidItemId;
+    const ka = a.plaidItemId?.trim() ?? '';
+    const kb = b.plaidItemId?.trim() ?? '';
+    // Missing / whitespace-only is unproven: treat as same ingest (block folding).
+    return ka === '' || kb === '' || ka === kb;
   }
   return true;
 }

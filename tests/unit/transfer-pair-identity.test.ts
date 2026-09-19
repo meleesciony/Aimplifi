@@ -31,6 +31,7 @@ import {
   liveInstitutionByItem,
   resolveLiveInstitutionId,
   resolveLiveInstitutionName,
+  samePlaidItemId,
   transferIdentityDismissKey,
   unionSameMaskColumnIdentity,
   type TransferIdentityAccount,
@@ -213,6 +214,27 @@ describe('unionSameMaskColumnIdentity', () => {
     const out = unionSameMaskColumnIdentity(new Map(), [
       acct({ id: 'chk-a', type: 'CHECKING', mask: '1234', plaidItemId: 'one-item' }),
       acct({ id: 'chk-b', type: 'CHECKING', mask: '1234', plaidItemId: 'one-item' }),
+    ]);
+    expect(out.size).toBe(0);
+  });
+
+  it('test_regression__o20j_padded_same_plaid_item_same_mask_are_two_accounts', () => {
+    // #755 critic P2-1: after the live-map join trims, a padded vs clean
+    // item id still looks like TWO connections to raw `===`, so same-item
+    // copies fold on last-4 and a genuine transfer can vanish.
+    const out = unionSameMaskColumnIdentity(new Map(), [
+      acct({ id: 'chk-a', type: 'CHECKING', mask: '1234', plaidItemId: 'one-item' }),
+      acct({ id: 'chk-b', type: 'CHECKING', mask: '1234', plaidItemId: ' one-item' }),
+    ]);
+    expect(out.size).toBe(0);
+  });
+
+  it('test_regression__o20j_empty_plaid_item_id_does_not_fold_on_last4', () => {
+    // Empty / whitespace after trim is missing: fail-closed (same ingest).
+    const out = unionSameMaskColumnIdentity(new Map(), [
+      acct({ id: 'chk-a', type: 'CHECKING', mask: '1234', plaidItemId: 'one-item' }),
+      acct({ id: 'chk-b', type: 'CHECKING', mask: '1234', plaidItemId: '   ' }),
+      acct({ id: 'chk-c', type: 'CHECKING', mask: '1234', plaidItemId: '' }),
     ]);
     expect(out.size).toBe(0);
   });
@@ -687,6 +709,39 @@ describe('planTransferUpdates: same-mask-column copies do not pair (O.20j)', () 
     const identity = unionSameMaskColumnIdentity(new Map(), [
       acct({ id: 'chk-a', type: 'CHECKING', mask: '1234', plaidItemId: 'one-item' }),
       acct({ id: 'chk-b', type: 'CHECKING', mask: '1234', plaidItemId: 'one-item' }),
+    ]);
+    const plan = planTransferUpdates([
+      txn({
+        id: 'sent',
+        accountId: 'chk-a',
+        accountIdentityId: rootOf(identity, 'chk-a'),
+        accountType: 'CHECKING',
+        amountCents: -250_000,
+        rawDescriptor: 'ZEBRA ITEM MOVE',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+      txn({
+        id: 'landed',
+        accountId: 'chk-b',
+        accountIdentityId: rootOf(identity, 'chk-b'),
+        accountType: 'CHECKING',
+        amountCents: 250_000,
+        rawDescriptor: 'ZEBRA ITEM MOVE IN',
+        categoryId: 'uncategorized',
+        needsReview: true,
+      }),
+    ]);
+    expect(plan.flagIds.sort()).toEqual(['landed', 'sent']);
+    expect(plan.fileIds.sort()).toEqual(['landed', 'sent']);
+  });
+
+  it('test_regression__o20j_padded_same_item_same_mask_checkings_still_pair', () => {
+    // #755 critic P2-1: padded vs clean must stay two accounts so a genuine
+    // same-item transfer still flags. Raw `===` folds them and the pair dies.
+    const identity = unionSameMaskColumnIdentity(new Map(), [
+      acct({ id: 'chk-a', type: 'CHECKING', mask: '1234', plaidItemId: 'one-item' }),
+      acct({ id: 'chk-b', type: 'CHECKING', mask: '1234', plaidItemId: ' one-item' }),
     ]);
     const plan = planTransferUpdates([
       txn({
@@ -1189,5 +1244,33 @@ describe('liveInstitutionByItem — trimmed map keys (#754 P2-1)', () => {
     expect(refresh).not.toMatch(/new Map\(items\.map\(\(i\) => \[i\.itemId/);
     expect(combine).not.toMatch(/new Map\(items\.map\(\(i\) => \[i\.itemId/);
     expect(accounts).not.toMatch(/new Map\(plaidItems\.map\(\(i\) => \[i\.itemId/);
+  });
+});
+
+describe('samePlaidItemId — trimmed equality (#755 P2-1)', () => {
+  it('test_regression__o20j_padded_plaid_item_ids_compare_equal', () => {
+    expect(samePlaidItemId('item-a', ' item-a')).toBe(true);
+    expect(samePlaidItemId('item-a ', '\titem-a')).toBe(true);
+    expect(samePlaidItemId('item-a', 'item-b')).toBe(false);
+  });
+
+  it('empty or whitespace-only is not a match', () => {
+    expect(samePlaidItemId('', '')).toBe(false);
+    expect(samePlaidItemId('   ', '   ')).toBe(false);
+    expect(samePlaidItemId(null, null)).toBe(false);
+    expect(samePlaidItemId('item-a', '')).toBe(false);
+    expect(samePlaidItemId('item-a', '   ')).toBe(false);
+    expect(samePlaidItemId('item-a', null)).toBe(false);
+  });
+
+  it('test_regression__o20j_accounts_of_and_accounts_card_use_trimmed_item_equality', () => {
+    const engine = readFileSync(resolve('src/lib/engine/account/combine-connections.ts'), 'utf8');
+    const accounts = readFileSync(resolve('src/server/transactions.ts'), 'utf8');
+    const transfers = readFileSync(resolve('src/lib/engine/categorize/transfers.ts'), 'utf8');
+    expect(engine).toContain('samePlaidItemId(a.plaidItemId, itemId)');
+    expect(accounts).toContain('samePlaidItemId(a.plaidItemId, item.itemId)');
+    expect(engine).not.toMatch(/a\.plaidItemId === itemId/);
+    expect(accounts).not.toMatch(/a\.plaidItemId === item\.itemId/);
+    expect(transfers).not.toMatch(/a\.plaidItemId === b\.plaidItemId/);
   });
 });

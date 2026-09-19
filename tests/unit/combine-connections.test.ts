@@ -238,3 +238,31 @@ describe('planCombinableConnections — abstains', () => {
     expect(planCombinableConnections([OLD, NEW], accounts)).toEqual([]);
   });
 });
+
+describe('planCombinableConnections — trimmed plaidItemId (#755 P2-1)', () => {
+  it('test_regression__o20j_padded_account_item_id_still_offers_the_chase_combine', () => {
+    const accounts = [
+      acct({ id: 'a-old', plaidItemId: ' item-old' }),
+      acct({ id: 'a-new', plaidItemId: 'item-new ' }),
+    ];
+    const [p] = planCombinableConnections([OLD, NEW], accounts);
+    expect(p).toBeDefined();
+    expect(p.recommended.offerable).toBe(true);
+    expect(p.recommended.pairs).toEqual([
+      expect.objectContaining({
+        predecessorAccountId: 'a-new',
+        successorAccountId: 'a-old',
+        mask: '0977',
+      }),
+    ]);
+  });
+
+  it('a padded stored itemId still sees its accounts', () => {
+    const paddedOld = item({ itemId: ' item-old', linkedAtKey: '2026-01-01T00:00:00.000Z' });
+    const paddedNew = item({ itemId: 'item-new ', linkedAtKey: '2026-06-01T00:00:00.000Z' });
+    const accounts = [acct({ id: 'a-old', plaidItemId: 'item-old' }), acct({ id: 'a-new', plaidItemId: 'item-new' })];
+    const [p] = planCombinableConnections([paddedOld, paddedNew], accounts);
+    expect(p).toBeDefined();
+    expect(p.recommended.offerable).toBe(true);
+  });
+});

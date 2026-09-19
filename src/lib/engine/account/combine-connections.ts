@@ -29,6 +29,7 @@
  */
 
 import { compareAccountIdentity, type IdentityAccount, type IdentityTier } from '@/lib/engine/account/identity';
+import { samePlaidItemId } from '@/lib/engine/categorize/transfers';
 
 /** One live Plaid connection. A disconnected item's row is deleted, so every row here is live. */
 export interface CombineConnectionItem {
@@ -119,7 +120,7 @@ export interface CombineConnectionsProposal {
 /** Accounts under one connection, in a stable order. */
 function accountsOf(accounts: readonly CombineConnectionAccount[], itemId: string): CombineConnectionAccount[] {
   return accounts
-    .filter((a) => a.provider === 'plaid' && a.plaidItemId === itemId)
+    .filter((a) => a.provider === 'plaid' && samePlaidItemId(a.plaidItemId, itemId))
     .sort((x, y) => x.name.localeCompare(y.name) || x.id.localeCompare(y.id));
 }
 

@@ -35,6 +35,7 @@ import {
   liveInstitutionByItem,
   resolveLiveInstitutionId,
   resolveLiveInstitutionName,
+  samePlaidItemId,
 } from '@/lib/engine/categorize/transfers';
 
 /**
@@ -1762,7 +1763,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
         institution: item.institution,
         lastSyncedAt: item.lastSyncedAt,
         accounts: accounts
-          .filter((a) => a.plaidItemId === item.itemId)
+          .filter((a) => samePlaidItemId(a.plaidItemId, item.itemId))
           .map((a) => ({ name: accountLabel(a), mask: a.mask })),
         // Over the SAME accounts this card names one line above — the engine, not the caller,
         // decides which of them may set a date (a withheld or non-spending account is passed in
@@ -1770,7 +1771,7 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
         // whose accounts are all outside the register indistinguishable from one with no
         // accounts at all, and those are different sentences.
         historyDepth: connectionHistoryDepth(
-          accounts.filter((a) => a.plaidItemId === item.itemId).map(accountDepthFact),
+          accounts.filter((a) => samePlaidItemId(a.plaidItemId, item.itemId)).map(accountDepthFact),
         ),
       })),
     },
