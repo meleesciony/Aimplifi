@@ -25,7 +25,7 @@
 
 **Ledgers.** DECISIONS #756 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS O.20j residual (10). STATUS L.19 #742/#746/#747 rotated verbatim to `docs/archive/STATUS_ARCHIVE_2026-09-17-l19.md`. PROGRESS #740/#741 rotated to `docs/archive/PROGRESS_ARCHIVE_2026-09-12_to_2026-09-14.md`.
 
-**Ship.** (this turn) No `prisma/` schema diff. H.7b not auto-run.
+**Ship.** `9490bcc8` on `origin/main` (PR #36 ff-merged). No `prisma/` schema diff. **CI verify run 35417204343 = SUCCESS** on `9490bcc8` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_ABSognfcmqoVNXNGRgU958KZCKgZ` **READY** on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Marker: `raw.githubusercontent.com` on `9490bcc8` finds `export function samePlaidItemId` and ingest `ka === '' || kb === '' || ka === kb`; prior `81c93aad` still has `a.plaidItemId === b.plaidItemId`. H.7b not auto-run.
 
 ## 2026-09-18 — O.20j residual (9): trim live-map keys so a padded stored itemId still joins (DECISIONS #755)
 
