@@ -13,6 +13,16 @@ considered. Append-only.
 > Only entries #742 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #756 — O.20j residual (10): trim sibling plaidItemId === so same-item copies stay two accounts (2026-09-19)
+
+**Context.** #755 critic P2-1: the live-map join trims keys, but `sameIngestConnection`, `accountsOf`, and the `/accounts` card filters still used raw `plaidItemId ===`. A padded vs clean stored item id looked like two connections, so same-item copies folded on last-4 and a genuine transfer could vanish; padded accounts also disappeared from combine.
+
+**Decision.** `samePlaidItemId` trims both sides; empty / whitespace-only is not a match (membership). `sameIngestConnection` treats empty / whitespace after trim as missing (fail-closed: same ingest, block folding). Wired into `accountsOf` and both `/accounts` filters. Live 0977 unchanged. `isTransfer` add-only. H.7b not auto-run. No schema change. Present map value `''`, leftover raw maps / `Set.has`, and `plaid.ts` investment `===` stay residual.
+
+**Locked.** `tests/unit/transfer-pair-identity.test.ts`: padded vs clean same item does not fold; empty / whitespace does not fold; padded same-item transfer still flags+files; `samePlaidItemId` empty-not-a-match; three sites use the helper. `tests/unit/combine-connections.test.ts`: padded account fk and padded stored `itemId` still offer the Chase combine. FAIL-OLD (maker, no helper): **8 failed | 80 skipped**. Critic independently: **6 failed | 82 passed** (restored untrimmed `===` at the three sites; helper left intact).
+
+**Critic (fresh context, isolated worktree `/tmp/_critic_o20j_r10`): cycle 1 PASS 0 P0 / 0 P1 / 7 P2.** Independently: tsc 0, 88/88, FAIL-OLD 6|82, kill-calls (a) trim-one-side 2|86, (b) empty-equals-empty 1|87, (c) empty-as-different-ingest 1|87. P2s in STATUS.
+
 ## #755 — O.20j residual (9): trim live-map keys so a padded stored itemId still joins (2026-09-18)
 
 **Context.** #754 critic P2-1: lookup was trimmed, map keys were raw `itemId`. A padded stored `PlaidItem.itemId` missed `Map.has` and inherited the Account stamp — the #754 inversion.
