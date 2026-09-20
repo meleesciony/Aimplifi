@@ -13,7 +13,9 @@ rates) — no other doc may restate them.
 > `docs/archive/STATUS_ARCHIVE_2026-09-14.md` (rotated 2026-09-18), and the BUILT
 > entry for #745 (2026-09-17) in `docs/archive/STATUS_ARCHIVE_2026-09-17-745.md`
 > (rotated 2026-09-18), and the BUILT entry for #750 (2026-09-18) in
-> `docs/archive/STATUS_ARCHIVE_2026-09-18-750.md` (rotated 2026-09-18); only
+> `docs/archive/STATUS_ARCHIVE_2026-09-18-750.md` (rotated 2026-09-18), and the
+> BUILT entries for #749/#752 in
+> `docs/archive/STATUS_ARCHIVE_2026-09-18-o20j-749-752.md` (rotated 2026-09-20); only
 > current-wave BUILT entries and OPEN/FOUND/DECIDED items remain here.
 >
 > Entries from 2026-06/2026-07 (BUILT/CLOSED history) were moved verbatim to
@@ -21,6 +23,18 @@ rates) — no other doc may restate them.
 > BUILT/CLOSED history to `docs/archive/STATUS_ARCHIVE_2026-08.md` on 2026-08-27, to
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
+
+## ✅ BUILT 2026-09-20 — UA-first chapter open mounts the body before paint (DECISIONS #764)
+
+**The hole.** #763 P2-1 / P2-5: a UA that toggled `<details>` first could paint an empty shell; the `toggle` listener attached after paint.
+
+**Shipped.** `MutationObserver` on `open` + `toggle` in `useLayoutEffect`. `flushSync` mounts children in that microtask. Click/Space/Enter `preventDefault` until `readyRef` after first open. No `el.open = false`. No schema change.
+
+**Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.** Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 5/5, home-chapters 5/5 (**10/10**).
+
+**CI + live.** Pending this push.
+
+**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) M.4 route-by-route restyle owner-eyeball-gated. (4) **P2-4:** late click after `readyRef` can native-close. (5) **P2-2:** first-open Enter is coded; e2e locks Space first-open and Enter after a remount. (6) **P2-3:** chapter units are source greps.
 
 ## ✅ BUILT 2026-09-20 — Space/Enter opens a chapter with the body already there (DECISIONS #763)
 
@@ -32,7 +46,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `dcc78112` on `origin/main`. No `prisma/` diff. **CI verify run 35491937395 = SUCCESS**. Vercel Production `dpl_8PwomDELAYoZ8CG2n16xbRDWh91n` **READY**, aliases include `www.aimplifi.app`. Live demo: Space on Picture opens with `net-worth-amount` `$144,804.74` already in the open details. Marker: raw `dcc78112` has `onKeyDown` / `mountedRef`.
 
-**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) ~~Space/Enter empty-open if a UA toggles before click~~ — **CLOSED #763.** (4) M.4 route-by-route restyle owner-eyeball-gated. (5) **P2-1:** UA-first-toggle can still flash empty before children commit. (6) **P2-2:** Enter is coded, e2e locks Space only. (7) **P2-3:** chapter units are source greps. (8) **P2-4:** a late click after `mounted` can native-close. (9) **P2-5:** `toggle` listener attaches after paint.
+**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) ~~Space/Enter empty-open if a UA toggles before click~~ — **CLOSED #763.** (4) M.4 route-by-route restyle owner-eyeball-gated. (5) ~~**P2-1:** UA-first-toggle empty flash~~ — **CLOSED #764.** (6) **P2-2:** first-open Enter still unproven (carried as #764 P2-2). (7) **P2-3:** chapter units are source greps. (8) **P2-4:** a late click after ready can native-close (carried as #764 P2-4). (9) ~~**P2-5:** `toggle` listener attaches after paint~~ — **CLOSED #764.**
 
 ## ✅ BUILT 2026-09-19 — Open chapter bodies before the shell (DECISIONS #762)
 
@@ -154,18 +168,6 @@ rates) — no other doc may restate them.
 
 **Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) ~~**This-cycle P2-1:** `plaidItemId` is not trimmed~~ — **CLOSED 2026-09-18 (DECISIONS #754):** helper trims the lookup key. (5) ~~**P2-2:** empty-string `plaidItemId` skips the map~~ — **CLOSED #754:** empty / whitespace-only is missing (stamp). (6) **P2-3:** present map value `''` returns `''` (carried as #754 P2-2). (7) `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (8) Disconnect stamp-fallback fold/filing lock still helper-golden only. (9) Mixed live `ins_56` + live-null not in the transfer suite. (10) `anyPairBlocked` O(n²). (11) Raw `provider === 'plaid'`. (12) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
 
-## ✅ BUILT 2026-09-18 — O.20j residual (6): combine and /accounts use the Map.has institution join (DECISIONS #752)
-
-**The hole.** #750 critic P2-1: `buildCombineInputs` and `/accounts` `identityOf` inlined `item?.institutionId ?? stamp`, so a present-null live item inherited the stamp and the identity ladder could prove SAME / offer a combine while the transfer writer fail-closed.
-
-**Shipped.** Both surfaces call `resolveLiveInstitutionId` (Map.has). Present null stays null; missing item still uses the stamp. Live 0977 unchanged. Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
-
-**Critic (fresh context, `/tmp/_critic_o20j_r6`): cycle 1 PASS 0 P0 / 0 P1 / 4 P2.** Independently: tsc 0, eslint 0, 98/98, FAIL-OLD **3 failed | 95 skipped**, kill-call stamp-only **5 failed**. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8549 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**. Playwright mobile-380 `combine-connections` **2/2**.
-
-**CI + live.** `40cd842f` on `origin/main`. No `prisma/` diff. **CI verify run 35382534980 = SUCCESS** on `40cd842f` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_35bium7tBfWZg4EECtTKuZA5C1Fj` **READY**, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`. Marker: `combine-connections.ts` on that sha calls `resolveLiveInstitutionId(...)`; `d7d014e4` still has `item?.institutionId ?? a.institutionId ?? null`. H.7b not auto-run.
-
-**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) ~~**This-cycle P2-1:** `institutionName` still uses `item?.institution ?? stamp`~~ — **CLOSED 2026-09-18 (DECISIONS #753):** both call `resolveLiveInstitutionName`. (5) **P2-2 / #750 P2-2–P2-3:** `plaidItemId` not trimmed; `''` skips the map (carried as #753 P2-1/P2-2). (6) **P2-3:** `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (7) Disconnect stamp-fallback fold/filing lock still helper-golden only. (8) Mixed live `ins_56` + live-null not in the transfer suite. (9) `anyPairBlocked` O(n²). (10) Raw `provider === 'plaid'`. (11) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
-
 ## DECIDED 2026-09-18 — Owner Yes on ops walkthrough + two live writes (DECISIONS #751)
 
 Owner: **"3. Yes. 4. Yes."** First-timer steps live in `docs/OPS_WALKTHROUGH.md`
@@ -177,18 +179,6 @@ fire still **UNVERIFIED** (24h production `requestPath` group: zero `/api/cron/*
 lines — Hobby ~1h retention). Do not undo GENUINE/UNTESTABLE links. Do not flip
 `DATA_PROVIDER=plaid`. Shipped `19fc703e` on `main`; CI **35376970883 SUCCESS**;
 Vercel `dpl_AQAigaAKyGswkes9coT5bhpUqyxU` READY.
-
-## ✅ BUILT 2026-09-18 — O.20j residual (4): the live 0977 fold reads PlaidItem `ins_*`, not the null stamp (DECISIONS #749)
-
-**The hole.** #748's critic P2-2: the filing lock stamped `Account.institutionId` and never created a `PlaidItem`. Live 0977 is stamp NULL + item `ins_56`. A join regression to stamp-only stayed green and would refuse the live fold.
-
-**Shipped.** `resolveLiveInstitutionId` (item ?? stamp). `loadTransferSweepRows` calls it. Filing fixture is the measured shape. Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
-
-**Critic (fresh context, `/tmp/_critic_o20j_r4`): cycle 1 PASS 0 P0 / 0 P1 / 4 P2.** Independently: tsc 0, 84/84, FAIL-OLD **2 failed | 82 passed**, ignore-map **4 failed | 80 passed**. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8541 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**. Playwright mobile-380 `transfer-flag-repair` **1/1**.
-
-**CI + live.** `439d0650` on `origin/main` (PR #27). No `prisma/` diff — database untouched. **CI verify run 35356213456 = SUCCESS** on `439d0650` (`main`, full `VERIFY_E2E=1`, 10m58s). Vercel Production `dpl_2pmQnGNBYKyqfJi8kaLdhtBeCGZN` **READY** on `439d0650`, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. The join is server-only (no new UI copy); `raw.githubusercontent.com` on that sha finds `export function resolveLiveInstitutionId(` in `transfers.ts` vs **0 hits** on prior production sha `bd989510`. H.7b not auto-run. Live 0977 re-measure in this VM is **UNVERIFIED** (no `DATABASE_URL`).
-
-**Still open / residuals.** (1) Mixed-type over-veto (cycle-4 lock still refuses CREDIT≡CHECKING). (2) Third Plaid-null copy poisons a group (#748 P2-1). (3) Dismissal `take: 500`. (4) ~~**Cycle-1 P2-1:** a *present* map entry whose value is `null` falls through to the stamp (`??`)~~ — **CLOSED 2026-09-18 (DECISIONS #750):** `Map.has`. (5) **P2-2:** combine-connections and `/accounts` still inline the same `??` join (carried as #750 P2-1). (6) **P2-3:** live `''` does not fall through; live `null` does (carried as #750 P2-4). (7) **P2-4:** empty `plaidItemId` skips the map; whitespace looks up and misses (carried as #750 P2-2/P2-3). (8) `anyPairBlocked` O(n²). (9) Raw `provider === 'plaid'`. (10) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-blocked. M.4 owner-deferred.
 
 ## ✅ BUILT 2026-09-17 — O.20j residual (2): a Plaid side without `ins_*` does not fold on last-4 (DECISIONS #748)
 

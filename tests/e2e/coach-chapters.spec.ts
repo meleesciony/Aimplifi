@@ -117,19 +117,24 @@ test('Space on a closed Coach chapter opens with the body already there', async 
     await traj.evaluate((el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="fi-card"]'))),
   ).toBe(true);
 
+  await traj.locator(':scope > summary').click();
+  await expect(traj).not.toHaveAttribute('open');
+  await traj.locator(':scope > summary').press('Enter');
+  await expect(traj).toHaveAttribute('open', '');
+  await expect(page.getByTestId('fi-card')).toBeVisible();
+
   const habits = page.getByTestId('coach-chapter-coach-habits');
   await expect(habits).not.toHaveAttribute('open');
   await expect(page.getByTestId('money-rules-card')).not.toBeAttached();
-  await habits.evaluate((el) => {
-    (el as HTMLDetailsElement).open = true;
-  });
-  await expect(habits).toHaveAttribute('open', '');
-  await expect(page.getByTestId('money-rules-card')).toBeVisible();
   expect(
-    await habits.evaluate(
-      (el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="money-rules-card"]')),
-    ),
+    await habits.evaluate((el) => {
+      (el as HTMLDetailsElement).open = true;
+      return Promise.resolve().then(
+        () => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="money-rules-card"]')),
+      );
+    }),
   ).toBe(true);
+  await expect(page.getByTestId('money-rules-card')).toBeVisible();
 });
 
 test('Change your assumptions opens Habits from a closed body', async ({ page }) => {

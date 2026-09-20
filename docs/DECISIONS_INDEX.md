@@ -756,3 +756,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #761 — Mount unread chapter bodies only after first open (2026-09-19) → docs/DECISIONS.md
 - #762 — Open chapter bodies before the shell; restore landmark focus rings (2026-09-19) → docs/DECISIONS.md
 - #763 — Space/Enter opens a chapter with the body already there (2026-09-20) → docs/DECISIONS.md
+- #764 — UA-first chapter open mounts the body before paint (2026-09-20) → docs/DECISIONS.md

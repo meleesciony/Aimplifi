@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 function hashTarget(hash: string): string {
   return hash.startsWith('#') ? hash.slice(1) : hash;
@@ -20,9 +21,10 @@ const EMPTY_LANDMARKS: readonly string[] = [];
  * Coach chapters (visual IA). Unread bodies stay unmounted so first HTML
  * is This month, not a 7000px card tree. First open mounts, then opens,
  * so the chapter is never an empty shell. Space/Enter preventDefault
- * while unmounted (same as click). A UA that already toggled open
- * mounts children on the next commit. Nested landmarks, hash, nav,
- * and the e2e harness open a target.
+ * until that first open is applied. A UA that already toggled open is
+ * caught by a MutationObserver on `open`; flushSync mounts children in
+ * that microtask, before paint. Nested landmarks, hash, nav, and the
+ * e2e harness open a target.
  */
 export function CoachChapter({
   id,
@@ -45,6 +47,7 @@ export function CoachChapter({
   const pendingOpen = useRef(false);
   const pendingFocus = useRef<string | null>(null);
   const mountedRef = useRef(defaultOpen);
+  const readyRef = useRef(defaultOpen);
   const landmarkKey = landmarks.join('\0');
 
   useLayoutEffect(() => {
@@ -54,6 +57,7 @@ export function CoachChapter({
     if (pendingOpen.current) {
       pendingOpen.current = false;
       el.open = true;
+      readyRef.current = true;
     }
     const target = pendingFocus.current;
     if (!target) return;
@@ -61,6 +65,25 @@ export function CoachChapter({
     const node = target === id ? el : document.getElementById(target);
     node?.focus();
   }, [mounted, focusNonce, id]);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const adopt = () => {
+      if (!el.open || mountedRef.current) return;
+      pendingOpen.current = true;
+      flushSync(() => {
+        setMounted(true);
+      });
+    };
+    const observer = new MutationObserver(adopt);
+    observer.observe(el, { attributes: true, attributeFilter: ['open'] });
+    el.addEventListener('toggle', adopt);
+    return () => {
+      observer.disconnect();
+      el.removeEventListener('toggle', adopt);
+    };
+  }, []);
 
   useEffect(() => {
     const el = ref.current;
@@ -107,16 +130,9 @@ export function CoachChapter({
       const hash = hrefHash(href);
       if (ownsHash(hash)) reveal(hashTarget(hash));
     };
-    const onToggle = () => {
-      if (!el.open || mountedRef.current) return;
-      pendingOpen.current = true;
-      setMounted(true);
-    };
-    el.addEventListener('toggle', onToggle);
     window.addEventListener('hashchange', applyHash);
     document.addEventListener('click', onClick);
     return () => {
-      el.removeEventListener('toggle', onToggle);
       window.removeEventListener('hashchange', applyHash);
       document.removeEventListener('click', onClick);
     };
@@ -135,13 +151,13 @@ export function CoachChapter({
       <summary
         className="cursor-pointer border-b border-border/60 pb-3 ps-4"
         onClick={(event) => {
-          if (mounted) return;
+          if (readyRef.current) return;
           event.preventDefault();
           pendingOpen.current = true;
           setMounted(true);
         }}
         onKeyDown={(event) => {
-          if (mounted) return;
+          if (readyRef.current) return;
           if (event.key !== ' ' && event.key !== 'Enter') return;
           event.preventDefault();
           pendingOpen.current = true;

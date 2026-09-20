@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #764 — UA-first chapter open mounts the body before paint (2026-09-20)
+
+**Context.** #763 P2-1 / P2-5: a UA that set `details.open` first could paint an empty shell; `toggle` attached after paint. Owner: continue.
+
+**Decision.** Watch `open` with `MutationObserver` (microtask, before paint) and keep `toggle` as backup, both in `useLayoutEffect`. `flushSync` mounts children in that turn. Click/Space/Enter `preventDefault` until `readyRef` after the first open is applied. Do not assign `el.open = false` (that crashed the error boundary on #763). No schema change. RSC payload, harness auto-open, first-open Enter e2e, and M.4 restyle stay residual.
+
+**Locked.** Units: `flushSync`, `MutationObserver`, `readyRef`. Playwright: Space first-open + Enter after remount; programmatic `el.open = true` then one microtask is `open && home-plan-figures` / `open && money-rules-card`.
+
+**Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.**
+
 ## #763 — Space/Enter opens a chapter with the body already there (2026-09-20)
 
 **Context.** #762 residual (3): Space/Enter could empty-open if a UA toggled `<details>` before click. Owner: continue.

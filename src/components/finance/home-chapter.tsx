@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 function hrefHash(href: string): string {
   try {
@@ -11,11 +12,12 @@ function hrefHash(href: string): string {
 }
 
 /**
- * Home chapters (#758 / #761 / #762). After the daily loop, unread bodies
- * stay unmounted so a phone is not a feature dump in the first HTML. First
- * open mounts, then opens, so the chapter is never an empty shell.
- * Space/Enter preventDefault while unmounted (same as click). A UA
- * that already toggled open mounts children on the next commit.
+ * Home chapters (#758 / #761 / #762 / #763 / #764). After the daily loop,
+ * unread bodies stay unmounted so a phone is not a feature dump in the
+ * first HTML. First open mounts, then opens, so the chapter is never an
+ * empty shell. Space/Enter preventDefault until that first open is
+ * applied. A UA that already toggled open is caught by a MutationObserver
+ * on `open`; flushSync mounts children in that microtask, before paint.
  */
 export function HomeChapter({
   id,
@@ -36,6 +38,7 @@ export function HomeChapter({
   const pendingOpen = useRef(false);
   const pendingFocus = useRef(false);
   const mountedRef = useRef(defaultOpen);
+  const readyRef = useRef(defaultOpen);
 
   useLayoutEffect(() => {
     mountedRef.current = mounted;
@@ -44,12 +47,32 @@ export function HomeChapter({
     if (pendingOpen.current) {
       pendingOpen.current = false;
       el.open = true;
+      readyRef.current = true;
     }
     if (pendingFocus.current) {
       pendingFocus.current = false;
       el.focus();
     }
   }, [mounted, focusNonce]);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const adopt = () => {
+      if (!el.open || mountedRef.current) return;
+      pendingOpen.current = true;
+      flushSync(() => {
+        setMounted(true);
+      });
+    };
+    const observer = new MutationObserver(adopt);
+    observer.observe(el, { attributes: true, attributeFilter: ['open'] });
+    el.addEventListener('toggle', adopt);
+    return () => {
+      observer.disconnect();
+      el.removeEventListener('toggle', adopt);
+    };
+  }, []);
 
   useEffect(() => {
     const el = ref.current;
@@ -87,16 +110,9 @@ export function HomeChapter({
       if (!href) return;
       if (hrefHash(href) === `#${id}`) reveal();
     };
-    const onToggle = () => {
-      if (!el.open || mountedRef.current) return;
-      pendingOpen.current = true;
-      setMounted(true);
-    };
-    el.addEventListener('toggle', onToggle);
     window.addEventListener('hashchange', applyHash);
     document.addEventListener('click', onClick);
     return () => {
-      el.removeEventListener('toggle', onToggle);
       window.removeEventListener('hashchange', applyHash);
       document.removeEventListener('click', onClick);
     };
@@ -114,13 +130,13 @@ export function HomeChapter({
       <summary
         className="cursor-pointer border-b border-border/60 pb-3 ps-4"
         onClick={(event) => {
-          if (mounted) return;
+          if (readyRef.current) return;
           event.preventDefault();
           pendingOpen.current = true;
           setMounted(true);
         }}
         onKeyDown={(event) => {
-          if (mounted) return;
+          if (readyRef.current) return;
           if (event.key !== ' ' && event.key !== 'Enter') return;
           event.preventDefault();
           pendingOpen.current = true;

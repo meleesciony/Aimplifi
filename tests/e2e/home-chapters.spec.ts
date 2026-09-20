@@ -88,19 +88,24 @@ test('Space on a closed Home chapter opens with the body already there', async (
     ),
   ).toBe(true);
 
+  await picture.locator(':scope > summary').click();
+  await expect(picture).not.toHaveAttribute('open');
+  await picture.locator(':scope > summary').press('Enter');
+  await expect(picture).toHaveAttribute('open', '');
+  await expect(page.getByTestId('net-worth-amount')).toBeVisible();
+
   const adjust = page.getByTestId('home-chapter-home-adjust');
   await expect(adjust).not.toHaveAttribute('open');
   await expect(page.getByTestId('home-plan-figures')).not.toBeAttached();
-  await adjust.evaluate((el) => {
-    (el as HTMLDetailsElement).open = true;
-  });
-  await expect(adjust).toHaveAttribute('open', '');
-  await expect(page.getByTestId('home-plan-figures')).toBeVisible();
   expect(
-    await adjust.evaluate(
-      (el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="home-plan-figures"]')),
-    ),
+    await adjust.evaluate((el) => {
+      (el as HTMLDetailsElement).open = true;
+      return Promise.resolve().then(
+        () => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="home-plan-figures"]')),
+      );
+    }),
   ).toBe(true);
+  await expect(page.getByTestId('home-plan-figures')).toBeVisible();
 });
 
 test('Home chapter nav opens Picture and moves focus', async ({ page }) => {

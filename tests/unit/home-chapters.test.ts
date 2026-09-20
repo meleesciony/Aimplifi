@@ -65,6 +65,10 @@ describe('Home chapter source order', () => {
     expect(chapter).toContain('onKeyDown');
     expect(chapter).toContain("event.key !== ' '");
     expect(chapter).toContain('mountedRef');
+    expect(chapter).toContain('readyRef');
+    expect(chapter).toContain('flushSync');
+    expect(chapter).toContain('MutationObserver');
+    expect(chapter).toContain("import { flushSync } from 'react-dom'");
     expect(chapter).toContain('!el.open || mountedRef.current');
     expect(chapter).toContain('new URL');
     expect(chapter).toContain("getAttribute('href')");
