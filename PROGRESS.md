@@ -25,6 +25,8 @@
 
 **Ledgers.** DECISIONS #762 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #762.
 
+**Ship.** `1d82018f` on `origin/main`. No `prisma/` schema diff. **CI verify run 35486194628 = SUCCESS**. Vercel Production `dpl_Aq99idazihofW8xk9JNC2kA84wVD` **READY**. Live Picture open holds net-worth; money-dials jump lands. Marker: `pendingOpen` on that sha.
+
 ## 2026-09-19 — Mount unread chapter bodies after first open (DECISIONS #761)
 
 **Picked up.** Owner: “continue.” Strongest leftover: closed chapters still painted every card into the first HTML.
