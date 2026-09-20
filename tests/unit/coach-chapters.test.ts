@@ -33,6 +33,10 @@ describe('Coach chapter source order', () => {
     expect(chapter).toContain('{mounted ? children : null}');
     expect(chapter).toContain('pendingOpen');
     expect(chapter).toContain('preventDefault');
+    expect(chapter).toContain('onKeyDown');
+    expect(chapter).toContain("event.key !== ' '");
+    expect(chapter).toContain('mountedRef');
+    expect(chapter).toContain('!el.open || mountedRef.current');
     expect(chapter).toContain('landmarks');
     expect(chapter).toContain('new URL');
     for (const landmark of [

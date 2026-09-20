@@ -19,7 +19,9 @@ const EMPTY_LANDMARKS: readonly string[] = [];
 /**
  * Coach chapters (visual IA). Unread bodies stay unmounted so first HTML
  * is This month, not a 7000px card tree. First open mounts, then opens,
- * so the chapter is never an empty shell. Nested landmarks, hash, nav,
+ * so the chapter is never an empty shell. Space/Enter preventDefault
+ * while unmounted (same as click). A UA that already toggled open
+ * mounts children on the next commit. Nested landmarks, hash, nav,
  * and the e2e harness open a target.
  */
 export function CoachChapter({
@@ -42,9 +44,11 @@ export function CoachChapter({
   const [focusNonce, setFocusNonce] = useState(0);
   const pendingOpen = useRef(false);
   const pendingFocus = useRef<string | null>(null);
+  const mountedRef = useRef(defaultOpen);
   const landmarkKey = landmarks.join('\0');
 
   useLayoutEffect(() => {
+    mountedRef.current = mounted;
     const el = ref.current;
     if (!el || !mounted) return;
     if (pendingOpen.current) {
@@ -104,7 +108,9 @@ export function CoachChapter({
       if (ownsHash(hash)) reveal(hashTarget(hash));
     };
     const onToggle = () => {
-      if (el.open) setMounted(true);
+      if (!el.open || mountedRef.current) return;
+      pendingOpen.current = true;
+      setMounted(true);
     };
     el.addEventListener('toggle', onToggle);
     window.addEventListener('hashchange', applyHash);
@@ -130,6 +136,13 @@ export function CoachChapter({
         className="cursor-pointer border-b border-border/60 pb-3 ps-4"
         onClick={(event) => {
           if (mounted) return;
+          event.preventDefault();
+          pendingOpen.current = true;
+          setMounted(true);
+        }}
+        onKeyDown={(event) => {
+          if (mounted) return;
+          if (event.key !== ' ' && event.key !== 'Enter') return;
           event.preventDefault();
           pendingOpen.current = true;
           setMounted(true);

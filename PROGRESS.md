@@ -13,6 +13,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-12_to_2026-09-14.md` (rotated 2026-09-19).
 > Only sessions from 2026-09-16 onward live here; append new sessions at the top as before.
 
+## 2026-09-20 — Space/Enter opens a chapter with the body already there (DECISIONS #763)
+
+**Picked up.** Owner: “continue.” Strongest leftover the owner can hit: #762 residual (3) Space/Enter empty-open.
+
+**Closed.** Space/Enter `preventDefault` while unmounted. `onToggle` mounts if a UA already opened. Did not force-close (`el.open = false` crashed the error boundary).
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**, next build clean. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 5/5, home-chapters 5/5 (**10/10**).
+
+**Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.**
+
+**Ledgers.** DECISIONS #763 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #763.
+
+**Ship.** (pending this push)
+
 ## 2026-09-19 — Open chapter bodies before the shell (DECISIONS #762)
 
 **Picked up.** Owner: “continue.” Strongest leftover the owner can see: #761 empty-open flash + hidden landmark ring.

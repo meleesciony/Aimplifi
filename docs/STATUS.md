@@ -22,6 +22,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-20 — Space/Enter opens a chapter with the body already there (DECISIONS #763)
+
+**The hole.** #762 residual (3): Space/Enter could empty-open if a UA toggled `<details>` before click.
+
+**Shipped.** Space/Enter `preventDefault` while unmounted; same mount-then-open as click. `onToggle` mounts children if a UA already opened; does not force-close. No schema change.
+
+**Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.** Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 5/5, home-chapters 5/5 (**10/10**).
+
+**CI + live.** (pending this push)
+
+**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) ~~Space/Enter empty-open if a UA toggles before click~~ — **CLOSED #763.** (4) M.4 route-by-route restyle owner-eyeball-gated. (5) **P2-1:** UA-first-toggle can still flash empty before children commit. (6) **P2-2:** Enter is coded, e2e locks Space only. (7) **P2-3:** chapter units are source greps. (8) **P2-4:** a late click after `mounted` can native-close. (9) **P2-5:** `toggle` listener attaches after paint.
+
 ## ✅ BUILT 2026-09-19 — Open chapter bodies before the shell (DECISIONS #762)
 
 **The hole.** #761 first-open flash: empty `<details>` then cards. Nested Coach landmarks hid the land ring.
@@ -32,7 +44,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `1d82018f` on `origin/main`. No `prisma/` diff. **CI verify run 35486194628 = SUCCESS**. Vercel Production `dpl_Aq99idazihofW8xk9JNC2kA84wVD` **READY**, aliases include `www.aimplifi.app`. Live demo: Picture open already holds `net-worth-amount`. `/coach#coach-money-dials` opens Habits with dials focused and no `outline-none`; Trajectory stays closed. Marker: raw `1d82018f` has `pendingOpen`.
 
-**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) Space/Enter empty-open if a UA toggles before click. (4) M.4 route-by-route restyle owner-eyeball-gated.
+**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) ~~Space/Enter empty-open if a UA toggles before click~~ — **CLOSED #763.** (4) M.4 route-by-route restyle owner-eyeball-gated.
 
 ## ✅ BUILT 2026-09-19 — Mount unread chapter bodies after first open (DECISIONS #761)
 

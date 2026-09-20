@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #763 — Space/Enter opens a chapter with the body already there (2026-09-20)
+
+**Context.** #762 residual (3): Space/Enter could empty-open if a UA toggled `<details>` before click. Owner: continue.
+
+**Decision.** Summary `onKeyDown` for Space/Enter while unmounted `preventDefault`s and uses the same `pendingOpen` + mount-then-open path as click. `onToggle` on an unmounted open mounts children; it does not assign `el.open = false` (that crashed the app error boundary). `mountedRef` syncs in `useLayoutEffect`. No schema change. RSC payload, harness auto-open, and M.4 restyle stay residual.
+
+**Locked.** Units: `onKeyDown`, `event.key !== ' '`, `mountedRef`, `!el.open || mountedRef.current`. Playwright: Space on Trajectory/Picture is `open && fi-card` / `open && net-worth-amount`; programmatic `el.open = true` on never-opened Habits/Adjust mounts `money-rules-card` / `home-plan-figures`.
+
+**Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.**
+
 ## #762 — Open chapter bodies before the shell; restore landmark focus rings (2026-09-19)
 
 **Context.** #761 P2s the owner can see: first open painted an empty `<details>` then the cards; nested Coach landmarks hid the land ring with `focus:outline-none`.

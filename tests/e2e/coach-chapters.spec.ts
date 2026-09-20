@@ -99,6 +99,39 @@ test('a nested Coach hash opens the parent chapter', async ({ page }) => {
   await expect(page.getByTestId('fi-card')).not.toBeAttached();
 });
 
+test('Space on a closed Coach chapter opens with the body already there', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 800 });
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+  await page.goto('/coach');
+
+  const traj = page.getByTestId('coach-chapter-coach-trajectory');
+  await expect(traj).not.toHaveAttribute('open');
+  await expect(page.getByTestId('fi-card')).not.toBeAttached();
+
+  await traj.locator(':scope > summary').press('Space');
+  await expect(traj).toHaveAttribute('open', '');
+  await expect(page.getByTestId('fi-card')).toBeVisible();
+  expect(
+    await traj.evaluate((el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="fi-card"]'))),
+  ).toBe(true);
+
+  const habits = page.getByTestId('coach-chapter-coach-habits');
+  await expect(habits).not.toHaveAttribute('open');
+  await expect(page.getByTestId('money-rules-card')).not.toBeAttached();
+  await habits.evaluate((el) => {
+    (el as HTMLDetailsElement).open = true;
+  });
+  await expect(habits).toHaveAttribute('open', '');
+  await expect(page.getByTestId('money-rules-card')).toBeVisible();
+  expect(
+    await habits.evaluate(
+      (el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="money-rules-card"]')),
+    ),
+  ).toBe(true);
+});
+
 test('Change your assumptions opens Habits from a closed body', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 800 });
   await page.goto('/sign-in');

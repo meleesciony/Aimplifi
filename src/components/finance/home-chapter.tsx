@@ -14,6 +14,8 @@ function hrefHash(href: string): string {
  * Home chapters (#758 / #761 / #762). After the daily loop, unread bodies
  * stay unmounted so a phone is not a feature dump in the first HTML. First
  * open mounts, then opens, so the chapter is never an empty shell.
+ * Space/Enter preventDefault while unmounted (same as click). A UA
+ * that already toggled open mounts children on the next commit.
  */
 export function HomeChapter({
   id,
@@ -33,8 +35,10 @@ export function HomeChapter({
   const [focusNonce, setFocusNonce] = useState(0);
   const pendingOpen = useRef(false);
   const pendingFocus = useRef(false);
+  const mountedRef = useRef(defaultOpen);
 
   useLayoutEffect(() => {
+    mountedRef.current = mounted;
     const el = ref.current;
     if (!el || !mounted) return;
     if (pendingOpen.current) {
@@ -84,7 +88,9 @@ export function HomeChapter({
       if (hrefHash(href) === `#${id}`) reveal();
     };
     const onToggle = () => {
-      if (el.open) setMounted(true);
+      if (!el.open || mountedRef.current) return;
+      pendingOpen.current = true;
+      setMounted(true);
     };
     el.addEventListener('toggle', onToggle);
     window.addEventListener('hashchange', applyHash);
@@ -109,6 +115,13 @@ export function HomeChapter({
         className="cursor-pointer border-b border-border/60 pb-3 ps-4"
         onClick={(event) => {
           if (mounted) return;
+          event.preventDefault();
+          pendingOpen.current = true;
+          setMounted(true);
+        }}
+        onKeyDown={(event) => {
+          if (mounted) return;
+          if (event.key !== ' ' && event.key !== 'Enter') return;
           event.preventDefault();
           pendingOpen.current = true;
           setMounted(true);

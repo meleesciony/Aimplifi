@@ -69,6 +69,40 @@ test('a hash jump opens Picture even when the rest stay closed', async ({ page }
   await expect(picture).toBeFocused();
 });
 
+test('Space on a closed Home chapter opens with the body already there', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 800 });
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+
+  const picture = page.getByTestId('home-chapter-home-picture');
+  await expect(picture).not.toHaveAttribute('open');
+  await expect(page.getByTestId('net-worth-amount')).not.toBeAttached();
+
+  await picture.locator(':scope > summary').press('Space');
+  await expect(picture).toHaveAttribute('open', '');
+  await expect(page.getByTestId('net-worth-amount')).toBeVisible();
+  expect(
+    await picture.evaluate(
+      (el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="net-worth-amount"]')),
+    ),
+  ).toBe(true);
+
+  const adjust = page.getByTestId('home-chapter-home-adjust');
+  await expect(adjust).not.toHaveAttribute('open');
+  await expect(page.getByTestId('home-plan-figures')).not.toBeAttached();
+  await adjust.evaluate((el) => {
+    (el as HTMLDetailsElement).open = true;
+  });
+  await expect(adjust).toHaveAttribute('open', '');
+  await expect(page.getByTestId('home-plan-figures')).toBeVisible();
+  expect(
+    await adjust.evaluate(
+      (el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="home-plan-figures"]')),
+    ),
+  ).toBe(true);
+});
+
 test('Home chapter nav opens Picture and moves focus', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 800 });
   await page.goto('/sign-in');
