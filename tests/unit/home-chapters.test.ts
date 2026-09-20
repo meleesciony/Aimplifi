@@ -59,6 +59,7 @@ describe('Home chapter source order', () => {
     const chapter = readFileSync(resolve('src/components/finance/home-chapter.tsx'), 'utf8');
     expect(chapter).toContain('<details');
     expect(chapter).toContain('hashchange');
+    expect(chapter).toContain('{mounted ? children : null}');
     expect(chapter).toContain("getAttribute('href')");
     expect(chapter).toContain('el.focus()');
     expect(chapter).toContain('tabIndex={-1}');

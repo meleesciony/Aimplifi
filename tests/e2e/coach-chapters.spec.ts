@@ -49,10 +49,12 @@ test('unread Coach chapters stay header-sized at 380 until a jump opens them', a
   if (!closed) return;
   expect(closed.height).toBeLessThan(140);
   await expect(traj).not.toHaveAttribute('open');
+  await expect(page.getByTestId('fi-card')).not.toBeAttached();
 
   await page.getByTestId('coach-chapter-nav').getByRole('link', { name: 'Trajectory' }).click();
   await expect(traj).toHaveAttribute('open', '');
   await expect(traj).toBeFocused();
+  await expect(page.getByTestId('fi-card')).toBeVisible();
   const opened = await traj.boundingBox();
   expect(opened, 'opened trajectory').toBeTruthy();
   if (!opened) return;
@@ -65,6 +67,7 @@ test('unread Coach chapters stay header-sized at 380 until a jump opens them', a
   expect(habitsBox, 'closed habits').toBeTruthy();
   if (!habitsBox) return;
   expect(habitsBox.height).toBeLessThan(140);
+  await expect(page.getByTestId('money-rules-card')).not.toBeAttached();
 
   const marker = await traj.locator(':scope > summary').evaluate((el) => getComputedStyle(el).listStyleType);
   expect(marker).toMatch(/disclosure|disc/);
@@ -74,4 +77,34 @@ test('unread Coach chapters stay header-sized at 380 until a jump opens them', a
   await page.getByTestId('coach-chapter-nav').getByRole('link', { name: 'Trajectory' }).click();
   await expect(traj).toHaveAttribute('open', '');
   await expect(traj).toBeFocused();
+});
+
+test('a nested Coach hash opens the parent chapter', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 800 });
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+  await page.goto('/coach#coach-money-dials');
+
+  const habits = page.getByTestId('coach-chapter-coach-habits');
+  await expect(habits).toHaveAttribute('open', '');
+  await expect(page.getByTestId('coach-money-dials')).toBeVisible();
+  await expect(page.getByTestId('coach-money-dials')).toBeFocused();
+  await expect(page.getByTestId('coach-chapter-coach-trajectory')).not.toHaveAttribute('open');
+  await expect(page.getByTestId('fi-card')).not.toBeAttached();
+});
+
+test('Change your assumptions opens Habits from a closed body', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 800 });
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+  await page.goto('/coach');
+
+  await page.getByTestId('coach-chapter-nav').getByRole('link', { name: 'Trajectory' }).click();
+  await expect(page.getByTestId('wealth-target-dials-link')).toBeVisible();
+  await page.getByTestId('wealth-target-dials-link').click();
+  await expect(page.getByTestId('coach-chapter-coach-habits')).toHaveAttribute('open', '');
+  await expect(page.getByTestId('coach-money-dials')).toBeVisible();
+  await expect(page.getByTestId('coach-money-dials')).toBeFocused();
 });

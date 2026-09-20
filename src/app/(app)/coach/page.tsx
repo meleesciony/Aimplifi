@@ -516,6 +516,7 @@ export default async function CoachPage() {
         id="coach-trajectory"
         title="Trajectory"
         lead="Your savings rate, FI number, and how the long game is tracking."
+        landmarks={['coach-employer-match', 'coach-tax-advantaged-room']}
       >
       <div className="grid gap-4 lg:grid-cols-2">
         <SavingsRateCard
@@ -638,6 +639,7 @@ export default async function CoachPage() {
         id="coach-habits"
         title="Habits"
         lead="Your money dials, streaks, and the rules that keep the plan going."
+        landmarks={['coach-rich-life', 'coach-money-dials']}
       >
       <div id="coach-rich-life" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-rich-life">
         <RichLifeForm current={dialUser.richLifeVision} canWrite={canWriteDials} reloadOnSuccess />

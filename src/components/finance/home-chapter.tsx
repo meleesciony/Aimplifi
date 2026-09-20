@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
- * Home chapters (#758). After the stage and the daily loop, unread chapters
- * start closed so a phone is not a feature dump. Content stays in the DOM
- * (e2e testids survive); hash links open a target.
+ * Home chapters (#758 / #761). After the daily loop, unread bodies stay
+ * unmounted so a phone is not a feature dump in the first HTML. First
+ * open keeps the body mounted. Hash links and the chapter nav open a target.
  */
 export function HomeChapter({
   id,
@@ -21,6 +21,7 @@ export function HomeChapter({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDetailsElement>(null);
+  const [mounted, setMounted] = useState(defaultOpen);
 
   useEffect(() => {
     const el = ref.current;
@@ -29,13 +30,20 @@ export function HomeChapter({
       __AIMPLIFI_E2E_OPEN_HOME?: boolean;
       __AIMPLIFI_E2E_KEEP_HOME_CLOSED?: boolean;
     };
-    if (w.__AIMPLIFI_E2E_OPEN_HOME && !w.__AIMPLIFI_E2E_KEEP_HOME_CLOSED) {
-      el.open = true;
-    }
     const reveal = () => {
+      setMounted(true);
       el.open = true;
       el.focus();
     };
+    const e2eOpen =
+      Boolean(w.__AIMPLIFI_E2E_OPEN_HOME) && !w.__AIMPLIFI_E2E_KEEP_HOME_CLOSED;
+    const hashOpen = window.location.hash === `#${id}`;
+    if (e2eOpen || hashOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration one-shot window/hash read (#761); a lazy useState initializer would hydration-mismatch (server renders closed chapters)
+      setMounted(true);
+      el.open = true;
+      if (hashOpen) el.focus();
+    }
     const applyHash = () => {
       if (window.location.hash === `#${id}`) reveal();
     };
@@ -45,10 +53,14 @@ export function HomeChapter({
       const link = target.closest('a');
       if (link?.getAttribute('href') === `#${id}`) reveal();
     };
-    applyHash();
+    const onToggle = () => {
+      if (el.open) setMounted(true);
+    };
+    el.addEventListener('toggle', onToggle);
     window.addEventListener('hashchange', applyHash);
     document.addEventListener('click', onClick);
     return () => {
+      el.removeEventListener('toggle', onToggle);
       window.removeEventListener('hashchange', applyHash);
       document.removeEventListener('click', onClick);
     };
@@ -67,7 +79,7 @@ export function HomeChapter({
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
         <span className="mt-1 block max-w-2xl text-sm leading-relaxed text-muted-foreground">{lead}</span>
       </summary>
-      {children}
+      {mounted ? children : null}
     </details>
   );
 }

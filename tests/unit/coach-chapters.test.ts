@@ -30,8 +30,13 @@ describe('Coach chapter source order', () => {
     const chapter = readFileSync(resolve('src/components/finance/coach-chapter.tsx'), 'utf8');
     expect(chapter).toContain('<details');
     expect(chapter).toContain('hashchange');
+    expect(chapter).toContain('{mounted ? children : null}');
+    expect(chapter).toContain('landmarks');
+    expect(chapter).toContain('new URL');
+    expect(page.slice(traj, habits)).toContain("landmarks={['coach-employer-match', 'coach-tax-advantaged-room']}");
+    expect(page.slice(habits)).toContain("landmarks={['coach-rich-life', 'coach-money-dials']}");
     expect(chapter).toContain("getAttribute('href')");
-    expect(chapter).toContain('el.focus()');
+    expect(chapter).toContain('node?.focus()');
     expect(chapter).toContain('tabIndex={-1}');
     expect(chapter).toContain('<span className="mt-1 block');
     expect(chapter).not.toContain('<p className="mt-1');

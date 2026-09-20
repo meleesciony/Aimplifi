@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #761 — Mount unread chapter bodies only after first open (2026-09-19)
+
+**Context.** #760 residual (5): closed Home/Coach chapters still committed every card into the first HTML. Owner: continue.
+
+**Decision.** `{mounted ? children : null}` with `useState(defaultOpen)`. First open (toggle, hash, nav, or e2e OPEN without KEEP_*_CLOSED) keeps the body mounted. Coach nested landmarks (`coach-money-dials`, `coach-rich-life`, `coach-employer-match`, `coach-tax-advantaged-room`) reveal the parent chapter so wealth-target / onboarding / Investments jumps still land. Daily loop and Coach This month stay mounted. RSC still serializes children (named residual; not `next/dynamic`). No schema change. M.4 restyle stays owner-gated.
+
+**Locked.** `tests/unit/coach-chapters.test.ts` / `home-chapters.test.ts` (`{mounted ? children : null}`; Habits/Trajectory `landmarks`). Playwright under KEEP_*: closed `fi-card` / `money-rules-card` / `net-worth-amount` / `home-plan-figures` `not.toBeAttached()`; `/coach#coach-money-dials` and `wealth-target-dials-link` open Habits.
+
+**Critic (fresh context): cycle 1 FAIL UX 7 / 1 P1 (nested hashes dead). Cycle 2 PASS UX 9 / 0 P0 / 0 P1 / 7 P2.**
+
 ## #760 — Home chapter jump nav, focus on open, valid summary lead (2026-09-19)
 
 **Context.** #759 residuals the owner can use: no Home jump nav; hash/nav open did not move focus; `<p>` inside `<summary>` is outside the HTML summary model; marker locked only by source grep.

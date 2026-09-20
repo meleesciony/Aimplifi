@@ -13,6 +13,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-12_to_2026-09-14.md` (rotated 2026-09-19).
 > Only sessions from 2026-09-16 onward live here; append new sessions at the top as before.
 
+## 2026-09-19 — Mount unread chapter bodies after first open (DECISIONS #761)
+
+**Picked up.** Owner: “continue.” Strongest leftover: closed chapters still painted every card into the first HTML.
+
+**Closed.** `{mounted ? children : null}`. Nested Coach hashes open the parent (cycle-1 P1). Daily loop + This month stay mounted.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**, next build clean. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 4/4, home-chapters 4/4, phase1 2/2 (**10/10**).
+
+**Critic (fresh context): cycle 1 FAIL UX 7 / 1 P1. Cycle 2 PASS UX 9 / 0 P0 / 0 P1 / 7 P2.**
+
+**Ledgers.** DECISIONS #761 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #761.
+
 ## 2026-09-19 — Home chapter jump nav, focus on open, valid summary lead (DECISIONS #760)
 
 **Picked up.** Owner: “continue.” Strongest leftover the owner can use: #759 residual (6) no Home jump nav, plus focus and valid summary markup.

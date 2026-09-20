@@ -30,7 +30,7 @@ test('phone Home keeps the daily loop open and Picture closed', async ({ page })
   if (!box) return;
   expect(box.height).toBeLessThan(140);
 
-  await expect(page.getByTestId('net-worth-amount')).toBeHidden();
+  await expect(page.getByTestId('net-worth-amount')).not.toBeAttached();
   await picture.locator('summary').click();
   await expect(picture).toHaveAttribute('open', '');
   await expect(page.getByTestId('net-worth-amount')).toBeVisible();
@@ -45,7 +45,7 @@ test('Adjust the plan starts closed and still holds the plan figures', async ({ 
   const adjust = page.getByTestId('home-chapter-home-adjust');
   await expect(adjust).toBeVisible();
   await expect(adjust).not.toHaveAttribute('open');
-  await expect(page.getByTestId('home-plan-figures')).toBeHidden();
+  await expect(page.getByTestId('home-plan-figures')).not.toBeAttached();
   await adjust.locator('summary').click();
   await expect(page.getByTestId('home-plan-figures')).toBeVisible();
 });
