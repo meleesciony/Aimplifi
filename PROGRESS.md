@@ -25,7 +25,7 @@
 
 **Ledgers.** DECISIONS #763 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #763.
 
-**Ship.** (pending this push)
+**Ship.** `dcc78112` on `origin/main`. No `prisma/` schema diff. **CI verify run 35491937395 = SUCCESS**. Vercel Production `dpl_8PwomDELAYoZ8CG2n16xbRDWh91n` **READY**. Live Space on Picture holds net-worth. Marker: `onKeyDown` / `mountedRef` on that sha.
 
 ## 2026-09-19 — Open chapter bodies before the shell (DECISIONS #762)
 

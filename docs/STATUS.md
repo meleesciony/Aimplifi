@@ -30,7 +30,7 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.** Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 5/5, home-chapters 5/5 (**10/10**).
 
-**CI + live.** (pending this push)
+**CI + live.** `dcc78112` on `origin/main`. No `prisma/` diff. **CI verify run 35491937395 = SUCCESS**. Vercel Production `dpl_8PwomDELAYoZ8CG2n16xbRDWh91n` **READY**, aliases include `www.aimplifi.app`. Live demo: Space on Picture opens with `net-worth-amount` `$144,804.74` already in the open details. Marker: raw `dcc78112` has `onKeyDown` / `mountedRef`.
 
 **Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) ~~Space/Enter empty-open if a UA toggles before click~~ — **CLOSED #763.** (4) M.4 route-by-route restyle owner-eyeball-gated. (5) **P2-1:** UA-first-toggle can still flash empty before children commit. (6) **P2-2:** Enter is coded, e2e locks Space only. (7) **P2-3:** chapter units are source greps. (8) **P2-4:** a late click after `mounted` can native-close. (9) **P2-5:** `toggle` listener attaches after paint.
 
