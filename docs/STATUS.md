@@ -22,6 +22,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-19 — Open chapter bodies before the shell (DECISIONS #762)
+
+**The hole.** #761 first-open flash: empty `<details>` then cards. Nested Coach landmarks hid the land ring.
+
+**Shipped.** Mount, then open in `useLayoutEffect`. First summary click `preventDefault`s until mounted. Landmark wrappers drop `focus:outline-none`. Home hrefs use `new URL`. No schema change.
+
+**Critic (fresh context): cycle 1 PASS UX 9 / 0 P0 / 0 P1 / 7 P2.** Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 4/4, home-chapters 4/4, phase1 2/2 (**10/10**).
+
+**CI + live.** Pending this push.
+
+**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) Space/Enter empty-open if a UA toggles before click. (4) M.4 route-by-route restyle owner-eyeball-gated.
+
 ## ✅ BUILT 2026-09-19 — Mount unread chapter bodies after first open (DECISIONS #761)
 
 **The hole.** Closed Home/Coach chapters still committed every card into first HTML. Cycle 1: `#coach-money-dials` became a dead jump.
@@ -32,7 +44,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `c38a2168` on `origin/main`. No `prisma/` diff. **CI verify run 35480517482 = SUCCESS**. Vercel Production `dpl_GDwYXPVDFmWpkXq934DJPELyDbZR` **READY**, aliases include `www.aimplifi.app`. Live demo Home: Picture/Adjust closed; `net-worth-amount` and `home-plan-figures` not in the DOM. Live Coach: Trajectory/Habits closed; `fi-card` / `money-rules-card` / `coach-money-dials` absent until open; Trajectory open mounts `fi-card`; Change your assumptions opens Habits and focuses money-dials. Marker: raw `c38a2168` has `{mounted ? children : null}`.
 
-**Still open / residuals.** (1) RSC still serializes chapter children (not `next/dynamic`). (2) e2e harness still auto-opens chapters. (3) Empty-open flash before children commit. (4) Nested landmark wrappers use `focus:outline-none`. (5) M.4 route-by-route restyle owner-eyeball-gated.
+**Still open / residuals.** (1) RSC still serializes chapter children (not `next/dynamic`). (2) e2e harness still auto-opens chapters. (3) ~~Empty-open flash before children commit~~ — **CLOSED #762.** (4) ~~Nested landmark wrappers use `focus:outline-none`~~ — **CLOSED #762.** (5) M.4 route-by-route restyle owner-eyeball-gated.
 
 ## ✅ BUILT 2026-09-19 — Home chapter jump nav, focus on open, valid summary lead (DECISIONS #760)
 

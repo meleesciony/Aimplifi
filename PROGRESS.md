@@ -13,6 +13,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-12_to_2026-09-14.md` (rotated 2026-09-19).
 > Only sessions from 2026-09-16 onward live here; append new sessions at the top as before.
 
+## 2026-09-19 — Open chapter bodies before the shell (DECISIONS #762)
+
+**Picked up.** Owner: “continue.” Strongest leftover the owner can see: #761 empty-open flash + hidden landmark ring.
+
+**Closed.** First open mounts, then `details.open` in `useLayoutEffect`. First summary click `preventDefault`s until mounted. Nested Coach landmarks no longer use `focus:outline-none`. Home hrefs parse via `new URL`.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**, next build clean. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 4/4, home-chapters 4/4, phase1 2/2 (**10/10**).
+
+**Critic (fresh context): cycle 1 PASS UX 9 / 0 P0 / 0 P1 / 7 P2.** #761 P2-3 and P2-4 closed.
+
+**Ledgers.** DECISIONS #762 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #762.
+
 ## 2026-09-19 — Mount unread chapter bodies after first open (DECISIONS #761)
 
 **Picked up.** Owner: “continue.” Strongest leftover: closed chapters still painted every card into the first HTML.

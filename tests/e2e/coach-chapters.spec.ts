@@ -55,6 +55,9 @@ test('unread Coach chapters stay header-sized at 380 until a jump opens them', a
   await expect(traj).toHaveAttribute('open', '');
   await expect(traj).toBeFocused();
   await expect(page.getByTestId('fi-card')).toBeVisible();
+  expect(
+    await traj.evaluate((el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="fi-card"]'))),
+  ).toBe(true);
   const opened = await traj.boundingBox();
   expect(opened, 'opened trajectory').toBeTruthy();
   if (!opened) return;
@@ -90,6 +93,8 @@ test('a nested Coach hash opens the parent chapter', async ({ page }) => {
   await expect(habits).toHaveAttribute('open', '');
   await expect(page.getByTestId('coach-money-dials')).toBeVisible();
   await expect(page.getByTestId('coach-money-dials')).toBeFocused();
+  const outline = await page.getByTestId('coach-money-dials').evaluate((el) => getComputedStyle(el).outlineStyle);
+  expect(outline).not.toBe('none');
   await expect(page.getByTestId('coach-chapter-coach-trajectory')).not.toHaveAttribute('open');
   await expect(page.getByTestId('fi-card')).not.toBeAttached();
 });

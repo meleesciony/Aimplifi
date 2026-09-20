@@ -594,10 +594,10 @@ export default async function CoachPage() {
           nextStep: 'accounts-route',
         })}
       />
-      <div id="coach-employer-match" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-employer-match">
+      <div id="coach-employer-match" tabIndex={-1} className="scroll-mt-20" data-testid="coach-employer-match">
         <EmployerMatchForm current={dialUser.employerMatch} canWrite={canWriteDials} reloadOnSuccess />
       </div>
-      <div id="coach-tax-advantaged-room" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-tax-advantaged-room">
+      <div id="coach-tax-advantaged-room" tabIndex={-1} className="scroll-mt-20" data-testid="coach-tax-advantaged-room">
         <TaxAdvantagedRoomForm current={dialUser.taxAdvantagedRoom} canWrite={canWriteDials} reloadOnSuccess />
       </div>
 
@@ -641,10 +641,10 @@ export default async function CoachPage() {
         lead="Your money dials, streaks, and the rules that keep the plan going."
         landmarks={['coach-rich-life', 'coach-money-dials']}
       >
-      <div id="coach-rich-life" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-rich-life">
+      <div id="coach-rich-life" tabIndex={-1} className="scroll-mt-20" data-testid="coach-rich-life">
         <RichLifeForm current={dialUser.richLifeVision} canWrite={canWriteDials} reloadOnSuccess />
       </div>
-      <div id="coach-money-dials" tabIndex={-1} className="scroll-mt-20 focus:outline-none" data-testid="coach-money-dials">
+      <div id="coach-money-dials" tabIndex={-1} className="scroll-mt-20" data-testid="coach-money-dials">
         <MoneyDialsForm
           current={{
             hourlyWageCents: dialUser.hourlyWageCents,

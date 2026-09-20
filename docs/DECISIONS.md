@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #762 — Open chapter bodies before the shell; restore landmark focus rings (2026-09-19)
+
+**Context.** #761 P2s the owner can see: first open painted an empty `<details>` then the cards; nested Coach landmarks hid the land ring with `focus:outline-none`.
+
+**Decision.** First open mounts children, then sets `details.open` in `useLayoutEffect` (`pendingOpen`). First summary click `preventDefault`s while unmounted. Nested Coach landmarks drop `focus:outline-none`. Home clicks parse `new URL(href).hash`. No schema change. RSC payload and M.4 restyle stay residual.
+
+**Locked.** Units: `pendingOpen`, `preventDefault`, landmark tags have no `focus:outline-none`. Playwright: open chapter already contains `fi-card` / `net-worth-amount`; `#coach-money-dials` `outlineStyle !== none`.
+
+**Critic (fresh context): cycle 1 PASS UX 9 / 0 P0 / 0 P1 / 7 P2.**
+
 ## #761 — Mount unread chapter bodies only after first open (2026-09-19)
 
 **Context.** #760 residual (5): closed Home/Coach chapters still committed every card into the first HTML. Owner: continue.

@@ -31,8 +31,21 @@ describe('Coach chapter source order', () => {
     expect(chapter).toContain('<details');
     expect(chapter).toContain('hashchange');
     expect(chapter).toContain('{mounted ? children : null}');
+    expect(chapter).toContain('pendingOpen');
+    expect(chapter).toContain('preventDefault');
     expect(chapter).toContain('landmarks');
     expect(chapter).toContain('new URL');
+    for (const landmark of [
+      'coach-employer-match',
+      'coach-tax-advantaged-room',
+      'coach-rich-life',
+      'coach-money-dials',
+    ]) {
+      const start = page.indexOf(`id="${landmark}"`);
+      expect(start).toBeGreaterThan(-1);
+      const tag = page.slice(start, page.indexOf('>', start));
+      expect(tag).not.toContain('focus:outline-none');
+    }
     expect(page.slice(traj, habits)).toContain("landmarks={['coach-employer-match', 'coach-tax-advantaged-room']}");
     expect(page.slice(habits)).toContain("landmarks={['coach-rich-life', 'coach-money-dials']}");
     expect(chapter).toContain("getAttribute('href')");

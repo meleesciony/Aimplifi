@@ -18,8 +18,9 @@ const EMPTY_LANDMARKS: readonly string[] = [];
 
 /**
  * Coach chapters (visual IA). Unread bodies stay unmounted so first HTML
- * is This month, not a 7000px card tree. First open keeps the body mounted.
- * Hash links, nested landmarks, the chapter nav, and the e2e harness open a target.
+ * is This month, not a 7000px card tree. First open mounts, then opens,
+ * so the chapter is never an empty shell. Nested landmarks, hash, nav,
+ * and the e2e harness open a target.
  */
 export function CoachChapter({
   id,
@@ -39,14 +40,21 @@ export function CoachChapter({
   const ref = useRef<HTMLDetailsElement>(null);
   const [mounted, setMounted] = useState(defaultOpen);
   const [focusNonce, setFocusNonce] = useState(0);
+  const pendingOpen = useRef(false);
   const pendingFocus = useRef<string | null>(null);
   const landmarkKey = landmarks.join('\0');
 
   useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !mounted) return;
+    if (pendingOpen.current) {
+      pendingOpen.current = false;
+      el.open = true;
+    }
     const target = pendingFocus.current;
-    if (!mounted || !target) return;
+    if (!target) return;
     pendingFocus.current = null;
-    const node = target === id ? ref.current : document.getElementById(target);
+    const node = target === id ? el : document.getElementById(target);
     node?.focus();
   }, [mounted, focusNonce, id]);
 
@@ -64,7 +72,7 @@ export function CoachChapter({
       return target === id || list.includes(target);
     };
     const reveal = (target = id) => {
-      el.open = true;
+      pendingOpen.current = true;
       pendingFocus.current = target;
       setMounted(true);
       setFocusNonce((n) => n + 1);
@@ -76,7 +84,7 @@ export function CoachChapter({
     if (e2eOpen || hashOpen) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration one-shot window/hash read (#761); a lazy useState initializer would hydration-mismatch (server renders closed chapters)
       setMounted(true);
-      el.open = true;
+      pendingOpen.current = true;
       if (hashOpen) {
         pendingFocus.current = hashTarget(landHash);
         setFocusNonce((n) => n + 1);
@@ -118,7 +126,15 @@ export function CoachChapter({
       open={defaultOpen || undefined}
       className="scroll-mt-20 space-y-5 sm:space-y-6"
     >
-      <summary className="cursor-pointer border-b border-border/60 pb-3 ps-4">
+      <summary
+        className="cursor-pointer border-b border-border/60 pb-3 ps-4"
+        onClick={(event) => {
+          if (mounted) return;
+          event.preventDefault();
+          pendingOpen.current = true;
+          setMounted(true);
+        }}
+      >
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
         <span className="mt-1 block max-w-2xl text-sm leading-relaxed text-muted-foreground">{lead}</span>
       </summary>
