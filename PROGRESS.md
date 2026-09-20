@@ -25,6 +25,8 @@
 
 **Ledgers.** DECISIONS #761 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #761.
 
+**Ship.** `c38a2168` on `origin/main`. No `prisma/` schema diff. **CI verify run 35480517482 = SUCCESS**. Vercel Production `dpl_GDwYXPVDFmWpkXq934DJPELyDbZR` **READY**. Live Home: closed Picture/Adjust unmounted. Live Coach: closed Trajectory/Habits unmounted; nested money-dials jump works. Marker: `{mounted ? children : null}` on that sha.
+
 ## 2026-09-19 — Home chapter jump nav, focus on open, valid summary lead (DECISIONS #760)
 
 **Picked up.** Owner: “continue.” Strongest leftover the owner can use: #759 residual (6) no Home jump nav, plus focus and valid summary markup.
