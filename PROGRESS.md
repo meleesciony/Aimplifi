@@ -27,7 +27,7 @@
 
 **Ledgers.** DECISIONS #764 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #764. STATUS #749/#752 and PROGRESS #751/#752 rotated.
 
-**Ship.** Pending this push. No `prisma/` schema diff.
+**Ship.** `6b9e5dff` on `origin/main`. No `prisma/` schema diff. **CI verify run 35543058639 = SUCCESS**. Vercel Production `dpl_Dmxn5FSFq4yDckemvucLsEcWJTbT` **READY**. Live Picture open holds net-worth `$144,804.74`. Marker: `flushSync` / `MutationObserver` / `readyRef` on that sha.
 
 ## 2026-09-20 — Space/Enter opens a chapter with the body already there (DECISIONS #763)
 

@@ -32,7 +32,7 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.** Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 5/5, home-chapters 5/5 (**10/10**).
 
-**CI + live.** Pending this push.
+**CI + live.** `6b9e5dff` on `origin/main`. No `prisma/` diff. **CI verify run 35543058639 = SUCCESS**. Vercel Production `dpl_Dmxn5FSFq4yDckemvucLsEcWJTbT` **READY**, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Live demo Picture open holds `net-worth-amount` `$144,804.74` already in the open details. Marker: raw `6b9e5dff` has `flushSync` / `MutationObserver` / `readyRef`.
 
 **Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) M.4 route-by-route restyle owner-eyeball-gated. (4) **P2-4:** late click after `readyRef` can native-close. (5) **P2-2:** first-open Enter is coded; e2e locks Space first-open and Enter after a remount. (6) **P2-3:** chapter units are source greps.
 
