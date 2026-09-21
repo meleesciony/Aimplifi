@@ -15,6 +15,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-18-751-752.md` (rotated 2026-09-20).
 > Only sessions from 2026-09-16 onward live here; append new sessions at the top as before.
 
+## 2026-09-21 — Clear chapter hold on the next pointerdown (DECISIONS #766)
+
+**Picked up.** Owner: “continue.” Strongest leftover: #765 P2-5 ghost-close after tap-open, plus P2-4 Enter-then-close swallow.
+
+**Closed.** Arm hold on first click-open. `pointerdown` after ready clears it. Same-session: Enter then Playwright click closes; tap-open then `HTMLElement.click()` stays open.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**, next build clean. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 6/6, home-chapters 6/6 (**12/12**).
+
+**Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.**
+
+**Ledgers.** DECISIONS #766 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #766.
+
+**Ship.** Pending this push. No `prisma/` schema diff.
+
 ## 2026-09-20 — Hold first chapter open through the leftover click (DECISIONS #765)
 
 **Picked up.** Owner: “continue.” Strongest leftover the owner can hit: #764 P2-4 leftover click after `readyRef` native-closes (Enter snap-shut).

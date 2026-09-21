@@ -18,8 +18,9 @@ function hrefHash(href: string): string {
  * an empty shell. Space/Enter preventDefault until that first open is
  * applied. A UA that already toggled open is caught by a MutationObserver
  * on `open`; flushSync mounts children in that microtask, before paint.
- * The leftover click (Enter's synthesized click, or a UA-first toggle)
- * is held open — readyRef alone would let the same gesture native-close.
+ * The leftover click (Enter's synthesized click, a UA-first toggle, or
+ * a late ghost click after tap-open) is held open. A new pointerdown
+ * after ready clears the hold so a real close is not swallowed.
  */
 export function HomeChapter({
   id,
@@ -43,6 +44,14 @@ export function HomeChapter({
   const readyRef = useRef(defaultOpen);
   const holdOpenRef = useRef(false);
   const holdOpenTimer = useRef(0);
+
+  const clearHoldOpen = () => {
+    holdOpenRef.current = false;
+    if (holdOpenTimer.current !== 0) {
+      window.clearTimeout(holdOpenTimer.current);
+      holdOpenTimer.current = 0;
+    }
+  };
 
   const armHoldOpen = () => {
     holdOpenRef.current = true;
@@ -144,24 +153,29 @@ export function HomeChapter({
     >
       <summary
         className="cursor-pointer border-b border-border/60 pb-3 ps-4"
+        onPointerDown={() => {
+          if (!readyRef.current) return;
+          clearHoldOpen();
+        }}
         onClick={(event) => {
           if (holdOpenRef.current) {
             event.preventDefault();
-            holdOpenRef.current = false;
-            if (holdOpenTimer.current !== 0) {
-              window.clearTimeout(holdOpenTimer.current);
-              holdOpenTimer.current = 0;
-            }
+            clearHoldOpen();
             return;
           }
           if (readyRef.current) return;
           event.preventDefault();
           pendingOpen.current = true;
           setMounted(true);
+          armHoldOpen();
         }}
         onKeyDown={(event) => {
           if (event.key !== ' ' && event.key !== 'Enter') return;
           if (holdOpenRef.current) {
+            if (readyRef.current) {
+              clearHoldOpen();
+              return;
+            }
             event.preventDefault();
             return;
           }
@@ -169,7 +183,7 @@ export function HomeChapter({
           event.preventDefault();
           pendingOpen.current = true;
           setMounted(true);
-          if (event.key === 'Enter') armHoldOpen();
+          armHoldOpen();
         }}
       >
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>

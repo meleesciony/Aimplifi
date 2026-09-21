@@ -39,6 +39,14 @@ test('phone Home keeps the daily loop open and Picture closed', async ({ page })
       (el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="net-worth-amount"]')),
     ),
   ).toBe(true);
+  expect(
+    await picture.evaluate((el) => {
+      const summary = el.querySelector(':scope > summary');
+      if (!(summary instanceof HTMLElement)) return false;
+      summary.click();
+      return el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="net-worth-amount"]'));
+    }),
+  ).toBe(true);
 });
 
 test('Adjust the plan starts closed and still holds the plan figures', async ({ page }) => {
@@ -87,6 +95,9 @@ test('first-open Enter keeps a Home chapter open', async ({ page }) => {
       (el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="net-worth-amount"]')),
     ),
   ).toBe(true);
+
+  await picture.locator(':scope > summary').click();
+  await expect(picture).not.toHaveAttribute('open');
 });
 
 test('Space on a closed Home chapter opens with the body already there', async ({ page }) => {

@@ -24,6 +24,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-21 — Clear chapter hold on the next pointerdown (DECISIONS #766)
+
+**The hole.** #765 P2-4 / P2-5: tap-open did not arm hold, so a leftover click could native-close; Enter's 500ms hold could swallow a real close.
+
+**Shipped.** First click-open arms `holdOpen`. After ready, `pointerdown` (and Space/Enter-to-close) clears it. 500ms fallback kept. No `el.open = false`. No schema change.
+
+**Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.** Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 6/6, home-chapters 6/6 (**12/12**).
+
+**CI + live.** Pending this push.
+
+**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) M.4 route-by-route restyle owner-eyeball-gated. (4) **P2-1:** a leftover that also fires `pointerdown` can still native-close. (5) **P2-2:** 500ms timer still the only backstop for click-only leftovers. (6) **P2-3:** chapter units are source greps.
+
 ## ✅ BUILT 2026-09-20 — Hold first chapter open through the leftover click (DECISIONS #765)
 
 **The hole.** #764 P2-4 / P2-2: after `readyRef` flipped, Enter's synthesized click or a UA-first leftover click native-closed the chapter.
@@ -34,7 +46,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `5b9abc97` on `origin/main`. No `prisma/` diff. **CI verify run 35548078940 = SUCCESS**. Vercel Production `dpl_3XaasU1ydKTcRZ52xRW6QBSoTYab` **READY**, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Live demo first-open Enter on Picture holds `net-worth-amount` `$144,804.74` already in the open details. Marker: raw `5b9abc97` has `holdOpenRef` / `armHoldOpen`.
 
-**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) M.4 route-by-route restyle owner-eyeball-gated. (4) **P2-4:** 500ms hold after Enter can swallow one real close if no leftover click arrives. (5) **P2-5:** tap-open then a late ghost click can still native-close. (6) **P2-3:** chapter units are source greps.
+**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) M.4 route-by-route restyle owner-eyeball-gated. (4) ~~**P2-4:** 500ms hold after Enter can swallow one real close~~ — **CLOSED #766** for pointer/keyboard close. (5) ~~**P2-5:** tap-open then a late ghost click can still native-close~~ — **CLOSED #766** for click-only leftovers. (6) **P2-3:** chapter units are source greps (carried as #766 P2-3).
 
 ## ✅ BUILT 2026-09-20 — UA-first chapter open mounts the body before paint (DECISIONS #764)
 

@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #766 — Clear chapter hold on the next pointerdown (2026-09-21)
+
+**Context.** #765 P2-4 / P2-5: first click-open did not arm hold, so a late ghost click could native-close; the 500ms Enter hold could swallow a real close. Owner: continue.
+
+**Decision.** Arm `holdOpen` on first click-open (and Space/Enter/adopt). After ready, `pointerdown` clears the hold so a real tap/click can close. Keydown while hold && ready also clears and allows native close. Keep the 500ms fallback. Do not assign `el.open = false`. No schema change. RSC payload, harness auto-open, unit greps, pointer-shaped leftovers, and M.4 restyle stay residual.
+
+**Locked.** Units: `clearHoldOpen`, `onPointerDown`. Playwright: tap-open then `HTMLElement.click()` stays `open &&` card; first-open Enter then Playwright click closes.
+
+**Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.**
+
 ## #765 — Hold first chapter open through the leftover click (2026-09-20)
 
 **Context.** #764 P2-4 / P2-2: after `adopt()`/`flushSync` set `readyRef`, the same gesture's leftover click (Enter's synthesized click, or a UA that already toggled `open`) native-closed the chapter. Owner: continue.

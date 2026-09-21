@@ -116,6 +116,9 @@ test('first-open Enter keeps a Coach chapter open', async ({ page }) => {
   expect(
     await traj.evaluate((el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="fi-card"]'))),
   ).toBe(true);
+
+  await traj.locator(':scope > summary').click();
+  await expect(traj).not.toHaveAttribute('open');
 });
 
 test('Space on a closed Coach chapter opens with the body already there', async ({ page }) => {
@@ -134,6 +137,14 @@ test('Space on a closed Coach chapter opens with the body already there', async 
   await expect(page.getByTestId('fi-card')).toBeVisible();
   expect(
     await traj.evaluate((el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="fi-card"]'))),
+  ).toBe(true);
+  expect(
+    await traj.evaluate((el) => {
+      const summary = el.querySelector(':scope > summary');
+      if (!(summary instanceof HTMLElement)) return false;
+      summary.click();
+      return el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="fi-card"]'));
+    }),
   ).toBe(true);
 
   await traj.locator(':scope > summary').click();
