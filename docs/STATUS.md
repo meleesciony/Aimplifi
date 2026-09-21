@@ -36,7 +36,7 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): cycle 1 FAIL UX 5 / 1 P1. Cycle 2 PASS UX 8 / 0 P0 / 0 P1 / 3 P2.** P1 was the FI-date claim under a provenance-only summary. Same session closed P2-2 and P2-3 (both-branch string; “cash-flow walk”).
 
-**CI + live.** Pending this turn’s push.
+**CI + live.** `0045560c` on `origin/main`. No `prisma/` diff. **CI verify run 35662854457 = SUCCESS**. Vercel `dpl_7c6uFDKG1cRLTW62tFq5XHcUoyuf` **READY** (`www.aimplifi.app`). Live demo Coach at 380×800: headline **24px** “Next extra dollar: investing”; closed “What we skipped, cards this cycle, and the assumptions”; closed “What this does to your FI date, and how those amounts were worked out”; biggest-lever bottom **787**. Marker: `next-dollar-more`.
 
 **Still open / residuals.** (1) Month-rest summary does not name automation, fulfillment, or value receipts (P2-1). (2) Rest stays in the HTML when closed. (3) Inbox **12** and Activity **17** remain two queues by design. Mobile header still scrolls.
 

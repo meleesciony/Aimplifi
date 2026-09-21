@@ -29,6 +29,8 @@
 
 **Ledgers.** DECISIONS #769 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #769.
 
+**Ship.** `0045560c` on `origin/main`. No `prisma/` schema diff. **CI verify run 35662854457 = SUCCESS**. Vercel `dpl_7c6uFDKG1cRLTW62tFq5XHcUoyuf` **READY**, aliases include `www.aimplifi.app`. Live demo Coach at 380×800: headline 24px “Next extra dollar: investing”; assumptions closed under a summary that names them; FI-date essay closed under a summary that names the FI date; biggest lever bottom 787. Marker: `next-dollar-more`.
+
 ## 2026-09-21 — This month first fold is the extra dollar and the flags (DECISIONS #768)
 
 **Picked up.** Owner: “continue.” #767 shipped at about B+. Strongest leftover the owner can see: Coach This month still dumps creep, hours, and the monthly review under the open chapter.
