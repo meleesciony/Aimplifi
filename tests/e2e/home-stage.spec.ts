@@ -23,6 +23,8 @@ test('phone home stage paints cash-needed above guilt-free', async ({ page }) =>
   // Linux chrome. It starts closed; open the summary to read the rows.
   await expect(page.getByTestId('cash-needed-dues')).toBeVisible();
   await expect(page.getByTestId('due-date-list')).toBeHidden();
+  const amountPx = await cash.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(amountPx, 'cash-needed-amount must keep MONEY_DISPLAY_CLASS (not 14px UA)').toBeGreaterThanOrEqual(28);
 });
 
 test('desktop home stage puts cash-needed left of guilt-free', async ({ page }) => {

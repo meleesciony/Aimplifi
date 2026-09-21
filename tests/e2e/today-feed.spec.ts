@@ -43,7 +43,10 @@ test('feed renders a headline (not the empty state) with a why-this disclosure',
   await expect(page.getByTestId('nudge-price-increase')).not.toContainText('Now $');
 
   // P2-2 (why-this shows verbatim inputs, not just a generic sentence).
-  await expect(page.getByTestId('nudge-why-inputs').first()).toContainText('at stake');
+  // Headline is no longer payment_due (that restates the stage); income_pause
+  // still names the expected deposit.
+  await expect(page.getByTestId('nudge-why-inputs').first()).toContainText('Based on:');
+  await expect(page.getByTestId('nudge-why-inputs').first()).toContainText('$380.00');
 });
 
 test('#249: the engineered $214.36 unusual charge surfaces as a dismissable ACTION row with its median basis', async ({ page }) => {
@@ -160,22 +163,16 @@ test('#251: throwaway user — confirm marks the pause HANDLED (projections excl
   await expect(page.getByTestId('nudge-income-pause-confirm')).toBeVisible();
 });
 
-test('P1-2: obligations are labeled "Payment due", never "Card payment due" (loans included)', async ({ page }) => {
+test('P1-2: Home Today does not restate stage dues as payment_due rows', async ({ page }) => {
   await signIn(page);
-  // The feed drops the card/loan discriminant, so it must not assert "card" — a
-  // mortgage/loan due would otherwise be mislabeled a card payment.
+  // Cash-needed already answers amount / when. Today ranks everything else.
   await expect(page.getByTestId('today-feed-card')).not.toContainText('Card payment due');
-  await expect(page.getByTestId('nudge-payment_due').first()).toContainText('Payment due');
+  await expect(page.getByTestId('nudge-payment_due')).toHaveCount(0);
+  await expect(page.getByTestId('nudge-cash_needed_shortfall')).toHaveCount(0);
 });
 
-test('a critical payment_due row is never given a Dismiss control (never buried)', async ({ page }) => {
+test('a leftover opportunity is still dismissable after stage kinds leave Home Today', async ({ page }) => {
   await signIn(page);
-  // CRITICAL proposals (dues within the push window) must not offer a hide button.
-  const criticalDue = page.locator('[data-testid="nudge-payment_due"][data-tier="critical"]').first();
-  if (await criticalDue.count()) {
-    await expect(criticalDue.getByTestId('nudge-dismiss-payment_due')).toHaveCount(0);
-  }
-  // Opportunities, by contrast, ARE dismissable.
   await expect(page.getByTestId('nudge-dismiss-unused-subscription')).toBeVisible();
 });
 

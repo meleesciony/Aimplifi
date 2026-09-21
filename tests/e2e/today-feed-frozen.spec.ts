@@ -217,9 +217,10 @@ test.describe('TASKS L.20 — the Today feed and a frozen funding balance', () =
     });
     await page.goto('/dashboard');
 
-    // The shortfall itself still fires — this asserts the hedge is gated on the frozen fact and
-    // not on the instruction being present, which is the false-hedge direction.
-    await expect(page.getByTestId('nudge-cash_needed_shortfall')).toBeVisible();
+    // The shortfall still fires on the stage. Home Today omits the unfrozen restatement;
+    // this asserts the hedge is gated on the frozen fact, not on the instruction existing.
+    await expect(page.getByTestId('cash-needed-card')).toBeVisible();
+    await expect(page.getByTestId('nudge-cash_needed_shortfall')).toHaveCount(0);
     await expect(page.getByTestId(SHORTFALL_FROZEN)).toHaveCount(0);
     await expect(page.getByTestId(FEED_FROZEN)).toHaveCount(0);
   });
@@ -269,15 +270,11 @@ test.describe('TASKS L.20 — the Today feed and a frozen funding balance', () =
 
     const card = page.getByTestId(FEED);
     await expect(card).toBeVisible();
-    // The feed is non-empty — this is the branch that used to say nothing at all. The live card
-    // produces a headline, so the all-clear paragraph is absent by construction…
-    await expect(page.getByTestId('today-feed-empty')).toHaveCount(0);
-    // …and the mortgage is named anyway, which is the entire point.
+    // Payment_due left Home Today (the stage already answers it). The mortgage must
+    // still be named, and the feed must not pretend nothing is due.
     const dues = page.getByTestId(FEED_FROZEN_DUES);
     await expect(dues).toContainText('Home Mortgage');
     await expect(dues).toContainText('we hold no due date for it');
-    // The all-clear wording must NOT appear — there is something due, and the claim being made is
-    // narrower: this list is incomplete, not empty.
     await expect(card).not.toContainText('Nothing needs you today');
   });
 });

@@ -24,9 +24,17 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-21 — UX A-grade (DECISIONS #767)
+
+**The hole.** Live review C / 5.1: cash-needed 14px, synonym nav, Plan vs Spending, two filing counts, Today restated the hero, Coach/catalog/sign-in dumps.
+
+**Shipped.** Token on the amount button; CardTitle skips sm when the class is 3xl/4xl. Guilt-free / Budgets labels. Home “N to file on Activity.” Today display-filter. Coach next-dollar first; catalogs closed; demo CTA primary.
+
+**Maker gate.** `bash scripts/verify.sh` → VERIFY GREEN, unit **8592 passed + 1 expected fail + 1 skipped / 639 files + 1 skipped**. Playwright + CI + live re-walk this turn.
+
 ## FOUND 2026-09-21 — UX adversarial review (owner: grades first, then decide)
 
-Live demo walk. **5.1 / 10 (C). 0 P0 / 8 P1 / 6 P2.** Cash-needed 10s axis **8**. Hierarchy / cohesion / load **3**. Live `[data-testid=cash-needed-amount]` is **14px** because `Card size="sm"` defeats `MONEY_DISPLAY_CLASS`. Other P1s: synonym-row height, Plan vs Spending (N.2), Inbox 12 vs “17 need a category,” Today restates the hero, Coach first-fold essays, category-taxonomy dumps, sign-in void. No maker this turn.
+Live demo walk. **5.1 / 10 (C). 0 P0 / 8 P1 / 6 P2.** Closed by #767 maker (re-grade after live walk).
 
 ## ✅ BUILT 2026-09-21 — Clear chapter hold on the next pointerdown (DECISIONS #766)
 

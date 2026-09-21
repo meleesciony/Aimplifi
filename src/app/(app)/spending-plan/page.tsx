@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { MONEY_DISPLAY_CLASS, MONEY_NEGATIVE_CLASS, PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
+import { MONEY_DISPLAY_CLASS, MONEY_NEGATIVE_CLASS, PAGE_SECTION_LABEL_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { PlanFiguresForm } from '@/components/finance/plan-figures-form';
 import { PlanRowActionLink } from '@/components/finance/plan-row-action-link';
@@ -87,7 +87,7 @@ export default async function SpendingPlanPage() {
   if (noData) {
     return (
       <div className="mx-auto max-w-xl space-y-4">
-        <h1 className="sr-only">Spending plan</h1>
+        <h1 className={PAGE_TITLE_CLASS}>Guilt-free</h1>
         <section
           data-testid="spending-plan-hero"
           className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-sm"
@@ -128,7 +128,7 @@ export default async function SpendingPlanPage() {
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <h1 className="sr-only">Spending plan</h1>
+      <h1 className={PAGE_TITLE_CLASS}>Guilt-free</h1>
       <section
         data-testid="spending-plan-hero"
         className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-sm"

@@ -14,7 +14,7 @@ import { BackfillButton } from '@/components/triage/backfill-button';
 import { TriageInbox } from '@/components/triage/triage-inbox';
 import { CategoryManager } from '@/components/settings/category-manager';
 import { CustomCategoryManager } from '@/components/settings/custom-category-manager';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CategoryCatalogDisclosure } from '@/components/finance/category-catalog-disclosure';
 import { businessToday } from '@/lib/business-today';
 import { prisma } from '@/lib/db';
 import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
@@ -71,12 +71,7 @@ export default async function TriagePage() {
           canRenamePayee={!isDemoUser(session.user.id)}
           accounts={accounts}
         />
-        <Card data-testid="inbox-categories-card">
-          <CardHeader className="pb-2">
-            <CardDescription>Make the category list your own while filing</CardDescription>
-            <CardTitle className="text-base">Categories</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
+        <CategoryCatalogDisclosure testid="inbox-categories-card" summary="Edit categories while filing">
             <div data-testid="inbox-custom-categories">
               <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
                 Your categories
@@ -97,8 +92,7 @@ export default async function TriagePage() {
                 canRemove={canEditCategories}
               />
             </div>
-          </CardContent>
-        </Card>
+        </CategoryCatalogDisclosure>
       </div>
     </div>
   );

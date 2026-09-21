@@ -149,6 +149,9 @@ export function AccuracyCard({ result }: { result: AccuracyResult }) {
     <Card data-testid="accuracy-card">
       <CardContent className="pt-4">
         <AccuracyMetrics result={result} />
+        <p className="mt-2 text-xs text-muted-foreground" data-testid="accuracy-later-label">
+          This hit-rate is a later label — it scores labeled history, not this inbox.
+        </p>
       </CardContent>
     </Card>
   );

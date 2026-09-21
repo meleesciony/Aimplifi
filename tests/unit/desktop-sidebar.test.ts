@@ -17,14 +17,14 @@ describe('desktop sidebar shell', () => {
 
   it('test_regression__desktop_sidebar_rows_are_labels_not_a_described_sitemap', () => {
     const nav = readFileSync(resolve('src/components/app-nav.tsx'), 'utf8');
-    expect(nav).toContain('DESCRIBED_SIDEBAR');
-    expect(nav).toContain("'/spending-plan'");
-    expect(nav).toContain("'/budgets'");
-    expect(nav).toContain("'/reports'");
-    expect(nav).toContain("'/trends'");
+    expect(nav).not.toContain('DESCRIBED_SIDEBAR');
+    expect(nav).toContain('Money & accounts');
+    expect(nav).toContain('Explore');
     const row = nav.slice(nav.indexOf('function SidebarRow'), nav.indexOf('function SheetRow'));
-    expect(row).toContain('described ?');
+    expect(row).not.toContain('described ?');
     expect(row).toContain('title={item.description}');
+    expect(row).toContain('{item.label}');
+    expect(row.split('{item.description}')).toHaveLength(2);
     expect(nav).not.toContain('text-brand-500">plifi');
     expect(nav).toContain("document.getElementById(searchId)?.focus()");
     expect(nav).toContain('last.focus()');

@@ -5,7 +5,7 @@
  * after filing moved. These strings are the one author of that claim.
  */
 export const INBOX_PAGE_SUBTITLE =
-  'Merchant groups flagged for review — not the Needs a category list on Activity. Accuracy below is how often auto-file matched a later label — not a promise that this list is small.';
+  'Merchant groups flagged for review — not the Needs a category list on Activity.';
 
 export const INBOX_NAV_DESCRIPTION =
   'Merchant groups flagged for review.';

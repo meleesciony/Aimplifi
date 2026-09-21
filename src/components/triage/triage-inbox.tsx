@@ -1578,10 +1578,14 @@ export function TriageInbox({
       </p>
 
       <p className="text-center text-xs text-muted-foreground">
-        {/* Swipe-right files only OUR confident suggestion; on a provider-guess-only or
-            "none yet" card it is a no-op, so drop that clause and point at the button. */}
-        {top.suggestedCategoryId ? 'Swipe right to file · swipe left to pick' : 'Swipe left to pick'} · long-press
-        to {one ? 'split' : 'review one by one'}
+        <span className="[@media(pointer:coarse)]:hidden">
+          Pick a category
+          {one ? ' · open the card to split' : ' · open the card to review one by one'}
+        </span>
+        <span className="hidden [@media(pointer:coarse)]:inline">
+          {top.suggestedCategoryId ? 'Swipe right to file · swipe left to pick' : 'Swipe left to pick'} ·
+          long-press to {one ? 'split' : 'review one by one'}
+        </span>
       </p>
     </div>
   );

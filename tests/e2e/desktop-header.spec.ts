@@ -12,8 +12,9 @@ test('desktop sidebar: Settings and Sign out do not overlap', async ({ page }) =
 
   await expect(page.getByTestId('nav-more')).not.toBeVisible();
   await expect(page.getByTestId('desktop-sidebar')).toBeVisible();
-  await expect(page.getByTestId('desktop-nav-spending-plan')).toContainText('guilt-free');
-  await expect(page.getByTestId('desktop-nav-trends')).toContainText('Category movers');
+  await expect(page.getByTestId('desktop-nav-spending-plan')).toHaveText(/Guilt-free/);
+  await expect(page.getByTestId('desktop-nav-trends')).toHaveText('Trends');
+  await expect(page.getByTestId('desktop-nav-trends')).toHaveAttribute('title', /Category movers/);
   const settings = page.getByTestId('desktop-nav-settings');
   const signOut = page.getByTestId('desktop-sign-out-form');
   await expect(settings).toBeVisible();

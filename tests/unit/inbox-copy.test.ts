@@ -24,7 +24,9 @@ function assertHonest(s: string) {
 
 describe('Inbox copy does not promise auto-file quality (DECISIONS #536)', () => {
   it('test_regression__inbox_copy_does_not_promise_only_ambiguous_land_here', () => {
-    expect(INBOX_PAGE_SUBTITLE).toMatch(/later label/i);
+    const accuracy = readFileSync(resolve('src/components/triage/accuracy-card.tsx'), 'utf8');
+    expect(accuracy).toMatch(/later label/i);
+    expect(INBOX_PAGE_SUBTITLE).not.toMatch(/later label/i);
     assertHonest(INBOX_PAGE_SUBTITLE);
     assertHonest(INBOX_NAV_DESCRIPTION);
     assertHonest(INBOX_EMPTY_TITLE);

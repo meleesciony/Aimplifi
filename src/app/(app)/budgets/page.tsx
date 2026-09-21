@@ -52,6 +52,7 @@ import { registerDisplayName } from '@/lib/engine/transactions/display-name';
 import { isDemoUser } from '@/lib/demo-user';
 import { CustomCategoryManager } from '@/components/settings/custom-category-manager';
 import { CategoryManager } from '@/components/settings/category-manager';
+import { CategoryCatalogDisclosure } from '@/components/finance/category-catalog-disclosure';
 import { getCustomCategories } from '@/server/category-meta';
 import { getCategoryCatalog } from '@/server/categories';
 import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
@@ -349,7 +350,7 @@ export default async function BudgetsPage() {
 
   return (
     <div className={PAGE_STACK_CLASS}>
-      <h1 className={PAGE_TITLE_CLASS}>Spending this month</h1>
+      <h1 className={PAGE_TITLE_CLASS}>Budgets</h1>
       <BudgetingCompositionCard
         plan={plan}
         savingsTargetBps={user?.savingsTargetBps ?? null}
@@ -536,12 +537,7 @@ export default async function BudgetsPage() {
         </CardContent>
       </Card>
 
-      <Card data-testid="budgets-categories-card">
-        <CardHeader className="pb-2">
-          <CardDescription>Make the category list your own</CardDescription>
-          <CardTitle className="text-base">Categories</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
+      <CategoryCatalogDisclosure testid="budgets-categories-card">
           <div data-testid="budgets-custom-categories-card">
             <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
               Your categories
@@ -562,8 +558,7 @@ export default async function BudgetsPage() {
               canRemove={canEdit}
             />
           </div>
-        </CardContent>
-      </Card>
+      </CategoryCatalogDisclosure>
 
       <Card>
         <CardHeader className="pb-2">

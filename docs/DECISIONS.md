@@ -14,6 +14,14 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #767 — UX A-grade: stage money, named destinations, one filing story (2026-09-21)
+
+**Context.** Live adversarial review scored C / 5.1. Owner: get closer to A, do not stop. P1s: cash-needed 14px, synonym nav rows, Plan vs Spending, Inbox vs “17”, Today restates the hero, Coach first-fold essays, category dumps, sign-in void.
+
+**Decision.** Keep routes. Rename Plan → Guilt-free, Spending → Budgets. Keep two filing queues; Home chip says “N to file on Activity.” Home Today display-filters `payment_due` and unfrozen `cash_needed_shortfall` (push unchanged; frozen shortfall stays for L.20). Coach This month opens on next-dollar; household moves to Habits; opportunity FV and goals start closed. Category managers on Inbox/Budgets/Rules start in a closed disclosure. Sign-in leads with Explore the demo (primary). Stage money: `amountClassName` on the amount button; CardTitle skips `text-sm` when the class is `text-3xl`/`text-4xl`. Ask in the phone header and desktop Daily. No schema change.
+
+**Locked.** Units: `home-today.test.ts`, `ux-a-grade-locks.test.ts`, page-chrome token-on-button, home-needs-file / inbox-copy / coach-chapters / nav-destinations / desktop-sidebar / demo-sign-in. Playwright: home-stage ≥28px; Today has no `nudge-payment_due`; desktop Trends is a label + title.
+
 ## #766 — Clear chapter hold on the next pointerdown (2026-09-21)
 
 **Context.** #765 P2-4 / P2-5: first click-open did not arm hold, so a late ghost click could native-close; the 500ms Enter hold could swallow a real close. Owner: continue.

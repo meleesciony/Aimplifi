@@ -19,7 +19,10 @@ describe('Coach chapter source order', () => {
     const nowBlock = page.slice(now, traj);
     const habitsBlock = page.slice(habits);
     expect(nowBlock).toContain('coach-goals-saved-card');
-    expect(nowBlock).toContain('coach-household-card');
+    expect(nowBlock).toContain('NextDollarCard');
+    expect(nowBlock.indexOf('NextDollarCard')).toBeLessThan(nowBlock.indexOf('coach-goals-saved-card'));
+    expect(nowBlock).not.toContain('coach-household-card');
+    expect(habitsBlock).toContain('coach-household-card');
     expect(habitsBlock).toContain('coach-rich-life');
     expect(habitsBlock).toContain('money-rules-card');
 

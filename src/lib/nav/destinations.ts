@@ -78,7 +78,7 @@ export interface NavDestination {
  * the menu legible, it does not re-rank it.
  *
  * The four near-synonyms are the reason this file exists, so they are described against each
- * other rather than each in isolation: **Plan** is the guilt-free figure and the maths behind it,
+ * other rather than each in isolation: **Guilt-free** is the leftover figure and the math behind it,
  * **Spending** is this month's actuals against targets you set, **Reports** is six months of
  * history, and **Trends** is what MOVED. A reader who wants "what did I spend on groceries" can
  * now pick one instead of guessing between four nouns.
@@ -141,19 +141,20 @@ export const NAV_DESTINATIONS: readonly NavDestination[] = [
 
   {
     href: '/spending-plan',
-    label: 'Plan',
-    description: 'How much is guilt-free to spend this month, and the line-by-line maths behind it.',
-    keywords: ['budget', 'guilt free', 'safe to spend', 'allocation', 'left to spend', 'fixed costs'],
+    label: 'Guilt-free',
+    description: 'How much is guilt-free to spend this month, and the line-by-line math behind it.',
+    keywords: ['budget', 'plan', 'guilt free', 'safe to spend', 'allocation', 'left to spend', 'fixed costs'],
     group: 'money',
     icon: Gauge,
     testid: 'nav-spending-plan',
   },
   {
     href: '/budgets',
-    label: 'Spending',
+    label: 'Budgets',
     description: 'Fixed vs guilt-free categories, this month\'s actuals, and targets you set.',
     keywords: [
       'budget',
+      'spending',
       'targets',
       'caps',
       'limits',

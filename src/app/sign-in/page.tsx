@@ -31,6 +31,17 @@ export default async function SignInPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <DemoSignInButton />
+          <p className="text-xs text-muted-foreground" data-testid="sign-in-demo-footnote">
+            {SIGN_IN_DEMO_FOOTNOTE}
+          </p>
+
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            or sign in to your account
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
           <EmailPasswordForm />
 
           {googleEnabled && (
@@ -40,17 +51,6 @@ export default async function SignInPage() {
               </Button>
             </form>
           )}
-
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            or just look around
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          <DemoSignInButton />
-          <p className="text-xs text-muted-foreground" data-testid="sign-in-demo-footnote">
-            {SIGN_IN_DEMO_FOOTNOTE}
-          </p>
           <details className="group text-[11px] leading-relaxed text-muted-foreground">
             <summary className="cursor-pointer hover:text-foreground" data-testid="session-timeout-summary">
               Session &amp; security

@@ -12,8 +12,8 @@ describe('Home needs-file chip is Needs a category, not Inbox (DECISIONS #543)',
   it('test_regression__home_needs_file_href_is_unclassified_not_inbox', () => {
     expect(HOME_NEEDS_FILE_HREF).toBe('/transactions?unclassified=1');
     expect(HOME_NEEDS_FILE_HREF).not.toMatch(/triage/);
-    expect(homeNeedsFileLabel(1)).toBe('1 needs a category');
-    expect(homeNeedsFileLabel(3)).toBe('3 need a category');
+    expect(homeNeedsFileLabel(1)).toBe('1 to file on Activity');
+    expect(homeNeedsFileLabel(3)).toBe('3 to file on Activity');
     expect(homeNeedsFileLabel(3)).not.toMatch(/merchant/i);
 
     const card = readFileSync(resolve('src/components/dashboard/recent-transactions-card.tsx'), 'utf8');

@@ -52,6 +52,10 @@ describe('sign-in page demo CTA wiring (source lock)', () => {
     expect(button).toContain('ActionDeadline');
     expect(button).toContain('data-testid="demo-sign-in"');
     expect(button).toContain('Explore the demo');
+    expect(button).not.toContain('variant="outline"');
+    expect(page.indexOf('DemoSignInButton')).toBeLessThan(page.indexOf('EmailPasswordForm'));
+    expect(page).toContain('or sign in to your account');
+    expect(page).not.toContain('or just look around');
   });
 
   it('test_regression__sign_in_has_a_real_h1_and_uncolored_wordmark', () => {

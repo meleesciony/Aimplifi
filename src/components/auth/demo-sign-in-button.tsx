@@ -45,7 +45,6 @@ export function DemoSignInButton() {
     <form onSubmit={onSubmit}>
       <Button
         type="submit"
-        variant="outline"
         className="w-full"
         disabled={busy}
         data-testid="demo-sign-in"

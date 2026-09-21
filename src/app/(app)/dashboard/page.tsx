@@ -18,7 +18,8 @@ import { ConnectionAlertsCard } from '@/components/finance/connection-alerts-car
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
 import { PushOptIn } from '@/components/settings/push-optin';
 import { HomeChapter } from '@/components/finance/home-chapter';
-import { PAGE_STACK_CLASS } from '@/components/finance/page-chrome';
+import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
+import { omitHomeStageNudges } from '@/lib/engine/nudge/home-today';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
 import { getVapidPublicKey } from '@/lib/push';
@@ -147,8 +148,12 @@ export default async function DashboardPage({
     frozenDues: frozenDueRows,
     goalPaceRows: goalPaceNudgeRowsFrom(goalRows),
   } as const;
-  const nudgeFeed = buildNudgeFeed({ ...nudgeInput, dismissedKeys: nudgeDismissedKeys });
-  const nudgeFeedAll = buildNudgeFeed({ ...nudgeInput, dismissedKeys: new Set<string>() });
+  const nudgeFeed = omitHomeStageNudges(
+    buildNudgeFeed({ ...nudgeInput, dismissedKeys: nudgeDismissedKeys }),
+  );
+  const nudgeFeedAll = omitHomeStageNudges(
+    buildNudgeFeed({ ...nudgeInput, dismissedKeys: new Set<string>() }),
+  );
 
   const paymentAccounts = data.accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type))
@@ -244,7 +249,7 @@ export default async function DashboardPage({
 
   return (
     <div className={PAGE_STACK_CLASS}>
-      <h1 className="sr-only">Dashboard</h1>
+      <h1 className={PAGE_TITLE_CLASS}>Home</h1>
       {showOnboarding && (
         <div className="space-y-0.5">
           <StepIndicator step={2} />

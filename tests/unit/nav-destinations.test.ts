@@ -63,6 +63,8 @@ describe('the catalogue describes every destination', () => {
     expect(by('/trends')).not.toContain('what changed');
     const four = ['/spending-plan', '/budgets', '/reports', '/trends'].map(by);
     expect(new Set(four).size).toBe(4);
+    expect(NAV_DESTINATIONS.find((d) => d.href === '/spending-plan')!.label).toBe('Guilt-free');
+    expect(NAV_DESTINATIONS.find((d) => d.href === '/budgets')!.label).toBe('Budgets');
   });
 });
 

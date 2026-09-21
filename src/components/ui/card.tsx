@@ -45,7 +45,11 @@ function CardTitle({
     <Comp
       data-slot="card-title"
       className={cn(
-        "font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm",
+        "font-heading leading-snug font-medium",
+        // Stage money (text-3xl / text-4xl) must not lose to size=sm's text-sm.
+        className && /\btext-(?:3xl|4xl)\b/.test(className)
+          ? undefined
+          : "text-base group-data-[size=sm]/card:text-sm",
         className
       )}
       {...props}

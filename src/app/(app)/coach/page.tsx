@@ -201,8 +201,11 @@ export default async function CoachPage() {
         lead="What to do now: the extra dollar, the flags, the review."
         defaultOpen
       >
+      <NextDollarCard plan={data.nextDollar} />
       {savingsGoals.length > 0 ? (
-        <Card data-testid="coach-goals-saved-card">
+        <details className="rounded-xl border bg-card">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Savings goals — same writes as Goals</summary>
+        <Card data-testid="coach-goals-saved-card" className="border-0 shadow-none">
           <CardHeader className="pb-2">
             <CardDescription>Savings goals</CardDescription>
             <CardTitle as="h3" className="text-base">Savings progress</CardTitle>
@@ -264,6 +267,7 @@ export default async function CoachPage() {
             </ul>
           </CardContent>
         </Card>
+        </details>
       ) : null}
 
       {/* O.15 — outstanding reimbursements: purchases the reader marked as
@@ -339,10 +343,12 @@ export default async function CoachPage() {
                       {COACH_COPY.biggestLever()}
                     </p>
                   )}
-                  {/* the actionable line first; the compounding math in a quiet second line */}
-                  <p className="text-xs text-muted-foreground">
-                    {COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}
-                  </p>
+                  <details className="text-xs text-muted-foreground">
+                    <summary className="cursor-pointer hover:text-foreground">What that is worth over time</summary>
+                    <p className="mt-1">
+                      {COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}
+                    </p>
+                  </details>
                 </li>
               ))}
             </ul>
@@ -502,15 +508,6 @@ export default async function CoachPage() {
       {/* Your money rules — a short rulebook beats a perfect plan you won't keep
           (Aliche · Get Good with Money; Sethi · your money rules) */}
 
-      <Card data-testid="coach-household-card">
-        <CardHeader className="pb-2">
-          <CardDescription>Share planning with a partner — accounts stay private until you share them</CardDescription>
-          <CardTitle as="h3" className="text-base">Household</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <HouseholdCard view={householdView} />
-        </CardContent>
-      </Card>
       </CoachChapter>
       <CoachChapter
         id="coach-trajectory"
@@ -578,10 +575,6 @@ export default async function CoachPage() {
         })}
       />
 
-      {/* W.6(b) — extra-dollar ranking from rates on file. After staying
-          wealthy (survival) and before the wealth-target planner. */}
-      <NextDollarCard plan={data.nextDollar} />
-
       {/* P1.5 — account-type order + fee-drag on today's invested balance.
           After next-dollar (extra-dollar ranking) because this is the
           account-type lens, not a second ranking. Ask deferred. */}
@@ -641,6 +634,15 @@ export default async function CoachPage() {
         lead="Your money dials, streaks, and the rules that keep the plan going."
         landmarks={['coach-rich-life', 'coach-money-dials']}
       >
+      <Card data-testid="coach-household-card">
+        <CardHeader className="pb-2">
+          <CardDescription>Share planning with a partner — accounts stay private until you share them</CardDescription>
+          <CardTitle as="h3" className="text-base">Household</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <HouseholdCard view={householdView} />
+        </CardContent>
+      </Card>
       <div id="coach-rich-life" tabIndex={-1} className="scroll-mt-20" data-testid="coach-rich-life">
         <RichLifeForm current={dialUser.richLifeVision} canWrite={canWriteDials} reloadOnSuccess />
       </div>

@@ -31,9 +31,9 @@ import { activeSupersededPredecessorIds } from '@/server/reconciliation';
 import { HOME_NEEDS_FILE_HREF } from '@/lib/copy/home-needs-file-copy';
 import { CategoryManager } from '@/components/settings/category-manager';
 import { CustomCategoryManager } from '@/components/settings/custom-category-manager';
+import { CategoryCatalogDisclosure } from '@/components/finance/category-catalog-disclosure';
 import { getCustomCategories } from '@/server/category-meta';
 import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getCategoryCatalog } from '@/server/categories';
 import { isDemoUser } from '@/lib/demo-user';
 
@@ -219,12 +219,7 @@ export default async function RulesPage({
       />
 
 
-      <Card data-testid="rules-categories-card">
-        <CardHeader className="pb-2">
-          <CardDescription>Make the category list your own for the rule builder</CardDescription>
-          <CardTitle className="text-base">Categories</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
+      <CategoryCatalogDisclosure testid="rules-categories-card" summary="Edit categories for the rule builder">
           <div data-testid="rules-custom-categories">
             <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>
               Your categories
@@ -245,8 +240,7 @@ export default async function RulesPage({
               canRemove={!isDemoUser(session.user.id)}
             />
           </div>
-        </CardContent>
-      </Card>
+      </CategoryCatalogDisclosure>
 
       <p className="text-xs text-muted-foreground">
         Looking for a single transaction instead?{' '}

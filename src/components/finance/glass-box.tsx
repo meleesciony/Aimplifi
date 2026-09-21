@@ -12,6 +12,7 @@
 import { useId, useState, type ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import { GlassBoxShare } from '@/components/finance/glass-box-share';
 import { PlanRowActionLink } from '@/components/finance/plan-row-action-link';
 import type { NumberTrace } from '@/lib/engine/glass-box/trace';
@@ -60,7 +61,10 @@ export function GlassBoxNumber({
           aria-controls={panelId}
           aria-label={`${formatCents(trace.headlineCents)} — show what this number is made of`}
           data-testid={amountTestId}
-          className="cursor-pointer rounded-sm underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 transition hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className={cn(
+            'cursor-pointer rounded-sm underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 transition hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+            amountClassName,
+          )}
         >
           {formatCents(trace.headlineCents)}
         </button>

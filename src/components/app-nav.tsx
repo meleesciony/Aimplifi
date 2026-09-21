@@ -20,6 +20,7 @@ import { Menu, Search, X } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
 import { SignOutButton } from '@/components/auth/sign-out-button';
 import {
+  NAV_DESTINATIONS,
   PRIMARY_DESTINATIONS,
   SHEET_DESTINATIONS,
   type NavDestination,
@@ -111,6 +112,14 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
         aria-label="Main"
       >
         {wordmark}
+        <Link
+          href="/ask"
+          prefetch={false}
+          data-testid="header-nav-ask"
+          className="ml-auto flex min-h-11 items-center rounded-full px-3 text-sm font-medium text-foreground hover:bg-accent"
+        >
+          Ask
+        </Link>
         <button
           ref={moreBtnRef}
           type="button"
@@ -119,7 +128,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
           aria-controls="nav-more-sheet"
           aria-haspopup="dialog"
           onClick={() => setMoreOpen((o) => !o)}
-          className={`ml-auto flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium ${
+          className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium ${
             moreOpen || secondaryActive
               ? 'bg-brand-500/15 text-brand-500'
               : 'bg-accent/60 text-foreground'
@@ -147,6 +156,14 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
               reviewBadge={item.href === '/triage' ? reviewBadge : undefined}
             />
           ))}
+          {NAV_DESTINATIONS.filter((d) => d.href === '/ask').map((item) => (
+            <SidebarRow
+              key={item.href}
+              item={item}
+              active={isActive(item.href)}
+              testid={`desktop-${item.testid}`}
+            />
+          ))}
         </SidebarGroup>
         <SidebarGroup label="Money & accounts">
           {SHEET.filter((d) => d.group === 'money').map((item) => (
@@ -159,7 +176,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
           ))}
         </SidebarGroup>
         <SidebarGroup label="Explore">
-          {SHEET.filter((d) => d.group === 'explore').map((item) => (
+          {SHEET.filter((d) => d.group === 'explore' && d.href !== '/ask').map((item) => (
             <SidebarRow
               key={item.href}
               item={item}
@@ -332,9 +349,6 @@ function SidebarGroup({ label, children }: { label: string; children: React.Reac
   );
 }
 
-/** Labels that collide without a line of copy (Plan / Spending / Reports / Trends). */
-const DESCRIBED_SIDEBAR = new Set(['/spending-plan', '/budgets', '/reports', '/trends']);
-
 function SidebarRow({
   item,
   active,
@@ -347,7 +361,6 @@ function SidebarRow({
   reviewBadge?: React.ReactNode;
 }) {
   const Icon = item.icon;
-  const described = DESCRIBED_SIDEBAR.has(item.href);
   return (
     <li>
       <Link
@@ -359,16 +372,9 @@ function SidebarRow({
         className={sidebarLinkClass(active)}
       >
         <Icon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-        <span className="min-w-0">
-          <span className="flex items-center gap-1">
-            {item.label}
-            {reviewBadge}
-          </span>
-          {described ? (
-            <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
-              {item.description}
-            </span>
-          ) : null}
+        <span className="flex min-w-0 items-center gap-1">
+          {item.label}
+          {reviewBadge}
         </span>
       </Link>
     </li>

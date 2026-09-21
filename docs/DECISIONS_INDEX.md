@@ -759,3 +759,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #764 — UA-first chapter open mounts the body before paint (2026-09-20) → docs/DECISIONS.md
 - #765 — Hold first chapter open through the leftover click (2026-09-20) → docs/DECISIONS.md
 - #766 — Clear chapter hold on the next pointerdown (2026-09-21) → docs/DECISIONS.md
+- #767 — UX A-grade: stage money, named destinations, one filing story (2026-09-21) → docs/DECISIONS.md

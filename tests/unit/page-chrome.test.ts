@@ -100,4 +100,15 @@ describe('money type tokens', () => {
   it('uses one red for negative money', () => {
     expect(MONEY_NEGATIVE_CLASS).toBe('text-red-500');
   });
+
+  it('test_regression__stage_money_token_survives_card_sm_and_the_amount_button', () => {
+    const card = readFileSync(resolve('src/components/ui/card.tsx'), 'utf8');
+    expect(card).toContain('text-(?:3xl|4xl)');
+    expect(card).toContain('group-data-[size=sm]/card:text-sm');
+    const glass = readFileSync(resolve('src/components/finance/glass-box.tsx'), 'utf8');
+    expect(glass).toContain('amountClassName');
+    expect(glass).toMatch(/className=\{cn\([\s\S]*amountClassName/);
+    const hero = readFileSync(resolve('src/components/finance/cash-needed-card.tsx'), 'utf8');
+    expect(hero).toContain('amountClassName={MONEY_DISPLAY_CLASS}');
+  });
 });

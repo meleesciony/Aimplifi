@@ -15,6 +15,14 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-18-751-752.md` (rotated 2026-09-20).
 > Only sessions from 2026-09-16 onward live here; append new sessions at the top as before.
 
+## 2026-09-21 — UX A-grade maker (DECISIONS #767)
+
+**Picked up.** Owner: get the live C / 5.1 review closer to A; do not stop.
+
+**Closed.** Stage money token on the amount button + CardTitle skip for `text-3xl`/`text-4xl`. Plan→Guilt-free, Spending→Budgets (routes kept). Home chip “N to file on Activity.” Home Today omits `payment_due` and unfrozen shortfall. Coach This month leads with next-dollar; household in Habits. Category catalogs start closed. Sign-in leads with Explore the demo.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8592 passed + 1 expected fail + 1 skipped / 639 files + 1 skipped**, next build clean. Playwright: home-stage 2/2 (amount ≥28px), today-feed 8/8, desktop-header 1/1, coach-chapters 6/6.
+
 ## 2026-09-21 — UX adversarial review (verifier, no maker)
 
 **Picked up.** Owner: thorough UI/UX adversarial review, show grades, then decide. No implementation.
