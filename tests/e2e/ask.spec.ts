@@ -7,6 +7,7 @@
  */
 import { execSync } from 'node:child_process';
 import AxeBuilder from '@axe-core/playwright';
+import { openCoachMonthRest } from './helpers/coach-month-rest';
 import { type Page, expect, test } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
@@ -154,6 +155,7 @@ test('Is my lifestyle creeping agrees with Coach creep card', async ({ page }) =
 test('How many months of runway agrees with Coach room-for-error card', async ({ page }) => {
   await signIn(page);
   await page.goto('/coach');
+  await openCoachMonthRest(page);
   const months = ((await page.getByTestId('runway-months').textContent()) ?? '').trim();
   expect(months, 'Coach runway title').not.toBe('');
 

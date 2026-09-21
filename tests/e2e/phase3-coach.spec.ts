@@ -3,6 +3,7 @@
  * FI card with the live slider, opportunities, creep, runway, life-energy
  * toggle, and the monthly Money Review.
  */
+import { openCoachMonthRest } from './helpers/coach-month-rest';
 import { expect, test } from './helpers/test';
 
 test('coach page: savings rate, FI slider moves the date live, life-energy toggle, money review', async ({ page }) => {
@@ -161,6 +162,7 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
     '90-day cash-flow walk',
   );
 
+  await openCoachMonthRest(page);
   // creep flagged on the engineered seed rise — phrased as a question, not a verdict
   await expect(page.getByTestId('creep-verdict')).toContainText('not a verdict');
 
@@ -323,6 +325,7 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
     '1 quiet price increase flagged — $2.50/mo in total.',
   );
   await page.reload();
+  await openCoachMonthRest(page);
   await expect(page.getByTestId('value-receipts-headline')).toContainText('1 catch so far');
 
   // the educational disclaimer is on the page (global footer)

@@ -26,6 +26,7 @@
  * emulator and the floor must move to unconditional — but that is a real signal,
  * not a flake.
  */
+import { openCoachMonthRest } from './helpers/coach-month-rest';
 import { expect, test, type Locator } from './helpers/test';
 
 // iOS HIG asks 44pt; Android 48dp. The token floors at 44px (min-height: 2.75rem);
@@ -79,6 +80,7 @@ test('O.20d: the /coach creep bars meet the 44px tap-target floor', async ({ pag
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
   await page.goto('/coach');
+  await openCoachMonthRest(page);
   await expectTapFloor(
     page.getByTestId('creep-card').locator('[data-testid^="creep-bar-"]').first(),
     'creep bar (the whole 56px column is the target)',

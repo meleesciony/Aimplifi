@@ -198,7 +198,7 @@ export default async function CoachPage() {
       <CoachChapter
         id="coach-now"
         title="This month"
-        lead="What to do now: the extra dollar, the flags, the review."
+        lead="What to do now: the extra dollar and the flags."
         defaultOpen
       >
       <NextDollarCard plan={data.nextDollar} />
@@ -379,6 +379,11 @@ export default async function CoachPage() {
         </CardContent>
       </Card>
 
+      <details className="rounded-xl border bg-card" data-testid="coach-month-rest">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+          Lifestyle creep, room for error, hours, and the monthly review
+        </summary>
+        <div className="space-y-5 px-4 pb-4 sm:space-y-6">
       <div className="grid gap-4 lg:grid-cols-2">
         <Card data-testid="creep-card">
           <CardHeader className="pb-2">
@@ -504,6 +509,8 @@ export default async function CoachPage() {
           })}
         </CardContent>
       </Card>
+        </div>
+      </details>
 
       {/* Your money rules — a short rulebook beats a perfect plan you won't keep
           (Aliche · Get Good with Money; Sethi · your money rules) */}

@@ -3,6 +3,7 @@
  * on first-run onboarding (no accounts yet) with NO "demo dataset" banner, signs
  * out, and signs back in. The one-click demo remains covered by the other specs.
  */
+import { openCoachMonthRest } from './helpers/coach-month-rest';
 import { expect, test } from './helpers/test';
 
 test('email/password sign-up → empty onboarding → sign out → sign back in', async ({ page }) => {
@@ -124,6 +125,7 @@ test('first manual account → dashboard explains its sparse cards (no bare $0.0
   await expect(page.getByTestId('opportunities-basis')).toHaveCount(0);
   await expect(page.getByTestId('opportunities-cut-fi')).toHaveCount(0);
   await expect(page.getByTestId('opportunities-cut-radar')).toHaveCount(0);
+  await openCoachMonthRest(page);
   await expect(page.getByTestId('life-energy-empty')).toBeVisible();
   await expect(page.getByTestId('life-energy-list')).toHaveCount(0);
   // #524 — the window line qualifies purchases; against the empty card's own

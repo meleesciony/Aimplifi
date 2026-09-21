@@ -14,6 +14,7 @@
  * window is 2025-12 … 2026-05 for the throwaway user too.
  */
 import Database from 'better-sqlite3';
+import { openCoachMonthRest } from './helpers/coach-month-rest';
 import { expect, test, type Page } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
@@ -86,6 +87,7 @@ test('a row the reader marks Fixed leaves the creep bar the register badge says 
   // Baseline, before any override: the bar counts the $1,000.00/month shopping
   // rows (flat spend, flat income — "Tracking income").
   await page.goto('/coach');
+  await openCoachMonthRest(page);
   const card = page.getByTestId('creep-card');
   await expect(card).toBeVisible();
   await expect(card).toContainText('Tracking income');
@@ -134,6 +136,7 @@ test('a row the reader marks Fixed leaves the creep bar the register badge says 
   // Back on /coach: that row has left the bar's panel — the bar and the badge
   // now state one definition.
   await page.goto('/coach');
+  await openCoachMonthRest(page);
   await expect(card).toContainText('Tracking income');
   await bars.first().click();
   const panel2 = page.getByTestId(`creep-bar-panel-${month}`);

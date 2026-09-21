@@ -14,6 +14,14 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #768 — This month’s first fold is the extra dollar and the flags (2026-09-21)
+
+**Context.** #767 left Coach This month open on next-dollar, with opportunity future-value and goals already closed. Creep, hours, runway, and the monthly review still painted in that open chapter. Owner: continue. The named gap to an A was that first fold.
+
+**Decision.** Keep This month open. After next-dollar, the closed goals disclosure, reimbursements, and the opportunity flags, one closed `<details data-testid="coach-month-rest">` holds lifestyle creep, runway, the automation blueprint, life-energy, fulfillment, value receipts, and the monthly review. The summary names room for error, because Ask sends “how many months of runway” to `/coach` and Trajectory (where staying-wealthy also mentions the cushion) starts closed. The chapter lead no longer promises the review on the first fold. No schema change. Specs that read those cards open the disclosure first.
+
+**Locked.** Unit: `coach-chapters.test.ts` — rest tag has no `open`; creep, LifeEnergy, and money-review sit inside it, after opportunities. Playwright: `coach-chapters.spec.ts` — first fold shows next-dollar and opportunities; creep, life-energy, and the review stay hidden until the summary opens.
+
 ## #767 — UX A-grade: stage money, named destinations, one filing story (2026-09-21)
 
 **Context.** Live adversarial review scored C / 5.1. Owner: get closer to A, do not stop. P1s: cash-needed 14px, synonym nav rows, Plan vs Spending, Inbox vs “17”, Today restates the hero, Coach first-fold essays, category dumps, sign-in void.

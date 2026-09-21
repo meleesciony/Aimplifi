@@ -2,6 +2,7 @@
  * Coach chapters (#757): This month, Trajectory, Habits — in that visual order.
  * Trajectory / Habits start closed so first paint is This month.
  */
+import { openCoachMonthRest } from './helpers/coach-month-rest';
 import { expect, test } from './helpers/test';
 
 test.beforeEach(async ({ page }) => {
@@ -9,6 +10,33 @@ test.beforeEach(async ({ page }) => {
     (window as Window & { __AIMPLIFI_E2E_KEEP_COACH_CLOSED?: boolean }).__AIMPLIFI_E2E_KEEP_COACH_CLOSED =
       true;
   });
+});
+
+test('This month’s first fold is the extra dollar and the flags', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 800 });
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+  await page.goto('/coach');
+
+  const now = page.getByTestId('coach-chapter-coach-now');
+  await expect(now).toHaveAttribute('open', '');
+  await expect(page.getByTestId('next-dollar-card')).toBeVisible();
+  await expect(page.getByTestId('opportunities-card')).toBeVisible();
+  const rest = page.getByTestId('coach-month-rest');
+  await expect(rest).toBeVisible();
+  await expect(rest).not.toHaveAttribute('open');
+  await expect(rest.locator('> summary')).toContainText('room for error');
+  await expect(page.getByTestId('creep-card')).toBeHidden();
+  await expect(page.getByTestId('runway-card')).toBeHidden();
+  await expect(page.getByTestId('life-energy-card')).toBeHidden();
+  await expect(page.getByTestId('money-review-card')).toBeHidden();
+
+  await openCoachMonthRest(page);
+  await expect(page.getByTestId('creep-card')).toBeVisible();
+  await expect(page.getByTestId('runway-card')).toBeVisible();
+  await expect(page.getByTestId('life-energy-card')).toBeVisible();
+  await expect(page.getByTestId('money-review-card')).toBeVisible();
 });
 
 test('coach chapters paint This month then Trajectory then Habits', async ({ page }) => {

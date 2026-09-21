@@ -17,12 +17,26 @@ rates) — no other doc may restate them.
 > BUILT entries for #749/#752 in
 > `docs/archive/STATUS_ARCHIVE_2026-09-18-o20j-749-752.md` (rotated 2026-09-20); only
 > current-wave BUILT entries and OPEN/FOUND/DECIDED items remain here.
+> BUILT #744/#748 and the superseded #743 human gate live in
+> `docs/archive/STATUS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 >
 > Entries from 2026-06/2026-07 (BUILT/CLOSED history) were moved verbatim to
 > `docs/archive/STATUS_ARCHIVE_2026-06_to_2026-07.md` on 2026-08-04, and the 2026-08
 > BUILT/CLOSED history to `docs/archive/STATUS_ARCHIVE_2026-08.md` on 2026-08-27, to
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
+
+## ✅ BUILT 2026-09-21 — This month first fold is the extra dollar and the flags (DECISIONS #768)
+
+**The hole.** #767 left Coach This month open on next-dollar, but creep, hours, runway, and the monthly review still painted in that chapter.
+
+**Shipped.** Closed `coach-month-rest` after the extra dollar and the flags. Summary names room for error (Ask’s runway answer lands on `/coach`). Goals stay in their own closed disclosure. Reimbursements and opportunity flags stay on the first fold. No schema change.
+
+**Maker gate.** `bash scripts/verify.sh` → VERIFY GREEN, unit **8592 passed + 1 expected fail + 1 skipped / 639 files + 1 skipped**. After the summary named room for error: chapter unit 1/1, `next build` clean, Playwright first-fold **1/1**.
+
+**Critic (fresh context): cycle 1 FAIL UX 7 / 1 P1. Cycle 2 PASS UX 8 / 0 P0 / 0 P1 / 4 P2.**
+
+**Still open / residuals.** (1) First fold still includes next-dollar’s why/assumptions and the opportunity list. (2) Automation, fulfillment, and value-receipts are in the rest disclosure but not in the first-fold lock. (3) Rest stays in the HTML when closed. (4) Goals disclosure has no test id; the rest helper opens by click. Inbox **12** and Activity **17** remain two queues by design. Mobile header still scrolls.
 
 ## ✅ BUILT 2026-09-21 — UX A-grade (DECISIONS #767)
 
@@ -34,7 +48,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `c812a015` on `origin/main`. No `prisma/` diff. First CI `35625811096` FAILED (first Tab expected email after demo became primary). **CI verify run 35628035698 = SUCCESS**. Vercel `dpl_FxkvZkiBfk7bdwyuJneJ7QnAXppg` **READY** (`www.aimplifi.app`). Live demo: `[data-testid=cash-needed-amount]` **36px / $5,412.33**; Today has **0** `nudge-payment_due`; nav **Guilt-free / Budgets / Trends**; chip **17 to file on Activity**; sign-in **or sign in to your account**.
 
-**Still open / residuals.** Coach This month still lists creep/hours/review under the open chapter (next-dollar is first; FV/goals start closed). Inbox **12** and Activity **17** remain two queues by design. Re-grade vs C/5.1: **~8.4 / B+** — not A until This month’s first fold is only the extra dollar + flags.
+**Still open / residuals.** ~~Coach This month still lists creep/hours/review under the open chapter~~ — **CLOSED #768.** Inbox **12** and Activity **17** remain two queues by design. Re-grade vs C/5.1 after #767 was **~8.4 / B+**; the first-fold hole is #768.
 
 ## FOUND 2026-09-21 — UX adversarial review (owner: grades first, then decide)
 
@@ -219,48 +233,6 @@ fire still **UNVERIFIED** (24h production `requestPath` group: zero `/api/cron/*
 lines — Hobby ~1h retention). Do not undo GENUINE/UNTESTABLE links. Do not flip
 `DATA_PROVIDER=plaid`. Shipped `19fc703e` on `main`; CI **35376970883 SUCCESS**;
 Vercel `dpl_AQAigaAKyGswkes9coT5bhpUqyxU` READY.
-
-## ✅ BUILT 2026-09-17 — O.20j residual (2): a Plaid side without `ins_*` does not fold on last-4 (DECISIONS #748)
-
-**The hole.** #744 folded unconfirmed same-type copies on a MASK COLUMN ≥4. `institutionsConflict` only vetoed when both `ins_*` ids were present and different, so two pre-backfill Plaid items with null ids still folded on last-4 — Chase vs Ally with no id was one account, and a $2,000 transfer vanished.
-
-**Shipped.** A Plaid side that lacks `ins_*` (null / blank / whitespace) fails closed against ANY counterpart. Both ids present ⇒ conflict iff they differ (unchanged). Plaid-with-id + SimpleFIN null still folds (0977). Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
-
-**Measured.** `scripts/audit-probes/o20j-0977-institution-ids.mts` (read-only): 2 CREDIT `0977` Plaid items, both live, both `PlaidItem.institutionId = ins_56`, both Account stamp NULL → join presents `ins_56`. Prevention fold is ON for the live pair.
-
-**Critic (fresh context, `C:\dev\_critic_o20j_r2`): cycle 1 FAIL 0 P0 / 2 P1 → cycle 2 PASS 0 P0 / 0 P1 / 2 P2.** Cycle 1: unmeasured live premise; Plaid(null)+SimpleFIN still folded. Cycle 2 independently: tsc 0, 77/77, FAIL-OLD **5 failed | 72 passed**, both-Plaid mutation killed the two P1-2 locks, re-measured live 0977.
-
-**Gate.** `bash scripts/verify.sh` (post-cycle-2) → ✅ VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8534 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**, `next build` clean. Playwright mobile-380 `transfer-flag-repair.spec.ts` **1/1** (no UI change). FAIL-OLD vs pre-slice function: **5 failed | 72 passed**.
-
-**CI + live.** `2f2f3e23` on `origin/main`. No `prisma/` diff — database untouched. **CI verify run 35312463045 = SUCCESS** on `2f2f3e23` (`main`, full `VERIFY_E2E=1`, 14m57s, watched via `gh run watch`; `scripts/ci-status.sh` exits 4 under WSL bash because `gh` is not on that PATH). Vercel Production `dpl_EWXhQSiTdZkkWiFhKn8dUdngvYjx` **READY** on `2f2f3e23`, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in` (auth). The fail-closed identity is server-only (no new UI copy); `raw.githubusercontent.com` on that sha finds `a Plaid side that lacks` in `transfers.ts`. H.7b not auto-run.
-
-**Still open / residuals.** (1) Mixed-type over-veto (carried from #744). (2) **Cycle-2 P2-1:** a third Plaid-null copy in the same (type, mask) component vetoes the whole group, so two proven `ins_56` copies do not fold while a straggler remains (fail-closed; not live on 0977, n=2). (3) Dismissal `take: 500`. (4) ~~**Cycle-2 P2-2:** the filing 0977 lock stamps `Account.institutionId` (no `PlaidItem` row)~~ — **CLOSED 2026-09-18 (DECISIONS #749):** live-shape fixture + `resolveLiveInstitutionId`. (5) `anyPairBlocked` O(component²). (6) Raw `provider === 'plaid'` case (carried). (7) The 8 existing `$237.08` flags stay until the owner taps H.7b. Wave 0 ops owner-blocked. M.4 owner-deferred.
-
-## ✅ BUILT 2026-09-17 — O.20j converse-leak identity: mask COLUMN + detector prereqs (DECISIONS #744)
-
-**The leak.** Two Plaid items of CREDIT last-4 `0977` still paired a real purchase with a filed `TRAVEL CREDIT` on the other copy. H.7 confirmed links already equated some copies; unconfirmed same-mask copies did not. Reader-side "count converse as spend" was killed (~$180k of real transfers). Writer-side identity is the remaining prevention.
-
-**Shipped.** `unionSameMaskColumnIdentity` folds unconfirmed same-type copies that share a MASK COLUMN (≥4) across different ingest connections into the H.7 map `planTransferUpdates` already reads. A mask-group union is skipped when any pair in the current `root()` component is dismissed, same-connection, mixed-type, both `institutionId`s present and different, different currency (null = USD), or `registrationsConflict`. Missing records fail closed. Group keys sorted by `type|mask`. Live Plaid `institutionId` is the item's, falling back to the account stamp (same join as combine-connections). `isTransfer` add-only. H.7b not auto-run.
-
-**Critic (fresh context, isolated worktree): new-budget cycle 1 FAIL 0 P0 + 3 P1 → cycle 2 PASS 0 P0 / 0 P1.** Cycle 1: last-4-only wider than the detector; unordered `findMany`; stale `$237.08` claim. Cycle 2 independently closed all three plus the cycle-4 confirmed-map back door (probes fail on `71d22d54`, pass at `3022f696`), reproduced VERIFY GREEN **8477 passed + 1 expected fail + 1 skipped / 631 files**, FAIL-OLD **12 failed | 22 passed**, and a 4,000-corpus shuffle fuzz.
-
-**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN: tsc 0, probes tsc 0, eslint 0, unit **8477 passed + 1 expected fail + 1 skipped / 631 files**, `next build` clean. FAIL-OLD vs `71d22d54`: **12 failed | 22 passed**. Playwright `transfer-flag-repair.spec.ts` mobile-380 **1/1** (maker; critic left UNVERIFIED because the spec drives the repair card). Identity+filing files **72 passed**.
-
-**CI + live.** `c3ff71b26` on `main` (PR #24 merged the same turn). CI verify **35188955926 = SUCCESS** on `c3ff71b26` (full VERIFY_E2E=1, 11m48s). Vercel Production `dpl_CNL5qQfa7GigLhjvMPhbxWQzgFEW` READY, aliases include `www.aimplifi.app`. Live: unsigned `/settings` 307 → `/sign-in` 200 (expected); HTML build id `NF8UtGOD-t1u8ZqGcKsw9`. The identity union is server-only (no new UI copy); `git grep` on that sha finds `unionSameMaskColumnIdentity` in `transfers.ts` and `transfer-refresh.ts`. H.7b not auto-run.
-
-**Do not treat the cycle-3 8-flag / `$237.08` number as this function's live result.** Mixed-type over-veto can refuse the 0977 fold when a confirmed terminal has a different type.
-
-**Still open / residuals (critic cycle 2 P2s, none blocking).** (1) Mixed-type over-veto, above. (2) ~~Two Plaid items with null `institutionId` (pre-backfill) still fold on last-4 alone~~ — **CLOSED 2026-09-17 (DECISIONS #748):** a Plaid side that lacks `ins_*` fails closed against any counterpart; live 0977 items carry `PlaidItem.institutionId = ins_56`. (3) Dismissal read `take: 500`. (4) ~~No shipped test locks the `PlaidItem` → `institutionId` join~~ — **CLOSED 2026-09-18 (DECISIONS #749).** (5) `anyPairBlocked` is O(component²) per group; benign at realistic sizes, 1s at 120 accounts in one component. (6) Raw `provider === 'plaid'` matches `evaluatePair`. (7) The 8 existing `$237.08` flags stay until the owner taps H.7b. Wave 0 ops owner-blocked. M.4 owner-deferred.
-
-## ⛔ HUMAN GATE 2026-09-16 — O.20j converse-leak identity (critic budget exhausted, DECISIONS #743) — SUPERSEDED by #744
-
-**Superseded 2026-09-17.** The named close landed; critic cycle 2 of the new budget PASS 0 P0 / 0 P1. See BUILT #744 above.
-
-**What is measured and must not be forgotten.** Live converse: 94 rows, $180,466.86 outflow / $37,949.79 inflow withheld. 61 FLAG RIGHT (~$205k genuine transfers, stale category). 33 FLAG WRONG / $12,878. H.7b never run (0 runs); would clear 25 today. 8 remaining WRONG ($237.08, CREDIT CARD last-4 `0977`, two Plaid items vs a filed `TRAVEL CREDIT`) are the prevention target — existing flags stay until the owner taps H.7b. Demo 0 converse. Reader-side "count converse as spend" is killed (would dump ~$180k of real transfers into spending). `countsInFlows` / `isSpendRow` / auto-run H.7b were correctly left untouched.
-
-**Cycle history (first budget, all four spent).** C1: HIGH detector as money identity (year-in-name, balance-only spouse cards) — fixed. C2: dismissal edge-skip, fail-OPEN dismissals, same-item edge-skip — fixed as *component* vetoes + `'unavailable'` fail-closed. C3: same-connection still an edge skip via a third copy — fixed as group veto. C4: confirmed-map back door — closed on the #744 tree.
-
-**Ledger on `main` at the stop.** `d2e146d1` / `72acec47` (docs only — the identity union was not in that tree). CI verify **35151281286 = SUCCESS** (full VERIFY_E2E=1). That heading is superseded by #744 above.
 
 ## K.2 CORRECTION — Plaid is at the 90-day DEFAULT, not the 730-day ceiling (2026-08-07)
 

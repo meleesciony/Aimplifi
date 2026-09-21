@@ -21,6 +21,18 @@ describe('Coach chapter source order', () => {
     expect(nowBlock).toContain('coach-goals-saved-card');
     expect(nowBlock).toContain('NextDollarCard');
     expect(nowBlock.indexOf('NextDollarCard')).toBeLessThan(nowBlock.indexOf('coach-goals-saved-card'));
+    expect(nowBlock).toContain('the extra dollar and the flags');
+    expect(nowBlock).not.toContain('the extra dollar, the flags, the review');
+    const rest = nowBlock.indexOf('data-testid="coach-month-rest"');
+    expect(rest).toBeGreaterThan(nowBlock.indexOf('opportunities-card'));
+    const restTag = nowBlock.slice(nowBlock.lastIndexOf('<details', rest), nowBlock.indexOf('>', rest));
+    expect(restTag).not.toMatch(/\bopen\b/);
+    const restBody = nowBlock.slice(rest, nowBlock.indexOf('</details>', rest));
+    expect(restBody).toContain('creep-card');
+    expect(restBody).toContain('runway-card');
+    expect(restBody).toContain('LifeEnergyCard');
+    expect(restBody).toContain('money-review-card');
+    expect(restBody).toContain('Lifestyle creep, room for error, hours, and the monthly review');
     expect(nowBlock).not.toContain('coach-household-card');
     expect(habitsBlock).toContain('coach-household-card');
     expect(habitsBlock).toContain('coach-rich-life');

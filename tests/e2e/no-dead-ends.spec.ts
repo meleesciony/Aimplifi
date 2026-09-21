@@ -24,6 +24,7 @@
  * never touch the demo user.
  */
 import Database from 'better-sqlite3';
+import { openCoachMonthRest } from './helpers/coach-month-rest';
 import { expect, test, type Page } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
@@ -163,6 +164,7 @@ test('the coach page merchant and flow claims are links', async ({ page }) => {
   // creep link. That is exactly the hole this file's docblock argues against, so
   // a critic finding it is a finding about the test, not about the code.
   await expectMerchantLink(page, 'coach-opportunity-link');
+  await openCoachMonthRest(page);
   await expectMerchantLink(page, 'life-energy-merchant-link');
 
   // The lifestyle-creep verdict is a claim about a SET of transactions, so the

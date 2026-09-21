@@ -30,6 +30,7 @@
  * at the server's today, not the wall clock.
  */
 import Database from 'better-sqlite3';
+import { openCoachMonthRest } from './helpers/coach-month-rest';
 import { expect, test, type Page } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
@@ -127,6 +128,7 @@ test('income the app cannot really see refuses the comparison instead of printin
     Object.fromEntries(WINDOW.map((m) => [m, { cents: 8, categoryId: 'interest-income' }])),
   );
   await page.goto('/coach');
+  await openCoachMonthRest(page);
 
   await expect(page.getByTestId('creep-card')).toBeVisible();
   await expect(page.getByTestId('creep-title')).toHaveText("Can't compare yet");
@@ -164,6 +166,7 @@ test('income the app cannot really see refuses the comparison instead of printin
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.reload();
+  await openCoachMonthRest(page);
   await expect(page.getByTestId('creep-title')).toHaveText("Can't compare yet");
   expect(errors).toEqual([]);
 });
@@ -180,6 +183,7 @@ test('a single missing income month does NOT refuse — the median was already r
   );
   seedCreepFixture(email, income);
   await page.goto('/coach');
+  await openCoachMonthRest(page);
 
   await expect(page.getByTestId('creep-title')).toHaveText('Spending is outpacing income');
   await expect(page.getByTestId('creep-verdict')).toContainText('not a verdict');
@@ -197,6 +201,7 @@ test('the demo — a real income baseline — still gets a measured verdict from
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard');
   await page.goto('/coach');
+  await openCoachMonthRest(page);
 
   await expect(page.getByTestId('creep-title')).toHaveText('Spending is outpacing income');
   await expect(page.getByTestId('creep-verdict')).toContainText('not a verdict');

@@ -17,6 +17,7 @@
  * Runs as the demo (read-only drill-downs that create nothing), the only
  * fixture with the months of history these charts are drawn from.
  */
+import { openCoachMonthRest } from './helpers/coach-month-rest';
 import { type Page, expect, test } from './helpers/test';
 
 async function signIn(page: Page) {
@@ -28,6 +29,7 @@ async function signIn(page: Page) {
 test('a creep bar opens the discretionary purchases that month was summed from', async ({ page }) => {
   await signIn(page);
   await page.goto('/coach');
+  await openCoachMonthRest(page);
 
   const card = page.getByTestId('creep-card');
   await expect(card).toBeVisible();
@@ -88,6 +90,7 @@ test('a creep bar opens the discretionary purchases that month was summed from',
 test('creep bars are reachable by keyboard and name their month and amount', async ({ page }) => {
   await signIn(page);
   await page.goto('/coach');
+  await openCoachMonthRest(page);
 
   const first = page.getByTestId('creep-card').locator('[data-testid^="creep-bar-"]').first();
   // The drawn height is data-scaled and colour is the only other cue, so
