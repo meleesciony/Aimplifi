@@ -27,7 +27,7 @@
 
 **Ledgers.** DECISIONS #766 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #766.
 
-**Ship.** Pending this push. No `prisma/` schema diff.
+**Ship.** `41973d94` on `origin/main`. No `prisma/` schema diff. First CI `35559960169` FAILED (leftover after `toBeVisible`). **CI verify run 35561069817 = SUCCESS**. Vercel `dpl_BesMXdeETanZZZpKRnXx2FLej6jA` **READY**. Live leftover click on Picture holds `$144,804.74`. Marker: `clearHoldOpen` / `onPointerDown`.
 
 ## 2026-09-20 — Hold first chapter open through the leftover click (DECISIONS #765)
 
