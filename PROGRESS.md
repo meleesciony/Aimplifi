@@ -27,7 +27,7 @@
 
 **Ledgers.** DECISIONS #765 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #765.
 
-**Ship.** Pending this push. No `prisma/` schema diff.
+**Ship.** `5b9abc97` on `origin/main`. No `prisma/` schema diff. **CI verify run 35548078940 = SUCCESS**. Vercel Production `dpl_3XaasU1ydKTcRZ52xRW6QBSoTYab` **READY**. Live first-open Enter on Picture holds net-worth `$144,804.74`. Marker: `holdOpenRef` / `armHoldOpen` on that sha.
 
 ## 2026-09-20 — UA-first chapter open mounts the body before paint (DECISIONS #764)
 
