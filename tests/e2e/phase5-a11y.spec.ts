@@ -110,11 +110,8 @@ test('remaining content routes pass WCAG AA', async ({ page }) => {
 
 test('keyboard-only: sign in and reach the cash-needed answer', async ({ page }) => {
   await page.goto('/sign-in');
-  // The email/password form is now the primary action, so it's first in tab order.
+  // Explore the demo is the primary action, so it is first in tab order.
   await page.keyboard.press('Tab');
-  await expect(page.getByTestId('auth-email')).toBeFocused();
-  // The demo button is keyboard-focusable and Enter-activatable.
-  await page.getByTestId('demo-sign-in').focus();
   await expect(page.getByTestId('demo-sign-in')).toBeFocused();
   await page.keyboard.press('Enter');
   await page.waitForURL('**/dashboard');
