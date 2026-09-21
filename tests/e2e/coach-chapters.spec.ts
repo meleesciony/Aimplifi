@@ -99,6 +99,25 @@ test('a nested Coach hash opens the parent chapter', async ({ page }) => {
   await expect(page.getByTestId('fi-card')).not.toBeAttached();
 });
 
+test('first-open Enter keeps a Coach chapter open', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 800 });
+  await page.goto('/sign-in');
+  await page.getByTestId('demo-sign-in').click();
+  await page.waitForURL('**/dashboard');
+  await page.goto('/coach');
+
+  const traj = page.getByTestId('coach-chapter-coach-trajectory');
+  await expect(traj).not.toHaveAttribute('open');
+  await expect(page.getByTestId('fi-card')).not.toBeAttached();
+
+  await traj.locator(':scope > summary').press('Enter');
+  await expect(traj).toHaveAttribute('open', '');
+  await expect(page.getByTestId('fi-card')).toBeVisible();
+  expect(
+    await traj.evaluate((el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="fi-card"]'))),
+  ).toBe(true);
+});
+
 test('Space on a closed Coach chapter opens with the body already there', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 800 });
   await page.goto('/sign-in');
@@ -128,13 +147,21 @@ test('Space on a closed Coach chapter opens with the body already there', async 
   await expect(page.getByTestId('money-rules-card')).not.toBeAttached();
   expect(
     await habits.evaluate((el) => {
-      (el as HTMLDetailsElement).open = true;
-      return Promise.resolve().then(
-        () => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="money-rules-card"]')),
-      );
+      const details = el as HTMLDetailsElement;
+      details.open = true;
+      return Promise.resolve().then(() => {
+        const summary = details.querySelector('summary');
+        if (!(summary instanceof HTMLElement)) return false;
+        const afterAdopt =
+          details.open && Boolean(details.querySelector('[data-testid="money-rules-card"]'));
+        summary.click();
+        const afterLeftover =
+          details.open && Boolean(details.querySelector('[data-testid="money-rules-card"]'));
+        summary.click();
+        return afterAdopt && afterLeftover && !details.open;
+      });
     }),
   ).toBe(true);
-  await expect(page.getByTestId('money-rules-card')).toBeVisible();
 });
 
 test('Change your assumptions opens Habits from a closed body', async ({ page }) => {

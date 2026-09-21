@@ -66,6 +66,8 @@ describe('Home chapter source order', () => {
     expect(chapter).toContain("event.key !== ' '");
     expect(chapter).toContain('mountedRef');
     expect(chapter).toContain('readyRef');
+    expect(chapter).toContain('holdOpenRef');
+    expect(chapter).toContain('armHoldOpen');
     expect(chapter).toContain('flushSync');
     expect(chapter).toContain('MutationObserver');
     expect(chapter).toContain("import { flushSync } from 'react-dom'");

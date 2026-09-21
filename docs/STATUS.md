@@ -24,6 +24,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-20 — Hold first chapter open through the leftover click (DECISIONS #765)
+
+**The hole.** #764 P2-4 / P2-2: after `readyRef` flipped, Enter's synthesized click or a UA-first leftover click native-closed the chapter.
+
+**Shipped.** `holdOpenRef` arms on `adopt()` and first-open Enter. Leftover click/keydown `preventDefault`s while armed. First click-open does not arm. No `el.open = false`. No schema change.
+
+**Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.** P2-1/P2-2 closed same-session (`HTMLElement.click()` leftover + next click closes). Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 6/6, home-chapters 6/6 (**12/12**).
+
+**CI + live.** Pending this push.
+
+**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) M.4 route-by-route restyle owner-eyeball-gated. (4) **P2-4:** 500ms hold after Enter can swallow one real close if no leftover click arrives. (5) **P2-5:** tap-open then a late ghost click can still native-close. (6) **P2-3:** chapter units are source greps.
+
 ## ✅ BUILT 2026-09-20 — UA-first chapter open mounts the body before paint (DECISIONS #764)
 
 **The hole.** #763 P2-1 / P2-5: a UA that toggled `<details>` first could paint an empty shell; the `toggle` listener attached after paint.
@@ -34,7 +46,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `6b9e5dff` on `origin/main`. No `prisma/` diff. **CI verify run 35543058639 = SUCCESS**. Vercel Production `dpl_Dmxn5FSFq4yDckemvucLsEcWJTbT` **READY**, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Live demo Picture open holds `net-worth-amount` `$144,804.74` already in the open details. Marker: raw `6b9e5dff` has `flushSync` / `MutationObserver` / `readyRef`.
 
-**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) M.4 route-by-route restyle owner-eyeball-gated. (4) **P2-4:** late click after `readyRef` can native-close. (5) **P2-2:** first-open Enter is coded; e2e locks Space first-open and Enter after a remount. (6) **P2-3:** chapter units are source greps.
+**Still open / residuals.** (1) RSC still serializes chapter children. (2) e2e harness still auto-opens chapters. (3) M.4 route-by-route restyle owner-eyeball-gated. (4) ~~**P2-4:** late click after `readyRef` can native-close~~ — **CLOSED #765.** (5) ~~**P2-2:** first-open Enter is coded; e2e locks Space first-open and Enter after a remount~~ — **CLOSED #765.** (6) **P2-3:** chapter units are source greps (carried as #765 P2-3).
 
 ## ✅ BUILT 2026-09-20 — Space/Enter opens a chapter with the body already there (DECISIONS #763)
 

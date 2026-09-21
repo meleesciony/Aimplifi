@@ -12,12 +12,14 @@ function hrefHash(href: string): string {
 }
 
 /**
- * Home chapters (#758 / #761 / #762 / #763 / #764). After the daily loop,
- * unread bodies stay unmounted so a phone is not a feature dump in the
- * first HTML. First open mounts, then opens, so the chapter is never an
- * empty shell. Space/Enter preventDefault until that first open is
+ * Home chapters (#758 / #761 / #762 / #763 / #764 / #765). After the daily
+ * loop, unread bodies stay unmounted so a phone is not a feature dump in
+ * the first HTML. First open mounts, then opens, so the chapter is never
+ * an empty shell. Space/Enter preventDefault until that first open is
  * applied. A UA that already toggled open is caught by a MutationObserver
  * on `open`; flushSync mounts children in that microtask, before paint.
+ * The leftover click (Enter's synthesized click, or a UA-first toggle)
+ * is held open — readyRef alone would let the same gesture native-close.
  */
 export function HomeChapter({
   id,
@@ -39,6 +41,17 @@ export function HomeChapter({
   const pendingFocus = useRef(false);
   const mountedRef = useRef(defaultOpen);
   const readyRef = useRef(defaultOpen);
+  const holdOpenRef = useRef(false);
+  const holdOpenTimer = useRef(0);
+
+  const armHoldOpen = () => {
+    holdOpenRef.current = true;
+    if (holdOpenTimer.current !== 0) window.clearTimeout(holdOpenTimer.current);
+    holdOpenTimer.current = window.setTimeout(() => {
+      holdOpenRef.current = false;
+      holdOpenTimer.current = 0;
+    }, 500);
+  };
 
   useLayoutEffect(() => {
     mountedRef.current = mounted;
@@ -64,6 +77,7 @@ export function HomeChapter({
       flushSync(() => {
         setMounted(true);
       });
+      armHoldOpen();
     };
     const observer = new MutationObserver(adopt);
     observer.observe(el, { attributes: true, attributeFilter: ['open'] });
@@ -71,6 +85,7 @@ export function HomeChapter({
     return () => {
       observer.disconnect();
       el.removeEventListener('toggle', adopt);
+      if (holdOpenTimer.current !== 0) window.clearTimeout(holdOpenTimer.current);
     };
   }, []);
 
@@ -130,17 +145,31 @@ export function HomeChapter({
       <summary
         className="cursor-pointer border-b border-border/60 pb-3 ps-4"
         onClick={(event) => {
+          if (holdOpenRef.current) {
+            event.preventDefault();
+            holdOpenRef.current = false;
+            if (holdOpenTimer.current !== 0) {
+              window.clearTimeout(holdOpenTimer.current);
+              holdOpenTimer.current = 0;
+            }
+            return;
+          }
           if (readyRef.current) return;
           event.preventDefault();
           pendingOpen.current = true;
           setMounted(true);
         }}
         onKeyDown={(event) => {
-          if (readyRef.current) return;
           if (event.key !== ' ' && event.key !== 'Enter') return;
+          if (holdOpenRef.current) {
+            event.preventDefault();
+            return;
+          }
+          if (readyRef.current) return;
           event.preventDefault();
           pendingOpen.current = true;
           setMounted(true);
+          if (event.key === 'Enter') armHoldOpen();
         }}
       >
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>

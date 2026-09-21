@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #765 — Hold first chapter open through the leftover click (2026-09-20)
+
+**Context.** #764 P2-4 / P2-2: after `adopt()`/`flushSync` set `readyRef`, the same gesture's leftover click (Enter's synthesized click, or a UA that already toggled `open`) native-closed the chapter. Owner: continue.
+
+**Decision.** `holdOpenRef` arms on `adopt()` and on first-open Enter. While armed, summary click/keydown `preventDefault`s so that leftover activation cannot close. Do not arm on first click-open (a second tap must still close). Do not assign `el.open = false`. 500ms fallback so a forgotten hold does not last forever. No schema change. RSC payload, harness auto-open, unit greps, and M.4 restyle stay residual.
+
+**Locked.** Units: `holdOpenRef`, `armHoldOpen`. Playwright: first-open Enter on Picture/Trajectory stays `open &&` card; programmatic `el.open = true` then trusted `summary.click()` stays open, and the next `click()` closes.
+
+**Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.** P2-1/P2-2 (untrusted leftover dispatch; close-after missing) closed same-session with `HTMLElement.click()`.
+
 ## #764 — UA-first chapter open mounts the body before paint (2026-09-20)
 
 **Context.** #763 P2-1 / P2-5: a UA that set `details.open` first could paint an empty shell; `toggle` attached after paint. Owner: continue.

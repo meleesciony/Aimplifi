@@ -15,6 +15,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-18-751-752.md` (rotated 2026-09-20).
 > Only sessions from 2026-09-16 onward live here; append new sessions at the top as before.
 
+## 2026-09-20 — Hold first chapter open through the leftover click (DECISIONS #765)
+
+**Picked up.** Owner: “continue.” Strongest leftover the owner can hit: #764 P2-4 leftover click after `readyRef` native-closes (Enter snap-shut).
+
+**Closed.** `holdOpenRef` on `adopt()` + first-open Enter. Leftover click `preventDefault`s. Did not arm first click-open. Did not force-close. Same-session: leftover lock is trusted `summary.click()`; next click still closes.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8584 passed + 1 expected fail + 1 skipped / 637 files + 1 skipped**, next build clean. Playwright (rebuilt `next start` 127.0.0.1:3100): coach-chapters 6/6, home-chapters 6/6 (**12/12**).
+
+**Critic (fresh context): cycle 1 PASS UX 8 / 0 P0 / 0 P1 / 5 P2.** P2-1/P2-2 closed same-session.
+
+**Ledgers.** DECISIONS #765 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #765.
+
+**Ship.** Pending this push. No `prisma/` schema diff.
+
 ## 2026-09-20 — UA-first chapter open mounts the body before paint (DECISIONS #764)
 
 **Picked up.** Owner: “continue.” Strongest leftover the owner can hit: #763 P2-1 empty flash when the UA toggles first.
