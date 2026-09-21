@@ -27,7 +27,7 @@
 
 **Critic (fresh context): cycle 1 FAIL UX 7 / 1 P1. Cycle 2 PASS UX 8 / 0 P0 / 0 P1 / 4 P2.** P1 was runway buried under a summary that did not name room for error.
 
-**Ledgers.** DECISIONS #768 (+ index); REGRESSION_LEDGER one row; STATUS BUILT. Ceiling cut: PROGRESS #742–#748 and STATUS #743/#744/#748 → `docs/archive/*2026-09-16_to_2026-09-17.md`.
+**Ship.** `f86b2e1b` on `origin/main`. No `prisma/` schema diff. **CI verify run 35654006430 = SUCCESS**. Vercel `dpl_ETE64G8VDPUc5TLKx8wYnGEwr9Yo` **READY**, aliases include `www.aimplifi.app`. Live demo Coach: This month open on “Next extra dollar: investing”; closed summary “Lifestyle creep, room for error, hours, and the monthly review”; Trajectory follows that row. Marker: `coach-month-rest`.
 
 ## 2026-09-21 — UX A-grade maker (DECISIONS #767)
 

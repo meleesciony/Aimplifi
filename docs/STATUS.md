@@ -36,6 +36,8 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): cycle 1 FAIL UX 7 / 1 P1. Cycle 2 PASS UX 8 / 0 P0 / 0 P1 / 4 P2.**
 
+**CI + live.** `f86b2e1b` on `origin/main`. No `prisma/` diff. **CI verify run 35654006430 = SUCCESS**. Vercel `dpl_ETE64G8VDPUc5TLKx8wYnGEwr9Yo` **READY** (`www.aimplifi.app`). Live demo Coach: next extra dollar investing; rest summary names room for error and stays closed; Trajectory is the next chapter. Marker: `coach-month-rest`.
+
 **Still open / residuals.** (1) First fold still includes next-dollar’s why/assumptions and the opportunity list. (2) Automation, fulfillment, and value-receipts are in the rest disclosure but not in the first-fold lock. (3) Rest stays in the HTML when closed. (4) Goals disclosure has no test id; the rest helper opens by click. Inbox **12** and Activity **17** remain two queues by design. Mobile header still scrolls.
 
 ## ✅ BUILT 2026-09-21 — UX A-grade (DECISIONS #767)
