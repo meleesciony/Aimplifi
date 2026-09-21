@@ -33,6 +33,26 @@ describe('Coach chapter source order', () => {
     expect(restBody).toContain('LifeEnergyCard');
     expect(restBody).toContain('money-review-card');
     expect(restBody).toContain('Lifestyle creep, room for error, hours, and the monthly review');
+    expect(restBody).toContain('AutomationBlueprintCard');
+    expect(restBody).toContain('FulfillmentCard');
+    expect(restBody).toContain('value-receipts-card');
+    const goals = nowBlock.indexOf('data-testid="coach-goals-saved"');
+    expect(goals).toBeGreaterThan(nowBlock.indexOf('opportunities-list'));
+    expect(goals).toBeLessThan(rest);
+    const goalsTag = nowBlock.slice(nowBlock.lastIndexOf('<details', goals), nowBlock.indexOf('>', goals));
+    expect(goalsTag).not.toMatch(/\bopen\b/);
+    const worked = nowBlock.indexOf('data-testid="opportunities-worked-out"');
+    expect(worked).toBeGreaterThan(nowBlock.indexOf('opportunities-list'));
+    expect(worked).toBeLessThan(rest);
+    const workedTag = nowBlock.slice(nowBlock.lastIndexOf('<details', worked), nowBlock.indexOf('>', worked));
+    expect(workedTag).not.toMatch(/\bopen\b/);
+    const workedBody = nowBlock.slice(worked, nowBlock.indexOf('</details>', worked));
+    expect(workedBody).toContain('opportunities-basis');
+    expect(page).toContain('What this does to your FI date, and how those amounts were worked out');
+    expect(page).toContain('The 90-day cash-flow walk, and how those amounts were worked out');
+    expect(page).toContain(
+      'What this does to your FI date, the 90-day cash-flow walk, and how those amounts were worked out',
+    );
     expect(nowBlock).not.toContain('coach-household-card');
     expect(habitsBlock).toContain('coach-household-card');
     expect(habitsBlock).toContain('coach-rich-life');

@@ -52,6 +52,11 @@ describe('NextDollarCard — the frozen note under the instruction', () => {
     expect(note.compareDocumentPosition(skipped) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // DISCLOSE, never wall off: the instruction and its reasoning still render.
     expect(why.textContent).toContain('Personal Loan is 12.00%');
+    const more = screen.getByTestId('next-dollar-more') as HTMLDetailsElement;
+    expect(more.open).toBe(false);
+    expect(more.textContent).toContain('What we skipped, cards this cycle, and the assumptions');
+    expect(more.contains(why)).toBe(false);
+    expect(more.contains(screen.getByTestId('next-dollar-assumptions'))).toBe(true);
   });
 
   it('investing branch: the losing loan is introduced by the why BEFORE the note names it (critic P2-2)', () => {

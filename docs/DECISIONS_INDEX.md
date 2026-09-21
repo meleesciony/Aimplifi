@@ -761,3 +761,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #766 — Clear chapter hold on the next pointerdown (2026-09-21) → docs/DECISIONS.md
 - #767 — UX A-grade: stage money, named destinations, one filing story (2026-09-21) → docs/DECISIONS.md
 - #768 — This month’s first fold is the extra dollar and the flags (2026-09-21) → docs/DECISIONS.md
+- #769 — This month opens on the destination and the flags (2026-09-21) → docs/DECISIONS.md

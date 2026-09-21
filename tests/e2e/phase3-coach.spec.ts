@@ -126,6 +126,9 @@ test('coach page: savings rate, FI slider moves the date live, life-energy toggl
   // the rendered half of the fix: the flag is computed in `getCoachData` and threaded through
   // the page, so a unit test on the copy function cannot see the page handing over the wrong
   // answer — which is the same reason the golden figure above lives here.
+  const workedOut = page.getByTestId('opportunities-worked-out');
+  await workedOut.locator('> summary').click();
+  await expect(workedOut).toHaveAttribute('open', '');
   await expect(page.getByTestId('opportunities-basis')).toContainText(
     'our default 7.00% return assumption',
   );

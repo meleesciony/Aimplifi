@@ -26,6 +26,20 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-21 — This month opens on the destination and the flags (DECISIONS #769)
+
+**The hole.** #768 left why, assumptions, and the FI-date essay on the open fold. The destination was a small title, and the flags sat below goals.
+
+**Shipped.** Headline is the destination at 24px. Why stays. Skipped rungs, cards this cycle, and assumptions start closed, and that summary names them. Flags sit under the destination; goals follow the flags. FI date and the 90-day cash-flow walk, when present, start closed under a summary that names them. No schema change.
+
+**Maker gate.** `bash scripts/verify.sh` → VERIFY GREEN, unit **8592 passed + 1 expected fail + 1 skipped / 639 files + 1 skipped**. Playwright (rebuilt `next start` 127.0.0.1:3100, mobile-380): coach-chapters, phase3, employer-match, tax-advantaged, next-dollar-frozen **14/14**. Browser walk: assumptions open to the order sentence; worked-out opens to the 7.00% basis; biggest lever finishes inside 800.
+
+**Critic (fresh context): cycle 1 FAIL UX 5 / 1 P1. Cycle 2 PASS UX 8 / 0 P0 / 0 P1 / 3 P2.** P1 was the FI-date claim under a provenance-only summary. Same session closed P2-2 and P2-3 (both-branch string; “cash-flow walk”).
+
+**CI + live.** Pending this turn’s push.
+
+**Still open / residuals.** (1) Month-rest summary does not name automation, fulfillment, or value receipts (P2-1). (2) Rest stays in the HTML when closed. (3) Inbox **12** and Activity **17** remain two queues by design. Mobile header still scrolls.
+
 ## ✅ BUILT 2026-09-21 — This month first fold is the extra dollar and the flags (DECISIONS #768)
 
 **The hole.** #767 left Coach This month open on next-dollar, but creep, hours, runway, and the monthly review still painted in that chapter.

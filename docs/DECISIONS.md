@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #769 — This month opens on the destination and the flags (2026-09-21)
+
+**Context.** #768 left the extra-dollar why, the assumptions, and the opportunity essays on the open fold. Owner: build it out. The answer was a small title under a redundant kicker, and the flags sat below a goals row.
+
+**Decision.** The headline is the destination at page-title size. The why stays on the fold, and the frozen note stays immediately after it. Skipped rungs, the cards-this-cycle note, and the assumptions start in a closed disclosure whose summary names all three. The merchant flags stay visible, directly under that card; savings goals move below them. What acting on the flags does to the FI date, and the 90-day cash-flow walk when that sentence exists, start closed under a summary that names those claims plus how the amounts were worked out. Empty list still renders no basis. No schema change.
+
+**Locked.** `tests/unit/next-dollar-card-render.test.tsx` (closed more; why outside; frozen note before skipped). `tests/unit/coach-chapters.test.ts` (worked-out closed after the list; all three summary strings; goals after the flags; rest still holds automation, fulfillment, receipts). `tests/e2e/coach-chapters.spec.ts` (380: headline ≥24px, biggest lever finishes ≤800, assumptions hidden until open, summary names FI date, summary ≥44px). `tests/e2e/phase3-coach.spec.ts` opens the disclosure before reading the basis and the FI sentence.
+
+**Critic (fresh context): cycle 1 FAIL UX 5 / 1 P1** (FI/radar claims under a provenance-only summary). **Cycle 2 PASS UX 8 / 0 P0 / 0 P1 / 3 P2.** Same session: P2-2 and P2-3 closed (both-branch string locked; summary says cash-flow walk). P2-1 remains: month-rest summary does not name automation, fulfillment, or receipts.
+
 ## #768 — This month’s first fold is the extra dollar and the flags (2026-09-21)
 
 **Context.** #767 left Coach This month open on next-dollar, with opportunity future-value and goals already closed. Creep, hours, runway, and the monthly review still painted in that open chapter. Owner: continue. The named gap to an A was that first fold.

@@ -5,7 +5,6 @@
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -20,9 +19,13 @@ export function NextDollarCard({ plan }: { plan: NextDollarPlan }) {
   return (
     <Card data-testid="next-dollar-card">
       <CardHeader className="pb-2">
-        <CardDescription>{COACH_COPY.nextDollarTitle()}</CardDescription>
-        <CardTitle className="text-base" data-testid="next-dollar-headline">
-          {COACH_COPY.nextDollarHeadline(plan)}
+        <CardTitle as="h3">
+          <span
+            className="block text-2xl font-semibold tracking-tight text-card-foreground"
+            data-testid="next-dollar-headline"
+          >
+            {COACH_COPY.nextDollarHeadline(plan)}
+          </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 text-sm text-muted-foreground">
@@ -35,9 +38,16 @@ export function NextDollarCard({ plan }: { plan: NextDollarPlan }) {
             {frozenNote}
           </p>
         ) : null}
-        <p data-testid="next-dollar-skipped">{COACH_COPY.nextDollarSkipped(plan)}</p>
-        <p data-testid="next-dollar-cards">{COACH_COPY.nextDollarCardsNote()}</p>
-        <p data-testid="next-dollar-assumptions">{COACH_COPY.nextDollarAssumptions(plan)}</p>
+        <details data-testid="next-dollar-more">
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
+            What we skipped, cards this cycle, and the assumptions
+          </summary>
+          <div className="space-y-2 pt-2">
+            <p data-testid="next-dollar-skipped">{COACH_COPY.nextDollarSkipped(plan)}</p>
+            <p data-testid="next-dollar-cards">{COACH_COPY.nextDollarCardsNote()}</p>
+            <p data-testid="next-dollar-assumptions">{COACH_COPY.nextDollarAssumptions(plan)}</p>
+          </div>
+        </details>
       </CardContent>
     </Card>
   );

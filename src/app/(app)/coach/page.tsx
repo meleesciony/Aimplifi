@@ -160,6 +160,14 @@ export default async function CoachPage() {
     data.opportunities.length > 0 && data.radarCounterfactual
       ? COACH_COPY.cutRadarCounterfactual(data.radarCounterfactual)
       : null;
+  const opportunitiesWorkedOutSummary =
+    cutFiSentence && cutRadarSentence
+      ? 'What this does to your FI date, the 90-day cash-flow walk, and how those amounts were worked out'
+      : cutFiSentence
+        ? 'What this does to your FI date, and how those amounts were worked out'
+        : cutRadarSentence
+          ? 'The 90-day cash-flow walk, and how those amounts were worked out'
+          : 'How those amounts were worked out';
 
   return (
     <div className={PAGE_STACK_CLASS}>
@@ -202,8 +210,126 @@ export default async function CoachPage() {
         defaultOpen
       >
       <NextDollarCard plan={data.nextDollar} />
+
+      {/* O.15 — outstanding reimbursements: purchases the reader marked as
+          awaiting money back. Amounts copied verbatim (notify/select idiom);
+          the figure links to exactly the rows it counts (no dead ends). */}
+      {data.outstandingReimbursements.count > 0 && (
+        <Card data-testid="outstanding-reimbursements-card">
+          <CardHeader className="pb-2">
+            <CardDescription>Money you&apos;re owed back</CardDescription>
+            <CardTitle as="h3" className="text-base" data-testid="outstanding-reimbursements-total">
+              {formatCents(data.outstandingReimbursements.totalCents)} awaiting reimbursement
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {data.outstandingReimbursements.count === 1
+                ? 'One purchase you marked as awaiting reimbursement.'
+                : `${data.outstandingReimbursements.count} purchases you marked as awaiting reimbursement.`}{' '}
+              They still count as spending until the money comes back.{' '}
+              <Link
+                href="/transactions?reimb=awaiting"
+                className="underline underline-offset-2 hover:text-foreground"
+                data-testid="outstanding-reimbursements-link"
+              >
+                See them
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Big wins, never latte shame */}
+      <Card data-testid="opportunities-card">
+        <CardHeader className="pb-2">
+          <CardTitle as="h3" className="text-base">
+            Worth a look ({data.opportunities.length})
+          </CardTitle>
+          {data.moneyDials.length > 0 && (
+            <p className="text-sm text-muted-foreground">{COACH_COPY.moneyDials(data.moneyDials)}</p>
+          )}
+        </CardHeader>
+        <CardContent>
+          {data.opportunities.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground" data-testid="opportunities-empty">
+              Nothing to flag right now — check back after a few more weeks of spending data.
+            </p>
+          ) : (
+            <ul className="space-y-3 text-sm" data-testid="opportunities-list">
+              {data.opportunities.map((o, i) => (
+                <li key={i} className="space-y-0.5">
+                  {/* min-w-0: the name below truncates, and a truncating flex child
+                      with default min-width:auto pushes the shrink-0 badge off the row
+                      instead of clipping itself (the iOS flexbox lesson, and the rule
+                      this slice's own builder docblock states). */}
+                  <div className="flex min-w-0 items-baseline justify-between gap-2">
+                    {/* Same Merchant-Lens entry the register row uses (DECISIONS #250):
+                        the flagged name opens the merchant-filtered register, so the
+                        reader can see the charges behind the claim in one tap. */}
+                    <Link
+                      href={merchantRegisterHref(o.merchant)}
+                      data-testid="coach-opportunity-link"
+                      className={`truncate ${MERCHANT_LINK_CLASS}`}
+                    >
+                      {o.merchant}
+                    </Link>
+                    <Badge variant={o.isEstimate ? 'outline' : 'secondary'} className="shrink-0">
+                      {o.isEstimate ? `~${formatCents(o.monthlyCents)}/mo est.` : `${formatCents(o.monthlyCents)}/mo`}
+                    </Badge>
+                  </div>
+                  {i === 0 && (
+                    <p className="text-xs font-medium text-positive-600 dark:text-positive-400" data-testid="biggest-lever">
+                      {COACH_COPY.biggestLever()}
+                    </p>
+                  )}
+                  <details className="text-xs text-muted-foreground">
+                    <summary className="cursor-pointer hover:text-foreground">What that is worth over time</summary>
+                    <p className="mt-1">
+                      {COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}
+                    </p>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* W.10 — basis qualifies the row figures. Cut-FI and the cash-walk
+              sentence are different claims, so the summary names whichever of
+              them is actually inside. Empty list: no basis (nothing to qualify).
+              A null counterfactual renders nothing. */}
+          {(cutFiSentence || cutRadarSentence || data.opportunities.length > 0) && (
+            <details className="mt-4" data-testid="opportunities-worked-out">
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
+                {opportunitiesWorkedOutSummary}
+              </summary>
+              <div className="space-y-2 pt-2">
+                {cutFiSentence && (
+                  <p className="text-sm break-words" data-testid="opportunities-cut-fi">
+                    {cutFiSentence}
+                  </p>
+                )}
+                {cutRadarSentence && (
+                  <p className="text-xs text-muted-foreground break-words" data-testid="opportunities-cut-radar">
+                    {cutRadarSentence}
+                  </p>
+                )}
+                {data.opportunities.length > 0 && (
+                  <p className="text-xs text-muted-foreground" data-testid="opportunities-basis">
+                    {COACH_COPY.opportunityBasis(
+                      data.fi.expectedReturnBps,
+                      data.fi.inflationBps,
+                      dialOwnership,
+                    )}
+                  </p>
+                )}
+              </div>
+            </details>
+          )}
+        </CardContent>
+      </Card>
+
       {savingsGoals.length > 0 ? (
-        <details className="rounded-xl border bg-card">
+        <details className="rounded-xl border bg-card" data-testid="coach-goals-saved">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Savings goals — same writes as Goals</summary>
         <Card data-testid="coach-goals-saved-card" className="border-0 shadow-none">
           <CardHeader className="pb-2">
@@ -269,115 +395,6 @@ export default async function CoachPage() {
         </Card>
         </details>
       ) : null}
-
-      {/* O.15 — outstanding reimbursements: purchases the reader marked as
-          awaiting money back. Amounts copied verbatim (notify/select idiom);
-          the figure links to exactly the rows it counts (no dead ends). */}
-      {data.outstandingReimbursements.count > 0 && (
-        <Card data-testid="outstanding-reimbursements-card">
-          <CardHeader className="pb-2">
-            <CardDescription>Money you&apos;re owed back</CardDescription>
-            <CardTitle as="h3" className="text-base" data-testid="outstanding-reimbursements-total">
-              {formatCents(data.outstandingReimbursements.totalCents)} awaiting reimbursement
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              {data.outstandingReimbursements.count === 1
-                ? 'One purchase you marked as awaiting reimbursement.'
-                : `${data.outstandingReimbursements.count} purchases you marked as awaiting reimbursement.`}{' '}
-              They still count as spending until the money comes back.{' '}
-              <Link
-                href="/transactions?reimb=awaiting"
-                className="underline underline-offset-2 hover:text-foreground"
-                data-testid="outstanding-reimbursements-link"
-              >
-                See them
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Big wins, never latte shame */}
-      <Card data-testid="opportunities-card">
-        <CardHeader className="pb-2">
-          <CardDescription>Savings opportunities — big wins first</CardDescription>
-          <CardTitle as="h3" className="text-base">
-            Worth a look ({data.opportunities.length})
-          </CardTitle>
-          {data.moneyDials.length > 0 && (
-            <p className="text-sm text-muted-foreground">{COACH_COPY.moneyDials(data.moneyDials)}</p>
-          )}
-        </CardHeader>
-        <CardContent>
-          {data.opportunities.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground" data-testid="opportunities-empty">
-              Nothing to flag right now — check back after a few more weeks of spending data.
-            </p>
-          ) : (
-            <ul className="space-y-3 text-sm" data-testid="opportunities-list">
-              {data.opportunities.map((o, i) => (
-                <li key={i} className="space-y-0.5">
-                  {/* min-w-0: the name below truncates, and a truncating flex child
-                      with default min-width:auto pushes the shrink-0 badge off the row
-                      instead of clipping itself (the iOS flexbox lesson, and the rule
-                      this slice's own builder docblock states). */}
-                  <div className="flex min-w-0 items-baseline justify-between gap-2">
-                    {/* Same Merchant-Lens entry the register row uses (DECISIONS #250):
-                        the flagged name opens the merchant-filtered register, so the
-                        reader can see the charges behind the claim in one tap. */}
-                    <Link
-                      href={merchantRegisterHref(o.merchant)}
-                      data-testid="coach-opportunity-link"
-                      className={`truncate ${MERCHANT_LINK_CLASS}`}
-                    >
-                      {o.merchant}
-                    </Link>
-                    <Badge variant={o.isEstimate ? 'outline' : 'secondary'} className="shrink-0">
-                      {o.isEstimate ? `~${formatCents(o.monthlyCents)}/mo est.` : `${formatCents(o.monthlyCents)}/mo`}
-                    </Badge>
-                  </div>
-                  {i === 0 && (
-                    <p className="text-xs font-medium text-positive-600 dark:text-positive-400" data-testid="biggest-lever">
-                      {COACH_COPY.biggestLever()}
-                    </p>
-                  )}
-                  <details className="text-xs text-muted-foreground">
-                    <summary className="cursor-pointer hover:text-foreground">What that is worth over time</summary>
-                    <p className="mt-1">
-                      {COACH_COPY.opportunity(o, data.fi.expectedReturnBps)}
-                    </p>
-                  </details>
-                </li>
-              ))}
-            </ul>
-          )}
-          {/* W.10 — how the figures in the rows were worked out, once for the list. Rendered
-              only beside rows: with an empty list there is no figure for it to qualify, and a
-              basis sentence under "nothing to flag" describes money nobody was shown. The two
-              gates are the SAME predicate deliberately, and a test asserts the absence. */}
-          {cutFiSentence && (
-            <p className="mt-4 text-sm break-words" data-testid="opportunities-cut-fi">
-              {cutFiSentence}
-            </p>
-          )}
-          {cutRadarSentence && (
-            <p className="mt-2 text-xs text-muted-foreground break-words" data-testid="opportunities-cut-radar">
-              {cutRadarSentence}
-            </p>
-          )}
-          {data.opportunities.length > 0 && (
-            <p className="mt-4 text-xs text-muted-foreground" data-testid="opportunities-basis">
-              {COACH_COPY.opportunityBasis(
-                data.fi.expectedReturnBps,
-                data.fi.inflationBps,
-                dialOwnership,
-              )}
-            </p>
-          )}
-        </CardContent>
-      </Card>
 
       <details className="rounded-xl border bg-card" data-testid="coach-month-rest">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium">

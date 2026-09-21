@@ -17,6 +17,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-09-21 — This month opens on the destination and the flags (DECISIONS #769)
+
+**Picked up.** Owner: build this out. #768 left the assumptions and the FI-date essay on the open fold.
+
+**Closed.** The destination is a 24px headline. The why stays. Essays that are not the answer start closed, and each summary names what it hides. Flags sit under the destination so the biggest lever finishes on a 380×800 screen.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8592 passed + 1 expected fail + 1 skipped / 639 files + 1 skipped**, next build clean. After the summary named the FI date: chapter unit 1/1, Playwright **14/14** (coach-chapters, phase3, employer-match, tax-advantaged, next-dollar-frozen). Wording lock “cash-flow walk” is in that same unit file, re-run 1/1; full verify re-run covers that string.
+
+**Critic (fresh context): cycle 1 FAIL UX 5 / 1 P1. Cycle 2 PASS UX 8 / 0 P0 / 0 P1 / 3 P2.**
+
+**Ledgers.** DECISIONS #769 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #769.
+
 ## 2026-09-21 — This month first fold is the extra dollar and the flags (DECISIONS #768)
 
 **Picked up.** Owner: “continue.” #767 shipped at about B+. Strongest leftover the owner can see: Coach This month still dumps creep, hours, and the monthly review under the open chapter.

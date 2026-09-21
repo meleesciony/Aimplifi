@@ -22,7 +22,34 @@ test('This month’s first fold is the extra dollar and the flags', async ({ pag
   const now = page.getByTestId('coach-chapter-coach-now');
   await expect(now).toHaveAttribute('open', '');
   await expect(page.getByTestId('next-dollar-card')).toBeVisible();
+  const headline = page.getByTestId('next-dollar-headline');
+  await expect(headline).toBeVisible();
+  const headlinePx = await headline.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(headlinePx).toBeGreaterThanOrEqual(24);
+  await expect(page.getByTestId('next-dollar-why')).toBeVisible();
+  const more = page.getByTestId('next-dollar-more');
+  await expect(more).toBeVisible();
+  await expect(more).not.toHaveAttribute('open');
+  await expect(more.locator('> summary')).toContainText('assumptions');
+  const moreSummary = await more.locator('> summary').boundingBox();
+  expect(moreSummary, 'skipped summary box').toBeTruthy();
+  if (!moreSummary) return;
+  expect(moreSummary.height).toBeGreaterThanOrEqual(44);
+  await expect(page.getByTestId('next-dollar-assumptions')).toBeHidden();
   await expect(page.getByTestId('opportunities-card')).toBeVisible();
+  await expect(page.getByTestId('opportunities-list')).toBeVisible();
+  const worked = page.getByTestId('opportunities-worked-out');
+  await expect(worked).toBeVisible();
+  await expect(worked).not.toHaveAttribute('open');
+  await expect(worked.locator('> summary')).toContainText('FI date');
+  await expect(worked.locator('> summary')).toContainText('worked out');
+  await expect(page.getByTestId('opportunities-basis')).toBeHidden();
+  const lever = page.getByTestId('biggest-lever');
+  await expect(lever).toBeVisible();
+  const leverBox = await lever.boundingBox();
+  expect(leverBox, 'biggest lever box').toBeTruthy();
+  if (!leverBox) return;
+  expect(leverBox.y + leverBox.height).toBeLessThanOrEqual(800);
   const rest = page.getByTestId('coach-month-rest');
   await expect(rest).toBeVisible();
   await expect(rest).not.toHaveAttribute('open');
@@ -31,6 +58,11 @@ test('This month’s first fold is the extra dollar and the flags', async ({ pag
   await expect(page.getByTestId('runway-card')).toBeHidden();
   await expect(page.getByTestId('life-energy-card')).toBeHidden();
   await expect(page.getByTestId('money-review-card')).toBeHidden();
+
+  await more.locator('> summary').click();
+  await expect(page.getByTestId('next-dollar-assumptions')).toBeVisible();
+  await worked.locator('> summary').click();
+  await expect(page.getByTestId('opportunities-basis')).toBeVisible();
 
   await openCoachMonthRest(page);
   await expect(page.getByTestId('creep-card')).toBeVisible();
