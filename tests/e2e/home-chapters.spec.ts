@@ -33,20 +33,17 @@ test('phone Home keeps the daily loop open and Picture closed', async ({ page })
   await expect(page.getByTestId('net-worth-amount')).not.toBeAttached();
   await picture.locator(':scope > summary').click();
   await expect(picture).toHaveAttribute('open', '');
-  await expect(page.getByTestId('net-worth-amount')).toBeVisible();
-  expect(
-    await picture.evaluate(
-      (el) => el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="net-worth-amount"]')),
-    ),
-  ).toBe(true);
   expect(
     await picture.evaluate((el) => {
       const summary = el.querySelector(':scope > summary');
       if (!(summary instanceof HTMLElement)) return false;
+      const afterOpen =
+        el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="net-worth-amount"]'));
       summary.click();
-      return el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="net-worth-amount"]'));
+      return afterOpen && el.hasAttribute('open') && Boolean(el.querySelector('[data-testid="net-worth-amount"]'));
     }),
   ).toBe(true);
+  await expect(page.getByTestId('net-worth-amount')).toBeVisible();
 });
 
 test('Adjust the plan starts closed and still holds the plan figures', async ({ page }) => {
