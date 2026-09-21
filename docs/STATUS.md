@@ -30,7 +30,11 @@ rates) — no other doc may restate them.
 
 **Shipped.** Token on the amount button; CardTitle skips sm when the class is 3xl/4xl. Guilt-free / Budgets labels. Home “N to file on Activity.” Today display-filter. Coach next-dollar first; catalogs closed; demo CTA primary.
 
-**Maker gate.** `bash scripts/verify.sh` → VERIFY GREEN, unit **8592 passed + 1 expected fail + 1 skipped / 639 files + 1 skipped**. Playwright + CI + live re-walk this turn.
+**Maker gate.** `bash scripts/verify.sh` → VERIFY GREEN, unit **8592 passed + 1 expected fail + 1 skipped / 639 files + 1 skipped**. Playwright: home-stage 2/2 (amount ≥28px), today-feed 8/8, desktop-header 1/1, coach-chapters 6/6, phase5-a11y keyboard 1/1.
+
+**CI + live.** `c812a015` on `origin/main`. No `prisma/` diff. First CI `35625811096` FAILED (first Tab expected email after demo became primary). **CI verify run 35628035698 = SUCCESS**. Vercel `dpl_FxkvZkiBfk7bdwyuJneJ7QnAXppg` **READY** (`www.aimplifi.app`). Live demo: `[data-testid=cash-needed-amount]` **36px / $5,412.33**; Today has **0** `nudge-payment_due`; nav **Guilt-free / Budgets / Trends**; chip **17 to file on Activity**; sign-in **or sign in to your account**.
+
+**Still open / residuals.** Coach This month still lists creep/hours/review under the open chapter (next-dollar is first; FV/goals start closed). Inbox **12** and Activity **17** remain two queues by design. Re-grade vs C/5.1: **~8.4 / B+** — not A until This month’s first fold is only the extra dollar + flags.
 
 ## FOUND 2026-09-21 — UX adversarial review (owner: grades first, then decide)
 

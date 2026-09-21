@@ -21,7 +21,9 @@
 
 **Closed.** Stage money token on the amount button + CardTitle skip for `text-3xl`/`text-4xl`. Plan→Guilt-free, Spending→Budgets (routes kept). Home chip “N to file on Activity.” Home Today omits `payment_due` and unfrozen shortfall. Coach This month leads with next-dollar; household in Habits. Category catalogs start closed. Sign-in leads with Explore the demo.
 
-**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8592 passed + 1 expected fail + 1 skipped / 639 files + 1 skipped**, next build clean. Playwright: home-stage 2/2 (amount ≥28px), today-feed 8/8, desktop-header 1/1, coach-chapters 6/6.
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8592 passed + 1 expected fail + 1 skipped / 639 files + 1 skipped**, next build clean. Playwright: home-stage 2/2 (amount ≥28px), today-feed 8/8, desktop-header 1/1, coach-chapters 6/6, phase5-a11y keyboard 1/1.
+
+**Ship.** `c812a015` on `origin/main`. No `prisma/` schema diff. First CI `35625811096` FAILED (Tab→email). **CI verify run 35628035698 = SUCCESS**. Vercel `dpl_FxkvZkiBfk7bdwyuJneJ7QnAXppg` **READY**. Live cash-needed **36px**. Marker: `omitHomeStageNudges` / `or sign in to your account`.
 
 ## 2026-09-21 — UX adversarial review (verifier, no maker)
 
