@@ -26,6 +26,20 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-21 — Month-rest summary names every claim it hides (DECISIONS #770)
+
+**The hole.** #769 left the closed rest row naming creep, room for error, hours, and the review, while the automation blueprint, life energy by category, and what Aimplifi caught sat inside unnamed.
+
+**Shipped.** The summary names those three only when that card renders. The four always-present claims stay named. No schema change.
+
+**Maker gate.** `bash scripts/verify.sh` → VERIFY GREEN, unit **8593 passed + 1 expected fail + 1 skipped / 640 files + 1 skipped**. After the page-gate and full-sentence locks: chapter unit 1/1, summary unit 1/1, Playwright first-fold **1/1**. Local demo Coach at 380×800: rest closed; summary is the full sentence; creep stays hidden (`checkVisibility` false) until the row opens.
+
+**Critic (fresh context): PASS UX 8 / 0 P0 / 0 P1 / 4 P2.** Same session closed P2-3 and P2-4. P2-1 and P2-2 remain.
+
+**CI + live.** Pending this turn’s push.
+
+**Still open / residuals.** (1) The three presence booleans are duplicated beside the card null-gates (P2-1). (2) Life energy is still named “hours” (P2-2). (3) Rest stays in the HTML when closed. (4) Inbox **12** and Activity **17** remain two queues by design. Mobile header still scrolls.
+
 ## ✅ BUILT 2026-09-21 — This month opens on the destination and the flags (DECISIONS #769)
 
 **The hole.** #768 left why, assumptions, and the FI-date essay on the open fold. The destination was a small title, and the flags sat below goals.

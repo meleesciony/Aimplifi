@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #770 — Month-rest summary names every claim it hides (2026-09-21)
+
+**Context.** #769 critic P2-1: `coach-month-rest` said “Lifestyle creep, room for error, hours, and the monthly review” while the same disclosure also holds the automation blueprint, life energy by category, and what Aimplifi caught. Those three are absent for some readers. Owner: continue.
+
+**Decision.** The summary is composed from what actually renders. Creep, room for error, hours, and the monthly review are always named. “the automation blueprint”, “life energy by category”, and “what Aimplifi caught” are named only when that card is in the disclosure. No schema change. The words match the card titles a reader sees, not the component names.
+
+**Locked.** `tests/unit/month-rest-summary.test.ts` (all eight presence combinations). `tests/unit/coach-chapters.test.ts` (page calls `monthRestSummary` with `blueprint.length > 0`, `fulfillment != null`, and `receipts.total > 0`). `tests/e2e/coach-chapters.spec.ts` (demo summary is the full all-present sentence).
+
+**Critic (fresh context): PASS UX 8 / 0 P0 / 0 P1 / 4 P2.** Same session closed P2-3 and P2-4 (page gates locked; demo e2e locks the full sentence). P2-1 remains: the three booleans are still written next to the card null-gates, not shared with them. P2-2 remains: the always-on life-energy card is still named “hours”, the word the toggle uses, not “Life-energy view”.
+
 ## #769 — This month opens on the destination and the flags (2026-09-21)
 
 **Context.** #768 left the extra-dollar why, the assumptions, and the opportunity essays on the open fold. Owner: build it out. The answer was a small title under a redundant kicker, and the flags sat below a goals row.

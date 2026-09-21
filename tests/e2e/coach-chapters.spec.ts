@@ -53,7 +53,9 @@ test('This month’s first fold is the extra dollar and the flags', async ({ pag
   const rest = page.getByTestId('coach-month-rest');
   await expect(rest).toBeVisible();
   await expect(rest).not.toHaveAttribute('open');
-  await expect(rest.locator('> summary')).toContainText('room for error');
+  await expect(rest.locator('> summary')).toContainText(
+    'Lifestyle creep, room for error, the automation blueprint, hours, life energy by category, what Aimplifi caught, and the monthly review',
+  );
   await expect(page.getByTestId('creep-card')).toBeHidden();
   await expect(page.getByTestId('runway-card')).toBeHidden();
   await expect(page.getByTestId('life-energy-card')).toBeHidden();

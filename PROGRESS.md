@@ -17,6 +17,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-09-21 — Month-rest summary names every claim it hides (DECISIONS #770)
+
+**Picked up.** Owner: continue. #769 P2-1 left automation, fulfillment, and value receipts inside a summary that did not name them.
+
+**Closed.** The rest summary is composed from the cards that render. A missing blueprint, category curve, or receipts tally is not named.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8593 passed + 1 expected fail + 1 skipped / 640 files + 1 skipped**, next build clean. After the page-gate and full-sentence locks: chapter unit 1/1, summary unit 1/1, Playwright first-fold **1/1**.
+
+**Critic (fresh context): PASS UX 8 / 0 P0 / 0 P1 / 4 P2.** P2-3 and P2-4 closed same session. P2-1 and P2-2 remain.
+
+**Ledgers.** DECISIONS #770 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #770.
+
 ## 2026-09-21 — This month opens on the destination and the flags (DECISIONS #769)
 
 **Picked up.** Owner: build this out. #768 left the assumptions and the FI-date essay on the open fold.

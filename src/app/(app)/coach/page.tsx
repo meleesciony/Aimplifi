@@ -38,6 +38,7 @@ import { GoalSavedControl } from '@/components/finance/goal-saved-form';
 import { GoalTargetControl } from '@/components/finance/goal-target-form';
 import { GoalMonthlyControl } from '@/components/finance/goal-monthly-form';
 import { GoalTargetDateControl } from '@/components/finance/goal-target-date-form';
+import { monthRestSummary } from '@/lib/coach/month-rest-summary';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { runwayTitle } from '@/lib/engine/fi/insights';
 import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
@@ -160,6 +161,11 @@ export default async function CoachPage() {
     data.opportunities.length > 0 && data.radarCounterfactual
       ? COACH_COPY.cutRadarCounterfactual(data.radarCounterfactual)
       : null;
+  const monthRestLabel = monthRestSummary({
+    automation: data.blueprint.length > 0,
+    fulfillment: data.fulfillment != null,
+    receipts: receipts.total > 0,
+  });
   const opportunitiesWorkedOutSummary =
     cutFiSentence && cutRadarSentence
       ? 'What this does to your FI date, the 90-day cash-flow walk, and how those amounts were worked out'
@@ -398,7 +404,7 @@ export default async function CoachPage() {
 
       <details className="rounded-xl border bg-card" data-testid="coach-month-rest">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-          Lifestyle creep, room for error, hours, and the monthly review
+          {monthRestLabel}
         </summary>
         <div className="space-y-5 px-4 pb-4 sm:space-y-6">
       <div className="grid gap-4 lg:grid-cols-2">
