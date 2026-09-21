@@ -24,6 +24,10 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## FOUND 2026-09-21 — UX adversarial review (owner: grades first, then decide)
+
+Live demo walk. **5.1 / 10 (C). 0 P0 / 8 P1 / 6 P2.** Cash-needed 10s axis **8**. Hierarchy / cohesion / load **3**. Live `[data-testid=cash-needed-amount]` is **14px** because `Card size="sm"` defeats `MONEY_DISPLAY_CLASS`. Other P1s: synonym-row height, Plan vs Spending (N.2), Inbox 12 vs “17 need a category,” Today restates the hero, Coach first-fold essays, category-taxonomy dumps, sign-in void. No maker this turn.
+
 ## ✅ BUILT 2026-09-21 — Clear chapter hold on the next pointerdown (DECISIONS #766)
 
 **The hole.** #765 P2-4 / P2-5: tap-open did not arm hold, so a leftover click could native-close; Enter's 500ms hold could swallow a real close.

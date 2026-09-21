@@ -15,6 +15,16 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-18-751-752.md` (rotated 2026-09-20).
 > Only sessions from 2026-09-16 onward live here; append new sessions at the top as before.
 
+## 2026-09-21 — UX adversarial review (verifier, no maker)
+
+**Picked up.** Owner: thorough UI/UX adversarial review, show grades, then decide. No implementation.
+
+**Walked.** Live `www.aimplifi.app` demo. Desktop 2074×1166 and emulated 380×800. Routes: `/sign-in`, `/dashboard`, `/coach`, `/cards`, `/spending-plan`, `/budgets`, `/triage`, `/ask`. Evidence = a11y snapshots + CDP computed styles (screenshot pipeline dropped word spaces — not used as type evidence).
+
+**Verdict.** Overall **5.1 / 10 (C)**. **0 P0 / 8 P1 / 6 P2**. Best axis: 10s cash-needed **8** (amount + when + shortfall + transfer, zero clicks). Worst: visual hierarchy / cohesion / cognitive load **3**. Smoking gun: `MONEY_DISPLAY_CLASS` loses to `Card size="sm"` → live `[data-testid=cash-needed-amount]` is **14px / 64.75×20**.
+
+**State.** Findings in canvas (not a slice). No tree change. No DECISION. Owner picks next.
+
 ## 2026-09-21 — Clear chapter hold on the next pointerdown (DECISIONS #766)
 
 **Picked up.** Owner: “continue.” Strongest leftover: #765 P2-5 ghost-close after tap-open, plus P2-4 Enter-then-close swallow.
