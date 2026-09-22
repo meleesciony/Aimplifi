@@ -29,6 +29,8 @@
 
 **Ledgers.** DECISIONS #770 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #770.
 
+**Ship.** `33039e2c` on `origin/main`. No `prisma/` schema diff. **CI verify run 35669406939 = SUCCESS**. Vercel `dpl_HaGw5t5n84TAvafXehRYPpds2Vpc` **READY**, aliases include `www.aimplifi.app`. Live demo Coach at 380×800: rest closed; summary names the automation blueprint, life energy by category, and what Aimplifi caught; creep hidden. Marker: `coach-month-rest`.
+
 ## 2026-09-21 — This month opens on the destination and the flags (DECISIONS #769)
 
 **Picked up.** Owner: build this out. #768 left the assumptions and the FI-date essay on the open fold.

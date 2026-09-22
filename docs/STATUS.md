@@ -36,7 +36,7 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): PASS UX 8 / 0 P0 / 0 P1 / 4 P2.** Same session closed P2-3 and P2-4. P2-1 and P2-2 remain.
 
-**CI + live.** Pending this turn’s push.
+**CI + live.** `33039e2c` on `origin/main`. No `prisma/` diff. **CI verify run 35669406939 = SUCCESS**. Vercel `dpl_HaGw5t5n84TAvafXehRYPpds2Vpc` **READY** (`www.aimplifi.app`). Live demo Coach at 380×800: rest closed; summary “Lifestyle creep, room for error, the automation blueprint, hours, life energy by category, what Aimplifi caught, and the monthly review”; creep hidden. Marker: `coach-month-rest`.
 
 **Still open / residuals.** (1) The three presence booleans are duplicated beside the card null-gates (P2-1). (2) Life energy is still named “hours” (P2-2). (3) Rest stays in the HTML when closed. (4) Inbox **12** and Activity **17** remain two queues by design. Mobile header still scrolls.
 
