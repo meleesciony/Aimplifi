@@ -36,6 +36,8 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): PASS UX 8 / 0 P0 / 0 P1 / 4 P2.**
 
+**CI + live.** `d67cc400` on `origin/main`. No `prisma/` diff. **CI verify run 35803590762 = SUCCESS**. Vercel `dpl_A35q9qMiqmEgXYfHEih6rRbpeV2X` **READY** (`www.aimplifi.app`). Live demo Coach: rest closed; summary “Lifestyle creep, room for error, the automation blueprint, life-energy view, life energy by category, what Aimplifi caught, and the monthly review”; creep hidden. Marker: `life-energy view`.
+
 **Still open / residuals.** (1) Summary says “the monthly review”; the card says “Monthly Money Review” (P2-1). (2) The life-energy phrase is not locked against the card source (P2-2). (3) The e2e locks only the all-present sentence (P2-3). (4) The shared-gate lock is a source grep (P2-4). (5) Rest stays in the HTML when closed. Inbox **12** and Activity **17** remain two queues by design. Mobile header still scrolls.
 
 ## ✅ BUILT 2026-09-21 — Month-rest summary names every claim it hides (DECISIONS #770)

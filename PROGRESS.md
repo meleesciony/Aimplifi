@@ -29,6 +29,8 @@
 
 **Ledgers.** DECISIONS #771 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #771.
 
+**Ship.** `d67cc400` on `origin/main`. No `prisma/` schema diff. **CI verify run 35803590762 = SUCCESS**. Vercel `dpl_A35q9qMiqmEgXYfHEih6rRbpeV2X` **READY**, aliases include `www.aimplifi.app`. Live demo Coach: rest closed; summary names life-energy view; creep hidden. Marker: `life-energy view`.
+
 ## 2026-09-21 — Month-rest summary names every claim it hides (DECISIONS #770)
 
 **Picked up.** Owner: continue. #769 P2-1 left automation, fulfillment, and value receipts inside a summary that did not name them.
