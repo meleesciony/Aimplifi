@@ -34,9 +34,9 @@ describe('Coach chapter source order', () => {
     expect(restBody).toContain('money-review-card');
     expect(restBody).toContain('monthRestLabel');
     expect(page).toContain('monthRestSummary({');
-    expect(page).toContain('automation: data.blueprint.length > 0');
-    expect(page).toContain('fulfillment: data.fulfillment != null');
-    expect(page).toContain('receipts: receipts.total > 0');
+    expect(page).toContain('automation: showsAutomationBlueprint(data.blueprint)');
+    expect(page).toContain('fulfillment: showsFulfillment(data.fulfillment)');
+    expect(page).toContain('receipts: showsValueReceipts(receipts.total)');
     expect(restBody).toContain('AutomationBlueprintCard');
     expect(restBody).toContain('FulfillmentCard');
     expect(restBody).toContain('value-receipts-card');

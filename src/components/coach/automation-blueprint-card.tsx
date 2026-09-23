@@ -5,13 +5,14 @@
  * here — every step is phrased through COACH_COPY (guardrail-scanned).
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { showsAutomationBlueprint } from '@/lib/coach/month-rest-summary';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { BlueprintStep } from '@/lib/engine/automation/blueprint';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents } from '@/lib/money';
 
 export function AutomationBlueprintCard({ steps }: { steps: BlueprintStep[] }) {
-  if (steps.length === 0) return null;
+  if (!showsAutomationBlueprint(steps)) return null;
   return (
     <Card data-testid="automation-blueprint-card">
       <CardHeader className="pb-2">

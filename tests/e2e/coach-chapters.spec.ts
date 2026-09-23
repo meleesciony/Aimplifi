@@ -54,7 +54,7 @@ test('This month’s first fold is the extra dollar and the flags', async ({ pag
   await expect(rest).toBeVisible();
   await expect(rest).not.toHaveAttribute('open');
   await expect(rest.locator('> summary')).toContainText(
-    'Lifestyle creep, room for error, the automation blueprint, hours, life energy by category, what Aimplifi caught, and the monthly review',
+    'Lifestyle creep, room for error, the automation blueprint, life-energy view, life energy by category, what Aimplifi caught, and the monthly review',
   );
   await expect(page.getByTestId('creep-card')).toBeHidden();
   await expect(page.getByTestId('runway-card')).toBeHidden();

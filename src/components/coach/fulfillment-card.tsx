@@ -9,13 +9,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { showsFulfillment } from '@/lib/coach/month-rest-summary';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { FulfillmentCurve } from '@/lib/engine/fi/fulfillment';
 import { cents } from '@/lib/money';
 
 export function FulfillmentCard({ curve }: { curve: FulfillmentCurve | null }) {
   // Wage unset → engine returns null; hide the card (hours are the whole lens).
-  if (curve == null) return null;
+  if (!showsFulfillment(curve)) return null;
 
   const omitted = COACH_COPY.fulfillmentOmitted(curve);
 

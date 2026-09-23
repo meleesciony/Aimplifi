@@ -26,6 +26,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-22 — Month-rest names the life-energy view from the card gates (DECISIONS #771)
+
+**The hole.** #770 named the always-on purchases card “hours” (the toggle) and copied the three optional-card gates beside the cards.
+
+**Shipped.** The summary says “life-energy view”. Automation, life energy by category, and what Aimplifi caught stay named only when those cards render, through the same predicates the cards use. No schema change.
+
+**Maker gate.** `bash scripts/verify.sh` → VERIFY GREEN, unit **8595 passed + 1 expected fail + 1 skipped / 640 files + 1 skipped**. Playwright coach-chapters **7/7**.
+
+**Critic (fresh context): PASS UX 8 / 0 P0 / 0 P1 / 4 P2.**
+
+**Still open / residuals.** (1) Summary says “the monthly review”; the card says “Monthly Money Review” (P2-1). (2) The life-energy phrase is not locked against the card source (P2-2). (3) The e2e locks only the all-present sentence (P2-3). (4) The shared-gate lock is a source grep (P2-4). (5) Rest stays in the HTML when closed. Inbox **12** and Activity **17** remain two queues by design. Mobile header still scrolls.
+
 ## ✅ BUILT 2026-09-21 — Month-rest summary names every claim it hides (DECISIONS #770)
 
 **The hole.** #769 left the closed rest row naming creep, room for error, hours, and the review, while the automation blueprint, life energy by category, and what Aimplifi caught sat inside unnamed.

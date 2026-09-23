@@ -38,7 +38,12 @@ import { GoalSavedControl } from '@/components/finance/goal-saved-form';
 import { GoalTargetControl } from '@/components/finance/goal-target-form';
 import { GoalMonthlyControl } from '@/components/finance/goal-monthly-form';
 import { GoalTargetDateControl } from '@/components/finance/goal-target-date-form';
-import { monthRestSummary } from '@/lib/coach/month-rest-summary';
+import {
+  monthRestSummary,
+  showsAutomationBlueprint,
+  showsFulfillment,
+  showsValueReceipts,
+} from '@/lib/coach/month-rest-summary';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { runwayTitle } from '@/lib/engine/fi/insights';
 import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
@@ -162,9 +167,9 @@ export default async function CoachPage() {
       ? COACH_COPY.cutRadarCounterfactual(data.radarCounterfactual)
       : null;
   const monthRestLabel = monthRestSummary({
-    automation: data.blueprint.length > 0,
-    fulfillment: data.fulfillment != null,
-    receipts: receipts.total > 0,
+    automation: showsAutomationBlueprint(data.blueprint),
+    fulfillment: showsFulfillment(data.fulfillment),
+    receipts: showsValueReceipts(receipts.total),
   });
   const opportunitiesWorkedOutSummary =
     cutFiSentence && cutRadarSentence
@@ -478,7 +483,7 @@ export default async function CoachPage() {
       {/* What Aimplifi caught (TASKS 1.3) — the cumulative value-receipts tally.
           Honest by construction: counts + per-kind totals of what was surfaced,
           never an outcome or "saved you $X" claim. Hidden until there's a catch. */}
-      {receipts.total > 0 && (
+      {showsValueReceipts(receipts.total) && (
         <Card data-testid="value-receipts-card">
           <CardHeader className="pb-2">
             <CardDescription>What Aimplifi caught</CardDescription>

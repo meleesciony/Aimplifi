@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #771 — Month-rest names the life-energy view from the card gates (2026-09-22)
+
+**Context.** #770 critic P2-2: the always-on purchases card was named “hours”, the toggle word, not the label on the card (“Life-energy view”). P2-1: the three presence flags were written again beside the card null-gates. Owner: continue.
+
+**Decision.** The always-on claim is “life-energy view”. “life energy by category” stays the fulfillment card, named only when that card renders. `showsAutomationBlueprint`, `showsFulfillment`, and `showsValueReceipts` are the null-gates the cards and the summary both call. `showsFulfillment` is a type predicate so the curve stays readable after the gate. No schema change.
+
+**Locked.** `tests/unit/month-rest-summary.test.ts` (eight sentences; life-energy view and no “hours”; the three predicates match empty/null/zero). `tests/unit/coach-chapters.test.ts` (page calls the shared predicates). `tests/e2e/coach-chapters.spec.ts` (demo summary is the full sentence with life-energy view).
+
+**Critic (fresh context): PASS UX 8 / 0 P0 / 0 P1 / 4 P2.** P2s recorded, not closed: summary still says “the monthly review” while the card says “Monthly Money Review”; the life-energy phrase is not locked against the card source; the e2e locks only the all-present sentence; the shared-gate lock is a source grep.
+
 ## #770 — Month-rest summary names every claim it hides (2026-09-21)
 
 **Context.** #769 critic P2-1: `coach-month-rest` said “Lifestyle creep, room for error, hours, and the monthly review” while the same disclosure also holds the automation blueprint, life energy by category, and what Aimplifi caught. Those three are absent for some readers. Owner: continue.

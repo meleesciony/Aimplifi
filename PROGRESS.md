@@ -17,6 +17,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-09-22 — Month-rest names the life-energy view from the card gates (DECISIONS #771)
+
+**Picked up.** Owner: continue. #770 P2-2 named the purchases card “hours”. P2-1 duplicated the three optional-card gates.
+
+**Closed.** The summary says “life-energy view”. The three optional cards and the sentence share one predicate each.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8595 passed + 1 expected fail + 1 skipped / 640 files + 1 skipped**, next build clean. Playwright coach-chapters **7/7**.
+
+**Critic (fresh context): PASS UX 8 / 0 P0 / 0 P1 / 4 P2.**
+
+**Ledgers.** DECISIONS #771 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #771.
+
 ## 2026-09-21 — Month-rest summary names every claim it hides (DECISIONS #770)
 
 **Picked up.** Owner: continue. #769 P2-1 left automation, fulfillment, and value receipts inside a summary that did not name them.
