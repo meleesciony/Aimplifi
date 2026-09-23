@@ -17,6 +17,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-09-22 — Month-rest names Monthly Money Review the way the card does (DECISIONS #772)
+
+**Picked up.** Owner: name the monthly review the way the card does, if that polish is the next slice. #771 P2-1 left the closed rest saying “the monthly review”.
+
+**Closed.** The summary and the card share `Monthly Money Review`.
+
+**Gate.** `bash scripts/verify.sh` → VERIFY GREEN: unit **8596 passed + 1 expected fail + 1 skipped / 640 files + 1 skipped**, next build clean. Summary unit after literal sentences: 4/4. Playwright coach-chapters **7/7**. Browser on the fresh build, demo Coach: rest closed on that sentence; opening it shows the card label “Monthly Money Review”.
+
+**Critic (fresh context): PASS UX 9 / 0 P0 / 0 P1 / 3 P2.**
+
+**Ledgers.** DECISIONS #772 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #772. O.20j #753–#756 rotated out of STATUS.
+
+**Ship.** Pending the push, CI read, and live marker.
+
 ## 2026-09-22 — Month-rest names the life-energy view from the card gates (DECISIONS #771)
 
 **Picked up.** Owner: continue. #770 P2-2 named the purchases card “hours”. P2-1 duplicated the three optional-card gates.

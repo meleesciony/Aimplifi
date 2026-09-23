@@ -764,3 +764,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #769 — This month opens on the destination and the flags (2026-09-21) → docs/DECISIONS.md
 - #770 — Month-rest summary names every claim it hides (2026-09-21) → docs/DECISIONS.md
 - #771 — Month-rest names the life-energy view from the card gates (2026-09-22) → docs/DECISIONS.md
+- #772 — Month-rest names Monthly Money Review the way the card does (2026-09-22) → docs/DECISIONS.md

@@ -15,7 +15,9 @@ rates) — no other doc may restate them.
 > (rotated 2026-09-18), and the BUILT entry for #750 (2026-09-18) in
 > `docs/archive/STATUS_ARCHIVE_2026-09-18-750.md` (rotated 2026-09-18), and the
 > BUILT entries for #749/#752 in
-> `docs/archive/STATUS_ARCHIVE_2026-09-18-o20j-749-752.md` (rotated 2026-09-20); only
+> `docs/archive/STATUS_ARCHIVE_2026-09-18-o20j-749-752.md` (rotated 2026-09-20), and the
+> BUILT entries for #753–#756 in
+> `docs/archive/STATUS_ARCHIVE_2026-09-18-o20j-753-756.md` (rotated 2026-09-22); only
 > current-wave BUILT entries and OPEN/FOUND/DECIDED items remain here.
 > BUILT #744/#748 and the superseded #743 human gate live in
 > `docs/archive/STATUS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
@@ -25,6 +27,20 @@ rates) — no other doc may restate them.
 > BUILT/CLOSED history to `docs/archive/STATUS_ARCHIVE_2026-08.md` on 2026-08-27, to
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
+
+## ✅ BUILT 2026-09-22 — Month-rest names Monthly Money Review the way the card does (DECISIONS #772)
+
+**The hole.** #771 left the closed rest saying “the monthly review” while the card says “Monthly Money Review”.
+
+**Shipped.** The summary ends with the card’s label, Monthly Money Review, from one shared string the card also renders. No schema change.
+
+**Maker gate.** `bash scripts/verify.sh` → VERIFY GREEN, unit **8596 passed + 1 expected fail + 1 skipped / 640 files + 1 skipped**. After the eight sentences were written as full literals: summary unit 4/4. Playwright coach-chapters **7/7**. Browser on that build, demo Coach: rest closed; summary ends “and Monthly Money Review”; opening the row shows the card label “Monthly Money Review”.
+
+**Critic (fresh context): PASS UX 9 / 0 P0 / 0 P1 / 3 P2.** Mobile 8, a11y 8, code quality 9, coverage 8.
+
+**CI + live.** Not read yet — filled after the push.
+
+**Still open / residuals.** (1) The e2e locks only the all-present sentence. (2) The other rest titles are still hand-copied, so case and “the” can drift from those cards. (3) The shared review lock is a source grep. (4) Rest stays in the HTML when closed. Inbox and Activity remain two queues by design. Mobile header still scrolls.
 
 ## ✅ BUILT 2026-09-22 — Month-rest names the life-energy view from the card gates (DECISIONS #771)
 
@@ -38,7 +54,7 @@ rates) — no other doc may restate them.
 
 **CI + live.** `d67cc400` on `origin/main`. No `prisma/` diff. **CI verify run 35803590762 = SUCCESS**. Vercel `dpl_A35q9qMiqmEgXYfHEih6rRbpeV2X` **READY** (`www.aimplifi.app`). Live demo Coach: rest closed; summary “Lifestyle creep, room for error, the automation blueprint, life-energy view, life energy by category, what Aimplifi caught, and the monthly review”; creep hidden. Marker: `life-energy view`.
 
-**Still open / residuals.** (1) Summary says “the monthly review”; the card says “Monthly Money Review” (P2-1). (2) The life-energy phrase is not locked against the card source (P2-2). (3) The e2e locks only the all-present sentence (P2-3). (4) The shared-gate lock is a source grep (P2-4). (5) Rest stays in the HTML when closed. Inbox **12** and Activity **17** remain two queues by design. Mobile header still scrolls.
+**Still open / residuals.** (1) ~~Summary says “the monthly review”; the card says “Monthly Money Review” (P2-1)~~ — **CLOSED #772.** (2) The life-energy phrase is not locked against the card source (P2-2). (3) The e2e locks only the all-present sentence (P2-3). (4) The shared-gate lock is a source grep (P2-4). (5) Rest stays in the HTML when closed. Inbox **12** and Activity **17** remain two queues by design. Mobile header still scrolls.
 
 ## ✅ BUILT 2026-09-21 — Month-rest summary names every claim it hides (DECISIONS #770)
 
@@ -217,54 +233,6 @@ Live demo walk. **5.1 / 10 (C). 0 P0 / 8 P1 / 6 P2.** Closed by #767 maker (re-g
 **CI + live.** `b92219e2` on `origin/main`. No `prisma/` diff. **CI verify run 35426137075 = SUCCESS** (`main`; prior `bec0b32e` run 35424012696 FAILED on fold + Trends collision). Vercel Production `dpl_AKbNTBWUnN3RpydQtKgwabMCiG7w` **READY** on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200 with brand-mark + h1. Demo Home: `cash-needed-dues` closed, due-date-list hidden, Trends nav "Category movers…". Marker: `raw.githubusercontent.com` on `b92219e2` finds `cash-needed-dues` and `Category movers`; `bec0b32e` Trends description still started with `What changed`.
 
 **Still open / residuals.** (1) ~~**P2-1:** chapter summaries hide the disclosure marker~~ — **CLOSED #759.** (2) ~~**P2-2:** same-hash Trajectory re-click is a no-op~~ — **CLOSED #759.** (3) ~~**P2-3:** Trajectory lead is IA voice~~ — **CLOSED #759.** (4) ~~**P2-4:** Habits collapse and desktop description text are not e2e-locked~~ — **CLOSED #759.** (5) ~~Home below the stage is still a long stack~~ — **CLOSED #758.** (6) ~~Coach SSR still ships every card in the DOM~~ — **CLOSED #761.** (7) M.4 route-by-route restyle remains owner-eyeball-gated.
-
-## ✅ BUILT 2026-09-19 — O.20j residual (10): trim sibling plaidItemId === so same-item copies stay two accounts (DECISIONS #756)
-
-**The hole.** #755 critic P2-1: lookup and map keys trimmed, sibling `===` raw. A padded vs clean item id folded same-item copies on last-4.
-
-**Shipped.** `samePlaidItemId` trims both sides; empty / whitespace is not a match. `sameIngestConnection` treats empty after trim as missing (fail-closed). `accountsOf` and both `/accounts` filters use the helper. Live 0977 unchanged. Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
-
-**Critic (fresh context, `/tmp/_critic_o20j_r10`): cycle 1 PASS 0 P0 / 0 P1 / 7 P2.** Independently: tsc 0, eslint touched 0, 88/88, FAIL-OLD **6 failed | 82 passed**, kill-calls (a) 2|86 (b) 1|87 (c) 1|87. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8575 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**. Playwright mobile-380 `combine-connections` **2/2**. Maker FAIL-OLD (no helper): **8 failed | 80 skipped**.
-
-**CI + live.** `9490bcc8` on `origin/main` (PR #36 ff-merged). No `prisma/` diff. **CI verify run 35417204343 = SUCCESS** on `9490bcc8` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_ABSognfcmqoVNXNGRgU958KZCKgZ` **READY** on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Marker: `transfers.ts` on that sha exports `samePlaidItemId`; `81c93aad` still has `a.plaidItemId === b.plaidItemId`. H.7b not auto-run.
-
-**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) **P2-1:** `plaid.ts` investment filter still uses raw `===` (can hide holdings). (5) **P2-2:** present map value `''` returns `''`. (6) **P2-3:** leftover raw maps / `Set.has` / `includes` (`plaidSyncedByItem`, `earliestByItem`, `isAccountLive`, delete guards) — the card now attaches padded rows, so liveness/delete can disagree. (7) **P2-4 / P2-5:** account engine imports categorize; trim is duplicated across membership vs ingest. (8) **P2-6:** Plaid-null vs Plaid-real fold is critic-probed, not a named suite lock; empty-union fixture is sibling-poisoned. (9) **P2-7:** source locks are token-order-specific. (10) Leftover `!==` in `duplicates.ts` / `link-audit.ts` (advisory). (11) `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (12) Disconnect stamp-fallback fold/filing lock still helper-golden only. (13) Mixed live `ins_56` + live-null not in the transfer suite. (14) `anyPairBlocked` O(n²). (15) Raw `provider === 'plaid'`. (16) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
-
-## ✅ BUILT 2026-09-18 — O.20j residual (9): trim live-map keys so a padded stored itemId still joins (DECISIONS #755)
-
-**The hole.** #754 critic P2-1: lookup trimmed, map keys raw. A padded stored `itemId` missed `Map.has` and inherited the stamp.
-
-**Shipped.** `liveInstitutionByItem` trims the insert key. Empty / whitespace-only stored ids are not keys. Three join callers use the helper. Live 0977 unchanged. Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
-
-**Critic (fresh context, `/tmp/_critic_o20j_r9`): cycle 1 PASS 0 P0 / 0 P1 / 3 P2.** Independently: tsc 0, eslint 0, 116/116, FAIL-OLD **4 failed | 1 passed | 111 skipped**, kill-call skip empty-key **1 failed | 4 passed | 111 skipped**. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8567 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**. Playwright mobile-380 `combine-connections` **2/2**.
-
-**CI + live.** `64598fff` on `origin/main` (PR #35 merged). No `prisma/` diff. **CI verify run 35404635879 = SUCCESS** on `64598fff` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_3PNcfzFNDWx75yh8fddRD8tMccKG` **READY** on that sha, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Marker: `combine-connections.ts` on that sha calls `liveInstitutionByItem(items, …)`; `65b61e52` still has `new Map(items.map((i) => [i.itemId, …]))`. H.7b not auto-run.
-
-**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) ~~**This-cycle P2-1:** sibling `plaidItemId ===` sites stay untrimmed~~ — **CLOSED 2026-09-19 (DECISIONS #756):** `samePlaidItemId` + ingest empty-as-missing. (5) **P2-2:** present map value `''` returns `''` (carried as #756 P2-2). (6) **P2-3:** remaining raw `itemId` maps (`plaidSyncedByItem`, combine-connections-card) are not this join (carried as #756 P2-3). (7) `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (8) Disconnect stamp-fallback fold/filing lock still helper-golden only. (9) Mixed live `ins_56` + live-null not in the transfer suite. (10) `anyPairBlocked` O(n²). (11) Raw `provider === 'plaid'`. (12) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
-
-## ✅ BUILT 2026-09-18 — O.20j residual (8): trim plaidItemId before the live institution join (DECISIONS #754)
-
-**The hole.** #753 critic P2-1 / P2-2: a padded `plaidItemId` missed `Map.has` and inherited the stamp.
-
-**Shipped.** Shared helper trims the lookup key. Empty / whitespace-only still uses the stamp. Live 0977 unchanged. Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
-
-**Critic (fresh context, `/tmp/_critic_o20j_r8`): cycle 1 PASS 0 P0 / 0 P1 / 3 P2.** Independently: tsc 0, eslint 0, 111/111, FAIL-OLD **3 failed | 108 skipped**, kill-call value-trim **3 failed | 108 passed**. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8562 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**. Playwright mobile-380 `combine-connections` **2/2**.
-
-**CI + live.** `09d51409` on `origin/main` (PR #34 merged). No `prisma/` diff. **CI verify run 35389703386 = SUCCESS** on `09d51409` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_FJgPcT7MpweCoEEuW9Ps5bWiuyaz` **READY** on that sha, target production, aliases include `aimplifi-git-main-reiforge.vercel.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Marker: `raw.githubusercontent.com` on `09d51409` finds `const key = plaidItemId?.trim() ?? ''`; `71ee2c3a` still has `liveByItem.has(plaidItemId)`. H.7b not auto-run.
-
-**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) ~~**This-cycle P2-1:** map keys are raw `itemId`~~ — **CLOSED 2026-09-18 (DECISIONS #755):** `liveInstitutionByItem` trims insert keys. (5) **P2-2:** present map value `''` returns `''` (carried as #755 P2-2). (6) **P2-3:** sibling `plaidItemId ===` sites stay untrimmed (carried as #755 P2-1). (7) `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (8) Disconnect stamp-fallback fold/filing lock still helper-golden only. (9) Mixed live `ins_56` + live-null not in the transfer suite. (10) `anyPairBlocked` O(n²). (11) Raw `provider === 'plaid'`. (12) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
-
-## ✅ BUILT 2026-09-18 — O.20j residual (7): present-null institution name does not inherit the stamp (DECISIONS #753)
-
-**The hole.** #752 critic P2-1: `buildCombineInputs` and `/accounts` `identityOf` still inlined `item?.institution ?? stamp`. A present-null live PlaidItem inherited the account name stamp, so the identity ladder's both-null name fallback could prove SAME and offer an irreversible continue while the live bank is unknown.
-
-**Shipped.** Both surfaces call `resolveLiveInstitutionName` (same `Map.has` join as the id helper). Present null stays null; missing item still uses the stamp. Live 0977 unchanged. Money identity only; `isTransfer` add-only; H.7b not auto-run. No schema change.
-
-**Critic (fresh context, `/tmp/_critic_o20j_r7`): cycle 1 PASS 0 P0 / 0 P1 / 3 P2.** Independently: tsc 0, eslint 0, 130/130, FAIL-OLD **3 failed | 1 passed | 103 skipped**, kill-call stamp-only **4 failed | 126 passed**. Maker gate: `bash scripts/verify.sh` → VERIFY GREEN, unit **8558 passed + 1 expected fail + 1 skipped / 634 files + 1 skipped**. Playwright mobile-380 `combine-connections` **2/2** (`AUTH_SECRET` + `DEMO_TODAY` CI values).
-
-**CI + live.** `0324a0be` on `origin/main`. No `prisma/` diff. **CI verify run 35385735109 = SUCCESS** on `0324a0be` (`main`, `scripts/ci-status.sh` exit 0). Vercel Production `dpl_6CuNCMKgGskRonBeFbDCpvxvfGE9` **READY**, aliases include `www.aimplifi.app`. Live unsigned `/` → 307 `/sign-in`; `/sign-in` → 200. Marker: `combine-connections.ts` and `transactions.ts` on that sha call `resolveLiveInstitutionName(...)`; `205d1bc9` still has `item?.institution ?? a.institutionName ?? null`. H.7b not auto-run.
-
-**Still open / residuals.** (1) Mixed-type over-veto. (2) Third Plaid-null poison. (3) Dismissal `take: 500`. (4) ~~**This-cycle P2-1:** `plaidItemId` is not trimmed~~ — **CLOSED 2026-09-18 (DECISIONS #754):** helper trims the lookup key. (5) ~~**P2-2:** empty-string `plaidItemId` skips the map~~ — **CLOSED #754:** empty / whitespace-only is missing (stamp). (6) **P2-3:** present map value `''` returns `''` (carried as #754 P2-2). (7) `detectDuplicateAccounts` still flags on last-4 + balance without institution ids. (8) Disconnect stamp-fallback fold/filing lock still helper-golden only. (9) Mixed live `ins_56` + live-null not in the transfer suite. (10) `anyPairBlocked` O(n²). (11) Raw `provider === 'plaid'`. (12) The 8 existing `$237.08` flags stay until H.7b. Wave 0 ops owner-executed (`docs/OPS_WALKTHROUGH.md`). M.4 owner-deferred.
 
 ## DECIDED 2026-09-18 — Owner Yes on ops walkthrough + two live writes (DECISIONS #751)
 

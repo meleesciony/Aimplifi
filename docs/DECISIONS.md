@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #772 — Month-rest names Monthly Money Review the way the card does (2026-09-22)
+
+**Context.** #771 critic P2-1: the closed rest ended “the monthly review” while the card’s label is “Monthly Money Review”. Owner: name the monthly review the way the card does, if that polish is the next slice.
+
+**Decision.** The closed summary ends with the card’s words, `Monthly Money Review`. One exported string is both the `CardDescription` and the last clause of `monthRestSummary`. The list’s “and” is the conjunction, not part of the name. No schema change. Peer titles that are still a lowercased paraphrase stay as recorded residuals.
+
+**Locked.** `tests/unit/month-rest-summary.test.ts` (eight sentences end “and Monthly Money Review”; `test_regression__month_rest_names_the_review_the_way_the_card_does`). `tests/e2e/coach-chapters.spec.ts` (demo summary is that full sentence).
+
+**Critic (fresh context): PASS UX 9 / 0 P0 / 0 P1 / 3 P2.** Mobile 8, a11y 8, code quality 9, coverage 8. P2s recorded, not closed: the e2e still locks only the all-present sentence; the other rest titles are still hand-copied with case and article drift; the review lock is a source grep.
+
 ## #771 — Month-rest names the life-energy view from the card gates (2026-09-22)
 
 **Context.** #770 critic P2-2: the always-on purchases card was named “hours”, the toggle word, not the label on the card (“Life-energy view”). P2-1: the three presence flags were written again beside the card null-gates. Owner: continue.

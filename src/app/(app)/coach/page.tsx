@@ -39,6 +39,7 @@ import { GoalTargetControl } from '@/components/finance/goal-target-form';
 import { GoalMonthlyControl } from '@/components/finance/goal-monthly-form';
 import { GoalTargetDateControl } from '@/components/finance/goal-target-date-form';
 import {
+  MONTHLY_MONEY_REVIEW_LABEL,
   monthRestSummary,
   showsAutomationBlueprint,
   showsFulfillment,
@@ -508,7 +509,7 @@ export default async function CoachPage() {
       <Card data-testid="money-review-card">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-2">
-            <CardDescription>Monthly Money Review</CardDescription>
+            <CardDescription>{MONTHLY_MONEY_REVIEW_LABEL}</CardDescription>
             {data.reviewPersonalized && (
               <span
                 className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
