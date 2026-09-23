@@ -38,7 +38,7 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): PASS UX 9 / 0 P0 / 0 P1 / 3 P2.** Mobile 8, a11y 8, code quality 9, coverage 8.
 
-**CI + live.** Not read yet — filled after the push.
+**CI + live.** `d88c7698` on `origin/main`. No `prisma/` diff. **CI verify run 35808922617 = SUCCESS**. Vercel `dpl_EQrvvfKwkFzasTJgy2s49PzuwDdd` **READY** (`www.aimplifi.app`). Live demo Coach: rest closed; summary ends “and Monthly Money Review”; opening it shows the card label “Monthly Money Review”. Marker: `Monthly Money Review`.
 
 **Still open / residuals.** (1) The e2e locks only the all-present sentence. (2) The other rest titles are still hand-copied, so case and “the” can drift from those cards. (3) The shared review lock is a source grep. (4) Rest stays in the HTML when closed. Inbox and Activity remain two queues by design. Mobile header still scrolls.
 

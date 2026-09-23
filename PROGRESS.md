@@ -29,7 +29,7 @@
 
 **Ledgers.** DECISIONS #772 (+ index); REGRESSION_LEDGER one row; STATUS BUILT; TASKS M.4 #772. O.20j #753–#756 rotated out of STATUS.
 
-**Ship.** Pending the push, CI read, and live marker.
+**Ship.** `d88c7698` on `origin/main`. No `prisma/` schema diff. **CI verify run 35808922617 = SUCCESS**. Vercel `dpl_EQrvvfKwkFzasTJgy2s49PzuwDdd` **READY**, aliases include `www.aimplifi.app`. Live demo Coach: rest closed; summary ends “and Monthly Money Review”; the open card label is “Monthly Money Review”. Marker: `Monthly Money Review`.
 
 ## 2026-09-22 — Month-rest names the life-energy view from the card gates (DECISIONS #771)
 
