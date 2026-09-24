@@ -700,7 +700,12 @@ describe('prepareIngestedTransaction + PFC passthrough (end-to-end, DECISIONS #1
       ...base,
       date: '2026-06-08',
       amount: 42.0,
-      name: 'GOOSE POND BAR GRILLE', // an unknown local merchant our ruleset misses
+      // A local merchant our ruleset STILL misses (verified: categorize() →
+      // uncategorized, needsReview). The owner's original descriptor here —
+      // "GOOSE POND BAR GRILLE" — is caught by the widened GRILLE?S? dining token
+      // since L.12(c) and now auto-files; that behavior is locked in
+      // normalize.test.ts (test_regression__l12c_grille_dining_boundary).
+      name: 'GOOSE POND HIDEAWAY',
       personal_finance_category: { primary: 'FOOD_AND_DRINK', detailed: 'FOOD_AND_DRINK_RESTAURANT', confidence_level: 'LOW' },
     };
     const row = prepareIngestedTransaction(txn, 'acct-checking');

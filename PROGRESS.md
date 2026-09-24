@@ -17,6 +17,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-09-24 — Dining rule matches Grille; the owner's inbox revives on read (DECISIONS #773)
+
+**Picked up.** Owner: build this out as a world class dev and data scientist. Queue pick: L.12(c), the last open code piece of the categorization complaint; #772 left no in-flight slice.
+
+**Closed.** The generic dining token matches GRILLE/GRILLS (`GRILLE?S?`). The two #303 fixtures that called the owner's descriptor "a ruleset miss" moved to a verified true miss (GOOSE POND HIDEAWAY); the e2e locks both suggestion ladders — provider fallback and our own confident one-tap on rows already in review.
+
+**Gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN: unit **8601 passed + 1 expected fail + 1 skipped / 640 files + 1 skipped**, tsc 0, eslint 0, build clean. First run RED on the #303 plaid-map fixture (caught by the widened rule) — fixture moved to a verified true miss, re-run green. Fail-old **4 failed | 115 passed**. Playwright **2/2** (17.2s, mobile-380). `eval:categorize` byte-identical: **480 | 59 | 421 | 410 | 11 | 97.4%**.
+
+**Critic (fresh context): cycle 4 PASS UX 9 / 0 P0 / 0 P1 / 3 P2.** Cycles 1–3 each reproduced gates (cycle 2 re-ran the full verify green) but were cut off before emitting a verdict — recorded honestly; cycle 4 delivered with the adversarial probe re-run byte-identical.
+
+**Ledgers.** DECISIONS #773 (+ index regen); REGRESSION_LEDGER one row; STATUS BUILT; TASKS L.12.
+
+**Ship.** (pending — sha, CI run, Vercel deployment, live probe)
+
 ## 2026-09-22 — Month-rest names Monthly Money Review the way the card does (DECISIONS #772)
 
 **Picked up.** Owner: name the monthly review the way the card does, if that polish is the next slice. #771 P2-1 left the closed rest saying “the monthly review”.

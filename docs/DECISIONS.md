@@ -14,6 +14,18 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #773 — Dining rule matches Grille; the owner's inbox revives on read (2026-09-24)
+
+**Context.** L.12(c), the last open code piece of the owner's loudest competitive complaint ("321 inbox items… Simplifi deals with 90% of them well, ours is awful by comparison"): his screenshot's "Goose Pond Bar Grille" (8 txns) showed "Suggestion: none yet". Root cause verified at source: the generic dining keyword rule used `\bGRILL\b`, which cannot match GRILLE — no word boundary before the trailing -e. #303 already ships the persisted Plaid guess + fallback suggestion, and MEDIUM PFC (7200 bps) already auto-files in the [7000, 9000) band with the visible AI badge, so (d)'s substance was already in.
+
+**Decision.** Widen the one token: `\bGRILL\b` → `GRILLE?S?` (covers GRILL/GRILLE/GRILLS/GRILLES; the surrounding `\b` still excludes GRILLED and GRILLWORKS, which stay in review — the safe direction). No other rule touched, no schema change. Because triage re-runs `categorize()` per row on read (`src/server/triage.ts:140`/`:329`), the fix revives suggestions on rows ALREADY in the owner's queue — no data backfill; the O.12d repair route separately backfills provider hints on pre-L.12 rows. Two #303 fixtures seeded the owner's descriptor as "a merchant our ruleset misses", which the widening falsified: the plaid-map unit fixture moved to GOOSE POND HIDEAWAY (verified true miss by execution) and the e2e became a two-ladder spec — provider fallback on the true miss, our own confident one-tap on the owner's merchant. Every locked behavior stays on a fixture that still exercises it.
+
+**Locked.** `tests/unit/normalize.test.ts` (4 generic cases + `test_regression__l12c_grille_dining_boundary` through the public `categorize()` path; fail-old **4 failed | 115 passed**); `tests/unit/plaid-map.test.ts` (LOW-PFC→review+persisted-guess on a true miss); `tests/e2e/triage-provider-suggestion.spec.ts` 2/2 (both ladders, mobile-380). `npm run eval:categorize` byte-identical pre/post (**480 | 59 | 421 | 410 | 11 | 97.4%** — the corpora hold zero GRILLE/GRILLS tokens, so identity is structural).
+
+**Critic (fresh context): cycle 4 PASS — 0 P0 / 0 P1 / 3 P2.** Financial correctness 9, security 10, UX 9, mobile 9, a11y 8, performance 8, code quality 9, coverage 8. P2-1: SUNCO CUSTOM GRILLE / BMW GRILLE REPLACEMENT / GRILLE WORKS CONTRACTORS confidently auto-file dining (adversarially-loaded probe re-run byte-identical by the critic; measured harm nil on the corpora; visible + one-tap re-filable; the reverse failure was the reported defect). P2-2: the GRILLS plural is newly matched but unpinned by any test. P2-3: the e2e's third suggestion rung (proposal) coverage surviving the rewrite is maker-asserted. Cycles 1–3 each reproduced gates (cycle 2 re-ran the FULL verify green) but were cut off before emitting a verdict; cycle 4 delivered.
+
+**Residual.** (d)'s live-corpus before/after auto-file coverage remains UNVERIFIED (needs the owner's Plaid corpus).
+
 ## #772 — Month-rest names Monthly Money Review the way the card does (2026-09-22)
 
 **Context.** #771 critic P2-1: the closed rest ended “the monthly review” while the card’s label is “Monthly Money Review”. Owner: name the monthly review the way the card does, if that polish is the next slice.

@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { cleanDescriptor, normalizeMerchant } from '@/lib/engine/categorize/normalize';
+import { categorize } from '@/lib/engine/categorize/pipeline';
 
 // [rawDescriptor, expected canonical, expected categoryId]
 const FIXTURE: [string, string, string][] = [
@@ -140,6 +141,14 @@ describe('generic keyword categorization for real-world merchants (DECISIONS #63
     // plain dentist's office is untouched.
     ['GENTLE DENTAL CARE ATLANTA', 'dental'],
     ['JOES PIZZA NYC', 'dining'],
+    // L.12(c): "Grille" (with the trailing -e) is dining too — \bGRILL\b could not
+    // match it, so the owner's own "Goose Pond Bar Grille" (8 txns, 2026-07-24
+    // screenshot) sat at "Suggestion: none yet". The plural form is included; the
+    // pre-existing BAR & GRILL form must keep matching through the same edit.
+    ['GOOSE POND BAR GRILLE', 'dining'],
+    ['THE GRILLE AT PIEDMONT PARK', 'dining'],
+    ['HARBOR GRILLS MARINA BAR', 'dining'],
+    ['HOG HEAVEN BAR & GRILL', 'dining'],
     ['DOORDASH*WENDYS', 'food-delivery'],
     // Income + bank-fee signals that previously fell through to manual review.
     ['GUSTO PAYROLL 9X8Y7Z DIRECT DEP', 'paycheck'],
@@ -163,6 +172,27 @@ describe('generic keyword categorization for real-world merchants (DECISIONS #63
       expect(m.aggregate).toBe(false);
     });
   }
+
+  it('test_regression__l12c_grille_dining_boundary', () => {
+    // L.12(c), owner-reported 2026-07-24: "Goose Pond Bar Grille" (8 txns) showed
+    // "Suggestion: none yet" because the generic dining token was \bGRILL\b, which
+    // cannot match GRILLE — there is no word boundary before the trailing -e. Locked
+    // through the public categorize() path: the exact call the triage inbox re-runs
+    // per row (src/server/triage.ts), so the ruleset fix revives the suggestion on
+    // rows ALREADY sitting in review, not just future ingest.
+    const m = normalizeMerchant('GOOSE POND BAR GRILLE');
+    expect(m.categoryId).toBe('dining');
+    expect(m.confidenceBps).toBeGreaterThanOrEqual(7000);
+    expect(m.aggregate).toBe(false);
+    const out = categorize({
+      rawDescriptor: 'GOOSE POND BAR GRILLE',
+      amountCents: -4120,
+      date: '2026-09-24',
+      accountId: 'acct_l12c',
+    });
+    expect(out.categoryId).toBe('dining');
+    expect(out.needsReview).toBe(false);
+  });
 
   it('test_regression__o20j_r6_overdraft_transfer_beats_fees_keyword', () => {
     // KNOWN_MERCHANTS (Account Transfer is an aggregate canonical — same as

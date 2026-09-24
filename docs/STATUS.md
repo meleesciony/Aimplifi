@@ -28,6 +28,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-24 — Dining rule matches Grille; the owner's inbox revives on read (DECISIONS #773)
+
+**The hole.** L.12(c): the owner's screenshot showed "Goose Pond Bar Grille" (8 txns) at "Suggestion: none yet" — the generic dining keyword rule was `\bGRILL\b`, which cannot match GRILLE (no word boundary before the trailing -e).
+
+**Shipped.** One token widened (`GRILLE?S?`). Triage re-runs `categorize()` per row on read, so rows already in the queue get the suggestion with no backfill (O.12d's repair route separately covers pre-L.12 provider hints). The two #303 fixtures that seeded the descriptor as "a ruleset miss" moved to a verified true miss; the e2e became a two-ladder spec. No schema change.
+
+**Maker gate.** `bash scripts/verify.sh` → ✅ VERIFY GREEN, unit **8601 passed + 1 expected fail + 1 skipped / 640 files + 1 skipped** (first run red: the #303 plaid-map fixture was caught by the widened rule; moved to a verified true miss, re-run green). Fail-old **4 failed | 115 passed** pre-fix. Playwright triage two-ladder **2/2** (17.2s, mobile-380). `eval:categorize` byte-identical (**480 | 59 | 421 | 410 | 11 | 97.4%**).
+
+**Critic (fresh context): cycle 4 PASS — 0 P0 / 0 P1 / 3 P2** (cycles 1–3 reproduced gates, cut off before a verdict; recorded in DECISIONS #773).
+
+**Still open / residuals.** (1) P2-1: rare non-dining GRILLE merchants (BMW GRILLE REPLACEMENT-class) confidently auto-file dining — visible, one-tap re-filable. (2) P2-2: the GRILLS plural is newly matched but unpinned by a test. (3) P2-3: the e2e's proposal-rung coverage is maker-asserted. (4) L.12(d) live-corpus auto-file coverage UNVERIFIED (no Plaid creds). Inbox and Activity remain two queues by design. Mobile header still scrolls.
+
 ## ✅ BUILT 2026-09-22 — Month-rest names Monthly Money Review the way the card does (DECISIONS #772)
 
 **The hole.** #771 left the closed rest saying “the monthly review” while the card says “Monthly Money Review”.
