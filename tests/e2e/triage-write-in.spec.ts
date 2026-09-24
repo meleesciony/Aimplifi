@@ -45,8 +45,11 @@ async function signUpThrowaway(page: Page, tag: string): Promise<string> {
  *    the `unanimousProposal` last resort is null as well. All three null is exactly the
  *    condition for `triage-no-suggestion` — which the write-in test needs on its top
  *    card, because it reaches the picker by clicking accept on a card with nothing to
- *    accept. `GOOSE POND BAR GRILLE` is the descriptor `triage-provider-suggestion.spec`
- *    already proves our own pipeline cannot categorize.
+ *    accept. `GOOSE POND HIDEAWAY` is a verified true miss of the ruleset (categorize()
+ *    → uncategorized, needsReview) — the L.12(c) widening moved `GOOSE POND BAR
+ *    GRILLE` out of this class (it now suggests Dining; locked in
+ *    normalize.test.ts), which is exactly why this spec's tripwire at
+ *    `arriveAtSeededTriage` fired on CI run 36059727655 and the seed moved here.
  *  - The first group holds THREE rows and the rest hold one. Groups sort by row count
  *    DESC (`src/lib/engine/categorize/group.ts:176`), so the multi-row group is
  *    deterministically on top: the singles test finds "One by one" on its first look
@@ -59,7 +62,7 @@ async function signUpThrowaway(page: Page, tag: string): Promise<string> {
  * rawDescriptor)` for merchantless rows (`src/server/triage.ts:311`), which is what a
  * CSV or manual row already relies on.
  */
-const AMBIGUOUS_TOP = 'GOOSE POND BAR GRILLE';
+const AMBIGUOUS_TOP = 'GOOSE POND HIDEAWAY';
 const AMBIGUOUS_SINGLES = [
   'WHITTIER FEED AND SEED',
   'TALLGRASS CANOE LIVERY',
