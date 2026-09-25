@@ -38,6 +38,8 @@ rates) — no other doc may restate them.
 
 **Critic (fresh context): cycle 4 PASS — 0 P0 / 0 P1 / 3 P2** (cycles 1–3 reproduced gates, cut off before a verdict; recorded in DECISIONS #773).
 
+**CI + live.** First push 9f337a06 → CI 36059727655 ❌: the write-in spec's by-design tripwire fired (its seeded "merchant the ruleset must not know" was exactly the merchant this slice teaches it); fixture moved to a verified true miss, spec 2/2 locally → **4f238856 → CI 36063077472 ✓ success (16m14s)**, Vercel **READY** (F1ejGigF4JCNNLEVchs3MAHrxWR7), `scripts/l12c-live-deploy-check.mjs` → **DEPLOY PROOF: PASS, 3 checks** on www.aimplifi.app (demo /triage healthy; the demo seed holds no GRILLE merchant — the behavioral discriminator is the CI e2e on this sha).
+
 **Still open / residuals.** (1) P2-1: rare non-dining GRILLE merchants (BMW GRILLE REPLACEMENT-class) confidently auto-file dining — visible, one-tap re-filable. (2) P2-2: the GRILLS plural is newly matched but unpinned by a test. (3) P2-3: the e2e's proposal-rung coverage is maker-asserted. (4) L.12(d) live-corpus auto-file coverage UNVERIFIED (no Plaid creds). Inbox and Activity remain two queues by design. Mobile header still scrolls.
 
 ## ✅ BUILT 2026-09-22 — Month-rest names Monthly Money Review the way the card does (DECISIONS #772)

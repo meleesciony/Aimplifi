@@ -29,7 +29,7 @@
 
 **Ledgers.** DECISIONS #773 (+ index regen); REGRESSION_LEDGER one row; STATUS BUILT; TASKS L.12.
 
-**Ship.** (pending — sha, CI run, Vercel deployment, live probe)
+**Ship.** 9f337a06 → CI 36059727655 ❌ — the write-in spec's by-design tripwire fired ("if the ruleset ever learns one of these merchants, this fails HERE"): this slice teaches the ruleset exactly its seeded merchant; fixture moved to a verified true miss, spec re-run 2/2 locally → 4f238856 → CI 36063077472 ✓ success (16m14s, full VERIFY_E2E gate), Vercel READY (F1ejGigF4JCNNLEVchs3MAHrxWR7), live probe `scripts/l12c-live-deploy-check.mjs` → **DEPLOY PROOF: PASS, 3 checks** on www.aimplifi.app (demo /triage healthy, data-remaining=12, controls render, no page errors; the demo seed holds no GRILLE merchant, so the behavioral discriminator is the CI e2e on this sha). `GRILLE?S?` marker verified in the raw file at the pushed sha on GitHub.
 
 ## 2026-09-22 — Month-rest names Monthly Money Review the way the card does (DECISIONS #772)
 
