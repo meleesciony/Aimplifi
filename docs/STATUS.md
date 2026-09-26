@@ -28,6 +28,20 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-09-25 — O.11c: the reimbursement round trip (DECISIONS #774)
+
+**The hole.** A positive row filed `reimbursement` (auto-filed for CONCUR/EXPENSIFY/EXPENSE REIMB descriptors) counted as INCOME in `isIncomeFlowRow` while the O.15 tracker + exclude lever had taken the outflow out of spending — the owner's exact workflow (exclude the work expense, the payback lands) fabricated phantom income on the reports chart, the glass-box panel, the coach savings rate, Ask income/savings answers, the creep income baseline and the spending-plan fallback.
+
+**Shipped.** `isReimbursementInflow` — shared, sign-gated, positive-only: the payback counts on NEITHER side, skipped from `monthlyFlows` and the glass-box panel before the asOf accumulation. NOT a `refund` mirror: netting would understate real spend when the outflow was excluded (the too-generous direction). Tracker stays suggestion-only. `tax-refund` income and `refund` netting untouched. Copy re-derived: MONTH_FLOW_BASIS (both sentences), the Ask income trace + month-flow derivation, the income-pattern docblock, the `money-in` chip (no longer claims income), the coach outstanding card + its detail-view sibling (now name the exclusion lever as the mechanism), the `categories.ts` comment. No schema change; demo figures byte-identical (the seed holds zero reimbursement rows — verified).
+
+**Maker gate.** Cycle 1: fail-old **7 failed | 92 passed** → verify GREEN → targeted e2e **10/10** (month-flow-drilldown, reports-total-reconciles, savings-rate-drilldown, o20h-one-definition). Cycle 2 (copy fixes): verify GREEN (FRESH_TSC=1), targeted units **942/942** (5 suites), e2e **17/17** (spend-class/action-menu incl. the reimbursement tracker flow). Final: `bash scripts/verify.sh` FRESH_TSC=1 → ✅ VERIFY GREEN, unit **8611 passed + 1 expected fail + 1 skipped / 640 files + 1 skipped**. Live sizing probe (`scripts/audit-probes/o11c-reimbursement-income.mts`, read-only): **0 reimbursement inflows corpus-wide** — prevention; no live figure moves.
+
+**Critic (fresh context): cycle 1 FAIL 1 P1 + 5 P2 → fixed; cycle 2 PASS — 0 P0 / 0 P1 / 3 delta P2** (all three folded or satisfied by these ledger writes; recorded in DECISIONS #774).
+
+**CI + live.** PENDING PUSH (this close ships the commit; the CI conclusion is read before the slice is called shipped).
+
+**Still open / residuals.** (1) The non-excluded round trip strands the purchase in spending with no surface explaining why (deliberate conservative direction; disclosure design work). (2) The Ask income answer enumerates less than its own trace line (no false sentence — defensible depth gap). (3) L.12 P2 residuals carry over (GRILLE non-dining false positives, GRILLS unpinned by a test, the proposal-rung e2e coverage maker-asserted). The O.13b STILL-OPEN sub-items (payee edit, O.13g user-settable status, O.11d tags, attachments, mark-as-recurring) remain open as recorded there.
+
 ## ✅ BUILT 2026-09-24 — Dining rule matches Grille; the owner's inbox revives on read (DECISIONS #773)
 
 **The hole.** L.12(c): the owner's screenshot showed "Goose Pond Bar Grille" (8 txns) at "Suggestion: none yet" — the generic dining keyword rule was `\bGRILL\b`, which cannot match GRILLE (no word boundary before the trailing -e).

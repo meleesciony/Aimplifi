@@ -26,7 +26,10 @@
  *     row belongs to exactly one of the two panels for that month.
  *   - A refund is a negative CONTRIBUTION to spending here (`monthlyFlows` nets
  *     it down) and never income, unless it is filed to an Income-group category
- *     that is not the `refund` leaf.
+ *     that is not the `refund` leaf — and a positive row filed to the
+ *     `reimbursement` leaf belongs to NEITHER panel (O.11c: the return of the
+ *     reader's own money is not earnings, and it must not net against spending
+ *     the excluded outflow it returns never entered).
  *
  * Both predicates are imported from the engine that owns them; nothing in this
  * file restates a clause. That is the whole guarantee: a change to what counts
@@ -35,7 +38,12 @@
  * Pure: no I/O, no Date, integer cents only.
  */
 import { type Cents, cents, formatCents, sumCents } from '@/lib/money';
-import { countsInFlows, isIncomeFlowRow, type TxnLike } from '@/lib/engine/fi/insights';
+import {
+  countsInFlows,
+  isIncomeFlowRow,
+  isReimbursementInflow,
+  type TxnLike,
+} from '@/lib/engine/fi/insights';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import {
   breakdownHandoverDayCopy,
@@ -124,10 +132,11 @@ export interface MonthFlowBreakdown {
  * follows those clauses is the flow SPLIT, and it was got wrong twice before
  * it was got right, because the split is not the rule it looks like:
  *
- *   `isIncomeFlowRow = amountCents > 0 && (!categoryId || categoryId === 'uncategorized' || (categoryId !== 'refund' && group === 'Income'))`
+ *   `isIncomeFlowRow = amountCents > 0 && (!categoryId || categoryId === 'uncategorized' || (categoryId !== 'refund' && categoryId !== 'reimbursement' && group === 'Income'))`
  *
- * Two consequences, each of which puts a row on screen that a "refunds are
- * netted against spending" sentence describes falsely:
+ * Three consequences — two put a row on screen that a "refunds are netted
+ * against spending" sentence describes falsely, and the third puts a row in
+ * neither panel:
  *
  *   1. A positive row with NO category at all, OR one sitting in the
  *      `'uncategorized'` placeholder, counts as INCOME (O.20c — one definition
@@ -139,6 +148,11 @@ export interface MonthFlowBreakdown {
  *   2. A NEGATIVE row filed to an income category is spending (a payroll
  *      clawback adds to the spending bar), because the split tests the sign
  *      first.
+ *   3. A POSITIVE row filed to the `reimbursement` leaf reaches NEITHER panel
+ *      and neither figure (O.11c) — the builder skips it via the shared
+ *      `isReimbursementInflow`, before the asOf accumulation, so a dated-ahead
+ *      payback is never promised as money "not counted yet". The panel and the
+ *      bar skip it identically because they consult the same predicate.
  *
  * Two independent critics found the original asymmetry, from opposite directions
  * and each with half of it; O.20c collapsed it into one rule. Derive this set by
@@ -159,14 +173,16 @@ export const MONTH_FLOW_BASIS: Record<MonthFlow, string> = {
     'sits in an income category, and money coming in counts against this total as a ' +
     'negative row unless it counts as income — so a return filed to what it was bought ' +
     'from reduces this figure, and an inflow with no category, or one still sitting in ' +
-    'Uncategorized, does not.',
+    'Uncategorized, does not. A reimbursement — the return of money you spent — counts ' +
+    'against neither this figure nor the income one.',
   income:
     'Posted income only — transfers between your own accounts, deposits still pending, ' +
     'split containers (the pieces they were split into are counted instead) and anything ' +
     'you excluded from totals are all left out. Money coming in counts here when its ' +
     'category is an income one, and also when it carries no category at all or still sits ' +
     'in Uncategorized; a return filed to what it was bought from counts against that ' +
-    'month’s spending instead.',
+    'month’s spending instead, and a reimbursement — your own money coming back — ' +
+    'counts on neither side.',
 };
 
 /**
@@ -299,6 +315,11 @@ export function buildMonthFlowBreakdowns(
   for (const t of txns) {
     // The predicate, not a copy of it.
     if (!countsInFlows(t, excludedFlowIds)) continue;
+    // O.11c: the reimbursement payback reaches neither panel and neither
+    // figure — same shared predicate `monthlyFlows` skips it with, and it must
+    // run BEFORE the asOf accumulation so a dated-ahead payback is never
+    // promised as money "not counted yet".
+    if (isReimbursementInflow(t)) continue;
     const month = t.date.slice(0, 7);
     if (!wanted.has(month)) continue;
     const income = isIncomeFlowRow(t, excludedFlowIds);

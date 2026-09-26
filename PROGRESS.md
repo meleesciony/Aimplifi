@@ -17,6 +17,40 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-09-25 — O.11c: the reimbursement round trip (IN PROGRESS)
+
+**Picked up.** Owner: continue with next surgical slice. Queue pick after verification: O.11c.
+Explorer verified three "open" rows are STALE (built 8 weeks ago, verified at file:line this
+session): O.13a keyword-rules UI (BUILT — keyword-rule-builder.tsx), O.13b detail view
+(BUILT — /transactions/[id] full field set), O.11b flags UI (BUILT — row menu + detail +
+triage + badges). TASKS rows to be corrected at close. Chose O.11c, the one genuinely open
+money-correctness piece of the owner's O.11 ask.
+
+**Found (verified in code).** `isIncomeFlowRow` (insights.ts:117) counts a positive
+`reimbursement`-categorized inflow as INCOME on every shared-predicate surface (reports chart,
+glass-box panel, /coach savings rate, Ask income + savings answers + trace, creep income
+baseline, spending-plan fallback). The `refund` leaf is the only carve-out (#166). #166's own
+rationale ("they aren't offsets of a tracked purchase") is false exactly when the row IS tracked
+— the O.15 tracker shipped but matching is suggestion-only, so the excluded-outflow + counted-inflow
+combination fabricates income. Naively mirroring `refund` (net against spend) would UNDERCOUNT
+real spend when the outflow was excluded (too-generous direction).
+
+**Decision (to be recorded #NEW):** a POSITIVE row categorized `reimbursement` is neither income
+nor a spend-netter — it leaves flows entirely (`isReimbursementInflow`, consumed by monthlyFlows
+AND the glass-box panel, skip before the asOf/notYet accumulation). Tracker stays suggestion-only.
+tax-refund keeps its #166 income treatment. Copy re-derived: MONTH_FLOW_BASIS (both sentences),
+trace income basis, Ask month-flow derivation. Demo seed holds zero reimbursement rows (verified)
+→ demo figures byte-identical.
+
+**Plan assertions → tests.** insights.test.ts: predicate refuses reimbursement inflow; tax-refund
+still income; excluded-outflow round trip nets to zero flows (payback must not eat real spend —
+pins the no-netting decision); non-excluded purchase + payback (no phantom income); OUTFLOW filed
+reimbursement still spending (inflow-only guard). month-flow-breakdown.test.ts: reimbursement row
+in NEITHER panel; notCountedYet does not claim a dated-ahead one; parity holds; basis sentences
+name the leaf. income-pattern.test.ts: fallback path refuses it.
+
+**Shipped 2026-09-25 (same day).** Fail-old **7 failed | 92 passed** → implemented (`isReimbursementInflow` in `insights.ts`, consumed by `monthlyFlows` + the glass-box panel before the asOf accumulation; copy re-derived in MONTH_FLOW_BASIS ×2, Ask trace + derivation, income-pattern, categories comment) → cycle-1 verify GREEN + targeted e2e 10/10 → live probe (read-only): **0 reimbursement inflows corpus-wide** (prevention; demo byte-identical) → **critic cycle 1 FAIL: 1 P1 + 5 P2** → P1 fixed (`money-in` chip stops claiming income) + 3 P2 folded (coach card + detail-view sibling now name the exclusion lever; categories comment; EDGE_CASES section added, O.20g predicate sentence corrected) → cycle-2 verify GREEN (FRESH_TSC) + units 942/942 + e2e 17/17 → **critic cycle 2 PASS (0 P0/0 P1, 3 delta P2, all folded)** → final verify GREEN (FRESH_TSC, **8611 passed + 1 expected fail + 1 skipped / 640 files**). Ledger writes this close: DECISIONS #774, REGRESSION_LEDGER, STATUS BUILT + 2 deferred P2s, TASKS corrections (O.11c DONE; O.11b, O.13a re-verified BUILT with the stale "UI NOT BUILT" wording fixed; O.13b STILL-OPEN list corrected). CI + live proof appended to STATUS at push.
+
 ## 2026-09-24 — Dining rule matches Grille; the owner's inbox revives on read (DECISIONS #773)
 
 **Picked up.** Owner: build this out as a world class dev and data scientist. Queue pick: L.12(c), the last open code piece of the categorization complaint; #772 left no in-flight slice.

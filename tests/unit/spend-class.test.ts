@@ -215,6 +215,19 @@ describe('classifySpendClass', () => {
     expect(new Set(all.map(outOfScopeExplanation)).size).toBe(all.length);
   });
 
+  it('test_regression__o11c_the_money_in_explanation_stops_claiming_income', () => {
+    // The chip renders on every positive this classifier refuses — including
+    // the `refund` and `reimbursement` leaves the flow figures deliberately do
+    // NOT pay as income (#166; O.11c). `reimbursement` is AUTO-FILED by the
+    // categorizer (normalize.ts); `refund` is the reader's manual filing. The
+    // sentence may name only what is true for all three populations: the
+    // balance. Fail-old: the shipped copy said "It still counts as income" —
+    // false on a Concur deposit the app itself filed.
+    const why = outOfScopeExplanation('money-in');
+    expect(why).not.toMatch(/counts as income/i);
+    expect(why).toMatch(/balance/i);
+  });
+
   it('test_regression__flipping_one_transaction_leaves_category_siblings_alone', () => {
     // The #397 owner complaint verbatim: "when I switch one transaction in
     // this category to discretionary, they all do." The verdict is a property

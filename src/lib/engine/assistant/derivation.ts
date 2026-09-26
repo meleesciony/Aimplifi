@@ -251,7 +251,7 @@ export function traceSavingsRateDerivation(
     monthLabel: flow.monthLabel,
     reconciled: sum === saved && recomputed !== null && recomputed === expectedBps,
     basis: [
-      `Your most recent full month (${flow.monthLabel}). Income and expenses exclude transfers between your own accounts; merchandise refunds count against spending.`,
+      `Your most recent full month (${flow.monthLabel}). Income and expenses exclude transfers between your own accounts; merchandise refunds count against spending, and a reimbursement — your own money coming back — counts on neither side.`,
     ],
   };
 }

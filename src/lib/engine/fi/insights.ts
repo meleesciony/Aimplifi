@@ -111,16 +111,38 @@ export function countsInFlows(t: TxnLike, excludedFlowIds?: ReadonlySet<string>)
  * one — a $10,000 brokerage funding on a checking account, whose only honest
  * treatment is to stop reducing spending.
  *
- * The `'refund'` leaf stays the one deliberate exception: a manually-filed
- * "Refund" is a merchandise return and nets against spend (#166).
+ * The `'refund'` and `'reimbursement'` leaves are the two deliberate
+ * exceptions: a filed "Refund" is a merchandise return and nets against spend
+ * (#166); a filed "Reimbursement" is the reader's own money coming back and
+ * counts on neither side (`isReimbursementInflow`, O.11c).
  */
 export function isIncomeFlowRow(t: TxnLike, excludedFlowIds?: ReadonlySet<string>): boolean {
   if (!countsInFlows(t, excludedFlowIds) || t.amountCents <= 0) return false;
   return (
     !t.categoryId ||
     t.categoryId === 'uncategorized' ||
-    (t.categoryId !== 'refund' && isIncomeCategoryId(t.categoryId))
+    (t.categoryId !== 'refund' &&
+      t.categoryId !== 'reimbursement' &&
+      isIncomeCategoryId(t.categoryId))
   );
+}
+
+/**
+ * The payback side of the reimbursement round trip (O.11c): a POSITIVE row
+ * filed to the `reimbursement` leaf is the reader's own money coming back, not
+ * money earned. It counts on NEITHER side of the flow figures — not income,
+ * and not the negative spend-row the `refund` leaf becomes — because the
+ * outflow it returns is typically excluded (that is the point of marking it
+ * reimbursable), and netting it against spend would then understate REAL
+ * spending: the too-generous direction, and the one this codebase treats as
+ * the dangerous one. `monthlyFlows` and the glass-box panel both consume this
+ * so the two stores skip the row identically (one predicate, two surfaces).
+ * #166's "reimbursements count as income" survives for inflows filed to any
+ * other leaf — the category IS the assertion that this money is a return.
+ * Sign-gated on purpose: an OUTFLOW miscategorized here is still spending.
+ */
+export function isReimbursementInflow(t: TxnLike): boolean {
+  return t.amountCents > 0 && t.categoryId === 'reimbursement';
 }
 
 export interface MonthlyFlow {
@@ -140,11 +162,17 @@ export interface MonthlyFlow {
  * return shows $350 of spend, not $450 of spend + $100 of "income". A positive
  * in an Income-GROUP category ('income' or a #163 leaf like 'paycheck' — the
  * id the categorizer assigns real PAYROLL/DIRECT-DEP descriptors) counts as
- * income — EXCEPT the 'refund' leaf: a manually-filed "Refund" is a
- * merchandise return, and counting it as income would inflate income AND
+ * income — EXCEPT two leaves. The 'refund' leaf: a manually-filed "Refund" is
+ * a merchandise return, and counting it as income would inflate income AND
  * expenses versus the same return filed to its purchase category (#166 critic
- * F1); tax refunds and reimbursements DO count as income (they aren't offsets
- * of a tracked purchase). An UNFILED positive — no category, or the
+ * F1). And the 'reimbursement' leaf (O.11c): the payback of a reimbursable
+ * expense is the reader's own money returning — precisely the "offset of a
+ * tracked purchase" #166 reserved its carve-out for, now that the O.15 tracker
+ * exists to track it — so it is left out of BOTH figures via
+ * `isReimbursementInflow`, and an excluded outflow plus its payback net to the
+ * cash-truth zero. Mirroring 'refund' (netting) instead would understate
+ * spending whenever the outflow was itself excluded. Tax refunds DO count as
+ * income. An UNFILED positive — no category, or the
  * `'uncategorized'` placeholder — stays income (O.20c: both stores are the same
  * fact, and an ambiguous inflow is never netted against spend). A month's
  * expenses never go below 0.
@@ -156,6 +184,8 @@ export function monthlyFlows(
   const byMonth = new Map<string, { income: number; expenses: number }>();
   for (const t of transactions) {
     if (!countsInFlows(t, excludedFlowIds)) continue;
+    // O.11c: counted on neither side — see `isReimbursementInflow`.
+    if (isReimbursementInflow(t)) continue;
     const slot = byMonth.get(monthKey(t.date)) ?? { income: 0, expenses: 0 };
     if (isIncomeFlowRow(t, excludedFlowIds)) slot.income += t.amountCents;
     else if (t.amountCents > 0) slot.expenses -= t.amountCents; // refund nets spend down

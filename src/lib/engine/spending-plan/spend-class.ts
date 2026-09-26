@@ -173,7 +173,13 @@ export function outOfScopeExplanation(r: OutOfScopeReason): string {
     case 'transfer':
       return 'Money moved between your own accounts. Both balances change, but nothing was spent, so there is no Fixed or Discretionary side to choose.';
     case 'money-in':
-      return 'Money coming in, not going out. It still counts as income and it still changes your balance — only money you spend gets a Fixed or Discretionary choice.';
+      // May not claim income: this reason covers positives the flow figures
+      // deliberately do NOT pay as income — the `refund` leaf nets against
+      // spend (#166, reader-filed by hand) and the `reimbursement` leaf
+      // counts on neither side (O.11c, AUTO-FILED by the categorizer via
+      // normalize.ts) — so the balance is the one place every money-in row
+      // still counts (critic, O.11c).
+      return 'Money coming in, not going out. It still changes your balance — only money you spend gets a Fixed or Discretionary choice.';
     case 'excluded':
       return 'You marked this row “Excluded from totals”, so it stays out of your spending figures — including the Fixed and Discretionary split. Your balance still includes it.';
     case 'unsettled':

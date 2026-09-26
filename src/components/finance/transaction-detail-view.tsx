@@ -1301,9 +1301,9 @@ export function TransactionDetailView({
           {reimb === 'awaiting' ? (
             <>
               <p className="text-xs text-muted-foreground">
-                You marked this {formatCents(cents(total))} purchase as awaiting reimbursement. It
-                still counts as spending until you exclude it — being owed money back doesn&apos;t
-                change what left your account.
+                You marked this {formatCents(cents(total))} purchase as awaiting reimbursement.
+                Excluding it is what takes it out of your spending figures — being owed money
+                back doesn&apos;t change what left your account.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button

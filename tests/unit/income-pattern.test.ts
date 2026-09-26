@@ -75,6 +75,21 @@ describe('monthlyGuiltFreeIncomeCents', () => {
     expect(months).toEqual([{ month: '2026-06', incomeCents: 500_000 }]);
   });
 
+  it('test_regression__o11c_reimbursement_payback_is_not_allocation_income_on_the_fallback_path', () => {
+    // Fail-old: the fallback delegates to `isIncomeFlowRow`, and #166 paid the
+    // return of the reader's own money as if they had earned it. A month whose
+    // only inflow is a reimbursement allocates nothing.
+    const months = monthlyGuiltFreeIncomeCents([
+      txn({
+        date: '2026-07-20',
+        amountCents: 80_000,
+        categoryId: 'reimbursement',
+        rawDescriptor: 'CONCUR EXPENSE REIMB',
+      }),
+    ]);
+    expect(months.reduce((n, m) => n + m.incomeCents, 0)).toBe(0);
+  });
+
   it('test_regression__untouchable_income_never_enters_guilt_free_pattern', () => {
     expect(
       isUntouchableIncomeRow(

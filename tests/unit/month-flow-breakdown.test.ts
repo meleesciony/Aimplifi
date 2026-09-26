@@ -87,6 +87,10 @@ const FIXTURE: MonthFlowSourceTxn[] = [
   row({ id: 'excluded-1', amountCents: -3300, date: '2026-06-09', excludeFromTotals: true }),
   // One month out of the chart's window entirely.
   row({ id: 'other-month', amountCents: -8800, date: '2026-05-04' }),
+  // O.11c: the payback of a reimbursable expense. Not income (it isn't
+  // earnings), not a negative expense (the outflow it returns may itself be
+  // excluded, and netting against spend would understate real spending).
+  row({ id: 'reimb-1', amountCents: 80_000, date: '2026-06-22', categoryId: 'reimbursement' }),
 ];
 
 const headlinesFor = (txns: readonly MonthFlowSourceTxn[]) =>
@@ -235,6 +239,29 @@ describe('month-flow breakdowns — the populations the two could disagree about
     expect(ids(income)).not.toContain('clawback');
   });
 
+  it('test_regression__o11c_reimbursement_payback_sits_in_neither_panel', () => {
+    // Fail-old: #166 admitted every Income-group leaf but `refund`, so the
+    // payback landed in the INCOME panel while the chart (same predicate) paid
+    // it as income too. After the carve-out it must sit in NEITHER panel —
+    // mirroring `refund` into the expense side would undercount spend when the
+    // outflow it returns was itself excluded.
+    expect(ids(income)).not.toContain('reimb-1');
+    expect(ids(expense)).not.toContain('reimb-1');
+  });
+
+  it('a dated-ahead reimbursement is never promised as "not counted yet"', () => {
+    // It is not deferred income — it is never counted at all. The skip must
+    // run before the asOf accumulation, or the panel promises a row the chart
+    // will never pay.
+    const rows = [
+      row({ id: 'pay-x', amountCents: -300_000, date: '2026-08-01', categoryId: 'paycheck' }),
+      row({ id: 'reimb-future', amountCents: 80_000, date: '2026-08-20', categoryId: 'reimbursement' }),
+    ];
+    const out = buildMonthFlowBreakdowns(rows, headlinesFor(rows), undefined, '2026-08-10');
+    expect(out['2026-08:income'].notCountedYetCents).toBe(0);
+    expect(out['2026-08:expense'].notCountedYetCents).toBe(0);
+  });
+
   it('rows are oldest-first, the way a statement reads', () => {
     const dates = expense.rows.map((r) => r.date);
     expect([...dates].sort()).toEqual(dates);
@@ -325,6 +352,15 @@ describe('month-flow breakdowns — the basis each panel states', () => {
       /no category at all or still sits\s+in Uncategorized/i,
     );
     expect(MONTH_FLOW_BASIS.income, 'the refund leaf').toMatch(/counts against that month/i);
+  });
+
+  it('names the reimbursement leaf — the payback counts on neither side (O.11c)', () => {
+    // A sentence that enumerated the income carve-outs but not this one would
+    // be falsified by the very row the panel hides. Both sentences touch it:
+    // the income one because the payback is not income, the expense one
+    // because it is not a negative row there either.
+    expect(MONTH_FLOW_BASIS.income).toMatch(/reimbursement/i);
+    expect(MONTH_FLOW_BASIS.expense).toMatch(/reimbursement/i);
   });
 
   it('no sentence claims where anything sits on the screen', () => {

@@ -497,7 +497,7 @@ export function traceIncome(
       contributionCents: t.amountCents,
     }));
   return assemble('income', headline, rows, [
-    'Income only — transfers between your own accounts are excluded, merchandise refunds count against spending instead of income, ' +
+    'Income only — transfers between your own accounts are excluded, merchandise refunds count against spending instead of income, a reimbursement — your own money coming back — counts on neither side, ' +
       "and anything dated after today is not counted yet.",
   ]);
 }

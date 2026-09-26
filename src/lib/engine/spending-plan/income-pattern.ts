@@ -60,7 +60,9 @@ export function isGenericIncomePayRow(t: TxnLike): boolean {
 /**
  * Broad income used only when a month has no earned-pay rows: Income-group
  * (and uncategorized positives), minus untouchable investment/interest and
- * mobile-deposit transfers.
+ * mobile-deposit transfers, and minus the `refund`/`reimbursement` leaves —
+ * a return of spent money is not money earned to allocate (O.11c closed the
+ * reimbursement half here, by delegation).
  *
  * The income test is DELEGATED to `isIncomeFlowRow` (O.20c) rather than
  * restated: this function's old inline copy of the rule was missing the

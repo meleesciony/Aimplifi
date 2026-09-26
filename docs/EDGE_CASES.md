@@ -68,6 +68,7 @@ expected value to match the code.
 - [§Rule tag-for-taxes (O.15 slice 6 — `engine/categorize/tax-action.ts`, DECISIONS #346)](../tests/edge-cases/rule-tag-for-taxes-o-15-slice-6-engine-categorize-tax-action-ts-decisions-346.md)
 - [§C.25 read-side loan-payment flow exclusion (`engine/categorize/loan-payment-flows.ts`, DECISIONS #403)](../tests/edge-cases/c-25-read-side-loan-payment-flow-exclusion-engine-categorize-loan-payment-flows-.md)
 - [§Lifestyle creep — the income baseline and the three verdicts (O.20g, `engine/fi/insights.ts`)](../tests/edge-cases/lifestyle-creep-the-income-baseline-and-the-three-verdicts-o-20g-engine-fi-insig.md)
+- [§Reimbursement round trip — the payback of a reimbursable expense (O.11c, `engine/fi/insights.ts`)](../tests/edge-cases/reimbursement-round-trip-o-11c-engine-fi-insights.md)
 - [§Income lever (P1.4 — COACH_PRINCIPLES_PLAN)](../tests/edge-cases/income-lever-p1-4-coach-principles-plan.md)
 - [§Drawdown on FI date (W.6(d) — TASKS W.6)](../tests/edge-cases/drawdown-on-fi-date-w-6-d-tasks-w-6.md)
 - [§Fulfillment curve (W.6(c) — TASKS W.6)](../tests/edge-cases/fulfillment-curve-w-6-c-tasks-w-6.md)

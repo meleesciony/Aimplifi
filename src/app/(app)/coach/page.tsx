@@ -239,7 +239,8 @@ export default async function CoachPage() {
               {data.outstandingReimbursements.count === 1
                 ? 'One purchase you marked as awaiting reimbursement.'
                 : `${data.outstandingReimbursements.count} purchases you marked as awaiting reimbursement.`}{' '}
-              They still count as spending until the money comes back.{' '}
+              Excluding one is what takes it out of your spending figures — the
+              money coming back doesn&apos;t.{' '}
               <Link
                 href="/transactions?reimb=awaiting"
                 className="underline underline-offset-2 hover:text-foreground"

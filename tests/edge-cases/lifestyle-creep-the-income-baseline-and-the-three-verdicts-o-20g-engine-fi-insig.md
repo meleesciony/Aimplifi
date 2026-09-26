@@ -7,7 +7,8 @@ restaurant night is not creep.
 
 **What counts as income.** The one predicate `monthlyFlows` uses — `isIncomeFlowRow`: a positive,
 POSTED, non-transfer row with either NO stored category, OR the `uncategorized` placeholder leaf, OR
-an Income-group category that is not the `refund` leaf. (O.20c collapsed the first two into one rule:
+an Income-group category that is neither the `refund` nor the `reimbursement` leaf (the latter
+carved out later by O.11c — see `reimbursement-round-trip-o-11c-engine-fi-insights.md`). (O.20c collapsed the first two into one rule:
 both stores mean "nobody labelled this row", and before the fix the raw-null store counted as income
 while the placeholder store netted against spending — two identical-looking deposits on opposite
 sides. Measured live: the null store held 0 rows and the placeholder one held a single $10,000

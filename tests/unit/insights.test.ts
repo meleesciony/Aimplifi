@@ -12,6 +12,8 @@ import {
   hoursOfWork,
   countsInFlows,
   isIncomeFlowRow,
+  isReimbursementInflow,
+  type TxnLike,
   monthlyFlows,
   monthsOfRunway,
   runwayTitle,
@@ -289,11 +291,17 @@ describe('test_regression__monthly-flows-income-leaves: Income-GROUP leaves coun
   });
 
   it('EVERY Income-group leaf in the taxonomy counts a positive as income (canary for future leaves)', () => {
-    // 'refund' is the one deliberate exception: a manually-filed "Refund" is a
-    // merchandise return and NETS against spend (ROADMAP #4; #166 critic F1 —
-    // counting it as income inflated income AND expenses vs the same return
-    // filed to its purchase category).
-    for (const c of CATEGORIES.filter((c) => c.group === 'Income' && c.id !== 'refund')) {
+    // TWO deliberate exceptions, both "money back, not money earned":
+    // 'refund' — a manually-filed "Refund" is a merchandise return and NETS
+    // against spend (ROADMAP #4; #166 critic F1 — counting it as income
+    // inflated income AND expenses vs the same return filed to its purchase
+    // category) — and 'reimbursement' — the return of a tracked reimbursable
+    // expense is left out of BOTH figures (O.11c; the full round trip is
+    // pinned in `the reimbursement round trip` below). A future leaf added to
+    // the Income group must still prove itself here.
+    for (const c of CATEGORIES.filter(
+      (c) => c.group === 'Income' && c.id !== 'refund' && c.id !== 'reimbursement',
+    )) {
       const f = monthlyFlows([
         { date: '2026-03-01', amountCents: 12345, rawDescriptor: 'X', accountId: 'a', isTransfer: false, status: 'POSTED', categoryId: c.id },
       ])[0];
@@ -1154,5 +1162,107 @@ describe('monthly Money Review narrative from seed data', () => {
     expect(review.creep).toMatch(/Netflix|crept|discretionary/i);
     expect(review.nextAction).toContain('$1,050.00');
     expect(review.nextAction).toContain('Tue, Jun 23');
+  });
+});
+
+describe('the reimbursement round trip (O.11c — the payback of a reimbursable expense)', () => {
+  function flowTxn(
+    over: Partial<TxnLike> & Pick<TxnLike, 'date' | 'amountCents' | 'rawDescriptor'>,
+  ): TxnLike {
+    return {
+      accountId: 'chk',
+      isTransfer: false,
+      status: 'POSTED',
+      ...over,
+    };
+  }
+
+  it('a positive row categorized `reimbursement` is not income (isIncomeFlowRow)', () => {
+    // Fail-old: #166 admitted every Income-group leaf but `refund`.
+    expect(
+      isIncomeFlowRow(
+        flowTxn({
+          date: '2026-07-20',
+          amountCents: 80_000,
+          categoryId: 'reimbursement',
+          rawDescriptor: 'CONCUR EXPENSE REIMB',
+        }),
+      ),
+    ).toBe(false);
+    // The engine helper used by BOTH stores skips it, and only the inflow side.
+    expect(
+      isReimbursementInflow(
+        flowTxn({
+          date: '2026-07-20',
+          amountCents: 80_000,
+          categoryId: 'reimbursement',
+          rawDescriptor: 'CONCUR EXPENSE REIMB',
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('tax refunds still count as income — only refund/reimbursement are carved out', () => {
+    expect(
+      isIncomeFlowRow(
+        flowTxn({
+          date: '2026-07-10',
+          amountCents: 120_000,
+          categoryId: 'tax-refund',
+          rawDescriptor: 'US TREASURY TAX REF',
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('an excluded reimbursable outflow plus its payback nets to zero flows — never to phantom income, and the payback never eats real spend', () => {
+    // The owner's stated use case (O.11): exclude the work expense; the money
+    // comes back. Exclude-side + carve-out side compose to net zero, which is
+    // the cash truth. The $100 of UNRELATED spend must survive intact: the
+    // naive refund-mirror (netting the payback against expenses) would eat it,
+    // because the excluded flight never entered the expense pool.
+    const flows = monthlyFlows([
+      flowTxn({ date: '2026-07-05', amountCents: -100_000, categoryId: 'travel', rawDescriptor: 'HOTEL' }),
+      flowTxn({
+        date: '2026-07-06',
+        amountCents: -80_000,
+        categoryId: 'travel',
+        rawDescriptor: 'AIRLINE WORK TRIP',
+        excludeFromTotals: true,
+      }),
+      flowTxn({
+        date: '2026-07-20',
+        amountCents: 80_000,
+        categoryId: 'reimbursement',
+        rawDescriptor: 'CONCUR EXPENSE REIMB',
+      }),
+    ]);
+    const july = flows.find((f) => f.month === '2026-07')!;
+    expect(july.incomeCents).toBe(0);
+    expect(july.expensesCents).toBe(100_000);
+  });
+
+  it('without the exclusion the purchase still counts as spending; the payback is neither income nor a spend-netter', () => {
+    const flows = monthlyFlows([
+      flowTxn({ date: '2026-07-06', amountCents: -80_000, categoryId: 'travel', rawDescriptor: 'AIRLINE WORK TRIP' }),
+      flowTxn({
+        date: '2026-07-20',
+        amountCents: 80_000,
+        categoryId: 'reimbursement',
+        rawDescriptor: 'CONCUR EXPENSE REIMB',
+      }),
+    ]);
+    const july = flows.find((f) => f.month === '2026-07')!;
+    expect(july.incomeCents).toBe(0);
+    expect(july.expensesCents).toBe(80_000);
+  });
+
+  it('an OUTFLOW filed to the reimbursement leaf still counts as spending — the carve-out is inflow-only', () => {
+    const flows = monthlyFlows([
+      flowTxn({ date: '2026-07-06', amountCents: -40_000, categoryId: 'reimbursement', rawDescriptor: 'MISC OUTFLOW' }),
+    ]);
+    const july = flows.find((f) => f.month === '2026-07')!;
+    expect(july.incomeCents).toBe(0);
+    expect(july.expensesCents).toBe(40_000);
   });
 });

@@ -39,9 +39,12 @@ export const CATEGORIES: SystemCategory[] = [
   { id: 'tax-refund', name: 'Tax Refund', group: 'Income', discretionary: false },
   { id: 'reimbursement', name: 'Reimbursement', group: 'Income', discretionary: false },
   { id: 'refund', name: 'Refund', group: 'Income', discretionary: false },
-  // Both names state the DIRECTION on purpose. A category in the Income group is
-  // read as income by all 14 predicates (see NON_CUSTOM_GROUPS in assign.ts), so
-  // an outflow filed here would erase spending from reports while monthlyFlows
+  // Both names state the DIRECTION on purpose. A positive row in the Income
+  // group is read as income by all 14 predicates (see NON_CUSTOM_GROUPS in
+  // assign.ts) — except the two money-back leaves just above, `refund` and
+  // `reimbursement`, which the flow figures deliberately refuse (#166; O.11c,
+  // `isReimbursementInflow` in engine/fi/insights.ts) — so an outflow filed
+  // here would erase spending from reports while monthlyFlows
   // still counted it — the L.13 sign class. "Alimony" alone is ambiguous;
   // "Alimony Received" cannot be mis-picked for a payment. Paying alimony or
   // support is `child-support` under Personal & Family.
