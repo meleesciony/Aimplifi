@@ -21,7 +21,9 @@
 
 **SHIPPED (same turn, DECISIONS #636 posture).** The O.11 wave's final row: a many-to-many
 user-defined label set, with filtering and a tag total. Additive schema, engine-first,
-no figure moves.
+no figure moves. **CI run 36225862658 on `b1e9164d` = SUCCESS (full VERIFY_E2E gate);
+DEPLOY PROOF: PASS, 7/7 behavioral checks on www.aimplifi.app; prod demo seeded
+additively via `scripts/seed-demo-tags-prod.ts` (2 tags / 6 verified joins).**
 (The O.11c entry below said SHIPPED with a stale "(IN PROGRESS)" heading — the heading
 is corrected above; CI 36209828932 SUCCESS + the live probe were already recorded in
 STATUS §O.11c. Housekeeping also trashed the six leftover `.verify-*`/`.ci-status-*`
