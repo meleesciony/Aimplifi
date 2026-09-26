@@ -39,9 +39,23 @@ const pageErrors = [];
 page.on('pageerror', (e) => pageErrors.push(String(e)));
 
 try {
-  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-  await page.getByTestId('demo-sign-in').click();
-  await page.waitForURL('**/dashboard', { timeout: 30000 });
+  // The one-click demo sign-in is intermittently slow in production (observed
+  // 2026-09-25: 2 of 4 navigations timed out mid-deploy). Retry the entry
+  // rather than reporting a harness flake as a deploy failure.
+  let signedIn = false;
+  let lastErr = '';
+  for (let i = 0; i < 3 && !signedIn; i++) {
+    try {
+      await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
+      await page.getByTestId('demo-sign-in').click({ timeout: 15000 });
+      await page.waitForURL('**/dashboard', { timeout: 45000 });
+      signedIn = true;
+    } catch (e) {
+      lastErr = String(e).split('\n')[0];
+    }
+  }
+  check('demo: one-click sign-in reached the dashboard', signedIn, signedIn ? 'after retries' : lastErr);
+  if (!signedIn) throw new Error(`demo sign-in failed after retries: ${lastErr}`);
 
   await page.goto(`${BASE}/reports`, { waitUntil: 'networkidle' });
   const picker = page.getByTestId('month-flow-picker');
@@ -53,19 +67,25 @@ try {
   await monthButtons.last().click();
   const panels = page.getByTestId('month-flow-panels');
   await panels.waitFor({ timeout: 30000 });
-  const panelText = await panels.innerText();
+  // innerText hides collapsed/clipped nodes; the basis paragraph is what the
+  // e2e asserts via toContainText on the panel element, so read textContent
+  // from each panel element the same way.
+  const incomePanel = page.locator('[data-testid$="-income"][data-testid^="month-flow-panel-"]').first();
+  const expensePanel = page.locator('[data-testid$="-expense"][data-testid^="month-flow-panel-"]').first();
+  const incomeText = (await incomePanel.textContent()) ?? '';
+  const expenseText = (await expensePanel.textContent()) ?? '';
 
   // The two sentences this slice rewrote — markers unique to the O.11c build.
   // The income basis now names the reimbursement carve-out...
   check(
     'reports: the income panel states the new reimbursement clause',
-    panelText.includes('counts on neither side'),
+    incomeText.includes('counts on neither side'),
     'MONTH_FLOW_BASIS.income',
   );
   // ...and the expense basis names the same leaf on its own side.
   check(
     'reports: the expense panel states the new reimbursement clause',
-    panelText.includes('counts against neither this figure nor the income one'),
+    expenseText.includes('counts against neither this figure nor the income one'),
     'MONTH_FLOW_BASIS.expense',
   );
 
