@@ -21,6 +21,9 @@ const base = {
   merchant: null as string | null,
   otherFilters: false,
   accountFilter: null as RegisterEmptyInput['accountFilter'],
+  // O.11d — the tag axis rides the same "name the cause" contract; the fixture
+  // default is axis-off, the state every pre-O.11d test describes.
+  tagFilter: null as RegisterEmptyInput['tagFilter'],
 };
 
 describe('registerEmptyReason', () => {
@@ -289,6 +292,17 @@ describe('registerEmptyReason', () => {
   it('an id matching NO account of the reader answers account-unknown, never a name it does not have', () => {
     const r = registerEmptyReason({ ...base, hasFilters: true, accountFilter: { kind: 'unknown' } });
     expect(r).toEqual({ kind: 'account-unknown' });
+  });
+
+  it('O.11d: a ?tag= id matching NO tag of the reader answers tag-unknown, above every window branch', () => {
+    // A foreign/deleted tag id is an empty set BY CONSTRUCTION — the window
+    // branches' remedies cannot conjure rows for a tag that does not exist,
+    // which is why the branch sits beside account-unknown, above the windows.
+    expect(
+      registerEmptyReason({ ...base, hasFilters: true, tagFilter: { kind: 'unknown' }, from: '2024-08-06', to: '2025-08-06' }),
+    ).toEqual({ kind: 'tag-unknown' });
+    // And the axis-off / own-tag states keep every other branch's answer.
+    expect(registerEmptyReason({ ...base, hasFilters: true, tagFilter: null }).kind).toBe('filters');
   });
 
   it("an IN-BASIS account with zero rows names the account's own empty history, never 'these filters' (U.3 critic #2)", () => {

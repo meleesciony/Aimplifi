@@ -95,6 +95,7 @@ export default async function TransactionDetailPage({
       attachments={attachments}
       accounts={accounts}
       canEditSpendClass={!isDemoUser(session.user.id)}
+      canManageTags={!isDemoUser(session.user.id)}
     />
   );
 }

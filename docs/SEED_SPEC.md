@@ -104,6 +104,25 @@ Names deliberately avoid the names demo e2e specs create and delete ('Japan trip
 'Education', 'Giving') so those specs stay exact. The demo user is read-only for
 visitors as everywhere else.
 
+## Tags (O.11d, 2026-09-25)
+Two seeded free-form tags on the demo user, each on exactly 3 transactions:
+- **work trip** → the first three (construction order) DELTA AIR / MARRIOTT
+  rows — the expense-classification story the owner asked for.
+- **date night** → the first three SQ *PONCE CITY DONUTS / TST* HATTIE BS /
+  TST* FOX BROS BBQ rows — the conscious-spending story (the spending that buys
+  happiness, totalable).
+
+Selection is deterministic WITHOUT the PRNG (first-N by descriptor in
+construction order), so no seeded amount shifts and every golden figure stays
+byte-identical — the seed→engine golden test is the lock. A tag moves no figure
+by construction (no engine reads one; the register's tag filter is the total),
+so the demo's headline, net worth, and every cash figure are unchanged; the
+`seed.test.ts` counts section locks `tags: 2` and `tagAssignments: 6`. Names are
+lowercase reader-style deliberately; they already satisfy the same hygiene the
+live `addTransactionTag` writer enforces. Visitors READ chips and can filter by
+them; creating/removing is fenced on the shared demo, as every input-learning
+write is.
+
 ## Determinism ✔
 Same `--asOf` ⇒ identical dataset (assert via row counts + a checksum over a stable
 serialization in `seed.test.ts`).

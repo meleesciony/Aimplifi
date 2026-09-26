@@ -121,7 +121,14 @@ export type RegisterEmptyReason =
   // (hostile critic on this slice, finding #2). WHY the feed is empty is not
   // asserted: several causes produce this state and the module cannot tell
   // them apart.
-  | { kind: 'account-empty'; name: string };
+  | { kind: 'account-empty'; name: string }
+  // The `?tag=` axis when it names no tag of the reader's — a deleted tag's
+  // stale link, another user's id, a hand-edited URL (O.11d). Same shape as
+  // `account-unknown`, one axis over: nothing on the page can name the tag, so
+  // the copy says that instead of blaming "these filters", and the way out is
+  // the same link. The toolbar mirrors the filter too ("(tag not found)" in
+  // the select), so the sentence and the control tell one story.
+  | { kind: 'tag-unknown' };
 
 export interface RegisterEmptyInput {
   /** The #186 predicate: any register filter active. Unchanged in meaning. */
@@ -179,6 +186,15 @@ export interface RegisterEmptyInput {
     | { kind: 'not-here'; id: string; name: string; type: string }
     | { kind: 'no-rows'; name: string }
     | { kind: 'unknown' };
+  /**
+   * O.11d: the `?tag=` axis resolved against the reader's OWN tags — the same
+   * value `TransactionsResult.tagFilter` carries (the caller passes it, so the
+   * sentence describes the query that produced the zero). `null` when the axis
+   * is off or names one of the reader's tags; 'unknown' when the id matches
+   * none of them, which is an EMPTY SET BY CONSTRUCTION — every other branch's
+   * remedy cannot conjure rows for a tag that does not exist.
+   */
+  tagFilter: null | { kind: 'unknown' };
 }
 
 export function registerEmptyReason(input: RegisterEmptyInput): RegisterEmptyReason {
@@ -206,6 +222,13 @@ export function registerEmptyReason(input: RegisterEmptyInput): RegisterEmptyRea
     }
     const { id, name, type } = input.accountFilter;
     return { kind: 'account-not-here', id, name, type };
+  }
+
+  // The tag axis, same reasoning one level over (O.11d): a `?tag=` id that is
+  // not one of the reader's own defines an EMPTY SET by construction, so it is
+  // decided above every window branch whose remedy cannot work.
+  if (input.tagFilter !== null) {
+    return { kind: 'tag-unknown' };
   }
 
   // A window that ends before it starts holds nothing WHATEVER the data is, so

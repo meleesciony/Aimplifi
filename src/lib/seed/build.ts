@@ -156,6 +156,25 @@ export interface SeedGoal {
   kind: null;
 }
 
+/**
+ * A seeded free-form tag (O.11d). `kind`-less by design — a tag is exactly what
+ * the live `addTransactionTag` writer stores, so every reader treats a seeded
+ * row like a hand-made one. Names are reader-style lowercase on purpose: the
+ * demo should model how tags are typed, not a taxonomy.
+ */
+export interface SeedTag {
+  id: string;
+  userId: string;
+  name: string;
+}
+
+/** The seeded tag→transaction join, ids derived (never cuid) so the seed is deterministic. */
+export interface SeedTagAssignment {
+  id: string;
+  tagId: string;
+  transactionId: string;
+}
+
 export interface SeedData {
   asOf: ISODate;
   user: SeedUser;
@@ -168,6 +187,8 @@ export interface SeedData {
   snapshots: SeedSnapshot[];
   holdings: SeedHolding[];
   goals: SeedGoal[];
+  tags: SeedTag[];
+  tagAssignments: SeedTagAssignment[];
 }
 
 // ── descriptor pool (≥40 distinct messy raw forms; docs/SEED_SPEC.md) ───────
@@ -674,6 +695,35 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
     },
   ];
 
+  // ── seeded tags (O.11d) ─────────────────────────────────────────────────────
+  // Two labels with a story a first visitor can read: "work trip" on travel rows
+  // (the expense-classification use the owner asked for) and "date night" on
+  // dining rows (conscious spending — the spending that buys happiness, totalable
+  // through the register's own tag filter). They move NO figure: no engine reads
+  // a tag, so every golden number above is untouched by construction. Selection
+  // is deterministic WITHOUT the PRNG — first-N in construction order among exact
+  // rawDescriptor matches — so consuming no randomness leaves every other seeded
+  // amount byte-identical, and the checksum change is exactly the tag rows.
+  // Names pass the same hygiene the writer enforces (they are lowercase already).
+  // "date night" is spelled lowercase deliberately: the tags a reader invents are
+  // informal, and the demo should model that, not a taxonomy.
+  const tags: SeedTag[] = [
+    { id: 'tag-demo-work-trip', userId: user.id, name: 'work trip' },
+    { id: 'tag-demo-date-night', userId: user.id, name: 'date night' },
+  ];
+  const tagAssignments: SeedTagAssignment[] = [];
+  const tagEarliest = (tagId: string, descriptors: readonly string[], take: number) => {
+    for (const t of transactions) {
+      if (tagAssignments.filter((a) => a.tagId === tagId).length >= take) break;
+      if (t.isTransfer || !descriptors.includes(t.rawDescriptor)) continue;
+      // Join ids are derived, not random: two builds of the same dataset agree,
+      // which is what the determinism test checksums.
+      tagAssignments.push({ id: `${tagId}:${t.id}`, tagId, transactionId: t.id });
+    }
+  };
+  tagEarliest('tag-demo-work-trip', ['DELTA AIR 0062341022334', 'MARRIOTT ATLANTA MARQ'], 3);
+  tagEarliest('tag-demo-date-night', ['SQ *PONCE CITY DONUTS ATL', 'TST* HATTIE BS - ATL', 'TST* FOX BROS BBQ ATLANTA GA'], 3);
+
   return {
     asOf,
     user,
@@ -686,6 +736,8 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
     snapshots,
     holdings,
     goals,
+    tags,
+    tagAssignments,
   };
 }
 

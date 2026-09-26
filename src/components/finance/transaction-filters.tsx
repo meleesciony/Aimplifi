@@ -48,6 +48,8 @@ export type TransactionFilterState = {
   reimbursement: 'awaiting' | 'received' | null;
   /** W.7 — empty string = all classes. */
   spendClass: string;
+  /** O.11d — a tag id; empty string = all tags. */
+  tag: string;
 };
 
 /** Shareable register URL. The Needs-a-category chip is a Link to this, so a
@@ -70,6 +72,9 @@ export function transactionsHref(current: TransactionFilterState): string {
   // denies is a dead end wearing a page).
   if (current.reimbursement) q.set('reimb', current.reimbursement);
   if (current.spendClass) q.set('spendClass', current.spendClass);
+  // O.11d: the tag axis — a tag ID (the id is what deep links carry; a renamed
+  // display string would orphan them, which is why `category` links by id too).
+  if (current.tag) q.set('tag', current.tag);
   const qs = q.toString();
   return qs ? `/transactions?${qs}` : '/transactions';
 }
@@ -78,6 +83,8 @@ export function TransactionFilters({
   accountOptions,
   missingAccountOption,
   categoryOptions,
+  tagOptions,
+  missingTagOption,
   current,
   unclassifiedCount,
   today,
@@ -96,6 +103,16 @@ export function TransactionFilters({
   /** Category dropdown options — the user's visible assignable set incl. customs
    *  (DECISIONS #111). Hidden categories are still findable via the search box. */
   categoryOptions: { id: string; name: string }[];
+  /** O.11d — the reader's own tags. The control is rendered when there are tags
+   *  OR the URL already filters by one: a dropdown that can only answer "no
+   *  matches" is a dead end wearing a control, and an active filter the bar
+   *  denies is the same defect from the other side (the U.3 lesson, twice). */
+  tagOptions: { id: string; name: string }[];
+  /** Set when `?tag=` names a tag the reader does not own (deleted, or a foreign
+   *  id) — the account control's missing-option mirror, for the same reason: the
+   *  select must show the filter the page is answering, and its "All tags"
+   *  escape must actually change the DOM value. */
+  missingTagOption: { name: string | null } | null;
   current: TransactionFilterState;
   /** How many rows in the register still need a category decision, BEFORE this
    *  filter is applied — so the toggle can say what it would find, and can say so
@@ -129,7 +146,8 @@ export function TransactionFilters({
     current.type !== 'all' ||
     current.unclassified ||
     current.reimbursement !== null ||
-    !!current.spendClass;
+    !!current.spendClass ||
+    !!current.tag;
 
   return (
     <div className="space-y-2" data-testid="txn-filters">
@@ -254,6 +272,33 @@ export function TransactionFilters({
             </option>
           ))}
         </select>
+
+        {/* O.11d — the tag axis. Hidden when the reader owns no tags and the URL
+            names none: a select whose every answer is "no matches" is not a
+            control. Rendered anyway while a stale `?tag=` is live, with the
+            missing-option mirror below, so the page shows which filter produced
+            its zero. */}
+        {(tagOptions.length > 0 || current.tag !== '') && (
+          <select
+            aria-label="Tag"
+            value={current.tag}
+            onChange={(e) => commit({ tag: e.target.value })}
+            data-testid="txn-filter-tag"
+            className={selectClass}
+          >
+            <option value="">All tags</option>
+            {missingTagOption !== null && current.tag !== '' && (
+              <option value={current.tag} data-testid="txn-filter-tag-missing-option">
+                {missingTagOption.name !== null ? missingTagOption.name : '(tag not found)'}
+              </option>
+            )}
+            {tagOptions.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        )}
 
         <select
           aria-label="Class"

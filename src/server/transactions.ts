@@ -135,6 +135,7 @@ import {
   SPLIT_BLOCKED_TRANSFER,
 } from '@/lib/engine/transactions/actions';
 import { findOffsettingInflow, reimbursementState } from '@/lib/engine/transactions/reimbursement';
+import { sortTagsForDisplay } from '@/lib/engine/transactions/tags';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
 import { getRecurringPaidThrough } from '@/server/recurring-paid-through';
 
@@ -158,6 +159,16 @@ export interface TransactionsResult {
    *  be visible in the control that expresses it. */
   accountOptions: { id: string; name: string }[];
   /**
+   * O.11d: the reader's tags for the register's tag dropdown — every tag the
+   * reader owns, INCLUDING ones with zero rows in the current view. The account
+   * dropdown's rule, applied to tags: an active filter must always be visible in
+   * the control that expresses it, and a tag whose rows all live outside the
+   * current date window is still a choice the reader can make. Empty array = the
+   * reader has no tags, and the toolbar omits the control rather than offer a
+   * select that can only say "no matches".
+   */
+  tagOptions: { id: string; name: string }[];
+  /**
    * The `?account=` axis resolved against the reader's own accounts, for
    * `registerEmptyReason` and the filter bar's account chip. `null` when the
    * axis is off or names a spending account (the dropdown expresses those);
@@ -170,6 +181,15 @@ export interface TransactionsResult {
     | { kind: 'not-here'; id: string; name: string; type: string }
     | { kind: 'no-rows'; name: string }
     | { kind: 'unknown' };
+  /**
+   * O.11d: the `?tag=` axis resolved against the reader's OWN tags. `null` when
+   * the axis is off or names one of the reader's tags (the dropdown expresses
+   * those); 'unknown' when the id matches no tag of the reader's — a foreign id,
+   * or a tag deleted after a link was saved. The toolbar mirrors it as its
+   * "(tag not found)" option, and the empty state names the filter it cannot
+   * answer instead of blaming the reader's own search terms.
+   */
+  tagFilter: null | { kind: 'unknown' };
   /** Pagination state for the current (filtered) page (ROADMAP #8). */
   pageInfo: PageInfo;
   /** Set only when the filter names a merchant AND the profile has something
@@ -398,7 +418,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     // side by side. Found by both O.17 critics independently (DECISIONS #350).
     // `provider` joined for `rowOrigin` (O.15 slice 7): the register's action menu
     // must know whether a feed owns this row before offering a status write.
-    include: { account: { select: { id: true, name: true, displayName: true, provider: true } }, merchant: true, category: { select: { name: true } } },
+    include: { account: { select: { id: true, name: true, displayName: true, provider: true } }, merchant: true, category: { select: { name: true } }, tags: { select: { tag: { select: { id: true, name: true } } } } },
     orderBy: [{ date: 'desc' }, { id: 'desc' }],
   });
 
@@ -490,6 +510,10 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     // O.15: stored flags, verbatim — the badge and the menu render from these.
     excludeFromTotals: t.excludeFromTotals,
     reimbursement: t.reimbursement,
+    // O.11d: the row's tags at the read edge, sorted for display — the register's
+    // chips, the detail view's editor and the `?tag=` axis all read this array,
+    // so the order is decided exactly once per read.
+    tags: sortTagsForDisplay(t.tags.map((x) => x.tag)),
     splitParentId: t.splitParentId,
     // The stored flag, verbatim. Half of "unclassified" (see `isUnclassifiedTxn`);
     // the other half is the row sitting in the 'uncategorized' placeholder above.
@@ -632,17 +656,29 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
   // reconciliation disowns their rows, so offering the name beside its
   // successor's would be a near-duplicate whose selection can only show a
   // zero the reader cannot act on (U.3 critic, finding #8).
-  const [filterableAccounts, supersededIds] = await Promise.all([
+  const [filterableAccounts, supersededIds, tagRows] = await Promise.all([
     prisma.account.findMany({
       where: registerAccountWhere(userId),
       select: { id: true, name: true, displayName: true },
     }),
     activeSupersededPredecessorIds([userId]),
+    // O.11d: the reader's own tags, for the toolbar dropdown and to resolve the
+    // `?tag=` axis. EVERY tag they own, not just tags with visible rows — an
+    // active filter must be visible in the control that expresses it (the
+    // account dropdown's rule). Name order is code-point, not `localeCompare`,
+    // so the option list never rearranges with the runtime's locale.
+    prisma.tag.findMany({ where: { userId }, select: { id: true, name: true } }),
   ]);
   const accountOptions = filterableAccounts
     .filter((a) => !supersededIds.has(a.id))
     .map((a) => ({ id: a.id, name: accountLabel(a) }))
     .sort((a, b) => (a.name < b.name ? -1 : 1));
+  const tagOptions = [...tagRows].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  // A tag id that is not the reader's resolves to 'unknown' — the empty state and
+  // the toolbar mirror it, so a stale deep link never reads as "these filters
+  // produced nothing" when the filter itself is the answer.
+  const tagFilter: TransactionsResult['tagFilter'] =
+    filter.tag && !tagOptions.some((t) => t.id === filter.tag) ? { kind: 'unknown' } : null;
 
   // Resolve the `?account=` axis against the reader's own accounts so the
   // empty state can name WHICH zero this is (`registerEmptyReason`):
@@ -708,7 +744,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
     unclassified: filter.unclassified,
   });
 
-  return { rows: items, summary, accountOptions, accountFilter, pageInfo: info, lens, unclassifiedCount, oldestDate, newestDate };
+  return { rows: items, summary, accountOptions, accountFilter, tagOptions, tagFilter, pageInfo: info, lens, unclassifiedCount, oldestDate, newestDate };
 }
 
 /** One piece of a split, as the detail view lists it. */
@@ -826,6 +862,10 @@ export async function getTransactionDetail(
       account: { select: { id: true, name: true, displayName: true, provider: true } },
       merchant: true,
       category: { select: { name: true } },
+      // O.11d: the row's tags ride the SAME `TxnView` the register maps, so the
+      // detail page's chips and the register's chips are the same array from the
+      // same mapping — one can never say "trip" where the other says "Trip".
+      tags: { select: { tag: { select: { id: true, name: true } } } },
     },
   });
   if (!t) return null;
@@ -898,6 +938,10 @@ export async function getTransactionDetail(
     // O.15: stored flags, verbatim — the badge and the menu render from these.
     excludeFromTotals: t.excludeFromTotals,
     reimbursement: t.reimbursement,
+    // O.11d: the row's tags at the read edge, sorted for display — the register's
+    // chips, the detail view's editor and the `?tag=` axis all read this array,
+    // so the order is decided exactly once per read.
+    tags: sortTagsForDisplay(t.tags.map((x) => x.tag)),
     splitParentId: t.splitParentId,
     needsReview: t.needsReview,
     merchantId: t.merchantId,

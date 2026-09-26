@@ -55,6 +55,10 @@ async function main() {
   await prisma.statement.deleteMany();
   await prisma.balanceSnapshot.deleteMany();
   await prisma.scheduledTransaction.deleteMany();
+  // O.11d — tag joins before transactions (their FK parent); tags reference only
+  // the user, but wiping them here too keeps the re-seed order explicit.
+  await prisma.transactionTag.deleteMany();
+  await prisma.tag.deleteMany();
   await prisma.transaction.deleteMany();
   // These also FK-reference Category and must go before it, else a re-seed over an
   // existing DB (e.g. after the budget-targets test created Budget rows) fails with
@@ -170,6 +174,13 @@ async function main() {
     }),
   });
 
+  // ── O.11d: two demo tags, assigned after the transactions exist (FK order) ──
+  // The register's tag dropdown and the detail view's chips open populated for a
+  // first visitor; the tag total is just the register filtered, so these rows
+  // move no figure (the golden seed→engine test proves it byte-identical).
+  await prisma.tag.createMany({ data: data.tags });
+  await prisma.transactionTag.createMany({ data: data.tagAssignments });
+
   // ── Prediction log for the accuracy/calibration metric (DECISIONS #37) ──
   // One row per transaction: what the pipeline predicted + its confidence.
   // Ground truth (actualCategoryId) is set only where we genuinely know it — a
@@ -242,6 +253,8 @@ async function main() {
     snapshots: data.snapshots.length,
     holdings: data.holdings.length,
     goals: data.goals.length,
+    tags: data.tags.length,
+    tagAssignments: data.tagAssignments.length,
   };
   console.log('Seeded:', JSON.stringify(counts));
 }

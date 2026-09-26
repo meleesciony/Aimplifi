@@ -17,7 +17,72 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
-## 2026-09-25 — O.11c: the reimbursement round trip (IN PROGRESS)
+## 2026-09-25 — O.11d: free-form tags — the last field of the "all other mint and simplifi fields" ask (DECISIONS #775)
+
+**SHIPPED (same turn, DECISIONS #636 posture).** The O.11 wave's final row: a many-to-many
+user-defined label set, with filtering and a tag total. Additive schema, engine-first,
+no figure moves.
+(The O.11c entry below said SHIPPED with a stale "(IN PROGRESS)" heading — the heading
+is corrected above; CI 36209828932 SUCCESS + the live probe were already recorded in
+STATUS §O.11c. Housekeeping also trashed the six leftover `.verify-*`/`.ci-status-*`
+gate logs and gitignored the patterns.)
+
+**Design, with the why.** `Tag` (per-user, `@@unique([userId, name])`) + an explicit
+`TransactionTag` join (Cascade on both edges — the retention document's one-cascade
+promise). The case fold lives at the WRITER, not the schema: `@@unique` is byte-wise
+and must stay so (the reader's capitalization is theirs), so `addTransactionTag`
+matches case-insensitively and APPLIES an existing tag instead of minting a twin;
+a race that slips two spellings through yields two visible chips, never a hidden
+wrong total. Tag naming = CATEGORY naming (`normalizeCategoryName` + the 40-code-point
+ceiling, reused from the plain leaf module — the L.12c "two definitions" trap).
+**The tag total is `summarizeTransactions` over the tag-filtered rows** — the very
+function the unfiltered summary strip uses. No new arithmetic anywhere (L.9: one
+function, not two copies); the engine tests prove the tag axis composes with the
+transfer skip, the O.15 exclusion (figures down, count up), and the U.20 hand-over
+gate with zero tag-specific branches. `TxnView.tags` is REQUIRED, not optional —
+the same "forgot to select it" failure direction as every other flag on that type.
+
+**Fence-by-construction (the #242/L.12c rule):** `isDemoUser` is checked inside the
+SHARED server action, not at the UI entry point, so a future register popover
+passes through it for free. The detail view renders the chips read-only + a why
+(`canManageTags`), so the fence is an explanation on screen, not a dead button.
+
+**Surfaces:** the tag editor lands on the detail view beside the note/receipts
+(the three answers to "what was this?"); chips on register rows (always-visible —
+the 380px lesson); `?tag=` axis through `TxnFilter` (URL carries the tag ID, never
+the name — a renamed chip would orphan deep links); the toolbar select appears only
+when the reader owns a tag or a stale `?tag=` needs mirroring ("(tag not found)",
+the account control's own pattern from U.3).
+
+**Seed (GL.4 precedent):** two demo tags, deterministic selection WITHOUT the PRNG
+(first-N by exact descriptor in construction order, 3+3 rows) → no seeded amount
+shifts; the golden seed→engine test is the byte-identical lock. SEED_SPEC §Tags +
+seed.test.ts counts (tags: 2, assignments: 6) + "seeded names pass `validateTagName`"
+(the seed is written BY the rules, not beside them).
+
+**Evidence (all real, this session).** `tsc --noEmit` green; `eslint . --max-warnings=0`
+green; full `vitest run` **8633 passed + 1 expected fail + 1 skipped** (the critic's own
+independent re-run; my first full run was 8632 + the edge-case-heading meta-test fix);
+`next build` green; official `bash scripts/verify.sh` → **✅ VERIFY GREEN**; targeted e2e
+`tests/e2e/txn-tags.spec.ts` 6/6 on the mobile-380 project (the first run's two failures
+were TEST bugs — a wrong badge testid, a chip assertion counting the remove button's × —
+the app was right both times; a third was the serial-context cookie bug, also test-side).
+Fail-old: the money line is the e2e's Money out `$65.00` on a tag-filtered set containing
+a transfer row (the untagged register's own basis, unchanged).
+
+**Hostile Critic (fresh verifier context; it re-ran tsc/eslint/full-vitest/build itself
+before scoring): PASS — 0 P0 / 0 P1 / 6 P2.** All six folded in-session or recorded:
+the `tag-unknown` empty state shipped for real (the comment had promised what the code
+lacked — account-axis parity); the demo why renders on EVERY demo row (the seeded rows
+are the tagged ones a first visitor opens); `rateLimitDurable` guards the creating verb;
+`maxLength` 2× headroom (browser counts UTF-16 units, server is the authority); the cap
+sentence states the true bound ("to 40"); the 40-char-chip-at-380px pin recorded open.
+The fold revealed one family-wide copy nit (sibling validators say "under N") recorded
+as a STATUS residual — one copy sweep, not six files in one slice.
+
+---
+
+## 2026-09-25 — O.11c: the reimbursement round trip (DECISIONS #774)
 
 **Picked up.** Owner: continue with next surgical slice. Queue pick after verification: O.11c.
 Explorer verified three "open" rows are STALE (built 8 weeks ago, verified at file:line this

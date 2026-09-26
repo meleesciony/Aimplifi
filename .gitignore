@@ -53,6 +53,8 @@ dev.db-shm
 /test-results/
 /playwright-report/
 _server*.log
+.verify-*.log
+.ci-status-*.log
 
 # code index (CodeGraph) — local + machine-specific (db, daemon pid/log/sockets); never committed
 /.codegraph/

@@ -17,6 +17,7 @@ import type { ProvenanceVerdict } from '@/lib/engine/categorize/provenance';
 import { type ExcludableTxn, isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import type { RowOrigin } from '@/lib/engine/transactions/origin';
+import type { TxnTagRef } from '@/lib/engine/transactions/tags';
 
 export interface TxnView {
   id: string;
@@ -94,6 +95,17 @@ export interface TxnView {
    * REQUIRED for the same reason as `excludeFromTotals`.
    */
   reimbursement: string | null;
+  /**
+   * O.11d — the row's free-form tags, sorted for display (`sortTagsForDisplay`
+   * applied at the read edge), EMPTY when the row carries none. REQUIRED rather
+   * than optional for the same reason as the flags above: a read that never
+   * looked up a row's tags and a row that has none are different facts, and an
+   * optional field cannot tell them apart — so every construction site must carry
+   * the truth. Nothing here moves a figure: a tag total is
+   * `summarizeTransactions` over the tag-filtered rows — the very function the
+   * unfiltered summary strip uses (one arithmetic, not two copies).
+   */
+  tags: TxnTagRef[];
   /**
    * O.15: set when this row is one PIECE of a split. REQUIRED so the action
    * menu can say "already one piece of a split" instead of silently offering a
@@ -182,6 +194,15 @@ export interface TxnFilter {
    * the residual, not a bucket heading).
    */
   spendClass?: 'fixed' | 'guilt-free' | null;
+  /**
+   * O.11d: a tag ID (never a name — a renamed display string would orphan every
+   * deep link that carried it, the exact drift `categoryId` ids exist to avoid).
+   * Semantics match the other axes: one row either carries the tag or it does
+   * not. It reads the row's REQUIRED `tags` array, so there is no read path that
+   * can filter this axis without having looked the tags up — `tags` joins the
+   * type, not the option list. Null/absent = axis off.
+   */
+  tag?: string | null;
 }
 
 /**
@@ -351,6 +372,10 @@ export function filterTransactions(rows: readonly TxnView[], filter: TxnFilter =
     if (filter.accountId && t.accountId !== filter.accountId) return false;
     if (filter.categoryId && t.categoryId !== filter.categoryId) return false;
     if (filter.spendClass && t.spendClass !== filter.spendClass) return false;
+    // O.11d — the tag axis. A stale/foreign tag id simply matches nothing, which
+    // the register renders as its visible empty state (the toolbar mirrors the
+    // URL, so the filter the page is answering stays on screen).
+    if (filter.tag && !t.tags.some((tg) => tg.id === filter.tag)) return false;
     if (filter.merchant?.trim() && !merchantNameEquals(t.merchantName, filter.merchant)) return false;
     if (from && compareDates(isoDate(t.date), from) < 0) return false;
     if (to && compareDates(isoDate(t.date), to) > 0) return false;

@@ -73,6 +73,9 @@ function txn(over: Partial<TxnView> & Pick<TxnView, 'id' | 'date' | 'amountCents
     provenance: { kind: 'merchant-default', label: 'Known merchant', needsConfirm: false },
     excludeFromTotals: false,
     reimbursement: null,
+    // O.11d: REQUIRED like the flags above — a row's tags are looked up, never
+    // assumed absent. These fixtures are about other axes; untagged is the truth here.
+    tags: [],
     splitParentId: null,
     suggestion: null,
     spendClass: 'guilt-free',

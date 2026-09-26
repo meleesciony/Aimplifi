@@ -131,6 +131,7 @@ const asTxnViews = (rows: Row[]): TxnView[] =>
       provenance: { kind: 'merchant-default', label: 'Known merchant', needsConfirm: false },
       excludeFromTotals: r.excludeFromTotals ?? false,
       reimbursement: null,
+      tags: [],
       splitParentId: null,
       suggestion: null,
       spendClass: classifySpendClass(asPanelRows([r])[0]!, CATEGORY_BY_ID, new Set()),

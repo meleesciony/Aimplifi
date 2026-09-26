@@ -185,6 +185,7 @@ describe('the register: the one place an excluded row STAYS', () => {
     taxClass: null,
     excludeFromTotals: false,
     reimbursement: null,
+    tags: [],
     splitParentId: null,
     needsReview: false,
     provenance: { kind: 'not-recorded', label: 'Not recorded', needsConfirm: false } as TxnView['provenance'],

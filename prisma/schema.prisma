@@ -104,6 +104,7 @@ model User {
   billCadences        BillCadence[]
   payeeRenames        PayeeRename[]
   customCategories    Category[]
+  tags                Tag[]
   pushSubscriptions   PushSubscription[]
   notificationsSent   NotificationSent[]
   valueReceipts       ValueReceipt[]
@@ -554,11 +555,76 @@ model Transaction {
   merchant Merchant? @relation(fields: [merchantId], references: [id])
   category Category? @relation(fields: [categoryId], references: [id])
   attachments TransactionAttachment[]
+  tags        TransactionTag[]
 
   @@unique([accountId, providerRef]) // ingest idempotency: one row per provider txn id
   // (providerRef is null for manual/seed rows; multiple NULLs are allowed, so they're
   // unconstrained. Makes Plaid/SimpleFIN re-sync race-safe — Hostile Critic CQ-2.)
   @@index([accountId, date])
+}
+
+// O.11d — the reader's OWN free-form labels, the last field of the "add reimbursable
+// and exclude from budgets and all other mint and simplifi fields" ask (TASKS O.11d).
+//
+// A tag moves NOTHING. It is a label in the family of `note`: no money engine reads
+// it, no flow it creates, no figure it changes. The "tag total" a reader sees when
+// they filter the register by a tag is `summarizeTransactions` over the filtered
+// rows — the SAME function the unfiltered summary strip uses — so a tag total can
+// only ever be "the register's own answer for these rows" (one arithmetic, not two
+// copies; the L.9 rule). If a future surface wants a tag's total somewhere else, it
+// calls that one function; it does not re-derive.
+//
+// Free text, deliberately — a closed tag set would be a second taxonomy nobody
+// asked for. The naming rules are the CATEGORY naming rules (categories.ts): the
+// same invisible-character hygiene, because a tag whose name carries a zero-width
+// space is a chip pixel-identical to its twin and byte-different — and the same
+// 40-code-point ceiling (categories.ts explains why code points, not UTF-16 units).
+//
+// WHY THE CASE FOLD IS AT THE WRITER, NOT THE SCHEMA: `@@unique([userId, name])` is
+// byte-wise on SQLite and Postgres alike, so "Vacation" and "vacation" are legal
+// distinct bytes HERE — and they must stay legal, because the reader's capitalization
+// is theirs to keep. The writer (transaction-tag-actions.ts) therefore folds by
+// lower-case before deciding create-vs-reuse: adding "VACATION" to a row that can
+// already take "vacation" applies the existing tag rather than minting a twin. The
+// schema is the last line, not the first: a race that slips two spellings through
+// yields two distinct visible chips — visible, and each a real tag, never a hidden
+// wrong total.
+model Tag {
+  id     String @id @default(cuid())
+  // Per-user namespacing (the `Category.userId` pattern): two readers each owning
+  // a "Golf" is normal, and a tag NEVER resolves across users — every read joins
+  // through the transaction's owner or this row's own userId.
+  userId String
+  name   String
+
+  owner        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions TransactionTag[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+// The many-to-many, explicit rather than implicit: the implicit form has nowhere to
+// put the per-user scoping (a Tag belongs to a user; a Transaction belongs to an
+// account), and the explicit join carries its own id and the stable
+// @@unique([tagId, transactionId]) that makes "remove this tag from this row" an
+// idempotent delete of one keyed row.
+//
+// onDelete Cascade on BOTH edges — this is the retention document's promise
+// (docs/DATA_RETENTION_AND_DISPOSAL.md §3: one cascading delete of the user row
+// removes every associated row). Tag rows die with their user; join rows die with
+// the tag (deleting a tag removes it from every row) AND with the transaction
+// (deleting/splitting away a row never strands a join).
+model TransactionTag {
+  id            String @id @default(cuid())
+  tagId         String
+  transactionId String
+
+  tag         Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, transactionId])
+  @@index([transactionId])
 }
 
 model Merchant {

@@ -99,6 +99,7 @@ function view(id: string, merchantName: string): TxnView {
     provenance: { kind: 'merchant-default', label: 'Known merchant', needsConfirm: false },
     excludeFromTotals: false,
     reimbursement: null,
+    tags: [],
     splitParentId: null,
     suggestion: null,
     spendClass: 'fixed',

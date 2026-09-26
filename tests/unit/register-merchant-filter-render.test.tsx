@@ -95,10 +95,16 @@ const noFilters = {
   unclassified: false,
   reimbursement: null as 'awaiting' | 'received' | null,
   spendClass: '',
+  tag: '',
 };
 
 const ACCOUNTS = [{ id: 'acct_1', name: 'Chase Checking' }];
 const CATEGORIES = [{ id: 'groceries', name: 'Groceries' }];
+// O.11d: the tag dropdown is hidden for a tag-less reader by design, so the
+// screenshot's five selects stay five — passing this prop as [] is the state
+// the owner's screen was in (they have no tags). The select's own presence is
+// exercised in tests/e2e/txn-tags.spec.ts.
+const TAGS: { id: string; name: string }[] = [];
 
 function renderBar(
   current: Partial<typeof noFilters>,
@@ -110,6 +116,8 @@ function renderBar(
       accountOptions={ACCOUNTS}
       missingAccountOption={missingAccountOption}
       categoryOptions={CATEGORIES}
+      tagOptions={TAGS}
+      missingTagOption={null}
       current={{ ...noFilters, ...current }}
       unclassifiedCount={unclassifiedCount}
       today="2026-08-07"

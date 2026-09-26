@@ -747,6 +747,21 @@ export function TransactionList({
               </Link>
               .
             </p>
+          ) : emptyReason.kind === 'tag-unknown' ? (
+            // O.11d — the tag mirror of the account-unknown branch: the `?tag=`
+            // id matches no tag of the reader's own (deleted, foreign, or
+            // hand-edited). Nothing here can name it, so say that — and the
+            // toolbar's "(tag not found)" option says the same thing, so the
+            // sentence and the control tell one story (U.3 critic #10's rule,
+            // one axis over).
+            <p data-testid="txn-empty-tag-unknown">
+              This view is filtered to a tag that isn&apos;t one of your own — it may have been
+              deleted or belong to someone else.{' '}
+              <Link href="/transactions" className="underline underline-offset-2">
+                Show all transactions
+              </Link>
+              .
+            </p>
           ) : emptyReason.kind === 'filters' ? (
             'No transactions match these filters.'
           ) : (
@@ -857,6 +872,24 @@ export function TransactionList({
                             Reimbursed
                           </Badge>
                         )}
+                        {/* O.11d — the row's tags. Always-visible like the flags
+                            beside them (the 380px lesson: a hover-only chip on a
+                            touch screen is a chip that does not exist), and
+                            rendered from the SAME `row.tags` array the detail view
+                            edits and the toolbar filters — never a second read.
+                            They carry no figure: a tag's total is this page's own
+                            summary when the tag filter is what brought the reader
+                            here. */}
+                        {t.tags.map((tag) => (
+                          <Badge
+                            key={tag.id}
+                            variant="outline"
+                            data-testid="txn-tag-badge"
+                            className="shrink-0 text-[10px] text-muted-foreground"
+                          >
+                            {tag.name}
+                          </Badge>
+                        ))}
                         {/* O.13b — the detail view: one place carrying this row's
                             whole field set, including the split the register
                             could not reach and the bank text it does not show.

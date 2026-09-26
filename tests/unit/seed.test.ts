@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { buildSeedData, seedChecksum } from '@/lib/seed/build';
+import { validateTagName } from '@/lib/engine/transactions/tags';
 import { assembleCashNeededInput, netWorthCents } from '@/lib/engine/cash-needed/assemble';
 import { computeCashNeeded } from '@/lib/engine/cash-needed/engine';
 import { dayOfWeek, holidayTable, isWeekend, isoDate } from '@/lib/dates';
@@ -175,6 +176,41 @@ describe('statements (SEED_SPEC ✔)', () => {
     const pays = seed.cardPayments.filter((p) => p.statementId === current.id);
     expect(pays).toHaveLength(1);
     expect(pays[0]).toMatchObject({ amountCents: 40000, date: '2026-06-05', source: 'manual' });
+  });
+});
+
+describe('tags (SEED_SPEC ✔ — O.11d)', () => {
+  it('carries exactly the 2 specified tags and 6 assignments', () => {
+    expect(seed.tags).toHaveLength(2);
+    expect(seed.tagAssignments).toHaveLength(6);
+    expect(seed.tags.map((t) => t.name).sort()).toEqual(['date night', 'work trip']);
+  });
+
+  it('every assignment points at a real transaction and a real tag of the same user', () => {
+    const txnIds = new Set(seed.transactions.map((t) => t.id));
+    const tagById = new Map(seed.tags.map((t) => [t.id, t]));
+    for (const a of seed.tagAssignments) {
+      expect(txnIds.has(a.transactionId)).toBe(true);
+      expect(tagById.has(a.tagId)).toBe(true);
+      expect(tagById.get(a.tagId)!.userId).toBe(seed.user.id);
+    }
+  });
+
+  it('no transaction carries the same tag twice, and no transfer is tagged (a tag belongs on a spend)', () => {
+    const seen = new Set<string>();
+    const txnById = new Map(seed.transactions.map((t) => [t.id, t]));
+    for (const a of seed.tagAssignments) {
+      const key = `${a.tagId}|${a.transactionId}`;
+      expect(seen.has(key)).toBe(false);
+      seen.add(key);
+      expect(txnById.get(a.transactionId)!.isTransfer).toBe(false);
+    }
+  });
+
+  it('every seeded name already satisfies the writer validation the live add path enforces', () => {
+    // A seeded chip the live writer would refuse is two definitions of "valid
+    // tag name" — the seed must be written BY the rules, not beside them.
+    for (const t of seed.tags) expect(validateTagName(t.name)).toEqual({ name: t.name });
   });
 });
 

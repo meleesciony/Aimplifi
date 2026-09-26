@@ -47,6 +47,8 @@ import {
   setTransactionSpendClass,
   setTransactionStatus,
 } from '@/server/transaction-flags-actions';
+import { addTransactionTag, removeTransactionTag } from '@/server/transaction-tag-actions';
+import { MAX_TAG_NAME } from '@/lib/engine/transactions/tags';
 import {
   clearRecurringVerdict,
   markMerchantNotABill,
@@ -229,6 +231,7 @@ export function TransactionDetailView({
   attachments,
   accounts,
   canEditSpendClass = true,
+  canManageTags = true,
 }: {
   detail: DetailView;
   categoryGroups: CategoryGroup[];
@@ -262,6 +265,9 @@ export function TransactionDetailView({
   accounts: readonly { id: string; name: string }[];
   /** #378 — Fixed/Discretionary selector; false on the shared demo. */
   canEditSpendClass?: boolean;
+  /** O.11d — the tag editor; false on the shared demo (chips render read-only
+   *  with the explanation). The fence itself is enforced in the action. */
+  canManageTags?: boolean;
 }) {
   const { row } = detail;
   const [busy, setBusy] = useState(false);
@@ -1009,6 +1015,91 @@ export function TransactionDetailView({
           </Button>
         </div>
       </form>
+
+      {/* O.11d — TAGS. Placed beside the note for the same reason the receipts are:
+          all three answer "what was this?" in the reader's own words. A tag is a
+          LABEL — it moves no figure (schema note at `Tag`) — and its total is the
+          register's own summary filtered by the tag (the toolbar's dropdown), not
+          a number this page invents. The case-insensitive reuse of an existing
+          name happens in the ACTION; this input only asks for a name. */}
+      <div className="space-y-2 rounded-md border p-3">
+        <div className="text-sm font-medium">Tags</div>
+        {row.tags.length === 0 && canManageTags && (
+          <p className="text-xs text-muted-foreground" data-testid="detail-tags-empty">
+            No tags yet — invent one, like “work trip”. A tag is a label: it changes
+            no totals, and your register can be filtered by it.
+          </p>
+        )}
+        {row.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5" data-testid="detail-tag-chips">
+            {row.tags.map((tag) => (
+              <Badge key={tag.id} variant="outline" className="gap-1 text-[11px]" data-testid="detail-tag-chip">
+                {tag.name}
+                {canManageTags && (
+                  <button
+                    type="button"
+                    aria-label={`Remove the ${tag.name} tag`}
+                    data-testid={`detail-tag-remove-${tag.id}`}
+                    disabled={busy}
+                    className="text-muted-foreground hover:text-foreground"
+                    onClick={() => runFlag(() => removeTransactionTag({ transactionId: row.id, tagId: tag.id }))}
+                  >
+                    ×
+                  </button>
+                )}
+              </Badge>
+            ))}
+          </div>
+        )}
+        {canManageTags ? (
+          <form
+            className="flex flex-wrap items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const tagName = String(fd.get('tagName') ?? '');
+              // The page's OWN `run` — the same busy/refusal/reload machinery the
+              // note save uses (mutation-form-recipe: onSubmit, never
+              // `useActionState`). A refusal is shown verbatim; a tag that
+              // silently did not apply is a label the reader believes is there.
+              void run(async () => {
+                const res = await addTransactionTag({ transactionId: row.id, tagName });
+                if (!res.ok) throw new RefusalError(res.error);
+              });
+            }}
+          >
+            <label htmlFor="detail-tag-input" className="sr-only">
+              Add a tag
+            </label>
+            <input
+              id="detail-tag-input"
+              name="tagName"
+              type="text"
+              // The browser counts UTF-16 units; MAX_TAG_NAME counts CODE POINTS
+              // (40 emoji are 80 units but valid — txn-tags.test.ts proves the
+              // server takes them). 2× is headroom for the surrogate case while
+              // still bounding the payload; the SERVER check is the authority
+              // and refuses with the real sentence.
+              maxLength={MAX_TAG_NAME * 2}
+              placeholder="Add a tag…"
+              data-testid="detail-tag-input"
+              className="h-9 w-40 rounded-md border bg-background px-2 text-sm"
+            />
+            <Button type="submit" size="sm" disabled={busy} data-testid="detail-tag-add">
+              Add
+            </Button>
+          </form>
+        ) : (
+          // The shared-demo fence is enforced in the action; the surface says so
+          // on EVERY demo row — tagged or not (a tagged row with chips but no
+          // buttons and no explanation reads as breakage, not as a fence; the
+          // seeded rows are exactly the ones a first visitor opens).
+          <p className="text-xs text-muted-foreground" data-testid="detail-tags-demo-note">
+            Tags are read-only on the shared demo. In your own account you invent
+            and remove your own labels.
+          </p>
+        )}
+      </div>
 
       {/* RECEIPTS & DOCUMENTS — O.13h, the last Simplifi-parity field with no
           column at all.

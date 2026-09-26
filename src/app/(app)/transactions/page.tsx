@@ -81,6 +81,10 @@ export default async function TransactionsPage({
   const spendClass = (VALID_SPEND_CLASSES as readonly string[]).includes(spendClassRaw)
     ? (spendClassRaw as 'fixed' | 'guilt-free')
     : null;
+  // O.11d: the tag axis — a TAG ID (`TxnFilter.tag` says why not a name). There is
+  // no enum to validate here; the id resolves against the reader's OWN tags inside
+  // getTransactions, and `tagFilter` reports one that turns out not to be theirs.
+  const tag = str(sp.tag);
   const page = Math.max(1, parseInt(str(sp.page), 10) || 1);
 
   const filter: TxnFilter = {
@@ -94,6 +98,7 @@ export default async function TransactionsPage({
     unclassified,
     reimbursement,
     spendClass,
+    tag: tag || null,
   };
   // Same predicate as TransactionFilters.hasFilters — empty-register copy
   // branches on it (ROADMAP ALSO CONSIDER / #186). Split at the merchant axis
@@ -104,10 +109,11 @@ export default async function TransactionsPage({
     type !== 'all' ||
     unclassified ||
     reimbursement !== null ||
-    spendClass !== null;
+    spendClass !== null ||
+    !!tag;
   const hasFilters = hasFiltersBesidesMerchant || !!merchant;
 
-  const [{ rows, summary, accountOptions, accountFilter, pageInfo, lens, unclassifiedCount, oldestDate, newestDate }, categoryGroups, withheld, shared, moveAccounts] =
+  const [{ rows, summary, accountOptions, accountFilter, tagOptions, tagFilter, pageInfo, lens, unclassifiedCount, oldestDate, newestDate }, categoryGroups, withheld, shared, moveAccounts] =
     await Promise.all([
       getTransactions(session.user.id, filter, page),
       getVisibleGroups(session.user.id),
@@ -205,6 +211,10 @@ export default async function TransactionsPage({
             : { name: accountFilter.kind === 'not-here' ? accountFilter.name : null }
         }
         categoryOptions={categoryGroups.flatMap((g) => g.categories)}
+        // O.11d — the tag dropdown: the reader's own tags, plus the stale-`?tag=`
+        // mirror the account control uses (same U.3 failure mode, one axis over).
+        tagOptions={tagOptions}
+        missingTagOption={tagFilter !== null ? { name: null } : null}
         current={{
           search,
           account,
@@ -216,6 +226,7 @@ export default async function TransactionsPage({
           unclassified,
           reimbursement,
           spendClass: spendClass ?? '',
+          tag,
         }}
         unclassifiedCount={unclassifiedCount}
         today={getProvider().today(session.user.id)}
@@ -262,6 +273,9 @@ export default async function TransactionsPage({
           // Resolved by getTransactions against the reader's OWN accounts —
           // the same query run that produced the zero this sentence explains.
           accountFilter,
+          // O.11d: resolved against the reader's OWN tags by the same query
+          // run (one axis over from `accountFilter`, same reason).
+          tagFilter,
         })}
         // The CSV remedy is REFUSED for the shared demo user
         // (`transaction-actions.ts` returns DEMO_ENTRY_BLOCKED), and on
