@@ -766,3 +766,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #771 — Month-rest names the life-energy view from the card gates (2026-09-22) → docs/DECISIONS.md
 - #772 — Month-rest names Monthly Money Review the way the card does (2026-09-22) → docs/DECISIONS.md
 - #773 — Dining rule matches Grille; the owner's inbox revives on read (2026-09-24) → docs/DECISIONS.md
+- #774 — The reimbursement round trip: the payback counts on neither side (2026-09-25) → docs/DECISIONS.md
