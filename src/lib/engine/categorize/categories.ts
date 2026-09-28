@@ -2,9 +2,9 @@
  * System category set (Phase 2; Mint/Simplifi two-level taxonomy in DECISIONS #63/#65).
  * IDs are stable slugs; `group` is the PARENT category, the entry itself a
  * subcategory (the picker renders parent headers with their subcategories under
- * them). Every original ID + name is preserved EXACTLY so the demo's pinned
- * categorization and all golden values are unchanged — new subcategories are
- * purely additive.
+ * them). Original IDs stay put so pinned categorization and golden values hold.
+ * A display name may change when the old word hid the bucket (`vision` is
+ * "Eye Doctor & Optometrist"); the id does not. New subcategories are additive.
  *
  * O.17: 22 leaves added after auditing a real Simplifi export the owner uses
  * daily (docs/scratch/simplifi-category-import.md holds the triaged source).
@@ -121,7 +121,9 @@ export const CATEGORIES: SystemCategory[] = [
   { id: 'doctor', name: 'Doctor', group: 'Health & Fitness', discretionary: false },
   { id: 'pharmacy', name: 'Pharmacy', group: 'Health & Fitness', discretionary: false },
   { id: 'dental', name: 'Dental', group: 'Health & Fitness', discretionary: false },
-  { id: 'vision', name: 'Vision', group: 'Health & Fitness', discretionary: false },
+  // Display name says the words people type. The id stays `vision` so existing
+  // rows keep their category; "Vision" remains a picker alias for the old word.
+  { id: 'vision', name: 'Eye Doctor & Optometrist', group: 'Health & Fitness', discretionary: false },
   { id: 'mental-health', name: 'Mental Health', group: 'Health & Fitness', discretionary: false },
   { id: 'medical-supplies', name: 'Medical Supplies', group: 'Health & Fitness', discretionary: false },
   // Discretionary (owner 2026-08-01): golf, gym, extracurricular sport — guilt-free
@@ -149,6 +151,10 @@ export const CATEGORIES: SystemCategory[] = [
 
   // ── Entertainment ───────────────────────────────────────────────────
   { id: 'entertainment', name: 'Entertainment & Streaming', group: 'Entertainment', discretionary: true },
+  // A golf club is not streaming. #109 parked recreation on the entertainment
+  // leaf because this category did not exist yet; the charge then read as
+  // Entertainment & Streaming. Retail golf (Golf Galaxy) stays hobbies.
+  { id: 'golf', name: 'Golf', group: 'Entertainment', discretionary: true },
   { id: 'games', name: 'Games', group: 'Entertainment', discretionary: true },
   { id: 'music', name: 'Music', group: 'Entertainment', discretionary: true },
   { id: 'events', name: 'Events & Concerts', group: 'Entertainment', discretionary: true },

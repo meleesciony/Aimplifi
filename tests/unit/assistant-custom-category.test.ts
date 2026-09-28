@@ -20,6 +20,9 @@ const GOLF = { id: 'cust_golf', name: 'Golf', group: 'Entertainment', discretion
 
 describe('parser custom-category matching', () => {
   it('routes "spend on golf" to the custom category when the user owns it', () => {
+    // No built-in "golf" synonym: "at top golf" is a store, and a synonym would
+    // answer that question with the whole Golf category (spend-licence P0).
+    // A custom named Golf still matches by name.
     const intent = parseAssistantQuery('how much did I spend on golf this month', TODAY, [GOLF]);
     expect(intent.kind).toBe('spend_by_category');
     if (intent.kind === 'spend_by_category') {
@@ -31,6 +34,7 @@ describe('parser custom-category matching', () => {
     // Pre-#166 this returned spend_total: a confident all-spending headline for a
     // question about golf specifically — the audit's "answers a different
     // question" P1. Unknown → the honest redirect with suggestions.
+    // Still unknown with the Golf leaf present: see the top-golf licence lock.
     const intent = parseAssistantQuery('how much did I spend on golf this month', TODAY);
     expect(intent.kind).toBe('unknown');
   });

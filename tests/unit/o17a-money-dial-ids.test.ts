@@ -10,7 +10,7 @@ import {
 } from '@/lib/engine/settings/money-dial-ids';
 
 const catalog = buildDialCatalog(
-  [{ id: 'cat-golf', name: 'Golf', group: 'Entertainment' }],
+  [{ id: 'cat-sailing', name: 'Sailing', group: 'Entertainment' }],
   new Map([['dining', 'Restaurants']]),
 );
 
@@ -49,8 +49,12 @@ describe('resolveMoneyDialIds (O.17a)', () => {
   });
 
   it('test_regression__o17a_custom_id_and_name', () => {
-    expect(resolveMoneyDialIds(['cat-golf'], catalog)).toEqual(['cat-golf']);
-    expect(resolveMoneyDialIds(['Golf'], catalog)).toEqual(['cat-golf']);
+    expect(resolveMoneyDialIds(['cat-sailing'], catalog)).toEqual(['cat-sailing']);
+    expect(resolveMoneyDialIds(['Sailing'], catalog)).toEqual(['cat-sailing']);
+  });
+
+  it('the system Golf name maps to the Golf leaf when nothing else is named Golf', () => {
+    expect(resolveMoneyDialIds(['Golf'], catalog)).toEqual(['golf']);
   });
 
   it('dedupes and preserves first-seen order', () => {

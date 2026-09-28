@@ -113,7 +113,7 @@ describe('vertical processor priors (#163)', () => {
 
   it('vocab beats the prior: a Toast descriptor with an explicit category word keeps it', () => {
     // GOLF is in the category vocabulary; the prior must not override it.
-    expect(categorize(txn('TST* GOLF')).categoryId).toBe('entertainment');
+    expect(categorize(txn('TST* GOLF')).categoryId).toBe('golf');
   });
 });
 

@@ -156,13 +156,23 @@ describe('generic keyword categorization for real-world merchants (DECISIONS #63
     ['OVERDRAFT FEE', 'fees'],
     ['NORDSTROM RACK #12', 'clothing'],
     ['IKEA ATLANTA', 'furnishings'],
-    // Golf: "X GOLF COURSE/CLUB" is recreation (entertainment), consistent with
-    // TOPGOLF already mapping there; golf retailers stay hobbies (DECISIONS #109).
-    ['NORTHWEST GOLF COURSE', 'entertainment'],
-    ['BEAR CREEK GOLF CLUB ATL', 'entertainment'],
-    ['EAGLE WATCH COUNTRY CLUB', 'entertainment'],
+    // Golf courses and clubs are the Golf leaf. #109 had parked them on
+    // Entertainment & Streaming because no Golf category existed. Retail stays hobbies.
+    ['NORTHWEST GOLF COURSE', 'golf'],
+    ['BEAR CREEK GOLF CLUB ATL', 'golf'],
+    ['WEST PINES GOLF CLUB', 'golf'],
+    ['EAGLE WATCH COUNTRY CLUB', 'golf'],
+    ['TOPGOLF', 'golf'],
     ['GOLF GALAXY #017 KENNESAW', 'hobbies'],
     ['PGA TOUR SUPERSTORE 4521', 'hobbies'],
+    // A doctor's visit is Doctor, not Food & Dining and not the pharmacy catch-all.
+    // Eye doctor / optometrist / LensCrafters are the eye-care leaf.
+    ['DOCTORS VISIT', 'doctor'],
+    ["DOCTOR'S VISIT", 'doctor'],
+    ['PHYSICIAN OFFICE', 'doctor'],
+    ['EYE DOCTOR', 'vision'],
+    ['OPTOMETRIST', 'vision'],
+    ['LENSCRAFTERS', 'vision'],
   ];
   for (const [raw, categoryId] of cases) {
     it(`"${raw}" -> ${categoryId}, auto-filed`, () => {
@@ -172,6 +182,38 @@ describe('generic keyword categorization for real-world merchants (DECISIONS #63
       expect(m.aggregate).toBe(false);
     });
   }
+
+  it('test_regression__golf_club_is_golf_and_doctors_visit_is_not_food', () => {
+    // West Pines Golf Club was Entertainment & Streaming: the only golf token
+    // lived on that leaf (#109), so a golf club read as streaming.
+    expect(normalizeMerchant('WEST PINES GOLF CLUB').categoryId).toBe('golf');
+    expect(categorize({
+      rawDescriptor: 'WEST PINES GOLF CLUB',
+      amountCents: -6400,
+      date: '2026-09-01',
+      accountId: 'a',
+      providerCategoryHint: { categoryId: 'dining', confidenceBps: 8000 },
+    }).categoryId).toBe('golf');
+
+    // "DOCTORS VISIT" matched nothing, so a Food & Dining provider guess was
+    // allowed to file it. A confident Doctor match refuses that guess.
+    const visit = categorize({
+      rawDescriptor: 'DOCTORS VISIT',
+      amountCents: -4500,
+      date: '2026-09-01',
+      accountId: 'a',
+      providerCategoryHint: { categoryId: 'dining', confidenceBps: 8500 },
+    });
+    expect(visit.categoryId).toBe('doctor');
+    expect(visit.needsReview).toBe(false);
+
+    expect(normalizeMerchant('EYE DOCTOR').categoryId).toBe('vision');
+    expect(normalizeMerchant("DOCTOR'S ORDERS BBQ").categoryId).toBe('dining');
+    expect(normalizeMerchant('COUNTRY CLUB GRILL').categoryId).toBe('dining');
+    expect(normalizeMerchant('DR PEPPER').categoryId).not.toBe('doctor');
+    expect(normalizeMerchant('ACME WIDGETS BALTIMORE MD').categoryId).not.toBe('doctor');
+    expect(normalizeMerchant('NETFLIX.COM').categoryId).toBe('entertainment');
+  });
 
   it('test_regression__l12c_grille_dining_boundary', () => {
     // L.12(c), owner-reported 2026-07-24: "Goose Pond Bar Grille" (8 txns) showed
@@ -217,13 +259,13 @@ describe('category-vocabulary tier — "the category word is literally in the na
   // Every row here previously fell to uncategorized → manual review.
   const cases: [string, string][] = [
     // user-reported forms
-    ['GLF', 'entertainment'], // abbreviation → GOLF
-    ['GLF COURSE 4471', 'entertainment'],
+    ['GLF', 'golf'], // abbreviation → GOLF
+    ['GLF COURSE 4471', 'golf'],
     ['ELECTRICITY', 'electricity'],
     ['ELEC PMT', 'electricity'], // abbreviations: ELEC→ELECTRIC, PMT→PAYMENT
     ['LIFEINSURANCE', 'life-insurance'], // space-stripped: \bINSURANCE\b could never fire here
     ['WATERBILL', 'water'], // de-concatenation → WATER BILL
-    ['DRIVING RANGE LLC', 'entertainment'],
+    ['DRIVING RANGE LLC', 'golf'],
     // concatenation splitting across the insurance family
     ['AUTOINSURANCE', 'auto-insurance'],
     ['CAR INSURANCE PMT', 'auto-insurance'],

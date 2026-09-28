@@ -405,16 +405,23 @@ describe('parseTransactionCsv', () => {
   it('resolves a custom category name when given the user map (DECISIONS #111)', () => {
     const csv = [
       'date,description,amount,category',
-      '2026-06-01,Bear Creek GC,-90.00,Golf',
-      '2026-06-02,Other LLC,-30.00,Golf', // case-insensitive match below
+      '2026-06-01,Harbor Marina,-90.00,Boat',
+      '2026-06-02,Other LLC,-30.00,Boat', // case-insensitive match below
     ].join('\n');
-    const customByName = new Map([['golf', 'cust_golf']]);
+    const customByName = new Map([['boat', 'cust_boat']]);
     const withMap = parseTransactionCsv(csv, customByName).rows;
-    expect(withMap[0].categoryId).toBe('cust_golf');
-    expect(withMap[1].categoryId).toBe('cust_golf');
+    expect(withMap[0].categoryId).toBe('cust_boat');
+    expect(withMap[1].categoryId).toBe('cust_boat');
     // Without the map, the same custom name is unknown → auto-categorize (null).
     const withoutMap = parseTransactionCsv(csv).rows;
     expect(withoutMap[0].categoryId).toBeNull();
+  });
+
+  it('a Golf column files the system Golf leaf, not a same-named custom', () => {
+    const csv = ['date,description,amount,category', '2026-06-01,Bear Creek GC,-90.00,Golf'].join('\n');
+    const customByName = new Map([['golf', 'cust_golf']]);
+    expect(parseTransactionCsv(csv, customByName).rows[0].categoryId).toBe('golf');
+    expect(parseTransactionCsv(csv).rows[0].categoryId).toBe('golf');
   });
 
   it('test_regression__simplifi_restaurants_csv_files_dining_not_a_new_leaf', () => {

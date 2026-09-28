@@ -774,8 +774,14 @@ const SYNONYMS: { re: RegExp; target: SpendTarget }[] = [
   { re: /\b(pharmacy|prescriptions?|meds|medication)\b/, target: catTarget('pharmacy') },
   { re: /\b(gym|fitness|workout)\b/, target: catTarget('fitness') },
   { re: /\b(dental|dentist)\b/, target: catTarget('dental') },
-  { re: /\b(health|medical|doctor|hospital)\b/, target: groupTarget('Health & Fitness', 'health & fitness') },
-  // Entertainment
+  // Eye doctor before the bare "doctor" leaf, or "eye doctor" sums every doctor.
+  { re: /\b(eye doctors?|optometrists?|ophthalmologists?|eye care)\b/, target: catTarget('vision') },
+  { re: /\b(doctors?|physicians?)\b/, target: catTarget('doctor') },
+  { re: /\b(health|medical|hospital)\b/, target: groupTarget('Health & Fitness', 'health & fitness') },
+  // Entertainment. "golf" is NOT a synonym: "at top golf" is one store
+  // (Topgolf), and a `\bgolf\b` synonym answered that question with every Golf
+  // charge (assistant-spend-licence P0). The categorizer still files the
+  // charges as Golf. Ask abstains on the bare word unless a category is named Golf.
   { re: /\b(games?|gaming|video[\s-]?games?)\b/, target: catTarget('games') },
   { re: /\b(music|spotify)\b/, target: catTarget('music') },
   { re: /\b(entertainment|movies?|netflix|streaming)\b/, target: catTarget('entertainment') },

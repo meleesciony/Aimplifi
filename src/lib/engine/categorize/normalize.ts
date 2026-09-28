@@ -426,7 +426,9 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   { pattern: /\b(VSP|VISION SERVICE PLAN|EYEMED|DAVIS VISION|SUPERIOR VISION|VISION (INS|INSURANCE|PREMIUM|PPO))\b/i, categoryId: 'vision-insurance' },
   { pattern: /\b(BLUE ?CROSS|BLUE ?SHIELD|BCBS|ANTHEM|AETNA|CIGNA|HUMANA|KAISER PERMANENTE|UNITED ?HEALTHCARE|UHC|OSCAR HEALTH|MOLINA HEALTHCARE|WELLCARE|AMERIGROUP|HEALTH ?INSURANCE|MEDICAL ?INSURANCE)\b/i, categoryId: 'health-insurance' },
   { pattern: /\b(DENTAL|DENTIST|ORTHODONT|ENDODONT|PERIODONT)\b/i, categoryId: 'dental' },
-  { pattern: /\b(VISION|OPTICAL|OPTOMETR\w*|EYE CARE|LENSCRAFTER|WARBY PARKER|EYEGLASS|PEARLE|MYEYEDR|VISIONWORKS|AMERICA'?S BEST CONT\w*)\b/i, categoryId: 'vision' },
+  // Eye Doctor before the generic doctor rule: "EYE DOCTOR" must not land on
+  // Doctor, and LENSC AFTERS? covers the plural the old \bLENSCRAFTER\b missed.
+  { pattern: /\b(EYE DOCTORS?|OPHTHALMOLOG\w*|OPTOMETR\w*|OPTICAL|EYE (CARE|CLINIC|CENTER)|LENSCRAFTERS?|WARBY PARKER|EYEGLASS|PEARLE|MYEYEDR|VISIONWORKS|AMERICA'?S BEST CONT\w*|VISION)\b/i, categoryId: 'vision' },
   { pattern: /\b(GYM|FITNESS|YOGA|PILATES|CROSSFIT|PELOTON|EQUINOX|PLANET FIT|LIFE ?TIME|ORANGETHEORY|ANYTIME FITNESS|CYCLEBAR|SOULCYCLE|CLASSPASS|YMCA|F45)\b/i, categoryId: 'fitness' },
   // Mental-health platforms/providers before the broad health rule (#163) so
   // BETTERHELP files to its own leaf, not generic health.
@@ -436,7 +438,10 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   // VETERINAR\w*: the bare stem never matched — \b after 'VETERINAR' fails
   // inside 'VETERINARY'/'VETERINARIAN' (latent in the original pets rule too).
   { pattern: /\b(VETERINAR\w*|ANIMAL (HOSPITAL|CLINIC))\b/i, categoryId: 'pets' },
-  { pattern: /\b(HOSPITAL|CLINIC|MEDICAL|PHYSICIAN|HEALTHCARE|URGENT CARE|LABCORP|QUEST DIAGNOST\w*|RADIOLOGY|DERMATOLOG\w*|PEDIATRIC|WELLNESS|CHIROPRACT\w*|THERAPY|ONE MEDICAL)\b/i, categoryId: 'health' },
+  // Doctor before the broad health rule, and before any provider food guess can
+  // rescue an unmatched "DOCTORS VISIT" (the word DOCTOR was not in any rule).
+  { pattern: /\b(DOCTORS?|PHYSICIANS?)\b/i, categoryId: 'doctor' },
+  { pattern: /\b(HOSPITAL|CLINIC|MEDICAL|HEALTHCARE|URGENT CARE|LABCORP|QUEST DIAGNOST\w*|RADIOLOGY|DERMATOLOG\w*|PEDIATRIC|WELLNESS|CHIROPRACT\w*|THERAPY|ONE MEDICAL)\b/i, categoryId: 'health' },
   // Personal & family
   { pattern: /\b(SALON|SPA|BARBER\w*|HAIRCUT|NAIL|MASSAGE|SEPHORA|ULTA|GREAT CLIPS|SUPERCUTS|WAXING|DRY CLEAN(ER|ING)?S?|CLEANERS|LAUNDROMAT|LAUNDRY|SALLY BEAUTY|FADES? BY)\b/i, categoryId: 'personal-care' },
   // Kids' clothing/gear chains → the kids leaf (#163), before generic clothing.
@@ -519,7 +524,10 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   { pattern: /\b(XBOX|PLAYSTATION|NINTENDO|EPIC GAMES|RIOT GAMES|BLIZZARD|ROBLOX|GAME PASS|GAMESTOP)\b/i, categoryId: 'games' },
   // Live-event ticketing → the events leaf (#163), before broad entertainment.
   { pattern: /\b(TICKETMASTER|STUBHUB|LIVE NATION|AXS\.COM|SEATGEEK)\b/i, categoryId: 'events' },
-  { pattern: /\b(HULU|DISNEY ?\+|DISNEY PLUS|HBO|PARAMOUNT ?\+|PEACOCK|APPLE TV|PRIME VIDEO|TWITCH|CRUNCHYROLL|SLING TV|FUBO|SIRIUSXM|AMC|CINEMARK|REGAL CIN|CINEMA|THEATER|THEATRE|FANDANGO|TOPGOLF|GOLF|COUNTRY CLUB|BOWLING|ARCADE|MUSEUM|AQUARIUM|SIX FLAGS|UNIVERSAL STUDIO)\b/i, categoryId: 'entertainment' },
+  // Golf recreation, AFTER the hobbies rule so Golf Galaxy / PGA Superstore
+  // stay retail. \bGOLF\b does not match inside TOPGOLF, so TOPGOLF is listed.
+  { pattern: /\b(TOPGOLF|GOLF|COUNTRY CLUB|DRIVING RANGE)\b/i, categoryId: 'golf' },
+  { pattern: /\b(HULU|DISNEY ?\+|DISNEY PLUS|HBO|PARAMOUNT ?\+|PEACOCK|APPLE TV|PRIME VIDEO|TWITCH|CRUNCHYROLL|SLING TV|FUBO|SIRIUSXM|AMC|CINEMARK|REGAL CIN|CINEMA|THEATER|THEATRE|FANDANGO|BOWLING|ARCADE|MUSEUM|AQUARIUM|SIX FLAGS|UNIVERSAL STUDIO)\b/i, categoryId: 'entertainment' },
   { pattern: /\b(ADOBE|MICROSOFT|GITHUB|GOOGLE CLOUD|DROPBOX|NOTION|SLACK|ZOOM|OPENAI|CHATGPT|ANTHROPIC|CLAUDE\.AI|CURSOR|MOONSHOT|FIGMA|ATLASSIAN|GODADDY|NAMECHEAP|SQUARESPACE|MAILCHIMP|ICLOUD|GOOGLE WORKSPACE|GRAMMARLY|1PASSWORD|NORDVPN)\b/i, categoryId: 'software' },
   // Income — split to the precise Income leaves (#163): payroll signals are a
   // PAYCHECK, interest is interest-income, dividends investment-income,
@@ -663,9 +671,9 @@ const CATEGORY_VOCAB: readonly { phrase: readonly string[]; categoryId: string }
   { phrase: ['VISION', 'INSURANCE'], categoryId: 'vision-insurance' },
   { phrase: ['INSURANCE'], categoryId: 'insurance' },
   // Recreation / services / health.
-  { phrase: ['DRIVING', 'RANGE'], categoryId: 'entertainment' },
-  { phrase: ['COUNTRY', 'CLUB'], categoryId: 'entertainment' },
-  { phrase: ['GOLF'], categoryId: 'entertainment' },
+  { phrase: ['DRIVING', 'RANGE'], categoryId: 'golf' },
+  { phrase: ['COUNTRY', 'CLUB'], categoryId: 'golf' },
+  { phrase: ['GOLF'], categoryId: 'golf' },
   { phrase: ['PHARMACY'], categoryId: 'pharmacy' },
   { phrase: ['PARKING'], categoryId: 'parking' },
   { phrase: ['VETERINARY'], categoryId: 'pets' },

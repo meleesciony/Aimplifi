@@ -469,7 +469,7 @@ export const PFC_DETAILED_TO_CATEGORY: Readonly<Record<string, string>> = {
   MEDICAL_EYE_CARE: 'vision',
   MEDICAL_NURSING_CARE: 'health',
   MEDICAL_PHARMACIES_AND_SUPPLEMENTS: 'pharmacy',
-  MEDICAL_PRIMARY_CARE: 'health',
+  MEDICAL_PRIMARY_CARE: 'doctor',
   MEDICAL_VETERINARY_SERVICES: 'pets',
   MEDICAL_OTHER_MEDICAL: 'health',
   // PERSONAL_CARE

@@ -17,6 +17,14 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-09-28 — Category trust: Golf, Doctor, Eye Doctor (DECISIONS #776)
+
+West Pines Golf Club was Entertainment & Streaming because golf had no leaf.
+A doctor's visit matched no rule, so a Food & Dining bank guess could file it.
+Eye care was named only "Vision", so eye doctor and optometrist were not in the list.
+Golf is now its own category; doctor and eye-doctor descriptors file those leaves;
+the eye-care name is "Eye Doctor & Optometrist". Already-filed rows are not rewritten.
+
 ## 2026-09-25 — O.11d: free-form tags — the last field of the "all other mint and simplifi fields" ask (DECISIONS #775)
 
 **SHIPPED (same turn, DECISIONS #636 posture).** The O.11 wave's final row: a many-to-many

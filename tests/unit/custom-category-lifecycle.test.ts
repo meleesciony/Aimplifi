@@ -129,19 +129,21 @@ describe('custom category lifecycle (real actions, throwaway data — DECISIONS 
 
   it('create → rename → budget → delete (re-files + cleans up FKs)', async () => {
     // create
-    const created = await createCustomCategory({ name: 'Golf', group: GROUP, discretionary: true });
+    // "Golf" is a system leaf now, so a custom of that name is refused. This
+    // lifecycle uses a name the taxonomy does not own.
+    const created = await createCustomCategory({ name: 'Sailing', group: GROUP, discretionary: true });
     expect(created.ok).toBe(true);
     const id = created.id!;
-    expect(id).not.toBe('golf'); // a cuid, never a slug
+    expect(id).not.toBe('sailing'); // a cuid, never a slug
 
     // appears in the picker + resolves its name through the merged meta
     expect((await getVisibleCategories(USER)).some((c) => c.id === id)).toBe(true);
-    expect(categoryName(id, await getCategoryMeta(USER))).toBe('Golf');
+    expect(categoryName(id, await getCategoryMeta(USER))).toBe('Sailing');
 
     // rename → the new name is what reads see
-    const renamed = await renameCustomCategory({ id, name: 'Golf & Country' });
+    const renamed = await renameCustomCategory({ id, name: 'Sailing & Harbor' });
     expect(renamed.ok).toBe(true);
-    expect((await getCustomCategories(USER)).find((c) => c.id === id)?.name).toBe('Golf & Country');
+    expect((await getCustomCategories(USER)).find((c) => c.id === id)?.name).toBe('Sailing & Harbor');
 
     // a budget target on the custom (write-path accepts an owned custom)
     const fd = new FormData();

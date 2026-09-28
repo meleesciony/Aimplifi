@@ -12,7 +12,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { CATEGORIES, CATEGORY_BY_ID, isIncomeCategoryId } from '@/lib/engine/categorize/categories';
-import { ASSIGNABLE_GROUPS } from '@/lib/engine/categorize/assign';
+import { ASSIGNABLE_GROUPS, filterCategoryOptions } from '@/lib/engine/categorize/assign';
+import { expandSimplifiAliasRows } from '@/lib/engine/categorize/simplifi-aliases';
 
 describe('system taxonomy invariants', () => {
   it('every id is unique (a dupe would silently shadow in CATEGORY_BY_ID)', () => {
@@ -98,6 +99,32 @@ describe('O.17 additions', () => {
     // while monthlyFlows still counted it — the L.13 sign class.
     const income = Object.keys(ADDED).filter((id) => isIncomeCategoryId(id));
     expect(income.sort()).toEqual(['alimony', 'retirement-income']);
+  });
+
+  it('test_regression__eye_doctor_and_golf_are_findable_in_the_right_group', () => {
+    expect(CATEGORY_BY_ID.get('vision')).toMatchObject({
+      name: 'Eye Doctor & Optometrist',
+      group: 'Health & Fitness',
+    });
+    expect(CATEGORY_BY_ID.get('doctor')?.group).toBe('Health & Fitness');
+    expect(CATEGORY_BY_ID.get('golf')).toMatchObject({
+      name: 'Golf',
+      group: 'Entertainment',
+      discretionary: true,
+    });
+    const groups = ASSIGNABLE_GROUPS.map((g) => ({
+      group: g.group,
+      items: expandSimplifiAliasRows(g.categories),
+    }));
+    const eye = filterCategoryOptions(groups, 'optometrist');
+    expect(eye.map((g) => g.group)).toEqual(['Health & Fitness']);
+    expect(eye[0].items.some((c) => c.id === 'vision')).toBe(true);
+    const visit = filterCategoryOptions(groups, "doctor's visit");
+    expect(visit.map((g) => g.group)).toEqual(['Health & Fitness']);
+    expect(visit[0].items.some((c) => c.id === 'doctor')).toBe(true);
+    expect(filterCategoryOptions(groups, 'golf').some((g) => g.group === 'Food & Dining')).toBe(false);
+    // The old display word still files the eye-care leaf.
+    expect(filterCategoryOptions(groups, 'vision').some((g) => g.items.some((c) => c.id === 'vision'))).toBe(true);
   });
 
   it('names the direction on the income pair, so an outflow cannot be mis-picked', () => {

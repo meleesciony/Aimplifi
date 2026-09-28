@@ -12,6 +12,10 @@ export const SIMPLIFI_LEAF_ALIASES: Readonly<Record<string, readonly string[]>> 
   fitness: ['Gym'],
   transport: ['Rideshare'],
   parking: ['Tolls'],
+  // Words the leaf's title used to be, or words people type that are the same
+  // bucket. Clicking the alias files the existing id — never a second leaf.
+  vision: ['Vision'],
+  doctor: ["Doctor's Visit"],
 };
 
 /** Canonical display name for a system id, for the File-as confirm copy. */

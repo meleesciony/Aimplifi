@@ -14,6 +14,21 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #776 — Golf is a category; a doctor's visit is not food; eye care says eye doctor (2026-09-28)
+
+**Context.** The owner reviewed categories and three filings were wrong in a way that makes the rest of the app untrustworthy: West Pines Golf Club filed as Entertainment & Streaming; a doctor's visit could land in Food & Dining; the category list had no eye doctor or optometrist.
+
+**Decision.**
+1. **Golf is its own leaf** (`golf`, Entertainment, discretionary). #109 had parked `\bGOLF\b`, country clubs, driving ranges, and Topgolf on Entertainment & Streaming because no Golf leaf existed, so a golf club read as streaming. Golf Galaxy and PGA Superstore stay Hobbies (retail). A grill or restaurant token still wins, so "Country Club Grill" stays dining.
+2. **Doctor and eye care match before a bank food guess can.** `DOCTOR` / `PHYSICIAN` were not in any rule, so "DOCTORS VISIT" fell through to review and a Plaid Food & Dining hint was allowed to file it. Those words now file `doctor`. `EYE DOCTOR`, ophthalmology, and `LENSCRAFTERS` (the old token missed the plural) file `vision`. Plaid primary care maps to `doctor`, not the Health & Pharmacy catch-all.
+3. **The eye-care leaf is named "Eye Doctor & Optometrist".** The id stays `vision`. "Vision" and "Doctor's Visit" are picker aliases so the old words and the words people type both find the existing leaf. Ask maps "doctor" and "eye doctor" to those leaves. Ask does not map the bare word "golf": "at top golf" is a store, and a golf synonym answered that one-store question with the whole Golf category (the spend-licence P0).
+
+Already-filed rows are not rewritten. A charge already stored as Entertainment & Streaming or Dining stays until the reader changes it; new charges and anything still in review follow the new rules. No schema change.
+
+**Alternatives considered.** Leave golf on Entertainment (the #109 compromise) — that is the bug the owner reported. A second leaf for optometrist vs eye doctor — same spend, two rows. Matching bare `DR` or `MD` — `MD` is Maryland on a huge share of card descriptors, and `DR PEPPER` is not a physician.
+
+**Locked.** `tests/unit/normalize.test.ts` `test_regression__golf_club_is_golf_and_doctors_visit_is_not_food` (West Pines stays golf even when the provider hint is dining; a doctor's visit stays doctor; eye doctor is vision; a BBQ named Doctor's Orders stays dining). `tests/unit/category-taxonomy.test.ts` `test_regression__eye_doctor_and_golf_are_findable_in_the_right_group`.
+
 ## #775 — Free-form tags: the fold at the writer, the total that is not a new number (2026-09-25)
 
 **Context.** O.11d — the last open row of the owner's "add reimbursable and exclude from budgets and all other mint and simplifi fields" ask; it also sits on the O.13b STILL-OPEN transaction-list field list (one slice, two owner complaints). Mint/Simplifi give readers a free-form label set with filtering and a per-tag total; Aimplifi had categories, notes, and the two O.15 flags, but no label the reader invents.

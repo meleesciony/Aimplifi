@@ -170,14 +170,14 @@ describe('resolveEllipsis — category / merchant swap', () => {
   });
 
   it('resolves a custom category by name', () => {
-    const custom = [{ id: 'cus_1', name: 'Golf' }];
+    const custom = [{ id: 'cus_1', name: 'Sailing' }];
     const frame = frameFromIntent(
       parseAssistantQuery('how much did I spend last month?', TODAY, custom),
     );
-    expect(resolveEllipsis('what about golf?', TODAY, frame, custom)).toEqual({
+    expect(resolveEllipsis('what about sailing?', TODAY, frame, custom)).toEqual({
       kind: 'spend_by_category',
       timeframe: LAST_MONTH,
-      target: { type: 'category', categoryId: 'cus_1', label: 'Golf' },
+      target: { type: 'category', categoryId: 'cus_1', label: 'Sailing' },
     });
   });
 });

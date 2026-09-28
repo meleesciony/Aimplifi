@@ -47,6 +47,11 @@ describe('Simplifi alias rows (O.17 refused duplicates)', () => {
 });
 
 describe('simplifiAliasToCategoryId', () => {
+  it('maps the old Vision label and Doctor\'s Visit onto the existing leaves', () => {
+    expect(simplifiAliasToCategoryId('Vision')).toBe('vision');
+    expect(simplifiAliasToCategoryId("Doctor's Visit")).toBe('doctor');
+  });
+
   it('maps Restaurants and a grouped path to dining', () => {
     expect(simplifiAliasToCategoryId('Restaurants')).toBe('dining');
     expect(simplifiAliasToCategoryId('Food & Dining: Restaurants')).toBe('dining');
