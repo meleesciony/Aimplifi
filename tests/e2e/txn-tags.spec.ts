@@ -18,6 +18,7 @@
  */
 import Database from 'better-sqlite3';
 import { expect, test, type Page } from './helpers/test';
+import { openActivityFilters } from './helpers/activity-filters';
 import { E2E_DB_URL } from '../setup/test-db';
 
 const PASSWORD = 'e2e-password-123';
@@ -85,6 +86,8 @@ async function signIn(page: Page, email: string) {
  * retry covers the race, never a dead control.
  */
 async function selectTag(page: Page, label: string) {
+  // U.1a: on a phone the tag select sits behind the Filters control.
+  await openActivityFilters(page);
   const select = page.getByTestId('txn-filter-tag');
   await select.selectOption({ label });
   try {
@@ -134,6 +137,8 @@ test.describe('O.11d — tags on a real account', () => {
     // The register now shows the chip on that row AND grows the dropdown.
     await page.goto('/transactions');
     await expect(rowFor(page, 'Whole Foods').getByTestId('txn-tag-badge')).toHaveText(/work trip/);
+    // U.1a: behind the Filters control on a phone — open it, then the select must be there.
+    await openActivityFilters(page);
     await expect(page.getByTestId('txn-filter-tag')).toBeVisible();
   });
 
@@ -229,6 +234,7 @@ test.describe('O.11d — the shared demo reads tags, and only reads them', () =>
     await page.waitForURL('**/dashboard');
 
     await page.goto('/transactions');
+    await openActivityFilters(page);
     await expect(page.getByTestId('txn-filter-tag')).toBeVisible();
     await selectTag(page, 'work trip');
     // SEED_SPEC §Tags: exactly 3 work-trip rows, each carrying the chip.

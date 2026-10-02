@@ -1099,7 +1099,12 @@ export function TransactionList({
                             triggerTestId="activity-account"
                           />
                         ) : (
-                          <span className="break-all">{t.accountName}</span>
+                          // `anywhere`, not `break-all`: break-all splits at ANY
+                          // character to fill the line ("Sap" / "phire Card" at
+                          // 380px); anywhere wraps at spaces first and breaks
+                          // inside a word only when that word alone cannot fit,
+                          // which is all the overflow guard ever needed.
+                          <span className="[overflow-wrap:anywhere]">{t.accountName}</span>
                         )}{' '}
                         {canEditSpendClass ? (
                           <span className="inline-flex shrink-0 items-center gap-1">

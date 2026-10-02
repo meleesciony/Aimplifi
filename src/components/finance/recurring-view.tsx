@@ -12,7 +12,7 @@ import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transact
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
-import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
+import { PAGE_SECTION_LABEL_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import type { Cadence } from '@/lib/engine/recurring/detect';
 import type { WithheldAccountSummary } from '@/lib/providers/currency';
 import type { RecurringData } from '@/server/recurring';
@@ -364,7 +364,8 @@ export function RecurringView({
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <h1 className="sr-only">Recurring &amp; subscriptions</h1>
+      {/* Visible, like every other route's title (see ForecastView). */}
+      <h1 className={PAGE_TITLE_CLASS}>Recurring &amp; subscriptions</h1>
       {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
           vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
       <CurrencyExclusionBanner summary={withheld} />

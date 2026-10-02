@@ -17,6 +17,37 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-02 — Usability pass, wave 1 (TASKS U.1 / U.1a, DECISIONS #778)
+
+Owner ask: "do a ui / ux pass and make the app user friendly and intuitive." Built in a
+separate worktree (`C:\dev\_uiux`, branch `uiux-pass` off `origin/main`) because the main
+checkout holds the unshipped Ask-analyst slice (#777); nothing of that slice is in this commit.
+
+**Picked up:** TASKS U.1 (audit) and the direct ask. **Audit:** every route screenshotted on
+the demo at 380px and 1280px, a first-run walk on a new account, changed screens re-checked in
+WebKit → `docs/UX_AUDIT_2026-10-02.md` (21 findings, 7 rules). **Closed (findings 1–11):**
+Activity's filters fold on phones; Forecast balances and account names no longer break
+mid-token; chapter triangles share a line with their titles; five Coach rests get a chevron;
+the Today feed links to Coach (where each opportunity is named) instead of pointing at a
+section Home stopped rendering; Forecast and Recurring show their titles; Guilt-free folds its
+limits; Settings has an index; Inbox leads with the queue; Home's demo rows print real dates.
+No figure or engine changed. **Critic cycle 1 (Fable, separate context): FAIL, 3 P1** — a fold
+of Guilt-free's method paragraphs hid claims two existing specs require on screen (reverted);
+two new tests depended on the shared demo queue (fixed); the feed link first went to
+/recurring, which marks only two of the four kinds (now /coach). **Cycle 2 (fresh context):
+FAIL, 1 P1** — the reworded Guilt-free summary put a quarterly/twice-a-year rule on yearly
+bills; the summary no longer paraphrases the rules at all. Its four P2s (a long balance at
+640px, reduced motion, Filters on an empty register, the live probe's header) were taken too.
+**Cycle 3 (fresh context, read-only): PASS, 0 P0 / 0 P1 / 4 P2** — all four folded (the
+summary's "three cases" → "three notes"; the Coach link now lands on the card).
+**Left alone:** Ask (the #777 slice), every money sentence, desktop layouts. **Left for the
+owner:** Activity row density (U.1b) and the phone tab bar (U.1c) — proposals in the audit.
+**Locked:** `tests/e2e/usability-pass.spec.ts` (fails on the pre-fix source in every test but
+the desktop-unchanged one), `tests/unit/usability-pass.test.ts`. **Lessons:** one new
+(`a-wrap-rule-that-stops-overflow-can-split-the-content`), one extended
+(`deleting-a-surface-deletes-the-claims-it-carried`). **Gate, critic, CI, live proof:**
+`docs/STATUS.md`. **Next:** U.1b / U.1c need the owner; U.1d–U.1h are queued.
+
 ## 2026-09-28 — Category trust: Golf, Doctor, Eye Doctor (DECISIONS #776)
 
 West Pines Golf Club was Entertainment & Streaming because golf had no leaf.

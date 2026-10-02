@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { MONEY_DISPLAY_CLASS, MONEY_NEGATIVE_CLASS, PAGE_SECTION_LABEL_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
+import { DisclosureChevron } from '@/components/finance/disclosure-chevron';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { PlanFiguresForm } from '@/components/finance/plan-figures-form';
 import { PlanRowActionLink } from '@/components/finance/plan-row-action-link';
@@ -261,6 +262,12 @@ export default async function SpendingPlanPage() {
             right now, and we&apos;d rather say so than pretend.
           </p>
         )}
+        {/* These stay OPEN. The #778 usability pass folded them under a summary and
+            its critic sent it back (P1-1): two of these sentences are the page's only
+            answer to "where did my card payment go?" and "is this what's left?", two
+            specs require them on screen, and a closed line reading "how each line is
+            worked out" carried neither claim. Length is not a reason to hide a claim
+            a reader came here to check. */}
         {trace.basis.map((b) => (
           <p key={b} className="mt-1.5 text-xs text-muted-foreground">
             {b}
@@ -610,12 +617,38 @@ export default async function SpendingPlanPage() {
         </ol>
       </section>
 
-      <section
+      {/* Closed, under a summary that carries the CONSEQUENCE. The three rules below
+          are each a paragraph, and each ends on the same clause — the one thing the
+          reader needs before deciding whether to open them. So that clause is on the
+          summary line, always visible, and the rules that justify it are the body.
+          The summary does NOT restate the rules. Two attempts to compress them into
+          a clause each were both wrong (#778 critic cycles 1 and 2): "running late"
+          covered a bill two weeks late, which IS counted; "a steady price and rhythm"
+          put the every-gap rule on yearly bills, where the engine applies it only to
+          quarterly and twice-a-year ones. The notes are the one copy of those rules;
+          the summary says only that such cases exist ("can go uncounted" — a rule
+          about the figure, not a claim that this reader has one), how many NOTES are
+          inside (notes, not cases — the second note holds more than one), and the
+          consequence they share. */}
+      <details
         className="rounded-2xl border bg-card p-5 shadow-sm"
         data-testid="spending-plan-disclosures"
       >
-        <h2 className="mb-2 text-sm font-semibold">What this figure can&apos;t see</h2>
-        <ul className="space-y-2 text-xs text-muted-foreground">
+        <summary className="grid cursor-pointer grid-cols-[auto_1fr] items-start gap-x-1.5 [&::-webkit-details-marker]:hidden">
+          <DisclosureChevron className="mt-0.5" />
+          <h2 className="text-sm font-semibold">What this figure can&apos;t see</h2>
+          <span
+            className="col-start-2 mt-1 text-xs text-muted-foreground"
+            data-testid="plan-cant-see-summary"
+          >
+            Some repeating bills can go uncounted here — the three notes inside say which — so{' '}
+            {positive
+              ? 'the real amount free to spend may be lower than shown'
+              : 'the real overage may be higher than shown'}
+            .
+          </span>
+        </summary>
+        <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
           <li data-testid="plan-unrecognized-cadence-note">
             We recognize six rhythms: weekly, every two weeks, monthly, quarterly, twice a year
             and yearly. A bill that repeats on any rhythm between or beyond them — every ten
@@ -652,7 +685,7 @@ export default async function SpendingPlanPage() {
             .
           </li>
         </ul>
-      </section>
+      </details>
     </div>
   );
 }

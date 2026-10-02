@@ -186,7 +186,10 @@ export function HomeChapter({
           armHoldOpen();
         }}
       >
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        {/* `inline`, so the title sits on the SAME line as the native disclosure
+            marker. As a block it dropped to the next line and left the triangle
+            alone above it, reading as a stray glyph rather than "this opens". */}
+        <h2 className="inline text-lg font-semibold tracking-tight">{title}</h2>
         <span className="mt-1 block max-w-2xl text-sm leading-relaxed text-muted-foreground">{lead}</span>
       </summary>
       {mounted ? children : null}

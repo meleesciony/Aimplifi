@@ -207,7 +207,8 @@ export function CoachChapter({
           armHoldOpen();
         }}
       >
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        {/* `inline` — same line as the native disclosure marker (see HomeChapter). */}
+        <h2 className="inline text-lg font-semibold tracking-tight">{title}</h2>
         <span className="mt-1 block max-w-2xl text-sm leading-relaxed text-muted-foreground">{lead}</span>
       </summary>
       {mounted ? children : null}

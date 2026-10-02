@@ -50,20 +50,24 @@ export default async function TriagePage() {
 
   return (
     <div className={PAGE_STACK_CLASS}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      {/* The lead sits UNDER the title row, not inside it. Sharing the row with the
+          button left it a ~170px column at 380px — three lines of two words each. */}
+      <div>
+        <div className="flex items-start justify-between gap-3">
           <h1 className={PAGE_TITLE_CLASS}>Inbox</h1>
-          <p className={`${PAGE_LEAD_CLASS} ${PAGE_LEAD_WIDE_CLASS}`} data-testid="inbox-subtitle">
-            {INBOX_PAGE_SUBTITLE}
-          </p>
+          <BackfillButton />
         </div>
-        <BackfillButton />
+        <p className={`${PAGE_LEAD_CLASS} ${PAGE_LEAD_WIDE_CLASS}`} data-testid="inbox-subtitle">
+          {INBOX_PAGE_SUBTITLE}
+        </p>
       </div>
       {/* currency-guard disclosure (#135 residual): withheld non-USD accounts must not
           vanish silently. Renders nothing for all-USD users (the overwhelming case). */}
       <CurrencyExclusionBanner summary={withheld} />
       <div className="mx-auto max-w-md space-y-4">
-        <AccuracyCard result={accuracy} />
+        {/* The queue first: filing is what this page is for. The scorecard is the
+            feedback on that work, so it follows it — above the queue it pushed the
+            first card to file below the fold on a phone. */}
         <TriageInbox
           initialGroups={groups}
           categories={categories}
@@ -71,6 +75,7 @@ export default async function TriagePage() {
           canRenamePayee={!isDemoUser(session.user.id)}
           accounts={accounts}
         />
+        <AccuracyCard result={accuracy} />
         <CategoryCatalogDisclosure testid="inbox-categories-card" summary="Edit categories while filing">
             <div data-testid="inbox-custom-categories">
               <h3 className={`mb-2 ${PAGE_SECTION_LABEL_CLASS}`}>

@@ -6,7 +6,9 @@ import { auth } from '@/auth';
 import { AutomationBlueprintCard } from '@/components/coach/automation-blueprint-card';
 import { FICard } from '@/components/coach/fi-card';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
+import { COACH_OPPORTUNITIES_ID } from '@/components/dashboard/today-feed-copy';
 import { CoachChapter } from '@/components/finance/coach-chapter';
+import { DISCLOSURE_SUMMARY_CLASS, DisclosureChevron } from '@/components/finance/disclosure-chevron';
 import { PAGE_STACK_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { withheldInlineNote } from '@/lib/providers/currency';
 import { FROZEN_RUNWAY_TESTID, frozenTotalNote } from '@/lib/engine/account/feed-dropped-view';
@@ -253,8 +255,10 @@ export default async function CoachPage() {
         </Card>
       )}
 
-      {/* Big wins, never latte shame */}
-      <Card data-testid="opportunities-card">
+      {/* Big wins, never latte shame. The id is the landing point of the Today
+          feed's "See which one in Coach" link (`COACH_OPPORTUNITIES_HREF`) — those
+          rows name no merchant and this card does; `scroll-mt` clears the header. */}
+      <Card id={COACH_OPPORTUNITIES_ID} className="scroll-mt-20" data-testid="opportunities-card">
         <CardHeader className="pb-2">
           <CardTitle as="h3" className="text-base">
             Worth a look ({data.opportunities.length})
@@ -312,7 +316,8 @@ export default async function CoachPage() {
               A null counterfactual renders nothing. */}
           {(cutFiSentence || cutRadarSentence || data.opportunities.length > 0) && (
             <details className="mt-4" data-testid="opportunities-worked-out">
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
+              <summary className={`${DISCLOSURE_SUMMARY_CLASS} text-sm font-medium text-foreground`}>
+                <DisclosureChevron />
                 {opportunitiesWorkedOutSummary}
               </summary>
               <div className="space-y-2 pt-2">

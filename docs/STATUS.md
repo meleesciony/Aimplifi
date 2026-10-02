@@ -28,6 +28,24 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-10-02 — Usability pass, wave 1 (TASKS U.1a, DECISIONS #778)
+
+**The ask.** Owner: "do a ui / ux pass and make the app user friendly and intuitive." Audit first (`docs/UX_AUDIT_2026-10-02.md` — 21 ranked findings from screenshots of every route at 380px and 1280px, a first-run walk, WebKit re-checks), then the reversible, figure-neutral fixes.
+
+**Shipped (findings 1–11).** Activity's secondary filters fold behind one Filters control on phones (opens itself when one is in use; desktop unchanged). Forecast milestones are rows on a phone and the balance never wraps; register account names wrap at spaces. Chapter triangles share a line with their titles; five Coach rests get a chevron. The Today feed's four "Details in Recurring below." rows link to Coach's "Worth a look" card instead, where each is listed by name. Forecast and Recurring show their titles. Guilt-free folds its three limits, keeping their consequence on the closed line (its method paragraphs stay open). Settings has an index. Inbox leads with the queue. Home's demo rows print dates in the app's long form. No figure, engine or schema change.
+
+**Local gate (this tree, 2026-10-02 12:59–13:09, `bash scripts/verify.sh` from PowerShell): VERIFY GREEN, exit 0** — tsc 0, probes tsc 0, eslint 0, vitest **643 files passed + 1 skipped / 8660 passed + 1 expected fail + 1 skipped**, `next build` compiled. No `prisma/` diff: the database is untouched. (The first gate of the session was RED — a hand-rolled label class on the Settings index failed `section-label-tokens`, a scratch probe left in the worktree failed eslint, and `vercel-build.test.ts` fails when the gate is launched from Git Bash instead of PowerShell. All three were the maker's, not the product's.)
+
+**Browser tests.** `tests/e2e/usability-pass.spec.ts`: 13 tests, 13 passed on this tree; on the pre-fix `src` the first cut failed 11 of its 12 (the twelfth asserts desktop is unchanged). Full Playwright suite on this tree, three runs: 429 passed + 2 flaky; 428 passed + 2 failed + 1 flaky; 427 passed + 1 failed + 3 flaky. **Every hard failure is one of three tests — `transactions.spec.ts` "CSV import (H.2)" ×2 and `merchant-lens.spec.ts:22` — and all three reproduce on untouched `origin/main` (`ca40f713`, a separate worktree):** baseline full run 415 passed + 3 flaky including the same merchant-lens 60 s timeout; the two CSV tests alone, six repeats each, no retries → 2 of 12 failed on the baseline, 5 of 12 on this tree (too few runs to separate). The failing snapshot is the import button stuck on "Importing…" — the server-action stall those tests' own comments document (TASKS V.1); this slice touches neither the import page nor its action. One flake WAS this slice's: the chapter-title test read two bounding boxes in separate round trips while a chapter was opening (a 136px "offset"); it now reads both from one layout (`topsOf`).
+
+**Critic (separate contexts, Fable; budget 3 of 4).** Cycle 1 FAIL (3 P1), cycle 2 FAIL (1 P1), cycle 3 **PASS — 0 P0 / 0 P1 / 4 P2**, all four folded. What each cycle found and what changed is in DECISIONS #778.
+
+**CI and live proof:** recorded below once read.
+
+**Open, and whose call.** Owner: Activity row density on a phone (U.1b) and the phone tab bar / Sign out placement (U.1c) — proposals are in the audit. Owner input: one iPhone screenshot of Activity with Filters open (U.1i) — the test Safari engine drew the dropdowns as blank boxes; not verified on a real device. Queued: U.1d–U.1h.
+
+**Not in this commit.** The Ask-analyst slice (#777) is still uncommitted in the main checkout and still at its human gate; its critic cycle 8 returned FAIL on both lanes this morning (verdicts saved in the main checkout under `docs/scratch/`). This slice was built in a separate worktree and touches none of its files.
+
 ## ✅ BUILT 2026-09-25 — O.11d: free-form tags — the last field of the "all other mint and simplifi fields" ask (DECISIONS #775)
 
 **The hole.** Mint/Simplifi give readers a free-form label set with filtering and a per-tag total; Aimplifi had categories, notes, and the two O.15 flags but no label the reader invents. Last open row of the owner's O.11 ask and on the O.13b transaction-list field list (one slice, two complaints).

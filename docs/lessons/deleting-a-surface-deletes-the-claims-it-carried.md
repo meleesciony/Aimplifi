@@ -80,3 +80,19 @@ Grepping for its *name in prose* finds the claims other files were leaning on.
   The K.5 task row attributed all ten failures to #369; one row of attribution, written from the
   commit rather than from the failures, sent the next reader at the wrong cause. **Reproduce before
   you inherit a diagnosis** — and note that serial mode hid the second of those two behind the first.
+
+## Found two months later, same commit (2026-10-02, DECISIONS #778)
+
+The sweep above looked for claims the deleted cards CARRIED. It did not look for claims other
+surfaces made ABOUT them. `today-feed-copy.ts` (#237, written while the Recurring card was on Home)
+ended four sentences with "Details in Recurring below." After `2e3bf728` there was no Recurring
+section on Home, and the Today feed went on sending readers to it until a usability audit read the
+screen. No test could have caught it: the copy tests pinned the money half of each sentence, and
+the pointer half was true when they were written.
+
+6. **Grep for the deleted surface's DISPLAY name in every copy module**, not only its component
+   name in imports and comments. "Recurring below" contains neither `RecurringSummaryCard` nor
+   an import.
+7. **A positional word in copy ("above", "below", "next to") is a claim about another component's
+   render order.** Either replace it with a link to a route, or pin the order it depends on in a
+   test (`tests/unit/usability-pass.test.ts` does this for the two that remain on Home).

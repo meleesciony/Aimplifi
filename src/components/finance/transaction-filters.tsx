@@ -8,6 +8,8 @@
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { formatISODate, isoDate } from '@/lib/dates';
 import {
   PERIOD_PRESETS,
@@ -35,6 +37,12 @@ const SPEND_CLASS_OPTIONS = [
 
 const selectClass =
   'h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground';
+
+/** The folded axes: full-width cells of the phone's two-column grid, intrinsic
+ *  width in the `sm`+ wrap row (where the grid wrapper is `display: contents`). */
+const secondaryControlClass = `${selectClass} w-full min-w-0 sm:w-auto`;
+
+const SECONDARY_FILTERS_ID = 'txn-secondary-filters';
 
 export type TransactionFilterState = {
   search: string;
@@ -141,6 +149,29 @@ export function TransactionFilters({
     router.push(transactionsHref({ ...current, ...next }));
   }
 
+  // The secondary axes (type, account, category, tag, class, period, dates) fold
+  // behind one "Filters" control BELOW `sm` only. At 380px they wrapped to five
+  // rows, so a reader opening Activity met a screen of dropdowns before the first
+  // transaction. From `sm` up nothing changes — the bar fits on two lines there.
+  //
+  // Open by default whenever one of them is narrowing the set: the page lead says
+  // "the controls below say which", and a collapsed bar hiding the very filter
+  // that produced the list would make that sentence false. The count on the
+  // toggle keeps saying it if the reader then closes the bar themselves.
+  // `null` = the reader has not touched the toggle, so the default tracks the URL
+  // (a row link that adds `?spendClass=` while this component stays mounted still
+  // opens the bar).
+  const secondaryActiveCount = [
+    current.type !== 'all',
+    !!current.account,
+    !!current.category,
+    !!current.tag,
+    !!current.spendClass,
+    !!(current.from || current.to),
+  ].filter(Boolean).length;
+  const [toggled, setToggled] = useState<boolean | null>(null);
+  const secondaryOpen = toggled ?? secondaryActiveCount > 0;
+
   const hasFilters =
     !!(current.search || current.account || current.category || current.merchant || current.from || current.to) ||
     current.type !== 'all' ||
@@ -148,6 +179,14 @@ export function TransactionFilters({
     current.reimbursement !== null ||
     !!current.spendClass ||
     !!current.tag;
+
+  // An empty register with nothing applied has nothing to filter: `oldestDate` is
+  // null only when the current set holds no transaction, and with no filter on the
+  // current set is everything. The toggle is not offered there — the rule this bar
+  // already applies to the chip and the tag select (a control that can only return
+  // nothing is a dead end). It IS offered on a filtered-to-empty set: that is where
+  // the reader needs the controls to get out.
+  const nothingToFilter = !oldestDate && !hasFilters;
 
   return (
     <div className="space-y-2" data-testid="txn-filters">
@@ -220,12 +259,51 @@ export function TransactionFilters({
           </Link>
         )}
 
+        {!nothingToFilter && (
+          <button
+            type="button"
+            aria-expanded={secondaryOpen}
+            aria-controls={SECONDARY_FILTERS_ID}
+            onClick={() => setToggled(!secondaryOpen)}
+            data-testid="txn-filters-toggle"
+            className={`tap-target inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm sm:hidden ${
+              secondaryActiveCount > 0
+                ? 'border-input bg-accent font-medium'
+                : 'border-input bg-background hover:bg-accent'
+            }`}
+          >
+            <SlidersHorizontal className="size-4" aria-hidden />
+            Filters
+            {secondaryActiveCount > 0 && (
+              <span data-testid="txn-filters-active-count">· {secondaryActiveCount} on</span>
+            )}
+            <ChevronDown
+              className={`size-4 transition-transform motion-reduce:transition-none ${secondaryOpen ? 'rotate-180' : ''}`}
+              aria-hidden
+            />
+          </button>
+        )}
+
+        {/* `contents` from `sm` up, so the controls stay ordinary items of the wrap
+            row above and the desktop bar lays out exactly as it did (the wrapper and
+            the hidden toggle are in the DOM; neither generates a box there).
+
+            The toggle is a `<button>` with React state, so a tap before hydration
+            does nothing. That is the bar's existing contract, not a new gap: every
+            select behind it commits through `onChange` → `router.push` and is just
+            as inert until hydration. (The Needs-a-category chip is a `<Link>`
+            because it CAN work without JS; a fold cannot be a URL.) */}
+        <div
+          id={SECONDARY_FILTERS_ID}
+          data-testid="txn-secondary-filters"
+          className={`${secondaryOpen ? 'grid' : 'hidden'} w-full grid-cols-2 gap-2 sm:contents`}
+        >
         <select
           aria-label="Type"
           value={current.type}
           onChange={(e) => commit({ type: e.target.value })}
           data-testid="txn-filter-type"
-          className={selectClass}
+          className={secondaryControlClass}
         >
           {TYPE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -239,7 +317,7 @@ export function TransactionFilters({
           value={current.account}
           onChange={(e) => commit({ account: e.target.value })}
           data-testid="txn-filter-account"
-          className={selectClass}
+          className={secondaryControlClass}
         >
           <option value="">All accounts</option>
           {/* The active filter the options don't hold, injected so the select
@@ -263,7 +341,7 @@ export function TransactionFilters({
           value={current.category}
           onChange={(e) => commit({ category: e.target.value })}
           data-testid="txn-filter-category"
-          className={selectClass}
+          className={secondaryControlClass}
         >
           <option value="">All categories</option>
           {categoryOptions.map((c) => (
@@ -284,7 +362,7 @@ export function TransactionFilters({
             value={current.tag}
             onChange={(e) => commit({ tag: e.target.value })}
             data-testid="txn-filter-tag"
-            className={selectClass}
+            className={secondaryControlClass}
           >
             <option value="">All tags</option>
             {missingTagOption !== null && current.tag !== '' && (
@@ -305,7 +383,7 @@ export function TransactionFilters({
           value={current.spendClass}
           onChange={(e) => commit({ spendClass: e.target.value })}
           data-testid="txn-filter-spend-class"
-          className={selectClass}
+          className={secondaryControlClass}
         >
           {SPEND_CLASS_OPTIONS.map((o) => (
             <option key={o.value || 'all'} value={o.value}>
@@ -345,7 +423,7 @@ export function TransactionFilters({
                 commit({ from: w.from ?? '', to: w.to ?? '' });
               }}
               data-testid="txn-filter-period"
-              className={selectClass}
+              className={secondaryControlClass}
             >
               {value === 'custom' && <option value="custom">Custom</option>}
               {PERIOD_PRESETS.map((p) => (
@@ -362,26 +440,27 @@ export function TransactionFilters({
           );
         })()}
 
-        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+        <label className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
           From
           <input
             type="date"
             aria-label="From date"
             value={current.from}
             onChange={(e) => commit({ from: e.target.value })}
-            className={selectClass}
+            className={secondaryControlClass}
           />
         </label>
-        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+        <label className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
           To
           <input
             type="date"
             aria-label="To date"
             value={current.to}
             onChange={(e) => commit({ to: e.target.value })}
-            className={selectClass}
+            className={secondaryControlClass}
           />
         </label>
+        </div>
 
         {/* The merchant axis, made readable and clearable (owner, 2026-08-07).
             It was the only filter in the bar's predicate with nothing in the

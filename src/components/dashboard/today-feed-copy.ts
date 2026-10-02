@@ -108,6 +108,40 @@ export function proposalFrozenNote(p: Proposal): string | null {
   return null;
 }
 
+/**
+ * Where a row's subject lives, as a real link — for the four kinds the recurring
+ * detector raises. Their detail sentences used to end "Details in Recurring below.",
+ * a POSITION that stopped being true when the Recurring card left Home (#369): the
+ * reader was sent to a section that is not on the page. A route is named as a route
+ * (the `accounts-route` rule above), so the pointer is this link and the sentence no
+ * longer carries one. Kept out of `detail` on purpose — that string is audited money
+ * copy; a destination is not part of the figure's meaning.
+ *
+ * The destination is COACH, not /recurring, and that is the #778 critic's P1-3. These
+ * rows name no merchant, so the reader's question on tapping is "which one?". Coach's
+ * "Worth a look" card renders `coach.opportunities` — the very array Home hands
+ * `buildNudgeFeed` — one line per opportunity, by name, with this row's own figure.
+ * /recurring marks only two of the four kinds (a possibly-unused badge, a price
+ * change); a "negotiable bill" or an "insurance to re-shop" is an unmarked row among
+ * a dozen there, which made the link a dead end wearing an answer.
+ */
+export const COACH_OPPORTUNITIES_ID = 'worth-a-look';
+export const COACH_OPPORTUNITIES_HREF = `/coach#${COACH_OPPORTUNITIES_ID}`;
+
+export function proposalRouteLink(p: Proposal): { href: string; label: string } | null {
+  switch (p.kind) {
+    case 'price-increase':
+    case 'unused-subscription':
+    case 'insurance-reshop':
+    case 'negotiable-bill':
+      // The anchor is the card itself: /coach's first screen is the next-dollar
+      // card, and the list that answers "which one?" starts below the fold.
+      return { href: COACH_OPPORTUNITIES_HREF, label: 'See which one in Coach' };
+    default:
+      return null;
+  }
+}
+
 export function proposalCopy(p: Proposal): { title: string; detail: string } {
   const money = formatCents(p.centsAtStake as Cents);
   const date = p.sortDate ? formatISODate(p.sortDate as ISODate) : null;
@@ -216,25 +250,25 @@ export function proposalCopy(p: Proposal): { title: string; detail: string } {
       // centsAtStake = the monthly INCREASE (delta), not the new price.
       return {
         title: 'A subscription’s price went up',
-        detail: `Up ${money}/mo. Details in Recurring below.`,
+        detail: `Up ${money}/mo.`,
       };
     case 'unused-subscription':
       // centsAtStake = the actual monthly cost.
       return {
         title: 'Possibly unused subscription',
-        detail: `${money}/mo. Details in Recurring below.`,
+        detail: `${money}/mo.`,
       };
     case 'insurance-reshop':
       // centsAtStake = an ESTIMATED monthly saving (~15%), not the premium.
       return {
         title: 'Insurance may be worth re-shopping',
-        detail: `Re-shopping could save around ${money}/mo (estimated). Details in Recurring below.`,
+        detail: `Re-shopping could save around ${money}/mo (estimated).`,
       };
     case 'negotiable-bill':
       // centsAtStake = an ESTIMATED monthly saving, not the bill.
       return {
         title: 'This bill may be negotiable',
-        detail: `Negotiating could save around ${money}/mo (estimated). Details in Recurring below.`,
+        detail: `Negotiating could save around ${money}/mo (estimated).`,
       };
     case 'goal_behind_pace': {
       // centsAtStake = the EXTRA monthly that closes the gap (gapMonthlyCents) —

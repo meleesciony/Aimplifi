@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { DISCLOSURE_SUMMARY_CLASS, DisclosureChevron } from '@/components/finance/disclosure-chevron';
 import { FROZEN_COACH_TESTID } from '@/lib/engine/account/feed-dropped-view';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { DrawdownCounterfactual } from '@/lib/engine/fi/drawdown';
@@ -214,7 +215,8 @@ export function FICard({
           </p>
         ) : null}
         <details className="text-xs text-muted-foreground" data-testid="volatility-note">
-          <summary className="flex min-h-11 cursor-pointer select-none items-center">
+          <summary className={DISCLOSURE_SUMMARY_CLASS}>
+            <DisclosureChevron />
             Why these return assumptions?
           </summary>
           <p className="mt-1">
@@ -225,7 +227,8 @@ export function FICard({
             null: when the shock does not move the date, the disclosure is omitted. */}
         {drawdownSentence ? (
           <details className="text-xs text-muted-foreground" data-testid="fi-drawdown">
-            <summary className="flex min-h-11 cursor-pointer select-none items-center">
+            <summary className={DISCLOSURE_SUMMARY_CLASS}>
+              <DisclosureChevron />
               What if markets drop {(drawdown.shockBps / 100).toFixed(0)}%?
             </summary>
             <p className="mt-1" data-testid="fi-drawdown-sentence">

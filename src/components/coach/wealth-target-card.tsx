@@ -31,6 +31,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { DISCLOSURE_SUMMARY_CLASS, DisclosureChevron } from '@/components/finance/disclosure-chevron';
 import { COACH_COPY, wealthTargetPlanUnproven } from '@/lib/engine/fi/coach-copy';
 import {
   proposeDiscretionaryCuts,
@@ -494,7 +495,8 @@ export function WealthTargetCard({
             {/* 44px minimum, matching the dials link below — a bare `text-xs` summary measures
                 ~16px tall, under the 24px WCAG 2.5.8 floor and well under this repo's own
                 standard (a W.2 critic measured 314×16 on both cards' disclosures). */}
-            <summary className="flex min-h-11 cursor-pointer select-none items-center">
+            <summary className={DISCLOSURE_SUMMARY_CLASS}>
+              <DisclosureChevron />
               How much of this is the return assumption?
             </summary>
             <p className="mt-1">{COACH_COPY.wealthTargetSensitivityIntro(hasSpread, dialOwnership)}</p>

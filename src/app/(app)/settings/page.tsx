@@ -51,6 +51,12 @@ import { isDemoUser } from '@/lib/demo-user';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import { SETTINGS_CONNECTIONS_BODY, SETTINGS_IMPORT_CSV_LABEL } from '@/lib/copy/settings-connections-copy';
 import { accountLabel } from '@/lib/engine/account/display-name';
+import { settingsIndexGroups } from '@/lib/ui/settings-sections';
+
+/** An index target that is not itself a `<Card>` (the four dial forms render their
+ *  own card). Same shape as the `#money-dials` wrapper below: it WRAPS, so it adds
+ *  no gap to the stack, and `scroll-mt` clears the sticky header. */
+const SECTION_ANCHOR_CLASS = 'scroll-mt-20 focus:outline-none';
 
 export const metadata = { title: "Settings" };
 
@@ -174,6 +180,34 @@ export default async function SettingsPage() {
     <div className={PAGE_STACK_CLASS}>
       <h1 className={PAGE_TITLE_CLASS}>Settings</h1>
 
+      {/* On this page. Fourteen cards and about thirteen phone screens had no way
+          to reach "Delete my data" except scrolling past everything above it. The
+          list is `settingsIndexGroups` — grouped by what the reader came to do,
+          not by render order — and a unit test holds every id to a real anchor below. Plain
+          `<a href="#…">`: an in-page jump needs no router and works before
+          hydration. */}
+      <nav
+        aria-label="Settings sections"
+        data-testid="settings-index"
+        className="space-y-2 rounded-2xl border bg-card p-4 text-sm shadow-sm"
+      >
+        {settingsIndexGroups({ notifications: !!vapidPublicKey }).map((group) => (
+          <div key={group.label} className="flex flex-wrap items-center gap-x-1 gap-y-1">
+            <span className={`${PAGE_SECTION_LABEL_CLASS} mr-1 w-full sm:w-28`}>{group.label}</span>
+            {group.sections.map((s) => (
+              <a
+                key={s.id}
+                href={`#${s.id}`}
+                data-testid="settings-index-link"
+                className="tap-target inline-flex items-center rounded-full border px-3 py-1 text-xs hover:bg-accent"
+              >
+                {s.label}
+              </a>
+            ))}
+          </div>
+        ))}
+      </nav>
+
       {/* Anchor target for every surface that prints a figure computed from these dials and
           offers to change them (`/coach`'s wealth-target card). It WRAPS the form rather than
           sitting beside it as an empty node: a zero-height sibling inside `space-y-4` silently
@@ -206,32 +240,40 @@ export default async function SettingsPage() {
       {/* C.13 / P1.3 — the Rich Life one-liner. Demo is fenced like every typed
           input: the card reads the row's value (null for demo) while its form
           stays off and the action refuses. */}
-      <RichLifeForm current={user.richLifeVision} canWrite={!isDemoUser(userId)} />
+      <div id="rich-life" tabIndex={-1} className={SECTION_ANCHOR_CLASS}>
+        <RichLifeForm current={user.richLifeVision} canWrite={!isDemoUser(userId)} />
+      </div>
 
       {/* W.6(b) / #528 — employer-match rung. Demo is fenced like every
           typed input: the card reads the row (null for demo) while the
           form stays off and the action refuses. */}
-      <EmployerMatchForm current={user.employerMatch} canWrite={!isDemoUser(userId)} />
+      <div id="employer-match" tabIndex={-1} className={SECTION_ANCHOR_CLASS}>
+        <EmployerMatchForm current={user.employerMatch} canWrite={!isDemoUser(userId)} />
+      </div>
 
       {/* W.6(b) / #529 — tax-advantaged contribution-room rung. Demo is
           fenced like every typed input: the card reads the row (null for
           demo) while the form stays off and the action refuses. */}
-      <TaxAdvantagedRoomForm current={user.taxAdvantagedRoom} canWrite={!isDemoUser(userId)} />
+      <div id="contribution-room" tabIndex={-1} className={SECTION_ANCHOR_CLASS}>
+        <TaxAdvantagedRoomForm current={user.taxAdvantagedRoom} canWrite={!isDemoUser(userId)} />
+      </div>
 
       {/* C.23 / DECISIONS #431 — the guided Fixed-costs section: the app's
           own basis, the detected proposals, and the reserve figure with its
           named home. Sits under the dials because it is the same category of
           thing — what the reader wants the plan to count. */}
-      <FixedCostsCard
-        plan={plan}
-        nameOfCategory={(id) => categoryName(id, categoryMeta)}
-        eligibleAccounts={eligibleAccounts}
-        holdingAccountId={holdingAccountId}
-        holdingAccountLabel={holdingAccountLabel}
-        canWrite={!isDemoUser(userId)}
-      />
+      <div id="fixed-costs" tabIndex={-1} className={SECTION_ANCHOR_CLASS}>
+        <FixedCostsCard
+          plan={plan}
+          nameOfCategory={(id) => categoryName(id, categoryMeta)}
+          eligibleAccounts={eligibleAccounts}
+          holdingAccountId={holdingAccountId}
+          holdingAccountLabel={holdingAccountLabel}
+          canWrite={!isDemoUser(userId)}
+        />
+      </div>
 
-      <Card data-testid="export-card">
+      <Card id="export" className="scroll-mt-20" data-testid="export-card">
         <CardHeader className="pb-2">
           <CardDescription>Your data is yours</CardDescription>
           <CardTitle className="text-base">Export</CardTitle>
@@ -307,7 +349,7 @@ export default async function SettingsPage() {
           lives here too (it's self-contained; OAuth round-trips return to this page).
           SimpleFIN connect + connection management stay on /accounts, where the
           connection's actual state is known and rendered. */}
-      <Card data-testid="connections-card">
+      <Card id="connections" className="scroll-mt-20" data-testid="connections-card">
         <CardHeader className="pb-2">
           <CardDescription>Bank connections</CardDescription>
           <CardTitle className="text-base">Connect a bank or brokerage</CardTitle>
@@ -335,7 +377,7 @@ export default async function SettingsPage() {
       </Card>
 
       {vapidPublicKey && (
-        <Card data-testid="notifications-card">
+        <Card id="notifications" className="scroll-mt-20" data-testid="notifications-card">
           <CardHeader className="pb-2">
             <CardDescription>Proactive heads-ups</CardDescription>
             <CardTitle className="text-base">Notifications</CardTitle>
@@ -351,7 +393,7 @@ export default async function SettingsPage() {
         </Card>
       )}
 
-      <Card data-testid="categories-card">
+      <Card id="categories" className="scroll-mt-20" data-testid="categories-card">
         <CardHeader className="pb-2">
           <CardDescription>Make the category list your own</CardDescription>
           <CardTitle className="text-base">Categories</CardTitle>
@@ -387,7 +429,7 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card data-testid="ai-trust-card">
+      <Card id="ai-trust" className="scroll-mt-20" data-testid="ai-trust-card">
         <CardHeader className="pb-2">
           <CardDescription>How well the AI files your transactions</CardDescription>
           <CardTitle className="text-base">AI trust</CardTitle>
@@ -420,7 +462,7 @@ export default async function SettingsPage() {
       {/* H.7b — the transfer-flag repair. Sits beside AI trust because it is the
           same contract from the other side: the AI's mistakes are the user's to
           correct, with the change stated before it happens and undoable after. */}
-      <Card data-testid="transfer-repair-settings-card">
+      <Card id="transfer-repair" className="scroll-mt-20" data-testid="transfer-repair-settings-card">
         <CardHeader className="pb-2">
           <CardDescription>Transactions held out of your totals by an outdated transfer mark</CardDescription>
           <CardTitle className="text-base">Transfer mark repair</CardTitle>
@@ -430,7 +472,7 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card data-testid="activation-card">
+      <Card id="activation" className="scroll-mt-20" data-testid="activation-card">
         <CardHeader className="pb-2">
           <CardDescription>Operator — which integrations are live on this deployment</CardDescription>
           <CardTitle className="text-base">Activation checklist</CardTitle>
@@ -474,7 +516,7 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card data-testid="household-card">
+      <Card id="household" className="scroll-mt-20" data-testid="household-card">
         <CardHeader className="pb-2">
           <CardDescription>{HOUSEHOLD_COPY.teamSportTagline()}</CardDescription>
           <CardTitle className="text-base">Household</CardTitle>
@@ -487,7 +529,7 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card data-testid="security-card">
+      <Card id="sessions" className="scroll-mt-20" data-testid="security-card">
         <CardHeader className="pb-2">
           <CardDescription>Security — control your signed-in sessions</CardDescription>
           <CardTitle className="text-base">Sessions</CardTitle>
@@ -507,7 +549,7 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card data-testid="privacy-card">
+      <Card id="delete-data" className="scroll-mt-20" data-testid="privacy-card">
         <CardHeader className="pb-2">
           <CardDescription>Privacy — your data is yours to erase</CardDescription>
           <CardTitle className="text-base">Delete my data</CardTitle>

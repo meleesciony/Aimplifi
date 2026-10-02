@@ -10,6 +10,7 @@ import type { NudgeFeed, Proposal } from '@/lib/engine/nudge/types';
 import {
   proposalCopy,
   proposalFrozenNote,
+  proposalRouteLink,
   tierRule,
   whyInputs,
 } from '@/components/dashboard/today-feed-copy';
@@ -217,6 +218,7 @@ function ProposalRow({
 }) {
   const { title, detail } = proposalCopy(proposal);
   const frozenNote = proposalFrozenNote(proposal);
+  const routeLink = proposalRouteLink(proposal);
   const dismissable = proposal.tier === 'action' || proposal.tier === 'opportunity';
   // Income-pause management (#251): an unconfirmed pause offers "Yes, it's paused"
   // (gates the projection exclusion); a confirmed one (HANDLED) offers Undo. Both
@@ -282,6 +284,21 @@ function ProposalRow({
               >
                 {proposal.kind === 'income_pause' ? 'View deposits from' : 'View charges at'}{' '}
                 {proposal.merchant}
+              </Link>
+            </p>
+          )}
+          {/* The recurring-detector kinds name no merchant, so they get a route
+              instead — the page that lists each one by name with this row's figure.
+              Their sentences used to point at a "Recurring below" that is no longer
+              on this page (see `proposalRouteLink`). */}
+          {routeLink && (
+            <p className="mt-0.5">
+              <Link
+                href={routeLink.href}
+                data-testid={`nudge-route-link-${proposal.kind}`}
+                className={MERCHANT_LINK_CLASS}
+              >
+                {routeLink.label}
               </Link>
             </p>
           )}

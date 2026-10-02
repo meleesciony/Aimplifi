@@ -199,7 +199,7 @@ export function SharedTransactionList({
                         <Pencil className="size-3 opacity-50" aria-hidden />
                       </button>
                       {' · '}
-                      <span className="break-all">{t.accountName}</span>
+                      <span className="[overflow-wrap:anywhere]">{t.accountName}</span>
 
                       {open && (
                         <div

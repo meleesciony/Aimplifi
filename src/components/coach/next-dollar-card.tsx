@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { DISCLOSURE_SUMMARY_CLASS, DisclosureChevron } from '@/components/finance/disclosure-chevron';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { NextDollarPlan } from '@/lib/engine/fi/next-dollar';
 import { FROZEN_NEXT_DOLLAR_TESTID } from '@/lib/engine/account/feed-dropped-view';
@@ -39,7 +40,8 @@ export function NextDollarCard({ plan }: { plan: NextDollarPlan }) {
           </p>
         ) : null}
         <details data-testid="next-dollar-more">
-          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
+          <summary className={`${DISCLOSURE_SUMMARY_CLASS} text-sm font-medium text-foreground`}>
+            <DisclosureChevron />
             What we skipped, cards this cycle, and the assumptions
           </summary>
           <div className="space-y-2 pt-2">

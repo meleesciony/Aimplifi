@@ -51,6 +51,15 @@ try {
   // 1. The toolbar's tag dropdown exists and lists the SEEDED vocabulary — the
   //    seeded tags are unique to a post-O.11d database AND the select is unique
   //    to a post-O.11d build, so this discriminates both halves at once.
+  //    U.1a (DECISIONS #778): at this 380px viewport the tag select now sits behind
+  //    the Filters toggle. Open it by STATE, retrying across hydration, or this
+  //    probe would wait on a control that is present but folded.
+  const toggle = page.getByTestId('txn-filters-toggle');
+  await toggle.waitFor({ timeout: 30000 });
+  for (let i = 0; i < 10 && (await toggle.getAttribute('aria-expanded')) !== 'true'; i++) {
+    await toggle.click();
+    await page.waitForTimeout(500);
+  }
   const select = page.getByTestId('txn-filter-tag');
   await select.waitFor({ timeout: 30000 });
   const options = await select.locator('option').allTextContents();

@@ -17,6 +17,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import Database from 'better-sqlite3';
 import { type Page, expect, test } from './helpers/test';
+import { openActivityFilters } from './helpers/activity-filters';
 import { E2E_DB_URL } from '../setup/test-db';
 
 async function signIn(page: Page) {
@@ -155,6 +156,8 @@ test('transaction register lists, summarizes, filters, and searches', async ({ p
 
   // Type filter → URL reflects it and rows remain. (Generous timeout: each
   // filter change re-SSRs the full register, slow under parallel load.)
+  // U.1a: on a phone the secondary axes sit behind the Filters control.
+  await openActivityFilters(page);
   await page.getByTestId('txn-filter-type').selectOption('income');
   await expect(page).toHaveURL(/type=income/, { timeout: 20000 });
   await expect(page.getByTestId('txn-row').first()).toBeVisible();

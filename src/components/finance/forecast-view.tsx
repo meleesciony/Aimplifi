@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import { forecastDayBasis } from '@/lib/engine/forecast/panel';
-import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
+import { PAGE_SECTION_LABEL_CLASS, PAGE_TITLE_CLASS } from '@/components/finance/page-chrome';
 import { BreakdownPanel } from '@/components/finance/breakdown-panel';
 import { usePanelToggleFocus } from '@/components/finance/use-panel-toggle-focus';
 import type { CashFlowForecastData } from '@/server/forecast';
@@ -36,7 +36,9 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="sr-only">Cash-flow forecast</h1>
+      {/* Visible, like every other route's title: on a phone the header names no
+          page, so a hidden h1 left the reader with nothing saying where they are. */}
+      <h1 className={PAGE_TITLE_CLASS}>Cash-flow forecast</h1>
       {/* Hero */}
       <section
         data-testid="forecast-hero"
@@ -96,11 +98,25 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
 
       {/* 30 / 60 / 90 day milestones */}
       {f.milestones.length > 0 && (
-        <div data-testid="forecast-milestones" className="grid grid-cols-3 gap-2">
+        // One row per milestone below `md`, three tiles from `md` up. Three tiles
+        // at 380px left ~86px for the figure, and `break-words` then split the
+        // money itself across two lines ("$12,495.0" / "0") — a balance must
+        // never be broken mid-number. A row has the whole width, so the figure
+        // is `whitespace-nowrap` at every size. `md`, not `sm`: the sidebar
+        // appears at `sm`, so a 640px window leaves each tile ~91px again and a
+        // seven-digit balance crossed its border (critic cycle 2, measured).
+        <div data-testid="forecast-milestones" className="grid grid-cols-1 gap-2 md:grid-cols-3">
           {f.milestones.map((m) => (
-            <div key={m.dayOffset} className="min-w-0 rounded-2xl border bg-card p-3 text-center shadow-sm">
+            <div
+              key={m.dayOffset}
+              data-testid="forecast-milestone"
+              className="grid min-w-0 grid-cols-[1fr_auto] items-center gap-x-3 rounded-2xl border bg-card px-4 py-3 shadow-sm md:block md:p-3 md:text-center"
+            >
               <p className="text-xs text-muted-foreground">{m.dayOffset} days</p>
-              <p className={`mt-0.5 break-words font-semibold tabular-nums ${m.balanceCents < 0 ? 'text-rose-500' : ''}`}>
+              <p
+                data-testid="forecast-milestone-amount"
+                className={`row-span-2 whitespace-nowrap font-semibold tabular-nums md:mt-0.5 ${m.balanceCents < 0 ? 'text-rose-500' : ''}`}
+              >
                 {formatCents(cents(m.balanceCents))}
               </p>
               <p className="text-[10px] text-muted-foreground">{formatISODate(isoDate(m.date))}</p>

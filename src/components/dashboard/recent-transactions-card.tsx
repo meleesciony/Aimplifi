@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ListOrdered } from 'lucide-react';
 import { HANDOVER_DAY_ROW_MARKER } from '@/lib/engine/glass-box/category-breakdown';
+import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import type { DashboardRecentResult } from '@/server/dashboard-recent';
 import { PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
@@ -160,7 +161,12 @@ export function RecentTransactionsCard({
                       <TxnDateControl transactionId={r.id} date={r.date} triggerTestId="home-recent-date" />
                     </span>
                   ) : (
-                    <span className="truncate text-xs text-muted-foreground">{r.date}</span>
+                    // The same 'long' form the editable control beside it prints for a
+                    // signed-in reader — the read-only branch showed the raw stored
+                    // value ("2026-06-10"), the one place a date read like a database.
+                    <span className="truncate text-xs text-muted-foreground" data-testid="home-recent-date-text">
+                      {formatISODate(isoDate(r.date), 'long')}
+                    </span>
                   )}
                   {canRenamePayee ? (
                     <span className="min-w-0 max-w-[7rem] truncate">
