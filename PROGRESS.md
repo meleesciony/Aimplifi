@@ -40,6 +40,14 @@ bills; the summary no longer paraphrases the rules at all. Its four P2s (a long 
 640px, reduced motion, Filters on an empty register, the live probe's header) were taken too.
 **Cycle 3 (fresh context, read-only): PASS, 0 P0 / 0 P1 / 4 P2** — all four folded (the
 summary's "three cases" → "three notes"; the Coach link now lands on the card).
+
+**SHIPPED `df348762`: CI 37038882008 SUCCESS, Vercel complete, live proof PASS (22 checks).**
+The main checkout was brought to `df348762` with the uncommitted #777 slice intact (43 files
+hash-identical; a stash near-miss on the way is `docs/lessons/a-pop-takes-whatever-is-on-top.md`).
+**Then the owner's iPhone screenshots:** dropdowns fine (U.1i closed); "To" stranded in the fold
+on a tagless account (this slice's defect — fixed, follow-up commit); and a real-account
+register row is ~2 per screen, which the demo-only audit could not see — U.1b is now the top
+open item and the redesign choice is with the owner.
 **Left alone:** Ask (the #777 slice), every money sentence, desktop layouts. **Left for the
 owner:** Activity row density (U.1b) and the phone tab bar (U.1c) — proposals in the audit.
 **Locked:** `tests/e2e/usability-pass.spec.ts` (fails on the pre-fix source in every test but

@@ -40,7 +40,11 @@ rates) — no other doc may restate them.
 
 **Critic (separate contexts, Fable; budget 3 of 4).** Cycle 1 FAIL (3 P1), cycle 2 FAIL (1 P1), cycle 3 **PASS — 0 P0 / 0 P1 / 4 P2**, all four folded. What each cycle found and what changed is in DECISIONS #778.
 
-**CI and live proof:** recorded below once read.
+**Shipped: `df348762` on `main`.** **CI run 37038882008 = SUCCESS** (the full VERIFY_E2E gate, read via `scripts/ci-status.sh`, exit 0). Vercel: "Deployment has completed" for that sha. **Live proof: `node scripts/u1a-live-deploy-check.mjs` → DEPLOY PROOF: PASS, 22 checks** on www.aimplifi.app (Filters toggle closed then opening, first row above the nav, forecast balances on one line, both page titles, 4 feed rows linking to Coach, chevron, the limits a closed `<details>` with its consequence line, 15 index links each with one target, queue above the scorecard, zero page errors). The edited `o11d-live-deploy-check.mjs` re-run: PASS.
+
+**Owner's iPhone, same day (two screenshots of his own account).** (1) The folded dropdowns render correctly — labels on a dark field. The blank white boxes were the test WebKit on Windows; U.1i closed. (2) His account owns no tag, so the fold had five selects and the two-column grid left "To" stranded alone — a defect of this slice, invisible on the demo (which has tags). Fixed in the follow-up commit: From and To share a row, the fifth select spans one; locked in `usability-pass.spec.ts` on a tagless sign-up. (3) **What the audit missed:** it walked the demo and an empty new account, never a real account with data — and the demo renders none of the edit controls. Reproduced on a signed-up user: a register row is **300–350px tall at iPhone width, about two rows per screen** (`Range`-free measurement: `txn-row` bounding heights 353 / 345 / 302 / 302 / 352 in Chromium @380; 353 / 345 / 279 / 299 / 302 in WebKit iPhone 13). U.1b is therefore the worst screen in the app, not a nicety; the row redesign is with the owner.
+
+**One more pre-existing flake, measured:** `transactions.spec.ts` "a merchant filter shows itself…" — 1 failure in 15 repeats on this tree and 1 in 15 on `ca40f713`. The chip is a `<button>` whose click is dropped if it lands before hydration.
 
 **Open, and whose call.** Owner: Activity row density on a phone (U.1b) and the phone tab bar / Sign out placement (U.1c) — proposals are in the audit. Owner input: one iPhone screenshot of Activity with Filters open (U.1i) — the test Safari engine drew the dropdowns as blank boxes; not verified on a real device. Queued: U.1d–U.1h.
 

@@ -175,6 +175,19 @@ test('activity: an empty register offers no Filters control — there is nothing
   await page.goto('/transactions?type=income');
   await expect(page.getByTestId('txn-filters-toggle')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByTestId('txn-filter-type')).toBeVisible();
+
+  // This account owns no tag, so the bar has FIVE selects, not the demo's six. The owner's
+  // phone showed what that did to a plain two-column grid: "From" beside the period and "To"
+  // stranded alone on the next row. From and To share a row; the fifth select takes its own.
+  await expect(page.getByTestId('txn-filter-tag')).toHaveCount(0);
+  const [fromTop, toTop] = await topsOf(page, 'input[aria-label="From date"]', 'input[aria-label="To date"]');
+  expect(fromTop).toBe(toTop);
+  const period = await box(page.getByTestId('txn-filter-period'));
+  const type = await box(page.getByTestId('txn-filter-type'));
+  expect(period.width, 'the fifth select spans the row').toBeGreaterThan(type.width * 1.8);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+  ).toBeLessThanOrEqual(1);
 });
 
 test('activity: from sm up the bar is unchanged — no toggle, every select out', async ({ page }) => {

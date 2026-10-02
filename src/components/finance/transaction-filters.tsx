@@ -188,6 +188,10 @@ export function TransactionFilters({
   // the reader needs the controls to get out.
   const nothingToFilter = !oldestDate && !hasFilters;
 
+  // O.11d's rule for the tag axis (see the select below), named because the grid's
+  // shape depends on it: six selects with it, five without.
+  const showTagSelect = tagOptions.length > 0 || current.tag !== '';
+
   return (
     <div className="space-y-2" data-testid="txn-filters">
       <form
@@ -356,7 +360,7 @@ export function TransactionFilters({
             control. Rendered anyway while a stale `?tag=` is live, with the
             missing-option mirror below, so the page shows which filter produced
             its zero. */}
-        {(tagOptions.length > 0 || current.tag !== '') && (
+        {showTagSelect && (
           <select
             aria-label="Tag"
             value={current.tag}
@@ -423,7 +427,10 @@ export function TransactionFilters({
                 commit({ from: w.from ?? '', to: w.to ?? '' });
               }}
               data-testid="txn-filter-period"
-              className={secondaryControlClass}
+              // Without a tag select there are five selects, and the fifth would
+              // sit beside an empty cell — so it takes the row. (`col-span` is
+              // inert from `sm` up, where the wrapper is `display: contents`.)
+              className={`${secondaryControlClass} ${showTagSelect ? '' : 'col-span-2'}`}
             >
               {value === 'custom' && <option value="custom">Custom</option>}
               {PERIOD_PRESETS.map((p) => (
@@ -440,6 +447,11 @@ export function TransactionFilters({
           );
         })()}
 
+        {/* From and To share a row of their own, always. As two loose cells of the
+            grid they split whenever the selects above were odd in number — the
+            owner's phone (no tags, so five selects) showed "From" beside the period
+            and "To" stranded alone underneath (screenshot, 2026-10-02). */}
+        <div className="col-span-2 grid grid-cols-2 gap-2 sm:contents" data-testid="txn-filter-dates">
         <label className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
           From
           <input
@@ -460,6 +472,7 @@ export function TransactionFilters({
             className={secondaryControlClass}
           />
         </label>
+        </div>
         </div>
 
         {/* The merchant axis, made readable and clearable (owner, 2026-08-07).
