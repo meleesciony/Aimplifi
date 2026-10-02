@@ -347,8 +347,8 @@ export default async function SettingsPage() {
 
       {/* 2026-07-21 agent review A2: not just prose — the real Plaid connect button
           lives here too (it's self-contained; OAuth round-trips return to this page).
-          SimpleFIN connect + connection management stay on /accounts, where the
-          connection's actual state is known and rendered. */}
+          Connection management stays on /accounts, where each connection's actual
+          state is known and rendered. */}
       <Card id="connections" className="scroll-mt-20" data-testid="connections-card">
         <CardHeader className="pb-2">
           <CardDescription>Bank connections</CardDescription>

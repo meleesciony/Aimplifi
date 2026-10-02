@@ -28,6 +28,18 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-10-02 — SimpleFIN retired as a way to connect (DECISIONS #780)
+
+**Owner ask.** "Simplefin was just a bridge until we can get plaid. We have plaid now. I don't mind getting rid of simplefin if we don't break stuff."
+
+**Shipped.** Nothing offers a new SimpleFIN connection: the door and token form are gone from Accounts and from the first-run panel, and Settings no longer names it. A reader who never used it sees no trace. **Kept, unchanged:** an existing connection's panel (status, Sync now, Disconnect), the sync code, the dashboard repair alert, and every stored SimpleFIN account, transaction and holding. Accounts that outlived their connection still get the "connection was removed" notice, now pointing at the Plaid button below it. No schema change; the database is untouched.
+
+**Production, checked read-only before building:** 0 SimpleFIN connections; 24 SimpleFIN accounts, all joined to Plaid successors; 1,357 transactions and 57 holdings stored through it; 12 Plaid items healthy.
+
+**Gates (local).** verify.sh GREEN — tsc, eslint, vitest 8,669 passed (644 files), next build clean. Full Playwright on the slice before the critic's two copy additions: 428 passed, 3 flaky (goal-demo-and-nudge:19, rule-inventory:81, transactions:149 — all retried green; rule-inventory:81 also fails on the pre-change commit), 0 failed. After them, the seven specs that touch the changed copy: 52 passed, 3 flaky (transactions:298 / :639 / :1015, the known merchant-filter, CSV re-import and needs-a-category flakes), 0 failed. **Critic (Sonnet, separate context): PASS, zero P0/P1** — two of its P2s taken (see #780). CI and live proof: below, once pushed.
+
+**Open.** With no Plaid credentials configured, CSV and manual accounts are the only ways in. Two old live-check scripts (`h5-`, `k2b-`) still look for the removed button.
+
 ## ✅ BUILT 2026-10-02 — Usability pass, wave 1 (TASKS U.1a, DECISIONS #778)
 
 **The ask.** Owner: "do a ui / ux pass and make the app user friendly and intuitive." Audit first (`docs/UX_AUDIT_2026-10-02.md` — 21 ranked findings from screenshots of every route at 380px and 1280px, a first-run walk, WebKit re-checks), then the reversible, figure-neutral fixes.

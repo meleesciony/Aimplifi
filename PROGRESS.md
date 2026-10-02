@@ -17,6 +17,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-02 — SimpleFIN retired as a way to connect (DECISIONS #780)
+
+**Picked up:** the owner's go-ahead to drop SimpleFIN "if we don't break stuff". **Checked
+production first** (read-only): no connection exists, every one of the 24 SimpleFIN accounts
+is joined to a Plaid successor, and 1,357 transactions came in through it — so the offer can
+go and the rows must stay. **Built:** the connect door and token form removed from Accounts
+and the first-run panel; Settings copy no longer names it; the orphaned-accounts notice now
+points at the Plaid button. **Left alone:** an existing connection's panel, the sync engine,
+the dashboard repair alert, the privacy policy, the schema, every stored row.
+**Locked:** `simplefin-retired.test.ts` (both halves) and three browser specs.
+Gates, CI, live proof: `docs/STATUS.md`.
+
 ## 2026-10-02 — Usability pass, wave 1 (TASKS U.1 / U.1a, DECISIONS #778)
 
 Owner ask: "do a ui / ux pass and make the app user friendly and intuitive." Built in a

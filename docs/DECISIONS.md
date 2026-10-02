@@ -14,6 +14,26 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #780 — SimpleFIN is retired as a way to connect; everything already connected through it stays (2026-10-02)
+
+*(#779 is held by the compact register row, built on branch `uiux-pass` and waiting at the human gate — not on `main`. This entry takes the next number so that slice does not have to renumber.)*
+
+**Context.** SimpleFIN was the bridge to live bank data while Plaid production access was pending. Plaid is live. The owner, 2026-10-02: "Simplefin was just a bridge until we can get plaid. We have plaid now. I don't mind getting rid of simplefin if we don't break stuff." Checked against production first (read-only): no `SimpleFinConnection` row exists; 12 Plaid items synced that day with no error; 24 `provider = 'simplefin'` accounts remain, every one joined to a Plaid successor by a confirmed reconciliation; 1,357 transactions and 57 holdings came in through SimpleFIN. So nothing depends on a SimpleFIN connection today — but months of stored history do depend on SimpleFIN ROWS.
+
+**Decision.** Retire it as a way IN, and only that.
+1. **Nothing offers a new SimpleFIN connection.** The "+ Connect a bank (SimpleFIN)" door and its setup-token form are gone from the Accounts page and from the first-run panel (which every empty page reuses). A reader who never used SimpleFIN now sees no trace of it; the Settings connections card no longer names it. The owner's own Accounts page was showing that first-time door, because all 24 of his SimpleFIN accounts are superseded.
+2. **An existing connection is untouched.** Its panel on Accounts (freshness, history depth, Sync now, Disconnect), the sync code, the auto-sync, and the dashboard alert that repairs a failing connection (including pasting a fresh token) all stay. `connectSimplefin` stays as a server action because that repair path calls it.
+3. **Accounts that outlived their connection are still told so** (K.2b). The notice keeps its facts — the connection is gone, how many accounts, when the data stopped, that saved transactions are kept — and instead of "Reconnect below" says SimpleFIN is no longer offered and points at the Plaid button directly under it.
+4. **No stored row, column, table or read path changes.** No schema change, no migration, no data script. The privacy policy still names SimpleFIN: it describes how a SimpleFIN access URL is stored and who the data is shared with, which stays true for any connection that exists.
+
+**Not done, deliberately.** Deleting the provider module, the sync engine, the `SimpleFinConnection` table or the `provider = 'simplefin'` branches across forty-odd engine files. Each of those reads stored rows; removing them is the "break stuff" the owner asked to avoid, for no reader-visible gain. Two historical live-check scripts (`h5-`, `k2b-live-deploy-check.mjs`) still look for the removed button; they describe past deploys and are left as written.
+
+**A consequence to know.** In an environment with no Plaid credentials, the only ways to get data in are now CSV import and manual accounts. Demo mode is unaffected (rule 4): it never used either provider.
+
+**Critic (separate context, Sonnet): PASS — zero P0/P1.** It seeded every state on its own server — a live connection, stranded accounts, partly and wholly superseded accounts, a failing connection — and found no remaining offer anywhere in the app except the privacy policy. Its P2s, taken: Disconnect became one-way without saying so (the connected panel now says it is final, before it is pressed); the privacy policy named SimpleFIN as a current way to connect (it now names it only for connections made before the retirement; last-updated 2026-10-02). Recorded, not taken: the stranded-accounts notice stays up after the bank is re-linked through Plaid until the old rows are combined or deleted (unverified on screen — no Plaid credentials in the test environment); `docs/SIMPLEFIN_WALKTHROUGH.md` is still a connect walkthrough, linked from nothing.
+
+**Locked.** `tests/unit/simplefin-retired.test.ts` — both halves: nothing offers it; what an existing reader depends on is still there. `tests/e2e/connection-health.spec.ts` (a reader who never used it sees no trace on Accounts and is offered Plaid; stranded accounts get the notice, no SimpleFIN door, and the Plaid button below it), `guided-onboarding.spec.ts` (first-run offers Plaid, CSV and manual, and never SimpleFIN), `transactions.spec.ts`.
+
 ## #778 — Usability pass, wave 1: the page's job first, and nothing broken to fit (2026-10-02)
 
 *(#777 is held by the Ask-analyst slice, unshipped in the main checkout — its test and edge-case files already carry the number. This entry takes the next one so that slice does not have to renumber.)*

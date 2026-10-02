@@ -28,15 +28,16 @@ test('signup → Step 1 inlined connect → manual account → Steps 2/3 togethe
   await page.getByTestId('auth-submit').click();
   await page.waitForURL('**/dashboard', { timeout: 20000 });
 
-  // Step 1: the SimpleFIN token walkthrough and the Plaid button are INLINED on
-  // the welcome screen — no navigation needed to reach either.
+  // Step 1: the connect button and the two no-connection paths are INLINED on the
+  // welcome screen — no navigation needed to reach any of them. SimpleFIN is retired as
+  // a way in (DECISIONS #780), so a new reader is never shown it.
   await expect(page.getByTestId('empty-dashboard')).toBeVisible();
   await expect(page.getByTestId('onboarding-step-1')).toContainText('Step 1 of 3');
-  await expect(page.getByTestId('simplefin-connect-btn')).toBeVisible();
   await expect(page.getByTestId('connect-bank-btn')).toBeVisible();
-  await page.getByTestId('simplefin-connect-btn').click();
-  await expect(page.getByTestId('simplefin-form')).toBeVisible();
-  await expect(page.getByTestId('simplefin-form')).toContainText('setup token');
+  await expect(page.getByTestId('onboard-import')).toBeVisible();
+  await expect(page.getByTestId('onboard-manual')).toBeVisible();
+  await expect(page.getByTestId('simplefin-connect-btn')).toHaveCount(0);
+  await expect(page.getByText('SimpleFIN', { exact: false })).toHaveCount(0);
 
   // No live bank credentials in this environment — take the deterministic,
   // network-free manual-account path via the secondary "Add manually" link.

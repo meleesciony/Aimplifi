@@ -111,8 +111,8 @@ export default async function CardsPage({
         )}
         {/* 2026-07-21 agent review A1: don't dead-end to /accounts — offer the real
             connect/add affordances inline. Plaid's button is self-contained (token
-            minted on click); SimpleFIN connect stays on /accounts, where its
-            connection state is actually known. */}
+            minted on click); managing a connection stays on /accounts, where its
+            state is actually known. */}
         <Card className="border-dashed" data-testid="cards-empty">
           <CardContent className="space-y-4 py-8 text-sm text-muted-foreground">
             <p className="text-center">

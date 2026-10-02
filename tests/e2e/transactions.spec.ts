@@ -357,14 +357,12 @@ test('a malformed date bound no longer takes the register down', async ({ page }
   await expect(page.getByTestId('txn-history-span')).toBeVisible({ timeout: 20000 });
 });
 
-test('SimpleFIN connect affordance is present and opens its token form (dormant)', async ({ page }) => {
+test('SimpleFIN is not offered as a way to connect; Plaid is (DECISIONS #780)', async ({ page }) => {
   await signIn(page);
   await page.goto('/accounts');
-  const btn = page.getByTestId('simplefin-connect-btn');
-  await expect(btn).toBeVisible();
-  await btn.click();
-  await expect(page.getByTestId('simplefin-form')).toBeVisible();
-  await expect(page.getByTestId('simplefin-token')).toBeVisible();
+  await expect(page.getByTestId('connect-bank-btn')).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId('simplefin-connect-btn')).toHaveCount(0);
+  await expect(page.getByTestId('simplefin-token')).toHaveCount(0);
 });
 
 test('transaction register paginates: Next advances to page 2 (ROADMAP #8)', async ({ page }) => {

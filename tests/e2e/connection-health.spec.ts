@@ -14,7 +14,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from './helpers/test';
 import { E2E_DB_URL } from '../setup/test-db';
 
-test('demo user (no linked feed) sees no staleness banner; /accounts shows the connect front-door', async ({ page }) => {
+test('demo user (no linked feed) sees no staleness banner; /accounts offers Plaid and no SimpleFIN door', async ({ page }) => {
   await page.goto('/sign-in');
   await page.getByTestId('demo-sign-in').click();
   await page.waitForURL('**/dashboard', { timeout: 20000 });
@@ -27,9 +27,14 @@ test('demo user (no linked feed) sees no staleness banner; /accounts shows the c
 
   await page.goto('/accounts');
   await expect(page.getByTestId('accounts-net-worth')).toBeVisible({ timeout: 20000 });
-  // No SimpleFIN connection for the demo user → the connect front-door, not the connected row.
-  await expect(page.getByTestId('simplefin-connect-btn')).toBeVisible();
+  // SimpleFIN is retired as a way to connect (DECISIONS #780): a reader who never used it
+  // sees nothing of it — no door, no form, no notice — and the one way to link a bank is there.
+  await expect(page.getByTestId('connect-bank-btn')).toBeVisible();
+  await expect(page.getByTestId('simplefin-connect-btn')).toHaveCount(0);
+  await expect(page.getByTestId('simplefin-form')).toHaveCount(0);
   await expect(page.getByTestId('simplefin-connected')).toHaveCount(0);
+  await expect(page.getByTestId('simplefin-disconnected-notice')).toHaveCount(0);
+  await expect(page.getByText('SimpleFIN', { exact: false })).toHaveCount(0);
   // Every demo account is provider 'demo' → no per-account freshness line (golden-safe).
   await expect(page.getByTestId('account-freshness')).toHaveCount(0);
 });
@@ -159,9 +164,19 @@ test('SimpleFIN accounts that OUTLIVED their connection get the honest disconnec
   // "no new transactions since" — transaction-precise, because balances can move on paths
   // this date never sees (critic P2-3).
   await expect(notice).toContainText('no new transactions since Fri, May 1, 2026');
-  await expect(notice).toContainText('your saved transactions are kept');
-  await expect(page.getByTestId('simplefin-connect-btn')).toHaveText('Reconnect your bank (SimpleFIN)');
+  await expect(notice).toContainText('Your saved transactions are kept');
+  // #780: the notice no longer offers a SimpleFIN reconnect. It says so, and points at the
+  // way a bank is linked now — which is on the page, directly below it.
+  await expect(notice).toContainText('SimpleFIN is no longer offered for new connections');
+  await expect(notice).toContainText('connect that bank with the button below');
+  await expect(page.getByTestId('simplefin-connect-btn')).toHaveCount(0);
+  await expect(page.getByTestId('simplefin-form')).toHaveCount(0);
   await expect(page.getByTestId('simplefin-connected')).toHaveCount(0);
+  const noticeBox = (await notice.boundingBox())!;
+  const plaidBox = (await page.getByTestId('connect-bank-btn').boundingBox())!;
+  expect(plaidBox.y, 'the Plaid button is below the notice that points at it').toBeGreaterThan(noticeBox.y);
+  // …and where the kept history starts is still said (H.1(b)).
+  await expect(page.getByTestId('simplefin-history')).toBeVisible();
 
   // Per-row freshness: the PROVEN fact, not the stale-feed hedge — and NO per-row remedy
   // (critic P1-2/P1-3: "reconnect" cannot resume a Plaid dangling row or a superseded
@@ -176,15 +191,6 @@ test('SimpleFIN accounts that OUTLIVED their connection get the honest disconnec
     await expect(line).not.toContainText('may need to reconnect');
     await expect(line).not.toContainText('Reconnect to resume');
   }
-
-  // Opening the door shows the reconnect framing (kept data + background backfill, bounded
-  // by what the bank still shares — never "resumes where your data stopped", critic P1-1)
-  // and the submit reads Reconnect — the reader is resuming, not starting over.
-  await page.getByTestId('simplefin-connect-btn').click();
-  await expect(page.getByTestId('simplefin-form')).toBeVisible();
-  await expect(page.getByTestId('simplefin-form')).toContainText('keeps everything already saved');
-  await expect(page.getByTestId('simplefin-form')).toContainText('as far back as your bank still shares');
-  await expect(page.getByTestId('simplefin-submit')).toHaveText('Reconnect');
 
   // Axe on the disconnected state — no other spec renders this notice.
   const axe = await new AxeBuilder({ page })

@@ -21,7 +21,7 @@
  */
 
 /** ISO date (YYYY-MM-DD) this policy was last reviewed. */
-export const PRIVACY_LAST_UPDATED = '2026-07-31';
+export const PRIVACY_LAST_UPDATED = '2026-10-02';
 
 /** Contact for privacy questions and deletion requests. */
 export const PRIVACY_CONTACT_EMAIL = 'michael.lee.p@gmail.com';
@@ -76,7 +76,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
         'Some data simply never enters the system:',
         {
           list: [
-            'Your bank username or password. Credentials go directly to Plaid Link (or SimpleFIN) and never touch our servers.',
+            'Your bank username or password. Credentials go directly to Plaid Link (or, for a connection made before SimpleFIN was retired, to SimpleFIN) and never touch our servers.',
             'Full card or account numbers are never requested from your bank, derived from your accounts, or displayed — only the last-4 mask is kept. (A file you upload yourself is stored exactly as you supplied it: we read its first few bytes to identify the file type and never inspect, index, or redact its contents.)',
             'Social Security numbers or other government identifiers.',
             'Plaid public tokens — these are exchanged for an encrypted access token immediately and discarded.',
@@ -107,7 +107,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
         'We do not sell your data, and the app shows no ads and loads no third-party tracking scripts. Data is shared only with the service providers that make features work:',
         {
           list: [
-            'Plaid or SimpleFIN — to securely connect your accounts and retrieve balances, transactions, and liabilities. You authorize the connection yourself, and you can revoke it at any time.',
+            'Plaid — to securely connect your accounts and retrieve balances, transactions, and liabilities. You authorize the connection yourself, and you can revoke it at any time. (SimpleFIN served the same purpose for connections made before it was retired; any such connection still works and can be revoked the same way.)',
             'Optional AI features (off unless an AI key is configured): to label an unrecognized transaction, only that transaction’s descriptor and amount are sent to the configured model provider — never your name, email, account numbers, or balances. For typed questions, only your question text is sent, to route it to a feature. If you choose to use the statement extractor, the statement text you explicitly paste is sent to the same provider after recognizable long digit runs (like card and account numbers) are removed — removal is best-effort and can miss unusual formats — that pasted text can include balances and whatever else you paste, so paste only the statement’s summary section; this never happens automatically. With no AI key, nothing leaves the app and a deterministic fallback is used instead.',
             'Hosting (e.g., Vercel) — the infrastructure the app runs on.',
           ],

@@ -15,7 +15,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmPrompt, useConfirmArm } from '@/components/ui/confirm-action';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
-import { ConnectSimplefin } from '@/components/finance/connect-simplefin';
+import { SimplefinConnection } from '@/components/finance/connect-simplefin';
 import { PlaidConnections } from '@/components/finance/plaid-connections';
 import { SyncAllButton } from '@/components/finance/sync-all-button';
 import { NetWorthTrendDrilldown } from '@/components/finance/net-worth-trend-drilldown';
@@ -597,8 +597,9 @@ export function AccountsList({
       {/* One button for every provider, above the per-connection controls. */}
       <SyncAllButton connected={data.simplefin.connected || data.plaid.items.length > 0} />
 
-      {/* Link real accounts: SimpleFIN (cheaper, no Plaid gatekeeping) or Plaid */}
-      <ConnectSimplefin connected={data.simplefin.connected} health={data.simplefin.health} orphaned={data.simplefin.orphaned} historyDepth={data.simplefin.historyDepth} />
+      {/* An existing SimpleFIN connection (or accounts that outlived one) — SimpleFIN is no
+          longer offered as a way to connect (DECISIONS #780). New links are Plaid, below. */}
+      <SimplefinConnection connected={data.simplefin.connected} health={data.simplefin.health} orphaned={data.simplefin.orphaned} historyDepth={data.simplefin.historyDepth} />
       <PlaidConnections items={data.plaid.items} />
       <ConnectAccountsButton />
 
