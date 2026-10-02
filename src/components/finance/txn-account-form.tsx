@@ -12,6 +12,7 @@ import {
 } from '@/server/transaction-account-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 
 const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreground';
 
@@ -43,11 +44,11 @@ export function TxnAccountControl({
       const res = await withDeadline(updateTransactionAccount(transactionId, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
       if (res.ok) {
-        window.location.reload();
+        reloadPreservingScroll();
         return;
       }
     } catch {
-      window.location.reload();
+      reloadPreservingScroll();
       return;
     } finally {
       setBusy(false);
@@ -81,6 +82,8 @@ export function TxnAccountControl({
           defaultValue={accountId}
           aria-invalid={result?.errors?.accountId ? true : undefined}
           aria-describedby={result?.errors?.accountId ? 'txn-account-error' : undefined}
+          // Kept inside its line by the base `select` rule in globals.css (a bank's
+          // account name is wider than a phone; critic cycle 3, F2).
           className={inputCls}
           data-testid="txn-account-select"
         >

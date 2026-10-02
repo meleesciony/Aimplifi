@@ -87,9 +87,14 @@ export default defineConfig({
     // in Chromium and break in Safari (exactly the /accounts report, 2026-07-21).
     // Scoped to the overflow gate for now (a full WebKit suite migration is its own
     // task); it renders the real Safari engine at the real phone widths.
+    //
+    // U.1b adds `activity-row.spec.ts`: the compact register row is a phone layout
+    // built on `display: contents` and CSS grid, the rest of the suite runs it with
+    // every row forced open, and the owner reads it in Safari — so the one spec that
+    // sees the row as a reader does must run in the engine the reader uses.
     {
       name: 'mobile-webkit',
-      testMatch: /mobile-overflow\.spec\.ts/,
+      testMatch: /(mobile-overflow|activity-row)\.spec\.ts/,
       use: {
         ...devices['iPhone 13'],
       },

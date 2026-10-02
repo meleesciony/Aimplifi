@@ -65,6 +65,22 @@ html {
   }
 }
 
+/* A <select> may not be wider than the line it sits on.
+   It is as wide as its longest option, and a bank's official account name runs to
+   fifty-odd characters — so every dropdown that lists accounts was wider than a phone
+   (the row's account editor measured 463px in a 280px line). `max-width` clamps the
+   box. Safari needs the second line too: its own stylesheet gives a select
+   `white-space: pre`, and the SELECTED name then still counts toward the page's
+   scroll width with the box clamped (measured in WebKit: 438px of content in that
+   280px line, and 227–262px of sideways scroll on Activity with such an account
+   chosen in the filter bar). In `@layer base` so any width utility still wins. */
+@layer base {
+  select {
+    max-width: 100%;
+    white-space: normal;
+  }
+}
+
 /* Wave M.2 — the tap-target floor (docs/MOBILE_UI_BRIEF.md). The finance list
    controls (accounts-list, transaction-list, shared-transaction-list, the shared
    ConfirmPrompt) render ~20px tall (px-1.5 py-0.5 text-xs), and even the shadcn

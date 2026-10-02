@@ -13,6 +13,7 @@ import {
 import { TAX_CLASSES, TAX_CLASS_LABELS, taxClassLabel } from '@/lib/engine/tax/classes';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 
 const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreground';
 
@@ -40,11 +41,11 @@ export function TxnTaxClassControl({
       const res = await withDeadline(updateTransactionTaxClass(transactionId, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
       if (res.ok) {
-        window.location.reload();
+        reloadPreservingScroll();
         return;
       }
     } catch {
-      window.location.reload();
+      reloadPreservingScroll();
       return;
     } finally {
       setBusy(false);
@@ -82,7 +83,7 @@ export function TxnTaxClassControl({
           defaultValue={taxClass ?? ''}
           aria-invalid={result?.errors?.taxClass ? true : undefined}
           aria-describedby={result?.errors?.taxClass ? 'txn-tax-error' : undefined}
-          className={`min-w-0 flex-1 ${inputCls}`}
+          className={`min-w-0 flex-1 max-sm:basis-full ${inputCls}`}
           data-testid="txn-tax-select"
         >
           <option value="">Untagged</option>

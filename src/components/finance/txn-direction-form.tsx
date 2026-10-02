@@ -12,6 +12,7 @@ import {
 } from '@/server/transaction-amount-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 
 export function TxnDirectionControl({
   transactionId,
@@ -36,11 +37,11 @@ export function TxnDirectionControl({
       const res = await withDeadline(flipTransactionDirection(transactionId), FORM_ACTION_DEADLINE_MS);
       setResult(res);
       if (res.ok) {
-        window.location.reload();
+        reloadPreservingScroll();
         return;
       }
     } catch {
-      window.location.reload();
+      reloadPreservingScroll();
       return;
     } finally {
       setBusy(false);

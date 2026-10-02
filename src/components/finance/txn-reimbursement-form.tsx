@@ -11,6 +11,7 @@ import { setReimbursement } from '@/server/transaction-flags-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
+import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 
 export function TxnReimbursementControl({
   transactionId,
@@ -41,9 +42,9 @@ export function TxnReimbursementControl({
         setBusy(false);
         return;
       }
-      window.location.reload();
+      reloadPreservingScroll();
     } catch {
-      window.location.reload();
+      reloadPreservingScroll();
     }
   }
 

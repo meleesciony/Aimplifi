@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { setExcludeFromTotals } from '@/server/transaction-flags-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 
 export function TxnExcludeControl({
   transactionId,
@@ -36,9 +37,9 @@ export function TxnExcludeControl({
         setBusy(false);
         return;
       }
-      window.location.reload();
+      reloadPreservingScroll();
     } catch {
-      window.location.reload();
+      reloadPreservingScroll();
     }
   }
 

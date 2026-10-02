@@ -17,6 +17,49 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-02 — U.1b: the compact register row (DECISIONS #779)
+
+**Picked up:** the owner's iPhone screenshot of his own Activity page — two rows to a screen —
+and his choice among three mock-ups: "compact, opens in place". **Measured first:** 300–350px a
+row on a signed-up account (the demo hides the controls that make it tall). **Built:** below
+`sm` a row is closed until its chevron opens it; closed keeps payee, amount, category, date,
+account, the class label and the chips that are facts or asks; open shows every control.
+CSS-hidden, never unmounted; one Set for the list; open rows restored in a layout effect so
+the scroll restorer finds the document at the height it was saved in.
+**Critic cycle 1: FAIL, 1 P1** — the first cut put the chevron in the old row's right-hand
+column, which made an OPEN row 15–20% taller than before while the ledgers said "as it was".
+**Fixed by laying the phone row out as a grid** (chevron first, payee and amount on line one,
+controls full-width beneath). **After:** closed 85–129px, mean 103 — about 7½ rows per 800px
+screen; an opened row is 226–267px on the phone profiles, against 279–353px before.
+**Critic cycle 2: FAIL, 3 P1** — each on a row the fixture did not have: a note longer than
+~20 characters pushed its controls off the screen; "open" was borrowed from the note/tax panel,
+so the first tap after opening that panel from a closed row closed the row instead of landing;
+the amount editor took the whole row. **Fixed:** the control group wraps with its line; opening
+the panel opens the row in the remembered set; the editor gets a line of its own. The fixture's
+note is now 34 characters and the spec locks all three at 360 / 380–390 / 430px. That long-note
+row opens at 294–320px (was 328px) — and 8px taller than before at 430px, said in #779.
+**Critic cycle 3: FAIL, 3 P1** — the table reproduced exactly; the defects were older than the
+slice and inside its claims. The Bank text editor and the account picker (with a long account
+name) left the screen; and the ten inline row editors reloaded with a bare
+`window.location.reload()`, so the row came back open and the reader came back 3,300px away —
+the owner's August complaint, fixed then for the menus only. **Fixed:** the editor takes its
+own line; one base rule keeps every `<select>` inside its line (and, for Safari, stops a long
+selected name widening the page — which it was also doing on the shipped filter bar); all ten
+editors reload through `reloadPreservingScroll`, fenced by a unit test. The browser test now
+presses a real Save. **Swept by the maker before cycle 4:** ten awkward rows × seven editors ×
+three popups × three widths × two engines — clean after the Safari fix it found.
+**Critic cycle 4: FAIL, 1 P1 — budget exhausted, human gate.** Cycle 3's fixes held (ten
+editors, 0px drift on real saves; the table reproduced; the dropdown rule moved nothing on 21
+routes). The P1 was the cycle-2 fix's own side effect: the note editor's text box left with
+53–83px beside its three buttons. **Fixed, unreviewed:** editor text fields take their own line
+on phones; the payee rename box is no longer clipped; the open-rows cap is out of a reader's
+reach. **Not shipped.** The owner decides whether a fifth cycle runs.
+**Left alone:** desktop, the shared-household list, every figure.
+**Locked:** `tests/e2e/activity-row.spec.ts` (real account, rows kept closed, Chromium and
+WebKit), `tests/unit/register-open-rows.test.ts`; the rest of the suite runs rows-open by
+harness flag. **Next:** U.1j (the out-of-scope class control). Gates, CI, live proof:
+`docs/STATUS.md`.
+
 ## 2026-10-02 — SimpleFIN retired as a way to connect (DECISIONS #780)
 
 **Picked up:** the owner's go-ahead to drop SimpleFIN "if we don't break stuff". **Checked

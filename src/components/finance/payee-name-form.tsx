@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { clearPayeeRename, renamePayee, type PayeeRenameResult } from '@/server/payee-rename-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 
 const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreground';
 
@@ -33,11 +34,11 @@ export function PayeeNameControl({
       const res = await withDeadline(renamePayee(transactionId, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
       if (res.ok) {
-        window.location.reload();
+        reloadPreservingScroll();
         return;
       }
     } catch {
-      window.location.reload();
+      reloadPreservingScroll();
       return;
     } finally {
       setBusy(null);
@@ -50,11 +51,11 @@ export function PayeeNameControl({
       const res = await withDeadline(clearPayeeRename(transactionId), FORM_ACTION_DEADLINE_MS);
       setResult(res);
       if (res.ok) {
-        window.location.reload();
+        reloadPreservingScroll();
         return;
       }
     } catch {
-      window.location.reload();
+      reloadPreservingScroll();
       return;
     } finally {
       setBusy(null);
@@ -88,7 +89,7 @@ export function PayeeNameControl({
           defaultValue={name}
           aria-invalid={result?.errors?.name ? true : undefined}
           aria-describedby={result?.errors?.name ? 'payee-rename-error' : undefined}
-          className={`w-56 ${inputCls}`}
+          className={`w-56 max-sm:w-full ${inputCls}`}
           data-testid="payee-rename-input"
         />
         <Button type="submit" size="sm" disabled={busy !== null} data-testid="payee-rename-save">

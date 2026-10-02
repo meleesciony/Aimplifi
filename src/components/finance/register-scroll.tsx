@@ -29,6 +29,16 @@
  * (docs/lessons/fence-by-construction-not-per-call-site.md). A mutation added
  * later gets the behaviour by calling the same reload everything else calls.
  *
+ * The ten row EDITORS (note, tax tag, amount, date, account, bank text, payee,
+ * direction, exclude, reimbursement) were missed by that sweep — they live in their
+ * own `*-form` modules and each called `window.location.reload()` directly, so an
+ * edit made in a row lost the reader's place while an edit made from the row's menus
+ * kept it (U.1b critic cycle 3). They call this now, and a unit test
+ * (`register-open-rows.test.ts`) fails if a form imported by the register row
+ * reloads any other way. Those editors also render on the transaction detail page and
+ * the Inbox; there the saved offset is simply never spent — it is keyed to the view it
+ * was measured in and expires.
+ *
  * When the offset may be spent — TTL, view match, malformed value — lives in
  * `register-scroll-store.ts`, where the node suite can execute every branch.
  */

@@ -770,4 +770,5 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #775 — Free-form tags: the fold at the writer, the total that is not a new number (2026-09-25) → docs/DECISIONS.md
 - #776 — Golf is a category; a doctor's visit is not food; eye care says eye doctor (2026-09-28) → docs/DECISIONS.md
 - #778 — Usability pass, wave 1: the page's job first, and nothing broken to fit (2026-10-02) → docs/DECISIONS.md
+- #779 — The compact register row: two lines until it is opened, every control one tap away (2026-10-02) → docs/DECISIONS.md
 - #780 — SimpleFIN is retired as a way to connect; everything already connected through it stays (2026-10-02) → docs/DECISIONS.md

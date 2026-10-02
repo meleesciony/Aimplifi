@@ -13,7 +13,7 @@
  * owning hooks would balloon hydration and delay the search box becoming
  * interactive. One controller + lightweight row buttons keeps hydration cheap.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   MERCHANT_LINK_CLASS,
@@ -21,7 +21,7 @@ import {
   withRegisterReturn,
 } from '@/lib/engine/transactions/links';
 import { useSearchParams } from 'next/navigation';
-import { Check, MoreHorizontal, Pencil, Receipt, Tag } from 'lucide-react';
+import { Check, ChevronDown, MoreHorizontal, Pencil, Receipt, Tag } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { formatISODate, isoDate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
@@ -65,6 +65,7 @@ import { TxnExcludeControl } from '@/components/finance/txn-exclude-form';
 import { TxnReimbursementControl } from '@/components/finance/txn-reimbursement-form';
 import { PayeeNameControl } from '@/components/finance/payee-name-form';
 import { reloadPreservingScroll } from '@/components/finance/register-scroll';
+import { readOpenRows, withRowOpen, writeOpenRows } from '@/components/finance/register-open-rows';
 import {
   PROVENANCE_BADGE_TESTID,
   PROVENANCE_CONFIRM_TESTID,
@@ -88,6 +89,52 @@ import { outOfScopeReason } from '@/lib/engine/spending-plan/spend-class';
 function taxTriggerLabel(t: TxnView): string {
   return taxClassLabel(t.taxClass) ?? (t.note ? 'Note' : 'Tag');
 }
+
+/**
+ * U.1b — the part of a row that is hidden on a phone until the row is opened.
+ *
+ * On a real account a row carries about eighteen controls, each a 44px tap target,
+ * wrapped into the ~175px left of the amount: 300–350px a row, two rows per screen
+ * (owner's screenshot, 2026-10-02 — the demo renders no edit controls, which is how
+ * an audit run on the demo missed it). The closed row keeps what a reader scans for
+ * and what says something is waiting — payee, amount, category, date, account, the
+ * class label the page lead promises on every row, and the Pending / Excluded /
+ * reimbursement / tag / needs-your-OK chips. Everything else carries this class and
+ * appears when the row's chevron opens it, where it stood before, unchanged.
+ *
+ * CSS, not conditional rendering: every control stays mounted, so desktop (where
+ * the class is inert) is the row it always was, and nothing about a control's
+ * state or test id depends on whether its row happens to be open.
+ */
+const ROW_REST = 'max-sm:group-data-[open=false]/row:hidden';
+
+/**
+ * U.1b — the row's layout on a phone: a three-column grid, laid over the same DOM
+ * the desktop flex row uses (the wrappers go `display: contents` below `sm`).
+ *
+ *   [⌄] payee ……………………… amount
+ *       chips, wrapping at full width
+ *       category · date · account …
+ *       (open)        money in/out  ⋯
+ *
+ * The chevron has its own narrow column and spans the first two lines, so it adds
+ * no height and takes no width from the controls; everything under the payee line
+ * spans the other two columns. This replaced "controls wrap in whatever is left of
+ * the amount", which was ~175px on a real account and — once the chevron joined
+ * that right-hand column — ~100px: the slice's first cut made an OPEN row 15–20%
+ * taller than the row it replaced (critic cycle 1, measured). From `sm` up none of
+ * these classes apply and the row is the flex row it always was.
+ */
+const ROW_GRID =
+  'max-sm:grid max-sm:grid-cols-[2.75rem_minmax(0,1fr)_auto] max-sm:items-center max-sm:gap-x-2 max-sm:gap-y-1';
+/** A line of the phone row under the payee: both content columns. */
+const ROW_LINE = 'max-sm:col-start-2 max-sm:col-span-2';
+/** Popups anchored in a ROW_LINE open from the row's left edge, not the content column's:
+ *  a 288px panel starting 52px in (chevron column + gap) would leave a 360px phone. */
+const ROW_POPUP_LEFT = 'max-sm:-left-[3.25rem]';
+
+/** A row's DOM id is this prefix + the transaction id; the open-row restore reads it back. */
+const ROW_DOM_ID_PREFIX = 'txn-row-';
 
 function amountClass(t: TxnView): string {
   // Excluded rows stay listed but leave every total (O.15) — the muted amount
@@ -136,6 +183,52 @@ export function TransactionList({
   // scroll to reach. Measured one-shot at open; a scroll while open can leave
   // the side stale (accepted P2, STATUS 2026-07-01).
   const [dropUp, setDropUp] = useState(false);
+
+  // --- The compact row (U.1b) --------------------------------------------------
+  // One Set for the whole list, like the three menu controllers below — never a
+  // hook per row. Rows start closed in the server HTML and in the first client
+  // render; the two things that can open them are read AFTER hydration, because a
+  // lazy initializer reading `window` would mismatch the server's closed rows.
+  const [openRows, setOpenRows] = useState<ReadonlySet<string>>(() => new Set());
+  // Harness only (the Home/Coach chapter precedent): the e2e suite predates the
+  // compact row and drives controls that now sit behind the chevron, so its init
+  // script opens every row. Production never sets the flag; the collapse lock
+  // (`activity-row.spec.ts`) sets KEEP_ROWS_CLOSED and tests what a reader gets.
+  const [allRowsOpen, setAllRowsOpen] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  // A LAYOUT effect that writes the DOM itself, then tells React. The order
+  // matters: `RegisterScrollRestorer` puts the reader back at their saved offset
+  // in a passive effect, and that offset was measured with their rows OPEN. A
+  // setState alone re-renders after the passive effects have run — the scroll
+  // would land in a document still short by every reopened row above it, and the
+  // rows would then open and push the reader's place down (Safari has no scroll
+  // anchoring to absorb it). This is the owner's 2026-08-03 report — "bring me to
+  // the top … when I'm trying to log many at a time" — one layer up: he opens a
+  // row, edits, the page reloads. So the attribute goes on synchronously here,
+  // before any passive effect, and the state below makes the next render agree.
+  useLayoutEffect(() => {
+    const w = window as Window & {
+      __AIMPLIFI_E2E_OPEN_ROWS?: boolean;
+      __AIMPLIFI_E2E_KEEP_ROWS_CLOSED?: boolean;
+    };
+    const all = Boolean(w.__AIMPLIFI_E2E_OPEN_ROWS) && !w.__AIMPLIFI_E2E_KEEP_ROWS_CLOSED;
+    const stored = readOpenRows();
+    if (!all && stored.size === 0) return;
+    for (const li of listRef.current?.querySelectorAll<HTMLElement>('[data-testid="txn-row"]') ?? []) {
+      if (all || stored.has(li.id.slice(ROW_DOM_ID_PREFIX.length))) li.setAttribute('data-open', 'true');
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration one-shot window/sessionStorage read (U.1b); a lazy useState initializer would hydration-mismatch the server's closed rows
+    if (all) setAllRowsOpen(true);
+    if (stored.size > 0) setOpenRows(stored);
+  }, []);
+
+  /** Open or close one row, and remember it for the reload the next edit ends in. */
+  function setRowOpen(id: string, next: boolean) {
+    if (openRows.has(id) === next) return;
+    const updated = withRowOpen(openRows, id, next);
+    setOpenRows(updated);
+    writeOpenRows(updated);
+  }
 
   /**
    * O.16 — the reader's place, as it stands right now, for every link that
@@ -524,7 +617,7 @@ export function TransactionList({
   }
 
   return (
-    <div className="space-y-4" data-testid="txn-list">
+    <div ref={listRef} className="space-y-4" data-testid="txn-list">
       {/* summary strip */}
       <div className="grid grid-cols-3 gap-2 text-sm" data-testid="txn-summary">
         <div className="min-w-0 rounded-md border p-2">
@@ -784,44 +877,105 @@ export function TransactionList({
                 const taxOpen = taxOpenId === t.id;
                 const actionsOpen = actionOpenId === t.id;
                 const pv = provenanceBadgeView(t.provenance);
+                // Open means IN THE SET — never "a panel happens to be up". The first
+                // cut derived it from the panels too, and a row held open only by its
+                // note panel snapped shut the instant the reader tapped any control
+                // the open had revealed: the outside-press that dismisses the panel
+                // closed the row before the tap landed (critic cycle 2, F2). The one
+                // panel reachable from a closed row (the note/tax trigger, on a row
+                // that has a note) puts its row in the Set when it opens — see
+                // `setRowOpen` at that trigger.
+                const rowOpen = allRowsOpen || openRows.has(t.id);
+                const rowDomId = `${ROW_DOM_ID_PREFIX}${t.id}`;
                 return (
                   <li
                     key={t.id}
-                    className="flex items-center justify-between gap-3 px-3 py-2"
+                    id={rowDomId}
+                    data-open={rowOpen ? 'true' : 'false'}
+                    className={`group/row flex items-center justify-between gap-3 px-3 py-2 ${ROW_GRID}`}
                     data-testid="txn-row"
                   >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5">
+                    {/* U.1b — the row's own disclosure, phones only (`sm:hidden`; from
+                        `sm` up nothing is hidden, so there is nothing to open). FIRST
+                        in the row, in the DOM and on screen: a disclosure's trigger
+                        comes before what it discloses, so Tab from the chevron lands
+                        in the row it just opened, not in the next one (critic cycle 1,
+                        F3) — and it is where this app's other disclosures put theirs.
+                        A real button with `aria-expanded`, not a tap on the row: the
+                        row is full of controls of its own. Closing a row also closes
+                        its note/tax panel and its action menu, so neither is left
+                        hanging over a row that no longer shows what opened it. No
+                        `aria-controls`: the thing it would name is the row this
+                        button sits in. */}
+                    <button
+                      type="button"
+                      data-testid="txn-row-toggle"
+                      aria-expanded={rowOpen}
+                      aria-label={`${rowOpen ? 'Hide' : 'Show'} all controls for this ${t.merchantName} transaction`}
+                      // 44×44 outright rather than via `tap-target`: this control
+                      // exists only below `sm`, and it is the one way into the row.
+                      className="col-start-1 row-span-2 row-start-1 inline-flex min-h-11 min-w-11 items-center justify-center self-center rounded text-muted-foreground hover:bg-accent hover:text-foreground sm:hidden"
+                      onClick={() => {
+                        const next = !rowOpen;
+                        if (!next) {
+                          if (taxOpen) closeTax();
+                          if (actionsOpen) closeActions();
+                        }
+                        setRowOpen(t.id, next);
+                      }}
+                    >
+                      <ChevronDown
+                        className={`size-4 transition-transform motion-reduce:transition-none ${rowOpen ? 'rotate-180' : ''}`}
+                        aria-hidden
+                      />
+                    </button>
+                    <div className="min-w-0 max-sm:contents">
+                      <div className="flex flex-wrap items-center gap-1.5 max-sm:contents">
                         {/* Merchant Pattern Lens entry (DECISIONS #250): the name
                             links to the merchant-filtered register + lens card.
                             When the household can rename (#657), the rename
                             control owns the name and a sibling Filter link
                             keeps the lens entry (#662). */}
                         {canEditSpendClass ? (
-                          <>
-                            <span className="truncate font-medium" data-testid="txn-merchant-name">
-                              <PayeeNameControl
-                                transactionId={t.id}
-                                name={t.merchantName}
-                                hasOverlay={t.payeeRenamed}
-                              />
-                            </span>
-                            <Link
-                              href={merchantRegisterHref(t.merchantName)}
-                              data-testid="txn-merchant-link"
-                              className={`shrink-0 text-[10px] ${MERCHANT_LINK_CLASS}`}
-                              aria-label={`See all charges for ${t.merchantName}`}
-                            >
-                              Filter
-                            </Link>
-                          </>
+                          <span
+                            // The rename control is an inline-block button, which a
+                            // `truncate` parent clips without an ellipsis — so the
+                            // button carries the truncation itself.
+                            // While the rename editor is up the span must not clip it:
+                            // its 224px input was cut off by 10–82px at the column's
+                            // edge (critic cycle 4). On a phone the input takes the
+                            // column's width instead (`max-sm:w-full` in the form).
+                            className="truncate font-medium has-[form]:overflow-visible max-sm:col-start-2 max-sm:row-start-1 [&>button]:max-w-full [&>button]:truncate [&>button]:align-bottom"
+                            data-testid="txn-merchant-name"
+                          >
+                            <PayeeNameControl
+                              transactionId={t.id}
+                              name={t.merchantName}
+                              hasOverlay={t.payeeRenamed}
+                            />
+                          </span>
                         ) : (
                           <Link
                             href={merchantRegisterHref(t.merchantName)}
                             data-testid="txn-merchant-link"
-                            className={`truncate ${MERCHANT_LINK_CLASS}`}
+                            className={`truncate max-sm:col-start-2 max-sm:row-start-1 ${MERCHANT_LINK_CLASS}`}
                           >
                             {t.merchantName}
+                          </Link>
+                        )}
+                        {/* The chips, as one wrapping line of their own on a phone.
+                            `sm:contents` — from `sm` up this wrapper generates no box
+                            and each chip is an item of the flex row above, exactly as
+                            before it existed. */}
+                        <div className={`flex flex-wrap items-center gap-1.5 max-sm:row-start-2 sm:contents ${ROW_LINE}`}>
+                        {canEditSpendClass && (
+                          <Link
+                            href={merchantRegisterHref(t.merchantName)}
+                            data-testid="txn-merchant-link"
+                            className={`shrink-0 text-[10px] ${MERCHANT_LINK_CLASS} ${ROW_REST}`}
+                            aria-label={`See all charges for ${t.merchantName}`}
+                          >
+                            Filter
                           </Link>
                         )}
                         {t.status === 'PENDING' && (
@@ -905,12 +1059,16 @@ export function TransactionList({
                           prefetch={false}
                           data-testid="txn-detail-link"
                           aria-label={`Open the details of this ${t.merchantName} transaction`}
-                          className="tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                          className={`tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground ${ROW_REST}`}
                         >
                           Details
                         </Link>
                         {canEditSpendClass ? (
-                          <span className="shrink-0">
+                          // On a phone the wrapper may shrink, and while the editor is
+                          // up it takes a full line: as a `shrink-0` item holding a
+                          // form it sat at the form's max-content width and put Save
+                          // and Cancel off the screen (critic cycle 3, F1).
+                          <span className={`shrink-0 max-sm:min-w-0 max-sm:shrink max-sm:has-[form]:basis-full ${ROW_REST}`}>
                             <TxnDescriptorControl
                               transactionId={t.id}
                               descriptor={t.rawDescriptor}
@@ -941,7 +1099,7 @@ export function TransactionList({
                           prefetch={false}
                           data-testid="txn-rule-link"
                           aria-label={`Create a categorization rule from this ${t.merchantName} transaction`}
-                          className="tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                          className={`tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground ${ROW_REST}`}
                         >
                           Rule…
                         </Link>
@@ -979,10 +1137,17 @@ export function TransactionList({
                           data-testid={PROVENANCE_BADGE_TESTID}
                           data-kind={pv.kind}
                           title="Why this category"
+                          // U.1b: the one badge that ASKS for something — "AI guess —
+                          // needs your OK", the only verdict with `needsConfirm` —
+                          // stays on the closed row beside its Confirm. Every other
+                          // verdict only reports how the category was reached ("Known
+                          // merchant", "Your rule", "Needs a category") and waits for
+                          // the open; an unfiled row still says so closed, because the
+                          // category chip under it reads "Uncategorized".
                           className={`shrink-0 text-[10px] ${
                             pv.tone === 'attention'
                               ? 'border-warning-500/60 text-warning-700 dark:text-warning-300'
-                              : 'text-muted-foreground'
+                              : `text-muted-foreground ${ROW_REST}`
                           }`}
                         >
                           {pv.label}
@@ -1032,10 +1197,11 @@ export function TransactionList({
                             </button>
                           </>
                         )}
+                        </div>
                       </div>
                       {t.suggestion?.reason && (
                         <p
-                          className="mt-0.5 text-[11px] text-muted-foreground"
+                          className={`mt-0.5 text-[11px] text-muted-foreground ${ROW_LINE}`}
                           data-testid="register-suggestion-reason"
                         >
                           {t.suggestion.reason}
@@ -1044,7 +1210,7 @@ export function TransactionList({
                       {confirmError?.id === t.id && (
                         <p
                           role="alert"
-                          className="mt-0.5 text-[11px] text-red-400"
+                          className={`mt-0.5 text-[11px] text-red-400 ${ROW_LINE}`}
                           data-testid="provenance-confirm-error"
                         >
                           {confirmError.msg}
@@ -1054,7 +1220,7 @@ export function TransactionList({
                       {actionError?.id === t.id && (
                         <p
                           role="alert"
-                          className="mt-0.5 text-[11px] text-red-400"
+                          className={`mt-0.5 text-[11px] text-red-400 ${ROW_LINE}`}
                           data-testid="txn-action-error"
                         >
                           {actionError.msg}
@@ -1062,7 +1228,7 @@ export function TransactionList({
                       )}
                       <div
                         ref={open ? menuRef : undefined}
-                        className="relative text-xs text-muted-foreground"
+                        className={`relative text-xs text-muted-foreground ${ROW_LINE}`}
                       >
                         <button
                           type="button"
@@ -1107,7 +1273,23 @@ export function TransactionList({
                           <span className="[overflow-wrap:anywhere]">{t.accountName}</span>
                         )}{' '}
                         {canEditSpendClass ? (
-                          <span className="inline-flex shrink-0 items-center gap-1">
+                          // On a phone this group is not a box at all (`contents`): its
+                          // controls join the line's own inline flow and wrap with it.
+                          // As an unbreakable `shrink-0` box it left the screen on any
+                          // row whose note ran past ~20 characters — by 57–105px once
+                          // the chevron column moved the line 52px in (critic cycle 2,
+                          // F1) — and as a wrapping box it took a full line to itself
+                          // and pushed the note/tax trigger after it onto another.
+                          // Desktop keeps the one-line group. (`ROW_REST` still hides
+                          // it on a closed row: its selector outranks `contents`.)
+                          <span
+                            className={`inline-flex shrink-0 items-center gap-1 max-sm:contents max-sm:[&>*:not(:last-child)]:mr-1 max-sm:[&>*]:align-middle ${ROW_REST}`}
+                          >
+                            {/* A line break, phones only: the controls start a line of
+                                their own. Sharing the last line of "category · date ·
+                                account" turned a short text line into a 44px one and
+                                spilled the rest onto a third. */}
+                            <span aria-hidden className="hidden max-sm:block" />
                             <TxnNoteControl
                               transactionId={t.id}
                               note={t.note}
@@ -1141,7 +1323,18 @@ export function TransactionList({
                             rather than wrapping, so a long class label cannot grow the
                             row either. Combined panel still writes note+tax together;
                             activity-note is the note-only path (#654). */}
-                        <span ref={taxOpen ? taxRef : undefined} className="relative inline-block">
+                        {/* U.1b: hidden on a closed phone row ONLY while it has nothing to
+                            say. Its label is the row's tax class, or the one word "Note"
+                            (that a note exists — its text is in the opened row) — a
+                            fact about the row, like the tags beside the payee — so a
+                            row that carries either keeps the control closed (critic F4).
+                            `max-sm:static`: on a phone the panel anchors to the line
+                            (the `relative` block above), not to this inline trigger,
+                            whose x position now varies with the line's wrapping. */}
+                        <span
+                          ref={taxOpen ? taxRef : undefined}
+                          className={`relative inline-block max-sm:static ${t.taxClass || t.note ? '' : ROW_REST}`}
+                        >
                           <button
                             type="button"
                             data-testid="txn-tax-trigger"
@@ -1155,6 +1348,11 @@ export function TransactionList({
                                 closeTax();
                                 return;
                               }
+                              // On a phone this trigger can sit on a CLOSED row (one
+                              // that has a note). Its panel belongs to the opened
+                              // row, so opening it opens the row — durably, in the
+                              // Set — rather than borrowing "open" from the panel.
+                              setRowOpen(t.id, true);
                               openTaxPanel(t, e.currentTarget.getBoundingClientRect().top);
                             }}
                           >
@@ -1176,7 +1374,7 @@ export function TransactionList({
                                   trigger?.focus();
                                 }
                               }}
-                              className={`absolute left-0 z-50 w-72 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-card p-2 text-left text-foreground shadow-lg ring-1 ring-foreground/10 ${
+                              className={`absolute left-0 z-50 w-72 max-w-[calc(100vw-2rem)] space-y-2 rounded-lg border bg-card p-2 text-left text-foreground shadow-lg ring-1 ring-foreground/10 ${ROW_POPUP_LEFT} ${
                                 taxDropUp ? 'bottom-full mb-1' : 'mt-1'
                               }`}
                             >
@@ -1271,7 +1469,7 @@ export function TransactionList({
                                 trigger?.focus();
                               }
                             }}
-                            className={`absolute left-0 z-50 max-h-72 w-72 max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border bg-card p-1 text-foreground shadow-lg ring-1 ring-foreground/10 ${
+                            className={`absolute left-0 z-50 max-h-72 w-72 max-w-[calc(100vw-2rem)] overflow-auto rounded-lg border bg-card p-1 text-foreground shadow-lg ring-1 ring-foreground/10 ${ROW_POPUP_LEFT} ${
                               dropUp ? 'bottom-full mb-1' : 'mt-1'
                             }`}
                           >
@@ -1474,31 +1672,49 @@ export function TransactionList({
                         )}
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    {/* On a phone this column and the amount group dissolve into the row's
+                        grid (`max-sm:contents`): the amount goes up beside the payee,
+                        and the flip and the ⋯ menu take the row's last line, right-
+                        aligned, when it is open. */}
+                    <div className="flex shrink-0 items-center gap-1 max-sm:contents">
                       {canEditSpendClass && !t.splitParentId ? (
-                        <span className="inline-flex shrink-0 items-center gap-1">
-                          <TxnAmountControl
-                            transactionId={t.id}
-                            amountCents={t.amountCents}
-                            triggerTestId="activity-amount"
-                            idleClassName={`shrink-0 tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${amountClass(t)}`}
-                          />
-                          <TxnDirectionControl
-                            transactionId={t.id}
-                            amountCents={t.amountCents}
-                            compact
-                            flipTestId="activity-direction"
-                          />
+                        <span className="inline-flex shrink-0 items-center gap-1 max-sm:contents">
+                          {/* Beside the payee while it is a figure; a line of its own
+                              while it is being edited. The editor is a ~260px form,
+                              and in the `auto` third column it took the whole row —
+                              the payee ended up underneath it and the flip outside
+                              the card (critic cycle 2, F3). */}
+                          <span className="max-sm:col-start-3 max-sm:row-start-1 max-sm:justify-self-end max-sm:has-[form]:col-span-2 max-sm:has-[form]:col-start-2 max-sm:has-[form]:row-start-auto max-sm:has-[form]:justify-self-start sm:contents">
+                            <TxnAmountControl
+                              transactionId={t.id}
+                              amountCents={t.amountCents}
+                              triggerTestId="activity-amount"
+                              idleClassName={`shrink-0 tabular-nums underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:decoration-foreground ${amountClass(t)}`}
+                            />
+                          </span>
+                          <span className={`inline-flex max-sm:col-start-2 max-sm:justify-self-end ${ROW_REST}`}>
+                            <TxnDirectionControl
+                              transactionId={t.id}
+                              amountCents={t.amountCents}
+                              compact
+                              flipTestId="activity-direction"
+                            />
+                          </span>
                         </span>
                       ) : (
-                        <div className={`tabular-nums ${amountClass(t)}`}>
+                        <div
+                          className={`tabular-nums max-sm:col-start-3 max-sm:row-start-1 max-sm:justify-self-end ${amountClass(t)}`}
+                        >
                           {formatCents(cents(t.amountCents), { signDisplay: 'always' })}
                         </div>
                       )}
                       {/* O.15 — the one action menu: the row's complete verb list.
                           Same content module the detail view renders, so the two
                           surfaces can never disagree about what a row can do. */}
-                      <div ref={actionsOpen ? actionRef : undefined} className="relative">
+                      <div
+                        ref={actionsOpen ? actionRef : undefined}
+                        className={`relative max-sm:col-start-3 max-sm:justify-self-end ${ROW_REST}`}
+                      >
                         <button
                           type="button"
                           data-testid="txn-action-trigger"

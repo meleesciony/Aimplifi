@@ -60,13 +60,20 @@ async function installRevealDrain(context: BrowserContext): Promise<void> {
   // Harness only: open Coach details so existing specs can reach Trajectory /
   // Habits cards. Production first-paint stays closed. The collapse lock sets
   // `__AIMPLIFI_E2E_KEEP_COACH_CLOSED` before navigation.
+  //
+  // Same for the register's compact rows (U.1b): on a phone a row's controls sit
+  // behind its chevron, and the specs that predate that drive those controls
+  // directly. OPEN_ROWS opens every row for them; `activity-row.spec.ts` sets
+  // `__AIMPLIFI_E2E_KEEP_ROWS_CLOSED` and locks what a reader actually gets.
   await context.addInitScript(() => {
     const w = window as Window & {
       __AIMPLIFI_E2E_OPEN_COACH?: boolean;
       __AIMPLIFI_E2E_OPEN_HOME?: boolean;
+      __AIMPLIFI_E2E_OPEN_ROWS?: boolean;
     };
     w.__AIMPLIFI_E2E_OPEN_COACH = true;
     w.__AIMPLIFI_E2E_OPEN_HOME = true;
+    w.__AIMPLIFI_E2E_OPEN_ROWS = true;
   });
 }
 

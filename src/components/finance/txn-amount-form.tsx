@@ -13,6 +13,7 @@ import {
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { cents, formatCents } from '@/lib/money';
+import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 
 const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreground';
 
@@ -41,11 +42,11 @@ export function TxnAmountControl({
       const res = await withDeadline(updateTransactionAmount(transactionId, fd), FORM_ACTION_DEADLINE_MS);
       setResult(res);
       if (res.ok) {
-        window.location.reload();
+        reloadPreservingScroll();
         return;
       }
     } catch {
-      window.location.reload();
+      reloadPreservingScroll();
       return;
     } finally {
       setBusy(false);

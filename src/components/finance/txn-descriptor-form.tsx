@@ -12,6 +12,7 @@ import {
 } from '@/server/transaction-descriptor-actions';
 import { withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
+import { reloadPreservingScroll } from '@/components/finance/register-scroll';
 
 const inputCls = 'rounded-md border bg-background px-2 py-1.5 text-sm text-foreground';
 
@@ -41,11 +42,11 @@ export function TxnDescriptorControl({
       );
       setResult(res);
       if (res.ok) {
-        window.location.reload();
+        reloadPreservingScroll();
         return;
       }
     } catch {
-      window.location.reload();
+      reloadPreservingScroll();
       return;
     } finally {
       setBusy(false);
@@ -83,7 +84,7 @@ export function TxnDescriptorControl({
           defaultValue={descriptor}
           aria-invalid={result?.errors?.descriptor ? true : undefined}
           aria-describedby={result?.errors?.descriptor ? 'txn-descriptor-error' : undefined}
-          className={`min-w-0 flex-1 font-mono ${inputCls}`}
+          className={`min-w-0 flex-1 font-mono max-sm:basis-full ${inputCls}`}
           data-testid="txn-descriptor-input"
         />
         <Button type="submit" size="sm" disabled={busy} data-testid="txn-descriptor-save">
