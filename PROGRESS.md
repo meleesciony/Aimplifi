@@ -17,6 +17,14 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-03 — "0977 counted twice": combined-away rows leave "Net worth today" (DECISIONS #782)
+
+Owner: "take a look into why some of my accounts are being counted twice, specifically 0977. And fix it." Production read (read-only, owner-authorized in-session; `scripts/audit-probes/dup-0977-*.mts`): the 0977 pair was already combined; a replay of the shipped boundary + cash-needed + net-worth engines over the live rows counted the card once everywhere money is summed. The doubling was the live point's LIST: every combined-away row at $0.00 in "Net worth today", and the change line refusing ("No comparison — N accounts joined"). Fixed in `netWorthSeries` (required `supersededAccountIds`; live point skips them at $0.00). Replay after: only the combined-away rows gone, figure identical, change line compares. The owner chose to keep live figures out of the repo; tests use invented balances.
+
+**Gate.** First Git Bash verify: tsc red on a stale local Prisma client (schema gained #781's columns; `src/generated` is gitignored, last generated 2026-09-26) — regenerated; second Git Bash run: 9 unit failures, 7 `database is locked` (all pass in isolation — the documented SQLite flake) + 2 `vercel-build.test.ts` (the documented Git Bash child-`bash` quirk). From PowerShell: **VERIFY GREEN**. Playwright mobile-380: `combined-live-point` + `o20d-bars` + `combined-accounts` **12/12**. FAIL-OLD: unit block 2 failed on HEAD's engine; e2e mutation (filter → `() => true`, rebuilt) fails with "No comparison — 1 account joined since …".
+
+**Critic (Opus, fresh context): cycle 1 PASS — 0 P0 / 0 P1 / 6 P2.** Taken: bystander-$0 test (kills the critic's surviving mutant), doc comment, #782 wording, probes owner-scoped. Recorded: P2-1 (drilldown U.6 label on a predecessor's history), P2-3 (composed tests pass `[]`).
+
 ## 2026-10-03 — Ask compares months (DECISIONS #781): shipped after the owner-authorized fifth critic cycle PASSED
 
 Four cycles spent (routing passed at 3; money's cycle-4 P1 — three records of one card — fixed by narrowing: a trimmed card takes no word and no older feed). Owner chose a fifth cycle: PASS, 0 P0 / 0 P1, 0 wrong figures in ~740k oracle questions. P2s → TASKS 2.9a.

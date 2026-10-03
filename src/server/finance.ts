@@ -542,6 +542,7 @@ export async function getDashboardData(
   const netWorthTrend = netWorthSeries({
     snapshots: snap.balanceSnapshots,
     accounts,
+    supersededAccountIds: snap.supersededAccountIds ?? [],
     today,
   });
 

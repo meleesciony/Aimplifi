@@ -138,7 +138,7 @@ describe('applyReconciliationBoundary — the money core', () => {
 
   it('R2 composed with the real series engine: live point counts the successor only, history splits at the cutover', () => {
     const out = apply([LINK]);
-    const series = netWorthSeries({
+    const series = netWorthSeries({ supersededAccountIds: [],
       snapshots: out.balanceSnapshots,
       accounts: out.accounts,
       today: '2026-08-15',
@@ -449,7 +449,7 @@ describe('applyReconciliationBoundary — the money core', () => {
       links: [{ ...LINK, cutoverDate: '2026-06-25' }],
     });
     expect(out.balanceSnapshots).toHaveLength(4);
-    const series = netWorthSeries({
+    const series = netWorthSeries({ supersededAccountIds: [],
       snapshots: out.balanceSnapshots,
       accounts: out.accounts.filter((a) => a.id !== 'other'),
       today: '2026-08-15',
@@ -915,7 +915,7 @@ describe('U.9 sibling predecessors — one real account connected twice', () => 
     expect(out.balanceSnapshots[0]!.accountId).toBe('s1');
 
     // And the money figure the owner would actually read.
-    const series = netWorthSeries({
+    const series = netWorthSeries({ supersededAccountIds: [],
       snapshots: out.balanceSnapshots.map((b) => ({
         accountId: b.accountId,
         date: b.date,
@@ -1198,7 +1198,7 @@ describe('U.12 — a genuine reading outranks a carried-forward repeat', () => {
     const reversed = u12Apply([S1, S2, LIVE], [...snapshots].reverse());
     expect(reversed.balanceSnapshots[0]!.accountId).toBe('s2');
 
-    const series = netWorthSeries({
+    const series = netWorthSeries({ supersededAccountIds: [],
       snapshots: out.balanceSnapshots.map((b) => ({
         accountId: b.accountId,
         date: b.date,
@@ -1316,7 +1316,7 @@ describe('U.12 — a genuine reading outranks a carried-forward repeat', () => {
       { accountId: 's2', date: '2026-01-31', balanceCents: 500_000, accountType: 'CREDIT' },
     ]);
     expect(out.balanceSnapshots[0]!.accountId).toBe('s2');
-    const series = netWorthSeries({
+    const series = netWorthSeries({ supersededAccountIds: [],
       snapshots: out.balanceSnapshots.map((b) => ({
         accountId: b.accountId,
         date: b.date,
@@ -1376,7 +1376,7 @@ describe('U.37 — a genuine reading outranks an echo across tiers', () => {
     expect(out.balanceSnapshots[0]!.balanceCents).toBe(500_000);
     expect(apply([...snapshots].reverse()).balanceSnapshots[0]!.accountId).toBe('succ');
 
-    const series = netWorthSeries({
+    const series = netWorthSeries({ supersededAccountIds: [],
       snapshots: out.balanceSnapshots.map((b) => ({
         accountId: b.accountId,
         date: b.date,
@@ -1608,7 +1608,7 @@ describe('U.37 — a genuine reading outranks an echo across tiers', () => {
       links: [{ predecessorAccountId: 'pred', successorAccountId: 'succ', cutoverDate: '2026-02-28' }],
     });
     expect(out.balanceSnapshots[0]!.accountId).toBe('succ');
-    const series = netWorthSeries({
+    const series = netWorthSeries({ supersededAccountIds: [],
       snapshots: out.balanceSnapshots.map((b) => ({
         accountId: b.accountId,
         date: b.date,
@@ -1679,7 +1679,7 @@ describe('U.7 — the winning observation carries its own class', () => {
     },
     date: string,
   ) => {
-    const series = netWorthSeries({
+    const series = netWorthSeries({ supersededAccountIds: [],
       snapshots: out.balanceSnapshots.map((b) => ({
         accountId: b.accountId,
         date: b.date,

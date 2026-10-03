@@ -28,6 +28,16 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-10-03 — "Net worth today" lists a combined card once (DECISIONS #782)
+
+**What it is.** Owner: "some of my accounts are being counted twice, specifically 0977." No figure was doubled — the 0977 pair was already combined and every money engine counted it once (production replay, read-only). The live point's breakdown listed every combined-away row at $0.00 beside its successor, and the change line under net worth refused: "No comparison — N accounts joined since …". Now the live point leaves combined-away rows out (only at $0.00, so no figure can move); history before each cutover is unchanged except for the P2-1 label below.
+
+**Gates (2026-10-03, PowerShell).** `bash scripts/verify.sh` **VERIFY GREEN** — tsc 0, probes tsc 0, eslint 0, vitest 653 files / 8,893 passed + 1 expected fail + 1 skipped, next build clean. Playwright mobile-380 `combined-live-point` + `o20d-bars` + `combined-accounts` 12/12. From Git Bash the same tree showed the two known environment failures (`vercel-build.test.ts` child bash; `database is locked` cascade) — not reproduced from PowerShell. Local note: `src/generated/prisma` was stale against #781's schema and had to be regenerated (`npx prisma generate`).
+
+**Critic (Opus, separate context): PASS — 0 P0 / 0 P1 / 6 P2** (DECISIONS #782). Open P2s: the drilldown's U.6 class label is read from the live point, so a combined-away row's pre-cutover history loses "counted here as money you owned/owed" when its recorded class differs from today's (no figure moves); ten composed boundary → series tests still pass `supersededAccountIds: []`.
+
+**Open (found, not changed).** The snapshot writer still records balance rows for disconnected predecessors (dropped by the boundary; no figure moves). Some older SimpleFIN→Plaid links on the owner's account pair rows whose names name different accounts — balances unaffected, pre-cutover history attributed to the linked account; U.15's re-audit territory.
+
 ## ✅ BUILT 2026-10-03 — Ask: one month against another, and a monthly average (DECISIONS #781) — critic cycle 5 PASS; shipped
 
 **What it is.** "Compare groceries in May to April", "did I spend more this month than last month", "average monthly dining over the last 6 months" — answered only on the accounts whose records are known whole for the months asked (rows, a live feed, or the reader's yes/no word), every other account named with what it has on record and why, and asked where an answer could change the figure. A month in progress is compared day for day. The rules are DECISIONS #781; the hand-worked values `tests/edge-cases/ask-same-account-comparison.md`.

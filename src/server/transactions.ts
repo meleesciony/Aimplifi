@@ -1637,7 +1637,12 @@ export async function getAccountsView(userId: string): Promise<AccountsView> {
     links: activeLinks,
   });
   const adjustedViews = boundary.accounts;
-  const trend = netWorthSeries({ snapshots: boundary.balanceSnapshots, accounts: adjustedViews, today });
+  const trend = netWorthSeries({
+    snapshots: boundary.balanceSnapshots,
+    accounts: adjustedViews,
+    supersededAccountIds: boundary.supersededAccountIds,
+    today,
+  });
 
   // Enrich each effective link for the "combined accounts" disclosure + Undo (names/masks from the
   // RAW rows, so the predecessor still reads by its own name). Ineffective links (deleted/withheld

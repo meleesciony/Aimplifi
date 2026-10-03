@@ -13,9 +13,9 @@
  * a shorter list, it is an understated figure (see `snapshot-plan.ts`, which
  * holds that invariant; the seed satisfies it with month-ends, U.4's live writer
  * with the day each month's balances were read). The live "today" point is
- * computed from current balances over ALL accounts — including manual items,
- * which may have no historical snapshots — so the latest point matches the
- * headline net worth exactly. Two points can therefore cover DIFFERENT account
+ * computed from current balances over every account — including manual items,
+ * which may have no historical snapshots — except a combined-away row at $0.00
+ * (#782), so the latest point matches the headline net worth exactly. Two points can therefore cover DIFFERENT account
  * sets; comparing them is `netWorthDelta`'s job, not a subtraction's.
  *
  * Every point carries its CONSTITUENTS — the signed account balances it was
@@ -67,8 +67,19 @@ export function netWorthSeries(input: {
     accountType: string | null;
   }[];
   accounts: readonly { id: string; name: string; type: string; currentBalanceCents: number }[];
+  /**
+   * The reconciliation boundary's effective predecessors (`supersededAccountIds`) — rows the
+   * user combined into another account. Kept in `accounts` so their pre-cutover snapshots
+   * still resolve, but left out of the LIVE point, whose job is "what your accounts are right
+   * now". Owner-reported 2026-10-03: the old ····0977 sat in "Net worth today" at $0.00 beside
+   * the live one (two `CREDIT CARD` rows — "counted twice"), and the combined-away rows made the
+   * change line read "No comparison — N accounts joined". REQUIRED for the same reason
+   * `accountType` is: an optional field lets a caller drop it with tsc clean.
+   */
+  supersededAccountIds: readonly string[];
   today: string;
 }): NetWorthSeriesPoint[] {
+  const superseded = new Set(input.supersededAccountIds);
   const accountById = new Map(input.accounts.map((a) => [a.id, a]));
   const byDate = new Map<string, NetWorthConstituent[]>();
 
@@ -104,9 +115,14 @@ export function netWorthSeries(input: {
   // though they carry no snapshot history). Replaces any same-dated snapshot.
   // The account's CURRENT type is the right class here — this point is what the
   // accounts are right now, not what they were.
+  //
+  // A combined-away row is not one of "your accounts right now": the boundary already zeroed it,
+  // so it can only add a $0.00 line that reads as a second copy of its successor. Skipped ONLY
+  // at zero, so this can never move the figure: a superseded row that somehow still carries a
+  // balance is in the headline, and stays here so the live point keeps matching it exactly.
   byDate.set(
     input.today,
-    input.accounts.map((a) => ({
+    input.accounts.filter((a) => !(superseded.has(a.id) && a.currentBalanceCents === 0)).map((a) => ({
       accountId: a.id,
       name: a.name,
       balanceCents: (isLiabilityType(a.type) ? -1 : 1) * a.currentBalanceCents,

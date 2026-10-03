@@ -149,7 +149,7 @@ describe('planMonthlyBalanceSnapshots × reconciliation boundary', () => {
       scheduled: [],
       links: [LINK],
     });
-    return netWorthSeries({
+    return netWorthSeries({ supersededAccountIds: [],
       snapshots: out.balanceSnapshots,
       accounts: out.accounts,
       today: '2026-06-30', // after the plan date, so the plan's bucket is a HISTORY point
@@ -185,7 +185,7 @@ describe('planMonthlyBalanceSnapshots × reconciliation boundary', () => {
       links: [LINK],
     });
     expect(out.balanceSnapshots).toHaveLength(2); // nothing de-duplicated
-    const series = netWorthSeries({
+    const series = netWorthSeries({ supersededAccountIds: [],
       snapshots: out.balanceSnapshots,
       accounts: out.accounts,
       today: '2026-06-30',
