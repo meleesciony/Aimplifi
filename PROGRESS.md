@@ -17,6 +17,10 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-03 — U.1b shipped: fifth critic cycle PASS (DECISIONS #779)
+
+Owner: "Update the compact row onto current main, re-run the fifth review, and ship if it passes." Rebased `uiux-pass` onto `48b78387` (ledger conflicts only, both sides kept). Gates green (the Git Bash / WSL `vercel-build` quirk noted in STATUS). Critic cycle 5 (Opus, separate context, own server and database): **PASS, 0 P0 / 0 P1 / 5 P2** — the cycle-4 note box now 246–316px wide (was 53px); P2s filed as TASKS U.1m. Also recorded X.1's ship proof (CI 37075733851 success; live 8 / 8, `scripts/x1-live-deploy-check.mjs`).
+
 ## 2026-10-02 — U.1b: the compact register row (DECISIONS #779)
 
 **Picked up:** the owner's iPhone screenshot of his own Activity page — two rows to a screen —
