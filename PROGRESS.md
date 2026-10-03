@@ -17,6 +17,14 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-03 — Ask compares months (DECISIONS #781): shipped after the owner-authorized fifth critic cycle PASSED
+
+Four cycles spent (routing passed at 3; money's cycle-4 P1 — three records of one card — fixed by narrowing: a trimmed card takes no word and no older feed). Owner chose a fifth cycle: PASS, 0 P0 / 0 P1, 0 wrong figures in ~740k oracle questions. P2s → TASKS 2.9a.
+
+## 2026-10-03 — (history) Ask: four critic cycles spent — at the human gate
+
+Owner: "Finish Ask: update its tests for the fixed layout, run the full checks, get an independent review, and ship." Picked up: the `ask-rebuild` WIP (closed grammar + same-account engine) with a layout fix already in the code (left-out accounts moved from fact rows into the sentence) and tests still expecting the old rows. Updated them; gates green; full Playwright 434 / 1 flaky / 0 failed. Critic cycle 1 (two lanes): FAIL — money P0 (a combined card's gap priced at $0) + P1 (unscoped headline); routing six P1s (subject read from any word, non-spending subjects, three worse-than-production answers, a self-looping chip, a raw production error, clipped labels). Fixed by rule, not by case: gaps between a card's records are stated and proven; edges from each account's own span, capped at today; the subject read exactly as the one-month question reads it; a month in progress compared day for day; buttons only where an answer follows; the action returns a result. Found adding the spec to WebKit: text typed before hydration left Ask disabled (present on main) — the view adopts it on mount. U.1b's ship proof recorded (CI 37084952022, live 13 / 13). Main checkout: the uncommitted #777 work parked on `ask-analyst-777-parked`; main fast-forwarded. Worktrees `_uiux_base`, `_critic_l19e`, `_sfin`, `_uiux` removed (each checked: nothing unique).
+
 ## 2026-10-03 — U.1b shipped: fifth critic cycle PASS (DECISIONS #779)
 
 Owner: "Update the compact row onto current main, re-run the fifth review, and ship if it passes." Rebased `uiux-pass` onto `48b78387` (ledger conflicts only, both sides kept). Gates green (the Git Bash / WSL `vercel-build` quirk noted in STATUS). Critic cycle 5 (Opus, separate context, own server and database): **PASS, 0 P0 / 0 P1 / 5 P2** — the cycle-4 note box now 246–316px wide (was 53px); P2s filed as TASKS U.1m. Also recorded X.1's ship proof (CI 37075733851 success; live 8 / 8, `scripts/x1-live-deploy-check.mjs`).

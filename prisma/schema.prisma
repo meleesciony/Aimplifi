@@ -369,6 +369,16 @@ model Account {
   // showing a history it cannot vouch for. onDelete SetNull so deleting a
   // merchant can never delete an account.
   paymentMerchantId     String?
+  // DECISIONS #781 — the reader's own word about where this account's RECORD starts and
+  // ends, asked once by Ask's same-account comparison ("did you stop using this card
+  // after its last transaction?"). Kept WITH the edge date it was given for: if the
+  // record later grows past that date the word no longer matches and is ignored — it is
+  // never a standing "closed" flag. Verdict: 'real' (the account began / ended there) or
+  // 'missing' (there is more, not on record). All four null = never asked or never answered.
+  recordStartWordDate    String?
+  recordStartWordVerdict String?
+  recordEndWordDate      String?
+  recordEndWordVerdict   String?
 
   autopay      AutopayConfig?
   statements   Statement[]

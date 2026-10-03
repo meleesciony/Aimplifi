@@ -121,6 +121,20 @@ export type AssistantGoalAction =
   /** targetAge = the user-stated retirement age; the server re-validates it (bounds +
    *  cross-field ordering) before persisting — no derived figure is trusted. */
   | { kind: 'save_retirement_age'; targetAge: number; label: string };
+/** A question the reader can answer with one tap, about one edge of one account's record
+ *  (spend_compare / spend_average — see answer-analyst.ts). The server re-derives the edge
+ *  from the account's own rows before it keeps the answer; nothing here is trusted. */
+export interface AssistantAccountQuestion {
+  accountId: string;
+  edge: 'start' | 'end';
+  /** The edge date the answer is kept against (YYYY-MM-DD). */
+  date: string;
+  prompt: string;
+  /** The edge is real: the account began / ended there. */
+  yesLabel: string;
+  /** Records are missing beyond the edge. */
+  noLabel: string;
+}
 export interface AssistantAnswer {
   kind: AssistantIntent['kind'];
   /** The direct answer, in plain language with the figure embedded. */
@@ -163,6 +177,8 @@ export interface AssistantAnswer {
   learned?: { entryId: string; phrase: string; status: 'flagged' | 'active' };
   /** An optional confirm-before-create action the UI may surface (e.g. save a goal). */
   action?: AssistantGoalAction;
+  /** Accounts left out of a comparison whose record a one-tap answer could complete. */
+  accountQuestions?: AssistantAccountQuestion[];
   /** The resolved intent, echoed so the next turn can resolve an ellipsis against
    *  it ("what about last month?" — TASKS 2.1). Set by the server orchestrator,
    *  never by an answer formatter; absent for `unknown` (nothing to carry). The

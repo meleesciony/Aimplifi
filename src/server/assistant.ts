@@ -9,7 +9,7 @@
  * via requireUserId; works fully with zero credentials (no LLM key → deterministic
  * routing + answers).
  */
-import { requireUserId, rateLimitDurable } from '@/server/authz';
+import { auditLog, requireUserId, rateLimitDurable } from '@/server/authz';
 import { getReconciliationBoundary } from '@/server/reconciliation';
 import { prisma } from '@/lib/db';
 import { getProvider } from '@/lib/providers/demo';
@@ -31,7 +31,9 @@ import { seededHorizon, solveWealthTarget } from '@/lib/engine/solve/wealth-targ
 import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
 import { wealthTargetPlanUnproven } from '@/lib/engine/fi/coach-copy';
 import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
-import { type ISODate } from '@/lib/dates';
+import { compareDates, isoDate, type ISODate } from '@/lib/dates';
+import { analystAccountRecords, buildAnalystAnswer, loadAccountRecordFacts, saveRecordEdgeWord } from '@/server/analyst';
+import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { asOfWindow, spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
 import { askVocabulary, mergeCategoryMeta, type CategoryMeta } from '@/lib/engine/categorize/categories';
@@ -126,6 +128,7 @@ const DELEGATES_OWN_BOUNDARY: ReadonlySet<AssistantIntent['kind']> = new Set([
 
 const EMPTY_HANDOVER_KEYS: ReadonlySet<string> = new Set();
 const EMPTY_TERMINAL_OF: ReadonlyMap<string, string> = new Map();
+const EMPTY_DROPPED: ReadonlyMap<string, readonly { from: string; to: string }[]> = new Map();
 
 /** Defensive bound on the question placed in a prompt / parsed (cheap DoS guard). */
 const MAX_QUESTION_LEN = 500;
@@ -296,7 +299,7 @@ export async function askAssistant(
     await recordUnknownQuestion({ userId, rawQuestion: question, llmGuessKind, resolvedIntent: tag });
   }
 
-  const withFrame = await composeAnswer(userId, intent, today, meta);
+  const withFrame = await composeAnswer(userId, intent, today, meta, spoken);
   if (viaLlm) return { ...withFrame, interpreted: true };
   // A learned phrasing is never served silently (audit §4 constitution: every
   // adaptation is visible and undoable). At the `flagged` band it carries the SAME
@@ -329,6 +332,8 @@ async function composeAnswer(
   intent: AssistantIntent,
   today: string,
   meta: ReadonlyMap<string, CategoryMeta>,
+  /** The reader's own category words — the chips are read back with them, as a tap will be. */
+  spoken: readonly { id: string; name: string }[] = [],
 ): Promise<AssistantAnswer> {
   // One snapshot read serves every "direct" intent; composed answers reuse the
   // shipped read-paths (which load the same snapshot) so they can't drift.
@@ -343,14 +348,14 @@ async function composeAnswer(
   // loaders fetch their own, and the composer views are unused. Direct
   // intents still fetch in parallel with the snapshot.
   const skipComposerBoundary = DELEGATES_OWN_BOUNDARY.has(intent.kind);
-  const [snap, { handoverKeys, terminalOf }] = await Promise.all([
+  const [snap, { handoverKeys, terminalOf, droppedOf }] = await Promise.all([
     getProvider().getFinanceSnapshot(userId),
     skipComposerBoundary
-      ? Promise.resolve({ handoverKeys: EMPTY_HANDOVER_KEYS, terminalOf: EMPTY_TERMINAL_OF })
+      ? Promise.resolve({ handoverKeys: EMPTY_HANDOVER_KEYS, terminalOf: EMPTY_TERMINAL_OF, droppedOf: EMPTY_DROPPED })
       : getReconciliationBoundary(userId),
   ]);
 
-  const built = await buildAnswer(intent, snap, userId, today, meta, handoverKeys, terminalOf);
+  const built = await buildAnswer(intent, snap, userId, today, meta, handoverKeys, terminalOf, droppedOf);
   // C.25 (#403, critic P1-C): the flow totals behind these answers exclude
   // loan payments carried elsewhere — the answer says so, in the same words
   // every view uses, or Ask would print a figure no basis sentence owns.
@@ -362,6 +367,8 @@ async function composeAnswer(
     intent.kind === 'spend_total' ||
     intent.kind === 'spend_by_category' ||
     intent.kind === 'top_categories' ||
+    intent.kind === 'spend_compare' ||
+    intent.kind === 'spend_average' ||
     intent.kind === 'income' ||
     intent.kind === 'savings_rate'
       ? (() => {
@@ -405,7 +412,8 @@ async function composeAnswer(
       : answer;
   // Contextual follow-up chips (TASKS 1.2 / #197): static intent→question map.
   // unknown already carries ASSISTANT_SUGGESTIONS from answerUnknown().
-  const followUps = followUpQuestions(intent);
+  // `today` lets the comparison buttons be read back before they are offered.
+  const followUps = followUpQuestions(intent, isoDate(today), spoken);
   const withChips =
     followUps.length > 0 ? { ...withTrace, suggestions: [...followUps] } : withTrace;
   // Echo the resolved intent so the next turn can swap one slot of it (TASKS 2.1).
@@ -470,7 +478,7 @@ export async function correctFromAsk(input: {
   // Return the correction handle with no answer; the client discloses the split
   // honestly (panels closed, undo offered, "ask again to refresh").
   try {
-    const answer = await composeAnswer(userId, intent, getProvider().today(userId), mergeCategoryMeta(custom, renames));
+    const answer = await composeAnswer(userId, intent, getProvider().today(userId), mergeCategoryMeta(custom, renames), askVocabulary(custom, renames));
     return { answer, correctionId: correctionIds[0] };
   } catch {
     return { answer: null, correctionId: correctionIds[0] };
@@ -497,10 +505,92 @@ export async function undoAskCorrection(input: {
   // durable and idempotent (a retried undo is a no-op), so a recompute failure
   // returns null rather than pretending the undo failed.
   try {
-    const answer = await composeAnswer(userId, intent, getProvider().today(userId), mergeCategoryMeta(custom, renames));
+    const answer = await composeAnswer(userId, intent, getProvider().today(userId), mergeCategoryMeta(custom, renames), askVocabulary(custom, renames));
     return { answer };
   } catch {
     return { answer: null };
+  }
+}
+
+/**
+ * Keep the reader's answer to an account question from a comparison ("did you stop
+ * using Freedom after Aug 14?"), then answer the same question again.
+ *
+ * Nothing the client sends is trusted beyond "which button, on which account":
+ *  - the account must be the caller's;
+ *  - the edge date must be the date that account's record ACTUALLY starts or ends at
+ *    right now, re-derived here from the same snapshot the comparison used — so a
+ *    stale tab, or a forged date, keeps nothing;
+ *  - the intent is re-validated like every client-carried intent.
+ * The shared demo account is refused: it must never be durably taught.
+ */
+/**
+ * What answering an account question returns. A RESULT, never a throw: a server action's
+ * thrown message is replaced by a generic one in production builds, and the reader saw
+ * "An error occurred in the Server Components render…" (critic, cycle 1).
+ */
+export type AccountQuestionResult =
+  /** The same question, answered again; `notice` when it was not the answer the reader chose to give. */
+  | { ok: true; answer: AssistantAnswer; notice?: string }
+  | { ok: false; error: string };
+
+export async function answerAccountQuestion(input: {
+  accountId: string;
+  edge: 'start' | 'end';
+  date: string;
+  /** true = "yes, the account began / ended there"; false = "no, there is more". */
+  real: boolean;
+  /** The answer's echoed intent — untrusted, re-validated here. */
+  intent: unknown;
+}): Promise<AccountQuestionResult> {
+  const userId = await requireUserId();
+  if (isDemoUser(userId)) return { ok: false, error: DEMO_ENTRY_BLOCKED };
+  const unknown = { ok: false as const, error: 'That question could not be read — please ask again.' };
+  if (input.edge !== 'start' && input.edge !== 'end') return unknown;
+  let date: ISODate;
+  try {
+    date = isoDate(String(input.date ?? ''));
+  } catch {
+    return unknown;
+  }
+  const { custom, renames } = await getCategoryOverlay(userId);
+  const intent = validateIntent(input.intent, askVocabulary(custom, renames));
+  if (!intent || (intent.kind !== 'spend_compare' && intent.kind !== 'spend_average')) return unknown;
+  const meta = mergeCategoryMeta(custom, renames);
+  const today = getProvider().today(userId);
+  const [snap, { terminalOf, droppedOf }, facts] = await Promise.all([
+    getProvider().getFinanceSnapshot(userId),
+    getReconciliationBoundary(userId),
+    loadAccountRecordFacts(userId, today),
+  ]);
+  const record = analystAccountRecords({ snap, facts, meta, terminalOf, droppedOf, today: isoDate(today) }).find(
+    (a) => a.id === input.accountId,
+  );
+  const edgeDate = record ? (input.edge === 'start' ? record.firstRowDate : record.lastRowDate) : null;
+  if (!record || !edgeDate || compareDates(edgeDate, date) !== 0) {
+    // Stale: the record moved since the question was put. Nothing is kept; the same
+    // question is answered as things stand now, so the old buttons leave the screen.
+    return {
+      ok: true,
+      answer: await composeAnswer(userId, intent, today, meta, askVocabulary(custom, renames)),
+      notice: 'That account has changed since this was asked, so nothing was saved — here is the answer as it stands now.',
+    };
+  }
+  // Only a question the app could have asked is kept: where a bank connection exists, it —
+  // not the reader — says where the record ends, so a word about that edge is not taken.
+  if (input.edge === 'end' && record.feed !== 'none') return unknown;
+  // Nor about an edge whose rows the boundary does not keep (a combined account's cut
+  // record): no answer can vouch for days that no longer count.
+  if (record.dropped?.some((d) => compareDates(d.from, date) <= 0 && compareDates(date, d.to) <= 0)) return unknown;
+  const verdict = input.real ? 'real' : 'missing';
+  await saveRecordEdgeWord({ userId, accountId: record.id, edge: input.edge, date, verdict });
+  // The word is saved; a failing audit write must not make the reader think it was not.
+  await auditLog(userId, 'account.recordEdgeWord', { accountId: record.id, edge: input.edge, date, verdict }).catch(() => undefined);
+  try {
+    return { ok: true, answer: await composeAnswer(userId, intent, today, meta, askVocabulary(custom, renames)) };
+  } catch {
+    // The answer IS kept; only the re-answer failed. Say exactly that, never "could not save".
+    return { ok: false, error: 'Your answer is saved, but the comparison could not be refreshed — ask the question again to see it.' };
   }
 }
 
@@ -519,6 +609,8 @@ async function buildAnswer(
   meta: ReadonlyMap<string, CategoryMeta>,
   handoverKeys: ReadonlySet<string>,
   terminalOf: ReadonlyMap<string, string>,
+  /** Each combined account's dropped date ranges, from the same boundary read (#781). */
+  droppedOf: ReadonlyMap<string, readonly { from: string; to: string }[]>,
 ): Promise<AssistantAnswer> {
   // TASKS L.18: one normalization of the snapshot rows into the assistant's shape, so every answer
   // and trace below sees `feedDroppedAt` and none of them can quote a frozen balance as a live one.
@@ -582,6 +674,29 @@ async function buildAnswer(
         intent.target,
         intent.timeframe,
       );
+    case 'spend_compare':
+    case 'spend_average': {
+      // One month against another / a monthly average, on the accounts whose records
+      // cover the months asked about (DECISIONS #781). Same snapshot rows, same
+      // `spendingByCategory`, same loan-payment exclusion and handover keys as the
+      // three cases above — so a month here is the month `spend_total` prints.
+      const answer = buildAnalystAnswer({
+        intent,
+        snap,
+        facts: await loadAccountRecordFacts(userId, today),
+        meta,
+        handoverKeys,
+        terminalOf,
+        droppedOf,
+        today,
+      });
+      // The shared demo account cannot be taught (the write below refuses it), so it is
+      // not asked: a question nobody can answer is a dead control.
+      if (!isDemoUser(userId) || !answer.accountQuestions) return answer;
+      const { accountQuestions: _unasked, ...rest } = answer;
+      void _unasked;
+      return rest;
+    }
     case 'top_categories':
       return answerTopCategories(
         spendingByCategory(

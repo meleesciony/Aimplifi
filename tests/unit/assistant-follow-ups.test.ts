@@ -48,6 +48,15 @@ function sampleIntent(kind: (typeof ASSISTANT_INTENT_KINDS)[number]): AssistantI
       };
     case 'merchant_spend':
       return { kind, timeframe: LAST_MONTH, merchant: 'costco' };
+    case 'spend_compare':
+      return {
+        kind,
+        currentYm: '2026-05',
+        baselineYm: '2026-04',
+        target: { type: 'category', categoryId: 'groceries', label: 'Groceries' },
+      };
+    case 'spend_average':
+      return { kind, fromYm: '2025-12', toYm: '2026-05', months: 6, target: null };
     case 'top_categories':
     case 'largest_purchases':
       return { kind, timeframe: THIS_MONTH, limit: 5 };

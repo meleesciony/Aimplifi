@@ -92,9 +92,12 @@ export default defineConfig({
     // built on `display: contents` and CSS grid, the rest of the suite runs it with
     // every row forced open, and the owner reads it in Safari — so the one spec that
     // sees the row as a reader does must run in the engine the reader uses.
+    //
+    // #781 adds `ask-compare.spec.ts`: Ask's comparison put a reason in a figure's slot
+    // and pushed the page sideways at 380px; its overflow and clipping checks run in Safari too.
     {
       name: 'mobile-webkit',
-      testMatch: /(mobile-overflow|activity-row)\.spec\.ts/,
+      testMatch: /(mobile-overflow|activity-row|ask-compare)\.spec\.ts/,
       use: {
         ...devices['iPhone 13'],
       },

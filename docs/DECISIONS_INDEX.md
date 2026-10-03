@@ -772,3 +772,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #778 — Usability pass, wave 1: the page's job first, and nothing broken to fit (2026-10-02) → docs/DECISIONS.md
 - #779 — The compact register row: two lines until it is opened, every control one tap away (2026-10-02) → docs/DECISIONS.md
 - #780 — SimpleFIN is retired as a way to connect; everything already connected through it stays (2026-10-02) → docs/DECISIONS.md
+- #781 — Ask compares two months, and averages a run of them, on the accounts whose records cover them (2026-10-03) → docs/DECISIONS.md

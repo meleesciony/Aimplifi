@@ -22,6 +22,7 @@ import type { DuplicateConfidence, ReconciliationMatchSignal } from '@/lib/engin
 import {
   accountIdentityMap,
   effectiveReconciliationLinks,
+  reconciliationDroppedRanges,
   reconciliationHandoverDates,
   reconciliationHandoverKeys,
   reconciliationTxnKeepFilter,
@@ -544,6 +545,12 @@ export async function getReconciliationBoundary(userId: string): Promise<{
   handoverKeys: ReadonlySet<string>;
   handoverDates: ReadonlySet<string>;
   terminalOf: ReadonlyMap<string, string>;
+  /**
+   * For each account a link touches, the date ranges its rows are NOT kept in
+   * (`reconciliationDroppedRanges`, the complement of the keep rule) — so Ask can tell a
+   * day on no kept record from a day with nothing spent (#781).
+   */
+  droppedOf: ReadonlyMap<string, readonly { from: string; to: string }[]>;
 }> {
   const { accounts, links, spans } = await loadReconciliationBoundaryInputs(userId);
   if (links.length === 0) {
@@ -552,6 +559,7 @@ export async function getReconciliationBoundary(userId: string): Promise<{
       handoverKeys: new Set<string>(),
       handoverDates: new Set<string>(),
       terminalOf: new Map<string, string>(),
+      droppedOf: new Map<string, { from: string; to: string }[]>(),
     };
   }
   return {
@@ -583,6 +591,7 @@ export async function getReconciliationBoundary(userId: string): Promise<{
     // `new Set(terminalOf.keys())`. Worth the check — an ordering difference here would
     // silently move the account scope of PERSISTED recurring rows.
     terminalOf: terminalSuccessorMap(accounts, links),
+    droppedOf: reconciliationDroppedRanges(accounts, links, spans),
   };
 }
 

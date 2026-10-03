@@ -115,7 +115,7 @@
  * reference, untouched — byte-identical demo output by construction. With links,
  * only affected rows are copied; every untouched row keeps its identity.
  */
-import { type ISODate, compareDates, isoDate } from '@/lib/dates';
+import { type ISODate, addDays, compareDates, isoDate } from '@/lib/dates';
 
 export interface ReconciliationLinkLike {
   predecessorAccountId: string;
@@ -614,6 +614,57 @@ export function reconciliationTxnKeepFilter<A extends BoundaryAccountLike>(
       .map((s) => [s.accountId, { first: isoDate(s.first), last: isoDate(s.last) }]),
   );
   return txnKeepRule(eff, cutover, txnSpan);
+}
+
+/**
+ * The date ranges (inclusive) in which each account's rows are NOT kept — the exact
+ * complement of `txnKeepRule`, from the same effective links and the same predecessor
+ * spans. For a reader that must know which days a combined account's records actually
+ * cover (#781 Ask: a day dropped from one record and absent from the other is on no kept
+ * record, and must never read as a real $0). One author for the rule — a caller
+ * re-deriving `min(cutover, last)` is how the combine guard drifted before (H.6b(b), U.13).
+ *
+ * A predecessor drops every day after its cutover (unless its claim is degenerate, A-F8);
+ * every account downstream of a predecessor drops `[that predecessor's first row, its claim
+ * end)` — exclusive at the claim end, the released handover day (U.13). Accounts with
+ * nothing dropped are absent from the map.
+ */
+export function reconciliationDroppedRanges<A extends BoundaryAccountLike>(
+  accounts: readonly A[],
+  links: readonly ReconciliationLinkLike[],
+  predecessorSpans: readonly PredecessorSpanLike[],
+): Map<string, { from: ISODate; to: ISODate }[]> {
+  const out = new Map<string, { from: ISODate; to: ISODate }[]>();
+  const eff = effectiveReconciliationLinks(accounts, links);
+  if (eff.length === 0) return out;
+  const cutover = new Map<string, ISODate>(eff.map((l) => [l.predecessorAccountId, isoDate(l.cutoverDate)]));
+  const txnSpan = new Map(
+    predecessorSpans
+      .filter((s) => cutover.has(s.accountId))
+      .map((s) => [s.accountId, { first: isoDate(s.first), last: isoDate(s.last) }]),
+  );
+  const { upstreamsOf } = chainMaps(eff);
+  const END_OF_TIME = isoDate('9999-12-31');
+  const ids = new Set(eff.flatMap((l) => [l.predecessorAccountId, l.successorAccountId]));
+  for (const id of ids) {
+    const ranges: { from: ISODate; to: ISODate }[] = [];
+    const cutSelf = cutover.get(id);
+    if (cutSelf !== undefined) {
+      const spanSelf = txnSpan.get(id);
+      const degenerate = spanSelf !== undefined && compareDates(cutSelf, spanSelf.first) < 0;
+      if (!degenerate) ranges.push({ from: addDays(cutSelf, 1), to: END_OF_TIME });
+    }
+    for (const p of upstreamsOf(id)) {
+      const span = txnSpan.get(p);
+      if (!span) continue;
+      const cut = cutover.get(p) as ISODate;
+      if (compareDates(cut, span.first) < 0) continue;
+      const claimEnd = compareDates(cut, span.last) < 0 ? cut : span.last;
+      if (compareDates(span.first, claimEnd) < 0) ranges.push({ from: span.first, to: addDays(claimEnd, -1) });
+    }
+    if (ranges.length > 0) out.set(id, ranges);
+  }
+  return out;
 }
 
 /**

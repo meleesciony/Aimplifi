@@ -7,7 +7,7 @@
  * math + phrasing happen server-side in pure, tested code. Copy follows the
  * coaching guardrails (educational, assumptions stated, no shame).
  */
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, CornerDownLeft, Sparkles } from 'lucide-react';
 import {
@@ -16,12 +16,13 @@ import {
   PAGE_SECTION_LABEL_CLASS,
   PAGE_TITLE_CLASS,
 } from '@/components/finance/page-chrome';
-import { askAssistant, correctFromAsk, undoAskCorrection } from '@/server/assistant';
+import { answerAccountQuestion, askAssistant, correctFromAsk, undoAskCorrection } from '@/server/assistant';
 import { saveDebtFreeGoal, saveRetirementAge, saveSavingsGoal } from '@/server/goal-actions';
 import { forgetLearnedPhrase } from '@/server/vocab-actions';
 import {
   ASSISTANT_SUGGESTIONS,
   humanDate,
+  type AssistantAccountQuestion,
   type AssistantAnswer,
   type AssistantGoalAction,
   type AssistantSource,
@@ -84,10 +85,21 @@ export function AskView({
     'idle' | 'saved' | 'savedStale' | 'undone' | 'undoneStale' | 'error'
   >('idle');
   const [pending, startTransition] = useTransition();
+  // An account question being answered (its own transition: the prior answer stays up).
+  const [asking, startAsking] = useTransition();
+  const [askError, setAskError] = useState<string | null>(null);
+  const [askNotice, setAskNotice] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
   const [forgetting, startForgetting] = useTransition();
   const [correcting, startCorrecting] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  // Text typed before hydration is in the box but not in `question`, and React's value
+  // tracker then treats the same text as no change — Ask stayed disabled until another
+  // keystroke (seen in WebKit on a slow first load). Adopt it once, on mount.
+  useEffect(() => {
+    const typed = inputRef.current?.value;
+    if (typed) setQuestion(typed);
+  }, []);
 
   function run(q: string) {
     const trimmed = q.trim();
@@ -104,6 +116,8 @@ export function AskView({
     setCorrectingTxnId(null);
     setLastCorrectionId(null);
     setCorrectionState('idle');
+    setAskError(null);
+    setAskNotice(null);
     // The previous answer's intent is the conversation frame (TASKS 2.1): it lets
     // the server resolve a follow-up fragment ("what about last month?") against
     // the question it follows. The server re-validates it; a self-sufficient
@@ -128,6 +142,34 @@ export function AskView({
     setQuestion(s);
     inputRef.current?.focus();
     run(s);
+  }
+
+  /**
+   * Answer an account question from a comparison ("did you stop using this card?"). The
+   * server keeps the answer and re-answers the SAME question, so the figure changes in
+   * place — the account the reader just vouched for is now in it (or is marked as one
+   * whose records are missing, and is not asked about again).
+   */
+  function answerQuestion(q: AssistantAccountQuestion, real: boolean) {
+    if (asking || pending || !answer?.intent) return;
+    setAskError(null);
+    setAskNotice(null);
+    const intent = answer.intent;
+    startAsking(async () => {
+      try {
+        const r = await answerAccountQuestion({ accountId: q.accountId, edge: q.edge, date: q.date, real, intent });
+        if (!r.ok) {
+          setAskError(r.error);
+          return;
+        }
+        setAnswer(r.answer);
+        if (r.notice) setAskNotice(r.notice);
+        // The answer was replaced in place: put focus on its headline, not on <body>.
+        requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-testid="ask-headline"]')?.focus());
+      } catch {
+        setAskError('Could not save that — please try again.');
+      }
+    });
   }
 
   function saveGoal(action: AssistantGoalAction) {
@@ -344,11 +386,18 @@ export function AskView({
                 )}
               </>
             ) : (
-              <p data-testid="ask-headline" className="text-base font-semibold tabular-nums">
+              // tabIndex -1: an answer replaced in place (an account question answered) moves
+              // focus here rather than dropping it to <body>.
+              <p data-testid="ask-headline" tabIndex={-1} className="text-base font-semibold tabular-nums focus:outline-none">
                 {answer.headline}
               </p>
             )}
             {answer.detail && <p className="mt-1 text-sm text-muted-foreground">{answer.detail}</p>}
+            {askNotice && (
+              <p role="status" data-testid="ask-account-question-notice" className="mt-2 text-sm text-muted-foreground">
+                {askNotice}
+              </p>
+            )}
 
             {/* Correction outcome (slice 2b): the figures above ARE the re-answered
                 question — say so plainly, and keep the undo one tap away. */}
@@ -406,7 +455,9 @@ export function AskView({
                   return (
                     <li key={i} data-testid="ask-fact">
                       <div className="flex items-center justify-between gap-3 text-sm">
-                        <span className="truncate text-muted-foreground">{f.label}</span>
+                        {/* Wraps, never truncates: a comparison's driver carries its two months'
+                            amounts in the label, and `truncate` hid them at 380px. */}
+                        <span className="min-w-0 break-words text-muted-foreground">{f.label}</span>
                         {fv ? (
                           <button
                             type="button"
@@ -462,6 +513,56 @@ export function AskView({
               >
                 {answer.source.label} <ArrowRight className="size-3.5" aria-hidden />
               </Link>
+            )}
+
+            {answer.accountQuestions && answer.accountQuestions.length > 0 && (
+              // Accounts the comparison had to leave out, each with the one question that
+              // would let it in. Answering re-answers in place; nothing leaves this page.
+              <div className="mt-3 space-y-3 border-t pt-3" data-testid="ask-account-questions">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {answer.accountQuestions.length === 1
+                    ? 'Your answer decides whether the comparison can include that account:'
+                    : 'Your answers decide whether the comparison can include those accounts:'}
+                </p>
+                {answer.accountQuestions.map((q) => (
+                  <div
+                    key={`${q.accountId}:${q.edge}`}
+                    role="group"
+                    aria-labelledby={`ask-q-${q.accountId}-${q.edge}`}
+                    className="space-y-1.5"
+                    data-testid="ask-account-question"
+                  >
+                    <p id={`ask-q-${q.accountId}-${q.edge}`} className="text-sm">
+                      {q.prompt}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => answerQuestion(q, true)}
+                        disabled={asking || pending}
+                        data-testid="ask-account-question-yes"
+                        className="tap-target inline-flex items-center rounded-xl border px-3 py-1.5 text-sm font-medium shadow-sm transition hover:border-foreground/30 disabled:opacity-60"
+                      >
+                        {q.yesLabel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => answerQuestion(q, false)}
+                        disabled={asking || pending}
+                        data-testid="ask-account-question-no"
+                        className="tap-target inline-flex items-center rounded-xl border px-3 py-1.5 text-sm font-medium shadow-sm transition hover:border-foreground/30 disabled:opacity-60"
+                      >
+                        {q.noLabel}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {askError && (
+                  <p className="text-xs text-red-500" role="alert" data-testid="ask-account-question-error">
+                    {askError}
+                  </p>
+                )}
+              </div>
             )}
 
             {answer.action && (

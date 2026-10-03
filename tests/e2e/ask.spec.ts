@@ -43,15 +43,27 @@ test('shows contextual follow-up chips after a spend answer and re-asks on click
 }) => {
   await signIn(page);
   await page.goto('/ask');
-  // "this month" = June 2026 on the demo clock — biggest purchase is the #249
-  // engineered Blue Bottle anomaly ($214.36), the same charge the Unusual Charge
-  // Radar flags (Ask and the radar agree by construction).
+  // "this month" = June 2026 on the demo clock. A one-month figure's third chip is the
+  // comparison (DECISIONS #781); June is still in progress, so it offers the two finished
+  // months behind it.
   await ask(page, 'How much did I spend on groceries this month?');
   const chips = page.getByTestId('ask-follow-up');
   await expect(chips).toHaveCount(3);
-  await chips.filter({ hasText: /biggest purchase/i }).click();
-  await expect(page.getByTestId('ask-answer')).toBeVisible();
-  await expect(page.getByTestId('ask-headline')).toContainText('Blue Bottle Coffee');
+  await expect(chips.filter({ hasText: /biggest purchase/i })).toHaveCount(0);
+  await chips.filter({ hasText: 'Compare Groceries spending in May 2026 to April 2026' }).click();
+  await expect(page.getByTestId('ask-answer')).toContainText('“Compare Groceries spending in May 2026 to April 2026”');
+  await expect(page.getByTestId('ask-answer')).toContainText('Reading: Groceries spending, May 2026 against April 2026');
+});
+
+test('a figure over more than one month keeps the biggest-purchase chip, and it re-asks', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/ask');
+  // A span is not one month, so it gets no comparison chip.
+  await ask(page, 'How much did I spend on groceries this year?');
+  const chips = page.getByTestId('ask-follow-up');
+  await expect(chips.filter({ hasText: /^Compare/ })).toHaveCount(0);
+  await chips.filter({ hasText: 'What was my biggest purchase 2026 so far?' }).click();
+  await expect(page.getByTestId('ask-answer')).toContainText('“What was my biggest purchase 2026 so far?”');
 });
 
 test('answers typed questions grounded in the seed', async ({ page }) => {

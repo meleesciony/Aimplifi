@@ -17,6 +17,7 @@ import { centsFromDollarString, formatCents, type Cents } from '@/lib/money';
 import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { MAX_GOAL_NAME } from '@/lib/engine/goals/goal-name';
 import { matchGoalName, leftoverAfterGoalName } from '@/lib/engine/goals/match';
+import { analystQuestionText, readAnalystQuestion } from './analyst-grammar';
 
 /** A resolved calendar window over month keys (inclusive), with a display label. */
 export interface Timeframe {
@@ -46,6 +47,14 @@ export type AssistantIntent =
   // from the data, so no merchant string is ever fabricated.
   | { kind: 'merchant_spend'; timeframe: Timeframe; merchant: string }
   | { kind: 'top_categories'; timeframe: Timeframe; limit: number }
+  /**
+   * One finished month against another, on the accounts whose records cover both
+   * (analyst/same-account.ts). `target: null` = all spending. Read only from the closed
+   * grammar in analyst-grammar.ts — and from the follow-up buttons, which print it.
+   */
+  | { kind: 'spend_compare'; currentYm: string; baselineYm: string; target: SpendTarget | null }
+  /** The monthly average over the `months` finished months `fromYm`…`toYm`. */
+  | { kind: 'spend_average'; fromYm: string; toYm: string; months: number; target: SpendTarget | null }
   // Optionally scoped to one merchant ("biggest purchase at Costco", TASKS
   // 2.7); `merchant` follows the merchant_spend contract — the user's cleaned
   // query term, matched against the transactions' own canonical names.
@@ -131,6 +140,8 @@ export const ASSISTANT_INTENT_KINDS: readonly AssistantIntentKind[] = [
   'spend_by_category',
   'merchant_spend',
   'top_categories',
+  'spend_compare',
+  'spend_average',
   'largest_purchases',
   'income',
   'safe_to_spend',
@@ -890,6 +901,18 @@ export function resolveSpendTarget(
  * "gas" / "natural gas" / "uber eats" own their phrases; "costco gas" does not
  * — `\bgas\b` is only a proper substring, so Ask must keep the store, not Fuel.
  */
+/** The target of the synonym that matches the phrase as a WHOLE, else null. */
+function synonymOwningWholePhrase(phrase: string): SpendTarget | null {
+  const p = phrase.normalize('NFC').toLowerCase().trim();
+  if (!p) return null;
+  for (const { re, target } of SYNONYMS) {
+    re.lastIndex = 0;
+    const m = re.exec(p);
+    if (m && m.index === 0 && m[0].length === p.length) return target;
+  }
+  return null;
+}
+
 function categorySynonymOwnsWholePhrase(phrase: string): boolean {
   const p = phrase.normalize('NFC').toLowerCase().trim();
   if (!p) return false;
@@ -2037,6 +2060,84 @@ function asksWhatToCut(q: string): boolean {
   );
 }
 
+/**
+ * Categories a comparison of SPENDING does not take as its subject: their rows are
+ * transfers (card payments, transfers), money set aside (savings), or loan payments the
+ * app may carry elsewhere (C.25) — "no spending on Credit Card Payment" would be a true
+ * figure about the wrong question. Income is never spending.
+ */
+const NOT_A_SPENDING_SUBJECT = new Set(['transfer', 'credit-card-payment', 'investment', 'loan-payment']);
+
+function isSpendingSubject(t: SpendTarget): boolean {
+  const ok = (id: string) => !NOT_A_SPENDING_SUBJECT.has(id) && CATEGORY_BY_ID.get(id)?.group !== 'Income';
+  if (t.type === 'category') return ok(t.categoryId);
+  if (t.type === 'categories') return t.categoryIds.every(ok);
+  // A group is a spending subject only if every category in it is ("Financial" holds loan
+  // payments and savings; "Transfers & Other" holds transfers and card payments).
+  return CATEGORIES.filter((c) => c.group === t.group).every((c) => ok(c.id));
+}
+
+/**
+ * The TARGET of an analyst question, read EXACTLY as the one-month question reads it —
+ * "how much did I spend on <phrase> last month" — so a comparison and the figure Ask
+ * gives for one month are always about the same thing (and a word the one-month route
+ * sends elsewhere, like "subscriptions", is not claimed). Then two more conditions:
+ *
+ *   - The phrase must BE the subject, not merely contain it: a synonym that owns the
+ *     whole phrase, or the target's own name, or one of the reader's category names.
+ *     "non-grocery", "costco groceries", "medical bills" each hold a category word and
+ *     are not that category; they are not read.
+ *   - It must be a spending subject (above).
+ */
+function analystTarget(phrase: string, today: ISODate, custom: readonly { id: string; name: string }[]): SpendTarget | null {
+  const p = phrase.normalize('NFC').trim().toLowerCase();
+  // A subject is a few words; a longer phrase is never one, and is not worth a nested parse.
+  if (!p || p.length > MAX_SUBJECT_CHARS) return null;
+  const oneMonth = parseAssistantQuery(`how much did i spend on ${p} last month`, today, custom);
+  if (oneMonth.kind !== 'spend_by_category') return null;
+  const t = oneMonth.target;
+  // Each proof that the phrase IS the subject must be a proof about `t` itself (critic
+  // cycle 2, N1): a custom "Dog Food" read by the one-month route as the Food & Dining
+  // group is the reader's own category, and it is NOT that group.
+  const same = (x: SpendTarget | null) => !!x && JSON.stringify(x) === JSON.stringify(t);
+  const named = custom.find((c) => c.name.normalize('NFC').trim().toLowerCase() === p);
+  const whole =
+    same(synonymOwningWholePhrase(p)) ||
+    t.label.normalize('NFC').toLowerCase() === p ||
+    (!!named && t.type === 'category' && t.categoryId === named.id);
+  return whole && isSpendingSubject(t) ? t : null;
+}
+
+/** Longest phrase read as a subject. The longest built-in name is well under it. */
+const MAX_SUBJECT_CHARS = 48;
+
+/** A question written in the analyst grammar, as an intent — else null. */
+export function analystIntent(
+  question: string,
+  today: ISODate,
+  custom: readonly { id: string; name: string }[] = [],
+): Extract<AssistantIntent, { kind: 'spend_compare' | 'spend_average' }> | null {
+  const read = readAnalystQuestion<SpendTarget>(question, today, (phrase) => {
+    const target = analystTarget(phrase, today, custom);
+    return target ? { target, label: target.label } : null;
+  });
+  if (!read) return null;
+  const target = read.target?.target ?? null;
+  return read.kind === 'spend_compare'
+    ? { kind: 'spend_compare', currentYm: read.currentYm, baselineYm: read.baselineYm, target }
+    : { kind: 'spend_average', fromYm: read.fromYm, toYm: read.toYm, months: read.months, target };
+}
+
+/** The sentence that reads back as this intent — what a follow-up button sends. */
+export function analystIntentText(intent: Extract<AssistantIntent, { kind: 'spend_compare' | 'spend_average' }>): string {
+  const target = intent.target ? { target: intent.target, label: intent.target.label } : null;
+  return analystQuestionText(
+    intent.kind === 'spend_compare'
+      ? { kind: 'spend_compare', currentYm: intent.currentYm, baselineYm: intent.baselineYm, target }
+      : { kind: 'spend_average', fromYm: intent.fromYm, toYm: intent.toYm, months: intent.months, target },
+  );
+}
+
 export function parseAssistantQuery(
   question: string,
   today: ISODate,
@@ -2045,6 +2146,12 @@ export function parseAssistantQuery(
 ): AssistantIntent {
   const q = normalize(question);
   if (!q) return { kind: 'unknown', question };
+
+  // Comparing two months / a monthly average. Read FIRST, and safely so: the grammar
+  // (analyst-grammar.ts) claims a sentence only when every word of it is accounted
+  // for, so nothing the routes below answer can be taken from them by accident.
+  const analyst = analystIntent(question, today, custom);
+  if (analyst) return analyst;
 
   // Net worth
   if (/\bnet[\s-]?worth\b/.test(q)) return { kind: 'net_worth' };
@@ -2651,6 +2758,33 @@ export function validateIntent(
       return isTimeframe(o.timeframe) && typeof o.limit === 'number' && o.limit > 0
         ? { kind: 'top_categories', timeframe: o.timeframe, limit: Math.min(20, Math.floor(o.limit)) }
         : null;
+    case 'spend_compare':
+    case 'spend_average': {
+      // `target: null` is all spending; anything else must be a real target, relabelled
+      // from its own identity like every other client-carried target.
+      let target: SpendTarget | null = null;
+      if (o.target !== null && o.target !== undefined) {
+        if (!isSpendTarget(o.target, validCustomIds)) return null;
+        target = withCanonicalLabel(o.target);
+        if (!target) return null;
+      }
+      const ym = (v: unknown): v is string => typeof v === 'string' && YM_RE.test(v);
+      if (o.kind === 'spend_compare') {
+        return ym(o.currentYm) && ym(o.baselineYm)
+          ? { kind: 'spend_compare', currentYm: o.currentYm, baselineYm: o.baselineYm, target }
+          : null;
+      }
+      // The run must be exactly `months` long, or the label and the figure could part.
+      return ym(o.fromYm) &&
+        ym(o.toYm) &&
+        typeof o.months === 'number' &&
+        Number.isInteger(o.months) &&
+        o.months >= 2 &&
+        o.months <= 24 &&
+        addMonthsToMonthKey(o.fromYm, o.months - 1) === o.toYm
+        ? { kind: 'spend_average', fromYm: o.fromYm, toYm: o.toYm, months: o.months, target }
+        : null;
+    }
     case 'largest_purchases': {
       if (!(isTimeframe(o.timeframe) && typeof o.limit === 'number' && o.limit > 0)) return null;
       const base = {
