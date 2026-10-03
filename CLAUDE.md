@@ -167,11 +167,9 @@ open items → `docs/STATUS.md`.
 
 ## Conventions
 
-* Next.js 15 App Router, TypeScript strict mode, Tailwind + shadcn/ui, Prisma +
-PostgreSQL (SQLite acceptable for local dev/test if Postgres is unavailable — keep the
-schema portable), NextAuth (Auth.js v5), TanStack Query, Recharts, Vitest + Playwright.
-* Path alias `@/*` → `src/*`. Engines in `src/lib/engine/`, providers in
-`src/lib/providers/`, money/date utilities in `src/lib/money.ts` and `src/lib/dates.ts`.
+* PostgreSQL via Prisma (SQLite acceptable for local dev/test if Postgres is unavailable —
+keep the schema portable). The rest of the stack is in `package.json`.
+* Money/date utilities are `src/lib/money.ts` and `src/lib/dates.ts`.
 * Currency formatting happens ONLY at the UI boundary via one `formatCents()` helper.
 * All copy follows the coaching guardrails: educational not advisory, no shame-based
 language, every projection states its assumptions inline.
