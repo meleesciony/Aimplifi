@@ -28,10 +28,26 @@ const page = await context.newPage();
 const pageErrors = [];
 page.on('pageerror', (e) => pageErrors.push(String(e)));
 
+/** Wait for the answer to `question` itself: a new headline, under that question's quote. */
+async function settle(question, previousHeadline) {
+  await page.waitForFunction(
+    ([q, prev]) => {
+      const answer = document.querySelector('[data-testid="ask-answer"]');
+      const headline = document.querySelector('[data-testid="ask-headline"]')?.textContent ?? '';
+      return !!answer && answer.textContent.includes(`“${q}”`) && headline !== prev && headline.length > 0;
+    },
+    [question, previousHeadline],
+    { timeout: 30000 },
+  );
+}
+
+const headlineNow = async () => ((await page.getByTestId('ask-headline').count()) ? await page.getByTestId('ask-headline').textContent() : '') ?? '';
+
 async function ask(question) {
+  const before = await headlineNow();
   await page.getByTestId('ask-input').fill(question);
   await page.getByTestId('ask-submit').click();
-  await page.getByTestId('ask-answer').waitFor({ timeout: 30000 });
+  await settle(question, before);
 }
 
 const answerText = async () => (await page.getByTestId('ask-answer').textContent()) ?? '';
@@ -66,8 +82,9 @@ try {
   );
 
   if ((await chip.count()) === 1) {
+    const before = await headlineNow();
     await chip.click();
-    await page.getByTestId('ask-answer').filter({ hasText: 'Compare Groceries spending' }).waitFor({ timeout: 30000 });
+    await settle('Compare Groceries spending in May 2026 to April 2026', before);
   }
   const tapped = await answerText();
   check(
