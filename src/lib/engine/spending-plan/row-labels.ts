@@ -92,6 +92,13 @@ export function planRowLabels(
  */
 function incomeLabel(plan: SpendingPlan): string {
   if (plan.incomeBasis === 'user-set') return 'Income (you set)';
+  // DECISIONS #785: pay on a rhythm at its yearly rate. Never zero by
+  // construction (the basis is chosen only when the rate is above $0).
+  if (plan.incomeBasis === 'regular-pay') {
+    return (plan.regularPay?.otherMonthlyCents ?? 0) > 0
+      ? 'Income (regular pay + other income, monthly)'
+      : 'Income (regular pay, monthly average)';
+  }
   if (plan.incomeBasis === 'trailing-median') {
     const months = `${plan.incomeMonths} month${plan.incomeMonths === 1 ? '' : 's'}`;
     return plan.patternIncomeCents === 0

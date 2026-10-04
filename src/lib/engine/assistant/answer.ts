@@ -22,6 +22,7 @@ import {
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
 import { taxLeftOutSentence } from '@/lib/engine/spending-plan/tax-copy';
+import { regularPayBasisSentence } from '@/lib/engine/spending-plan/regular-pay';
 import {
   BUDGETS_CARD_NOTE_SURFACE,
   planCardNotes,
@@ -1481,6 +1482,8 @@ export function answerSafeToSpend(
     const basis =
       plan.incomeBasis === 'user-set'
         ? 'That is the monthly income you set on the plan, minus fixed costs and your planned savings. '
+        : plan.incomeBasis === 'regular-pay' && plan.regularPay
+        ? `${regularPayBasisSentence(plan.regularPay)} Fixed and recurring expenses and your planned savings come off it. `
         : plan.incomeBasis === 'trailing-median'
         ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of earned pay in the checking account that pays your cards, minus fixed and recurring expenses and your planned savings. Investment income, interest, and money moved in from savings are left out. ${
             plan.incomeMonths >= 3
@@ -1506,6 +1509,8 @@ export function answerSafeToSpend(
     detail: withQualifiers(
       plan.incomeBasis === 'user-set'
         ? 'That is the monthly income you set on the plan, minus fixed costs and your planned savings. Discretionary spending is never subtracted.'
+        : plan.incomeBasis === 'regular-pay' && plan.regularPay
+        ? `${regularPayBasisSentence(plan.regularPay)} Fixed and recurring expenses and your planned savings come off it. Discretionary spending is never subtracted.`
         : plan.incomeBasis === 'trailing-median'
         ? `That is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of earned pay in the checking account that pays your cards, minus fixed and recurring expenses and your planned savings. Investment income, interest, and money moved in from savings are left out. ${
             plan.incomeMonths >= 3

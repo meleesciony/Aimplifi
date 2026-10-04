@@ -40,8 +40,8 @@ export function PlanSlideNotice({
     const abs = formatCents(cents(Math.abs(incomeSlideCents)));
     lines.push(
       incomeSlideCents > 0
-        ? `Income from categories is ${abs} above your intention (${formatCents(cents(suggestedIncomeCents))} from data).`
-        : `Income from categories is ${abs} below your intention (${formatCents(cents(suggestedIncomeCents))} from data).`,
+        ? `Income from your data is ${abs} above your intention (${formatCents(cents(suggestedIncomeCents))} from data).`
+        : `Income from your data is ${abs} below your intention (${formatCents(cents(suggestedIncomeCents))} from data).`,
     );
   }
   if (fixedLocked && fixedSlideCents !== 0) {

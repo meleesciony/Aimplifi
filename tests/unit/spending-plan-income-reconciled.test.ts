@@ -108,6 +108,14 @@ describe('getSpendingPlan — income across a reconciled payment account', () =>
     expect(plan.incomeMonths).toBe(3);
     expect(plan.incomeBasis).toBe('trailing-median');
     expect(plan.patternIncomeCents).toBe(1000000);
+    // DECISIONS #785 reads regular pay from the SAME remapped rows, so the re-link
+    // must not delete it either: the predecessor's May / June / July $10,000.00
+    // deposits are a monthly rhythm (the $4,000.00 part-deposit falls below 0.5×
+    // the payer's typical payday); on the pre-fix scope only 07-24 is visible and
+    // no rhythm exists. The plan still keeps the median — that payroll's first
+    // deposit (May 8) is inside the May–July window, so it is not yet "clear".
+    expect(plan.regularPay?.streams.map((s) => [s.frequency, s.paycheckCents])).toEqual([['monthly', 1000000]]);
+    expect(plan.regularPay).toMatchObject({ clean: false, fallback: 'new-paycheck', monthlyCents: 0 });
   });
 
   it('July counts BOTH sides exactly once — the boundary owns the overlap, not the scope', async () => {

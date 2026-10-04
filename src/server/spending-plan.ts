@@ -8,7 +8,10 @@
  * the owner reported "i don't have 22k or so income coming in" over a July plan
  * whose received+remaining-occurrence income term read $22,254.09. Income is
  * now the MEDIAN of the last three complete months' income on the payment
- * CHECKING account (or every CHECKING account when none is set) — never
+ * CHECKING account (or every CHECKING account when none is set) — or, only when
+ * ONE steady paycheck clearly explains the household's pay, that paycheck at its
+ * yearly rate plus the small usual month of everything else (DECISIONS #785,
+ * `regularPayFromRows`, `clean`) — never
  * SAVINGS/money-market or investment activity (owner 2026-08-01: those are
  * already saved/invested). A one-time inflow touches no month but its own.
  * Fixed expenses prefer Fixed-category purchase rollups (budget|typical),
@@ -39,6 +42,7 @@ import {
   type SpendingPlanDisclosures,
 } from '@/lib/engine/spending-plan/plan';
 import { monthlyGuiltFreeIncomeCents } from '@/lib/engine/spending-plan/income-pattern';
+import { regularPayFromRows } from '@/lib/engine/spending-plan/regular-pay';
 import {
   fixedSpendCategoryIdsInMonths,
   monthlyNonDiscretionaryCents,
@@ -213,6 +217,12 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     .filter((f) => f.month < ym)
     .slice(-3)
     .map((f) => f.incomeCents);
+  // DECISIONS #785: pay on a rhythm, read from the SAME income-account rows the
+  // median reads (through the same boundary and terminal-account mapping, so a
+  // re-linked checking's history is one account, never two). The plan uses it
+  // only when it is `clean` (one steady paycheck clearly explains the
+  // household's pay); every other household keeps the median above.
+  const regularPay = regularPayFromRows(incomeTxns, isoDate(today));
 
   // Fixed pattern (#371/#376; per-transaction as of #397): non-discretionary
   // spend across spending accounts (checking / savings / credit) — groceries on
@@ -543,6 +553,7 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
   const plan = computeSpendingPlan({
     today,
     trailingMonthlyIncomeCents,
+    regularPay,
     scheduledIncome,
     scheduledFixed,
     trailingMonthlyFixedCents,

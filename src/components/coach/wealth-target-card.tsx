@@ -82,8 +82,9 @@ export function WealthTargetCard({
   monthlySavingsCents: Cents;
   /**
    * The MEAN of categorized monthly income over the real window (`server/coach.ts`, the last
-   * ≤6 complete months), which is NOT the spending plan's income (a 3-month median over
-   * non-credit accounts). The two differ, so the share-of-income sentence names its own window
+   * ≤6 complete months), which is NOT the spending plan's income (regular pay at its yearly
+   * rate plus other income when one steady paycheck explains the pay, else a 3-month median — DECISIONS
+   * #785). The two differ, so the share-of-income sentence names its own window
    * rather than saying "your income" and letting the reader assume it matches the guilt-free
    * figure in the next sentence.
    */

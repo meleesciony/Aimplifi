@@ -17,6 +17,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-04 — Regular pay plans the month, when one steady paycheck explains the pay (DECISIONS #785)
+
+Owner, after #784 ("Base pay plans the month"): "this app eventually will be used by many people, the base app has to cover everyone, think of a different approach." Read-only production probes (owner-run, figures kept out of the repo) showed the shipped recurring detector found no payroll series at all — real paychecks drift by cents.
+
+**Picked up / closed.** New pure engine `src/lib/engine/spending-plan/regular-pay.ts`: a steady paycheck at its yearly rate (×26/12 biweekly, ×24/12 twice a month, ×52/12 weekly) plus a small usual remainder, used ONLY when one steady paycheck clearly explains the household's pay (unbroken run before the window; one level within 2% over the last eight; newest payday ordinary; no other steady payroll; other pay ≤ 10% of a usual month); every other household keeps the three-month median exactly. Plan basis `'regular-pay'` (plan reads `clean`), loader wiring, one sentence author for the glass box and both Ask branches, row label, /budgets note, plan-figures copy. Deploy probe `scripts/regular-pay-live-deploy-check.mjs` (bundle marker + the demo still on the median).
+
+**Three human gates (owner).** Critic cycles 1–5 FAIL on a design that modelled every household → owner: fail closed ("Simplify, then 6th review"). Cycle 6 FAIL (step-down planned at the old level; copy over-promised) → fixed → owner: a 7th review. Cycle 7 FAIL (a second payroll's raised paydays counted twice) → owner: one steady paycheck only, then an 8th review. **Cycle 8 PASS (0 P0 / 0 P1)**; its P2-1/2/3 and P3-1/2 taken before ship.
+
+**Gate.** Git Bash `VERIFY_E2E=1`: tsc/eslint 0, 8,955 unit passed (+ the known Git Bash `vercel-build.test.ts` 2 — 3/3 from PowerShell on the same tree), build clean, Playwright 465 passed / 2 flaky / 2 failed (the recorded pre-existing `rule-inventory.spec.ts:81` and `transactions.spec.ts:1015` flakes — alone on this tree: passed, and passed on retry). Mutation 40/40 killed. Live-figure scan of the whole slice diff: clean.
+
+**Gate read.** CI and the live probe: see the record commit.
+
 ## 2026-10-03 — "Over plan" after a tax payment: charges filed as taxes leave the guilt-free plan (DECISIONS #783)
 
 Owner, with a screenshot of Guilt-free far "Over plan": "How is it that I'm over plan by [that much]?", then "I think the app got tricked because I had a large tax payment recently … that was last month not oct" and "Certain things like tax payments shouldn't be considered in budget." Production read: the shipped `getSpendingPlan`, replayed from a scratch worktree with a Postgres client in a `default_transaction_read_only=on` session (the harness refused production reads from this session; the owner ran both probes in their own terminal and pasted the output — figures stay out of the repo). Cause: the Taxes line of the Fixed category rollup averaged a large IRS payment over 2 observed months.

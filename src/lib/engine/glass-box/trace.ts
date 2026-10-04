@@ -39,6 +39,7 @@ import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spendin
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
 import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
 import { taxRuleSentence } from '@/lib/engine/spending-plan/tax-copy';
+import { regularPayBasisSentence } from '@/lib/engine/spending-plan/regular-pay';
 import {
   BUDGETS_CARD_NOTE_SURFACE,
   planCardNotes,
@@ -335,6 +336,8 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
     income: [
       plan.incomeBasis === 'user-set'
         ? `Income is the monthly figure you set on this plan (suggested from your data: ${formatCents(cents(plan.suggestedIncomeCents))}).`
+        : plan.incomeBasis === 'regular-pay' && plan.regularPay
+        ? regularPayBasisSentence(plan.regularPay)
         : plan.incomeBasis === 'trailing-median'
         ? `Income is the median of your last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'} of earned pay in the checking account that pays your cards — a pattern, so the figure does not swing with what has posted so far this month. Investment income, interest, and money moved in from savings or a money-market are left out. ${
             plan.incomeMonths >= 3

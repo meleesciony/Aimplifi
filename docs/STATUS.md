@@ -28,9 +28,26 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-10-04 — Regular pay plans the month (DECISIONS #785)
+
+**What it is.** When one steady paycheck clearly explains a household's recent pay, income = that paycheck at its yearly rate (×26/12 every two weeks, ×24/12 twice a month, ×52/12 weekly) plus a small usual remainder; every other household keeps the three-month median exactly as before. Bonuses never plan the month. The owner's own figure is theirs to confirm on their account (the read-only replay probe, owner-run; not in the repo).
+
+**Gates.** (2026-10-04, the shipped tree, ledgers included.) Git Bash `VERIFY_E2E=1 bash scripts/verify.sh`: tsc 0, probes tsc 0, eslint 0; vitest 655 files passed + 1 failed — 8,955 passed, the 2 failures `tests/unit/vercel-build.test.ts` (the known Git Bash child-bash environment failure; **3/3 from PowerShell on the same tree**, with `ledger-decisions-index` + `link-audit`: 31/31); `next build` compiled; Playwright **465 passed / 2 flaky / 2 failed** — `rule-inventory.spec.ts:81` and `transactions.spec.ts:1015`, both recorded pre-existing flakes in this file (the first also fails on pre-change commits; the second is the needs-a-category flake). Run alone on this tree: rule-inventory passed first try; transactions:1015 failed once and passed on retry. Neither touches this slice; CI is the arbiter. `tests/e2e/regular-pay-income.spec.ts` passed first try. Mutation: **40 of 40** guards and thresholds, removed or moved, fail at least one test.
+
+**Ship.** Pushed to `main`; CI conclusion, Vercel status and the live probe (`node scripts/regular-pay-live-deploy-check.mjs`) are recorded in the follow-up record commit. No `prisma/` schema diff.
+
+**Critic (Opus, separate contexts).** Cycles 1–5 FAIL (composition, semimonthly misreads, job-change double counts, a "stopped" rule dropping live income) → human gate → fail closed. Cycle 6 FAIL (step-down at the old level; the sentence over-promised) → fixed → owner: a 7th review. Cycle 7 FAIL (a second payroll's raised paydays counted twice) → human gate → owner: one steady paycheck only, then an 8th review. **Cycle 8 PASS — 0 P0 / 0 P1** (3 P2 / 4 P3). Taken before ship, test- and mutation-locked, re-gated, not re-reviewed: P2-1 weekly pay must sit on a 7-day grid (four fixed dates a month or interleaved earners read ×52, +8.3%); P2-2 the sentence names exactly which deposits count; P2-3 every threshold/boundary pinned and the 2%/10%/25% tests made whole-number; P3-1 any payroll deposit after the newest payday holds the median; P3-2 the timing clause conditional on being paid all year. Recorded: P3-3 copy precision (in-band paychecks among the last eight; a second job with ≤ 2 paydays or > 25% spread is not "another regular paycheck"); P3-4 the sentence is ≈ 170 words at 380px.
+
+**Open (found, not changed).**
+- Demo stays on the median: the demo payroll is filed generic Income (normalize.ts), so no stream forms — the feature is invisible in demo mode.
+- Two-paycheck households (two earners, a second job) keep the median — owner's scope choice at the third gate; their regular pay is a later slice.
+- Recorded low-direction bounds: a true biweekly payroll reads 24 a year until its ninth payday on the grid, or when a holiday shift exceeds two days; a raise reaches the figure late; a bonus on the newest payday, or any other payroll deposit after it, holds the median for one pay period; 4-weekly pay (13/yr) reads monthly; descriptors carrying a date token split one payroll into many payers (no stream → median).
+- "The checking account that pays your cards" in the MEDIAN sentence (trace.ts / answer.ts) is untrue when no payment account is set — pre-existing, out of this slice (the regular-pay sentence no longer names the account).
+- Next slices (owner-agreed): irregular income handled when it lands; brokerage deposit history; measured savings.
+
 ## DECIDED 2026-10-03 — Base pay plans the month; bonuses go toward savings first (DECISIONS #784)
 
-Owner chose how the guilt-free plan counts quarterly bonuses: monthly income is base pay at its yearly rate (biweekly × 26 ÷ 12); bonuses show as their own line and fund the savings target first. **Not built.** Next: owner runs the read-only pay-rhythm/bonus probe, then a full slice (engine → every surface → critic → ship).
+Owner chose how the guilt-free plan counts quarterly bonuses: monthly income is base pay at its yearly rate (biweekly × 26 ÷ 12); bonuses show as their own line and fund the savings target first. **Base pay BUILT as #785 (2026-10-04)** — for a household one steady paycheck clearly explains. Still open from #784: the bonus line and bonuses funding the savings target first (the "irregular income handled when it lands" slice).
 
 ## ✅ BUILT 2026-10-03 — Charges filed as taxes are not a monthly cost in the guilt-free plan (DECISIONS #783)
 

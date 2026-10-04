@@ -20,6 +20,11 @@ import {
 
 function incomeBasisNote(plan: SpendingPlan): string {
   if (plan.incomeBasis === 'user-set') return 'you locked this intention';
+  if (plan.incomeBasis === 'regular-pay') {
+    return (plan.regularPay?.otherMonthlyCents ?? 0) > 0
+      ? 'app calculated — your regular pay averaged over the year, plus your usual other income'
+      : 'app calculated — your regular pay averaged over the year';
+  }
   if (plan.incomeBasis === 'trailing-median') {
     return `app calculated — median of last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'}`;
   }

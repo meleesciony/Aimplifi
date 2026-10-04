@@ -26,6 +26,12 @@
  * spend — beneath the app's own "$18,814.14 needed by Aug 5" (L.11(D)).
  *
  * THE PATTERN RULES:
+ *  - (DECISIONS #785, supersedes the next clause only when ONE steady paycheck
+ *    clearly explains the household's recent pay) Income is REGULAR PAY at its
+ *    yearly rate plus the small usual month of the reader's other income —
+ *    `regularPayFromRows`, read the docblock there. In every other household
+ *    (no steady paycheck or two, a new or ended job, a changed paycheck, other
+ *    income above 10%), the clause below still holds exactly.
  *  - Income is the MEDIAN of the last three COMPLETE months' income (all
  *    sources that actually arrived in a non-credit account). With three months
  *    behind it, a median ignores a one-time spike entirely — a $18k rollover
@@ -87,13 +93,14 @@ import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 // is why the reserve arithmetic can keep sharing this file's one rate table
 // instead of growing a second copy of it (`dedup-must-diff-the-copies-first`).
 import type { ReserveLine } from '@/lib/engine/spending-plan/reserves';
+import type { RegularPay } from '@/lib/engine/spending-plan/regular-pay';
 import {
   PLAN_TAX_CATEGORY_IDS,
   type TaxChargesLeftOut,
 } from '@/lib/engine/spending-plan/tax-categories';
 
 /** Where the plan's income figure came from — every surface states it inline. */
-export type IncomeBasis = 'trailing-median' | 'detected-series' | 'none' | 'user-set';
+export type IncomeBasis = 'regular-pay' | 'trailing-median' | 'detected-series' | 'none' | 'user-set';
 
 /**
  * How the fixed-expense term was derived (DECISIONS #371 / #372 / #377).
@@ -165,6 +172,15 @@ export interface SpendingPlanInput {
    *  summed over non-credit accounts by the caller (monthlyFlows). Empty for a
    *  user with no complete month yet. */
   trailingMonthlyIncomeCents: number[];
+  /**
+   * Pay that arrives on a rhythm (DECISIONS #785, `regularPayFromRows`) — the
+   * PREFERRED income basis only when it is `clean` (one steady paycheck clearly
+   * explains the household's recent pay) with `monthlyCents > 0`: base pay plans
+   * the month at its true yearly rate; anything else keeps the median. Optional
+   * because absence is the true state of every fixture that predates it; the one
+   * production loader always passes it, locked by a test that drives that loader.
+   */
+  regularPay?: RegularPay | null;
   /** Detected recurring INCOME series — the fallback basis when no complete
    *  month exists. */
   scheduledIncome: PlanScheduledItem[];
@@ -899,12 +915,19 @@ export function savingsTargetCents(patternIncomeCents: number, savingsTargetBps:
 }
 
 export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
-  // Income suggestion: trailing median of up to 3 complete months, else series.
+  // Income suggestion (DECISIONS #785): regular pay at its yearly rate only when
+  // it is `clean` (one steady paycheck clearly explains the household's pay); else
+  // the trailing median of up to 3 complete months; else detected series.
   const trailing = input.trailingMonthlyIncomeCents.slice(-3);
   let suggestedIncomeCents: number;
   let suggestedIncomeBasis: Exclude<IncomeBasis, 'user-set'>;
   let incomeMonths: number;
-  if (trailing.length > 0) {
+  const regularPayCents = input.regularPay?.clean === true ? input.regularPay.monthlyCents : 0;
+  if (Number.isSafeInteger(regularPayCents) && regularPayCents > 0) {
+    suggestedIncomeCents = regularPayCents;
+    suggestedIncomeBasis = 'regular-pay';
+    incomeMonths = 0;
+  } else if (trailing.length > 0) {
     suggestedIncomeCents = Math.round(median(trailing));
     suggestedIncomeBasis = 'trailing-median';
     incomeMonths = trailing.length;

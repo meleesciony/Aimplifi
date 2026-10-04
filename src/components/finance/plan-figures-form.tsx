@@ -138,7 +138,7 @@ export function PlanFiguresForm({
         <label className="block text-sm">
           <span className="font-medium text-foreground">Monthly income — lock intention (optional)</span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
-            From categorized paychecks: {formatCents(cents(suggestedIncomeCents))}
+            From your income data: {formatCents(cents(suggestedIncomeCents))}
             {incomeOverrideCents != null
               ? ' · locked — data differences show as a slide'
               : ' · in use (no lock)'}
