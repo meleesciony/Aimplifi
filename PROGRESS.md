@@ -27,7 +27,7 @@ Owner, after #784 ("Base pay plans the month"): "this app eventually will be use
 
 **Gate.** Git Bash `VERIFY_E2E=1`: tsc/eslint 0, 8,955 unit passed (+ the known Git Bash `vercel-build.test.ts` 2 — 3/3 from PowerShell on the same tree), build clean, Playwright 465 passed / 2 flaky / 2 failed (the recorded pre-existing `rule-inventory.spec.ts:81` and `transactions.spec.ts:1015` flakes — alone on this tree: passed, and passed on retry). Mutation 40/40 killed. Live-figure scan of the whole slice diff: clean.
 
-**Gate read.** CI and the live probe: see the record commit.
+**Gate read.** CI verify run 37218230775 on `f9f4398c` = SUCCESS; Vercel READY; `scripts/regular-pay-live-deploy-check.mjs` DEPLOY PROOF PASS 5/5.
 
 ## 2026-10-03 — "Over plan" after a tax payment: charges filed as taxes leave the guilt-free plan (DECISIONS #783)
 
