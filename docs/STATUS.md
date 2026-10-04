@@ -34,7 +34,7 @@ rates) — no other doc may restate them.
 
 **Gates (2026-10-03).** Git Bash `VERIFY_E2E=1 bash scripts/verify.sh` on the shipped tree: tsc 0, probes tsc 0, eslint 0, vitest 653 files passed + 1 failed (`vercel-build.test.ts`, 2 tests — the known Git Bash child-bash environment failure; **3/3 passed from PowerShell on the same tree**), 8,914 tests passed + 1 expected fail + 1 skipped, next build clean, Playwright **466 passed / 2 flaky / 0 failed** (flaky: `category-rename.spec.ts:110`, `txn-tags.spec.ts:256` — unrelated, passed on retry; category-rename flaked in every run this session), including `tax-payments-left-out.spec.ts`. An earlier tree also went green under WSL (`bash` from PowerShell): 654 files / 8,907 passed, next build clean.
 
-**Ship.** Recorded in the follow-up record commit (CI conclusion + live probe), per the K.8 rule.
+**Ship.** `da0212a6` on `origin/main`. No `prisma/` schema diff. **CI verify run 37166494303 = SUCCESS** (`scripts/ci-status.sh` exit 0). Vercel commit status `success` ("Deployment has completed") on that sha. **Live probe `node scripts/tax-out-live-deploy-check.mjs` = DEPLOY PROOF PASS 4/4** on www.aimplifi.app: demo sign-in; /spending-plan hero; the server-rendered basis list carries the new tax-rule sentence; the served /transactions client bundle carries the new `taxes` reason text — both absent from the prior build. Not provable on the demo (it holds no charge filed as taxes): the money change itself — locked by the unit/e2e households; the owner checks their own figure.
 
 **Critic (Opus, separate contexts):** cycles 1 and 2 FAIL (2 P1 each, all fixed and mutation-locked); **cycle 3 PASS — 0 P0 / 0 P1 / 4 P2** (P2-A, P2-B, P2-D taken).
 

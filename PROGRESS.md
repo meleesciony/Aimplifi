@@ -27,7 +27,9 @@ Owner, with a screenshot of Guilt-free far "Over plan": "How is it that I'm over
 
 **Critic (Opus, separate contexts).** Cycle 1 FAIL (2 P1), cycle 2 FAIL (2 P1), all fixed and mutation-locked; cycle 3 PASS 0 P0 / 0 P1 / 4 P2 — P2-A/B/D taken, P2-C and the P2-B backfill (owner gate: live-data write) in STATUS.
 
-**Next.** Ship + CI + live probe in the record commit. Owner-gated: re-file existing property-tax rows filed Taxes (none on the owner's account today).
+**Gate read.** CI verify run 37166494303 on `da0212a6` = SUCCESS; Vercel READY; `scripts/tax-out-live-deploy-check.mjs` DEPLOY PROOF PASS 4/4.
+
+**Next.** Recommended to the owner: the same defect class in every other Fixed category — a category's FIRST charge in the window is priced whole by the observed-months divisor (C.5 residual; a live instance sits in the owner's Rent & Mortgage line). Owner-gated: count biweekly pay at its yearly rate (26/12) instead of the calendar-month median; re-file existing property-tax rows filed Taxes (none on the owner's account today).
 
 ## 2026-10-03 — "0977 counted twice": combined-away rows leave "Net worth today" (DECISIONS #782)
 
