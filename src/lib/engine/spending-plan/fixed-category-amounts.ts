@@ -20,6 +20,10 @@ import {
   classifySpendClass,
   suggestedCategoryIsFixed,
 } from '@/lib/engine/spending-plan/spend-class';
+import {
+  PLAN_TAX_CATEGORY_IDS,
+  type TaxChargesLeftOut,
+} from '@/lib/engine/spending-plan/tax-categories';
 
 export type FixedAmountBasis = 'budget-target' | 'typical-spend';
 
@@ -76,6 +80,49 @@ function lastCompleteMonthKeys(today: ISODate, n: number): string[] {
     keys.push(monthKey(addMonthsClamped(currentMonthStart, -k)));
   }
   return keys;
+}
+
+/** The tax disclosure's lookback — a full year, so a quarterly payer is told in
+ *  every month, including the ones whose Fixed window held no payment. */
+export const TAX_LEFT_OUT_LOOKBACK_MONTHS = 12;
+
+/**
+ * The charges filed as taxes that the plan LEFT OUT (DECISIONS #783 — the tax
+ * leaves joined `FIXED_PATTERN_EXCLUDE_CATEGORY_IDS`), so every surface can say
+ * what it did not count instead of letting the money vanish
+ * (`an-empty-set-is-not-a-fact-about-money`). The predicate is the rollup's own
+ * row gate (`countsInFlows`, outflows only) applied to rows in
+ * `PLAN_TAX_CATEGORY_IDS`. A row the reader had flipped to Discretionary is
+ * counted too: the rule is category-level and outranks a per-row verdict, so
+ * that row is out of the plan either way.
+ *
+ * `excludeMerchantCanonicals` is the loader's CONVERTED-reserve set: a tax bill
+ * the reader already turned into a reserve is counted by that reserve, so it is
+ * not "left out" and telling them to set money aside for it would be false
+ * (critic cycle 1, P2-4).
+ */
+export function taxChargesInLookback(
+  transactions: readonly TxnLike[],
+  today: ISODate,
+  months: number = TAX_LEFT_OUT_LOOKBACK_MONTHS,
+  excludeMerchantCanonicals?: ReadonlySet<string>,
+): Pick<TaxChargesLeftOut, 'count' | 'totalCents' | 'months'> {
+  const monthSet = new Set(lastCompleteMonthKeys(today, months));
+  let count = 0;
+  let totalCents = 0;
+  for (const t of transactions) {
+    if (typeof t.categoryId !== 'string' || !PLAN_TAX_CATEGORY_IDS.has(t.categoryId)) continue;
+    if (t.amountCents >= 0 || !countsInFlows(t) || !monthSet.has(monthKey(t.date))) continue;
+    if (
+      excludeMerchantCanonicals !== undefined &&
+      excludeMerchantCanonicals.has(normalizeMerchant(t.rawDescriptor).canonical)
+    ) {
+      continue;
+    }
+    count += 1;
+    totalCents += -t.amountCents;
+  }
+  return { count, totalCents, months: monthSet.size };
 }
 
 /**
@@ -359,7 +406,17 @@ export function resolveFixedCategoryAmounts(input: {
     // were classified, not the category); a bare budget target enters only on
     // a suggested-fixed category — the reader's own number for a committed
     // cost, never a discretionary category's.
-    if (typicalCents <= 0 && !(budgetCents != null && suggestedCategoryIsFixed(categoryId, input.meta) === true)) {
+    //
+    // A TAX category's target enters too (DECISIONS #783, critic cycle 1 P1-2).
+    // The rule takes tax CHARGES out of the plan; a monthly target the reader
+    // typed for taxes is a declaration — the same act as the set-aside the
+    // disclosure points them to — and dropping it would raise their guilt-free
+    // figure by that amount with no sentence anywhere. Its typical is always 0
+    // (the classifier refuses every tax row), so the target IS the line.
+    const committedTarget =
+      budgetCents != null &&
+      (suggestedCategoryIsFixed(categoryId, input.meta) === true || PLAN_TAX_CATEGORY_IDS.has(categoryId));
+    if (typicalCents <= 0 && !committedTarget) {
       continue;
     }
     if (budgetCents != null) hasBudgetOnFixed = true;

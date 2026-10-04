@@ -28,6 +28,23 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ✅ BUILT 2026-10-03 — Charges filed as taxes are not a monthly cost in the guilt-free plan (DECISIONS #783)
+
+**What it is.** Owner: Home and Guilt-free read far "Over plan" the month after a large IRS payment — "Certain things like tax payments shouldn't be considered in budget." Cause measured on production (read-only, shipped loader): the Fixed category rollup averaged the Taxes payments over 2 observed months. Now Taxes and Estimated Tax Payment never count as a Fixed cost on any basis; Property Tax still counts; a tax target the reader typed still counts; every surface printing the figure says what tax was left out (12-month lookback) and how to count a tax paid on a schedule.
+
+**Gates (2026-10-03).** Git Bash `VERIFY_E2E=1 bash scripts/verify.sh` on the shipped tree: tsc 0, probes tsc 0, eslint 0, vitest 653 files passed + 1 failed (`vercel-build.test.ts`, 2 tests — the known Git Bash child-bash environment failure; **3/3 passed from PowerShell on the same tree**), 8,914 tests passed + 1 expected fail + 1 skipped, next build clean, Playwright **466 passed / 2 flaky / 0 failed** (flaky: `category-rename.spec.ts:110`, `txn-tags.spec.ts:256` — unrelated, passed on retry; category-rename flaked in every run this session), including `tax-payments-left-out.spec.ts`. An earlier tree also went green under WSL (`bash` from PowerShell): 654 files / 8,907 passed, next build clean.
+
+**Ship.** Recorded in the follow-up record commit (CI conclusion + live probe), per the K.8 rule.
+
+**Critic (Opus, separate contexts):** cycles 1 and 2 FAIL (2 P1 each, all fixed and mutation-locked); **cycle 3 PASS — 0 P0 / 0 P1 / 4 P2** (P2-A, P2-B, P2-D taken).
+
+**Open (found, not changed).**
+- P2-B, backfill half: rows an older categorizer filed Taxes for property-tax descriptors keep that filing; their charges leave the rollup (the detected series stays counted via the remap). Re-filing them is a live-data write — owner gate. Plaid's `GOVERNMENT_AND_NON_PROFIT_TAX_PAYMENT` hint maps to `taxes`, and payees like "… COUNTY TREASURER" / "TOWN OF … TAX COLLECTOR" match no property-tax pattern (critic run; Plaid's own coverage UNVERIFIED). Every surface names the "file it under Property Tax" lever.
+- P2-C: /budgets' Fixed panel prints "Taxes $0.00 this month · Plan uses $X (your target)" beside a tax target while By category on the same page shows the charge.
+- First-charge residual: a large FIRST Property Tax charge in the last complete month is still priced by the observed-months divisor (C.5).
+- Silent surfaces (P3): the Home card, /coach WealthTargetCard, Ask planners and /settings fixed-costs card print the figure without the tax sentence (none carries other plan disclosures either). Under a Fixed override the page/strip levers name re-files that do not move the figure.
+- P3s: the rule builder can stamp Fixed on tax rows to no effect; "Put back on plan" on a pre-slice taken-off tax bill no-ops; the glass box's reserves-only / none bases omit the rule sentence; a manual reserve for taxes is not recognised by the disclosure; the disclosure sums gross charges where the rollup nets refunds; TurboTax / H&R Block auto-file as Taxes; the widened regex files Florida tag renewals ("COUNTY TAX COLLECTOR") and Pennsylvania earned-income tax ("TOWNSHIP TAX") as Property Tax (counted — the safe direction).
+
 ## ✅ BUILT 2026-10-03 — "Net worth today" lists a combined card once (DECISIONS #782)
 
 **What it is.** Owner: "some of my accounts are being counted twice, specifically 0977." No figure was doubled — the 0977 pair was already combined and every money engine counted it once (production replay, read-only). The live point's breakdown listed every combined-away row at $0.00 beside its successor, and the change line under net worth refused: "No comparison — N accounts joined since …". Now the live point leaves combined-away rows out (only at $0.00, so no figure can move); history before each cutover is unchanged except for the P2-1 label below.

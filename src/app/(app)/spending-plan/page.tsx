@@ -20,6 +20,7 @@ import {
   spendClassMonthRegisterHref,
 } from '@/lib/engine/transactions/links';
 import { UNNAMED_BILL_LABEL } from '@/lib/engine/spending-plan/fixed-line-items';
+import { taxLeftOutSentence } from '@/lib/engine/spending-plan/tax-copy';
 import { RESERVE_CADENCE_WORDS } from '@/lib/engine/spending-plan/reserves';
 import { ReserveForm } from '@/components/finance/reserve-form';
 import { HoldingAccountPicker } from '@/components/finance/holding-account-picker';
@@ -447,6 +448,20 @@ export default async function SpendingPlanPage() {
             </p>
           </>
         )}
+        {/* DECISIONS #783 — owner 2026-10-03: "tax payments shouldn't be
+            considered in budget". The rule takes them out of every Fixed basis;
+            this sentence is where the money is still visible, so a large IRS
+            payment cannot simply vanish from the page that used to count it, and
+            a reader who pays quarterly estimates from their pay learns the lever
+            that puts them back. Rendered on both branches above — a reader whose
+            ONLY fixed-looking spend was a tax payment sees the empty note AND this. */}
+        {p.disclosures.taxChargesLeftOut.count > 0 ? (
+          // One author with Ask and /budgets (tax-copy.ts). No direction clause:
+          // this sentence sits under the Fixed list, not the guilt-free figure.
+          <p className="mt-3 text-xs text-muted-foreground" data-testid="fixed-composition-taxes-left-out">
+            {taxLeftOutSentence(p.disclosures.taxChargesLeftOut, null)}
+          </p>
+        ) : null}
         {p.billsTakenOff.length > 0 ? (
           <div className="mt-3" data-testid="bills-taken-off">
             <p className="text-xs text-muted-foreground">Taken off the plan</p>

@@ -17,6 +17,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-03 — "Over plan" after a tax payment: charges filed as taxes leave the guilt-free plan (DECISIONS #783)
+
+Owner, with a screenshot of Guilt-free far "Over plan": "How is it that I'm over plan by [that much]?", then "I think the app got tricked because I had a large tax payment recently … that was last month not oct" and "Certain things like tax payments shouldn't be considered in budget." Production read: the shipped `getSpendingPlan`, replayed from a scratch worktree with a Postgres client in a `default_transaction_read_only=on` session (the harness refused production reads from this session; the owner ran both probes in their own terminal and pasted the output — figures stay out of the repo). Cause: the Taxes line of the Fixed category rollup averaged a large IRS payment over 2 observed months.
+
+**Picked up / closed.** Taxes + Estimated Tax Payment never count as Fixed on any basis (classifier, union, fallback, long-cadence notes); Property Tax stays Fixed (categorizer pattern widened to "TAXES"); a reader's tax target still counts; the remap lets a tax filing win only over a non-Fixed guess; `SpendingPlanDisclosures.taxChargesLeftOut` (12-month lookback, target, reader names) worded by one author (`tax-copy.ts`) on /spending-plan, the /budgets strip, both Ask answers and the glass box.
+
+**Gate.** Git Bash `VERIFY_E2E=1`: tsc/eslint 0, 8,914 unit passed (+ the known Git Bash `vercel-build.test.ts` 2 — 3/3 from PowerShell on the same tree), build clean, Playwright 466 passed / 2 unrelated flaky / 0 failed.
+
+**Critic (Opus, separate contexts).** Cycle 1 FAIL (2 P1), cycle 2 FAIL (2 P1), all fixed and mutation-locked; cycle 3 PASS 0 P0 / 0 P1 / 4 P2 — P2-A/B/D taken, P2-C and the P2-B backfill (owner gate: live-data write) in STATUS.
+
+**Next.** Ship + CI + live probe in the record commit. Owner-gated: re-file existing property-tax rows filed Taxes (none on the owner's account today).
+
 ## 2026-10-03 — "0977 counted twice": combined-away rows leave "Net worth today" (DECISIONS #782)
 
 Owner: "take a look into why some of my accounts are being counted twice, specifically 0977. And fix it." Production read (read-only, owner-authorized in-session; `scripts/audit-probes/dup-0977-*.mts`): the 0977 pair was already combined; a replay of the shipped boundary + cash-needed + net-worth engines over the live rows counted the card once everywhere money is summed. The doubling was the live point's LIST: every combined-away row at $0.00 in "Net worth today", and the change line refusing ("No comparison — N accounts joined"). Fixed in `netWorthSeries` (required `supersededAccountIds`; live point skips them at $0.00). Replay after: only the combined-away rows gone, figure identical, change line compares. The owner chose to keep live figures out of the repo; tests use invented balances.

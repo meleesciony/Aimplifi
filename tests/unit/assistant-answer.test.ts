@@ -221,7 +221,7 @@ describe('answerIncome', () => {
 });
 
 describe('answerSafeToSpend', () => {
-  const NO_DISCLOSURES = { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0, fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 } };
+  const NO_DISCLOSURES = { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0, taxChargesLeftOut: { count: 0, totalCents: 0, months: 12, targetCents: 0 }, fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 } };
   const BASE_PLAN = {
     today: '2026-06-23' as SpendingPlan['today'],
     trailingMonthlyIncomeCents: [500000],
@@ -332,6 +332,7 @@ describe('answerSafeToSpend', () => {
     creditCardCount: 4,
     creditCardsOutsideFigure: 0,
     cardsDatedAfterThisMonth: 0,
+    taxChargesLeftOut: { count: 0, totalCents: 0, months: 12, targetCents: 0 },
     fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 },
   };
 
@@ -393,6 +394,7 @@ describe('answerSafeToSpend', () => {
         creditCardCount: 1,
         creditCardsOutsideFigure: 0,
         cardsDatedAfterThisMonth: 0,
+        taxChargesLeftOut: { count: 0, totalCents: 0, months: 12, targetCents: 0 },
         fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 },
       },
     );

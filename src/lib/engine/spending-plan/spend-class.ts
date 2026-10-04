@@ -34,13 +34,29 @@ import { isBudgetable } from '@/lib/engine/budgets/status';
 import { overrideKey } from '@/lib/engine/recurring/override';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
+import { PLAN_TAX_CATEGORY_IDS } from '@/lib/engine/spending-plan/tax-categories';
 
-/** Settlement / savings / noise — never part of the fixed allocation bucket. */
-export const FIXED_PATTERN_EXCLUDE_CATEGORY_IDS = new Set([
+/**
+ * Settlement / savings / noise / taxes — never part of the fixed allocation bucket.
+ *
+ * The tax leaves (`PLAN_TAX_CATEGORY_IDS`, owner 2026-10-03, DECISIONS #783,
+ * after a large IRS payment in the last complete month put the next month's
+ * plan far "over"): "Certain things like tax payments shouldn't be considered
+ * in budget." A tax paid to the government directly — an estimated payment, a
+ * balance due at filing — is a true-up on income, not a living cost; the plan's
+ * income is pay as it lands, after withholding, and the one-time sources such a
+ * payment is usually funded from (a brokerage sale, a bonus) are already outside
+ * that income. Averaged into the three-month typical it priced one payment as a
+ * monthly bill. The rows still move balances and Activity; the plan states what
+ * it left out (`taxChargesInLookback`, carried on the disclosures) so they never
+ * vanish.
+ */
+export const FIXED_PATTERN_EXCLUDE_CATEGORY_IDS: ReadonlySet<string> = new Set([
   'transfer',
   'credit-card-payment',
   'cash',
   'investment',
+  ...PLAN_TAX_CATEGORY_IDS,
 ]);
 
 export type SpendClass = 'fixed' | 'guilt-free' | 'out-of-scope';
@@ -94,6 +110,7 @@ export type OutOfScopeReason =
   | 'card-payment'
   | 'cash'
   | 'investment'
+  | 'taxes'
   | 'not-spending';
 
 export function outOfScopeReason(t: TxnLike, spendClass: SpendClass): OutOfScopeReason | null {
@@ -113,6 +130,7 @@ export function outOfScopeReason(t: TxnLike, spendClass: SpendClass): OutOfScope
   if (id === 'credit-card-payment') return 'card-payment';
   if (id === 'cash') return 'cash';
   if (id === 'investment') return 'investment';
+  if (PLAN_TAX_CATEGORY_IDS.has(id)) return 'taxes';
   return 'not-spending';
 }
 
@@ -149,6 +167,11 @@ export function outOfScopeChipLabel(r: OutOfScopeReason): string {
       return 'Cash out';
     case 'investment':
       return 'Investing';
+    case 'taxes':
+      // Not "Tax payment": the row already prints its category ("Taxes"), and a
+      // tax-prep fee or tax software filed there is not a payment of tax at all
+      // (critic cycle 1, P2-1). The fact the row leaves out is the scope.
+      return 'Outside plan';
     case 'not-spending':
       return 'Not spending';
   }
@@ -192,6 +215,15 @@ export function outOfScopeExplanation(r: OutOfScopeReason): string {
       return 'Cash you took out is not spent until you spend it. Whatever it pays for gets counted when that purchase shows up.';
     case 'investment':
       return 'Money moved into investing is saving, not spending, so it sits outside the Fixed and Discretionary split. It still counts toward your net worth.';
+    case 'taxes':
+      // The RULE only, and a pointer to where the levers live. The levers depend
+      // on facts this static, per-row sentence cannot see — the reader's own
+      // category names and whether a tax target already counts — so they are
+      // worded once, by tax-copy.ts, on the Guilt-free page (critic cycle 3,
+      // P2-A: a second author here told a renamed reader to file under a name
+      // their picker no longer shows, and a target-holder to set money aside
+      // again).
+      return 'Charges filed as taxes are left out of your spending plan, so a tax bill never counts as a monthly cost there. Your balance and Activity still include it. The Guilt-free page shows what was left out, and how to count a tax you pay from your regular income, a property tax, or a tax-prep fee.';
     case 'not-spending':
       return 'This row is not spending, so it has no Fixed or Discretionary side. Everything else about it — your balance, your Activity — is unchanged.';
   }

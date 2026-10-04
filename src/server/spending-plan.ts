@@ -46,7 +46,9 @@ import {
 import {
   filedCategoryByMerchant,
   resolveFixedCategoryAmounts,
+  taxChargesInLookback,
 } from '@/lib/engine/spending-plan/fixed-category-amounts';
+import { PLAN_TAX_CATEGORY_IDS } from '@/lib/engine/spending-plan/tax-categories';
 import {
   buildFixedList,
   type FixedListResult,
@@ -652,6 +654,39 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
         .size,
       // The same job for the fixed-expense line (L.30): which $0.00 this is.
       fixedSeries,
+      // DECISIONS #783: what the tax rule took out, read from the same snapshot
+      // rows the rollup reads. Not "left out": a converted-reserve merchant's
+      // charges (the reserve's money — critic cycle 1, P2-4), and a merchant whose
+      // series made the union under a Fixed guess despite a stale tax filing
+      // (counted at its monthly rate — critic cycle 3, P2-B).
+      taxChargesLeftOut: {
+        ...taxChargesInLookback(
+          snap.transactions,
+          today,
+          undefined,
+          new Set([
+            ...convertedReserveMerchants,
+            ...plan.fixedLineItems
+              .map((r) => r.merchantCanonical)
+              .filter((c): c is string => c !== null),
+          ]),
+        ),
+        // A tax TARGET the reader typed is in the figure only on the basis that
+        // holds the rollup; a Fixed override replaces that basis (critic cycle 2,
+        // P2-1 — the copy must not ask a target-holder to set money aside again).
+        targetCents:
+          plan.fixedBasis === 'category-designations'
+            ? categoryFixed.rows
+                .filter((r) => PLAN_TAX_CATEGORY_IDS.has(r.categoryId))
+                .reduce((sum, r) => sum + r.amountCents, 0)
+            : 0,
+        names: {
+          taxes: categoryName('taxes', categoryMeta),
+          estimatedTax: categoryName('estimated-tax', categoryMeta),
+          propertyTax: categoryName('property-tax', categoryMeta),
+          financial: categoryName('financial', categoryMeta),
+        },
+      },
     }),
   };
 }
@@ -742,9 +777,28 @@ async function countedExpenseSeriesForPlan(
       // instructs overspending, where the alternative error (double-counting a
       // settlement) only shrinks guilt-free. Out of the set is fine (the
       // reader's filing wins); into it is not.
+      //
+      // EXCEPT a tax-leaf filing over a guess that is NOT a Fixed category
+      // (DECISIONS #783): leaving a tax payment out of the plan is the owner's
+      // rule, not an accident of filing, and the normalizer only knows some tax
+      // payees (IRS, "DEPT OF REVENUE" — not every state's descriptor). A state
+      // estimated-tax series the reader filed as Taxes but the normalizer guessed
+      // `uncategorized` would otherwise keep the guess and union straight back
+      // into Fixed, the exact figure the rule takes it out of.
+      //
+      // A guess that IS a Fixed category still wins (critic cycle 3, P2-B): rows
+      // the older categorizer filed Taxes — "HARRIS COUNTY PROPERTY TAXES" before
+      // the property-tax rule learned "TAXES" — keep that filing (the categorizer
+      // fix reaches only new rows), and letting it win would carry a recurring
+      // cost of the home into the never-counted set: the missed standing payment
+      // this guard exists to refuse. Built-in meta, because a guess is always a
+      // built-in id.
+      const guessIsFixed =
+        typeof s.categoryId === 'string' && suggestedCategoryIsFixed(s.categoryId) === true;
       const categoryId =
         filed === undefined ||
         (typeof filed === 'string' &&
+          (!PLAN_TAX_CATEGORY_IDS.has(filed) || guessIsFixed) &&
           PLAN_FIXED_NEVER_CATEGORY_IDS.has(filed) &&
           !(typeof s.categoryId === 'string' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(s.categoryId)))
           ? s.categoryId
@@ -786,6 +840,7 @@ async function buildDisclosures(
     creditCardsOutsideFigure: number;
     cardsDatedAfterThisMonth: number;
     fixedSeries: FixedSeriesCensus;
+    taxChargesLeftOut: SpendingPlanDisclosures['taxChargesLeftOut'];
   },
 ): Promise<SpendingPlanDisclosures> {
   if (!computed) {

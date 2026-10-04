@@ -32,6 +32,7 @@ const disclosures = (over: Partial<SpendingPlanDisclosures> = {}): SpendingPlanD
   creditCardCount: 0,
   creditCardsOutsideFigure: 0,
   cardsDatedAfterThisMonth: 0,
+  taxChargesLeftOut: { count: 0, totalCents: 0, months: 12, targetCents: 0 },
   // L.30: the census that separates a true fixed-expenses zero from a broken one.
   // Default is the empty reader (nothing detected at all); the L.30 cases override it.
   fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 },

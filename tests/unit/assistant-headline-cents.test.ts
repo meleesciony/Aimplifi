@@ -176,7 +176,7 @@ describe('headlineCents — the slice-3 boundary: TRACED derivation kinds set it
           leftToSpendCents: 300000,
           overspent: false,
         } as SpendingPlan,
-        { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0, fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 } },
+        { undatedCards: [], statementPendingCards: [], duplicatePairs: [], frozenCards: [], creditCardCount: 0, creditCardsOutsideFigure: 0, cardsDatedAfterThisMonth: 0, taxChargesLeftOut: { count: 0, totalCents: 0, months: 12, targetCents: 0 }, fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 } },
       ).headlineCents,
     ).toBeUndefined();
   });

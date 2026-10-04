@@ -184,6 +184,7 @@ describe('computeSpendingPlan — a reserve is committed once, as Fixed', () => 
       creditCardCount: 0,
       creditCardsOutsideFigure: 0,
       cardsDatedAfterThisMonth: 0,
+      taxChargesLeftOut: { count: 0, totalCents: 0, months: 12, targetCents: 0 },
       fixedSeries: { detected: 0, counted: 0, onCard: 0, lapsed: 0, uncounted: 0, noCashAccount: 0 },
     });
     expect(labels.fixed.label).toBe('Fixed costs (reserves you declared)');

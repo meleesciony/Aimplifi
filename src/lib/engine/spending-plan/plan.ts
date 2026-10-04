@@ -87,6 +87,10 @@ import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 // is why the reserve arithmetic can keep sharing this file's one rate table
 // instead of growing a second copy of it (`dedup-must-diff-the-copies-first`).
 import type { ReserveLine } from '@/lib/engine/spending-plan/reserves';
+import {
+  PLAN_TAX_CATEGORY_IDS,
+  type TaxChargesLeftOut,
+} from '@/lib/engine/spending-plan/tax-categories';
 
 /** Where the plan's income figure came from — every surface states it inline. */
 export type IncomeBasis = 'trailing-median' | 'detected-series' | 'none' | 'user-set';
@@ -337,6 +341,17 @@ export interface SpendingPlanDisclosures {
    * explains cannot disagree.
    */
   fixedSeries: FixedSeriesCensus;
+  /**
+   * Charges filed as taxes (`PLAN_TAX_CATEGORY_IDS`) that the plan never counts
+   * (DECISIONS #783), over the last 12 complete months. Like `fixedSeries`, this
+   * qualifies no figure arithmetically — it is the visible half of a rule that
+   * takes money OUT of every Fixed basis, so the page, Ask and the glass box can
+   * each say what was left out instead of letting it vanish. Twelve months, not
+   * the Fixed typical's three, so a reader paying quarterly estimates is told in
+   * January too, when the last three months held no payment (critic cycle 1,
+   * P2-3). `count: 0` = nothing to say.
+   */
+  taxChargesLeftOut: TaxChargesLeftOut;
 }
 
 /**
@@ -593,11 +608,20 @@ export function scheduledExpenseMonthlyRateCents(s: PlanScheduledItem): number {
   return monthlyRateCents(-s.amountCents, s.cadence);
 }
 
-/** Settlement / savings — never a Plan Fixed cost class (owner 2026-08-01). */
-export const PLAN_FIXED_NEVER_CATEGORY_IDS = new Set([
+/**
+ * Settlement / savings / taxes — never a Plan Fixed cost class (owner
+ * 2026-08-01; the tax leaves owner 2026-10-03, DECISIONS #783). The tax leaves
+ * must sit here as well as in `FIXED_PATTERN_EXCLUDE_CATEGORY_IDS`: that set
+ * keeps tax rows out of the category rollup and the median, and this one keeps
+ * a DETECTED tax series (quarterly estimated payments) from re-entering through
+ * the union — without it the union reads `taxes` as a category the rollup does
+ * not cover and adds the series at a third of its charge.
+ */
+export const PLAN_FIXED_NEVER_CATEGORY_IDS: ReadonlySet<string> = new Set([
   'credit-card-payment',
   'cash',
   'investment',
+  ...PLAN_TAX_CATEGORY_IDS,
 ]);
 
 /**
@@ -843,10 +867,24 @@ export type LongCadence = keyof typeof LONG_CADENCE_WORDS;
  * Empty is the gate both disclosure surfaces use: a clause about a bill that is
  * not in the figure would name a mechanism that did not act — this engine's own
  * rule, applied to a cadence rather than a card (L.23 copy critic P1-2).
+ *
+ * A series whose category is in `PLAN_FIXED_NEVER_CATEGORY_IDS` is in NO Fixed
+ * basis, so it cannot vouch for a rhythm "in the term" (DECISIONS #783 critic
+ * cycle 2, P1-1): both callers pass `plan.scheduledFixed`, every counted expense
+ * series, and a quarterly estimated-tax series there made Home and the glass box
+ * say the bill "is counted here a third at a time" beside a figure that counts
+ * it at $0 — telling exactly the reader the set-aside lever is for that the
+ * payment was already reserved. The same filter retires the older false note for
+ * a card-payment, cash or investment series on a long rhythm.
  */
-export function longCadencesInTerm(rows: readonly { cadence: string | null }[]): LongCadence[] {
+export function longCadencesInTerm(
+  rows: readonly { cadence: string | null; categoryId?: string | null }[],
+): LongCadence[] {
+  const inTerm = rows.filter(
+    (r) => !(typeof r.categoryId === 'string' && PLAN_FIXED_NEVER_CATEGORY_IDS.has(r.categoryId)),
+  );
   return (['QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const).filter((c) =>
-    rows.some((r) => r.cadence === c),
+    inTerm.some((r) => r.cadence === c),
   );
 }
 

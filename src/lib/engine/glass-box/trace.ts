@@ -38,6 +38,7 @@ import {
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
 import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
+import { taxRuleSentence } from '@/lib/engine/spending-plan/tax-copy';
 import {
   BUDGETS_CARD_NOTE_SURFACE,
   planCardNotes,
@@ -296,6 +297,10 @@ function appendReserveClause(plan: SpendingPlan, parts: string[]): string[] {
 
 function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosures): SafeToSpendParts {
   const labels = planRowLabels(plan, disclosures);
+  // The tax rule (DECISIONS #783), stated in every basis sentence that builds
+  // Fixed from transaction history, in the reader's own category names. A RULE,
+  // so true for every reader — one author with the page and Ask (tax-copy.ts).
+  const taxRule = taxRuleSentence(disclosures.taxChargesLeftOut.names);
   const fixedShortfallNote = uncountedFixedNote(disclosures, 'left-to-spend', 'the fixed-expenses line');
   const rows: SafeToSpendParts['rows'] = {
     income: {
@@ -369,11 +374,11 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
           ]
         : plan.fixedBasis === 'category-designations'
           ? [
-              'Fixed costs are the sum of Fixed categories (budget target when set, otherwise typical spend), plus detected recurring bills that are not already in that rollup (for example an auto-loan ACH tagged as a transfer — transfers never enter typical spend). Change Fixed vs guilt-free on Spending.',
+              `Fixed costs are the sum of Fixed categories (budget target when set, otherwise typical spend), plus detected recurring bills that are not already in that rollup (for example an auto-loan ACH tagged as a transfer — transfers never enter typical spend). ${taxRule} Change Fixed vs guilt-free on Spending.`,
             ]
           : plan.fixedBasis === 'non-discretionary-median'
             ? [
-                `Fixed costs are the median of your last ${plan.fixedMonths} complete month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spending (groceries, housing, utilities, insurance, and similar — not dining out, golf, or shopping), plus detected recurring bills not already in that spend (for example an auto-loan ACH tagged as a transfer). Savings is separate from this line.`,
+                `Fixed costs are the median of your last ${plan.fixedMonths} complete month${plan.fixedMonths === 1 ? '' : 's'} of non-discretionary spending (groceries, housing, utilities, insurance, and similar — not dining out, golf, or shopping), plus detected recurring bills not already in that spend (for example an auto-loan ACH tagged as a transfer). ${taxRule} Savings is separate from this line.`,
               ]
             : plan.fixedBasis === 'reserves-only'
               ? [
@@ -381,7 +386,7 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
                 ]
               : plan.scheduledFixed.length > 0
                 ? [
-                    'Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12.',
+                    `Fixed & recurring expenses are your recurring bills at a monthly rate — a weekly bill counts 52/12 each month, a biweekly one 26/12. ${taxRule}`,
                   ]
                 : [],
     ),

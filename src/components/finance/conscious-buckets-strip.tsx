@@ -24,6 +24,7 @@ import {
   uncountedFixedNote,
 } from '@/lib/engine/spending-plan/row-labels';
 import { monthKey } from '@/lib/dates';
+import { taxLeftOutSentence } from '@/lib/engine/spending-plan/tax-copy';
 import { cents, formatCents } from '@/lib/money';
 import { spendClassMonthRegisterHref } from '@/lib/engine/transactions/links';
 
@@ -182,6 +183,19 @@ export function ConsciousBucketsStrip({
             {n}
           </p>
         ))}
+        {/* DECISIONS #783 (critic cycle 2, P2-2): this strip prints the guilt-free
+            split as percentages, so leaving tax charges out of it must be said
+            here too — one author with the page and Ask. 'left-to-spend' for the
+            same reason as `fixedShortfall` above: this strip prints the signed
+            guilt-free figure itself, never an overage. */}
+        {disclosures.taxChargesLeftOut.count > 0 && (
+          <p className="text-xs text-muted-foreground" data-testid="conscious-taxes-left-out">
+            {taxLeftOutSentence(
+              disclosures.taxChargesLeftOut,
+              plan.fixedBasis === 'user-set' ? null : 'left-to-spend',
+            )}
+          </p>
+        )}
         {overspent && (
           <p className="text-xs text-warning-600 dark:text-warning-400" data-testid="conscious-overspent">
             {COACH_COPY.consciousOverspent()}

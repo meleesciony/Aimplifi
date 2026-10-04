@@ -87,3 +87,4 @@ expected value to match the code.
 - [§Employer-match Settings (W.6(b) follow-up — DECISIONS #528)](../tests/edge-cases/employer-match-settings-w-6-b.md)
 - [§Tax-advantaged contribution room Settings (W.6(b) follow-up — DECISIONS #529)](../tests/edge-cases/tax-advantaged-room-settings-w-6-b.md)
 - [§Ask — same-account comparison and average (DECISIONS #781 — engine `analyst/same-account.ts`)](../tests/edge-cases/ask-same-account-comparison.md)
+- [§Tax charges left out of the guilt-free plan (DECISIONS #783)](../tests/edge-cases/tax-payments-left-out-of-plan.md)

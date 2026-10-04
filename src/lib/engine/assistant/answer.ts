@@ -21,6 +21,7 @@ import {
 } from '@/lib/engine/reports/reports';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
+import { taxLeftOutSentence } from '@/lib/engine/spending-plan/tax-copy';
 import {
   BUDGETS_CARD_NOTE_SURFACE,
   planCardNotes,
@@ -1459,6 +1460,20 @@ export function answerSafeToSpend(
   // already true for and the new fact carries its own condition.
   const reserveClause = reserveTermClause(plan.reserveLines.length);
   if (reserveClause !== '') qualifiers.push(reserveClause);
+  // DECISIONS #783: charges filed as taxes are never subtracted. Ask is
+  // untraced, so the page's left-out sentence cannot reach a reader who asked
+  // here (critic cycle 1, P2-2). One author with the page (tax-copy.ts); the
+  // direction is this branch's own — excluding a payment the reader really makes
+  // from counted pay makes room to spend look bigger and an overage smaller —
+  // and is withheld under a Fixed override, whose number may already hold it.
+  if (disclosures.taxChargesLeftOut.count > 0) {
+    qualifiers.push(
+      taxLeftOutSentence(
+        disclosures.taxChargesLeftOut,
+        plan.fixedBasis === 'user-set' ? null : over ? 'overage' : 'left-to-spend',
+      ),
+    );
+  }
   const withQualifiers = (base: string) => [base, ...qualifiers].join(' ');
   if (plan.overspent) {
     // The basis rides this branch too (cycle-2 critic: Ask has no breakdown page, and an
@@ -2704,6 +2719,18 @@ export function answerConsciousSpending(
   const fixedShortfall = uncountedFixedNote(disclosures, 'left-to-spend', 'your fixed costs');
   if (fixedShortfall) notes.push(fixedShortfall);
   notes.push(...planCardNotes(disclosures, BUDGETS_CARD_NOTE_SURFACE));
+  // DECISIONS #783 (critic cycle 2, P2-2): this answer prints the same split of
+  // the same figure, so it carries the same tax sentence as /budgets' strip —
+  // and, like the strip and `fixedShortfall` above, 'left-to-spend' even when
+  // overspent: its facts print the signed guilt-free figure, never an overage.
+  if (disclosures.taxChargesLeftOut.count > 0) {
+    notes.push(
+      taxLeftOutSentence(
+        disclosures.taxChargesLeftOut,
+        plan.fixedBasis === 'user-set' ? null : 'left-to-spend',
+      ),
+    );
+  }
   if (mapped.overspent) notes.push(COACH_COPY.consciousOverspent());
 
   const byKey = Object.fromEntries(mapped.buckets.map((b) => [b.key, b]));

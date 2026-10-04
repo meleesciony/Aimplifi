@@ -190,6 +190,7 @@ describe('classifySpendClass', () => {
       'card-payment',
       'cash',
       'investment',
+      'taxes',
       'not-spending',
     ];
     for (const r of all) {

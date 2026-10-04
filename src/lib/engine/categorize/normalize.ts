@@ -547,7 +547,12 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   // Financial / giving. (The tax-refund rule above catches 'IRS TREAS 310' /
   // 'TAX REF' first, so this taxes rule only sees payments TO tax authorities.)
   // Property tax has its own Home leaf — before the general taxes rule (#163).
-  { pattern: /\b(PROP(ERTY)? TAX)\b/i, categoryId: 'property-tax' },
+  // `TAX(ES)?`, and the real-estate / school / county spellings (DECISIONS #783
+  // critic cycle 2, P1-2): `\bPROP(ERTY)? TAX\b` cannot match "PROPERTY TAXES"
+  // (no word boundary between TAX and ES), so the commonest county descriptors
+  // fell through to the general rule and filed as Taxes — which the guilt-free
+  // plan now leaves out, silently dropping a recurring cost of the home.
+  { pattern: /\b((PROP(ERTY)?|REAL ESTATE|SCHOOL|COUNTY|TOWNSHIP) TAX(ES)?)\b/i, categoryId: 'property-tax' },
   { pattern: /\b(IRS|TAXES?|TURBOTAX|H&R BLOCK|TAX PREP|DEPT OF REVENUE|FRANCHISE TAX)\b/i, categoryId: 'taxes' },
   // Housing obligations the benchmark surfaced (#163): HOA dues; rent through
   // property-management portals.
