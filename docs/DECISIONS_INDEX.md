@@ -775,3 +775,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #781 — Ask compares two months, and averages a run of them, on the accounts whose records cover them (2026-10-03) → docs/DECISIONS.md
 - #782 — A combined-away account is not listed in "Net worth today" (2026-10-03) → docs/DECISIONS.md
 - #783 — Charges filed as taxes are not a monthly cost in the guilt-free plan (2026-10-03) → docs/DECISIONS.md
+- #784 — DECIDED (owner): base pay plans the month; bonuses go toward savings first (2026-10-03) → docs/DECISIONS.md

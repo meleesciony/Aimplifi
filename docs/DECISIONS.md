@@ -14,6 +14,14 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #784 — DECIDED (owner): base pay plans the month; bonuses go toward savings first (2026-10-03)
+
+**Context.** Raised while closing #783: the guilt-free income basis is the MEDIAN of the last three complete calendar months of earned pay (L.22). For a reader paid biweekly with quarterly bonuses that median drops exactly the months that differ — the two three-paycheck months a year and every bonus month — so the plan runs on roughly "two paychecks and nothing else", below what the reader earns over a year. Owner: "no i get quarterly bonuses also; the biweekly pay is my base pay. i get large checks 4 times a year."
+
+**Decision (owner's choice, verbatim option, 2026-10-03):** "Base pay plans the month — Monthly guilt-free is built on your base pay at its true yearly rate (biweekly × 26 ÷ 12). Bonuses show as their own line and go toward your savings target first. Safest if bonus size varies — you never plan monthly spending on money that only arrives 4 times a year." Rejected by the owner: averaging bonuses into monthly income; keeping the calendar-month median.
+
+**Status.** Decided, not built. The build is its own slice (income basis + a bonus line + the savings interplay on every surface that prints the figure), gated on a read-only measurement of the reader's real pay rhythm and bonus history (`probe-first-charge.mts`, owner-run) and the full critic loop.
+
 ## #783 — Charges filed as taxes are not a monthly cost in the guilt-free plan (2026-10-03)
 
 **Context.** Owner, over a Home card and Guilt-free page reading far "Over plan": "I think the app got tricked because I had a large tax payment recently … But that was last month not oct", then "Certain things like tax payments shouldn't be considered in budget." Measured on production, read-only (the shipped `getSpendingPlan` replayed from a scratch worktree with a Postgres client in a session forced `default_transaction_read_only=on`, run by the owner in their own terminal; live figures stay out of the repo): the Fixed term was several times the income pattern and most of it was one line — Taxes, priced by the category rollup's three-month typical. The window held a preparer fee and, the next month, IRS payments — the larger funded by a transfer in from a brokerage. The fee started the category's observation clock a month into the window, so the divisor was 2 and one payment was priced at half of itself every month. No recurring series or override existed for the tax payees.

@@ -28,6 +28,10 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## DECIDED 2026-10-03 — Base pay plans the month; bonuses go toward savings first (DECISIONS #784)
+
+Owner chose how the guilt-free plan counts quarterly bonuses: monthly income is base pay at its yearly rate (biweekly × 26 ÷ 12); bonuses show as their own line and fund the savings target first. **Not built.** Next: owner runs the read-only pay-rhythm/bonus probe, then a full slice (engine → every surface → critic → ship).
+
 ## ✅ BUILT 2026-10-03 — Charges filed as taxes are not a monthly cost in the guilt-free plan (DECISIONS #783)
 
 **What it is.** Owner: Home and Guilt-free read far "Over plan" the month after a large IRS payment — "Certain things like tax payments shouldn't be considered in budget." Cause measured on production (read-only, shipped loader): the Fixed category rollup averaged the Taxes payments over 2 observed months. Now Taxes and Estimated Tax Payment never count as a Fixed cost on any basis; Property Tax still counts; a tax target the reader typed still counts; every surface printing the figure says what tax was left out (12-month lookback) and how to count a tax paid on a schedule.
