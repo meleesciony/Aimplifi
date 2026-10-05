@@ -109,3 +109,4 @@ and rule live in each lesson file — open the file before acting on a hook.
 - [A duration you did not measure is not evidence — and "it's been ages" is not a measurement](a-duration-you-did-not-measure-is-not-evidence.md) — a CI run that had been alive for **5 minutes 6 seconds** was cancelled…
 - [A wrap rule that stops an overflow can split the content instead](a-wrap-rule-that-stops-overflow-can-split-the-content.md) — a balance printed "$12,495.0" / "0" passed every gate; lock tokens by geometry.
 - [`git stash pop` takes whatever is on top](a-pop-takes-whatever-is-on-top.md) — a failed push piped through `tail` let a bare pop reach six strangers' stashes; snapshot first, merge off to the side.
+- [A rhythm read from dates cannot see a new job](a-rhythm-read-from-dates-cannot-see-a-new-job.md) — six twice-a-month paydays fit a 14-day grid; bound the figure by the lowest count the dates allow
