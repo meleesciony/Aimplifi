@@ -837,7 +837,7 @@ async function buildAnswer(
         today: today as ISODate,
         safeToSpendCents: plan.leftToSpendFromPayCents,
       });
-      return answerDebtFreeByDate(result, intent.label, intent.targetDate, today, plan.unallocatedSavingsCents, debts);
+      return answerDebtFreeByDate(result, intent.label, intent.targetDate, today, plan.unallocatedSavingsCents, debts, plan.bonusTowardSavingsCents > 0);
     }
     case 'savings_goal_by_date': {
       // Inverse savings planner (DECISIONS #126): the user STATED the amount + date; we
@@ -853,7 +853,7 @@ async function buildAnswer(
         today: today as ISODate,
         safeToSpendCents: plan.leftToSpendFromPayCents,
       });
-      return answerSavingsGoalByDate(result, intent.label, intent.targetDate, today, plan.unallocatedSavingsCents);
+      return answerSavingsGoalByDate(result, intent.label, intent.targetDate, today, plan.unallocatedSavingsCents, plan.bonusTowardSavingsCents > 0);
     }
     case 'goal_status': {
       // SAME getGoalProgressRows + goalProgress the /goals card and Home Goals
@@ -897,7 +897,7 @@ async function buildAnswer(
         inflationBps: planRow?.inflationBps ?? RETIREMENT_ASSUMPTIONS.inflationBps,
         safeToSpendCents: plan.leftToSpendFromPayCents,
       });
-      return answerRetireAtAge(result, intent.label, plan.unallocatedSavingsCents);
+      return answerRetireAtAge(result, intent.label, plan.unallocatedSavingsCents, plan.bonusTowardSavingsCents > 0);
     }
     case 'wealth_target': {
       // W.4: SAME two solves the /coach card runs (open-ended pace, then required

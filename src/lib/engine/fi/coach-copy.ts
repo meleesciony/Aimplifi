@@ -8,6 +8,7 @@
  */
 
 import { cents, formatCents, type Cents } from '@/lib/money';
+import { plannerGuiltFreeNoun } from '@/lib/engine/spending-plan/bonus-copy';
 import { formatISODate, formatMonth, type ISODate } from '@/lib/dates';
 import {
   frozenNextDollarNote,
@@ -699,6 +700,9 @@ export const COACH_COPY = {
     additionalCents: Cents,
     safeToSpendCents: Cents,
     withinSafeToSpend: boolean | null,
+    // DECISIONS #787 (cycle 1, P2-5): true in a month a bonus paid savings —
+    // the figure here is guilt-free WITHOUT that credit, so it says so.
+    bonusMonth = false,
   ) =>
     additionalCents <= 0
       ? `That's at or below what you're already putting away, so the plan is to keep going.`
@@ -709,8 +713,8 @@ export const COACH_COPY = {
         withinSafeToSpend === null
         ? `That's ${formatCents(additionalCents)}/month more than you save today. There's no guilt-free figure to weigh it against this month, so whether it fits is a question your spending plan answers, not this card.`
         : withinSafeToSpend
-          ? `That's ${formatCents(additionalCents)}/month more than you save today, and it fits inside your ${formatCents(safeToSpendCents)} of monthly guilt-free spending.`
-          : `That's ${formatCents(additionalCents)}/month more than you save today — more than the ${formatCents(safeToSpendCents)} of monthly guilt-free spending you have, so the date or the number has to move.`,
+          ? `That's ${formatCents(additionalCents)}/month more than you save today, and it fits inside your ${formatCents(safeToSpendCents)} of monthly ${plannerGuiltFreeNoun(bonusMonth)}.`
+          : `That's ${formatCents(additionalCents)}/month more than you save today — more than the ${formatCents(safeToSpendCents)} of monthly ${plannerGuiltFreeNoun(bonusMonth)} you have, so the date or the number has to move.`,
 
   wealthTargetDeadlineTooSoon: () =>
     `That's less than a month away, so there's no contribution schedule to work out.`,

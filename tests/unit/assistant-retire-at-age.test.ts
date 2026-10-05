@@ -147,8 +147,13 @@ describe('answerRetireAtAge — honest copy per outcome', () => {
     const a = answerRetireAtAge(r, 'age 60', 0);
     expect(a.headline).toMatch(/To retire at 60/);
     expect(a.headline).toMatch(/\$300\.00\/mo/);
-    expect(a.headline).toMatch(/15% of your guilt-free spending/);
+    expect(a.headline).toMatch(/15% of your guilt-free spending\./);
     expect(a.facts).toContainEqual({ label: 'Share of guilt-free spending', value: '15%' });
+    // DECISIONS #787 (critic cycle 1, P2-5): in a month a bonus paid savings the
+    // solver read guilt-free WITHOUT that credit, and the answer says so.
+    const bonusMonth = answerRetireAtAge(r, 'age 60', 0, true);
+    expect(bonusMonth.headline).toMatch(/15% of your guilt-free spending from pay\./);
+    expect(bonusMonth.facts).toContainEqual({ label: 'Share of guilt-free spending from pay', value: '15%' });
     expect(a.action).toEqual({ kind: 'save_retirement_age', targetAge: 60, label: 'age 60' });
     expect(a.source).toEqual({ label: 'Open retirement outlook', href: '/investments' });
   });

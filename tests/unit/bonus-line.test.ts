@@ -23,10 +23,19 @@ import {
   bonusTowardSavingsCents,
   type BonusesThisMonth,
 } from '@/lib/engine/spending-plan/bonus';
-import { BONUS_ROW_LABEL, bonusSentence, bonusShortNote } from '@/lib/engine/spending-plan/bonus-copy';
+import {
+  BONUS_ROW_LABEL,
+  bonusSentence,
+  bonusShortNote,
+  plannerGuiltFreeNoun,
+} from '@/lib/engine/spending-plan/bonus-copy';
 import { mapToConsciousBuckets } from '@/lib/engine/spending-plan/conscious';
 import { traceConsciousBuckets, traceSafeToSpend } from '@/lib/engine/glass-box/trace';
 import { answerConsciousSpending, answerSafeToSpend } from '@/lib/engine/assistant/answer';
+import { deriveLearnedRules } from '@/lib/engine/categorize/learn';
+import { categorize } from '@/lib/engine/categorize/pipeline';
+import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
+import { cents } from '@/lib/money';
 
 const PAYROLL = 'NORTHWIND HEALTH PAYROLL PPD';
 // Biweekly Fridays Jun 12 – Oct 16, 2026; today is the day after the last.
@@ -65,6 +74,7 @@ describe('bonusesThisMonth — what counts as bonus money', () => {
       deposits: [
         { date: '2026-10-02', kind: 'above-paycheck', depositCents: 1351230, paycheckCents: PAYCHECK, bonusCents: 900000 },
       ],
+      netCents: 900000,
       totalCents: 900000,
       categoryName: 'Bonus',
     });
@@ -154,7 +164,7 @@ describe('bonusesThisMonth — what counts as bonus money', () => {
 });
 
 describe('bonusTowardSavingsCents — only on regular pay, never more than planned savings', () => {
-  const b = (totalCents: number): BonusesThisMonth => ({ month: '2026-10', deposits: [], totalCents, categoryName: 'Bonus' });
+  const b = (totalCents: number): BonusesThisMonth => ({ month: '2026-10', deposits: [], netCents: totalCents, totalCents, categoryName: 'Bonus' });
   it('pays planned savings first, up to the savings', () => {
     expect(bonusTowardSavingsCents(b(900000), 195533, 'regular-pay')).toBe(195533);
     expect(bonusTowardSavingsCents(b(100000), 195533, 'regular-pay')).toBe(100000);
@@ -190,12 +200,14 @@ const PAY: RegularPay = {
 const ON_PAYDAY: BonusesThisMonth = {
   month: '2026-10',
   deposits: [{ date: isoDate('2026-10-02'), kind: 'above-paycheck', depositCents: 1351230, paycheckCents: PAYCHECK, bonusCents: 900000 }],
+  netCents: 900000,
   totalCents: 900000,
   categoryName: 'Bonus',
 };
 const SMALL_FILED: BonusesThisMonth = {
   month: '2026-10',
   deposits: [{ date: isoDate('2026-10-05'), kind: 'filed', depositCents: 100000, paycheckCents: null, bonusCents: 100000 }],
+  netCents: 100000,
   totalCents: 100000,
   categoryName: 'Bonus',
 };
@@ -271,7 +283,7 @@ describe('the plan — a bonus pays this month’s savings first', () => {
 
   it('a month with no bonus is byte-for-byte the plan it was', () => {
     const before = computeSpendingPlan(input());
-    const none = computeSpendingPlan(input({ bonusesThisMonth: { ...ON_PAYDAY, deposits: [], totalCents: 0 } }));
+    const none = computeSpendingPlan(input({ bonusesThisMonth: { ...ON_PAYDAY, deposits: [], netCents: 0, totalCents: 0 } }));
     expect(none.leftToSpendCents).toBe(before.leftToSpendCents);
     expect(before).toMatchObject({ bonusTowardSavingsCents: 0, savingsFromPayCents: 195533, leftToSpendFromPayCents: 282132 });
   });
@@ -328,11 +340,14 @@ describe('every surface — one author (bonus-copy.ts)', () => {
   it('test_regression__the_bonus_sentence_states_what_landed_what_it_paid_and_the_rule', () => {
     expect(bonusSentence(full)).toBe(
       'Bonus money landed this month — Fri, Oct 2: $13,512.30 from the payer of your regular paycheck, $9,000.00 more than its usual $4,512.30. ' +
-        'Bonus money is a deposit filed Bonus, counted whole, or a day the payer of a regular paycheck deposited more than one and a half times the usual paycheck, counted for what it brought above it — a bonus paid on a day of its own counts whole once just that deposit is filed Bonus. ' +
+        'Counted as bonus money, in the account your income figure reads: deposits filed Bonus, and — once a paycheck has landed after it — a day the payer of your regular paycheck deposits more than one and a half paychecks, for the part above one paycheck; money the same payer takes back nets against it. ' +
         "A bonus never plans the month — it pays this month's savings first: it covers all $1,955.33 of this month's planned savings, so guilt-free this month is $1,955.33 higher than your pay alone allows. " +
         'The other $7,044.67 is not counted anywhere in this plan — it is yours to decide: more savings or investing, money put aside for taxes, or something you have been wanting. ' +
         'This reads the deposits, not where the money went after it landed.',
     );
+    // Never the lever that teaches a rule filing the payer's next paycheck as
+    // Bonus (cycle 1, P1-1).
+    expect(bonusSentence(full)).not.toMatch(/file (just )?that deposit/i);
   });
 
   it('each other state says what it did — and only that', () => {
@@ -348,7 +363,7 @@ describe('every surface — one author (bonus-copy.ts)', () => {
 
     const median = computeSpendingPlan(input({ bonusesThisMonth: ON_PAYDAY, regularPay: null }));
     expect(bonusSentence(median)).toContain(
-      'only while income is your regular pay, which leaves every bonus out; income right now is the median of your last 3 complete months, which counts bonus pay in the months it reads, so none of it is counted here.',
+      'only while income is your regular pay, which leaves every bonus out; income right now is the median of your last 3 complete months, and those months can already include bonus pay, so none of it is counted here.',
     );
     const typed = computeSpendingPlan(input({ bonusesThisMonth: ON_PAYDAY, incomeOverrideCents: 800000 }));
     expect(bonusSentence(typed)).toContain('income is the monthly figure you set, which may already include bonus pay');
@@ -356,26 +371,27 @@ describe('every surface — one author (bonus-copy.ts)', () => {
     const twoAndBack: BonusesThisMonth = {
       ...SMALL_FILED,
       deposits: [...SMALL_FILED.deposits, { date: isoDate('2026-10-08'), kind: 'filed', depositCents: -100000, paycheckCents: null, bonusCents: -100000 }],
+      netCents: 0,
       totalCents: 0,
     };
     const nets = computeSpendingPlan(input({ bonusesThisMonth: twoAndBack }));
     expect(nets.bonusTowardSavingsCents).toBe(0);
     expect(bonusSentence(nets)).toContain('Thu, Oct 8: $1,000.00 filed Bonus, taken back: $0.00 in all.');
-    expect(bonusSentence(nets)).toContain('It comes to nothing, so none of it is counted here.');
+    expect(bonusSentence(nets)).toContain('It nets to $0.00, so none of it is counted here.');
 
     expect(bonusSentence(computeSpendingPlan(input()))).toBeNull();
 
     // Only a bonus taken back: nothing landed, and the sentence does not say so.
     const onlyBack = computeSpendingPlan(
-      input({ bonusesThisMonth: { ...twoAndBack, deposits: [twoAndBack.deposits[1]!], totalCents: 0 } }),
+      input({ bonusesThisMonth: { ...twoAndBack, deposits: [twoAndBack.deposits[1]!], netCents: -100000, totalCents: 0 } }),
     );
     expect(bonusSentence(onlyBack)).toMatch(/^A bonus was taken back this month — Thu, Oct 8: \$1,000\.00 filed Bonus, taken back\./);
-    expect(bonusSentence(onlyBack)).not.toContain('landed');
+    expect(bonusSentence(onlyBack)).not.toContain('Bonus money landed');
   });
 
   it('the short note speaks only when a bonus moved the figure', () => {
     expect(bonusShortNote(full)).toBe(
-      "This month's bonus paid $1,955.33 of your savings, so guilt-free is $1,955.33 higher than your pay alone allows — the details are on Guilt-free.",
+      "This month's bonus paid $1,955.33 of your savings, so guilt-free is $1,955.33 higher than your pay alone allows.",
     );
     expect(bonusShortNote(computeSpendingPlan(input({ bonusesThisMonth: ON_PAYDAY, regularPay: null })))).toBeNull();
   });
@@ -395,6 +411,177 @@ describe('every surface — one author (bonus-copy.ts)', () => {
     expect(src('src/components/finance/budgeting-composition-card.tsx')).toContain('bonusShortNote(plan)');
     expect(src('src/components/finance/conscious-buckets-strip.tsx')).toContain('bonusShortNote(plan)');
     expect(src('src/app/(app)/spending-plan/page.tsx')).toContain('p.savingsFromPayCents');
+  });
+});
+
+describe('critic cycle 1 (DECISIONS #787) — money taken back, pay filed Bonus, raises, direction', () => {
+  // Biweekly from Fri May 1: eleven paydays through Sep 18, so a household
+  // whose Oct 2 paycheck is missing still reads every two weeks (nine on the
+  // grid) and is still live on Oct 5 (17 days ≤ 14 + 5).
+  const LONG = Array.from({ length: 11 }, (_, i) => addDays(isoDate('2026-05-01'), 14 * i) as string);
+  const OCT5 = isoDate('2026-10-05');
+  const planOf = (rows: TxnLike[], today: ReturnType<typeof isoDate>, over: Partial<SpendingPlanInput> = {}) => {
+    const pay = regularPayFromRows(rows, today);
+    return computeSpendingPlan(input({ today, regularPay: pay, bonusesThisMonth: bonusesThisMonth(rows, today, pay), ...over }));
+  };
+
+  it('test_regression__a_paycheck_filed_bonus_is_never_counted_as_pay_and_as_bonus', () => {
+    // P1-1, executed by the critic: the Oct 2 paycheck filed Bonus (as a learned
+    // rule files it) while the stream, last paid Sep 18, is still live.
+    const rows = [...LONG.map((d) => dep(d, PAYCHECK)), dep('2026-10-02', PAYCHECK, { categoryId: 'bonus' })];
+    const p = planOf(rows, OCT5);
+    expect(p.incomeBasis).toBe('regular-pay');
+    expect(p.bonusesThisMonth?.deposits).toEqual([
+      { date: '2026-10-02', kind: 'filed', depositCents: PAYCHECK, paycheckCents: PAYCHECK, bonusCents: 0 },
+    ]);
+    // Fail-old: $4,776.65. Now the pay-only figure, $2,821.32.
+    expect(p.bonusTowardSavingsCents).toBe(0);
+    expect(p.leftToSpendCents).toBe(282132);
+    expect(bonusSentence(p)).toContain(
+      'Fri, Oct 2: $4,512.30 filed Bonus from the payer of your regular paycheck, counted only above its usual $4,512.30 because no paycheck has landed after it yet.',
+    );
+    expect(bonusSentence(p)).toContain('It nets to $0.00, so none of it is counted here.');
+
+    // The variant: the whole payday deposit (paycheck + $500.00) filed Bonus.
+    const whole = [...LONG.map((d) => dep(d, PAYCHECK)), dep('2026-10-02', PAYCHECK + 50000, { categoryId: 'bonus' })];
+    expect(planOf(whole, OCT5).bonusTowardSavingsCents).toBe(50000);
+  });
+
+  it('the chain the critic ran: two corrections teach a rule that files the next paycheck Bonus — still no double count', () => {
+    const corr = (id: string, seq: number) => ({
+      transactionId: id,
+      toCategoryId: 'bonus',
+      isUndo: false,
+      seq,
+      rawDescriptor: PAYROLL,
+      amountCents: 900000,
+    });
+    const rules = deriveLearnedRules([corr('q2', 1), corr('q3', 2)]);
+    const next = categorize({ rawDescriptor: PAYROLL, amountCents: PAYCHECK, date: '2026-10-02', accountId: 'chk' }, rules);
+    expect(next.categoryId).toBe('bonus'); // the hazard is real
+    const rows = [...LONG.map((d) => dep(d, PAYCHECK)), dep('2026-10-02', PAYCHECK, { categoryId: next.categoryId })];
+    expect(planOf(rows, OCT5).bonusTowardSavingsCents).toBe(0);
+  });
+
+  it('a bonus filed Bonus from the payroll counts whole once a paycheck lands after it', () => {
+    const rows = [...PAYDAYS, dep('2026-10-09', 900000, { categoryId: 'bonus' })];
+    // Oct 10: last payday Oct 2, so the Oct 9 deposit may be a paycheck.
+    expect(lines(rows.filter((t) => t.date <= '2026-10-10'), isoDate('2026-10-10')).totalCents).toBe(900000 - PAYCHECK);
+    // Oct 17: the Oct 16 paycheck landed after it — all of it counts.
+    expect(lines(rows).totalCents).toBe(900000);
+    // From another payer it is never held.
+    const award = [...PAYDAYS.filter((t) => t.date <= '2026-10-10'), dep('2026-10-09', 900000, { categoryId: 'bonus', rawDescriptor: 'NORTHWIND HEALTH SPOT AWARD' })];
+    expect(lines(award, isoDate('2026-10-10')).totalCents).toBe(900000);
+  });
+
+  it('test_regression__money_the_payroll_takes_back_nets_against_its_bonus', () => {
+    // P1-2, executed by the critic on the loader: a duplicate paycheck on Oct 2
+    // and the same amount taken back the same day.
+    const dup = [...PAYDAYS, dep('2026-10-02', PAYCHECK, { id: 'dup' }), dep('2026-10-02', -PAYCHECK, { categoryId: 'uncategorized', id: 'rev' })];
+    const p = planOf(dup, TODAY);
+    expect(p.incomeBasis).toBe('regular-pay');
+    expect(p.bonusesThisMonth).toMatchObject({ netCents: 0, totalCents: 0 });
+    // Fail-old: credit $1,955.33.
+    expect(p.bonusTowardSavingsCents).toBe(0);
+    expect(bonusSentence(p)).toContain(
+      'Fri, Oct 2: $9,024.60 from the payer of your regular paycheck, $4,512.30 more than its usual $4,512.30; Fri, Oct 2: $4,512.30 taken back by the same payer: $0.00 in all.',
+    );
+
+    // A $9,000.00 bonus taken back four days later, under a descriptor the
+    // normalizer reads as a longer name ("… Ppd Reversal").
+    const reversed = [
+      ...PAYDAYS,
+      dep('2026-10-02', 900000, { id: 'b' }),
+      dep('2026-10-06', -900000, { rawDescriptor: `${PAYROLL} REVERSAL` }),
+    ];
+    expect(planOf(reversed, TODAY).bonusTowardSavingsCents).toBe(0);
+    // Filed Bonus, taken back filed Paycheck: nets too.
+    const filedBack = [...PAYDAYS, dep('2026-10-05', 300000, { categoryId: 'bonus' }), dep('2026-10-08', -300000)];
+    expect(lines(filedBack).totalCents).toBe(0);
+  });
+
+  it('only a payer of this month’s bonus money nets — never an unrelated payment, never Zelle or a check', () => {
+    const rows = [
+      ...PAYDAYS,
+      dep('2026-10-05', 300000, { categoryId: 'bonus' }),
+      dep('2026-10-06', -120000, { rawDescriptor: 'MAPLE COURT APTS RENT', categoryId: 'rent' }),
+    ];
+    expect(lines(rows).totalCents).toBe(300000);
+    const zelle = [
+      ...PAYDAYS,
+      dep('2026-10-05', 300000, { categoryId: 'bonus', rawDescriptor: 'ZELLE PAYMENT FROM NORTHWIND' }),
+      dep('2026-10-06', -80000, { rawDescriptor: 'ZELLE PAYMENT TO CASEY', categoryId: 'uncategorized' }),
+    ];
+    expect(lines(zelle).totalCents).toBe(300000);
+  });
+
+  it('a payroll day counts only once an ordinary paycheck lands after it — a raise of more than half is not a bonus', () => {
+    // P2-3: $7,000.00 on Oct 2 and Oct 16 after $4,512.30 paychecks.
+    // A $50.00 deposit from the payroll after it (an expense paid back) is not
+    // an ordinary paycheck — under half of one.
+    const raise = [
+      ...PAYDAYS.filter((t) => t.date < '2026-10-02'),
+      dep('2026-10-02', 700000),
+      dep('2026-10-09', 5000),
+      dep('2026-10-16', 700000),
+    ];
+    expect(lines(raise, isoDate('2026-10-20')).deposits).toEqual([]);
+    // A bonus on the newest payday waits for the next paycheck.
+    const newest = [...PAYDAYS.filter((t) => t.date < '2026-10-16'), dep('2026-10-16', 1351230)];
+    expect(lines(newest).deposits).toEqual([]);
+  });
+
+  it('after a rise, the usual paycheck is the newest level', () => {
+    // P2-4: $4,000.00 through Aug 7, $4,800.00 from Aug 21; Oct 2 = $4,800.00 + $3,000.00.
+    const dates = Array.from({ length: 13 }, (_, i) => addDays(isoDate('2026-05-01'), 14 * i) as string);
+    const rows = dates.map((d) => dep(d, d === '2026-10-02' ? 780000 : d <= '2026-08-07' ? 400000 : 480000));
+    const pay = regularPayFromRows(rows, isoDate('2026-10-20'));
+    expect(pay.streams[0]).toMatchObject({ paycheckCents: 400000, step: { direction: 'rose', newestCents: 480000 } });
+    expect(bonusesThisMonth(rows, isoDate('2026-10-20'), pay).deposits).toEqual([
+      { date: '2026-10-02', kind: 'above-paycheck', depositCents: 780000, paycheckCents: 480000, bonusCents: 300000 },
+    ]);
+  });
+
+  it('payroll days from last month are not this month’s bonus', () => {
+    // P2-6(a): Sep 18 carried a $9,000.00 bonus; today is Oct 17.
+    const rows = PAYDAYS.map((t) => (t.date === '2026-09-18' ? dep('2026-09-18', 1351230) : t));
+    expect(lines(rows).deposits).toEqual([]);
+  });
+
+  it('over plan, the words follow the overage (P2-1)', () => {
+    const over = computeSpendingPlan(input({ bonusesThisMonth: ON_PAYDAY, categoryFixedCents: 1000000 }));
+    expect(over.overspent).toBe(true);
+    expect(bonusSentence(over)).toContain("so this month's overage is $1,955.33 smaller than your pay alone would make it.");
+    expect(bonusSentence(over)).toContain('it is yours to decide: covering this month’s overage, more savings or investing');
+    expect(bonusSentence(over)).not.toContain('higher');
+    expect(bonusShortNote(over)).toBe(
+      "This month's bonus paid $1,955.33 of your savings, so the overage is $1,955.33 smaller than your pay alone would make it.",
+    );
+    const a = answerSafeToSpend(over, DISCLOSURES);
+    expect(a.headline).toMatch(/over your plan/);
+    expect(a.detail).not.toContain('higher than your pay alone');
+  });
+
+  it('a total below zero prints as what it is (P2-2)', () => {
+    const rows = [...PAYDAYS, dep('2026-10-05', 300000, { categoryId: 'bonus' }), dep('2026-10-08', -500000, { categoryId: 'bonus' })];
+    const p = computeSpendingPlan(input({ bonusesThisMonth: lines(rows) }));
+    expect(p.bonusesThisMonth).toMatchObject({ netCents: -200000, totalCents: 0 });
+    expect(bonusSentence(p)).toContain(': -$2,000.00 in all.');
+    expect(bonusSentence(p)).toContain('It nets to -$2,000.00, so none of it is counted here.');
+  });
+
+  it('planners name the figure they read — guilt-free from pay — in a bonus month (P2-5)', () => {
+    expect(plannerGuiltFreeNoun(false)).toBe('guilt-free spending');
+    expect(plannerGuiltFreeNoun(true)).toBe('guilt-free spending from pay');
+    expect(COACH_COPY.wealthTargetAdditional(cents(50000), cents(282132), true, true)).toBe(
+      "That's $500.00/month more than you save today, and it fits inside your $2,821.32 of monthly guilt-free spending from pay.",
+    );
+    expect(COACH_COPY.wealthTargetAdditional(cents(50000), cents(282132), true)).toContain('of monthly guilt-free spending.');
+    const server = readFileSync(resolve('src/server/assistant.ts'), 'utf8');
+    for (const fn of ['answerDebtFreeByDate', 'answerSavingsGoalByDate', 'answerRetireAtAge']) {
+      expect(server).toMatch(new RegExp(`return ${fn}\\([^;]*plan\\.bonusTowardSavingsCents > 0\\);`));
+    }
+    expect(readFileSync(resolve('src/app/(app)/coach/page.tsx'), 'utf8')).toContain('bonusMonth={plan.bonusTowardSavingsCents > 0}');
   });
 });
 
@@ -442,6 +629,29 @@ describe('the real loader (DECISIONS #787)', () => {
       },
     });
     await prisma.user.update({ where: { id: USER }, data: { paymentAccountId: checking.id } });
+    // A savings account the income figure does not read (P2-6(b)).
+    const savings = await prisma.account.create({
+      data: {
+        userId: USER,
+        provider: 'manual',
+        providerRef: `${USER}-sav`,
+        name: 'High-Yield Savings',
+        type: 'SAVINGS',
+        currentBalanceCents: 1500000,
+        currency: 'USD',
+      },
+    });
+    await prisma.transaction.create({
+      data: {
+        accountId: savings.id,
+        date: '2026-10-12',
+        amountCents: 400000,
+        rawDescriptor: 'NORTHWIND HEALTH RETENTION AWARD',
+        categoryId: 'bonus',
+        confidenceBps: 10000,
+        needsReview: false,
+      },
+    });
     const row = (date: string, amountCents: number, rawDescriptor = PAYROLL, categoryId = 'paycheck') => ({
       accountId: checking.id,
       date,
@@ -476,11 +686,14 @@ describe('the real loader (DECISIONS #787)', () => {
     const plan = await getSpendingPlan(USER);
     expect(plan.incomeBasis).toBe('regular-pay');
     expect(plan.patternIncomeCents).toBe(977665);
+    // Only the checking account the income figure reads — never the $4,000.00
+    // filed Bonus in savings.
     expect(plan.bonusesThisMonth).toMatchObject({
       month: '2026-10',
       totalCents: 250000,
       deposits: [{ date: '2026-10-09', kind: 'filed', bonusCents: 250000 }],
     });
+    expect(plan.bonusesThisMonth?.deposits).toHaveLength(1);
     // Rent $3,000.00; savings 20% = $1,955.33, all of it paid by the $2,500.00.
     expect(plan.fixedExpensesCents).toBe(300000);
     expect(plan.plannedSavingsCents).toBe(195533);

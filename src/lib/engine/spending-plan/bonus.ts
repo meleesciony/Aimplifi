@@ -10,18 +10,31 @@
  * savings first. Nothing here forecasts a bonus — a bonus that has not arrived
  * is not in any figure.
  *
- * WHAT COUNTS AS A BONUS (two kinds, both in the accounts the income figure
- * reads, both from the current calendar month up to today):
- *   1. `filed` — a row filed Bonus. All of it: filing a deposit Bonus is the
- *      reader saying "this is not my regular pay" (regular pay already leaves
- *      every Bonus row out). Signed, so a bonus taken back nets against it.
- *   2. `above-paycheck` — a payday from a steady payroll (a live
- *      `RegularPayStream`) whose deposits that day total MORE than 1.5× its
- *      usual paycheck: a bonus paid through payroll, with or without the
- *      paycheck in the same deposit. Only the part ABOVE the usual paycheck
- *      counts. When the paycheck was paid that day too, that part is the
- *      bonus; when the bonus came on its own date, it is the bonus less one
- *      paycheck — low, never high, because the rows cannot say which.
+ * WHAT COUNTS (in the rows given — the plan passes the income-account rows
+ * regular pay reads — from the current calendar month up to today):
+ *   1. `filed` — a row filed Bonus, signed (a bonus taken back nets). Whole,
+ *      EXCEPT a positive row from the payer of a live regular paycheck dated
+ *      after that paycheck's last payday: no paycheck has landed after it, so it
+ *      may BE the paycheck (a learned rule files a payer's NEXT deposit the way
+ *      its last two were filed — #787 critic cycle 1, P1-1), and only the part
+ *      above the usual paycheck counts until one does.
+ *   2. `above-paycheck` — a day the payer of a live regular paycheck (a
+ *      `RegularPayStream`) deposited MORE than 1.5× the usual paycheck, once an
+ *      ordinary paycheck (0.5×–1.5×) from that payer has landed AFTER it. The
+ *      part above the usual paycheck counts: the bonus exactly when the
+ *      paycheck came the same day, the bonus less one paycheck when it came on
+ *      its own (low, never high). Without a later ordinary paycheck the day may
+ *      be a raise of more than half or a new job under the same payroll name
+ *      (cycle 1, P2-3) — it is not bonus money.
+ *   3. `taken-back` — a negative row (not filed Bonus) from a payer of this
+ *      month's bonus money: a reversal, or a duplicate taken back (cycle 1,
+ *      P1-2). It nets against the total. Payers the normalizer cannot identify
+ *      (Zelle, Venmo, checks — `aggregate`) are never matched: their outflows
+ *      are anyone's.
+ * The total nets everything and never goes below $0.
+ *
+ * THE USUAL PAYCHECK is the stream's paycheck, or after a rise (#786) its newest
+ * paycheck — the level a bonus day actually rode on (cycle 1, P2-4).
  *
  * WHY 1.5× AND WHY IT NEVER READS A PAYCHECK AS A BONUS. 1.5× is the band
  * regular pay itself uses to tell a paycheck from a bonus-sized payday. A live
@@ -42,45 +55,50 @@ import { isPayrollDepositRow, type RegularPay } from '@/lib/engine/spending-plan
 // would close a module cycle; `import type` is erased at compile time.
 import type { IncomeBasis } from '@/lib/engine/spending-plan/plan';
 
-/** A payday counts as carrying a bonus when its total is more than this
- *  percent of the usual paycheck — regular pay's own paycheck band (1.5×),
- *  compared as whole numbers so the boundary is exact. */
+/** A day counts as carrying a bonus when its total is more than this percent
+ *  of the usual paycheck — regular pay's own paycheck band (1.5×), compared as
+ *  whole numbers so the boundary is exact. */
 const ABOVE_PAYCHECK_PCT = 150;
+/** An ordinary paycheck: from half to one and a half usual paychecks. */
+const ORDINARY_LOW_PCT = 50;
 
 export interface BonusDeposit {
   date: ISODate;
-  /** `filed`: a row filed Bonus. `above-paycheck`: a steady payroll's payday
-   *  that brought more than 1.5× its usual paycheck. */
-  kind: 'filed' | 'above-paycheck';
-  /** What landed: the row (`filed`, signed — a bonus taken back is negative),
-   *  or the payroll's pay deposits that day (`above-paycheck`). */
+  /** `filed`: a row filed Bonus. `above-paycheck`: a day the payer of a
+   *  regular paycheck deposited more than 1.5× it. `taken-back`: a negative
+   *  row from a payer of this month's bonus money. */
+  kind: 'filed' | 'above-paycheck' | 'taken-back';
+  /** What landed, signed: the row (`filed`, `taken-back`), or the payer's pay
+   *  deposits that day (`above-paycheck`). */
   depositCents: number;
-  /** The usual paycheck taken off (`above-paycheck`); null for `filed`. */
+  /** The usual paycheck taken off — always for `above-paycheck`; for `filed`
+   *  only when the row may be that paycheck (see the module header); else null. */
   paycheckCents: number | null;
-  /** The bonus part: the whole row (`filed`), or the deposits less the usual
-   *  paycheck (`above-paycheck`). */
+  /** What counts, signed: the deposit, less `paycheckCents` when set (never
+   *  below 0 for a `filed` row). */
   bonusCents: number;
 }
 
 export interface BonusesThisMonth {
   /** The calendar month read (YYYY-MM of today). */
   month: string;
-  /** Oldest first; same-date rows keep a stable order (kind, then amount). */
+  /** Oldest first; on one date: filed, then above-paycheck, then taken-back. */
   deposits: BonusDeposit[];
-  /** Sum of every `bonusCents`, never below 0. */
+  /** Sum of every `bonusCents`, signed — what the copy prints as "in all". */
+  netCents: number;
+  /** `netCents`, never below 0 — what can pay savings. */
   totalCents: number;
-  /** The reader's name for the Bonus category (they can rename it) — what the
-   *  copy tells them to file a deposit as. */
+  /** The reader's name for the Bonus category (they can rename it). */
   categoryName: string;
 }
 
+const KIND_ORDER: Record<BonusDeposit['kind'], number> = { filed: 0, 'above-paycheck': 1, 'taken-back': 2 };
+
 /**
- * The bonus money that landed in today's calendar month, up to today, in the
- * rows given (the plan passes the same income-account rows regular pay reads).
- * `regularPay` supplies the live steady payrolls and their usual paychecks —
- * also when the plan is not on regular pay, so the line can still SHOW a
- * payroll bonus; whether any of it moves a figure is the plan's decision
- * (`bonusTowardSavingsCents`).
+ * The bonus money that landed in today's calendar month, up to today.
+ * `regularPay` supplies the live regular paychecks — also when the plan is not
+ * on regular pay, so the line can still SHOW what landed; whether any of it
+ * moves a figure is the plan's decision (`bonusTowardSavingsCents`).
  */
 export function bonusesThisMonth(
   transactions: readonly TxnLike[],
@@ -90,50 +108,87 @@ export function bonusesThisMonth(
 ): BonusesThisMonth {
   const month = monthKey(today);
   const inMonth = (t: TxnLike) => monthKey(t.date) === month && t.date <= today;
+  const streams = new Map(
+    regularPay.streams.map((s) => [
+      s.payerCanonical,
+      {
+        usual: s.step ? Math.max(s.paycheckCents, s.step.newestCents) : s.paycheckCents,
+        lastPaidOn: s.lastPaidOn as string,
+      },
+    ]),
+  );
   const deposits: BonusDeposit[] = [];
+  /** Payers this month's bonus money came from — the ones whose take-backs net. */
+  const bonusPayers = new Set<string>();
 
   for (const t of transactions) {
     if (t.categoryId !== 'bonus' || !inMonth(t) || !countsInFlows(t) || t.amountCents === 0) continue;
+    const payer = normalizeMerchant(t.rawDescriptor);
+    bonusPayers.add(payer.canonical);
+    const stream = streams.get(payer.canonical);
+    const held = t.amountCents > 0 && stream !== undefined && t.date > stream.lastPaidOn;
     deposits.push({
       date: t.date as ISODate,
       kind: 'filed',
+      depositCents: t.amountCents,
+      paycheckCents: held ? stream.usual : null,
+      bonusCents: held ? Math.max(0, t.amountCents - stream.usual) : t.amountCents,
+    });
+  }
+
+  const daysByPayer = new Map<string, Map<string, number>>();
+  for (const t of transactions) {
+    if (!inMonth(t) || !isPayrollDepositRow(t)) continue;
+    const payer = normalizeMerchant(t.rawDescriptor).canonical;
+    if (!streams.has(payer)) continue;
+    const days = daysByPayer.get(payer) ?? new Map<string, number>();
+    days.set(t.date, (days.get(t.date) ?? 0) + t.amountCents);
+    daysByPayer.set(payer, days);
+  }
+  for (const [payer, days] of daysByPayer) {
+    const { usual } = streams.get(payer)!;
+    if (usual <= 0) continue;
+    const ordinary = (total: number) =>
+      total * 100 >= usual * ORDINARY_LOW_PCT && total * 100 <= usual * ABOVE_PAYCHECK_PCT;
+    for (const [date, totalCents] of days) {
+      if (totalCents * 100 <= usual * ABOVE_PAYCHECK_PCT) continue;
+      if (![...days].some(([later, total]) => later > date && ordinary(total))) continue;
+      bonusPayers.add(payer);
+      deposits.push({
+        date: date as ISODate,
+        kind: 'above-paycheck',
+        depositCents: totalCents,
+        paycheckCents: usual,
+        bonusCents: totalCents - usual,
+      });
+    }
+  }
+
+  for (const t of transactions) {
+    if (t.amountCents >= 0 || t.categoryId === 'bonus' || !inMonth(t) || !countsInFlows(t)) continue;
+    const payer = normalizeMerchant(t.rawDescriptor);
+    if (payer.aggregate) continue;
+    const fromBonusPayer = [...bonusPayers].some(
+      (p) => payer.canonical === p || payer.canonical.startsWith(`${p} `),
+    );
+    if (!fromBonusPayer) continue;
+    deposits.push({
+      date: t.date as ISODate,
+      kind: 'taken-back',
       depositCents: t.amountCents,
       paycheckCents: null,
       bonusCents: t.amountCents,
     });
   }
 
-  const paycheckByPayer = new Map(regularPay.streams.map((s) => [s.payerCanonical, s.paycheckCents]));
-  const dayTotals = new Map<string, { payer: string; date: string; totalCents: number }>();
-  for (const t of transactions) {
-    if (!inMonth(t) || !isPayrollDepositRow(t)) continue;
-    const payer = normalizeMerchant(t.rawDescriptor).canonical;
-    if (!paycheckByPayer.has(payer)) continue;
-    const key = `${payer}\u0000${t.date}`;
-    const slot = dayTotals.get(key) ?? { payer, date: t.date, totalCents: 0 };
-    slot.totalCents += t.amountCents;
-    dayTotals.set(key, slot);
-  }
-  for (const { payer, date, totalCents } of dayTotals.values()) {
-    const paycheckCents = paycheckByPayer.get(payer)!;
-    if (paycheckCents <= 0 || totalCents * 100 <= paycheckCents * ABOVE_PAYCHECK_PCT) continue;
-    deposits.push({
-      date: date as ISODate,
-      kind: 'above-paycheck',
-      depositCents: totalCents,
-      paycheckCents,
-      bonusCents: totalCents - paycheckCents,
-    });
-  }
-
   deposits.sort(
     (a, b) =>
       (a.date < b.date ? -1 : a.date > b.date ? 1 : 0) ||
-      (a.kind === b.kind ? 0 : a.kind === 'filed' ? -1 : 1) ||
+      KIND_ORDER[a.kind] - KIND_ORDER[b.kind] ||
       b.bonusCents - a.bonusCents,
   );
-  const totalCents = Math.max(0, deposits.reduce((sum, d) => sum + d.bonusCents, 0));
-  return { month, deposits, totalCents, categoryName };
+  const netCents = deposits.reduce((sum, d) => sum + d.bonusCents, 0);
+  return { month, deposits, netCents, totalCents: Math.max(0, netCents), categoryName };
 }
 
 /**

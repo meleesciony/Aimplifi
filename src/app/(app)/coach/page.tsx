@@ -647,6 +647,7 @@ export default async function CoachPage() {
         monthlySavingsCents={cents(wealthContribution.contributionCents)}
         monthlyIncomeCents={data.fi.monthlyIncomeCents}
         safeToSpendCents={cents(plan.leftToSpendFromPayCents)}
+        bonusMonth={plan.bonusTowardSavingsCents > 0}
         expectedReturnBps={data.fi.expectedReturnBps}
         inflationBps={data.fi.inflationBps}
         dialOwnership={dialOwnership}

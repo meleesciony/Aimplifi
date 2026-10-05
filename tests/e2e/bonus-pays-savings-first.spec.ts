@@ -71,7 +71,7 @@ function seed(email: string, bonus: { date: string; cents: number; categoryId: s
 // Income $9,776.65 − rent $3,000.00 − savings $1,955.33 + the $1,955.33 the
 // bonus paid = $6,776.65 (the bonus covers all of the savings in both tests).
 const GUILT_FREE = money(MONTHLY_CENTS - RENT_CENTS);
-const SHORT_NOTE = `This month's bonus paid ${money(SAVINGS_CENTS)} of your savings, so guilt-free is ${money(SAVINGS_CENTS)} higher than your pay alone allows — the details are on Guilt-free.`;
+const SHORT_NOTE = `This month's bonus paid ${money(SAVINGS_CENTS)} of your savings, so guilt-free is ${money(SAVINGS_CENTS)} higher than your pay alone allows.`;
 
 test('a deposit filed Bonus pays this month’s savings first — its own row on Guilt-free, the same figure on Home and /budgets', async ({ page }) => {
   const email = await signUpThrowaway(page);
@@ -105,6 +105,7 @@ test('a deposit filed Bonus pays this month’s savings first — its own row on
   await expect(page.getByTestId('budgeting-guilt-free')).toHaveText(GUILT_FREE);
   await expect(page.getByTestId('budgeting-bonus')).toHaveText(`+ ${money(SAVINGS_CENTS)}`);
   await expect(page.getByTestId('budgeting-bonus-basis')).toHaveText(SHORT_NOTE);
+  await expect(page.getByTestId('budgeting-bonus-link')).toHaveAttribute('href', '/spending-plan');
   await expect(page.getByTestId('conscious-bonus-note')).toHaveText(`${SHORT_NOTE} Savings here is the part your pay funds.`);
 });
 

@@ -60,6 +60,7 @@ export function WealthTargetCard({
   monthlySavingsCents,
   monthlyIncomeCents,
   safeToSpendCents,
+  bonusMonth = false,
   expectedReturnBps,
   inflationBps,
   dialOwnership,
@@ -90,6 +91,9 @@ export function WealthTargetCard({
    */
   monthlyIncomeCents: Cents;
   safeToSpendCents: Cents;
+  /** True in a month a bonus paid savings (DECISIONS #787): `safeToSpendCents`
+   *  is then guilt-free WITHOUT that credit, and the sentence names it so. */
+  bonusMonth?: boolean;
   expectedReturnBps: number;
   inflationBps: number;
   /**
@@ -457,6 +461,7 @@ export function WealthTargetCard({
                     result.requiredAdditionalMonthlyCents as Cents,
                     safeToSpendCents,
                     result.withinSafeToSpend,
+                    bonusMonth,
                   )}
                 </p>
               ) : null}

@@ -154,6 +154,15 @@ export function BudgetingCompositionCard({
               <span className="mt-0.5 block text-xs" data-testid="budgeting-bonus-basis">
                 {bonusNote}
               </span>
+              {/* #787 critic cycle 1, P3-4: the sentence with what landed and the
+                  rule lives on Guilt-free — a pointer has to be a way there. */}
+              <Link
+                href="/spending-plan"
+                className="mt-0.5 block text-xs underline underline-offset-2 hover:text-foreground"
+                data-testid="budgeting-bonus-link"
+              >
+                What landed, on Guilt-free
+              </Link>
             </dt>
             <dd className="shrink-0 tabular-nums text-positive-500" data-testid="budgeting-bonus">
               + {formatCents(cents(plan.bonusTowardSavingsCents))}

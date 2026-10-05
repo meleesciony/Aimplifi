@@ -22,7 +22,12 @@ import {
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
 import { taxLeftOutSentence } from '@/lib/engine/spending-plan/tax-copy';
-import { BONUS_ROW_LABEL, bonusSentence, bonusShortNote } from '@/lib/engine/spending-plan/bonus-copy';
+import {
+  BONUS_ROW_LABEL,
+  bonusSentence,
+  bonusShortNote,
+  plannerGuiltFreeNoun,
+} from '@/lib/engine/spending-plan/bonus-copy';
 import { regularPayBasisSentence } from '@/lib/engine/spending-plan/regular-pay';
 import {
   BUDGETS_CARD_NOTE_SURFACE,
@@ -1842,8 +1847,14 @@ export function answerDebtFreeByDate(
    * updating asserts an amount to add each month over a figure the bank stopped confirming.
    */
   debts: readonly DebtAccount[],
+  /**
+   * True in a month a bonus paid savings (DECISIONS #787, cycle 1, P2-5): the
+   * figure this answer measures against is guilt-free WITHOUT that credit, so
+   * it is named "guilt-free spending from pay" (`plannerGuiltFreeNoun`).
+   */
+  bonusMonth = false,
 ): AssistantAnswer {
-  const answer = debtFreeByDateAnswer(result, label, targetDate, today, unallocatedSavingsCents);
+  const answer = debtFreeByDateAnswer(result, label, targetDate, today, unallocatedSavingsCents, bonusMonth);
   // The total is `Σ max(0, balance)` over every debt handed in (debt-free-by-date.ts), so the set
   // the figure is over is exactly the positive-balance debts — resolved here against that rule,
   // not against the prop as a whole.
@@ -1868,7 +1879,9 @@ function debtFreeByDateAnswer(
   targetDate: string,
   today: string,
   unallocatedSavingsCents: number,
+  bonusMonth: boolean,
 ): AssistantAnswer {
+  const guiltFree = plannerGuiltFreeNoun(bonusMonth);
   if (result.outcome === 'already-debt-free') {
     return {
       kind: 'debt_free_by_date',
@@ -1918,7 +1931,7 @@ function debtFreeByDateAnswer(
     { label: 'Total debt', value: fmt(result.totalBalanceCents) },
     { label: 'Extra needed', value: `${fmt(required)}/mo` },
     { label: 'Debt-free by', value: byMonth },
-    ...(sharePct ? [{ label: 'Share of guilt-free spending', value: sharePct }] : []),
+    ...(sharePct ? [{ label: `Share of ${guiltFree}`, value: sharePct }] : []),
   ];
 
   if (sharePct === null) {
@@ -1937,7 +1950,7 @@ function debtFreeByDateAnswer(
   if (result.withinSafeToSpend === false) {
     return {
       kind: 'debt_free_by_date',
-      headline: `Being debt-free by ${label} would take about ${fmt(required)}/mo extra — about ${sharePct} of your guilt-free spending, beyond a single month's budget.`,
+      headline: `Being debt-free by ${label} would take about ${fmt(required)}/mo extra — about ${sharePct} of your ${guiltFree}, beyond a single month's budget.`,
       detail: `A later date would ask less of your budget each month.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — assumes the least-interest (avalanche) order and APRs as entered.`,
       facts,
       source: DEBT_PLAN_SOURCE,
@@ -1947,7 +1960,7 @@ function debtFreeByDateAnswer(
 
   return {
     kind: 'debt_free_by_date',
-    headline: `To be debt-free by ${label}, add about ${fmt(required)}/mo on top of your minimums — about ${sharePct} of your guilt-free spending.`,
+    headline: `To be debt-free by ${label}, add about ${fmt(required)}/mo on top of your minimums — about ${sharePct} of your ${guiltFree}.`,
     detail: `That clears everything around ${byMonth} at the least-interest (avalanche) order.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — assumes APRs as entered and steady payments.`,
     facts,
     source: DEBT_PLAN_SOURCE,
@@ -1996,7 +2009,14 @@ export function answerSavingsGoalByDate(
  * budget" over money the user already set aside.
  */
   unallocatedSavingsCents: number,
+  /**
+   * True in a month a bonus paid savings (DECISIONS #787, cycle 1, P2-5): the
+   * figure this answer measures against is guilt-free WITHOUT that credit, so
+   * it is named "guilt-free spending from pay" (`plannerGuiltFreeNoun`).
+   */
+  bonusMonth = false,
 ): AssistantAnswer {
+  const guiltFree = plannerGuiltFreeNoun(bonusMonth);
   if (result.outcome === 'already-funded') {
     return {
       kind: 'savings_goal_by_date',
@@ -2035,7 +2055,7 @@ export function answerSavingsGoalByDate(
     { label: 'Goal amount', value: fmt(result.goalAmountCents) },
     { label: 'Monthly savings', value: `${fmt(required)}/mo` },
     { label: 'Funded by', value: byMonth },
-    ...(sharePct ? [{ label: 'Share of guilt-free spending', value: sharePct }] : []),
+    ...(sharePct ? [{ label: `Share of ${guiltFree}`, value: sharePct }] : []),
   ];
 
   if (sharePct === null) {
@@ -2054,7 +2074,7 @@ export function answerSavingsGoalByDate(
   if (result.withinSafeToSpend === false) {
     return {
       kind: 'savings_goal_by_date',
-      headline: `Saving ${fmt(result.goalAmountCents)} by ${label} would take about ${fmt(required)}/mo — about ${sharePct} of your guilt-free spending, beyond a single month's budget.`,
+      headline: `Saving ${fmt(result.goalAmountCents)} by ${label} would take about ${fmt(required)}/mo — about ${sharePct} of your ${guiltFree}, beyond a single month's budget.`,
       detail: `A later date would ask less of your budget each month.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — assumes steady saving, no investment growth.`,
       facts,
       source: GOALS_SOURCE,
@@ -2064,7 +2084,7 @@ export function answerSavingsGoalByDate(
 
   return {
     kind: 'savings_goal_by_date',
-    headline: `To save ${fmt(result.goalAmountCents)} by ${label}, set aside about ${fmt(required)}/mo — about ${sharePct} of your guilt-free spending.`,
+    headline: `To save ${fmt(result.goalAmountCents)} by ${label}, set aside about ${fmt(required)}/mo — about ${sharePct} of your ${guiltFree}.`,
     detail: `That reaches your goal around ${byMonth}.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — assumes steady saving, no investment growth.`,
     facts,
     source: GOALS_SOURCE,
@@ -2157,7 +2177,14 @@ export function answerRetireAtAge(
  * budget" over money the user already set aside.
  */
   unallocatedSavingsCents: number,
+  /**
+   * True in a month a bonus paid savings (DECISIONS #787, cycle 1, P2-5): the
+   * figure this answer measures against is guilt-free WITHOUT that credit, so
+   * it is named "guilt-free spending from pay" (`plannerGuiltFreeNoun`).
+   */
+  bonusMonth = false,
 ): AssistantAnswer {
+  const guiltFree = plannerGuiltFreeNoun(bonusMonth);
   const age = result.retirementAge;
 
   if (result.outcome === 'unreachable') {
@@ -2203,7 +2230,7 @@ export function answerRetireAtAge(
     { label: 'Retirement age', value: String(age) },
     { label: 'Extra needed', value: `${fmt(required)}/mo` },
     { label: 'Projected nest egg', value: fmt(result.balanceAtRetirementCents) },
-    ...(sharePct ? [{ label: 'Share of guilt-free spending', value: sharePct }] : []),
+    ...(sharePct ? [{ label: `Share of ${guiltFree}`, value: sharePct }] : []),
   ];
 
   if (sharePct === null) {
@@ -2222,7 +2249,7 @@ export function answerRetireAtAge(
   if (result.withinSafeToSpend === false) {
     return {
       kind: 'retire_at_age',
-      headline: `Retiring at ${age} would take about ${fmt(required)}/mo more into investments — about ${sharePct} of your guilt-free spending, beyond a single month's budget.`,
+      headline: `Retiring at ${age} would take about ${fmt(required)}/mo more into investments — about ${sharePct} of your ${guiltFree}, beyond a single month's budget.`,
       detail: `A later age would ask less of your budget each month.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — in today's dollars, after-inflation growth.`,
       facts,
       source: RETIREMENT_SOURCE,
@@ -2232,7 +2259,7 @@ export function answerRetireAtAge(
 
   return {
     kind: 'retire_at_age',
-    headline: `To retire at ${age}, add about ${fmt(required)}/mo to your investing — about ${sharePct} of your guilt-free spending.`,
+    headline: `To retire at ${age}, add about ${fmt(required)}/mo to your investing — about ${sharePct} of your ${guiltFree}.`,
     detail: `That's projected to make your savings last through your plan-through age.${savingsReserveNote(unallocatedSavingsCents, required)} Illustration, not advice — in today's dollars, after-inflation growth.`,
     facts,
     source: RETIREMENT_SOURCE,

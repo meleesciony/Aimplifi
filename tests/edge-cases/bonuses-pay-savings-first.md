@@ -13,9 +13,20 @@ monthly spending on money that only arrives 4 times a year."
 **What counts as bonus money** — in the income-account rows the plan reads, this calendar month, up
 to today, posted and counted in flows:
 
-1. a row filed Bonus — whole, signed (a bonus taken back nets against it);
-2. a day a live steady payroll (a `RegularPayStream`) deposited MORE than 1.5× its usual paycheck —
-   the part above the usual paycheck (whole-number: `total × 100 > paycheck × 150`).
+1. a row filed Bonus — whole, signed (a bonus taken back nets against it) — EXCEPT a positive row
+   from the payer of a live regular paycheck dated after that paycheck's last payday: it may be the
+   paycheck itself (two Bonus filings teach a rule that files the payer's next paycheck Bonus), so
+   only the part above the usual paycheck counts until a paycheck lands after it (critic cycle 1, P1-1);
+2. a day a live regular paycheck's payer deposited MORE than 1.5× its usual paycheck, once an
+   ordinary paycheck (0.5×–1.5×) from that payer has landed after it — the part above the usual
+   paycheck (whole-number: `total × 100 > usual × 150`). Without a later ordinary paycheck the day
+   may be a raise or a new job — not bonus money (cycle 1, P2-3);
+3. a negative row (not filed Bonus) from a payer of this month's bonus money — canonical equal, or
+   the same name with more words ("… Ppd Reversal") — nets against it; Zelle, Venmo, checks and other
+   aggregate payers never match (cycle 1, P1-2).
+
+The usual paycheck is the stream's paycheck, or after a rise (#786) its newest paycheck (P2-4). The
+total is the signed net, never below $0 for what pays savings; the copy prints the signed net (P2-2).
 
 **What it does.** Only on the `regular-pay` basis (which leaves every bonus out of income):
 `bonusTowardSavings = min(bonus total, plannedSavings)`, and
@@ -66,11 +77,28 @@ Income $9,776.65; savings $1,955.33; guilt-free this month $9,776.65 − $3,000.
   left over $2,532.37. Regular pay still plans the month (the newest payday, Jun 5, is ordinary and
   nothing from the payroll arrived after it).
 
+### Critic cycle 1 cases (all invented, executed in `tests/unit/bonus-line.test.ts`)
+
+| Household (biweekly $4,512.30; Fixed $5,000.00; target 20%) | Bonus money | Credit |
+|---|---|---|
+| Paydays May 1 – Sep 18; the Oct 2 paycheck filed Bonus; today Oct 5 (stream live, last paid Sep 18) | $4,512.30 − $4,512.30 = $0.00 | $0.00 (guilt-free $2,821.32; was $4,776.65) |
+| Same, the Oct 2 deposit = paycheck + $500.00, filed Bonus | $500.00 | $500.00 |
+| $9,000.00 filed Bonus from the payroll Oct 9; today Oct 10 (last paid Oct 2) | $9,000.00 − $4,512.30 = $4,487.70 | — |
+| Same, today Oct 17 (Oct 16 paycheck landed after it) | $9,000.00 | — |
+| Oct 2: paycheck + a duplicate $4,512.30, and −$4,512.30 the same day | $4,512.30 − $4,512.30 = $0.00 | $0.00 (was $1,955.33) |
+| $9,000.00 payroll bonus Oct 2, −$9,000.00 "… PPD REVERSAL" Oct 6 | $0.00 | $0.00 |
+| $3,000.00 filed Bonus Oct 5, −$5,000.00 filed Bonus Oct 8 | net −$2,000.00 ("-$2,000.00 in all") | $0.00 |
+| $7,000.00 on Oct 2 and Oct 16 (a raise of more than half) | none — no ordinary paycheck after | $0.00 |
+| $4,000.00 through Aug 7, $4,800.00 from Aug 21; Oct 2 = $7,800.00; today Oct 20 | $7,800.00 − $4,800.00 = $3,000.00 | — |
+| Fixed $10,000.00 (over plan) with the $9,000.00 payday bonus | $9,000.00 | $1,955.33 — "the overage is $1,955.33 smaller" |
+
 ### Never
 
 - A double paycheck after a missed payday: the missed payday breaks the stream's rhythm, so no live
   stream exists and nothing is read as a bonus.
 - A paycheck of the last eight read as a bonus: a stream's in-band paychecks sit within 25% of each
-  other and its paycheck is never below the smallest, so none can exceed 1.5× it.
+  other and its paycheck is never below the smallest, so none can exceed 1.5× it. A paycheck filed
+  Bonus counts only above one paycheck until another paycheck lands after it; a paycheck deposited
+  twice and taken back nets to nothing.
 - A bonus month's credit in a figure that plans beyond this month: every solver input reads
   `leftToSpendFromPayCents` (locked by a source scan).
