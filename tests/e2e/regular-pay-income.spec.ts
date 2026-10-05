@@ -2,7 +2,10 @@
  * DECISIONS #785 — regular pay plans the month. A throwaway user paid every two
  * weeks (with a cent of drift, the shape the shipped recurring detector refused)
  * must see the Guilt-free income row on the regular-pay basis at its yearly rate,
- * the arithmetic in "How we got there", and the same figure on Home.
+ * the arithmetic in "How we got there", and the same figure on Home. DECISIONS
+ * #786: a paycheck that stepped up once plans on its earlier paycheck (never more
+ * than two new paychecks a month), and the sentence names the newest paycheck
+ * and says why.
  *
  * Never the shared demo row. Every amount is invented.
  */
@@ -34,7 +37,7 @@ async function signUpThrowaway(page: Page): Promise<string> {
   return email;
 }
 
-function seedPay(email: string) {
+function seedPay(email: string, paycheckCents: (i: number) => number = (i) => PAYCHECK_CENTS + (i % 3 === 0 ? 1 : 0)) {
   const db = new Database(E2E_DB_URL.replace(/^file:/, ''), {
     timeout: Number(process.env.SQLITE_BUSY_TIMEOUT_MS) || 15_000,
   });
@@ -54,7 +57,7 @@ function seedPay(email: string) {
       // A cent of drift on every third paycheck (Feb 13, Mar 27, May 8). The last
       // eight (Feb 27 … Jun 5) have a median of $4,512.30 and the newest is
       // $4,512.30, so the paycheck is $4,512.30 and the month exactly $9,776.65.
-      insert.run(`e2e-rp-pay-${stamp}-${i}`, chkId, d, PAYCHECK_CENTS + (i % 3 === 0 ? 1 : 0), 'NORTHWIND HEALTH PAYROLL PPD', 'paycheck');
+      insert.run(`e2e-rp-pay-${stamp}-${i}`, chkId, d, paycheckCents(i), 'NORTHWIND HEALTH PAYROLL PPD', 'paycheck');
     });
     ['2026-03-01', '2026-04-01', '2026-05-01'].forEach((d, i) => {
       insert.run(`e2e-rp-rent-${stamp}-${i}`, chkId, d, -RENT_CENTS, 'MAPLE COURT APTS RENT', 'rent');
@@ -77,9 +80,48 @@ test('a biweekly paycheck plans the month at its yearly rate, on the Guilt-free 
   const incomeRow = page.getByTestId('plan-row').filter({ hasText: 'Income (regular pay, monthly average)' });
   await expect(incomeRow).toHaveCount(1);
   await expect(incomeRow.getByTestId('plan-row-amount')).toContainText(money(MONTHLY_CENTS));
+  // On screen, not only in the DOM (#786 critic cycle 2, P3-D).
   await expect(
-    page.getByText(/\$4,512\.30 every two weeks × 26 ÷ 12 \(\$9,776\.65 a month\) = \$9,776\.65 a month\./).first(),
-  ).toBeAttached();
+    page
+      .getByText(/\$4,512\.30 every two weeks × 26 ÷ 12 \(\$9,776\.65 a month\) = \$9,776\.65 a month\./)
+      .filter({ visible: true }),
+  ).toHaveCount(1);
+
+  await page.goto('/dashboard');
+  await expect(page.getByTestId('dashboard-safe-to-spend-amount')).toHaveText(guiltFree);
+});
+
+test('a paycheck that stepped up once plans on its earlier, lower level and says why (DECISIONS #786)', async ({ page }) => {
+  const email = await signUpThrowaway(page);
+  // $5,200.00 through Apr 24, then $5,720.00 (+10%) from May 8 (a Social
+  // Security wage-base step, invented). The last eight: five at $5,200.00, three
+  // above.
+  seedPay(email, (i) => (i < 6 ? 520000 : 572000));
+
+  // min($5,200.00 × 26 ÷ 12 = $11,266.67, $5,720.00 × 2 = $11,440.00) =
+  // $11,266.67; − rent $3,000.00 − savings $0.00.
+  const monthly = 1126667;
+  const guiltFree = money(monthly - RENT_CENTS);
+
+  await page.goto('/spending-plan');
+  await expect(page.getByTestId('safe-to-spend')).toHaveText(guiltFree);
+  const incomeRow = page.getByTestId('plan-row').filter({ hasText: 'Income (regular pay after a pay change, monthly)' });
+  await expect(incomeRow.getByTestId('plan-row-amount')).toContainText(money(monthly));
+  // On screen, not only in the DOM (critic cycle 1, P3-3): the basis lines on
+  // "How we got there" stay open.
+  await expect(
+    page
+      .getByText(
+        /Income is your regular pay, counted low after a change in pay: \$5,200\.00 every two weeks × 26 ÷ 12 \(\$11,266\.67\) or two paychecks a month at the smallest since the change \(\$5,720\.00 × 2 = \$11,440\.00\), whichever is less \(\$11,266\.67 a month\) = \$11,266\.67 a month\. Your pay rose within its last eight paychecks \(your newest was \$5,720\.00\), so this counts the earlier, lower paycheck/,
+      )
+      .filter({ visible: true }),
+  ).toHaveCount(1);
+
+  // /budgets' income note does not say "averaged over the year" after a change.
+  await page.goto('/budgets');
+  await expect(page.getByTestId('budgeting-income-basis')).toHaveText(
+    'app calculated — your regular pay since a change in pay, counted low (the arithmetic is on Guilt-free)',
+  );
 
   await page.goto('/dashboard');
   await expect(page.getByTestId('dashboard-safe-to-spend-amount')).toHaveText(guiltFree);

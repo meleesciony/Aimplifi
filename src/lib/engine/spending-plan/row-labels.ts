@@ -95,6 +95,14 @@ function incomeLabel(plan: SpendingPlan): string {
   // DECISIONS #785: pay on a rhythm at its yearly rate. Never zero by
   // construction (the basis is chosen only when the rate is above $0).
   if (plan.incomeBasis === 'regular-pay') {
+    // DECISIONS #786: after one change the figure is not a yearly average of one
+    // paycheck (the lower paycheck, held to a usual month of the new pay).
+    const changed = plan.regularPay?.streams.some((s) => s.step !== null) ?? false;
+    if (changed) {
+      return (plan.regularPay?.otherMonthlyCents ?? 0) > 0
+        ? 'Income (regular pay after a pay change + other income, monthly)'
+        : 'Income (regular pay after a pay change, monthly)';
+    }
     return (plan.regularPay?.otherMonthlyCents ?? 0) > 0
       ? 'Income (regular pay + other income, monthly)'
       : 'Income (regular pay, monthly average)';

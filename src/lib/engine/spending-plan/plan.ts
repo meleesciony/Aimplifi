@@ -28,10 +28,13 @@
  * THE PATTERN RULES:
  *  - (DECISIONS #785, supersedes the next clause only when ONE steady paycheck
  *    clearly explains the household's recent pay) Income is REGULAR PAY at its
- *    yearly rate plus the small usual month of the reader's other income —
- *    `regularPayFromRows`, read the docblock there. In every other household
- *    (no steady paycheck or two, a new or ended job, a changed paycheck, other
- *    income above 10%), the clause below still holds exactly.
+ *    yearly rate (after one change of pay, the lower level, every week or two
+ *    weeks held to a usual month of the new pay — #786) plus the small usual
+ *    month of the reader's other income — `regularPayFromRows`, read the
+ *    docblock there. In every other household
+ *    (no steady paycheck or two, a new or ended job, a paycheck that changed
+ *    more than once — one change counts the lower level, #786 — other income
+ *    above 10%), the clause below still holds exactly.
  *  - Income is the MEDIAN of the last three COMPLETE months' income (all
  *    sources that actually arrived in a non-credit account). With three months
  *    behind it, a median ignores a one-time spike entirely — a $18k rollover
@@ -176,7 +179,8 @@ export interface SpendingPlanInput {
    * Pay that arrives on a rhythm (DECISIONS #785, `regularPayFromRows`) — the
    * PREFERRED income basis only when it is `clean` (one steady paycheck clearly
    * explains the household's recent pay) with `monthlyCents > 0`: base pay plans
-   * the month at its true yearly rate; anything else keeps the median. Optional
+   * the month at its true yearly rate (after one change of pay, counted low —
+   * #786); anything else keeps the median. Optional
    * because absence is the true state of every fixture that predates it; the one
    * production loader always passes it, locked by a test that drives that loader.
    */

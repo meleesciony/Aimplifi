@@ -17,6 +17,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-05 — Regular pay counts the lower level after one change of pay (DECISIONS #786)
+
+Owner, on remote control: "build this out". The message arrived with no plan or attachment, so the four open income candidates went to the owner as one question; the owner picked "Pay steps" — the #785 replay finding that the Social Security wage-base step held their household on the median.
+
+**Picked up / closed.** `regular-pay.ts` condition 3 also passes after ONE change of level: the last eight in-band paychecks split, in date order, into two runs each within 2%, not overlapping, each at least two paychecks → the lower run's median, never more than the newest; the lowest qualifying split wins. Every week or every two weeks the month is also held to a usual month (× 4 / × 2) of the smallest paycheck after any qualifying split — a new job paid twice a month under the same payroll name reads as the old rhythm for up to six paydays. `RegularPayStream.step` feeds the one sentence author (glass box, both Ask answers), the row label and the /budgets note. No schema or loader change.
+
+**Critic (Opus, separate contexts).** Cycle 1 FAIL (P1: timing clause false after a rise > 8.33%), cycle 2 FAIL (P1: same-name switch to twice-a-month pay read 26 a year → the usual-month cap), cycle 3 PASS 0 P0 / 0 P1; its P2-1 (later run needs two), P2-3 (tie-proof "since the change") and P3s taken before ship, not re-reviewed (each narrows). Owner calls recorded in STATUS: the cap plans below the lower level after a fall or a small rise; the median can sit above the lower level where the rule hands back.
+
+**Gate.** Git Bash `VERIFY_E2E=1 bash scripts/verify.sh`: tsc 0, probes tsc 0, eslint 0; vitest 656 files passed + 1 failed — 8,969 passed, the 2 failures `tests/unit/vercel-build.test.ts` (the known Git Bash child-bash environment failure; from PowerShell on the same tree `vercel-build` + `ledger-decisions-index` + `link-audit`: 31/31); `next build` compiled; Playwright **467 passed / 3 flaky / 0 failed** — `merchant-lens.spec.ts:22`, `no-dead-ends.spec.ts:300` and `transactions.spec.ts:1015` (the last a recorded pre-existing flake) failed under full-suite load and passed on retry; alone, no retries, on this tree: 3/3. Both `regular-pay-income.spec.ts` tests passed first try. Mutation: 29 of 29 engine mutations, and the row-label and /budgets branches, each fail at least one test. Fail-old: 9 failed on the #785 engine.
+
+**Gate read.** Pending at commit — CI conclusion, Vercel READY and the live probe are recorded in the follow-up docs commit.
+
 ## 2026-10-04 — Regular pay plans the month, when one steady paycheck explains the pay (DECISIONS #785)
 
 Owner, after #784 ("Base pay plans the month"): "this app eventually will be used by many people, the base app has to cover everyone, think of a different approach." Read-only production probes (owner-run, figures kept out of the repo) showed the shipped recurring detector found no payroll series at all — real paychecks drift by cents.

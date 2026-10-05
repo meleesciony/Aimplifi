@@ -21,9 +21,16 @@ import {
 function incomeBasisNote(plan: SpendingPlan): string {
   if (plan.incomeBasis === 'user-set') return 'you locked this intention';
   if (plan.incomeBasis === 'regular-pay') {
+    // DECISIONS #786: after one change the figure counts the lower paycheck and,
+    // for pay every week or two weeks, no more than a usual month of the new pay
+    // — "averaged over the year" would be untrue (cycles 1 and 2). The arithmetic
+    // lives in the one sentence on the Guilt-free page.
+    const pay = plan.regularPay?.streams.some((s) => s.step !== null)
+      ? 'your regular pay since a change in pay, counted low (the arithmetic is on Guilt-free)'
+      : 'your regular pay averaged over the year';
     return (plan.regularPay?.otherMonthlyCents ?? 0) > 0
-      ? 'app calculated — your regular pay averaged over the year, plus your usual other income'
-      : 'app calculated — your regular pay averaged over the year';
+      ? `app calculated — ${pay}, plus your usual other income`
+      : `app calculated — ${pay}`;
   }
   if (plan.incomeBasis === 'trailing-median') {
     return `app calculated — median of last ${plan.incomeMonths} complete month${plan.incomeMonths === 1 ? '' : 's'}`;

@@ -2,8 +2,9 @@
  * Regular pay plans the month — ONLY when steady paychecks clearly explain the
  * household's recent pay; otherwise the plan keeps the old median (DECISIONS
  * #784/#785, owner's simplification 2026-10-04 after five critic cycles; cycle
- * 6 added "held one level" and "paid without a break"). Every amount and payer
- * is invented (keep-live-figures-out-of-repo). Hand-verified values:
+ * 6 added "held one level" and "paid without a break"; #786, owner 2026-10-05:
+ * one change of level counts the lower level). Every amount and payer is
+ * invented (keep-live-figures-out-of-repo). Hand-verified values:
  * tests/edge-cases/regular-pay-plans-the-month.md.
  */
 import { describe, expect, it } from 'vitest';
@@ -257,20 +258,27 @@ describe('every messy case keeps the old median — fail closed', () => {
     expect(regularPayFromRows(cut, TODAY)).toMatchObject({ clean: false, fallback: 'pay-changed', monthlyCents: 0 });
   });
 
-  it('test_regression__a_paycheck_that_moved_more_than_2_percent_keeps_the_median', () => {
+  it('test_regression__a_paycheck_that_moved_more_than_once_keeps_the_median', () => {
     // Critic cycle 6, P1-1 / P1-2 (executed): the lower of two medians planned a
     // paycheck that had stepped back down at its overtime level, and a raise read
-    // clean beside a sentence promising the median.
+    // clean beside a sentence promising the median. Since #786 one change of
+    // level counts the lower level (next describe); pay that moved twice, or a
+    // change the lower side of which is a single paycheck, still keeps the median.
     const atBase = (amounts: number[]) => regularPayFromRows(FRIDAYS.map((x, i) => dep(x, amounts[i]!)), TODAY);
     // Five $3,700.00 overtime checks of eight, then $3,000.00 again (was $8,016.67).
     expect(atBase([3000, 3000, 3000, 3700, 3700, 3700, 3700, 3700, 3000])).toMatchObject({ clean: false, fallback: 'pay-changed', monthlyCents: 0 });
-    // Overtime still running.
-    expect(atBase([3000, 3000, 3000, 3000, 3000, 3000, 3700, 3700, 3700]).fallback).toBe('pay-changed');
-    // A cut to $2,500.00 on Oct 2 (was $6,500.00).
-    expect(atBase([3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 2500]).fallback).toBe('pay-changed');
-    // A 3% raise from Aug 7, and the raise with transition amounts.
-    expect(atBase([3000, 3000, 3000, 3000, 3090, 3090, 3090, 3090, 3090]).fallback).toBe('pay-changed');
+    // A cut to $2,500.00 on Oct 2 only: one paycheck is not yet a level (was
+    // $6,500.00 before #786's rule existed; the median plans it for one period).
+    expect(atBase([3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 2500])).toMatchObject({ clean: false, fallback: 'pay-changed', monthlyCents: 0 });
+    // A raise with transition amounts: the only split leaves $4,233.10 alone on
+    // the lower side.
     expect(atBase([4210.55, 4233.1, 4486.2, 4501.75, 4512.31, 4512.3, 4512.3, 4512.31, 4512.3]).fallback).toBe('pay-changed');
+    // A two-stage raise ($3,000.00 → $3,100.00 → $3,200.00): the two lower
+    // paychecks are not one level, so they are not "the lower level".
+    expect(atBase([3000, 3000, 3100, 3200, 3200, 3200, 3200, 3200, 3200]).fallback).toBe('pay-changed');
+    // Overtime that varies above a steady base is not one level either — the
+    // higher side must be a level too (varying pay keeps the median, #785).
+    expect(atBase([3000, 3000, 3000, 3000, 3000, 3000, 3200, 3300, 3400]).fallback).toBe('pay-changed');
     // Weekly hourly pay: six $980.00 overtime weeks then $800.00 (was $4,246.67).
     const weekly = run('2026-08-14', 8, 7).map((x, i) => dep(x, i >= 1 && i <= 6 ? 980 : 800));
     expect(regularPayFromRows([...run('2026-06-05', 10, 7).map((x) => dep(x, 800)), ...weekly], TODAY).fallback).toBe('pay-changed');
@@ -336,6 +344,200 @@ describe('every messy case keeps the old median — fail closed', () => {
   });
 });
 
+describe('one change of level counts the lower level (owner, DECISIONS #786)', () => {
+  const atBase = (amounts: number[], today: ISODate = TODAY) =>
+    regularPayFromRows(FRIDAYS.map((x, i) => dep(x, amounts[i]!)), today);
+
+  it('test_regression__a_social_security_wage_base_step_plans_on_base_pay', () => {
+    // The owner's replay of #785 (2026-10-04): net pay steps UP once the year's
+    // pay passes the Social Security wage base, and that one step held the
+    // household on the median. Invented: $5,200.00 every two weeks (a cent of
+    // drift), then $5,720.00 (+10%) from Sep 4. The last eight: five at the base,
+    // three above it → the base, $5,200.00 × 26 ÷ 12 = $11,266.67 — below two new
+    // paychecks ($5,720.00 × 2 = $11,440.00), so the cap does not bind. (The
+    // median of Jul $10,399.99, Aug $10,400.01, Sep $11,440.01 is $10,400.01.)
+    const pay = atBase([5200, 5200.01, 5200, 5199.99, 5200, 5200.01, 5720, 5720.01, 5720]);
+    expect(pay).toMatchObject({ clean: true, fallback: null, otherMonthlyCents: 0, monthlyCents: 1126667 });
+    expect(pay.streams[0]).toMatchObject({
+      frequency: 'biweekly',
+      paycheckCents: 520000,
+      step: { direction: 'rose', newestCents: 572000, sinceCents: 572000 },
+    });
+  });
+
+  it('a rise under 8.33% is held to two of the new paychecks a month', () => {
+    // $5,200.00 → $5,610.40 (+7.9%): $5,200.00 × 26 ÷ 12 = $11,266.67 is more
+    // than two new paychecks, $5,610.40 × 2 = $11,220.80 → $11,220.80.
+    const pay = atBase([5200, 5200.01, 5200, 5199.99, 5200, 5200.01, 5610.4, 5610.41, 5610.4]);
+    expect(pay).toMatchObject({ clean: true, monthlyCents: 1122080 });
+    expect(pay.streams[0]).toMatchObject({ paycheckCents: 520000, step: { direction: 'rose', newestCents: 561040, sinceCents: 561040 } });
+    // Weekly: $1,000.00, then $1,050.00 (+5%) on the last three → min($1,000.00 ×
+    // 52 ÷ 12 = $4,333.33, $1,050.00 × 4 = $4,200.00) = $4,200.00.
+    const weekly = regularPayFromRows(run('2026-06-05', 18, 7).map((x, i) => dep(x, i < 15 ? 1000 : 1050)), TODAY);
+    expect(weekly).toMatchObject({ clean: true, monthlyCents: 420000, streams: [{ frequency: 'weekly', paycheckCents: 100000, step: { sinceCents: 105000 } }] });
+  });
+
+  it('test_regression__a_new_job_paid_twice_a_month_under_the_same_payroll_name_is_never_overstated', () => {
+    // Critic cycle 2, P1-A (executed: clean at $7,150.00 against a true $6,798.00).
+    // Every two weeks from Apr 1 to Aug 19, then a new job under the same payroll
+    // name paid twice a month (Aug 31, Sep 15, Sep 30). Those three dates still
+    // sit on the old 14-day grid, so the rhythm reads every two weeks (26 a year)
+    // where the new pay comes 24 times. Held to two new paychecks a month, the
+    // figure is exactly what the new job brings.
+    const biweekly = run('2026-04-01', 11, 14);
+    expect(biweekly[10]).toBe('2026-08-19');
+    const job = (oldDollars: number, newDollars: number) =>
+      regularPayFromRows(
+        [...biweekly.map((x) => dep(x, oldDollars)), ...['2026-08-31', '2026-09-15', '2026-09-30'].map((x) => dep(x, newDollars))],
+        TODAY,
+      );
+    // A rise: $3,300.00 → $3,399.00 → min($7,150.00, $3,399.00 × 2) = $6,798.00.
+    const rose = job(3300, 3399);
+    expect(rose).toMatchObject({ clean: true, monthlyCents: 679800, streams: [{ frequency: 'biweekly', step: { direction: 'rose' } }] });
+    // A fall: $3,300.00 → $3,100.00 → min($6,716.67, $3,100.00 × 2) = $6,200.00.
+    expect(job(3300, 3100)).toMatchObject({ clean: true, monthlyCents: 620000, streams: [{ frequency: 'biweekly', step: { direction: 'fell' } }] });
+  });
+
+  it('through a whole wage-base year: the median for one period at each edge, base pay between, the raised level once all eight show it, two base paychecks a month in January', () => {
+    // Biweekly from Apr 17: $5,200.00 until Sep 4, $5,720.00 through Dec 25,
+    // $5,200.00 again from Jan 8 2027. Read the day after each payday.
+    const dates = run('2026-04-17', 21, 14);
+    expect(dates[10]).toBe('2026-09-04');
+    expect(dates[19]).toBe('2027-01-08');
+    const rows = dates.map((x) => dep(x, x >= '2026-09-04' && x < '2027-01-01' ? 5720 : 5200));
+    const dayAfter = (k: number) => {
+      const today = addDays(isoDate(dates[k]!), 1);
+      return regularPayFromRows(rows.filter((t) => t.date <= today), today);
+    };
+    const BASE = 1126667; // $5,200.00 × 26 ÷ 12 (two new paychecks, $11,440.00, are more)
+    const RAISED = 1239333; // $5,720.00 × 26 ÷ 12 = $12,393.333… → $12,393.33
+    // Sep 5: one raised paycheck — one new payday cannot show its rhythm (critic
+    // cycle 3, P2-1) → the median for one period, as before #786.
+    expect(dayAfter(10)).toMatchObject({ clean: false, fallback: 'pay-changed', monthlyCents: 0 });
+    // Sep 19 … Nov 14: the earlier level, from the second raised paycheck on.
+    for (const k of [11, 12, 13, 14, 15]) {
+      expect(dayAfter(k), dates[k]).toMatchObject({ clean: true, monthlyCents: BASE, streams: [{ step: { direction: 'rose' } }] });
+    }
+    // Nov 28: one base paycheck left among the eight — not a level → the median.
+    expect(dayAfter(16)).toMatchObject({ clean: false, fallback: 'pay-changed', monthlyCents: 0 });
+    // Dec 12 and Dec 26: all eight at the raised level → one level.
+    expect(dayAfter(17)).toMatchObject({ clean: true, monthlyCents: RAISED, streams: [{ step: null }] });
+    expect(dayAfter(18)).toMatchObject({ clean: true, monthlyCents: RAISED });
+    // Jan 9: one base paycheck — the median for one period; Jan 23: two → a fall,
+    // held to two base paychecks a month: $5,200.00 × 2 = $10,400.00.
+    expect(dayAfter(19)).toMatchObject({ clean: false, fallback: 'pay-changed' });
+    expect(dayAfter(20)).toMatchObject({
+      clean: true,
+      monthlyCents: 1040000,
+      streams: [{ paycheckCents: 520000, step: { direction: 'fell', newestCents: 520000, sinceCents: 520000 } }],
+    });
+  });
+
+  it('overtime still running plans on base pay; a raise reaches the figure once all eight show it', () => {
+    // Was `pay-changed` (the median) before #786. $3,000.00 × 26 ÷ 12 = $6,500.00
+    // (two $3,700.00 paychecks, $7,400.00, are more).
+    const overtime = atBase([3000, 3000, 3000, 3000, 3000, 3000, 3700, 3700, 3700]);
+    expect(overtime).toMatchObject({ clean: true, monthlyCents: 650000 });
+    expect(overtime.streams[0]).toMatchObject({ paycheckCents: 300000, step: { direction: 'rose', newestCents: 370000 } });
+    // A 3% raise from Aug 21: four of eight at $3,090.00 → $3,000.00, held to two
+    // new paychecks: min($6,500.00, $6,180.00) = $6,180.00.
+    expect(atBase([3000, 3000, 3000, 3000, 3000, 3090, 3090, 3090, 3090])).toMatchObject({ clean: true, monthlyCents: 618000 });
+    // A small extra folded into the newest paycheck (in band), and any single
+    // higher newest paycheck: the median until a second one shows the rhythm.
+    expect(atBase([3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3200])).toMatchObject({ clean: false, fallback: 'pay-changed' });
+  });
+
+  it('test_regression__a_single_new_payday_from_a_job_paid_less_often_is_not_a_step', () => {
+    // Critic cycle 3, P2-1 (executed: clean at $6,500.00 against a true
+    // $3,500.00). Every two weeks at $3,000.00 to Sep 18, then a monthly job under
+    // the same payroll name pays $3,500.00 on Oct 2 — on the two-week grid. The
+    // rhythm shows only at its second payday (a 31-day gap fails the two-week
+    // gap test), so a rise needs two paychecks on its newer side.
+    const biweekly = run('2026-05-01', 11, 14);
+    expect(biweekly[10]).toBe('2026-09-18');
+    const monthly = [...biweekly.map((x) => dep(x, 3000)), dep('2026-10-02', 3500)];
+    expect(regularPayFromRows(monthly, TODAY)).toMatchObject({ clean: false, fallback: 'pay-changed', monthlyCents: 0 });
+    expect(regularPayFromRows(monthly, isoDate('2026-10-20'))).toMatchObject({ clean: false, fallback: 'pay-changed' });
+    // Its second payday breaks the rhythm: no steady paycheck at all.
+    expect(regularPayFromRows([...monthly, dep('2026-11-02', 3500)], isoDate('2026-11-03'))).toMatchObject({ clean: false, monthlyCents: 0 });
+    // Weekly $1,000.00 to Sep 25, then an every-two-weeks job at $1,100.00 on Oct
+    // 2 (executed: clean at $4,333.33; the new job brings $1,100.00 × 26 ÷ 12 =
+    // $2,383.33).
+    const weekly = [...run('2026-06-05', 17, 7).map((x) => dep(x, 1000)), dep('2026-10-02', 1100)];
+    expect(weekly[16]!.date).toBe('2026-09-25');
+    expect(regularPayFromRows(weekly, TODAY)).toMatchObject({ clean: false, fallback: 'pay-changed', monthlyCents: 0 });
+  });
+
+  it('a cut counts from its second paycheck', () => {
+    // $3,000.00, then $2,500.00 on Sep 18 and Oct 2 → min($2,500.00 × 26 ÷ 12,
+    // $2,500.00 × 2) = $5,000.00.
+    const cut = atBase([3000, 3000, 3000, 3000, 3000, 3000, 3000, 2500, 2500]);
+    expect(cut).toMatchObject({ clean: true, monthlyCents: 500000 });
+    expect(cut.streams[0]).toMatchObject({ paycheckCents: 250000, step: { direction: 'fell', newestCents: 250000, sinceCents: 250000 } });
+    // The higher side may be a single paycheck (critic cycle 2, P2-A): one
+    // $5,720.00, then seven $5,200.00 → a fall, $5,200.00 × 2 = $10,400.00.
+    expect(atBase([5720, 5720, 5200, 5200, 5200, 5200, 5200, 5200, 5200])).toMatchObject({
+      clean: true,
+      monthlyCents: 1040000,
+      streams: [{ step: { direction: 'fell' } }],
+    });
+    // Never more than the newest — twice a month, where no usual-month cap
+    // applies: $3,000.00 × 5, then $2,510.00, $2,500.00, $2,490.00 → the lower
+    // run's median $2,500.00, newest $2,490.00 → $2,490.00 × 24 ÷ 12 = $4,980.00.
+    const semi = regularPayFromRows(SEMIMONTHLY_DATES.map((x, i) => dep(x, [3000, 3000, 3000, 3000, 3000, 2510, 2500, 2490][i]!)), TODAY);
+    expect(semi).toMatchObject({ clean: true, monthlyCents: 498000, streams: [{ frequency: 'semimonthly', paycheckCents: 249000 }] });
+  });
+
+  it('the newest-payday guards still hold the median after a change', () => {
+    // A bonus-sized newest payday ($6,000.00 > 1.5 × $3,000.00) after a rise.
+    expect(atBase([3000, 3000, 3000, 3000, 3000, 3000, 3700, 3700, 6000])).toMatchObject({ clean: false, fallback: 'pay-changed' });
+    // A small payroll deposit after the newest payday.
+    const rows = [...FRIDAYS.map((x, i) => dep(x, i < 6 ? 3000 : 3700)), dep('2026-10-05', 45)];
+    expect(regularPayFromRows(rows, isoDate('2026-10-06'))).toMatchObject({ clean: false, fallback: 'pay-changed' });
+  });
+
+  it('boundaries: the lower run needs two paychecks; the runs may not overlap; where two readings fit, the lower wins', () => {
+    // Two at the lower level → clean at it, held to two $3,100.00 paychecks:
+    // min($6,500.00, $6,200.00) = $6,200.00; one → the median.
+    expect(atBase([3000, 3000, 3000, 3100, 3100, 3100, 3100, 3100, 3100])).toMatchObject({ clean: true, monthlyCents: 620000 });
+    expect(atBase([3000, 3000, 3100, 3100, 3100, 3100, 3100, 3100, 3100])).toMatchObject({ clean: false, fallback: 'pay-changed' });
+    // Each run within 2%, overall 3%: runs that touch at $3,040.00 are not two
+    // levels; a cent apart they are → the earlier run's median $3,015.00 (× 26 ÷
+    // 12 = $6,532.50), held to two $3,040.01 paychecks = $6,080.02.
+    expect(atBase([2990, 2990, 3040, 2990, 3040, 3040, 3080, 3040, 3080])).toMatchObject({ clean: false, fallback: 'pay-changed' });
+    expect(atBase([2990, 2990, 3040, 2990, 3040, 3040.01, 3080, 3040.01, 3080])).toMatchObject({
+      clean: true,
+      monthlyCents: 608002,
+      streams: [{ paycheckCents: 301500, step: { sinceCents: 304001 } }],
+    });
+    // $3,000.00 / $3,040.00 / $3,060.00, then five $3,100.00: the split after two
+    // reads $3,020.00, after three $3,040.00 → the lower, $3,020.00; the smallest
+    // paycheck after that split is $3,060.00 → $3,060.00 × 2 = $6,120.00, below
+    // $3,020.00 × 26 ÷ 12 = $6,543.33.
+    expect(atBase([3000, 3000, 3040, 3060, 3100, 3100, 3100, 3100, 3100])).toMatchObject({
+      clean: true,
+      monthlyCents: 612000,
+      streams: [{ paycheckCents: 302000, step: { sinceCents: 306000 } }],
+    });
+    // A falling staircase, where the LAST qualifying split is the lowest (critic
+    // cycle 1, P2-1: a "first split wins" mutant survived): last eight [3,120,
+    // 3,120, 3,060, 3,060, 3,000, 3,000, 3,000, 3,030]. After two → the later
+    // six's median $3,015.00; after four → [3,000 ×3, 3,030] = $3,000.00 → the
+    // lower, never above the newest $3,030.00 → paycheck $3,000.00 (first-wins:
+    // $3,015.00); two $3,000.00 paychecks → $6,000.00.
+    const stairs = atBase([3120, 3120, 3120, 3060, 3060, 3000, 3000, 3000, 3030]);
+    expect(stairs).toMatchObject({ clean: true, monthlyCents: 600000 });
+    expect(stairs.streams[0]).toMatchObject({ paycheckCents: 300000, step: { direction: 'fell', newestCents: 303000, sinceCents: 300000 } });
+    // A tie between splits cannot move the figure (critic cycle 3, P2-3: `<` →
+    // `<=` moved it $100.00): [3,000, 3,000, 3,030, 3,080 × 5] splits after two
+    // and after three, both reading $3,000.00; the smallest paycheck after ANY
+    // qualifying split is $3,030.00 → min($6,500.00, $6,060.00) = $6,060.00.
+    const tie = atBase([3000, 3000, 3000, 3030, 3080, 3080, 3080, 3080, 3080]);
+    expect(tie).toMatchObject({ clean: true, monthlyCents: 606000 });
+    expect(tie.streams[0]).toMatchObject({ paycheckCents: 300000, step: { direction: 'rose', newestCents: 308000, sinceCents: 303000 } });
+  });
+});
+
 describe('boundaries pinned (critic cycle 8)', () => {
   /** Pay on the given days of every month from March through September, plus Oct 1. */
   const monthDays = (days: number[]) => [
@@ -379,12 +581,19 @@ describe('boundaries pinned (critic cycle 8)', () => {
     expect(regularPayFromRows([...biweekly, ...other(600.01)], TODAY)).toMatchObject({ clean: false, fallback: 'other-income' });
   });
 
-  it('exactly 2% is one level; a cent more is a pay change', () => {
+  it('exactly 2% is one level; a cent more is a change of level', () => {
     // Last eight: four $3,060.00 then four $3,000.00 → 306,000 × 100 = 300,000 ×
     // 102 → held; median $3,030.00, newest $3,000.00 → $3,000.00 → $6,500.00.
     const at = (high: number) => regularPayFromRows(FRIDAYS.map((x, i) => dep(x, i >= 1 && i <= 4 ? high : 3000)), TODAY);
-    expect(at(3060)).toMatchObject({ clean: true, monthlyCents: 650000 });
-    expect(at(3060.01)).toMatchObject({ clean: false, fallback: 'pay-changed' });
+    expect(at(3060)).toMatchObject({ clean: true, monthlyCents: 650000, streams: [{ step: null }] });
+    // A cent more: one change (DECISIONS #786), a fall, counted at the lower,
+    // newer $3,000.00 and held to two of them a month → $6,000.00.
+    expect(at(3060.01)).toMatchObject({ clean: true, monthlyCents: 600000, streams: [{ paycheckCents: 300000, step: { direction: 'fell' } }] });
+    // In a shape that moved twice ($3,000.00 → high → $3,000.00), the cent is the
+    // difference between one level and the median.
+    const twice = (high: number) => regularPayFromRows(FRIDAYS.map((x, i) => dep(x, i >= 2 && i <= 5 ? high : 3000)), TODAY);
+    expect(twice(3060)).toMatchObject({ clean: true, monthlyCents: 650000 });
+    expect(twice(3060.01)).toMatchObject({ clean: false, fallback: 'pay-changed' });
   });
 
   it('a first payday ON the window start is new; the day before is not', () => {

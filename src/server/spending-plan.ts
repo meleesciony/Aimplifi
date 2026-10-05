@@ -10,8 +10,8 @@
  * now the MEDIAN of the last three complete months' income on the payment
  * CHECKING account (or every CHECKING account when none is set) — or, only when
  * ONE steady paycheck clearly explains the household's pay, that paycheck at its
- * yearly rate plus the small usual month of everything else (DECISIONS #785,
- * `regularPayFromRows`, `clean`) — never
+ * yearly rate (after one change of pay, counted low — #786) plus the small usual
+ * month of everything else (DECISIONS #785, `regularPayFromRows`, `clean`) — never
  * SAVINGS/money-market or investment activity (owner 2026-08-01: those are
  * already saved/invested). A one-time inflow touches no month but its own.
  * Fixed expenses prefer Fixed-category purchase rollups (budget|typical),
