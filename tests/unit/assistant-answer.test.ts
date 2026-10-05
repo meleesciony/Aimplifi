@@ -256,7 +256,10 @@ describe('answerSafeToSpend', () => {
     reserveLines: [],
     reserveMonthlyCents: 0,
     reservesBeyondMonth: false,
+    bonusTowardSavingsCents: 0,
+    savingsFromPayCents: 50000,
     leftToSpendCents: 150000,
+    leftToSpendFromPayCents: 150000,
     overspent: false,
   };
   it('guilt-free to spend this month — a monthly allocation, no per-day framing (L.22)', () => {

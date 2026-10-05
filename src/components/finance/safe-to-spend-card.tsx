@@ -2,14 +2,16 @@ import { Gauge } from 'lucide-react';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
+import { bonusShortNote } from '@/lib/engine/spending-plan/bonus-copy';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 import { MONEY_NEGATIVE_CLASS, MONEY_PAIR_CLASS, PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
 
 /**
  * Dashboard summary of the Spending Plan — guilt-free spending at a glance.
- * Formula (owner 2026-08-01): income − savings − fixed. Card payments are
- * settlement of spend and live under Cash needed, not inside this number.
+ * Formula (owner 2026-08-01): income − savings − fixed, + in a month a bonus
+ * landed the part of it that paid savings (DECISIONS #784/#787). Card payments
+ * are settlement of spend and live under Cash needed, not inside this number.
  */
 export function SafeToSpendCard({
   plan,
@@ -28,6 +30,7 @@ export function SafeToSpendCard({
     plan.fixedExpensesCents === 0 &&
     plan.plannedSavingsCents === 0;
   const ok = !plan.overspent;
+  const bonusNote = bonusShortNote(plan);
   return (
     <TrackedActedLink
       href="/spending-plan"
@@ -63,6 +66,11 @@ export function SafeToSpendCard({
               <>Your income pattern is more than spoken for by fixed costs and savings</>
             )}
           </p>
+          {bonusNote ? (
+            <p className="mt-1 text-xs text-muted-foreground" data-testid="safe-to-spend-bonus-note">
+              {bonusNote}
+            </p>
+          ) : null}
           {longCadencesInTerm(plan.scheduledFixed).map((c) => (
             <p
               key={c}

@@ -36,6 +36,7 @@ function overspentPlan(): SpendingPlan {
     patternIncomeCents: 1_000_000,
     fixedExpensesCents: 1_200_000,
     plannedSavingsCents: 108_533,
+    bonusTowardSavingsCents: 0,
     scheduledFixed: [],
   } as unknown as SpendingPlan;
 }
@@ -47,6 +48,7 @@ function positivePlan(): SpendingPlan {
     patternIncomeCents: 1_000_000,
     fixedExpensesCents: 700_000,
     plannedSavingsCents: 119_672,
+    bonusTowardSavingsCents: 0,
     scheduledFixed: [],
   } as unknown as SpendingPlan;
 }

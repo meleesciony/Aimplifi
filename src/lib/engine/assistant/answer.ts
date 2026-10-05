@@ -22,6 +22,7 @@ import {
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
 import { taxLeftOutSentence } from '@/lib/engine/spending-plan/tax-copy';
+import { BONUS_ROW_LABEL, bonusSentence, bonusShortNote } from '@/lib/engine/spending-plan/bonus-copy';
 import { regularPayBasisSentence } from '@/lib/engine/spending-plan/regular-pay';
 import {
   BUDGETS_CARD_NOTE_SURFACE,
@@ -1421,12 +1422,17 @@ export function answerSafeToSpend(
   // dropped here — the label still names the missing input, and this answer's
   // source link opens the panel that offers it.
   const labels = planRowLabels(plan, disclosures);
-  // Owner 2026-08-01: three-term formula only. Card payments settle spend; they
-  // are answered under Cash needed, not as plan facts that must sum to the headline.
+  // Owner 2026-08-01: three-term formula, plus DECISIONS #784/#787's fourth term
+  // in a month a bonus paid savings (the same row the trace adds, only when it
+  // moved the figure). Card payments settle spend; they are answered under Cash
+  // needed, not as plan facts that must sum to the headline.
   const facts: AssistantFact[] = [
     { label: labels.income.label, value: fmt(plan.patternIncomeCents) },
     { label: labels.fixed.label, value: fmt(plan.fixedExpensesCents) },
     { label: labels.savings.label, value: fmt(plan.plannedSavingsCents) },
+    ...(plan.bonusTowardSavingsCents > 0
+      ? [{ label: BONUS_ROW_LABEL, value: fmt(plan.bonusTowardSavingsCents) }]
+      : []),
   ];
   // Each qualifier states its own DIRECTION, and states it for THE FIGURE THIS
   // BRANCH RENDERS (critic P1-1: the overspent branch shows the OVERAGE — the
@@ -1475,6 +1481,11 @@ export function answerSafeToSpend(
       ),
     );
   }
+  // DECISIONS #784/#787: what bonus money landed this month and what it did —
+  // Ask is untraced, so the page's sentence cannot reach a reader who asked
+  // here. One author with the page (bonus-copy.ts).
+  const bonus = bonusSentence(plan);
+  if (bonus) qualifiers.push(bonus);
   const withQualifiers = (base: string) => [base, ...qualifiers].join(' ');
   if (plan.overspent) {
     // The basis rides this branch too (cycle-2 critic: Ask has no breakdown page, and an
@@ -2736,6 +2747,10 @@ export function answerConsciousSpending(
       ),
     );
   }
+  // DECISIONS #784/#787: the same note the strip prints — in a month a bonus
+  // paid savings, the savings share is the part PAY funds.
+  const bonusNote = bonusShortNote(plan);
+  if (bonusNote) notes.push(`${bonusNote} Savings here is the part your pay funds.`);
   if (mapped.overspent) notes.push(COACH_COPY.consciousOverspent());
 
   const byKey = Object.fromEntries(mapped.buckets.map((b) => [b.key, b]));

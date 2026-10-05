@@ -39,6 +39,7 @@ import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spendin
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
 import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
 import { taxRuleSentence } from '@/lib/engine/spending-plan/tax-copy';
+import { BONUS_ROW_LABEL, bonusSentence } from '@/lib/engine/spending-plan/bonus-copy';
 import { regularPayBasisSentence } from '@/lib/engine/spending-plan/regular-pay';
 import {
   BUDGETS_CARD_NOTE_SURFACE,
@@ -235,6 +236,10 @@ interface SafeToSpendParts {
     income: TraceRow;
     fixed: TraceRow;
     savings: TraceRow;
+    /** The bonus that paid savings this month (DECISIONS #784/#787) — present
+     *  only when it moved the figure: a $0 row would name a credit that did
+     *  not happen. */
+    bonus: TraceRow | null;
   };
   /**
    * True iff every term of the identity is data-derived (audit P1-14): no
@@ -254,6 +259,8 @@ interface SafeToSpendParts {
     /** Points readers at cash-needed — cards are not a guilt-free subtraction. */
     card: string[];
     savings: string[];
+    /** What bonus money landed this month and what it did (bonus-copy.ts). */
+    bonus: string[];
   };
 }
 
@@ -330,6 +337,18 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
       notes: [],
       action: labels.savings.action,
     },
+    // DECISIONS #784/#787: the savings row stays the WHOLE plan; this row is
+    // the part a bonus that landed this month paid, added back.
+    bonus:
+      plan.bonusTowardSavingsCents > 0
+        ? {
+            id: 'bonus',
+            label: BONUS_ROW_LABEL,
+            amountCents: cents(plan.bonusTowardSavingsCents),
+            isEstimated: false,
+            notes: [],
+          }
+        : null,
   };
 
   const basis: SafeToSpendParts['basis'] = {
@@ -437,6 +456,7 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
             'Planned savings takes the larger of your goal contributions and the savings target set in Settings — they express the same pay-yourself-first intent, so they are never added together.',
           ]
         : [],
+    bonus: ((s) => (s ? [s] : []))(bonusSentence(plan)),
   };
 
   // Audit P1-14: the panel may call its amounts "computed from your own data"
@@ -475,8 +495,8 @@ function longCadenceSentences(plan: SpendingPlan, verb: 'subtracts' | 'counts'):
  *  asserts membership only — O.18b critic P2-2 caught this comment claiming a
  *  lock that did not exist). */
 function assembleSafeToSpend(plan: SpendingPlan, parts: SafeToSpendParts): NumberTrace {
-  const { income, fixed, savings } = parts.rows;
-  const rows: TraceRow[] = [income, fixed, savings];
+  const { income, fixed, savings, bonus } = parts.rows;
+  const rows: TraceRow[] = bonus ? [income, fixed, savings, bonus] : [income, fixed, savings];
   const sum = sumCents(rows.map((r) => r.amountCents));
   const b = parts.basis;
   return {
@@ -494,13 +514,16 @@ function assembleSafeToSpend(plan: SpendingPlan, parts: SafeToSpendParts): Numbe
       ...b.longCadence,
       ...b.card,
       ...b.savings,
+      ...b.bonus,
     ],
   };
 }
 
 /**
  * Rows behind the guilt-free-spending headline: the identity
- * left = pattern income − fixed expenses − planned savings, carried as SIGNED
+ * left = pattern income − fixed expenses − planned savings (+ the bonus that
+ * paid savings this month, a fourth row only when it moved the figure —
+ * DECISIONS #784/#787), carried as SIGNED
  * rows so the same plain-summation invariant holds. Card payments are not a
  * term (owner 2026-08-01). All fields live on the SpendingPlan result itself
  * (it extends its input), so nothing is re-derived.
@@ -565,7 +588,12 @@ export function traceConsciousBuckets(
 
   const fixedRows = [flip(parts.rows.fixed)];
   const fixedSum = sumCents(fixedRows.map((r) => r.amountCents));
-  const savingsRows = [flip(parts.rows.savings)];
+  // DECISIONS #784/#787: the savings bucket is the savings this month's PAY
+  // funds (`savingsFromPayCents`), so the bonus that paid the rest is a row of
+  // this panel — subtracted — and the panel still reconciles to its bucket.
+  const savingsRows = parts.rows.bonus
+    ? [flip(parts.rows.savings), flip(parts.rows.bonus)]
+    : [flip(parts.rows.savings)];
   const savingsSum = sumCents(savingsRows.map((r) => r.amountCents));
 
   // O.18b critic P2-5, restated honestly (audit P1-14): the partition module
@@ -607,7 +635,7 @@ export function traceConsciousBuckets(
       // target the reader chose, and at $0 there is no amount to certify —
       // the row itself says the input is missing (audit P1-14).
       dataDerived: false,
-      basis: [...b.savings],
+      basis: [...b.savings, ...b.bonus],
     },
     guiltFree:
       guiltFreeCell === guiltFree.headlineCents

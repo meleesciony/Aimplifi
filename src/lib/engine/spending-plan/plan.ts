@@ -77,13 +77,24 @@
  *    savings-% target applied to the pattern income. The owner's formula names
  *    only the %; the max() is its safe superset — identical whenever goals ≤
  *    target, and never overstating guilt-free when goals exceed it.
+ *  - (DECISIONS #784/#787) A bonus never plans the month. Bonus money that has
+ *    ALREADY LANDED this calendar month (`bonusesThisMonth`, bonus.ts) pays this
+ *    month's planned savings first — but only on the `regular-pay` basis, which
+ *    leaves every bonus out of income; every other basis can already hold bonus
+ *    pay and counts none of it. The part that pays savings
+ *    (`bonusTowardSavingsCents`, never more than planned savings) is the one
+ *    term that ADDS to guilt-free, so the identity is
+ *      income + bonusTowardSavings = fixed + plannedSavings + leftToSpend.
+ *    The rest of the bonus plans nothing.
  *
  * What died here, deliberately: `spentSoFarCents` (discretionary subtraction),
  * the received+remaining-occurrence income term, and the per-day framing
  * (`daysLeftInMonth`/`perDayCents`) that turned a monthly allocation into a
- * daily spending invitation. `leftToSpendCents` is now genuinely a MONTHLY
- * capacity — which is what the three inverse solvers always read it as
- * (L.11(D) residual 4 dissolves: the reading is no longer an approximation).
+ * daily spending invitation. `leftToSpendCents` is THIS month's allocation —
+ * in a month a bonus paid savings, higher than any other month's by that
+ * credit. Anything that plans BEYOND this month (the inverse solvers, the
+ * wealth-target card) reads `leftToSpendFromPayCents` instead, the same
+ * figure without the credit: a bonus that landed once is not monthly capacity.
  *
  * Pure: integer cents in, integer cents out, no I/O, no `new Date()`.
  */
@@ -97,6 +108,7 @@ import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 // instead of growing a second copy of it (`dedup-must-diff-the-copies-first`).
 import type { ReserveLine } from '@/lib/engine/spending-plan/reserves';
 import type { RegularPay } from '@/lib/engine/spending-plan/regular-pay';
+import { bonusTowardSavingsCents, type BonusesThisMonth } from '@/lib/engine/spending-plan/bonus';
 import {
   PLAN_TAX_CATEGORY_IDS,
   type TaxChargesLeftOut,
@@ -185,6 +197,15 @@ export interface SpendingPlanInput {
    * production loader always passes it, locked by a test that drives that loader.
    */
   regularPay?: RegularPay | null;
+  /**
+   * Bonus money that landed this calendar month (DECISIONS #784/#787,
+   * `bonusesThisMonth`). On the `regular-pay` basis it pays planned savings
+   * first (`bonusTowardSavingsCents`); on every basis it rides the plan so each
+   * surface can show it on its own line. Optional for the same reason as
+   * `regularPay`; the one production loader always passes it, locked by a test
+   * that drives that loader.
+   */
+  bonusesThisMonth?: BonusesThisMonth | null;
   /** Detected recurring INCOME series — the fallback basis when no complete
    *  month exists. */
   scheduledIncome: PlanScheduledItem[];
@@ -518,10 +539,28 @@ export interface SpendingPlan extends SpendingPlanInput {
   unallocatedSavingsCents: number;
   /** True when a payment dated after this month is inside the figure. */
   reservesBeyondMonth: boolean;
-  /** THE GUILT-FREE FIGURE: pattern income − fixed (non-discretionary) −
-   *  savings. Card payments settle prior spend (cash-needed). Monthly
-   *  allocation — no per-day view (owner 2026-07-26). Negative = over plan. */
+  /**
+   * The part of this month's bonus money that pays planned savings (DECISIONS
+   * #784/#787): min(bonus landed this month, planned savings) on the
+   * `regular-pay` basis, 0 on every other basis and in every month no bonus
+   * landed. The one term that ADDS to guilt-free.
+   */
+  bonusTowardSavingsCents: number;
+  /** `plannedSavingsCents − bonusTowardSavingsCents` — the savings this month's
+   *  PAY still funds. The share a percentage-of-income view draws (the
+   *  conscious strip, the page's allocation bar), so its parts still sum to
+   *  income. Equal to `plannedSavingsCents` in every month no bonus paid it. */
+  savingsFromPayCents: number;
+  /** THE GUILT-FREE FIGURE for this month: pattern income − fixed
+   *  (non-discretionary) − savings + the bonus that paid savings. Card payments
+   *  settle prior spend (cash-needed). Monthly allocation — no per-day view
+   *  (owner 2026-07-26). Negative = over plan. */
   leftToSpendCents: number;
+  /** `leftToSpendCents` WITHOUT this month's bonus credit — pattern income −
+   *  fixed − savings. What a month brings with no bonus in it: the only figure
+   *  anything planning beyond this month may read as monthly capacity (the
+   *  inverse solvers, the wealth-target card). */
+  leftToSpendFromPayCents: number;
   overspent: boolean;
 }
 
@@ -1077,7 +1116,11 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
   // Owner 2026-08-01: card obligations are NOT committed spend in this plan —
   // they settle prior spend. Cash-needed answers the liquidity question.
   const committed = fixedExpensesCents + plannedSavingsCents;
-  const leftToSpendCents = patternIncomeCents - committed;
+  const leftToSpendFromPayCents = patternIncomeCents - committed;
+  // DECISIONS #784/#787: a bonus that already landed this month pays savings
+  // first — only on the basis that provably leaves bonuses out of income.
+  const bonusCreditCents = bonusTowardSavingsCents(input.bonusesThisMonth, plannedSavingsCents, incomeBasis);
+  const leftToSpendCents = leftToSpendFromPayCents + bonusCreditCents;
 
   return {
     ...input,
@@ -1101,7 +1144,10 @@ export function computeSpendingPlan(input: SpendingPlanInput): SpendingPlan {
     savingsSource,
     unallocatedSavingsCents,
     reservesBeyondMonth: input.obligationsBeyondMonthCents > 0,
+    bonusTowardSavingsCents: bonusCreditCents,
+    savingsFromPayCents: plannedSavingsCents - bonusCreditCents,
     leftToSpendCents,
+    leftToSpendFromPayCents,
     overspent: leftToSpendCents < 0,
   };
 }

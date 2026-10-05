@@ -149,20 +149,22 @@ function shareBps(cents: number, incomeCents: number): number {
 
 /**
  * Re-partition a SpendingPlan into the conscious-spending buckets. The identity
- * preserved (owner 2026-08-01 formula):
- *   patternIncome = fixedExpenses + plannedSavings + leftToSpend
+ * preserved (owner 2026-08-01 formula, with DECISIONS #784/#787's bonus term):
+ *   patternIncome + bonusTowardSavings = fixedExpenses + plannedSavings + leftToSpend
  * maps to:
  *   fixed     = fixedExpenses   (must-pay Fixed — not card statement pay)
- *   savings   = plannedSavings  (max of goal contributions and the savings-%
- *                                target; investing folded in)
+ *   savings   = savingsFromPay  (max of goal contributions and the savings-%
+ *                                target, less the part a bonus that landed this
+ *                                month paid; investing folded in)
  *   guiltFree = leftToSpend     (the discretionary remainder; <0 when overspent)
- * so `fixed + savings + guiltFree === patternIncome` by construction.
+ * so `fixed + savings + guiltFree === patternIncome` by construction — this is
+ * a split of PAY, and the bonus that paid savings is not pay.
  */
 export function mapToConsciousBuckets(plan: SpendingPlan): ConsciousBuckets {
   const income = plan.patternIncomeCents;
   const cellsByKey: Record<ConsciousBucketKey, number> = {
     fixed: plan.fixedExpensesCents,
-    savings: plan.plannedSavingsCents,
+    savings: plan.savingsFromPayCents,
     guiltFree: plan.leftToSpendCents,
   };
 

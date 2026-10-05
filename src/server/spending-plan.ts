@@ -43,6 +43,7 @@ import {
 } from '@/lib/engine/spending-plan/plan';
 import { monthlyGuiltFreeIncomeCents } from '@/lib/engine/spending-plan/income-pattern';
 import { regularPayFromRows } from '@/lib/engine/spending-plan/regular-pay';
+import { bonusesThisMonth } from '@/lib/engine/spending-plan/bonus';
 import {
   fixedSpendCategoryIdsInMonths,
   monthlyNonDiscretionaryCents,
@@ -554,6 +555,10 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
     today,
     trailingMonthlyIncomeCents,
     regularPay,
+    // DECISIONS #784/#787: bonus money that landed this month, read from the
+    // SAME income-account rows regular pay reads, with regular pay's own live
+    // payrolls supplying each usual paycheck. The plan decides what it moves.
+    bonusesThisMonth: bonusesThisMonth(incomeTxns, isoDate(today), regularPay, categoryName('bonus', categoryMeta)),
     scheduledIncome,
     scheduledFixed,
     trailingMonthlyFixedCents,

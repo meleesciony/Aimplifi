@@ -13,6 +13,7 @@ import { monthKey } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
 import type { SpendingPlan } from '@/lib/engine/spending-plan/plan';
 import { reserveLabelSuffix } from '@/lib/engine/spending-plan/reserves';
+import { BONUS_ROW_LABEL, bonusShortNote } from '@/lib/engine/spending-plan/bonus-copy';
 import {
   CATEGORY_NAME_LINK_CLASS,
   spendClassMonthRegisterHref,
@@ -74,6 +75,9 @@ export function BudgetingCompositionCard({
 }) {
   const positive = !plan.overspent;
   const month = monthKey(plan.today);
+  // DECISIONS #784/#787: a bonus that landed this month and paid savings is the
+  // one term that adds to guilt-free — its own line, only when it moved the figure.
+  const bonusNote = bonusShortNote(plan);
   const fixedHref = spendClassMonthRegisterHref({
     spendClass: 'fixed',
     month,
@@ -92,7 +96,7 @@ export function BudgetingCompositionCard({
     >
       <h2 className="text-sm font-semibold">Your monthly plan</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Guilt-free = income − savings − fixed. Each line says whether the number is
+        Guilt-free = income − savings − fixed{bonusNote ? ' + the bonus that paid savings this month' : ''}. Each line says whether the number is
         yours or the app&apos;s suggestion. Tap Fixed or Guilt-free to see every
         matching transaction this month.
       </p>
@@ -142,6 +146,20 @@ export function BudgetingCompositionCard({
             − {formatCents(cents(plan.fixedExpensesCents))}
           </dd>
         </div>
+
+        {bonusNote ? (
+          <div className="flex items-start justify-between gap-3 py-2">
+            <dt className="min-w-0 text-muted-foreground">
+              <span className="text-foreground">{BONUS_ROW_LABEL}</span>
+              <span className="mt-0.5 block text-xs" data-testid="budgeting-bonus-basis">
+                {bonusNote}
+              </span>
+            </dt>
+            <dd className="shrink-0 tabular-nums text-positive-500" data-testid="budgeting-bonus">
+              + {formatCents(cents(plan.bonusTowardSavingsCents))}
+            </dd>
+          </div>
+        ) : null}
 
         <div className="flex items-start justify-between gap-3 py-2.5">
           <dt className="font-semibold">

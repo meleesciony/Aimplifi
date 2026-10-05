@@ -646,7 +646,7 @@ export default async function CoachPage() {
         portfolioCents={data.fi.portfolioCents}
         monthlySavingsCents={cents(wealthContribution.contributionCents)}
         monthlyIncomeCents={data.fi.monthlyIncomeCents}
-        safeToSpendCents={cents(plan.leftToSpendCents)}
+        safeToSpendCents={cents(plan.leftToSpendFromPayCents)}
         expectedReturnBps={data.fi.expectedReturnBps}
         inflationBps={data.fi.inflationBps}
         dialOwnership={dialOwnership}

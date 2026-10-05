@@ -25,6 +25,7 @@ import {
 } from '@/lib/engine/spending-plan/row-labels';
 import { monthKey } from '@/lib/dates';
 import { taxLeftOutSentence } from '@/lib/engine/spending-plan/tax-copy';
+import { bonusShortNote } from '@/lib/engine/spending-plan/bonus-copy';
 import { cents, formatCents } from '@/lib/money';
 import { spendClassMonthRegisterHref } from '@/lib/engine/transactions/links';
 
@@ -166,6 +167,14 @@ export function ConsciousBucketsStrip({
           <p className="text-xs text-muted-foreground" data-testid="conscious-savings-unset">
             Savings is $0 because no savings target and no monthly goal amount is set yet — not
             because nothing was saved. Set a target in Settings and this bucket fills in.
+          </p>
+        )}
+        {/* DECISIONS #784/#787: in a month a bonus paid savings, the savings bucket
+            is the part PAY still funds, so it reads below its target beside a
+            plan that met it. Same author as Home and the /budgets card. */}
+        {bonusShortNote(plan) && (
+          <p className="text-xs text-muted-foreground" data-testid="conscious-bonus-note">
+            {bonusShortNote(plan)} Savings here is the part your pay funds.
           </p>
         )}
         {/* L.30. A bill the projection lost shrinks the FIXED bucket and inflates

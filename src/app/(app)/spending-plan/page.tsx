@@ -151,6 +151,13 @@ export default async function SpendingPlanPage() {
             <>
               your monthly allocation after fixed costs and savings — the{' '}
               <em>I Will Teach You to Be Rich</em> guilt-free figure
+              {p.bonusTowardSavingsCents > 0 ? (
+                <>
+                  {' '}
+                  — this month with a bonus paying {formatCents(cents(p.bonusTowardSavingsCents))} of
+                  your savings
+                </>
+              ) : null}
             </>
           ) : (
             <>Your income pattern is more than spoken for by fixed costs and savings — the plan
@@ -164,7 +171,9 @@ export default async function SpendingPlanPage() {
           aria-label="Allocation of monthly income: fixed expenses, savings, guilt-free"
         >
           <div className="bg-warning-400/80" style={{ width: pct(p.fixedExpensesCents) }} title="Fixed expenses" />
-          <div className="bg-sky-400/80" style={{ width: pct(p.plannedSavingsCents) }} title="Savings" />
+          {/* The savings this month's PAY funds: a bonus that paid the rest is not
+              income, and the bar is a split of income (DECISIONS #784/#787). */}
+          <div className="bg-sky-400/80" style={{ width: pct(p.savingsFromPayCents) }} title="Savings" />
           <div className="bg-positive-500/80" style={{ width: leftWidth }} title="Guilt-free" />
         </div>
         <ul
@@ -276,7 +285,8 @@ export default async function SpendingPlanPage() {
         ))}
         <p className="mt-3 text-xs text-muted-foreground">
           Income − savings% − non-discretionary fixed (groceries and bills in; dining out out)
-          {p.reserveLines.length > 0 ? ', plus anything you set aside below' : ''}.
+          {p.reserveLines.length > 0 ? ', plus anything you set aside below' : ''}
+          {p.bonusTowardSavingsCents > 0 ? ', + the bonus that paid savings this month' : ''}.
           Card payments settle spend already counted; cash needed for them lives on Home.
           {p.savingsTargetBps == null && p.plannedSavingsCents > 0 ? (
             <> Set a savings target in Settings to hold back a share of income first.</>

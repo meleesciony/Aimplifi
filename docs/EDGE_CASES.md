@@ -89,3 +89,4 @@ expected value to match the code.
 - [§Ask — same-account comparison and average (DECISIONS #781 — engine `analyst/same-account.ts`)](../tests/edge-cases/ask-same-account-comparison.md)
 - [§Tax charges left out of the guilt-free plan (DECISIONS #783)](../tests/edge-cases/tax-payments-left-out-of-plan.md)
 - [§Regular pay plans the month (DECISIONS #785)](../tests/edge-cases/regular-pay-plans-the-month.md)
+- [§Bonuses pay this month's savings first (DECISIONS #784 / #787)](../tests/edge-cases/bonuses-pay-savings-first.md)

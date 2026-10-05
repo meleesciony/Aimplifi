@@ -835,7 +835,7 @@ async function buildAnswer(
         strategy: 'avalanche',
         targetDate: intent.targetDate,
         today: today as ISODate,
-        safeToSpendCents: plan.leftToSpendCents,
+        safeToSpendCents: plan.leftToSpendFromPayCents,
       });
       return answerDebtFreeByDate(result, intent.label, intent.targetDate, today, plan.unallocatedSavingsCents, debts);
     }
@@ -851,7 +851,7 @@ async function buildAnswer(
         currentSavingsCents: 0, // a fresh envelope, like createGoal (savedCents starts at 0)
         targetDate: intent.targetDate,
         today: today as ISODate,
-        safeToSpendCents: plan.leftToSpendCents,
+        safeToSpendCents: plan.leftToSpendFromPayCents,
       });
       return answerSavingsGoalByDate(result, intent.label, intent.targetDate, today, plan.unallocatedSavingsCents);
     }
@@ -895,7 +895,7 @@ async function buildAnswer(
         currentAge: planRow?.currentAge ?? RETIREMENT_ASSUMPTIONS.currentAge,
         endAge: planRow?.endAge ?? RETIREMENT_ASSUMPTIONS.endAge,
         inflationBps: planRow?.inflationBps ?? RETIREMENT_ASSUMPTIONS.inflationBps,
-        safeToSpendCents: plan.leftToSpendCents,
+        safeToSpendCents: plan.leftToSpendFromPayCents,
       });
       return answerRetireAtAge(result, intent.label, plan.unallocatedSavingsCents);
     }
@@ -916,7 +916,7 @@ async function buildAnswer(
         nominalReturnBps: coach.fi.expectedReturnBps,
         inflationBps: coach.fi.inflationBps,
         monthlyIncomeCents: coach.fi.monthlyIncomeCents,
-        safeToSpendCents: plan.leftToSpendCents,
+        safeToSpendCents: plan.leftToSpendFromPayCents,
       };
       const pace = solveWealthTarget({ ...shared, deadlineMonths: null });
       const planUnproven = wealthTargetPlanUnproven(

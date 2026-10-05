@@ -369,6 +369,18 @@ function isPayRow(t: TxnLike): boolean {
 }
 
 /**
+ * A deposit regular pay groups by payer: positive, counted in flows, filed
+ * Paycheck or Side income — or still under generic Income and not money moved
+ * in. Never a Bonus. Exported so the bonus line (bonus.ts) reads a payroll's
+ * paydays from exactly the rows this engine read them from.
+ */
+export function isPayrollDepositRow(t: TxnLike): boolean {
+  if (t.amountCents <= 0 || !countsInFlows(t)) return false;
+  const id = t.categoryId ?? null;
+  return (id !== null && REGULAR_PAY_CATEGORY_IDS.has(id)) || (id === 'income' && !isUntouchableIncomeRow(t));
+}
+
+/**
  * Regular pay from the reader's income-account rows (the same rows, through the
  * same reconciliation boundary, the median basis reads).
  *
@@ -385,11 +397,8 @@ function isPayRow(t: TxnLike): boolean {
 export function regularPayFromRows(transactions: readonly TxnLike[], today: ISODate): RegularPay {
   const byPayer = new Map<string, { hasRegularLeaf: boolean; byDate: Map<string, number> }>();
   for (const t of transactions) {
-    if (t.amountCents <= 0 || !countsInFlows(t)) continue;
-    const id = t.categoryId ?? null;
-    const regularLeaf = id !== null && REGULAR_PAY_CATEGORY_IDS.has(id);
-    const genericPay = id === 'income' && !isUntouchableIncomeRow(t);
-    if (!regularLeaf && !genericPay) continue;
+    if (!isPayrollDepositRow(t)) continue;
+    const regularLeaf = t.categoryId != null && REGULAR_PAY_CATEGORY_IDS.has(t.categoryId);
     const canon = normalizeMerchant(t.rawDescriptor).canonical;
     const slot = byPayer.get(canon) ?? { hasRegularLeaf: false, byDate: new Map<string, number>() };
     if (regularLeaf) slot.hasRegularLeaf = true;

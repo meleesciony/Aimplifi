@@ -104,7 +104,7 @@ export async function saveDebtFreeGoal(targetDateRaw: string): Promise<void> {
     strategy: 'avalanche',
     targetDate,
     today,
-    safeToSpendCents: plan.leftToSpendCents,
+    safeToSpendCents: plan.leftToSpendFromPayCents,
   });
   if (result.outcome === 'unreachable' || result.outcome === 'already-debt-free') {
     throw new Error('That date has no debt-free plan to save');
@@ -177,7 +177,7 @@ export async function saveSavingsGoal(targetDateRaw: string, goalAmountCentsRaw:
     currentSavingsCents: 0,
     targetDate,
     today,
-    safeToSpendCents: plan.leftToSpendCents,
+    safeToSpendCents: plan.leftToSpendFromPayCents,
   });
   if (result.outcome !== 'reachable') {
     throw new Error('That date has no savings plan to save');
