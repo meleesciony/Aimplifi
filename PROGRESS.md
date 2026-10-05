@@ -27,7 +27,7 @@ Owner, on remote control: "build this out". The message arrived with no plan or 
 
 **Gate.** Git Bash `VERIFY_E2E=1 bash scripts/verify.sh`: tsc 0, probes tsc 0, eslint 0; vitest 656 files passed + 1 failed — 8,969 passed, the 2 failures `tests/unit/vercel-build.test.ts` (the known Git Bash child-bash environment failure; from PowerShell on the same tree `vercel-build` + `ledger-decisions-index` + `link-audit`: 31/31); `next build` compiled; Playwright **467 passed / 3 flaky / 0 failed** — `merchant-lens.spec.ts:22`, `no-dead-ends.spec.ts:300` and `transactions.spec.ts:1015` (the last a recorded pre-existing flake) failed under full-suite load and passed on retry; alone, no retries, on this tree: 3/3. Both `regular-pay-income.spec.ts` tests passed first try. Mutation: 29 of 29 engine mutations, and the row-label and /budgets branches, each fail at least one test. Fail-old: 9 failed on the #785 engine.
 
-**Gate read.** Pending at commit — CI conclusion, Vercel READY and the live probe are recorded in the follow-up docs commit.
+**Gate read.** CI verify run 37353236148 on `ba8b9c90` = SUCCESS; Vercel Production deployment (GitHub record 6866394080, `aimplifi-27n7iv2r5`) success; `www.aimplifi.app` serves it — its 14 `/_next/static` files on /sign-in match that deployment exactly and differ from the previous one (`aimplifi-k5z4vrckj`, `d97ff2c6`) — the change itself is server-only, so the build match is the discriminator; `scripts/regular-pay-live-deploy-check.mjs` DEPLOY PROOF PASS 5/5 (the shared demo still plans on the median). The Vercel CLI was not signed in on this machine, so the deployment was read from its GitHub record.
 
 ## 2026-10-04 — Regular pay plans the month, when one steady paycheck explains the pay (DECISIONS #785)
 
