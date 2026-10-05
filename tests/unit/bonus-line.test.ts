@@ -349,13 +349,13 @@ describe('every surface — one author (bonus-copy.ts)', () => {
         'This reads the deposits, not where the money went after it landed.',
       'Bonus money is a deposit filed Bonus, or a day the payer of your regular paycheck deposits over one and a half paychecks (the part above one paycheck, once a paycheck lands after it), in the accounts your income figure reads. ' +
         'From a payer whose pay is already counted, only the part above that pay counts. ' +
-        'Money going out that month that is not filed as spending, or is marked a reversal or return, comes off it — filing a purchase to its spending category on Transactions stops that.',
+        'Money going out that month with no category, filed as income, or worded as a reversal or return comes off it; filing a purchase to its spending category on Transactions stops that, unless its words read as a reversal or return.',
     ]);
     expect(bonusSentence(full)).toBe(bonusParagraphs(full).join(' '));
     // Never the lever that teaches a rule filing the payer's next paycheck as
     // Bonus (cycle 1, P1-1).
     expect(bonusSentence(full)).not.toMatch(/file (just )?that deposit/i);
-    for (const para of bonusParagraphs(full)) expect(para.length).toBeLessThan(500);
+    for (const para of bonusParagraphs(full)) expect(para.length).toBeLessThan(560);
   });
 
   it('each other state says what it did — and only that', () => {
@@ -399,7 +399,7 @@ describe('every surface — one author (bonus-copy.ts)', () => {
 
   it('the short note speaks only when a bonus moved the figure', () => {
     expect(bonusShortNote(full)).toBe(
-      "This month's bonus paid $1,955.33 of your savings, so guilt-free is $1,955.33 higher than your pay alone allows.",
+      "This month's bonus counts $1,955.33 toward your savings, so guilt-free is $1,955.33 higher than your pay alone allows.",
     );
     expect(bonusShortNote(computeSpendingPlan(input({ bonusesThisMonth: ON_PAYDAY, regularPay: null })))).toBeNull();
   });
@@ -509,7 +509,7 @@ describe('critic cycle 1 (DECISIONS #787) — money taken back, pay filed Bonus,
     // Fail-old: credit $1,955.33.
     expect(p.bonusTowardSavingsCents).toBe(0);
     expect(bonusSentence(p)).toContain(
-      'Fri, Oct 2: $9,024.60 from the payer of your regular paycheck, $4,512.30 more than its usual $4,512.30; less $4,512.30 going out this month in a debit not filed as spending or marked a reversal or return: $0.00 in all.',
+      'Fri, Oct 2: $9,024.60 from the payer of your regular paycheck, $4,512.30 more than its usual $4,512.30; less $4,512.30 going out this month in a debit with no category, filed as income, or worded as a reversal or return: $0.00 in all.',
     );
 
     // A $9,000.00 bonus taken back four days later, under a descriptor the
@@ -585,7 +585,7 @@ describe('critic cycle 1 (DECISIONS #787) — money taken back, pay filed Bonus,
     expect(b).toMatchObject({ netCents: 200000, totalCents: 200000 });
     const p = computeSpendingPlan(input({ bonusesThisMonth: b }));
     expect(bonusParagraphs(p)[0]).toBe(
-      'Bonus money landed this month — Mon, Oct 5: $3,000.00 filed Bonus; less $1,000.00 going out this month in 2 debits not filed as spending or marked a reversal or return: $2,000.00 in all.',
+      'Bonus money landed this month — Mon, Oct 5: $3,000.00 filed Bonus; less $1,000.00 going out this month in 2 debits with no category, filed as income, or worded as a reversal or return: $2,000.00 in all.',
     );
     expect(bonusParagraphs(p)[2]).toContain('filing a purchase to its spending category on Transactions stops that');
     // No bonus money: nothing is listed, however many debits are unfiled.
@@ -681,7 +681,7 @@ describe('critic cycle 1 (DECISIONS #787) — money taken back, pay filed Bonus,
     expect(bonusSentence(over)).toContain('it is yours to decide: covering this month’s overage, more savings or investing');
     expect(bonusSentence(over)).not.toContain('higher');
     expect(bonusShortNote(over)).toBe(
-      "This month's bonus paid $1,955.33 of your savings, so the overage is $1,955.33 smaller than your pay alone would make it.",
+      "This month's bonus counts $1,955.33 toward your savings, so the overage is $1,955.33 smaller than your pay alone would make it.",
     );
     const a = answerSafeToSpend(over, DISCLOSURES);
     expect(a.headline).toMatch(/over your plan/);
@@ -708,6 +708,63 @@ describe('critic cycle 1 (DECISIONS #787) — money taken back, pay filed Bonus,
       expect(server).toMatch(new RegExp(`return ${fn}\\([^;]*plan\\.bonusTowardSavingsCents > 0\\);`));
     }
     expect(readFileSync(resolve('src/app/(app)/coach/page.tsx'), 'utf8')).toContain('bonusMonth={plan.bonusTowardSavingsCents > 0}');
+  });
+});
+
+describe('critic cycle 3 (DECISIONS #787) — the paycheck payer’s extra pay, two untested guards, the words', () => {
+  it('test_regression__a_bonus_from_the_paycheck_payer_already_counted_as_its_extra_pay_is_not_counted_twice', () => {
+    // Cycle 3, P2-1, executed on the loader by the critic: the payroll also
+    // pays $400.00 filed Paycheck every month (regular pay's "other"), and this
+    // month's $400.00 from it is filed Bonus.
+    const extras = ['2026-07-21', '2026-08-18', '2026-09-15'].map((d) => dep(d, 40000));
+    const rows = [...PAYDAYS, ...extras, dep('2026-10-07', 40000, { categoryId: 'bonus' })];
+    const pay = regularPayFromRows(rows, TODAY);
+    expect(pay).toMatchObject({ clean: true, otherMonthlyCents: 40000 });
+    const p = computeSpendingPlan(input({ regularPay: pay, bonusesThisMonth: bonusesThisMonth(rows, TODAY, pay) }));
+    expect(p.bonusesThisMonth?.deposits).toEqual([
+      { date: '2026-10-07', kind: 'filed', depositCents: 40000, less: { cents: 40000, reason: 'usual-extra' }, bonusCents: 0 },
+    ]);
+    // Fail-old: credit $400.00.
+    expect(p.bonusTowardSavingsCents).toBe(0);
+    expect(bonusSentence(p)).toContain(
+      'Wed, Oct 7: $400.00 filed Bonus from the payer of your regular paycheck, counted only above the $400.00 a month it usually pays you besides that paycheck.',
+    );
+    // A payroll with no extra pay in the window keeps its bonus whole.
+    expect(lines([...PAYDAYS, dep('2026-10-07', 40000, { categoryId: 'bonus' })]).totalCents).toBe(40000);
+  });
+
+  it('a reversal filed as a purchase still nets on its words (cycle 3, P2-2a)', () => {
+    // The real categorizer files big-retail payroll rows as shopping.
+    const rows = [
+      ...PAYDAYS,
+      dep('2026-10-05', 300000, { rawDescriptor: 'WAL-MART ASSOCIATES DES:BONUS', categoryId: 'bonus' }),
+      dep('2026-10-08', -300000, { rawDescriptor: 'WAL-MART ASSOCIATES DES:REVERSAL ID:XXXX', categoryId: 'shopping' }),
+    ];
+    expect(lines(rows).totalCents).toBe(0);
+    for (const word of ['REVERSED', 'REVERSE', 'REV', 'RETURNED', 'CHARGEBACK', 'CHGBK']) {
+      const r = [...rows.slice(0, -1), dep('2026-10-08', -300000, { rawDescriptor: `NORTHWIND ${word} 1234`, categoryId: 'shopping' })];
+      expect(lines(r).totalCents).toBe(0);
+    }
+  });
+
+  it('a bonus clawed back after the last payday nets whole (cycle 3, P2-2b)', () => {
+    const rows = [...PAYDAYS, dep('2026-10-05', 300000, { categoryId: 'bonus' }), dep('2026-10-17', -300000, { categoryId: 'bonus' })];
+    expect(lines(rows)).toMatchObject({ netCents: 0, totalCents: 0 });
+    expect(computeSpendingPlan(input({ bonusesThisMonth: lines(rows) })).bonusTowardSavingsCents).toBe(0);
+  });
+
+  it('the words: never "never plans the month" beside a basis that may hold bonus pay; from over plan to positive (cycle 3, P3-1/P3-5)', () => {
+    const median = computeSpendingPlan(input({ bonusesThisMonth: ON_PAYDAY, regularPay: null }));
+    expect(bonusParagraphs(median)[1]).toMatch(/^A bonus pays this month's savings first only while income is your regular pay/);
+    expect(bonusSentence(median)).not.toContain('never plans the month');
+    // Fixed $9,000.00: pay alone is −$1,178.68; the bonus makes it +$776.65.
+    const crossing = computeSpendingPlan(input({ bonusesThisMonth: ON_PAYDAY, categoryFixedCents: 900000 }));
+    expect(crossing).toMatchObject({ leftToSpendFromPayCents: -117868, leftToSpendCents: 77665, overspent: false });
+    expect(bonusSentence(crossing)).toContain('so instead of $1,178.68 over plan on your pay alone, this month has $776.65 guilt-free.');
+    expect(bonusShortNote(crossing)).toBe(
+      "This month's bonus counts $1,955.33 toward your savings, so instead of $1,178.68 over plan on your pay alone, this month has $776.65 guilt-free.",
+    );
+    expect(bonusSentence(crossing)).not.toContain('higher than your pay alone');
   });
 });
 

@@ -21,7 +21,9 @@ to today, posted and counted in flows:
      P1-1);
    - from a payer whose deposits filed as pay (Paycheck, Side income, Income) arrived in the last three
      complete months: only the part above that payer's usual month (the median of the three) counts —
-     regular pay's "other income" may already expect it (cycle 2, P2-B);
+     regular pay's "other income" may already expect it (cycle 2, P2-B) — and for the payer of a
+     regular paycheck, the usual month of its days OUTSIDE the paycheck band (0.5×–1.5×), the days
+     regular pay counts as "other" (cycle 3, P2-1);
 2. a day a live regular paycheck's payer deposited MORE than 1.5× its usual paycheck, once an
    ordinary paycheck (0.5×–1.5×) from that payer has landed after it — the part above the usual
    paycheck (whole-number: `total × 100 > usual × 150`). Without a later ordinary paycheck the day may
@@ -113,6 +115,15 @@ Income $9,776.65; savings $1,955.33; guilt-free this month $9,776.65 − $3,000.
 | Same, Oct 9 $2,500.00 filed Bonus | $2,500.00 − $500.00 = $2,000.00 | — |
 | $2,500.00 filed Bonus on Oct 16, the same day as the newest paycheck | $2,500.00 (whole — not after the last payday) | — |
 | $4,600.00 paychecks from Sep 4 (within 2% of $4,512.30); Oct 2 = $13,600.00 | $13,600.00 − $4,600.00 = $9,000.00 | — |
+
+### Critic cycle 3 cases (PASS; P2/P3 taken before ship — all invented, in `tests/unit/bonus-line.test.ts`)
+
+| Household (biweekly $4,512.30; Fixed $5,000.00; target 20%; today Oct 17) | Bonus money | Credit |
+|---|---|---|
+| The payroll also pays $400.00 filed Paycheck Jul 21 / Aug 18 / Sep 15 (other $400.00); Oct 7 $400.00 from it filed Bonus | $400.00 − $400.00 = $0.00 | $0.00 (was $400.00) |
+| $3,000.00 "WAL-MART ASSOCIATES DES:BONUS" filed Bonus; −$3,000.00 "… DES:REVERSAL" filed Shopping | $0.00 (the words net it) | $0.00 |
+| $3,000.00 filed Bonus Oct 5; −$3,000.00 filed Bonus Oct 17 (after the Oct 16 payday) | $0.00 | $0.00 |
+| Fixed $9,000.00: pay alone 977,665 − 900,000 − 195,533 = −$1,178.68; with the $9,000.00 payday bonus +$776.65 | $9,000.00 | $1,955.33 — "instead of $1,178.68 over plan on your pay alone, this month has $776.65 guilt-free" |
 
 ### Never
 

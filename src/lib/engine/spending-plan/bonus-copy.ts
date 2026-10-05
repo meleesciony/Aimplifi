@@ -38,9 +38,14 @@ function depositPhrase(d: BonusDeposit, categoryName: string): string {
   // `filed` (a `taken-back` row is summed, never listed — see below).
   if (d.depositCents < 0) return `${day}: ${fmt(-d.depositCents)} filed ${categoryName}, taken back`;
   if (d.less === null) return `${day}: ${fmt(d.depositCents)} filed ${categoryName}`;
-  return d.less.reason === 'usual-paycheck'
-    ? `${day}: ${fmt(d.depositCents)} filed ${categoryName} from the payer of your regular paycheck, counted only above its usual ${fmt(d.less.cents)} because no paycheck has landed after it yet`
-    : `${day}: ${fmt(d.depositCents)} filed ${categoryName} from a payer whose pay is already counted, counted only above the ${fmt(d.less.cents)} it usually pays you in a month`;
+  switch (d.less.reason) {
+    case 'usual-paycheck':
+      return `${day}: ${fmt(d.depositCents)} filed ${categoryName} from the payer of your regular paycheck, counted only above its usual ${fmt(d.less.cents)} because no paycheck has landed after it yet`;
+    case 'usual-extra':
+      return `${day}: ${fmt(d.depositCents)} filed ${categoryName} from the payer of your regular paycheck, counted only above the ${fmt(d.less.cents)} a month it usually pays you besides that paycheck`;
+    case 'usual-month':
+      return `${day}: ${fmt(d.depositCents)} filed ${categoryName} from a payer whose pay is already counted, counted only above the ${fmt(d.less.cents)} it usually pays you in a month`;
+  }
 }
 
 /** Why a basis other than regular pay counts none of it — each clause true of
@@ -72,14 +77,14 @@ export function bonusParagraphs(plan: SpendingPlan): string[] {
   if (out.length > 0) {
     const sum = out.reduce((s, d) => s - d.depositCents, 0);
     items.push(
-      `less ${fmt(sum)} going out this month in ${out.length === 1 ? 'a debit' : `${out.length} debits`} not filed as spending or marked a reversal or return`,
+      `less ${fmt(sum)} going out this month in ${out.length === 1 ? 'a debit' : `${out.length} debits`} with no category, filed as income, or worded as a reversal or return`,
     );
   }
   // A month whose only rows are a bonus taken back had no bonus land in it.
   const lead = listed.some((d) => d.depositCents > 0) ? 'Bonus money landed this month' : 'A bonus was taken back this month';
   const landed =
     items.length === 1 ? `${lead} — ${items[0]}.` : `${lead} — ${items.join('; ')}: ${fmt(b.netCents)} in all.`;
-  const rule = `Bonus money is a deposit filed ${b.categoryName}, or a day the payer of your regular paycheck deposits over one and a half paychecks (the part above one paycheck, once a paycheck lands after it), in the accounts your income figure reads. From a payer whose pay is already counted, only the part above that pay counts. Money going out that month that is not filed as spending, or is marked a reversal or return, comes off it — filing a purchase to its spending category on Transactions stops that.`;
+  const rule = `Bonus money is a deposit filed ${b.categoryName}, or a day the payer of your regular paycheck deposits over one and a half paychecks (the part above one paycheck, once a paycheck lands after it), in the accounts your income figure reads. From a payer whose pay is already counted, only the part above that pay counts. Money going out that month with no category, filed as income, or worded as a reversal or return comes off it; filing a purchase to its spending category on Transactions stops that, unless its words read as a reversal or return.`;
 
   if (b.totalCents <= 0) return [`${landed} It nets to ${fmt(b.netCents)}, so none of it is counted here.`, rule];
 
@@ -92,7 +97,7 @@ export function bonusParagraphs(plan: SpendingPlan): string[] {
   if (plan.incomeBasis !== 'regular-pay') {
     return [
       landed,
-      `A bonus never plans the month, and it pays this month's savings first only while income is your regular pay, which leaves every bonus out; ${notCountedClause(plan)}, so none of it is counted here.`,
+      `A bonus pays this month's savings first only while income is your regular pay, which leaves every bonus out; ${notCountedClause(plan)}, so none of it is counted here.`,
       rule,
     ];
   }
@@ -110,7 +115,9 @@ export function bonusParagraphs(plan: SpendingPlan): string[] {
       : `${fmt(credit)} of this month's ${fmt(plan.plannedSavingsCents)} planned savings`;
   const effect = over
     ? `so this month's overage is ${fmt(credit)} smaller than your pay alone would make it`
-    : `so guilt-free this month is ${fmt(credit)} higher than your pay alone allows`;
+    : plan.leftToSpendFromPayCents < 0
+      ? `so instead of ${fmt(-plan.leftToSpendFromPayCents)} over plan on your pay alone, this month has ${fmt(plan.leftToSpendCents)} guilt-free`
+      : `so guilt-free this month is ${fmt(credit)} higher than your pay alone allows`;
   const rest = b.totalCents - credit;
   return [
     landed,
@@ -134,9 +141,12 @@ export function bonusSentence(plan: SpendingPlan): string | null {
 export function bonusShortNote(plan: SpendingPlan): string | null {
   const credit = plan.bonusTowardSavingsCents;
   if (credit <= 0) return null;
+  const counts = `This month's bonus counts ${fmt(credit)} toward your savings`;
   return plan.overspent
-    ? `This month's bonus paid ${fmt(credit)} of your savings, so the overage is ${fmt(credit)} smaller than your pay alone would make it.`
-    : `This month's bonus paid ${fmt(credit)} of your savings, so guilt-free is ${fmt(credit)} higher than your pay alone allows.`;
+    ? `${counts}, so the overage is ${fmt(credit)} smaller than your pay alone would make it.`
+    : plan.leftToSpendFromPayCents < 0
+      ? `${counts}, so instead of ${fmt(-plan.leftToSpendFromPayCents)} over plan on your pay alone, this month has ${fmt(plan.leftToSpendCents)} guilt-free.`
+      : `${counts}, so guilt-free is ${fmt(credit)} higher than your pay alone allows.`;
 }
 
 /**

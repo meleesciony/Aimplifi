@@ -17,6 +17,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-05 — Bonuses that land pay this month's savings first, on their own line (DECISIONS #787)
+
+Owner, on remote control: "As a world class dev, ai engineer, personal finance expert and data scientist, build this out." No attachment; the ledgers' first owner-agreed next slice was #784's open half (the bonus line, bonuses toward savings first), so it was built without a question (DECISIONS #787 records the reading of the owner's words and the alternatives).
+
+**Picked up / closed.** New pure engine `src/lib/engine/spending-plan/bonus.ts` (`bonusesThisMonth`, `bonusTowardSavingsCents`) and one copy author `bonus-copy.ts`. Plan terms `bonusTowardSavingsCents`, `savingsFromPayCents`, `leftToSpendFromPayCents` (identity `income + bonus credit = fixed + savings + guilt-free`); the credit only on the regular-pay basis, never more than planned savings. Glass-box 4th row; /budgets strip split of pay; Home, /budgets card and strip, Ask (both answers); every planner reads the pay-only figure and says "from pay" in a bonus month. No schema change.
+
+**Critic (Opus, separate contexts).** Cycle 1 FAIL (2 P1), cycle 2 FAIL (1 P1), cycle 3 **PASS 0 P0 / 0 P1**; its P2s and four P3s taken before ship, not re-reviewed (each narrows). Locked per cycle; fail-old and mutation recorded in DECISIONS #787.
+
+**Gate.** Git Bash `VERIFY_E2E=1`: tsc/eslint 0, 9,020 unit passed (+ the known Git Bash `vercel-build.test.ts` 2 — 31/31 with its two neighbours from PowerShell on the same tree), build clean, Playwright 466 / 5 flaky / 1 failed (`transactions.spec.ts:736`, CSV import, under load — not touched; alone: passed; a full Playwright re-run on the same build: 471 passed / 1 flaky / 0 failed, exit 0). Earlier gates this session (each cycle): 470/2 flaky/0, 468/4 flaky/0, 472/0/0.
+
+**Gate read.** (pending — the ship gate and the live probe follow the push.)
+
 ## 2026-10-05 — Regular pay counts the lower level after one change of pay (DECISIONS #786)
 
 Owner, on remote control: "build this out". The message arrived with no plan or attachment, so the four open income candidates went to the owner as one question; the owner picked "Pay steps" — the #785 replay finding that the Social Security wage-base step held their household on the median.

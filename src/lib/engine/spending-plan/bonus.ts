@@ -22,7 +22,9 @@
  *      - from a payer whose deposits filed as pay (Paycheck, Side income,
  *        Income) arrived in the last three complete months: regular pay's
  *        "other income" may already expect it, so only the part above that
- *        payer's usual month counts (cycle 2, P2-B).
+ *        payer's usual month counts (cycle 2, P2-B) — for the payer of a
+ *        regular paycheck, its usual month of days outside the paycheck band
+ *        (cycle 3, P2-1).
  *   2. `above-paycheck` — a day the payer of a live regular paycheck (a
  *      `RegularPayStream`) deposited MORE than 1.5× the usual paycheck, once an
  *      ordinary paycheck (0.5×–1.5×) from that payer has landed AFTER it. The
@@ -87,8 +89,10 @@ export interface BonusDeposit {
   depositCents: number;
   /** What was taken off before counting, and why: the usual paycheck
    *  (`above-paycheck`, or a `filed` row that may be that paycheck), or the
-   *  usual month of a payer whose pay is already counted. Null: nothing. */
-  less: { cents: number; reason: 'usual-paycheck' | 'usual-month' } | null;
+   *  usual month of a payer whose pay is already counted (`usual-month`), or
+   *  the usual month a regular paycheck's payer sends besides the paycheck
+   *  (`usual-extra`). Null: nothing. */
+  less: { cents: number; reason: 'usual-paycheck' | 'usual-month' | 'usual-extra' } | null;
   /** What counts, signed: the deposit less `less.cents` (never below 0 for a
    *  `filed` row). */
   bonusCents: number;
@@ -158,17 +162,25 @@ export function bonusesThisMonth(
     });
   }
 
-  // Every other payer of pay: its usual month over the window — what regular
-  // pay's "other income" may already expect from it.
+  // Every payer's usual month of pay over the window that regular pay's "other
+  // income" may already expect: all of an other payer's pay; for the payer of a
+  // regular paycheck, only its days outside the paycheck band — the days regular
+  // pay counts as "other" (#787 critic cycle 3, P2-1).
   const windowStart = addMonthsClamped(isoDate(`${month}-01`), -WINDOW_MONTHS);
   const windowMonths = Array.from({ length: WINDOW_MONTHS }, (_, i) =>
     monthKey(addMonthsClamped(windowStart, i)),
   );
   const usualMonthOf = new Map<string, number>();
   for (const [payer, days] of payDays) {
-    if (streams.has(payer)) continue;
+    const stream = streams.get(payer);
+    const counted = (total: number) =>
+      stream === undefined ||
+      total * 100 < stream.usual * ORDINARY_LOW_PCT ||
+      total * 100 > stream.usual * ABOVE_PAYCHECK_PCT;
     const byMonth = windowMonths.map((m) =>
-      [...days].filter(([d]) => monthKey(d) === m).reduce((sum, [, total]) => sum + total, 0),
+      [...days]
+        .filter(([d, total]) => monthKey(d) === m && counted(total))
+        .reduce((sum, [, total]) => sum + total, 0),
     );
     const usual = Math.round(median(byMonth));
     if (usual > 0) usualMonthOf.set(payer, usual);
@@ -186,7 +198,7 @@ export function bonusesThisMonth(
         : stream !== undefined && t.date > stream.lastPaidOn
           ? { cents: stream.usual, reason: 'usual-paycheck' as const }
           : usualMonth !== undefined
-            ? { cents: usualMonth, reason: 'usual-month' as const }
+            ? { cents: usualMonth, reason: stream !== undefined ? ('usual-extra' as const) : ('usual-month' as const) }
             : null;
     deposits.push({
       date: t.date as ISODate,
