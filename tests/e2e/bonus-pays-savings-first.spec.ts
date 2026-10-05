@@ -88,14 +88,19 @@ test('a deposit filed Bonus pays this month’s savings first — its own row on
   ).toHaveText(`− ${money(SAVINGS_CENTS)}`);
   await expect(page.getByTestId('plan-total')).toHaveText(GUILT_FREE);
   await expect(page.getByTestId('plan-reconciled')).toContainText('These 4 lines add up to exactly');
-  // On screen, not only in the DOM.
+  // On screen, not only in the DOM — three short lines: what landed, what it
+  // did, the rule.
+  await expect(
+    page.getByText('Bonus money landed this month — Wed, Jun 3: $2,500.00 filed Bonus.', { exact: true }).filter({ visible: true }),
+  ).toHaveCount(1);
   await expect(
     page
       .getByText(
-        /Bonus money landed this month — Wed, Jun 3: \$2,500\.00 filed Bonus\. .* it covers all \$1,955\.33 of this month's planned savings, so guilt-free this month is \$1,955\.33 higher than your pay alone allows\. The other \$544\.67 is not counted anywhere in this plan/,
+        /^A bonus never plans the month — it pays this month's savings first: it covers all \$1,955\.33 of this month's planned savings, so guilt-free this month is \$1,955\.33 higher than your pay alone allows\. The other \$544\.67 is not counted anywhere in this plan/,
       )
       .filter({ visible: true }),
   ).toHaveCount(1);
+  await expect(page.getByText(/^Bonus money is a deposit filed Bonus, or a day the payer/).filter({ visible: true })).toHaveCount(1);
 
   await page.goto('/dashboard');
   await expect(page.getByTestId('dashboard-safe-to-spend-amount')).toHaveText(GUILT_FREE);
@@ -124,8 +129,10 @@ test('a payroll bonus on a day of its own counts what it brought above the usual
   await expect(
     page
       .getByText(
-        /Bonus money landed this month — Mon, Jun 1: \$9,000\.00 from the payer of your regular paycheck, \$4,487\.70 more than its usual \$4,512\.30\. .*The other \$2,532\.37 is not counted anywhere in this plan/,
+        'Bonus money landed this month — Mon, Jun 1: $9,000.00 from the payer of your regular paycheck, $4,487.70 more than its usual $4,512.30.',
+        { exact: true },
       )
       .filter({ visible: true }),
   ).toHaveCount(1);
+  await expect(page.getByText(/The other \$2,532\.37 is not counted anywhere in this plan/).filter({ visible: true })).toHaveCount(1);
 });

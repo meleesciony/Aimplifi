@@ -36,6 +36,10 @@ export interface AssignToZeroInflation {
   uncountedFixed: boolean;
   /** Frozen / excluded-card notes on this strip — leftover direction unknown. */
   cardNotesPresent: boolean;
+  /** A bonus paid savings this month (DECISIONS #787, critic cycle 2, P3-4):
+   *  part of the leftover is that one-time credit, not the income pattern's
+   *  monthly capacity — the bonus note says what it is instead. */
+  bonusPaidSavings: boolean;
 }
 
 export function assignToZeroLineFor(
@@ -43,6 +47,6 @@ export function assignToZeroLineFor(
   inflation: AssignToZeroInflation,
 ): string | null {
   if (leftToSpendCents <= 0) return null;
-  if (inflation.uncountedFixed || inflation.cardNotesPresent) return null;
+  if (inflation.uncountedFixed || inflation.cardNotesPresent || inflation.bonusPaidSavings) return null;
   return COACH_COPY.assignToZero(cents(leftToSpendCents));
 }

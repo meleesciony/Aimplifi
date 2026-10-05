@@ -13,20 +13,28 @@ monthly spending on money that only arrives 4 times a year."
 **What counts as bonus money** — in the income-account rows the plan reads, this calendar month, up
 to today, posted and counted in flows:
 
-1. a row filed Bonus — whole, signed (a bonus taken back nets against it) — EXCEPT a positive row
-   from the payer of a live regular paycheck dated after that paycheck's last payday: it may be the
-   paycheck itself (two Bonus filings teach a rule that files the payer's next paycheck Bonus), so
-   only the part above the usual paycheck counts until a paycheck lands after it (critic cycle 1, P1-1);
+1. a row filed Bonus — whole, signed (a bonus taken back nets against it) — EXCEPT where the income
+   figure may already hold it:
+   - from the payer of a live regular paycheck, dated after that paycheck's last payday: it may be the
+     paycheck itself (two Bonus filings teach a rule that files the payer's next paycheck Bonus), so
+     only the part above the usual paycheck counts until a paycheck lands after it (critic cycle 1,
+     P1-1);
+   - from a payer whose deposits filed as pay (Paycheck, Side income, Income) arrived in the last three
+     complete months: only the part above that payer's usual month (the median of the three) counts —
+     regular pay's "other income" may already expect it (cycle 2, P2-B);
 2. a day a live regular paycheck's payer deposited MORE than 1.5× its usual paycheck, once an
    ordinary paycheck (0.5×–1.5×) from that payer has landed after it — the part above the usual
-   paycheck (whole-number: `total × 100 > usual × 150`). Without a later ordinary paycheck the day
-   may be a raise or a new job — not bonus money (cycle 1, P2-3);
-3. a negative row (not filed Bonus) from a payer of this month's bonus money — canonical equal, or
-   the same name with more words ("… Ppd Reversal") — nets against it; Zelle, Venmo, checks and other
-   aggregate payers never match (cycle 1, P1-2).
+   paycheck (whole-number: `total × 100 > usual × 150`). Without a later ordinary paycheck the day may
+   be a raise or a new job — not bonus money (cycle 1, P2-3);
+3. once any bonus money landed this month: every outflow this month that is NOT filed as spending
+   (uncategorized, no category, or an Income category), or whose descriptor says REVERSAL / REVERSED /
+   REVERSE / REV / RETURN / RETURNED / CHARGEBACK / CHGBK, nets against it — payer-blind, because a
+   bank's reversal changes a middle word of the payroll's name (cycle 2, F1). A purchase filed to its
+   spending category never nets (cycle 2, P2-A).
 
-The usual paycheck is the stream's paycheck, or after a rise (#786) its newest paycheck (P2-4). The
-total is the signed net, never below $0 for what pays savings; the copy prints the signed net (P2-2).
+The usual paycheck is the larger of the stream's paycheck (after a #786 rise, its newest level) and the
+newest ordinary payday from that payer (cycle 1, P2-4; cycle 2, P3-5). The total is the signed net,
+never below $0 for what pays savings; the copy prints the signed net (P2-2).
 
 **What it does.** Only on the `regular-pay` basis (which leaves every bonus out of income):
 `bonusTowardSavings = min(bonus total, plannedSavings)`, and
@@ -91,6 +99,20 @@ Income $9,776.65; savings $1,955.33; guilt-free this month $9,776.65 − $3,000.
 | $7,000.00 on Oct 2 and Oct 16 (a raise of more than half) | none — no ordinary paycheck after | $0.00 |
 | $4,000.00 through Aug 7, $4,800.00 from Aug 21; Oct 2 = $7,800.00; today Oct 20 | $7,800.00 − $4,800.00 = $3,000.00 | — |
 | Fixed $10,000.00 (over plan) with the $9,000.00 payday bonus | $9,000.00 | $1,955.33 — "the overage is $1,955.33 smaller" |
+
+### Critic cycle 2 cases (all invented, executed in `tests/unit/bonus-line.test.ts`)
+
+| Household (biweekly $4,512.30; Fixed $5,000.00; target 20%; today Oct 17) | Bonus money | Credit |
+|---|---|---|
+| $9,000.00 payroll bonus Oct 2; −$9,000.00 "NORTHWIND HEALTH REVERSAL PPD ID: …" Oct 6, uncategorized | $9,000.00 − $9,000.00 = $0.00 | $0.00 (was $1,955.33) |
+| Same, "… DES:REVERSAL ID:XXXX INDN:…" or "DEPOSITED ITEM RETURNED" | $0.00 | $0.00 |
+| Same, the take-back filed Bank fees as "PAYROLL RETURN NORTHWIND" (a reversal word) | $0.00 | $0.00 |
+| $3,000.00 filed Bonus; −$84.12 at the employer filed Shopping; rent; −$23.99 filed Dining | $3,000.00 (purchases never net) | — |
+| $3,000.00 filed Bonus; −$800.00 Zelle uncategorized; −$200.00 with no category | $3,000.00 − $1,000.00 = $2,000.00 | — |
+| $500.00 stipend filed Income Jul/Aug/Sep; Oct 9 $500.00 filed Bonus | $500.00 − $500.00 = $0.00 | $0.00 (was $500.00) |
+| Same, Oct 9 $2,500.00 filed Bonus | $2,500.00 − $500.00 = $2,000.00 | — |
+| $2,500.00 filed Bonus on Oct 16, the same day as the newest paycheck | $2,500.00 (whole — not after the last payday) | — |
+| $4,600.00 paychecks from Sep 4 (within 2% of $4,512.30); Oct 2 = $13,600.00 | $13,600.00 − $4,600.00 = $9,000.00 | — |
 
 ### Never
 

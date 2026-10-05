@@ -90,6 +90,7 @@ export function ConsciousBucketsStrip({
   const assignToZeroLine = assignToZeroLineFor(plan.leftToSpendCents, {
     uncountedFixed: Boolean(fixedShortfall),
     cardNotesPresent: cardNotes.length > 0,
+    bonusPaidSavings: plan.bonusTowardSavingsCents > 0,
   });
 
   // Bar widths come from NON-NEGATIVE bucket magnitudes normalized to sum to

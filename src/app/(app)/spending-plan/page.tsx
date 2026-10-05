@@ -636,7 +636,8 @@ export default async function SpendingPlanPage() {
             <Link href={REVIEW_FIXED_HREF} className="underline underline-offset-2 hover:text-foreground">
               Spending
             </Link>
-            . Guilt-free = income − savings% − fixed. Dining out and golf start as
+            . Guilt-free = income − savings% − fixed
+            {p.bonusTowardSavingsCents > 0 ? ' + the bonus that paid savings this month' : ''}. Dining out and golf start as
             guilt-free; groceries and bills start as fixed — change any that are wrong.
           </li>
         </ol>

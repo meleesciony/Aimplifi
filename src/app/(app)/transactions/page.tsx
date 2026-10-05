@@ -239,7 +239,7 @@ export default async function TransactionsPage({
         <p className="text-xs text-muted-foreground" data-testid="txn-spend-class-basis">
           {spendClass === 'fixed'
             ? 'Showing transactions classified Fixed in this date window. Your Plan Fixed figure uses budget or typical averages, so it may not match Net below.'
-            : 'Showing transactions classified Discretionary in this date window. Your Plan guilt-free figure is income − savings − fixed, so it may not match Net below.'}
+            : 'Showing transactions classified Discretionary in this date window. Your Plan guilt-free figure is income − savings − fixed, plus any bonus that paid savings this month, so it may not match Net below.'}
         </p>
       )}
 

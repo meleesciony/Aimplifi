@@ -20,7 +20,7 @@ import { computeSpendingPlan } from '@/lib/engine/spending-plan/plan';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { getSpendingPlan } from '@/server/spending-plan';
 
-const CLEAN = { uncountedFixed: false, cardNotesPresent: false } as const;
+const CLEAN = { uncountedFixed: false, cardNotesPresent: false, bonusPaidSavings: false } as const;
 
 const plan = (over: Partial<Parameters<typeof computeSpendingPlan>[0]> = {}) =>
   computeSpendingPlan({
@@ -82,13 +82,13 @@ describe('assign-to-zero line — P0.4 leftover highlight', () => {
 
   it('test_regression__assign_to_zero_refuses_when_uncounted_fixed_inflates_leftover', () => {
     expect(
-      assignToZeroLineFor(150_000, { uncountedFixed: true, cardNotesPresent: false }),
+      assignToZeroLineFor(150_000, { uncountedFixed: true, cardNotesPresent: false, bonusPaidSavings: false }),
     ).toBeNull();
   });
 
   it('test_regression__assign_to_zero_refuses_when_card_notes_make_leftover_direction_unknown', () => {
     expect(
-      assignToZeroLineFor(150_000, { uncountedFixed: false, cardNotesPresent: true }),
+      assignToZeroLineFor(150_000, { uncountedFixed: false, cardNotesPresent: true, bonusPaidSavings: false }),
     ).toBeNull();
   });
 

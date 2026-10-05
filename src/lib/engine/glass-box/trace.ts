@@ -39,7 +39,7 @@ import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spendin
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
 import { reserveTermClause } from '@/lib/engine/spending-plan/reserves';
 import { taxRuleSentence } from '@/lib/engine/spending-plan/tax-copy';
-import { BONUS_ROW_LABEL, bonusSentence } from '@/lib/engine/spending-plan/bonus-copy';
+import { BONUS_ROW_LABEL, bonusParagraphs } from '@/lib/engine/spending-plan/bonus-copy';
 import { regularPayBasisSentence } from '@/lib/engine/spending-plan/regular-pay';
 import {
   BUDGETS_CARD_NOTE_SURFACE,
@@ -456,7 +456,7 @@ function safeToSpendParts(plan: SpendingPlan, disclosures: SpendingPlanDisclosur
             'Planned savings takes the larger of your goal contributions and the savings target set in Settings — they express the same pay-yourself-first intent, so they are never added together.',
           ]
         : [],
-    bonus: ((s) => (s ? [s] : []))(bonusSentence(plan)),
+    bonus: bonusParagraphs(plan),
   };
 
   // Audit P1-14: the panel may call its amounts "computed from your own data"

@@ -2788,7 +2788,13 @@ export function answerConsciousSpending(
 
   return {
     kind: 'conscious_spending',
-    headline: `About ${fixedPct}% / ${savePct}% / ${funPct}% of your income pattern — Fixed costs, savings & investing, and guilt-free.`,
+    // DECISIONS #787 (critic cycle 2, P3-7): in a month a bonus paid savings the
+    // split is of PAY, and its savings share is the part pay funds — say so in
+    // the line a reader sees first, not only in the detail.
+    headline:
+      plan.bonusTowardSavingsCents > 0
+        ? `About ${fixedPct}% / ${savePct}% / ${funPct}% of your income pattern — Fixed costs, savings & investing from pay (this month's bonus paid the rest), and guilt-free.`
+        : `About ${fixedPct}% / ${savePct}% / ${funPct}% of your income pattern — Fixed costs, savings & investing, and guilt-free.`,
     detail: [caption, ...notes].join(' '),
     facts,
     source: CONSCIOUS_SPENDING_SOURCE,
