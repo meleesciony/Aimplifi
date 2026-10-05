@@ -27,7 +27,9 @@ Owner, on remote control: "As a world class dev, ai engineer, personal finance e
 
 **Gate.** Git Bash `VERIFY_E2E=1`: tsc/eslint 0, 9,020 unit passed (+ the known Git Bash `vercel-build.test.ts` 2 — 31/31 with its two neighbours from PowerShell on the same tree), build clean, Playwright 466 / 5 flaky / 1 failed (`transactions.spec.ts:736`, CSV import, under load — not touched; alone: passed; a full Playwright re-run on the same build: 471 passed / 1 flaky / 0 failed, exit 0). Earlier gates this session (each cycle): 470/2 flaky/0, 468/4 flaky/0, 472/0/0.
 
-**Gate read.** (pending — the ship gate and the live probe follow the push.)
+**Gate read.** CI verify run 37389535168 on `8a663da4` = SUCCESS; Vercel Production deployment (GitHub record 6871898956, `aimplifi-g6n94acdp`) success; `scripts/bonus-line-live-deploy-check.mjs` DEPLOY PROOF PASS 8/8 — `www.aimplifi.app`'s 23 `/_next/static` files on /sign-in match that deployment and differ from the previous one (`aimplifi-iuepslqqp`, `4397eb2b`); the shared demo still prints $1,309.08 guilt-free on Home, Guilt-free and /budgets (read before the push), with three plan lines and no bonus row or note. The change is server-rendered and speaks only when bonus money landed, so the build match is the discriminator; the bonus line itself is proven by the unit locks and the e2e throwaway users.
+
+**Next.** Owner: on the live Guilt-free page, the month your next bonus lands, check the "Bonus this month, toward savings first" row (only while the plan reads regular pay). Recorded for later: a payroll bonus on the newest payday holds the plan on the median for one pay period (no credit then); measured savings; brokerage deposit history; big-retail payroll deposits categorized Shopping.
 
 ## 2026-10-05 — Regular pay counts the lower level after one change of pay (DECISIONS #786)
 

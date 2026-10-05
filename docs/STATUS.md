@@ -34,6 +34,8 @@ rates) — no other doc may restate them.
 
 **Gates.** (2026-10-05, the tree shipped, before the ledger commit.) Git Bash `VERIFY_E2E=1 bash scripts/verify.sh`: tsc 0, probes tsc 0, eslint 0; vitest 657 files passed + 1 failed — 9,020 passed, the 2 failures `tests/unit/vercel-build.test.ts` (the known Git Bash child-bash environment failure; from PowerShell on the same tree `vercel-build` + `ledger-decisions-index` + `link-audit`: 31/31); `next build` compiled; Playwright 466 passed / 5 flaky / **1 failed** — `transactions.spec.ts:736` (CSV import's double-paste warning; three 90-second timeouts under full-suite load). Not touched by this slice; it passed alone (no retries) and in a full re-run of Playwright on the same build: **471 passed / 1 flaky (`txn-tags.spec.ts:256`, recorded pre-existing) / 0 failed**, exit 0. Both `bonus-pays-savings-first.spec.ts` tests passed first try in every run. Fail-old and mutation per cycle: DECISIONS #787.
 
+**Ship.** CI verify run 37389535168 on `8a663da4` = SUCCESS; Vercel Production success; `scripts/bonus-line-live-deploy-check.mjs` DEPLOY PROOF PASS 8/8 (live build = this deployment's; the shared demo unchanged at $1,309.08 on Home, Guilt-free and /budgets).
+
 **Critic (Opus, separate contexts, 3 of 4 cycles).** Cycle 1 FAIL (2 P1: a paycheck filed Bonus counted twice; payroll take-backs never netted), cycle 2 FAIL (1 P1: real reversal descriptors change a middle word, so payer matching never netted them → payer-blind netting), cycle 3 **PASS — 0 P0 / 0 P1 / 2 P2 / 6 P3**; its P2s and P3-1/2/3/5 taken before ship (maker-applied, test- and mutation-locked, re-gated, not re-reviewed — each narrows a figure or corrects words).
 
 **Open (found, not changed).**
