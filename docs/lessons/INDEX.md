@@ -111,3 +111,4 @@ and rule live in each lesson file — open the file before acting on a hook.
 - [`git stash pop` takes whatever is on top](a-pop-takes-whatever-is-on-top.md) — a failed push piped through `tail` let a bare pop reach six strangers' stashes; snapshot first, merge off to the side.
 - [A rhythm read from dates cannot see a new job](a-rhythm-read-from-dates-cannot-see-a-new-job.md) — six twice-a-month paydays fit a 14-day grid; bound the figure by the lowest count the dates allow
 - [Money taken back is found by what it is](money-taken-back-is-found-by-what-it-is-not-whose-name-it-carries.md) — a reversal rewrites the payer's name; net by unfiled/income/reversal words
+- [A narrowed word list reopens what it used to catch](a-narrowed-word-list-reopens-what-it-caught.md) — #788 narrowed return words to stop false hits and silently re-counted bounces; test both directions

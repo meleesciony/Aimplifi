@@ -63,6 +63,10 @@ Owner, on remote control: "As a world class dev, ai engineer, personal finance e
 
 **Gate (ship candidate).** Git Bash `VERIFY_E2E=1 bash scripts/verify.sh` exit 1: tsc 0, probes 0, eslint 0; vitest 9,114 passed + 2 failed (`vercel-build.test.ts`, Git Bash environment); build compiled; Playwright **469 passed / 5 flaky / 0 failed** (an 11.3-minute loaded run; `category-rename:110`, `goal-demo-and-nudge:19`, `register-return:119`, `transactions:298`, `transactions:611` passed on retry — the three new ones alone, no retries, same build: 4/4); both new e2e tests and the axe scan passed first try. No `prisma/` diff.
 
+**Gate read.** CI verify run 37471459372 on `ecdc37f0` = **SUCCESS**; Vercel Production deployment (GitHub record 6885373682, `aimplifi-bniumufj5`) success; `scripts/deposits-live-deploy-check.mjs` **DEPLOY PROOF PASS 7/7** (after correcting one check that expected the local seed's portfolio total — production's demo holds no holdings rows). The production demo seeder was refused by the harness (a production write) — left to the owner.
+
+**Next.** Owner: on www.aimplifi.app, sign in to your own account and open Investments → "Money you put in". To make the shared demo show the counted state, run the seeder yourself (command in the turn's report). Recorded for later: measured savings (STATUS "FOUND 2026-10-05": Investment & Savings filings count as spending); N4 and the other recorded P2/P3s in DECISIONS #788.
+
 ## 2026-10-05 — Bonuses that land pay this month's savings first, on their own line (DECISIONS #787)
 
 Owner, on remote control: "As a world class dev, ai engineer, personal finance expert and data scientist, build this out." No attachment; the ledgers' first owner-agreed next slice was #784's open half (the bonus line, bonuses toward savings first), so it was built without a question (DECISIONS #787 records the reading of the owner's words and the alternatives).
