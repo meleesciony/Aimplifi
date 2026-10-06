@@ -2,9 +2,13 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { PAGE_STACK_CLASS } from '@/components/finance/page-chrome';
 import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
+import { DepositHistoryCard } from '@/components/finance/deposit-history-card';
 import { InvestmentsView } from '@/components/finance/investments-view';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
+import { computeDepositHistory } from '@/lib/engine/investments/deposits';
+import { resolveInvestmentScope } from '@/lib/engine/investments/scope';
+import { loadDepositInputs } from '@/server/investment-deposits';
 import { getInvestments, getRetirementOutlook } from '@/server/investments';
 import { getWithheldAccountSummary } from '@/server/transactions';
 import { prisma } from '@/lib/db';
@@ -27,11 +31,16 @@ export default async function InvestmentsPage({
   const { account } = await searchParams;
   const scopedAccountId = typeof account === 'string' ? account : undefined;
 
-  const [data, outlook, withheld] = await Promise.all([
+  const [data, outlook, withheld, depositInputs] = await Promise.all([
     getInvestments(),
     getRetirementOutlook(),
     getWithheldAccountSummary(userId),
+    loadDepositInputs(userId),
   ]);
+  // DECISIONS #788: the deposit history narrows exactly when the holdings list does —
+  // the same resolver, so "Showing X holdings" and the money put in never disagree.
+  const scope = resolveInvestmentScope(data.accounts, scopedAccountId);
+  const deposits = computeDepositHistory({ ...depositInputs, scopeAccountId: scope.showAllAccounts ? scopedAccountId : undefined });
   return (
     <div className={PAGE_STACK_CLASS}>
       <InvestmentsView
@@ -41,6 +50,7 @@ export default async function InvestmentsPage({
         scopedAccountId={scopedAccountId}
         canWrite={!isDemoUser(userId)}
       />
+      <DepositHistoryCard history={deposits} canLink={!isDemoUser(userId)} />
       <Card data-testid="investments-net-worth-export-card">
         <CardHeader className="pb-2">
           <CardDescription>Take your net worth with you</CardDescription>

@@ -586,6 +586,18 @@ export function buildSeedData(asOfStr: string = DEFAULT_AS_OF): SeedData {
   addTxn('acct-sapphire', asOf, -675, 'SQ *BLUE BOTTLE 0042 OAK', { status: 'PENDING' });
   addTxn('acct-platinum', addDays(asOf, -1), -4318, 'AMZN Mktp US*2K4XY1', { status: 'PENDING' });
 
+  // ── money put into the Brokerage from checking (DECISIONS #788) ──
+  // A monthly $750 transfer the bank describes by the Brokerage's last four (8842),
+  // and one $2,000 taken back out three months before asOf. Appended AFTER every
+  // other row and drawn from no random stream, so no earlier row's id or amount
+  // moves. Transfer-flagged: no spending, income or plan figure reads them.
+  for (const t of monthCursor(3)) {
+    if (compareDates(t, asOf) <= 0) {
+      addTxn('acct-checking', t, -75000, 'ONLINE TRANSFER TO BROKERAGE X8842', { isTransfer: true });
+    }
+  }
+  addTxn('acct-checking', isoDate(`${addMonthsClamped(asOf, -3).slice(0, 7)}-18`), 200000, 'ONLINE TRANSFER FROM BROKERAGE X8842', { isTransfer: true });
+
   // ── scheduled transactions (known future flows feeding the projection) ──
   const nextPayroll = addDays(anchor, compareDates(anchor, asOf) > 0 ? 0 : 14);
   const firstFuture = (dates: ISODate[]) => dates.find((t) => compareDates(t, asOf) > 0)!;

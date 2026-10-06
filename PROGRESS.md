@@ -17,6 +17,16 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-05 — Money you put in: brokerage deposits read from the bank side (DECISIONS #788) — IN PROGRESS
+
+Owner, on remote control: "As a world class dev, ai engineer, personal finance expert and data scientist, build this out." No attachment; the next owner-agreed slice was brokerage deposit history, gated on "verify the endpoint is covered before building". Plaid's billing pages (fetched) say calling `/investments/transactions/get` adds a monthly per-login subscription ended only by unlinking → human gate → owner chose "Bank side, no new fee" (DECISIONS #788).
+
+**Carried in.** CI verify run 37393515573 on `110a0df3` (the #787 docs fix) = SUCCESS (`scripts/ci-status.sh` exit 0) — closes the read #787 left open.
+
+**Plan (assertions → `tests/unit/investment-deposits.test.ts`).** A1 brokerage name → the one linked investment account there; A2 last four after a mask marker → that account; A3 inflows are money taken out; A4 pending / split parent / excluded / other category / non-bank account / an equal opposite row on another linked bank or card account within 7 days → not counted; A5 brokerage not linked → listed, not counted; A6 a linked bank or card account at the same brokerage → counted only when its records cover the week and show no counterpart; A7 two brokerages or a shared mask → not counted; A8 mask and name disagree → not counted; A9 window = last 12 complete months + this month, never before the records; A10 several accounts at one brokerage → one destination; A11 combined accounts count once; A12 /investments card; A13 demo seed shows it, no other demo figure moves.
+
+**Next.** Engine + tests, loader, card, seed, e2e, gate, critic.
+
 ## 2026-10-05 — Bonuses that land pay this month's savings first, on their own line (DECISIONS #787)
 
 Owner, on remote control: "As a world class dev, ai engineer, personal finance expert and data scientist, build this out." No attachment; the ledgers' first owner-agreed next slice was #784's open half (the bonus line, bonuses toward savings first), so it was built without a question (DECISIONS #787 records the reading of the owner's words and the alternatives).

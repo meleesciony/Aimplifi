@@ -41,6 +41,11 @@ exercises same-day aggregation; one due date in history falls on a weekend ✔).
   `COSTCO WHSE #`, `UBER *TRIP`, `UBER *EATS`, check numbers, ACH descriptors.
 - **Transfers ✔:** monthly checking→savings $500 and card-payment transfers — must be
   detectable as transfers (excluded from income/expense).
+- **Money put into the Brokerage ✔ (#788):** monthly −$750.00 `ONLINE TRANSFER TO
+  BROKERAGE X8842` from Everyday Checking on the 3rd, and one +$2,000.00 `ONLINE TRANSFER
+  FROM BROKERAGE X8842` back into it on the 18th three months before asOf — transfer-flagged,
+  appended after every other row with fixed amounts (no RNG draw, no id shift). The
+  /investments "Money you put in" card places them on the Brokerage by its last four.
 - **Lifestyle creep ✔:** discretionary spend (dining, shopping) rises ~4%/mo over the
   final 6 months while income is flat — detectable by the Phase 3 creep engine.
 - **Refund:** one $50.00 credit posting 2 days after a statement close on Sapphire ✔.
