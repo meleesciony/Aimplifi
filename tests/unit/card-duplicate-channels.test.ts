@@ -370,6 +370,7 @@ function resultWithPair(): CashNeededResult {
     ],
     upcoming: [],
     unknownDueDateCards: [],
+    inTransitPayments: [],
   } as unknown as CashNeededResult;
 }
 
@@ -535,6 +536,7 @@ describe('critic F4 — the Ask zero-due branch states a COUNT, so it discloses 
       perDueDate: [],
       cards: [],
       upcoming: [],
+      inTransitPayments: [],
       unknownDueDateCards: [
         { cardId: 'chase-a', cardName: 'CREDIT CARD', currentBalanceCents: -100 },
         { cardId: 'chase-b', cardName: 'CREDIT CARD', currentBalanceCents: -100 },

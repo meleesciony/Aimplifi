@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
+import { inTransitPaymentsSentence } from '@/lib/engine/cash-needed/in-transit-copy';
 import { CARD_IDENTITY_TESTID, cardIdentityLabels } from '@/components/finance/card-identity-view';
 import {
   CARD_DUPLICATE_PAIR_TESTID,
@@ -181,6 +182,14 @@ export function CardsBreakdown({
           )}
         </div>
       </div>
+
+      {/* #791: the figure above already counts these as paid; the card company may not show
+          it yet, and the Accounts balance comes from the card company. */}
+      {inTransitPaymentsSentence(result.inTransitPayments) && (
+        <p className="text-xs text-muted-foreground" data-testid="cards-in-transit">
+          {inTransitPaymentsSentence(result.inTransitPayments)}
+        </p>
+      )}
 
       {scenario === 'MINIMUM' && result.minimumPathInterestCents !== null && (
         <p className="text-sm text-warning-500" data-testid="minimum-interest">

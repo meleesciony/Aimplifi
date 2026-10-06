@@ -154,6 +154,131 @@ export function detectCardPayments(
   return found;
 }
 
+// ── Payments in transit (DECISIONS #791) ───────────────────────────────────────
+//
+// Owner, live, 2026-10-06: "I've clearly paid off my ccs for this cycle. However it
+// says I still owe." Measured read-only on production: three card payments left the
+// owner's checking on the due date, each exactly one card's statement balance; the
+// issuer had reported ONE of the three on the card side a day later, and neither the
+// other two card-side rows nor any drop in those cards' balances. Until the card side
+// posts, the pair rule above cannot see the payment — while the checking balance the
+// projection walks from already has the money gone. That is the double count this
+// module's header describes, re-opened for the days a payment is in transit, and the
+// headline asked for the same money twice.
+//
+// So a payment the bank side has POSTED counts against a card's current statement
+// before the card side shows it — but only when nothing else could explain it:
+//
+//   1. a POSTED outflow on a CHECKING or SAVINGS account (not a split parent), dated
+//      after that statement closed and no later than today;
+//   2. it reads as a card payment: filed Credit Card Payment, or a transfer (flag or
+//      filing) whose bank text carries a card-payment word (`CARD_PAYMENT_WORDS_RE`);
+//   3. its amount is EXACTLY that statement's unpaid remainder, and no other card's
+//      current statement has the same remainder — the cent-exact statement balance is
+//      the fingerprint, and an ambiguous one names no card;
+//   4. the card side has not shown it yet: no POSTED credit of the same amount on any
+//      card within the pair window (when there is one, the pair rule above owns it, so
+//      the payment is counted once whichever way it is seen);
+//   5. it is not a move between the reader's own bank accounts (no POSTED equal and
+//      opposite row on another checking or savings account within the pair window),
+//      and it did not come back (no POSTED inflow of the same amount on the same
+//      account after it — a returned payment).
+//
+// Every other bank outflow abstains, and the bill is demanded as before. A part
+// payment never matches (it is not the remainder) — the card side picks it up when it
+// posts. One payment pays one statement; a second payment of the same amount finds the
+// statement already paid.
+
+/** Words a bank prints on a card payment. Read only on a row already filed as a move. */
+export const CARD_PAYMENT_WORDS_RE =
+  /\b(CRCARD ?PMT|CR ?CARD|CARD (?:ONLINE )?(?:PMT|PAYMENT)|CARDPMT|CREDIT ?CARD|CREDIT ?CRD|AUTOPAY|AUTO ?PAY|AUTOMATIC PAYMENT|E-?PAYMENT|EPAY)\b/i;
+
+export interface InTransitTxn extends DetectedPaymentTxn {
+  rawDescriptor: string;
+  categoryId?: string | null;
+  isTransfer: boolean;
+}
+
+/** One card's current statement, with what is still unpaid on it after every other payment. */
+export interface InTransitCandidate {
+  cardAccountId: string;
+  statementId: string;
+  cycleEnd: string;
+  unpaidCents: number;
+}
+
+export interface InTransitPayment {
+  cardAccountId: string;
+  statementId: string;
+  /** Positive. */
+  amountCents: number;
+  /** The day the money left the bank account. */
+  date: ISODate;
+  fromAccountId: string;
+  /** Position of the bank-side row in the array handed in. */
+  txnIndex: number;
+}
+
+export function detectInTransitCardPayments(params: {
+  transactions: readonly InTransitTxn[];
+  accountTypeById: ReadonlyMap<string, string>;
+  today: ISODate;
+  candidates: readonly InTransitCandidate[];
+}): InTransitPayment[] {
+  const { transactions: txns, accountTypeById, today } = params;
+  const posted = (t: InTransitTxn) => t.status === 'POSTED' && !t.isSplitParent;
+  const within = (a: string, b: string) => Math.abs(daysBetween(isoDate(a), isoDate(b))) <= PAYMENT_PAIR_WINDOW_DAYS;
+  const readsAsCardPayment = (t: InTransitTxn) =>
+    t.categoryId === 'credit-card-payment' ||
+    ((t.isTransfer || t.categoryId === 'transfer') && CARD_PAYMENT_WORDS_RE.test(t.rawDescriptor));
+
+  const debits = txns
+    .map((t, i) => ({ t, i }))
+    .filter(
+      ({ t }) =>
+        posted(t) &&
+        t.amountCents < 0 &&
+        PAYS_A_CARD.has(accountTypeById.get(t.accountId) ?? '') &&
+        compareDates(isoDate(t.date), today) <= 0 &&
+        readsAsCardPayment(t),
+    )
+    .sort((a, b) => compareDates(isoDate(a.t.date), isoDate(b.t.date)) || a.i - b.i);
+
+  const open = params.candidates.filter((c) => c.unpaidCents > 0).map((c) => ({ ...c }));
+  const out: InTransitPayment[] = [];
+  for (const { t, i } of debits) {
+    const amount = -t.amountCents;
+    const otherSide = txns.some((u, j) => {
+      if (j === i || !posted(u) || u.amountCents !== amount) return false;
+      const type = accountTypeById.get(u.accountId) ?? '';
+      // 4. the card side already shows it: the pair rule owns it.
+      if (type === 'CREDIT') return within(u.date, t.date);
+      // 5. a move between the reader's own bank accounts, or money that came back.
+      if (PAYS_A_CARD.has(type)) {
+        if (u.accountId !== t.accountId) return within(u.date, t.date);
+        return compareDates(isoDate(u.date), isoDate(t.date)) >= 0;
+      }
+      return false;
+    });
+    if (otherSide) continue;
+    const matches = open.filter(
+      (c) => c.unpaidCents === amount && compareDates(isoDate(t.date), isoDate(c.cycleEnd)) > 0,
+    );
+    if (matches.length !== 1) continue;
+    const hit = matches[0]!;
+    out.push({
+      cardAccountId: hit.cardAccountId,
+      statementId: hit.statementId,
+      amountCents: amount,
+      date: isoDate(t.date),
+      fromAccountId: t.accountId,
+      txnIndex: i,
+    });
+    hit.unpaidCents = 0;
+  }
+  return out;
+}
+
 /**
  * Σ detected payments creditable against ONE statement.
  *

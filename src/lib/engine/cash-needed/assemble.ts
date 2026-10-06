@@ -15,7 +15,12 @@ import { type ISODate, addDays, addMonthsClamped, compareDates, isoDate, nextDay
 import { accountLabel } from '@/lib/engine/account/display-name';
 import { isLiabilityType } from '@/lib/engine/transactions/query';
 import { monthsPerCadence } from '@/lib/engine/recurring/detect';
-import { detectCardPayments, detectedPaymentCentsForStatement } from './detected-payments';
+import {
+  detectCardPayments,
+  detectInTransitCardPayments,
+  detectedPaymentCentsForStatement,
+  type InTransitPayment,
+} from './detected-payments';
 import type { CardSnapshot, CashNeededInput, PendingTx, Scenario, ScheduledItem } from './types';
 
 export interface AccountLike {
@@ -160,42 +165,77 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
   const detectedPayments = detectCardPayments(p.transactions, accountTypeById);
   const detectedIndexes = new Set(detectedPayments.map((d) => d.txnIndex));
 
-  const cards: CardSnapshot[] = p.accounts
-    .filter((a) => a.type === 'CREDIT')
+  // Stored rows (the reader's own record: 'manual' / 'autopay') PLUS the payments
+  // detected from the feed, deduped against each other — and, from the second pass
+  // on, the payments in transit (#791). Read here rather than at the call sites
+  // below, so the statement SELECTION and the amount due can never disagree about
+  // what has been paid.
+  const paidAgainstOf = (cardId: string, inTransit: readonly InTransitPayment[]) => (statement: StatementLike) =>
+    p.cardPayments.filter((cp) => cp.statementId === statement.id).reduce((sum, cp) => sum + cp.amountCents, 0) +
+    detectedPaymentCentsForStatement({
+      detected: detectedPayments,
+      cardAccountId: cardId,
+      cycleEnd: statement.cycleEnd,
+      storedPayments: p.cardPayments.filter((cp) => cp.statementId === statement.id),
+    }) +
+    inTransit.filter((x) => x.cardAccountId === cardId && x.statementId === statement.id).reduce((sum, x) => sum + x.amountCents, 0);
+  const statementsOf = (cardId: string) =>
+    p.statements
+      .filter((s) => s.accountId === cardId)
+      .sort((a, b) => compareDates(isoDate(b.cycleEnd), isoDate(a.cycleEnd)));
+  // Current obligation = the most recent statement that is either not yet
+  // due OR still carries an unpaid remainder (delinquent statements must
+  // NEVER vanish into the estimate path — Hostile Critic finding P1-2).
+  const currentOf = (own: readonly StatementLike[], paidAgainst: (s: StatementLike) => number) =>
+    own.find(
+      (s) => compareDates(isoDate(s.dueDate), p.today) >= 0 || s.statementBalanceCents - paidAgainst(s) > 0,
+    ) ?? null;
+  const creditCards = p.accounts.filter((a) => a.type === 'CREDIT');
+
+  // #791 — payments in transit. First pass: each card's current statement and what is
+  // still unpaid on it from everything the feed can prove; then the bank-side
+  // payments the card side has not shown yet are matched to exactly one of those
+  // remainders (detected-payments.ts states the rule).
+  const inTransitPayments = detectInTransitCardPayments({
+    transactions: p.transactions,
+    accountTypeById,
+    today: p.today,
+    candidates: creditCards.flatMap((card) => {
+      const paidAgainst = paidAgainstOf(card.id, []);
+      const current = currentOf(statementsOf(card.id), paidAgainst);
+      return current
+        ? [{ cardAccountId: card.id, statementId: current.id, cycleEnd: current.cycleEnd, unpaidCents: current.statementBalanceCents - paidAgainst(current) }]
+        : [];
+    }),
+  });
+  const accountName = new Map(p.accounts.map((a) => [a.id, accountLabel(a)]));
+
+  const cards: CardSnapshot[] = creditCards
     .map((card) => {
-      const own = p.statements
-        .filter((s) => s.accountId === card.id)
-        .sort((a, b) => compareDates(isoDate(b.cycleEnd), isoDate(a.cycleEnd)));
-      // Stored rows (the reader's own record: 'manual' / 'autopay') PLUS the
-      // payments detected from the feed, deduped against each other. Both halves
-      // are read here rather than at the two call sites below, so the statement
-      // SELECTION and the amount due can never disagree about what has been paid.
-      const storedPaidAgainst = (statementId: string) =>
-        p.cardPayments
-          .filter((cp) => cp.statementId === statementId)
-          .reduce((sum, cp) => sum + cp.amountCents, 0);
-      const paidAgainst = (statement: StatementLike) =>
-        storedPaidAgainst(statement.id) +
-        detectedPaymentCentsForStatement({
-          detected: detectedPayments,
-          cardAccountId: card.id,
-          cycleEnd: statement.cycleEnd,
-          storedPayments: p.cardPayments.filter((cp) => cp.statementId === statement.id),
-        });
-      // Current obligation = the most recent statement that is either not yet
-      // due OR still carries an unpaid remainder (delinquent statements must
-      // NEVER vanish into the estimate path — Hostile Critic finding P1-2).
-      const current =
-        own.find(
-          (s) =>
-            compareDates(isoDate(s.dueDate), p.today) >= 0 ||
-            s.statementBalanceCents - paidAgainst(s) > 0,
-        ) ?? null;
+      const own = statementsOf(card.id);
+      const inTransitHere = inTransitPayments.filter((x) => x.cardAccountId === card.id);
+      const paidAgainst = paidAgainstOf(card.id, inTransitHere);
+      const current = currentOf(own, paidAgainst);
 
       let paymentsApplied = 0;
       let postCloseCredit = 0;
       if (current) {
         paymentsApplied = paidAgainst(current);
+        // A card credit that is the LATE arrival of a payment counted in transit (it
+        // posted after the pair window, so the pair rule never saw it) is that same
+        // money — it may not also be announced as a credit for the next statement.
+        const arrivals = new Set<number>();
+        for (const x of inTransitHere) {
+          const k = p.transactions.findIndex(
+            (t, i) =>
+              !arrivals.has(i) &&
+              t.accountId === card.id &&
+              t.status === 'POSTED' &&
+              t.amountCents === x.amountCents &&
+              compareDates(isoDate(t.date), x.date) >= 0,
+          );
+          if (k >= 0) arrivals.add(k);
+        }
         postCloseCredit = p.transactions
           .filter(
             (t, i) =>
@@ -208,6 +248,7 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
               // Disjoint by identity, not by the isTransfer flag — see
               // DetectedCardPayment.txnIndex.
               !detectedIndexes.has(i) &&
+              !arrivals.has(i) &&
               t.amountCents > 0 &&
               compareDates(isoDate(t.date), isoDate(current.cycleEnd)) > 0,
           )
@@ -266,6 +307,13 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
         // Only the assembler can still tell them apart.
         hasSettledStatement: !current && own.length > 0,
         postCloseCreditCents: postCloseCredit > 0 ? cents(postCloseCredit) : undefined,
+        // #791: carried even when it settled the statement, so a surface can say the bill
+        // was counted as paid before the issuer showed it.
+        inTransitPayments: inTransitHere.map((x) => ({
+          amountCents: cents(x.amountCents),
+          date: x.date,
+          fromAccountName: accountName.get(x.fromAccountId) ?? '',
+        })),
         frozenSince: card.feedDroppedAt ?? null,
         // C.11 critic P0-1: a manual card's statement/balance is a typed figure;
         // the provenance gate must be able to see it all the way to the panel.

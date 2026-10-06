@@ -46,6 +46,7 @@ function coveredResult(): CashNeededResult {
     minimumPathInterestCents: null,
     minimumPathInterestCardsCount: 0,
     fundingFrozen: null,
+    inTransitPayments: [],
     assumptions: [],
   } as CashNeededResult;
 }

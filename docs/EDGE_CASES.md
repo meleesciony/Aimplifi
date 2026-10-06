@@ -91,3 +91,4 @@ expected value to match the code.
 - [§Regular pay plans the month (DECISIONS #785)](../tests/edge-cases/regular-pay-plans-the-month.md)
 - [§Bonuses pay this month's savings first (DECISIONS #784 / #787)](../tests/edge-cases/bonuses-pay-savings-first.md)
 - [§Money you put in — brokerage deposits from the bank side (DECISIONS #788)](../tests/edge-cases/investment-deposits.md)
+- [§A card payment counts once it leaves checking (DECISIONS #791)](../tests/edge-cases/card-payment-in-transit.md)

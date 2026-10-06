@@ -28,6 +28,7 @@ import {
 } from '@/lib/engine/account/card-duplicate-view';
 import { HOUSEHOLD_COPY } from '@/lib/copy/household-copy';
 import { type CashNeededResult, undatedCardsWithBalance } from '@/lib/engine/cash-needed/types';
+import { inTransitPaymentsSentence } from '@/lib/engine/cash-needed/in-transit-copy';
 import { traceCashNeeded } from '@/lib/engine/glass-box/trace';
 import { formatISODate, formatRelativeDays, isoDate, type ISODate } from '@/lib/dates';
 import { cents, formatCents } from '@/lib/money';
@@ -82,6 +83,14 @@ export function CashNeededCard({
   cardBilling?: Record<string, ManualCardBilling>;
 }) {
   const { headline } = result;
+  // #791: a card counted as paid while its payment is in transit says so on every branch —
+  // the reader's card company may still show the bill as open.
+  const inTransit = inTransitPaymentsSentence(result.inTransitPayments);
+  const inTransitNote = inTransit ? (
+    <p className="text-xs text-muted-foreground" data-testid="cash-needed-in-transit">
+      {inTransit}
+    </p>
+  ) : null;
   /** A card name, owner-attributed at household scope (payment-reminders idiom). */
   const ownedName = (c: { cardId: string; cardName: string }) => {
     const owner = accountOwnerLabel[c.cardId];
@@ -178,6 +187,7 @@ export function CashNeededCard({
                 meantime.
               </p>
             )}
+            {inTransitNote}
             <p>
               <Link href="/cards" className="underline hover:text-foreground">
                 See all cards →
@@ -193,6 +203,7 @@ export function CashNeededCard({
           <CardTitle>Cards: nothing due</CardTitle>
           <CardDescription>No card payments are due this cycle.</CardDescription>
         </CardHeader>
+        {inTransitNote && <CardContent>{inTransitNote}</CardContent>}
       </Card>
     );
   }
@@ -281,6 +292,7 @@ export function CashNeededCard({
             (the /cards placement rule): "Transfer $X by Friday" is the sentence a double-counted
             card corrupts, so the reader must meet the caveat before the imperative. */}
         {duplicates && <DuplicateDisclosure view={duplicates} />}
+        {inTransitNote}
         {unknownWithBalance.length > 0 && (
           // The mixed case: a real total for the datable cards, plus at least one
           // balance-carrying card we cannot date. Without this line the figure

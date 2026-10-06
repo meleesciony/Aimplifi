@@ -436,6 +436,8 @@ describe('answerCashNeeded', () => {
   const base = {
     cards: [],
     unknownDueDateCards: [],
+    // #791: also always present on a real engine result; empty = nothing in transit.
+    inTransitPayments: [],
     intraPeriodMinimum: null,
     minimumPathInterestCents: null,
   };

@@ -548,6 +548,16 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
             balanceCents: input.paymentAccount.balanceCents,
           }
         : null,
+    // #791: card order, then date — the reader's own list of payments counted in transit.
+    inTransitPayments: input.cards.flatMap((card) =>
+      (card.inTransitPayments ?? []).map((x) => ({
+        cardId: card.id,
+        cardName: card.name,
+        amountCents: x.amountCents,
+        date: x.date,
+        fromAccountName: x.fromAccountName,
+      })),
+    ),
     assumptions: [...assumptions],
   };
 }

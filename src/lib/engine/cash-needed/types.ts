@@ -45,6 +45,13 @@ export interface CardSnapshot {
   hasSettledStatement?: boolean;
   /** A refund/credit that posted after statement close (informational; does not reduce this statement). */
   postCloseCreditCents?: Cents;
+  /**
+   * #791: payments that left a checking or savings account and are counted against this
+   * card's statement although the card side has not shown them yet (already inside
+   * `paymentsAppliedCents`). Carried even when they settled the statement, so a surface
+   * can say the bill was counted as paid before the issuer showed it. Absent = none.
+   */
+  inTransitPayments?: readonly { amountCents: Cents; date: ISODate; fromAccountName: string }[];
   /** YYYY-MM-DD the bank stopped sharing this card, else null/absent (TASKS L.14).
    *
    *  The original of this comment claimed the engine's `assumptions` are rendered by "/cards, the
@@ -250,7 +257,24 @@ export interface CashNeededResult {
    * date and the amount from ever disagreeing about whether there is anything to disclose.
    */
   fundingFrozen: { readonly frozenSince: string; readonly balanceCents: Cents } | null;
+  /**
+   * #791: every card payment counted as paid while in transit — it left the reader's
+   * checking or savings, the card side has not shown it yet. Every surface that tells the
+   * reader a card is paid, or how much is still due, on the strength of one of these must
+   * be able to say so. Empty when there are none.
+   */
+  inTransitPayments: readonly InTransitPaymentNote[];
   assumptions: string[];
+}
+
+/** One payment counted while in transit (#791). */
+export interface InTransitPaymentNote {
+  cardId: string;
+  cardName: string;
+  amountCents: Cents;
+  /** The day the money left the bank account. */
+  date: ISODate;
+  fromAccountName: string;
 }
 
 /**

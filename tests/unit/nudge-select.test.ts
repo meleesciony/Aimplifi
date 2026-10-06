@@ -176,6 +176,7 @@ function cashNeededOf(o: {
     intraPeriodMinimum: null,
     minimumPathInterestCents: null,
     minimumPathInterestCardsCount: 0,
+    inTransitPayments: [],
     assumptions: [],
   };
 }

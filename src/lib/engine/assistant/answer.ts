@@ -45,6 +45,7 @@ import type { RecurringSummary } from '@/lib/engine/recurring/summary';
 import type { Forecast } from '@/lib/engine/forecast/forecast';
 import type { RadarResult } from '@/lib/engine/radar/radar';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
+import { inTransitPaymentsSentence } from '@/lib/engine/cash-needed/in-transit-copy';
 import {
   type CardDuplicatePairInput,
   cardDuplicateAnswerNote,
@@ -1597,8 +1598,9 @@ export function answerCashNeeded(
       { nextStep: 'accounts-route' },
     );
     const zeroDueDetail = withDetail(
-      undatedNotes.length > 0 ? undatedNotes.join(' ') : undefined,
-      nothingDueNote,
+      withDetail(undatedNotes.length > 0 ? undatedNotes.join(' ') : undefined, nothingDueNote),
+      // #791: an all-clear that rests on a payment the card company has not shown yet says so.
+      inTransitPaymentsSentence(result.inTransitPayments),
     );
     return {
       kind: 'cash_needed',
@@ -1617,6 +1619,9 @@ export function answerCashNeeded(
     ...undatedFact,
   ];
   const detailParts: string[] = [];
+  // #791: the figure below already counts these as paid.
+  const inTransitNote = inTransitPaymentsSentence(result.inTransitPayments);
+  if (inTransitNote) detailParts.push(inTransitNote);
   /**
    * Resolved against the COUNTED rows only — the obligations `perDueDate` partitions, which are
    * exactly the rows summed into `requiredCents` and counted by `cardsDueCount`. Both of the
