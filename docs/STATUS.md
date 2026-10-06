@@ -36,7 +36,7 @@ rates) — no other doc may restate them.
 
 **Critic (Opus, separate worktrees).** Cycle 1 FAIL (1 P0 / 3 P1), cycle 2 FAIL (2 P1), **cycle 3 PASS — 0 P0 / 0 P1 / 4 P2 / 7 P3**. DECISIONS #789 carries every cycle.
 
-**Ship.** Recorded after the deploy proof and the CI read.
+**Ship.** `eb029d93` on `origin/main` (3 commits, this slice only; the squash of the #789 branch onto main after #791). No `prisma/` diff. Vercel Production deployment (GitHub record 6896863038, `aimplifi-ikh649bh3`) success. **`scripts/investment-not-spending-live-deploy-check.mjs` DEPLOY PROOF PASS 6/6** on www.aimplifi.app — this commit's build is the one served, the demo's guilt-free $1,309.08 and cash-needed $5,412.33 unchanged, the merchant lens names what it leaves out ("…and no transfer or money moved into investing"), no horizontal scroll at 380px (read before the deploy: the old lens wording). **CI verify run 37541208942 = SUCCESS** (`scripts/ci-status.sh` exit 0).
 
 **Open (found by cycle 3, not changed — the next slice fixes them).**
 - P2-A /recurring: a contribution series that rose is badged favorable on its row, but "Coming up" still marks its renewal "↑ was $200.00" in rose, and the hero counts it as a bill in "Monthly recurring" (`recurring/renewals.ts:74-75`, `recurring-view.tsx:499-501`).
