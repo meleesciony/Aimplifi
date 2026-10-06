@@ -30,9 +30,12 @@
  *    "restoring returns this money to your totals", and a PENDING row can
  *    settle differently (the file branch's own refusal), while a non-USD or
  *    `excludeFromTotals` row is withheld from every total by ANOTHER gate — so
- *    clearing its mark returns $0.00 and the stated dollars would be false.
+ *    clearing its mark returns $0.00 and the stated dollars would be false, AND
+ *  - it is not filed as a money move (#792; #789 critic cycle 3, P2-D): a row filed
+ *    Investment & Savings leaves every total by its FILING (#789), flag or no flag,
+ *    so clearing the flag returns nothing either.
  * Everything else flagged-but-declined — still awaiting review, review-pinned,
- * pending, non-USD, or reader-excluded — is COUNTED in
+ * pending, non-USD, reader-excluded or filed as a money move — is COUNTED in
  * `declinedOutOfScopeCount` and never touched: clearing those means minting
  * review work or claiming money no figure would regain — different actions
  * with their own consequences, recorded rather than smuggled in here.
@@ -44,7 +47,7 @@
  * row to its own answer rather than deciding anything new.
  */
 import { hasCompetingVerdict, planTransferUpdates, type TransferStateTxn } from './transfers';
-import { isIncomeCategoryId } from './categories';
+import { isIncomeCategoryId, isMoneyMoveCategoryId } from './categories';
 
 /** The planner's input row: the sweep's own shape, plus the reader-exclusion
  * flag — absent means "not excluded", so every existing sweep caller's rows
@@ -116,7 +119,8 @@ export function planTransferFlagRepair(
       !t.reviewPinned &&
       t.status === 'POSTED' &&
       t.currencySupported &&
-      t.excludeFromTotals !== true;
+      t.excludeFromTotals !== true &&
+      !isMoneyMoveCategoryId(t.categoryId);
     if (!inScope) {
       declinedOutOfScopeCount += 1;
       continue;

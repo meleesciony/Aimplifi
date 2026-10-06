@@ -12,7 +12,7 @@
  */
 
 import { dayOfWeek, isoDate } from '@/lib/dates';
-import { CATEGORY_BY_ID } from './categories';
+import { CATEGORY_BY_ID, isMoneyMoveCategoryId } from './categories';
 import { keywordSpecificity, keywordsMatch } from './keyword-rule';
 import { normalizeMerchant } from './normalize';
 import { computeDescriptorSignature } from './signature';
@@ -177,7 +177,9 @@ function isUsableProviderHint(
  * amount is neutral.
  */
 function learnedSignOk(categoryId: string, amountCents: number): boolean {
-  if (categoryId === 'transfer') return true;
+  // Money moved between the reader's own accounts or into investing goes both ways:
+  // a learned brokerage rule files the withdrawal too (#792; #789 critic cycle 3, P3-2).
+  if (isMoneyMoveCategoryId(categoryId)) return true;
   const cat = CATEGORY_BY_ID.get(categoryId);
   if (!cat) return true;
   const isIncome = cat.group === 'Income';

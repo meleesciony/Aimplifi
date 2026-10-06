@@ -5,7 +5,7 @@
  * ingest uses re-matches the row: a matching rule files it; a settled
  * category stays unless a rule now matches. Amount and date stay put.
  */
-import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 
 export const MAX_TXN_DESCRIPTOR = 200;
 
@@ -52,7 +52,8 @@ export function shouldApplyRematchCategory(
   if (out.matchedRuleId) return true;
   if (!isUnsureRow(row)) return false;
   const isIncomeGroup = CATEGORY_BY_ID.get(out.categoryId)?.group === 'Income';
-  if (row.amountCents > 0 && !isIncomeGroup && out.categoryId !== 'transfer') {
+  // A money move goes both ways (#792): Transfer or Investment & Savings is sign-neutral.
+  if (row.amountCents > 0 && !isIncomeGroup && !isMoneyMoveCategoryId(out.categoryId)) {
     return false;
   }
   return true;

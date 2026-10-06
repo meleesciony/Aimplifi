@@ -63,6 +63,6 @@ describe('P3-2 — the CSV’s transfer column is the register’s own test', ()
     expect(rowsOf('NY 529 COLLEGE SAVINGS PLAN').length).toBe(5);
     expect(rowsOf('NY 529 COLLEGE SAVINGS PLAN').every((l) => l.endsWith(',yes'))).toBe(true);
     expect(rowsOf('NETFLIX.COM').every((l) => l.endsWith(','))).toBe(true);
-    expect(lines.some((l) => l.includes('moving money between accounts or into investing'))).toBe(true);
+    expect(lines.some((l) => l.includes('moving money between accounts, or into or out of investing,'))).toBe(true);
   });
 });

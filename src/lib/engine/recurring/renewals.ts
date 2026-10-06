@@ -72,7 +72,10 @@ export function upcomingRenewals(items: readonly RecurringItem[], today: string)
     // handed one (critic #246 P2-2).
     if (!it.active || it.isIncome || it.cadence === 'IRREGULAR') continue;
     const badge = priceChangeBadge(it);
-    const increasedFromCents = badge?.increased ? badge.previousMagnitudeCents : null;
+    // Only a rise that costs the reader is marked (#792; #789 critic cycle 3, P2-A): a
+    // contribution that grew is more saving — its row's badge reads favorable, and the
+    // renewal list must not mark the same rise in rose.
+    const increasedFromCents = badge?.increased && badge.tone === 'adverse' ? badge.previousMagnitudeCents : null;
     // nextExpectedAt is already >= detection-day; re-advance so a stale input
     // (e.g. a persisted row read later) can never emit a past date.
     let n = isoDate(it.nextExpectedAt);

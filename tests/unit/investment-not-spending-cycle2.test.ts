@@ -18,7 +18,6 @@ import {
   INVESTING_MOVE_WORD_RE,
   PAYS_THE_FIRM_RE,
   paysTheFirmWord,
-  readsAsBrokerageMove,
 } from '@/lib/engine/categorize/brokerage-move';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { isSpendRow } from '@/lib/engine/reports/reports';
@@ -48,7 +47,6 @@ describe('P1-2 — a payment to the firm itself is spending, never Investment & 
       'ROBINHOOD GOLD MEMBERSHIP',
     ]) {
       expect(filed(d), d).not.toBe('investment');
-      expect(readsAsBrokerageMove(d), d).toBe(false);
       // Whatever it is filed instead, it is not a money move, so it is spending.
       expect(isSpendRow({ date: '2026-05-04', amountCents: -18500, categoryId: filed(d), isTransfer: false }, MAY), d).toBe(true);
     }

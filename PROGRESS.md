@@ -17,6 +17,13 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-06 — Money moves, the remaining readers (DECISIONS #792) — #789's cycle-3 P2s/P3s
+
+#789 shipped on its third critic's PASS (`eb029d93`; deploy proof `scripts/investment-not-spending-live-deploy-check.mjs` PASS 6/6 — this commit's build served, the demo's guilt-free $1,309.08 and cash-needed $5,412.33 unchanged, the lens names what it leaves out). Its four P2s and seven P3s were taken as this slice, on branch `slice-792-money-move-readers` from `eb029d93`.
+
+**Plan (assertions → `tests/unit/money-move-readers.test.ts`).** A1 renewals mark only adverse rises; A2 the merchant set reads filed, unflagged rows and needs every one to be a move (the Venmo shape); A3 the radar pace skips filed moves; A4 the repair card declines a flagged row filed as a move; A5 INVESTIGATIONS is a business; A6 a learned move rule files both signs; backfill and the bank-text edit re-file money coming back; A7 the type filter reads the filing; A8 a recurring withdrawal is not income and never a pause; A9 the Remove button reloads on a deadline, reports a refusal, and names itself with its visible words.
+
+**Built.** `recurring/renewals.ts`, `fi/insights.ts` (`moneyMoveMerchantCanonicals`), `radar/burn.ts`, `categorize/transfer-flag-repair.ts`, `categorize/brokerage-move.ts` (INVEST spelled out; `readsAsBrokerageMove` removed), `categorize/pipeline.ts` / `categorize/backfill.ts` / `transactions/descriptor.ts` (sign-neutral moves), `recurring/summary.ts` + `income/pause.ts`, `remove-untracked-target-button.tsx`, `lib/export.ts`, `investments/deposits.ts` (`DEPOSIT_CATEGORY_IDS` = `MONEY_MOVE_CATEGORY_IDS`), a stale comment. Unit 11/11 + render 4/4; mutation **18/18** killed (two first-round survivors closed). DECISIONS #792; REGRESSION row; edge cases §#792.
 ## 2026-10-07 — "The × does nothing": instrument, read the log, then fix the message (DECISIONS #794, #795)
 
 **Picked up.** Owner, on their phone minutes after #793: "What's the point of having these × on the right if you can't click away the warning?" Asked precisely: the row stays put, before and after a full reload. Rule 0: reproduced on the live site — WebKit (iPhone 13) and Chromium at 6× CPU / 4G with the tap landing the instant the × rendered: the demo's row disappears every time; a real account's key is stable and upserted; Vercel's server log, 3 h: no errors. The browser reported nothing, so no guess was possible.

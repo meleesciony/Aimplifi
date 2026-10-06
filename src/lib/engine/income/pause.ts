@@ -38,6 +38,7 @@
  *     a new user with an alarm about a job they left last year.
  */
 import { type ISODate, addDays, addMonthsClamped, compareDates, daysBetween, isoDate } from '@/lib/dates';
+import { isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { isAggregateCanonical } from '@/lib/engine/categorize/normalize';
 import {
   nextDate,
@@ -158,7 +159,7 @@ export function confirmedPauseState(
   merchantCanonical: string,
 ): { status: 'paused'; pause: IncomePause } | { status: 'resumed' } | { status: 'inert' } {
   const s = series.find(
-    (x) => x.isIncome && isPauseCadence(x.cadence) && x.merchantCanonical === merchantCanonical,
+    (x) => x.isIncome && !isMoneyMoveCategoryId(x.categoryId) && isPauseCadence(x.cadence) && x.merchantCanonical === merchantCanonical,
   );
   if (!s || !isPauseCadence(s.cadence)) return { status: 'inert' };
   if (seriesResumed(s, today)) return { status: 'resumed' };
@@ -190,6 +191,8 @@ export function lapsedIncomeSeries(
   const out: IncomePause[] = [];
   for (const s of series) {
     if (!s.isIncome) continue;
+    // Money moved out of investing is not pay that stopped (#792; #789 critic cycle 3, P3-7).
+    if (isMoneyMoveCategoryId(s.categoryId)) continue;
     if (!isPauseCadence(s.cadence)) continue;
     if (s.occurrences < MIN_OCCURRENCES) continue;
     if (s.typicalAmountCents < MIN_AMOUNT_CENTS) continue;

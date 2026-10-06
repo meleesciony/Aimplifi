@@ -74,7 +74,7 @@ import {
   type ISODate,
 } from '@/lib/dates';
 import { BANK_RETURN_RE, paysTheFirmWord } from '@/lib/engine/categorize/brokerage-move';
-import { CATEGORY_BY_ID, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, MONEY_MOVE_CATEGORY_IDS, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { stripBankNoise } from '@/lib/engine/categorize/normalize';
 import { REVERSAL_RE } from '@/lib/engine/spending-plan/bonus';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
@@ -84,8 +84,11 @@ import { brokerageOfAccount, brokeragesNamedIn, type Brokerage } from './brokera
 export const DEPOSIT_SOURCE_TYPES: ReadonlySet<string> = new Set(['CHECKING', 'SAVINGS']);
 /** Accounts whose rows can RECEIVE the other half of a move between the reader's own accounts. */
 export const COUNTERPART_ACCOUNT_TYPES: ReadonlySet<string> = new Set(['CHECKING', 'SAVINGS', 'CREDIT']);
-/** The filings that say "this money moved", rather than "this money was spent or earned". */
-export const DEPOSIT_CATEGORY_IDS: ReadonlySet<string> = new Set(['transfer', 'investment']);
+/**
+ * The filings that say "this money moved", rather than "this money was spent or earned" —
+ * the one set every spending figure reads (`MONEY_MOVE_CATEGORY_IDS`, #789), not a copy.
+ */
+export const DEPOSIT_CATEGORY_IDS: ReadonlySet<string> = MONEY_MOVE_CATEGORY_IDS;
 /** Filings a counterpart may carry and still be evidence of a move. */
 const MOVE_CATEGORY_IDS: ReadonlySet<string> = new Set(['transfer', 'investment', 'credit-card-payment']);
 /** How far apart the two legs of one move between the reader's own accounts may post. */
