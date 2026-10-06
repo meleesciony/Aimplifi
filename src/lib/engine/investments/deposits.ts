@@ -25,17 +25,19 @@
  *     - ONE brokerage's name (`brokerages.ts`, the categorizer's own list) where the
  *       reader links investment account(s) — the BROKERAGE, never one account there,
  *       because a name says which firm, not which account. A person-to-person payment
- *       (Zelle, Venmo, PayPal, Cash App) never names a brokerage — "MARY SCHWAB" is
- *       a person.
+ *       (Zelle, Venmo, Cash App, Apple Cash) never names a brokerage — "MARY SCHWAB" is
+ *       a person. (PayPal is also a merchant route — "PAYPAL *COINBASE" — so it may.)
  *     Two brokerages, last four shared with another account, the last four of one of
  *     the reader's bank accounts AND of an investment account, or last four and a name
  *     that disagree: not counted. Only the last four of one of the reader's OWN bank or
- *     card accounts: a move between them, ignored. A name beside fee, bill, membership
- *     or card-payment words is money paid TO the brokerage, not put in: listed.
+ *     card accounts: a move between them, ignored. A name beside a fee, bill, loan,
+ *     insurance, membership, card-payment, rebate or refund word is money paid to (or
+ *     refunded by) the brokerage, not money put in or taken out: listed.
  *  4. It was not returned: money moving the other way on the same account within 14
- *     days, same amount, that names the same destination — or is not filed and is
- *     worded as a reversal or return — cancels it (listed). A deposit up to 14 days
- *     before the window still takes its return inside it.
+ *     days, same amount, that names the same destination (not filed, or worded as a
+ *     return) — or is worded as a reversal or return and not filed to spending —
+ *     cancels it (listed). A deposit up to 14 days before the window still takes its
+ *     return inside it.
  *  5. It did not land in another of the reader's own accounts: a row that is
  *     evidence of a move — posted, not excluded, not after today, flagged as a
  *     transfer or filed Transfer / card payment / Investment & Savings (or, on a bank
@@ -53,9 +55,11 @@
  * names the linked checking or savings accounts whose records do not cover all of
  * it (an account's record runs from its first row to the later of its last row and
  * the day a live feed vouches for — `analyst/account-records.ts` — or wherever the
- * reader said the account really began or ended), because a month with no records
- * is not a month with no money. This month needs records through the day before
- * yesterday (one daily sync's lag), and its zero reads "None yet".
+ * reader said the account really began or ended, as Ask reads that word), because a
+ * month with no records is not a month with no money. An account with no rows at all
+ * is not part of the question (Ask's rule). Every month needs records only through
+ * the day before yesterday — one daily sync's lag — so this month's zero reads
+ * "None yet". Nothing here says money did not move: a zero is "nothing matched".
  */
 import {
   addDays,
@@ -67,6 +71,7 @@ import {
   monthWindow,
   type ISODate,
 } from '@/lib/dates';
+import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { REVERSAL_RE } from '@/lib/engine/spending-plan/bonus';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { brokerageOfAccount, brokeragesNamedIn, type Brokerage } from './brokerages';
@@ -87,13 +92,34 @@ export const RETURN_WINDOW_DAYS = 14;
 export const HISTORY_MONTHS = 12;
 /** Below this, a deposit is an account-verification test amount, not money put in. */
 export const MIN_DEPOSIT_CENTS = 100;
-/** Words that make a brokerage-named row a payment TO the brokerage, not money put in. */
+/**
+ * Words that make a brokerage-named row a payment to (or a refund or payout from) the
+ * brokerage itself — a fee, a bill, a loan or mortgage, an insurance premium, a
+ * membership, a card payment, a rebate — not money put in or taken out of investing.
+ */
 const NOT_A_DEPOSIT_RE =
-  /\b(FEES?|MEMBERSHIP|SUBSCRIPTION|CARD PAYMENT|CARD PMT|CREDIT CARD|VISA|MASTERCARD|AMEX|INTEREST|MARGIN|ADVISORY|ROBINHOOD GOLD|COINBASE ONE)\b/i;
+  /\b(FEES?|MEMBERSHIP|SUBSCRIPTION|CARD PAYMENT|CARD PMT|CREDIT CARD|VISA|MASTERCARD|AMEX|INTEREST|ADVISORY|LOANS?|MORTGAGE|MTG|LENDING|INSURANCE|INS|PREMIUM|REBATE|REFUND|CASH ?BACK|ROBINHOOD GOLD|COINBASE ONE)\b/i;
 /** Person-to-person payments: a brokerage's name in one is a person's name. */
-const P2P_RE = /\b(ZELLE|VENMO|PAYPAL|CASH ?APP|SQUARE CASH|APPLE CASH)\b/i;
+const P2P_RE = /\b(ZELLE|VENMO|CASH ?APP|SQUARE CASH|APPLE CASH)\b/i;
+
+/** The word that makes a brokerage-named row a payment to or from the brokerage itself, else null. */
+export function notADepositWord(descriptor: string): string | null {
+  const m = NOT_A_DEPOSIT_RE.exec(descriptor);
+  return m ? m[1]!.toUpperCase() : null;
+}
 
 const isUnfiled = (categoryId: string | null | undefined) => !categoryId || categoryId === 'uncategorized';
+/** Income leaves that are a merchant's or the government's money back, never a deposit's. */
+const REFUND_CATEGORY_IDS: ReadonlySet<string> = new Set(['refund', 'reimbursement', 'tax-refund']);
+/**
+ * Filings under which money worded as a return can be a deposit coming back: not filed,
+ * filed as a move, or filed as income other than a refund (the bonus engine's netting
+ * rule). Anything else is the reader's word that it was something else.
+ */
+const mayBeADepositReturn = (categoryId: string | null | undefined) =>
+  isUnfiled(categoryId) ||
+  DEPOSIT_CATEGORY_IDS.has(categoryId!) ||
+  (CATEGORY_BY_ID.get(categoryId!)?.group === 'Income' && !REFUND_CATEGORY_IDS.has(categoryId!));
 
 export interface DepositRow {
   id: string;
@@ -184,7 +210,7 @@ export type UncountedReason =
   | 'not-linked'
   /** Names a destination but is not filed yet. */
   | 'not-filed'
-  /** Names a brokerage beside fee, bill, membership or card-payment words. */
+  /** Names a brokerage beside a fee, bill, loan, insurance, membership, card-payment, rebate or refund word. */
   | 'not-a-deposit'
   /** Money moved back within two weeks. */
   | 'returned'
@@ -231,6 +257,8 @@ export interface UncountedRow {
   otherAccountLabel: string | null;
   /** 'returned': the day the money moved back. */
   returnedOn: ISODate | null;
+  /** 'not-a-deposit': the word that made it a payment to or from the brokerage itself. */
+  matchedWord: string | null;
 }
 
 export interface DepositMonth {
@@ -244,6 +272,8 @@ export interface DepositMonth {
   uncountedCount: number;
   /** Linked checking or savings accounts whose records do not cover all of this month. */
   missingRecordsFrom: readonly string[];
+  /** The same accounts, with where their records start (after the month began) or end (before it ended). */
+  missingRecordsDetail: readonly { label: string; startsOn: ISODate | null; endsOn: ISODate | null }[];
 }
 
 export interface DepositHistory {
@@ -259,6 +289,10 @@ export interface DepositHistory {
   /** Totals over every month shown, per destination (largest put in first). */
   destinations: readonly { destination: DepositDestination; putInCents: number; takenOutCents: number }[];
   uncounted: readonly UncountedRow[];
+  /** Linked investment accounts with no brokerage we know: matched only by their last four digits. */
+  lastFourOnly: readonly string[];
+  /** Linked investment accounts with no brokerage we know AND no usable last four: never matched. */
+  unmatchable: readonly string[];
   /** The account the history is narrowed to, when it is. */
   scope: {
     accountId: string;
@@ -278,11 +312,18 @@ function usableMask(mask: string | null): string | null {
   return m.length >= 4 && /^[A-Za-z0-9]+$/.test(m) ? m.toUpperCase() : null;
 }
 
+const maskPatterns = new Map<string, RegExp>();
+
 /** Does the description carry these last four after a mask marker? */
 export function descriptorCarriesMask(descriptor: string, mask: string | null): boolean {
   const m = usableMask(mask);
   if (!m) return false;
-  return new RegExp(String.raw`(?:^|[^A-Z0-9])${MASK_MARKER}${m}(?![A-Z0-9])`, 'i').test(descriptor);
+  let re = maskPatterns.get(m);
+  if (!re) {
+    re = new RegExp(String.raw`(?:^|[^A-Z0-9])${MASK_MARKER}${m}(?![A-Z0-9])`, 'i');
+    maskPatterns.set(m, re);
+  }
+  return re.test(descriptor);
 }
 
 interface Live {
@@ -393,6 +434,7 @@ type Placement =
       accountIds: readonly string[];
       byLastFour: boolean;
       otherAccountLabel?: string | null;
+      matchedWord?: string | null;
     }
   | { kind: 'ignore' };
 
@@ -428,6 +470,9 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
       if (compareDates(date, s.last) > 0) s.last = date;
     }
   }
+  // A combined account's record is trimmed by the boundary, and Ask takes no word on a trimmed
+  // lineage (`same-account.ts`): neither does this.
+  const combined = new Set(input.terminalOf ? [...input.terminalOf.values()] : []);
   const recordsOf = (a: DepositAccount): { from: ISODate; through: ISODate; began: boolean; ended: boolean } | null => {
     const s = span.get(a.id);
     if (!s) return null;
@@ -438,8 +483,8 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
       if (compareDates(vouched, through) > 0) through = vouched;
     }
     // The reader's word counts only while it still names the record's own edge (Ask's rule).
-    const began = !!a.beganOn && a.beganOn === s.first;
-    const ended = !!a.endedOn && a.endedOn === s.last;
+    const began = !combined.has(a.id) && !!a.beganOn && a.beganOn === s.first;
+    const ended = !combined.has(a.id) && !!a.endedOn && a.endedOn === s.last;
     return { from: s.first, through, began, ended };
   };
   const covers = (a: DepositAccount, from: ISODate, to: ISODate) => {
@@ -529,7 +574,10 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
         const gap = daysBetween(orig.date, back.date);
         if (gap < 0 || gap > RETURN_WINDOW_DAYS) continue;
         const sameDestination = [...destinationTokens(back)].some((t) => tokens.has(t));
-        const wordedReturn = isUnfiled(back.row.categoryId) && REVERSAL_RE.test(back.row.rawDescriptor ?? '');
+        // Worded as a return and filed where a deposit's return can sit — unfiled, as a move, or
+        // as income other than a refund (a categorizer files "ONLINE TRANSFER RETURN" Transfer).
+        // A store refund filed Shopping or Refund is the reader's word that it is not this.
+        const wordedReturn = REVERSAL_RE.test(back.row.rawDescriptor ?? '') && mayBeADepositReturn(back.row.categoryId);
         if (!sameDestination && !wordedReturn) continue;
         // Money that moved back must not be a fresh movement of its own the other way: a
         // destination-naming row filed as a move is a withdrawal, unless worded as a return.
@@ -640,8 +688,9 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
       }
       const brokerage = e.named[0]!;
       const there = investment.filter((a) => brokerageOf.get(a.id)?.key === brokerage.key);
-      if (NOT_A_DEPOSIT_RE.test(row.rawDescriptor ?? '')) {
-        return { kind: 'uncounted', reason: 'not-a-deposit', brokerage, accountIds: there.map((a) => a.id), byLastFour: false };
+      const word = notADepositWord(row.rawDescriptor ?? '');
+      if (word) {
+        return { kind: 'uncounted', reason: 'not-a-deposit', brokerage, accountIds: there.map((a) => a.id), byLastFour: false, matchedWord: word };
       }
       if (there.length === 0) {
         // Money that landed in the reader's own account is a bank move that happens to
@@ -697,13 +746,23 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
   const months: (Omit<DepositMonth, 'events'> & { events: DepositEvent[] })[] = [];
   const monthIndex = new Map<string, number>();
   if (startMonth !== null) {
+    // Every month needs records only through the day before yesterday: today is not over,
+    // and the latest daily sync may not have run yet (a feed vouches through the day before
+    // its last sync). An account with no rows at all is not part of the question.
+    const lag = addDays(today, -2);
+    const withRows = sources.filter((a) => span.has(a.id));
     for (let m = startMonth; m <= currentMonth; m = addMonthsToMonthKey(m, 1)) {
       const w = monthWindow(m);
-      // This month needs records only through the day before yesterday — today is not over
-      // and the latest daily sync may not have run; with no such day yet, nothing to cover.
-      const need = m === currentMonth ? addDays(today, -2) : w.to;
-      const missingRecordsFrom =
-        compareDates(need, w.from) < 0 ? [] : sources.filter((a) => !covers(a, w.from, need)).map((a) => a.label);
+      const need = compareDates(w.to, lag) < 0 ? w.to : lag;
+      const missing = compareDates(need, w.from) < 0 ? [] : withRows.filter((a) => !covers(a, w.from, need));
+      const missingRecordsDetail = missing.map((a) => {
+        const r = recordsOf(a)!;
+        return {
+          label: a.label,
+          startsOn: compareDates(r.from, w.from) > 0 ? r.from : null,
+          endsOn: compareDates(r.through, need) < 0 ? r.through : null,
+        };
+      });
       monthIndex.set(m, months.length);
       months.push({
         month: m,
@@ -712,7 +771,8 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
         takenOutCents: 0,
         events: [],
         uncountedCount: 0,
-        missingRecordsFrom,
+        missingRecordsFrom: missing.map((a) => a.label),
+        missingRecordsDetail,
       });
     }
   }
@@ -755,6 +815,7 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
           byLastFour: outcome.byLastFour,
           otherAccountLabel: outcome.otherAccountLabel ?? null,
           returnedOn: outcome.reason === 'returned' ? returnedOn.get(row.id) ?? null : null,
+          matchedWord: outcome.matchedWord ?? null,
         });
         months[monthIndex.get(month)!]!.uncountedCount += 1;
         continue;
@@ -826,6 +887,8 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
       (a, b) => b.putInCents - a.putInCents || (a.destination.key < b.destination.key ? -1 : 1),
     ),
     uncounted,
+    lastFourOnly: investment.filter((a) => !brokerageOf.get(a.id) && usableMask(a.mask) !== null).map((a) => a.label),
+    unmatchable: investment.filter((a) => !brokerageOf.get(a.id) && usableMask(a.mask) === null).map((a) => a.label),
     scope: scope ? { accountId: scope.id, label: scope.label, byBrokerageName: byName } : null,
   };
 }

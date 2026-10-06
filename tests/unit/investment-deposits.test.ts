@@ -23,6 +23,7 @@ import {
   type UncountedRow,
 } from '@/lib/engine/investments/deposits';
 import {
+  matchingNote,
   DEPOSITS_NO_INVESTMENT_ACCOUNTS,
   DEPOSITS_NO_RECORDS,
   DEPOSITS_NO_SOURCE_ACCOUNTS,
@@ -182,7 +183,8 @@ describe('F3 — a row not filed yet that names a destination is listed, never d
     expect(month(h, '2026-09').putInCents).toBe(0);
     expect(monthFigureParts(month(h, '2026-09'))).toEqual(['None counted', '1 not counted']);
     expect(depositLead(h)).toBe('Nothing counted so far this year. 2 movements we couldn’t count are listed under “Not counted”.');
-    expect(uncountedReason(h.uncounted[0]!)).toBe('It isn’t filed yet. File it as Transfer or Investment & Savings to count it.');
+    // Transfer only: a row filed Investment & Savings still counts as spending in reports (critic cycle 3, P2-4).
+    expect(uncountedReason(h.uncounted[0]!)).toBe('It isn’t filed yet. File it as Transfer to count it.');
   });
 });
 
@@ -244,6 +246,29 @@ describe('F4 — money that came back cancels the deposit', () => {
     const h = history([row('chk', '2026-09-01', -50000, 'TO X6604'), row('sav', '2026-09-12', 50000, 'RETURNED ITEM X6604', null)]);
     expect(month(h, '2026-09').putInCents).toBe(50000);
     expect(h.uncounted.map((u) => [u.reason, u.sourceAccountId])).toEqual([['not-filed', 'sav']]);
+  });
+
+  it('test_regression__a_return_filed_as_a_move_or_income_still_cancels_its_deposit (critic cycle 3, P1-1)', () => {
+    const filings: [string, string | null][] = [
+      ['ONLINE TRANSFER RETURN', 'transfer'],
+      ['ONLINE TRANSFER REVERSAL', 'transfer'],
+      ['ACH RETURN', 'income'],
+      ['RETURN OF POSTED CHECK/ITEM', 'investment'],
+    ];
+    for (const [desc, cat] of filings) {
+      const h = history([row('chk', '2026-09-05', -50000, 'ONLINE TRANSFER TO XXXXXX6604'), row('chk', '2026-09-08', 50000, desc, cat)]);
+      expect(h.uncounted.map((u) => u.reason), desc).toEqual(['returned']);
+      expect(month(h, '2026-09'), desc).toMatchObject({ putInCents: 0, takenOutCents: 0 });
+    }
+    // By name too.
+    const named = history([row('chk', '2026-09-05', -50000, 'VANGUARD BUY INVESTMENT', 'investment'), row('chk', '2026-09-09', 50000, 'ACH RETURN', 'transfer')]);
+    expect(named.uncounted.map((u) => u.reason)).toEqual(['returned']);
+    // A store refund — filed Shopping or Refund — is the reader's word that it is not this deposit coming back.
+    for (const cat of ['shopping', 'refund', 'reimbursement']) {
+      const h = history([row('chk', '2026-09-05', -50000, 'TO X6604'), row('chk', '2026-09-08', 50000, 'MERCHANDISE RETURN', cat)]);
+      expect(month(h, '2026-09').putInCents, cat).toBe(50000);
+      expect(h.uncounted, cat).toEqual([]);
+    }
   });
 
   it('a deposit just before the window still takes its return inside it (critic cycle 2, P2-2)', () => {
@@ -389,8 +414,81 @@ describe('F10 — fees, bills and card payments to a brokerage are not money put
       ['not-a-deposit', 'Charles Schwab'],
     ]);
     expect(uncountedReason(h.uncounted[0]!)).toBe(
-      'It names Robinhood next to a fee, bill, membership or card-payment word, so it looks like a payment to Robinhood, not money put in.',
+      'It names Robinhood next to “CARD PAYMENT”, so it looks like a payment to Robinhood itself — a fee, bill, loan, insurance premium or card payment — not money put in.',
     );
+  });
+});
+
+describe('critic cycle 3 — matchability, PayPal, rowless accounts, loans and insurance', () => {
+  it('P1-2: an investment account with no brokerage we know is matched only by its last four — and the card says so', () => {
+    const ej = acct('ej', 'INVESTMENT', 'Edward Jones IRA', '7788', 'Edward Jones');
+    const blind = acct('old401k', 'INVESTMENT', 'Old 401(k)', null, 'Guideline');
+    const h = history([row('chk', '2026-09-05', -50000, 'EDWARD JONES INVEST', 'transfer')], [CHK, SAV, ej, blind]);
+    expect(h.lastFourOnly).toEqual(['Edward Jones IRA']);
+    expect(h.unmatchable).toEqual(['Old 401(k)']);
+    expect(month(h, '2026-09').events).toEqual([]);
+    expect(monthFigureParts(month(h, '2026-09'))).toEqual(['None matched']);
+    expect(depositLead(h)).toBe(
+      'Nothing matched so far this year — no row from your linked checking or savings names one of your investment accounts by its last four digits, or a brokerage we know.',
+    );
+    expect(matchingNote(h)).toBe(
+      'We can match Edward Jones IRA only when a description names its last four digits. We can’t match Old 401(k): it has no last four digits on file and its brokerage isn’t one we know.',
+    );
+    expect(matchingNote(history([], BASE))).toBe('We can match Roth IRA only when a description names its last four digits.');
+    expect(matchingNote(history([], [CHK, VG]))).toBeNull();
+    // A known brokerage with no last four on file is still matched — by its name.
+    const fid = acct('fid', 'INVESTMENT', 'Fidelity 401(k)', null, 'Fidelity');
+    expect(history([], [CHK, fid])).toMatchObject({ lastFourOnly: [], unmatchable: [] });
+    expect(matchingNote(history([], BASE, { scopeAccountId: 'ira' }))).toBeNull();
+  });
+
+  it('P2-1: PayPal is a merchant route — "PAYPAL *COINBASE" names Coinbase', () => {
+    const cb = acct('cb', 'INVESTMENT', 'Coinbase', '3003', 'Coinbase');
+    const h = history(
+      [row('chk', '2026-09-05', -20000, 'PAYPAL *COINBASE', 'investment'), row('chk', '2026-09-06', -10000, 'PAYPAL INST XFER COINBASE', null)],
+      [...BASE, cb],
+    );
+    expect(month(h, '2026-09').events).toMatchObject([{ destinationKey: 'brokerage:coinbase', cents: 20000 }]);
+    expect(h.uncounted.map((u) => [u.reason, u.brokerageName])).toEqual([['not-filed', 'Coinbase']]);
+  });
+
+  it('P2-2: a linked savings, CD or money market with no rows at all is not part of the question', () => {
+    const cd = acct('cd', 'SAVINGS', '12-Month CD', '9001', 'First Example Bank');
+    const h = history([], [...BASE, cd]);
+    expect(h.months.every((m) => m.missingRecordsFrom.length === 0)).toBe(true);
+    expect(h.thisYear!.monthsMissingRecords).toBe(0);
+  });
+
+  it('P2-3: loans, mortgages, lending, insurance and rebates at a brokerage are not money put in or taken out', () => {
+    const accounts = [...BASE, acct('sch', 'INVESTMENT', 'Schwab One', '4001', 'Charles Schwab'), acct('fid', 'INVESTMENT', 'Fidelity Brokerage', '4002', 'Fidelity Investments'), acct('ml', 'INVESTMENT', 'Merrill Edge', '4003', 'Merrill')];
+    const h = history(
+      [
+        row('chk', '2026-09-01', -185000, 'SCHWAB LOAN PAYMENT', 'investment'),
+        row('chk', '2026-09-02', -185000, 'SCHWAB BANK MORTGAGE PMT', 'investment'),
+        row('chk', '2026-09-03', -185000, 'FIDELITY INVESTMENTS LIFE INS PREMIUM', 'investment'),
+        row('chk', '2026-09-04', -185000, 'MERRILL LENDING PMT', 'investment'),
+        row('chk', '2026-09-05', 300, 'SCHWAB ATM REBATE', 'investment'),
+        // A margin DEPOSIT is money put in (critic cycle 3, P3-2).
+        row('chk', '2026-09-06', -40000, 'MERRILL LYNCH MARGIN DEPOSIT', 'investment'),
+      ],
+      accounts,
+    );
+    expect(h.uncounted.map((u) => [u.reason, u.matchedWord, u.direction])).toEqual([
+      ['not-a-deposit', 'LOAN', 'in'],
+      ['not-a-deposit', 'MORTGAGE', 'in'],
+      ['not-a-deposit', 'INS', 'in'],
+      ['not-a-deposit', 'LENDING', 'in'],
+      ['not-a-deposit', 'REBATE', 'out'],
+    ]);
+    expect(month(h, '2026-09')).toMatchObject({ putInCents: 40000, takenOutCents: 0 });
+  });
+
+  it('P3-6: on a combined account the reader’s edge word is not read — Ask takes no word on a trimmed record', () => {
+    const quiet = { ...CHK, completeThrough: null, endedOn: '2026-03-10' };
+    const rows = [row('chk-old', '2025-01-02', -1000, 'CAFE', 'coffee'), row('chk', '2026-03-10', -1000, 'CAFE', 'coffee')];
+    expect(computeDepositHistory({ today: TODAY, rows, accounts: [quiet, VG], terminalOf: new Map([['chk-old', 'chk']]) }).thisYear!.monthsMissingRecords).toBe(8);
+    const own = [row('chk', '2025-01-02', -1000, 'CAFE', 'coffee'), row('chk', '2026-03-10', -1000, 'CAFE', 'coffee')];
+    expect(computeDepositHistory({ today: TODAY, rows: own, accounts: [quiet, VG] }).thisYear!.monthsMissingRecords).toBe(0);
   });
 });
 
@@ -457,7 +555,7 @@ describe('A6 — a linked bank or card account at the same brokerage', () => {
     const fresh = history([schwabSince('2025-01-03'), row('chk', '2026-10-10', -100000, 'SCHWAB BROKERAGE MONEYLINK')], accounts);
     expect(fresh.uncounted).toMatchObject([{ reason: 'too-new', brokerageName: 'Charles Schwab', otherAccountLabel: 'Schwab Checking' }]);
     expect(uncountedReason(fresh.uncounted[0]!)).toBe(
-      'It’s less than a week old, and Schwab Checking (at Charles Schwab) may still show the other half. We’ll check again once a week has passed.',
+      'It’s too recent to tell: Schwab Checking (at Charles Schwab) may still show the other half. We’ll check again once a full week has passed.',
     );
     const week = history([schwabSince('2025-01-03'), row('chk', '2026-10-09', -100000, 'SCHWAB BROKERAGE MONEYLINK')], accounts);
     expect(month(week, '2026-10').putInCents).toBe(100000);
@@ -548,7 +646,7 @@ describe('A9/F2 — the window, and months whose records are incomplete', () => 
     expect(h.months.every((m) => m.missingRecordsFrom.length === 0)).toBe(true);
     expect(month(h, '2025-10').putInCents).toBe(20000);
     expect(h.thisYear).toEqual({ fromMonth: '2026-01', putInCents: 0, takenOutCents: 0, monthsMissingRecords: 0 });
-    expect(depositLead(h)).toBe('Nothing moved between your linked checking or savings and your investment accounts so far this year.');
+    expect(depositLead(h)).toBe('Nothing matched so far this year — no row from your linked checking or savings names one of your investment accounts by its last four digits, or a brokerage we know.');
   });
 
   it('a feed that stopped: every month after its last row says so, and the zero is "nothing found"', () => {
@@ -563,16 +661,17 @@ describe('A9/F2 — the window, and months whose records are incomplete', () => 
     expect(month(h, '2025-11').putInCents).toBe(40000);
     expect(month(h, '2026-03').missingRecordsFrom).toEqual(['Everyday Checking']);
     expect(monthFigureParts(month(h, '2026-03'))).toEqual(['None found']);
-    expect(monthMissingNote(month(h, '2026-03'))).toBe('Records from Everyday Checking don’t cover all of this month.');
-    expect(monthMissingNote(month(h, '2026-10'))).toBe('Records from Everyday Checking don’t cover all of this month so far.');
+    expect(monthMissingNote(month(h, '2026-03'))).toBe('Records from Everyday Checking run only through Wed, Nov 5, 2025.');
+    expect(monthMissingNote(month(h, '2026-10'))).toBe('Records from Everyday Checking run only through Wed, Nov 5, 2025.');
     expect(h.thisYear).toMatchObject({ putInCents: 0, monthsMissingRecords: 10 });
-    expect(depositLead(h)).toBe('Nothing found so far this year in the records we have. Some months are missing records — they’re marked below.');
+    expect(depositLead(h)).toBe('Nothing matched so far this year in the records we have. Some months are missing records — they’re marked below.');
   });
 
   it('a second account linked later: earlier months name it', () => {
     const second = acct('chk2', 'CHECKING', 'Joint Checking', '4400', 'First Example Bank');
     const h = history([row('chk2', '2026-09-01', -1500, 'CAFE', 'coffee'), row('chk', '2026-09-05', -50000, 'TO X6604')], [...BASE, second]);
     expect(month(h, '2026-08').missingRecordsFrom).toEqual(['Joint Checking']);
+    expect(monthMissingNote(month(h, '2026-08'))).toBe('Records from Joint Checking begin Tue, Sep 1, 2026.');
     expect(month(h, '2026-09').missingRecordsFrom).toEqual([]);
     expect(depositLead(h)).toBe('$500.00 put in so far this year. Some months are missing records — they’re marked below.');
   });
@@ -597,6 +696,14 @@ describe('A9/F2 — the window, and months whose records are incomplete', () => 
       expect(monthFigureParts(now), today).toEqual(['None yet']);
       expect(depositLead(h), today).not.toContain('missing records');
     }
+    // The previous month gets the same one-day lag: before the sync on Nov 1 the feed vouches
+    // only through Oct 30, and October is not called incomplete (critic cycle 3, P3-1).
+    const early = computeDepositHistory({ today: isoDate('2026-11-01'), rows: ANCHORS(), accounts: fed('2026-10-30') });
+    expect(early.months.find((m) => m.month === '2026-10')!.missingRecordsFrom).toEqual([]);
+    expect(computeDepositHistory({ today: isoDate('2026-11-01'), rows: ANCHORS(), accounts: fed('2026-10-29') }).months.find((m) => m.month === '2026-10')!.missingRecordsFrom).toEqual([
+      'Everyday Checking',
+      'Rainy Day Savings',
+    ]);
     // On the 3rd, the 1st must be covered: a feed through Nov 1 is enough, through Oct 31 is not.
     expect(computeDepositHistory({ today: isoDate('2026-11-03'), rows: ANCHORS(), accounts: fed('2026-11-01') }).months.at(-1)!.missingRecordsFrom).toEqual([]);
     expect(computeDepositHistory({ today: isoDate('2026-11-03'), rows: ANCHORS(), accounts: fed('2026-10-31') }).months.at(-1)!.missingRecordsFrom).toEqual([
@@ -784,6 +891,8 @@ describe('the words', () => {
       thisYear: { fromMonth, putInCents, takenOutCents, monthsMissingRecords: 0 },
       destinations: [],
       uncounted: [],
+      lastFourOnly: [],
+      unmatchable: [],
       scope: null,
     });
 
@@ -798,16 +907,36 @@ describe('the words', () => {
 
   it('an uncounted row before this year does not change the zero', () => {
     const h = history([row('chk', '2025-11-12', -10000, 'ROBINHOOD FUNDS', 'investment')]);
-    expect(depositLead(h)).toBe('Nothing moved between your linked checking or savings and your investment accounts so far this year.');
+    expect(depositLead(h)).toBe('Nothing matched so far this year — no row from your linked checking or savings names one of your investment accounts by its last four digits, or a brokerage we know.');
   });
 
   it('month figures name which zero; money stays whole', () => {
-    const base = { month: '2026-09', partial: false, events: [], putInCents: 0, takenOutCents: 0, uncountedCount: 0, missingRecordsFrom: [] as string[] };
-    expect(monthFigureParts(base)).toEqual(['None']);
+    const base = {
+      month: '2026-09',
+      partial: false,
+      events: [],
+      putInCents: 0,
+      takenOutCents: 0,
+      uncountedCount: 0,
+      missingRecordsFrom: [] as string[],
+      missingRecordsDetail: [] as { label: string; startsOn: ReturnType<typeof isoDate> | null; endsOn: ReturnType<typeof isoDate> | null }[],
+    };
+    // A zero says what it is: nothing MATCHED (critic cycle 3, P1-2).
+    expect(monthFigureParts(base)).toEqual(['None matched']);
     expect(monthFigureParts({ ...base, uncountedCount: 2 })).toEqual(['None counted', '2 not counted']);
     expect(monthFigureParts({ ...base, missingRecordsFrom: ['Everyday Checking'] })).toEqual(['None found']);
     expect(monthFigureParts({ ...base, putInCents: 75000, uncountedCount: 1 })).toEqual(['$750.00 put in', '1 not counted']);
-    expect(monthMissingNote({ ...base, missingRecordsFrom: ['A', 'B', 'C'] })).toBe('Records from A, B and C don’t cover all of this month.');
+    expect(
+      monthMissingNote({
+        ...base,
+        missingRecordsFrom: ['A', 'B', 'C'],
+        missingRecordsDetail: [
+          { label: 'A', startsOn: isoDate('2026-09-10'), endsOn: null },
+          { label: 'B', startsOn: null, endsOn: isoDate('2026-09-20') },
+          { label: 'C', startsOn: null, endsOn: null },
+        ],
+      }),
+    ).toBe('Records from A begin Thu, Sep 10, 2026; Records from B run only through Sun, Sep 20, 2026; Records from C don’t cover all of this month.');
     expect(monthMissingNote(base)).toBeNull();
     expect(figureParts(75000, 200000)).toEqual(['$750.00 put in', '$2,000.00 taken out']);
     expect(monthFigure(0, 0)).toBe('None');
@@ -836,6 +965,7 @@ describe('the words', () => {
       byLastFour: false,
       otherAccountLabel: null,
       returnedOn: null,
+      matchedWord: null,
     };
     expect(uncountedReason(base)).toBe('No Robinhood investment account is linked here, so it isn’t counted. Link it on Accounts to count it.');
     expect(uncountedDirection(base)).toBe('Left Everyday Checking.');
@@ -846,8 +976,8 @@ describe('the words', () => {
     // Money coming FROM an investment account is worded for its direction (critic cycle 2, P3-9).
     const out = { ...base, direction: 'out' as const, brokerageName: 'Vanguard' };
     expect(uncountedReason({ ...out, reason: 'returned', returnedOn: isoDate('2026-09-08') })).toBe('The same amount went back on Tue, Sep 8, 2026, so the two cancel out.');
-    expect(uncountedReason({ ...out, reason: 'not-a-deposit' })).toBe(
-      'It names Vanguard next to a fee, bill, membership or card-payment word, so it looks like a refund from Vanguard, not money taken out.',
+    expect(uncountedReason({ ...out, reason: 'not-a-deposit', matchedWord: 'REFUND' })).toBe(
+      'It names Vanguard next to “REFUND”, so it looks like interest, a refund or a payout from Vanguard itself, not money taken out of an investment account.',
     );
     expect(uncountedReason({ ...out, reason: 'same-brokerage-account', otherAccountLabel: 'Vanguard Cash Plus' })).toBe(
       'You also link Vanguard Cash Plus at Vanguard, and its records don’t cover the week around this, so we can’t rule out that it came from there.',
@@ -867,9 +997,11 @@ describe('the words', () => {
     const note = depositRuleNote('2025-02');
     expect(note).toContain('Vanguard, Fidelity, Charles Schwab, Coinbase, Robinhood, E*TRADE, Wealthfront, Betterment, Acorns or Merrill');
     expect(note).toContain('A brokerage’s name says which firm, not which account');
-    expect(note).toContain('rows not filed yet; money that moved back within two weeks; money that arrived in (or left) another of your accounts within a week; fees, bills and memberships paid to a brokerage; brokerages not linked here; descriptions that could mean more than one account; rows filed Investment & Savings that name no account');
+    expect(note).toContain('rows not filed yet; money that moved back within two weeks; money that arrived in (or left) another of your accounts within a week; fees, bills, loans, insurance, memberships, rebates and refunds between you and a brokerage itself; brokerages not linked here; descriptions that could mean more than one account; rows filed Investment & Savings that name no account');
+    expect(note).toContain('A Zelle, Venmo or Cash App payment names a person, not a brokerage.');
+    expect(note).toContain('so “None matched” means nothing we could match, not that no money moved.');
     expect(note).toContain('$1.00 or more');
-    expect(note).toContain('Never seen here: retirement contributions taken out of your paycheck, money your paycheck sends straight to an investment account, money moved from banks you haven’t linked, and market gains or losses.');
+    expect(note).toContain('Never seen here: retirement contributions taken out of your paycheck, money your paycheck sends straight to an investment account, money moved from banks you haven’t linked, descriptions that name neither the account’s last four digits nor a brokerage we know, and market gains or losses');
     expect(note).toContain('Months are read from Feb 2025, the first full month your linked checking and savings records cover; a month whose records are incomplete says so.');
     expect(depositRuleNote(null)).not.toContain('Months are read from');
     expect(DEPOSITS_NO_SOURCE_ACCOUNTS).toBe('Link a checking or savings account — this card reads the money it sends to brokerage and retirement accounts each month.');

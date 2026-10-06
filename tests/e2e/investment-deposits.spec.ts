@@ -94,8 +94,8 @@ test.describe('money you put in (DECISIONS #788)', () => {
     await expect(rows.nth(0)).toContainText('$450.00');
     await expect(rows.nth(1)).toContainText('Vanguard → Everyday Checking');
 
-    // A month with nothing says so rather than disappearing — and a covered month says "None".
-    await expect(card.locator('[data-testid="deposit-month"][data-month="2026-03"]').getByTestId('deposit-month-figure')).toHaveText('None');
+    // A month with nothing says so rather than disappearing — "None matched", never "nothing moved".
+    await expect(card.locator('[data-testid="deposit-month"][data-month="2026-03"]').getByTestId('deposit-month-figure')).toHaveText('None matched');
     await expect(card.getByTestId('deposit-month-missing')).toHaveCount(0);
 
     const uncounted = card.getByTestId('deposit-uncounted');

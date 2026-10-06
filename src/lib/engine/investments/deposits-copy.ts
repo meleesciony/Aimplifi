@@ -52,12 +52,15 @@ export function depositLead(h: DepositHistory): string | null {
       const what = left === 1 ? 'One movement we couldn’t count is' : `${left} movements we couldn’t count are`;
       return `Nothing counted ${label ? `for ${label} ` : ''}${span}. ${what} listed under “Not counted”.`;
     }
+    // Never "nothing moved": the card can say only what it matched (critic cycle 3, P1-2).
     if (missing) {
-      return `Nothing found ${label ? `for ${label} ` : ''}${span} in the records we have. ${MISSING_NOTE}`;
+      return label
+        ? `Nothing placed on ${label} by its last four digits ${span} in the records we have. ${MISSING_NOTE}`
+        : `Nothing matched ${span} in the records we have. ${MISSING_NOTE}`;
     }
     return label
       ? `Nothing placed on ${label} by its last four digits ${span}.`
-      : `Nothing moved between your linked checking or savings and your investment accounts ${span}.`;
+      : `Nothing matched ${span} — no row from your linked checking or savings names one of your investment accounts by its last four digits, or a brokerage we know.`;
   }
 
   const into = label ? ` to ${label}` : '';
@@ -72,6 +75,23 @@ export function depositLead(h: DepositHistory): string | null {
     sentence = `${label ? `For ${label}: ` : ''}${money(putInCents)} put in and ${money(takenOutCents)} taken out ${span} — ${netWords}.`;
   }
   return missing ? `${sentence} ${MISSING_NOTE}` : sentence;
+}
+
+/** Which linked investment accounts the card can match only by last four, or not at all. */
+export function matchingNote(h: DepositHistory): string | null {
+  if (h.scope) return null;
+  const parts: string[] = [];
+  if (h.lastFourOnly.length > 0) {
+    const one = h.lastFourOnly.length === 1;
+    parts.push(`We can match ${listOf(h.lastFourOnly)} only when a description names ${one ? 'its' : 'their'} last four digits.`);
+  }
+  if (h.unmatchable.length > 0) {
+    const one = h.unmatchable.length === 1;
+    parts.push(
+      `We can’t match ${listOf(h.unmatchable)}: ${one ? 'it has' : 'they have'} no last four digits on file and ${one ? 'its' : 'their'} brokerage isn’t one we know.`,
+    );
+  }
+  return parts.length > 0 ? parts.join(' ') : null;
 }
 
 /** Narrowed view: what this card is showing. */
@@ -113,14 +133,23 @@ export function monthFigureParts(m: DepositMonth): string[] {
   if (parts.length > 0) return m.uncountedCount > 0 ? [...parts, `${m.uncountedCount} not counted`] : parts;
   if (m.uncountedCount > 0) return ['None counted', `${m.uncountedCount} not counted`];
   if (m.missingRecordsFrom.length > 0) return ['None found'];
-  return [m.partial ? 'None yet' : 'None'];
+  return [m.partial ? 'None yet' : 'None matched'];
 }
 
-/** Under a month whose records are incomplete. */
+/** Under a month whose records are incomplete: where each account's records begin or stop. */
 export function monthMissingNote(m: DepositMonth): string | null {
-  return m.missingRecordsFrom.length === 0
-    ? null
-    : `Records from ${listOf(m.missingRecordsFrom)} don’t cover all of ${m.partial ? 'this month so far' : 'this month'}.`;
+  if (m.missingRecordsDetail.length === 0) return null;
+  return (
+    m.missingRecordsDetail
+      .map((d) =>
+        d.startsOn
+          ? `Records from ${d.label} begin ${formatISODate(d.startsOn, 'long')}`
+          : d.endsOn
+            ? `Records from ${d.label} run only through ${formatISODate(d.endsOn, 'long')}`
+            : `Records from ${d.label} don’t cover all of ${m.partial ? 'this month so far' : 'this month'}`,
+      )
+      .join('; ') + '.'
+  );
 }
 
 /** "into Vanguard Brokerage" / "out of Vanguard Brokerage". */
@@ -140,11 +169,13 @@ export function uncountedReason(u: UncountedRow): string {
     case 'not-linked':
       return `No ${u.brokerageName} investment account is linked here, so it isn’t counted. Link it on Accounts to count it.`;
     case 'not-filed':
-      return 'It isn’t filed yet. File it as Transfer or Investment & Savings to count it.';
+      // Transfer only: a row filed Investment & Savings still counts as spending in reports
+      // (STATUS, #788 "found, not changed"), so this card never advises that filing.
+      return 'It isn’t filed yet. File it as Transfer to count it.';
     case 'not-a-deposit':
       return u.direction === 'in'
-        ? `It names ${u.brokerageName} next to a fee, bill, membership or card-payment word, so it looks like a payment to ${u.brokerageName}, not money put in.`
-        : `It names ${u.brokerageName} next to a fee, bill, membership or card-payment word, so it looks like a refund from ${u.brokerageName}, not money taken out.`;
+        ? `It names ${u.brokerageName} next to “${u.matchedWord}”, so it looks like a payment to ${u.brokerageName} itself — a fee, bill, loan, insurance premium or card payment — not money put in.`
+        : `It names ${u.brokerageName} next to “${u.matchedWord}”, so it looks like interest, a refund or a payout from ${u.brokerageName} itself, not money taken out of an investment account.`;
     case 'returned':
       return `The same amount ${u.direction === 'in' ? 'came back' : 'went back'} on ${u.returnedOn ? formatISODate(u.returnedOn, 'long') : 'a later day'}, so the two cancel out.`;
     case 'shared-last-four':
@@ -158,7 +189,7 @@ export function uncountedReason(u: UncountedRow): string {
     case 'same-brokerage-account':
       return `You also link ${u.otherAccountLabel} at ${u.brokerageName}, and its records don’t cover the week around this, so we can’t rule out that it ${u.direction === 'in' ? 'went there' : 'came from there'}.`;
     case 'too-new':
-      return `It’s less than a week old, and ${u.otherAccountLabel} (at ${u.brokerageName}) may still show the other half. We’ll check again once a week has passed.`;
+      return `It’s too recent to tell: ${u.otherAccountLabel} (at ${u.brokerageName}) may still show the other half. We’ll check again once a full week has passed.`;
     case 'landed-in-your-account':
       return u.direction === 'in'
         ? `The same amount arrived in ${u.otherAccountLabel ?? 'another of your accounts'} within a week, so it looks like a move between your own accounts.`
@@ -179,8 +210,9 @@ export function depositRuleNote(recordsFromMonth: string | null): string {
     'Counted: money your linked checking and savings accounts sent to a linked investment account (put in) or got back from one (taken out), $1.00 or more, filed Transfer or Investment & Savings, when the bank’s description names the account’s last four digits or the brokerage — ' +
     list +
     '. A brokerage’s name says which firm, not which account, so those amounts are shown under the firm. ' +
-    'Not counted, and listed under “Not counted” with the reason: rows not filed yet; money that moved back within two weeks; money that arrived in (or left) another of your accounts within a week; fees, bills and memberships paid to a brokerage; brokerages not linked here; descriptions that could mean more than one account; rows filed Investment & Savings that name no account; and — if you also link a bank or card account at the same brokerage — rows its records can’t rule out. ' +
-    'Never seen here: retirement contributions taken out of your paycheck, money your paycheck sends straight to an investment account, money moved from banks you haven’t linked, and market gains or losses.' +
+    'Not counted, and listed under “Not counted” with the reason: rows not filed yet; money that moved back within two weeks; money that arrived in (or left) another of your accounts within a week; fees, bills, loans, insurance, memberships, rebates and refunds between you and a brokerage itself; brokerages not linked here; descriptions that could mean more than one account; rows filed Investment & Savings that name no account; and — if you also link a bank or card account at the same brokerage — rows its records can’t rule out. ' +
+    'A Zelle, Venmo or Cash App payment names a person, not a brokerage. ' +
+    'Never seen here: retirement contributions taken out of your paycheck, money your paycheck sends straight to an investment account, money moved from banks you haven’t linked, descriptions that name neither the account’s last four digits nor a brokerage we know, and market gains or losses — so “None matched” means nothing we could match, not that no money moved.' +
     records
   );
 }

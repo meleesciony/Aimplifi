@@ -7,9 +7,12 @@
  * card has nothing to show. This writes exactly those rows — taken from
  * `buildSeedData()` by their two descriptors, so the live demo and the seed cannot drift
  * — onto the shared demo user's Everyday Checking, filed Transfer and transfer-flagged
- * exactly as the seed pipeline files them (`pipeline.ts`: a transfer-flagged row files
- * Transfer). Fixed ids (`txn-demo-dep-<date>`), so a second run writes nothing new.
- * Touches nothing else.
+ * (the category the seed pipeline gives a transfer-flagged row, `pipeline.ts`). Unlike
+ * the full seed it writes no merchant row and no category-prediction row: the register
+ * shows the normalizer's payee name and an unrecorded provenance for these rows. Skips
+ * any row already on file — by its fixed id (`txn-demo-dep-<date>`) or by the same
+ * account, date, amount and description — so a second run, or a run after a re-seed,
+ * writes nothing new. Touches nothing else.
  *
  * Refuses unless: the URL is Postgres; `user-demo` exists; its `acct-checking` is
  * CHECKING and `acct-brokerage` is INVESTMENT ending 8842 (the descriptors name it).

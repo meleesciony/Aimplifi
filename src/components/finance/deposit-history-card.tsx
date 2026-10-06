@@ -14,6 +14,7 @@ import {
   destinationDetail,
   destinationLabel,
   figureParts,
+  matchingNote,
   monthFigureParts,
   monthMissingNote,
   scopeByNameNote,
@@ -112,6 +113,7 @@ export function DepositHistoryCard({ history, canLink }: { history: DepositHisto
     const lead = depositLead(history);
     const scoped = scopeNote(history);
     const byName = scopeByNameNote(history);
+    const matching = matchingNote(history);
     body = (
       <>
         {scoped && (
@@ -127,6 +129,11 @@ export function DepositHistoryCard({ history, canLink }: { history: DepositHisto
         {byName && (
           <p className="text-muted-foreground" data-testid="deposit-scope-by-name">
             {byName}
+          </p>
+        )}
+        {matching && (
+          <p className="text-xs text-muted-foreground" data-testid="deposit-matching">
+            {matching}
           </p>
         )}
 
