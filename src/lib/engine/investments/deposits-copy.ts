@@ -56,7 +56,7 @@ export function depositLead(h: DepositHistory): string | null {
       return `Nothing found ${label ? `for ${label} ` : ''}${span} in the records we have. ${MISSING_NOTE}`;
     }
     return label
-      ? `Nothing moved between your linked checking or savings and ${label} ${span} — none whose description names its last four digits.`
+      ? `Nothing placed on ${label} by its last four digits ${span}.`
       : `Nothing moved between your linked checking or savings and your investment accounts ${span}.`;
   }
 
@@ -82,11 +82,15 @@ export function scopeNote(h: DepositHistory): string | null {
 /** Narrowed view: money matched only by the brokerage's name, which may or may not be this account's. */
 export function scopeByNameNote(h: DepositHistory): string | null {
   const b = h.scope?.byBrokerageName;
-  if (!b || (b.putInCents === 0 && b.takenOutCents === 0)) return null;
+  if (!h.scope || !b || (b.putInCents === 0 && b.takenOutCents === 0)) return null;
   const parts: string[] = [];
   if (b.putInCents > 0) parts.push(`${money(b.putInCents)} went to ${b.brokerageName}`);
   if (b.takenOutCents > 0) parts.push(`${money(b.takenOutCents)} came back from ${b.brokerageName}`);
-  return `Also, over these months ${listOf(parts)} by name only — the description doesn’t say which of your accounts there, so it isn’t counted here. See all your investments for it.`;
+  const which =
+    b.accountsThere === 1
+      ? `the description names the firm, not an account — it may or may not be ${h.scope.label}’s`
+      : `the description doesn’t say which of your ${b.accountsThere} accounts there`;
+  return `Also, over these months ${listOf(parts)} by name only — ${which}, so it isn’t counted here. See all your investments for it.`;
 }
 
 /** The money parts of a figure: "$500.00 put in", "$300.00 taken out". */
@@ -109,7 +113,7 @@ export function monthFigureParts(m: DepositMonth): string[] {
   if (parts.length > 0) return m.uncountedCount > 0 ? [...parts, `${m.uncountedCount} not counted`] : parts;
   if (m.uncountedCount > 0) return ['None counted', `${m.uncountedCount} not counted`];
   if (m.missingRecordsFrom.length > 0) return ['None found'];
-  return ['None'];
+  return [m.partial ? 'None yet' : 'None'];
 }
 
 /** Under a month whose records are incomplete. */
@@ -129,25 +133,30 @@ export function uncountedDirection(u: UncountedRow): string {
   return u.direction === 'in' ? `Left ${u.sourceLabel}.` : `Arrived in ${u.sourceLabel}.`;
 }
 
-/** Why a row that names an investment destination is not in the figures. */
+/** Why a row that names an investment destination is not in the figures — said for its direction. */
 export function uncountedReason(u: UncountedRow): string {
+  const where = u.direction === 'in' ? 'went' : 'came from';
   switch (u.reason) {
     case 'not-linked':
       return `No ${u.brokerageName} investment account is linked here, so it isn’t counted. Link it on Accounts to count it.`;
     case 'not-filed':
       return 'It isn’t filed yet. File it as Transfer or Investment & Savings to count it.';
     case 'not-a-deposit':
-      return `It names ${u.brokerageName} next to a fee, bill or card-payment word, so it looks like a payment to ${u.brokerageName}, not money put in.`;
+      return u.direction === 'in'
+        ? `It names ${u.brokerageName} next to a fee, bill, membership or card-payment word, so it looks like a payment to ${u.brokerageName}, not money put in.`
+        : `It names ${u.brokerageName} next to a fee, bill, membership or card-payment word, so it looks like a refund from ${u.brokerageName}, not money taken out.`;
     case 'returned':
-      return `The same amount came back on ${u.returnedOn ? formatISODate(u.returnedOn) : 'a later day'}, so the two cancel out.`;
+      return `The same amount ${u.direction === 'in' ? 'came back' : 'went back'} on ${u.returnedOn ? formatISODate(u.returnedOn, 'long') : 'a later day'}, so the two cancel out.`;
     case 'shared-last-four':
-      return 'More than one of your linked accounts ends in the four digits it names, so we can’t tell which one it went to.';
+      return `More than one of your linked accounts ends in the four digits it names, so we can’t tell which one it ${u.direction === 'in' ? 'went to' : 'came from'}.`;
+    case 'names-two-accounts':
+      return `It names two of your accounts by their last four digits — ${u.otherAccountLabel} and ${u.destinationLabels[0] ?? 'an investment account'} — so we can’t tell where it ${where}.`;
     case 'two-brokerages':
-      return `It names both ${u.brokerageName} and ${u.otherBrokerageName}, so we can’t tell where it went.`;
+      return `It names both ${u.brokerageName} and ${u.otherBrokerageName}, so we can’t tell where it ${where}.`;
     case 'last-four-vs-name':
-      return `Its last four digits point to your ${u.brokerageName} account, but it names ${u.otherBrokerageName}, so we can’t tell where it went.`;
+      return `Its last four digits point to your ${u.brokerageName} account, but it names ${u.otherBrokerageName}, so we can’t tell where it ${where}.`;
     case 'same-brokerage-account':
-      return `You also link ${u.otherAccountLabel} at ${u.brokerageName}, and its records don’t cover the week around this, so we can’t rule out that it went there.`;
+      return `You also link ${u.otherAccountLabel} at ${u.brokerageName}, and its records don’t cover the week around this, so we can’t rule out that it ${u.direction === 'in' ? 'went there' : 'came from there'}.`;
     case 'too-new':
       return `It’s less than a week old, and ${u.otherAccountLabel} (at ${u.brokerageName}) may still show the other half. We’ll check again once a week has passed.`;
     case 'landed-in-your-account':
@@ -163,12 +172,14 @@ export function uncountedReason(u: UncountedRow): string {
 export function depositRuleNote(recordsFromMonth: string | null): string {
   const names = BROKERAGES.map((b) => b.name);
   const list = `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
-  const records = recordsFromMonth ? ` Your linked checking and savings records start in ${formatMonth(recordsFromMonth)}.` : '';
+  const records = recordsFromMonth
+    ? ` Months are read from ${formatMonth(recordsFromMonth)}, the first full month your linked checking and savings records cover; a month whose records are incomplete says so.`
+    : '';
   return (
-    'Counted: money your linked checking and savings accounts sent to a linked investment account (put in) or got back from one (taken out), filed Transfer or Investment & Savings, when the bank’s description names the account’s last four digits or the brokerage — ' +
+    'Counted: money your linked checking and savings accounts sent to a linked investment account (put in) or got back from one (taken out), $1.00 or more, filed Transfer or Investment & Savings, when the bank’s description names the account’s last four digits or the brokerage — ' +
     list +
     '. A brokerage’s name says which firm, not which account, so those amounts are shown under the firm. ' +
-    'Not counted, and listed when the row names an investment account: money that came back within two weeks, money that arrived in another of your accounts within a week, fees and bills paid to a brokerage, rows not filed yet, and — if you also link a bank or card account at the same brokerage — rows its records can’t rule out. ' +
+    'Not counted, and listed under “Not counted” with the reason: rows not filed yet; money that moved back within two weeks; money that arrived in (or left) another of your accounts within a week; fees, bills and memberships paid to a brokerage; brokerages not linked here; descriptions that could mean more than one account; rows filed Investment & Savings that name no account; and — if you also link a bank or card account at the same brokerage — rows its records can’t rule out. ' +
     'Never seen here: retirement contributions taken out of your paycheck, money your paycheck sends straight to an investment account, money moved from banks you haven’t linked, and market gains or losses.' +
     records
   );
@@ -176,7 +187,7 @@ export function depositRuleNote(recordsFromMonth: string | null): string {
 
 /** Shown when no checking or savings account is linked. */
 export const DEPOSITS_NO_SOURCE_ACCOUNTS =
-  'Link a checking or savings account to see what it sends to your investment accounts each month.';
+  'Link a checking or savings account — this card reads the money it sends to brokerage and retirement accounts each month.';
 
 /** Shown when no investment account is linked. */
 export const DEPOSITS_NO_INVESTMENT_ACCOUNTS =

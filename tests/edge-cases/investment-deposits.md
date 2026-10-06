@@ -34,14 +34,17 @@ covered by every live checking or savings account names those accounts and reads
 | Last four | chk 2026-09-10 −$250.00 "ONLINE TRANSFER TO XXXXXX6604"; Roth IRA ··6604 | Sep $250.00 → Roth IRA. Also X6604, ...6604, *6604, ENDING IN 6604, ACCT 6604, ACCT# 6604, acct no. 6604. NOT: "TRANSFER 6604", "BOX6604", "X66041", "X6604A", "CHECK #6604", "REF #6604" |
 | Taken out | + chk 2026-08-14 +$300.00 "VANGUARD REDEMPTION" | Aug taken out $300.00; lead "… — $200.00 more in than out." |
 | Not filed yet | chk 09-05 −$500.00 "…XXXXXX6604" uncategorized; chk 04-05 −$500.00 "VANGUARD BUY" unfiled | Both listed "not-filed"; Sep "None counted · 1 not counted"; lead "Nothing counted so far this year. 2 movements we couldn’t count are listed under “Not counted”." |
-| Returned | chk 09-05 −$500.00 "…6604"; chk 09-08 +$500.00 "RETURNED ITEM …6604" unfiled | Listed "returned" (Tue, Sep 8); the return not listed; Sep $0 in, $0 out. Reversal filed Transfer on day 14 cancels; day 15 does not ($500 in + $500 out). A withdrawal filed Transfer without return words is money taken out |
+| Returned | chk 09-05 −$500.00 "…6604"; chk 09-08 +$500.00 "RETURNED ITEM …6604" unfiled | Listed "returned" (Tue, Sep 8, 2026); the return not listed; Sep $0 in, $0 out. Reversal filed Transfer on day 14 cancels; day 15 does not ($500 in + $500 out). A withdrawal filed Transfer without return words is money taken out. Unfiled "RETURNED ITEM" naming nothing cancels; filed Shopping it does not |
+| Not a return | +$500.00 "ZELLE PAYMENT FROM JANE ROOMMATE" unfiled; "VENMO CASHOUT"; "AMAZON MKTPLACE RETURN" filed Shopping | None cancels the deposit (critic cycle 2, P1) |
+| Return across the window start | chk 2025-09-28 −$500.00 "…6604"; chk 2025-10-03 +$500.00 "RETURNED ITEM …6604" (Transfer or unfiled) | Neither counts; nothing listed |
 | Landed in your account | chk 07-02 −$400.00 "…6604"; sav 07-09 +$400.00 transfer | Listed "landed-in-your-account" (Rainy Day Savings); 07-10 (8 days) → counted |
 | Ordinary move first | chk 06-01 −$500.00 to other bank; chk 06-02 −$500.00 VANGUARD; sav 06-03 +$500.00 | The ordinary transfer takes the savings inflow; Vanguard $500.00 COUNTS |
 | Card payment | chk 06-01 −$500.00 epay (card payment); chk 06-02 −$500.00 VANGUARD; card 06-02 +$500.00 PAYMENT THANK YOU | The epay takes the card credit; Vanguard COUNTS |
-| Not evidence of a move | card refund filed Shopping; card purchase; savings inflow filed Income; pending; excluded; after today | None takes a deposit |
+| Not evidence of a move | card refund filed Shopping or unfiled; card purchase; savings inflow filed Income; pending; excluded; after today; a card payment credit beside a deposit placed by its last four; a second row that also names an investment destination | None takes a deposit |
 | Not linked | chk 09-12 −$100.00 "ROBINHOOD FUNDS" | Listed "not-linked", Robinhood |
 | Bank move naming a brokerage | chk −$200.00 "SCHWAB MONEYLINK"; Schwab Checking +$200.00 next day; no Schwab investment account | Ignored |
-| Fees and bills | "ROBINHOOD CARD PAYMENT", "ROBINHOOD GOLD MEMBERSHIP", "MERRILL LYNCH ADVISORY FEE", "SCHWAB VISA PAYMENT" | Listed "not-a-deposit" |
+| Fees and bills | "ROBINHOOD CARD PAYMENT", "ROBINHOOD GOLD MEMBERSHIP", "ROBINHOOD GOLD", "COINBASE ONE", "MERRILL LYNCH ADVISORY FEE", "SCHWAB VISA PAYMENT" | Listed "not-a-deposit" |
+| Test deposits and people | ±$0.43, −$0.99 (ignored); −$1.00 by last four (counted); "ZELLE PAYMENT TO MARY SCHWAB" (ignored — a person) | Sep $1.00 put in |
 | Same-brokerage bank account, covered | Schwab Checking records from 2025-01-03; chk 2026-09-20 −$1,000.00 "SCHWAB BROKERAGE MONEYLINK" | Counted → Charles Schwab |
 | … records from 09-13 / 09-14 | week before 09-20 is 09-13 | 09-13 covers; 09-14 → "same-brokerage-account" |
 | … feed vouches for nothing, last row 09-26 / 09-27 | week after is 09-27 | 09-26 → same-brokerage-account; 09-27 → counted |
@@ -49,13 +52,16 @@ covered by every live checking or savings account names those accounts and reads
 | … with the last four X2202 | 2026-10-15 | Counted on Schwab Brokerage — no coverage test |
 | … naming Schwab Checking's last four X2201 | | Ignored (a move between own accounts) |
 | Two names | "VANGUARD SCHWAB MOVE" | "two-brokerages" (Vanguard, Charles Schwab) |
-| Shared last four | a card also ends 5521; or two investment accounts end 5521; or the description also names savings X3390 | "shared-last-four" |
+| Shared last four | a card also ends 5521; or two investment accounts end 5521 | "shared-last-four" |
+| Two accounts named | "TRANSFER FROM SAV X3390 TO XXXXXX6604" | "names-two-accounts" (Rainy Day Savings and Roth IRA) |
 | Last four vs name | "SCHWAB TRANSFER X5521" (5521 is Vanguard) | "last-four-vs-name"; "VANGUARD TRANSFER X6604" (no brokerage on 6604) → Roth IRA |
 | Several at one brokerage | Vanguard Brokerage + Vanguard IRA, by name | one destination "Vanguard", "your 2 linked accounts there are …" |
 | Combined account | old copy (→ live checking) −$250.00 VANGUARD 09-01, live +$250.00 09-02 | counted on the live checking; the copies never pair |
 | Handover day | both copies report −$500.00 ×2 on 2026-09-01 | $1,000.00 (2+2 → 2); 2+1 → $1,000.00; 1+1 → $500.00 |
 | Stopped feed | checking vouches for nothing, last row 2025-11-05 | Nov 2025 … Oct 2026 name it; "None found"; lead "Nothing found so far this year in the records we have. Some months are missing records — they’re marked below." |
-| One account (?account=ira) | VANGUARD $500 by name, X6604 $250 | only $250.00 counted; "Showing only money placed on Roth IRA by its last four digits."; for ?account=vg the $500 is "by name only … isn’t counted here" |
+| This month | today 10-17: needs records through 10-15 (a feed through 10-15 covers; through 10-14 does not); today the 1st or 2nd: nothing to cover | "None yet" |
+| Reader’s word | New Checking first row 2026-08-15: 8 of this year’s months name it; with "began 2026-08-15" none do; a word for 08-14 is ignored. Old Checking last row 2026-03-10, no feed: "ended 2026-03-10" clears the months after | — |
+| One account (?account=ira) | VANGUARD $500 by name, X6604 $250 | only $250.00 counted; "Showing only money placed on Roth IRA by its last four digits."; for ?account=vg the lead is "Nothing placed on Vanguard Brokerage by its last four digits so far this year." and the $500 is "by name only — the description names the firm, not an account — it may or may not be Vanguard Brokerage’s, so it isn’t counted here"; unfiled rows placed only by name are not listed there |
 | Never counted, never listed | pending, split parent, excluded, filed to spending, on a card, $0, after today | — |
 
 **Demo seed (today 2026-06-10).** −$750.00 "ONLINE TRANSFER TO BROKERAGE X8842" on the 3rd of every

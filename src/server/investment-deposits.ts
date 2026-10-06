@@ -44,6 +44,10 @@ export async function loadDepositInputs(userId: string): Promise<Omit<DepositHis
         plaidItemId: true,
         feedDroppedAt: true,
         provider: true,
+        recordStartWordDate: true,
+        recordStartWordVerdict: true,
+        recordEndWordDate: true,
+        recordEndWordVerdict: true,
       },
     }),
     prisma.plaidItem.findMany({
@@ -56,10 +60,11 @@ export async function loadDepositInputs(userId: string): Promise<Omit<DepositHis
   const inSnapshot = new Set(snap.accounts.map((a) => a.id));
   const institutionNameByItem = liveInstitutionByItem(plaidItems, (i) => i.institution);
   const liveRows = accountRows.filter((a) => inSnapshot.has(a.id) && !superseded.has(a.id));
-  // The day a live feed vouches each record complete through — the same rule Ask's
-  // same-account answers read (`accountRecords`: demo through today; a healthy Plaid item
-  // through the day before its last successful sync; manual, dropped or failing: none).
-  const completeThrough = new Map(
+  // The day a live feed vouches each record complete through, and the reader's own word
+  // about where a record really begins or ends — the same facts and rule Ask's same-account
+  // answers read (`accountRecords`: demo through today; a Plaid item, healthy or failing,
+  // through the day before its last SUCCESSFUL sync; manual or dropped: none).
+  const records = new Map(
     accountRecords({
       accounts: liveRows.map((a) => ({
         id: a.id,
@@ -67,15 +72,17 @@ export async function loadDepositInputs(userId: string): Promise<Omit<DepositHis
         provider: a.provider,
         plaidItemId: a.plaidItemId,
         feedDroppedAt: a.feedDroppedAt,
-        recordStartWord: null,
-        recordEndWord: null,
+        recordStartWord:
+          a.recordStartWordDate && a.recordStartWordVerdict ? { forDate: a.recordStartWordDate, verdict: a.recordStartWordVerdict } : null,
+        recordEndWord:
+          a.recordEndWordDate && a.recordEndWordVerdict ? { forDate: a.recordEndWordDate, verdict: a.recordEndWordVerdict } : null,
       })),
       rows: [],
       spendingAccountIds: new Set<string>(),
       terminalOf: snap.terminalOf ?? new Map<string, string>(),
       plaidItems,
       today,
-    }).map((r) => [r.id, r.completeThrough]),
+    }).map((r) => [r.id, r]),
   );
   const accounts: DepositAccount[] = liveRows.map((a) => ({
     id: a.id,
@@ -84,7 +91,9 @@ export async function loadDepositInputs(userId: string): Promise<Omit<DepositHis
     mask: a.mask,
     institutionName: resolveLiveInstitutionName(a.plaidItemId, a.institutionName, institutionNameByItem),
     feedName: a.name,
-    completeThrough: completeThrough.get(a.id) ?? null,
+    completeThrough: records.get(a.id)?.completeThrough ?? null,
+    beganOn: records.get(a.id)?.startWord?.verdict === 'real' ? records.get(a.id)!.startWord!.forDate : null,
+    endedOn: records.get(a.id)?.endWord?.verdict === 'real' ? records.get(a.id)!.endWord!.forDate : null,
   }));
 
   const rows: DepositRow[] = [];

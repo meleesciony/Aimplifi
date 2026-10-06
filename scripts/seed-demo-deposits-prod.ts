@@ -49,7 +49,17 @@ async function main() {
   let written = 0;
   for (const t of rows) {
     const id = `txn-demo-dep-${t.date}`;
-    const existing = await prisma.transaction.findUnique({ where: { id }, select: { id: true } });
+    // Idempotent against the ROWS, not only these ids: if production's demo is ever
+    // re-seeded, the same transfers arrive under the seed's own ids — never write a twin.
+    const existing = await prisma.transaction.findFirst({
+      where: {
+        OR: [
+          { id },
+          { accountId: 'acct-checking', date: t.date, amountCents: t.amountCents, rawDescriptor: t.rawDescriptor },
+        ],
+      },
+      select: { id: true },
+    });
     if (existing) continue;
     await prisma.transaction.create({
       data: {
@@ -67,7 +77,9 @@ async function main() {
     });
     written += 1;
   }
-  const onFile = await prisma.transaction.count({ where: { id: { startsWith: 'txn-demo-dep-' } } });
+  const onFile = await prisma.transaction.count({
+    where: { accountId: 'acct-checking', rawDescriptor: { in: [...DESCRIPTORS] } },
+  });
   console.log(`seed rows: ${rows.length}; written now: ${written}; on file: ${onFile}`);
 }
 

@@ -14,7 +14,8 @@
  *
  *  1. It sits on a live CHECKING or SAVINGS account (read through its terminal
  *     successor when combined), is POSTED, is not a split parent, is not excluded
- *     from totals, and is not dated after today.
+ *     from totals, is not dated after today, and is $1.00 or more (smaller amounts
+ *     are account-verification test deposits).
  *  2. It is filed Transfer or Investment & Savings. A row not filed yet that names
  *     a destination is listed ("file it to count it"); one filed to spending or
  *     income is the reader's word that it is something else.
@@ -23,18 +24,25 @@
  *       marker (X…, *…, .., ENDING IN, ACCT) — that account; or
  *     - ONE brokerage's name (`brokerages.ts`, the categorizer's own list) where the
  *       reader links investment account(s) — the BROKERAGE, never one account there,
- *       because a name says which firm, not which account.
- *     Two brokerages, last four shared with another account, or last four and a name
- *     that disagree: not counted. Last four of one of the reader's OWN bank or card
- *     accounts: a move between their own accounts, ignored. A name beside fee, bill
+ *       because a name says which firm, not which account. A person-to-person payment
+ *       (Zelle, Venmo, PayPal, Cash App) never names a brokerage — "MARY SCHWAB" is
+ *       a person.
+ *     Two brokerages, last four shared with another account, the last four of one of
+ *     the reader's bank accounts AND of an investment account, or last four and a name
+ *     that disagree: not counted. Only the last four of one of the reader's OWN bank or
+ *     card accounts: a move between them, ignored. A name beside fee, bill, membership
  *     or card-payment words is money paid TO the brokerage, not put in: listed.
- *  4. It was not returned: money coming back to the same account within 14 days,
- *     same amount, worded as a reversal or return or not filed, cancels it (listed).
+ *  4. It was not returned: money moving the other way on the same account within 14
+ *     days, same amount, that names the same destination — or is not filed and is
+ *     worded as a reversal or return — cancels it (listed). A deposit up to 14 days
+ *     before the window still takes its return inside it.
  *  5. It did not land in another of the reader's own accounts: a row that is
  *     evidence of a move — posted, not excluded, not after today, flagged as a
- *     transfer or filed Transfer / card payment / Investment & Savings or not filed,
- *     its SENDING half on checking or savings — of equal and opposite amount within
- *     7 days takes it, one to one; ordinary moves pair first, then closest dates.
+ *     transfer or filed Transfer / card payment / Investment & Savings (or, on a bank
+ *     account, not filed), its SENDING half on checking or savings — of equal and
+ *     opposite amount within 7 days takes it, one to one; ordinary moves pair first,
+ *     then closest dates. Two rows that both name an investment destination are two
+ *     movements, never one; a row placed by its last four never pairs with a card.
  *  6. By name only, where the reader ALSO links a bank or card account at that
  *     brokerage: that account's records must cover the week around the row, and the
  *     week must be over, because only then does "no equal amount arrived there" mean
@@ -43,9 +51,11 @@
  * Months: the last 12 complete months and this month so far, never before the
  * first complete month the linked checking and savings records cover. Each month
  * names the linked checking or savings accounts whose records do not cover all of
- * it (an account's record runs from its first row to its last row, or to the day a
- * live feed vouches for — `analyst/account-records.ts`), because a month with no
- * records is not a month with no money.
+ * it (an account's record runs from its first row to the later of its last row and
+ * the day a live feed vouches for — `analyst/account-records.ts` — or wherever the
+ * reader said the account really began or ended), because a month with no records
+ * is not a month with no money. This month needs records through the day before
+ * yesterday (one daily sync's lag), and its zero reads "None yet".
  */
 import {
   addDays,
@@ -75,9 +85,13 @@ export const COUNTERPART_WINDOW_DAYS = 7;
 export const RETURN_WINDOW_DAYS = 14;
 /** Complete months shown before this month. */
 export const HISTORY_MONTHS = 12;
+/** Below this, a deposit is an account-verification test amount, not money put in. */
+export const MIN_DEPOSIT_CENTS = 100;
 /** Words that make a brokerage-named row a payment TO the brokerage, not money put in. */
 const NOT_A_DEPOSIT_RE =
-  /\b(FEES?|MEMBERSHIP|SUBSCRIPTION|CARD PAYMENT|CARD PMT|CREDIT CARD|VISA|MASTERCARD|AMEX|INTEREST|MARGIN|ADVISORY)\b/i;
+  /\b(FEES?|MEMBERSHIP|SUBSCRIPTION|CARD PAYMENT|CARD PMT|CREDIT CARD|VISA|MASTERCARD|AMEX|INTEREST|MARGIN|ADVISORY|ROBINHOOD GOLD|COINBASE ONE)\b/i;
+/** Person-to-person payments: a brokerage's name in one is a person's name. */
+const P2P_RE = /\b(ZELLE|VENMO|PAYPAL|CASH ?APP|SQUARE CASH|APPLE CASH)\b/i;
 
 const isUnfiled = (categoryId: string | null | undefined) => !categoryId || categoryId === 'uncategorized';
 
@@ -108,6 +122,13 @@ export interface DepositAccount {
   feedName: string;
   /** The day a live feed vouches the record complete through (`accountRecords`), else null. */
   completeThrough?: string | null;
+  /**
+   * The reader's word (Ask, #781) that the account really BEGAN on this date — it counts
+   * only while it is still the record's first row, exactly as Ask reads it.
+   */
+  beganOn?: string | null;
+  /** The reader's word that the account really ENDED on this date (its last row). */
+  endedOn?: string | null;
 }
 
 export interface DepositHistoryInput {
@@ -163,12 +184,14 @@ export type UncountedReason =
   | 'not-linked'
   /** Names a destination but is not filed yet. */
   | 'not-filed'
-  /** Names a brokerage beside fee, bill or card-payment words. */
+  /** Names a brokerage beside fee, bill, membership or card-payment words. */
   | 'not-a-deposit'
-  /** Money came back within two weeks. */
+  /** Money moved back within two weeks. */
   | 'returned'
   /** Its last four belong to more than one linked account. */
   | 'shared-last-four'
+  /** Its last four name one of the reader's bank or card accounts AND an investment account. */
+  | 'names-two-accounts'
   /** It names two brokerages. */
   | 'two-brokerages'
   /** Its last four point to one brokerage, its words name another. */
@@ -197,9 +220,16 @@ export interface UncountedRow {
   otherBrokerageName: string | null;
   /** The investment accounts the row could have gone to (empty when none is linked). */
   destinationAccountIds: readonly string[];
-  /** 'landed-in-your-account': the account the other half sits on. 'same-brokerage-account': that account. */
+  /** Their labels, in the same order. */
+  destinationLabels: readonly string[];
+  /** True when the row was placed by an account's last four (not only by a brokerage's name). */
+  byLastFour: boolean;
+  /**
+   * 'landed-in-your-account': the account the other half sits on. 'same-brokerage-account'
+   * / 'too-new': that account. 'names-two-accounts': the bank or card account named.
+   */
   otherAccountLabel: string | null;
-  /** 'returned': the day the money came back. */
+  /** 'returned': the day the money moved back. */
   returnedOn: ISODate | null;
 }
 
@@ -233,8 +263,11 @@ export interface DepositHistory {
   scope: {
     accountId: string;
     label: string;
-    /** Money matched only by the name of this account's brokerage — it may or may not be this account's. */
-    byBrokerageName: { brokerageName: string; putInCents: number; takenOutCents: number } | null;
+    /**
+     * Money matched only by the name of this account's brokerage — it may or may not be
+     * this account's. `accountsThere` is how many linked investment accounts that firm has.
+     */
+    byBrokerageName: { brokerageName: string; accountsThere: number; putInCents: number; takenOutCents: number } | null;
   } | null;
 }
 
@@ -291,28 +324,42 @@ function collapseHandoverCopies(live: readonly Live[], handoverDates: ReadonlySe
   return out;
 }
 
+interface PairRow {
+  id: string;
+  account: string;
+  date: ISODate;
+  amountCents: number;
+  /** Names an investment destination (a bank row only). */
+  names: boolean;
+  /** Placed by an investment account's last four. */
+  masked: boolean;
+  /** On a card account. */
+  card: boolean;
+}
+
 /**
  * One-to-one pairing of equal, opposite rows on two different accounts within the
  * window. Edges between two rows that name no investment destination pair first (an
  * ordinary move claims its own other half before a deposit can lose it), then closest
- * dates, then earlier dates and ids. Returns row id → the other row's account id.
+ * dates, then earlier dates and ids. Two rows that BOTH name an investment destination
+ * are two movements, never one; a row placed by its last four never pairs with a card.
+ * Returns row id → the other row's account id.
  */
-function pairOwnAccountMoves(
-  rows: readonly { id: string; account: string; date: ISODate; amountCents: number; names: boolean }[],
-): Map<string, string> {
-  type R = (typeof rows)[number];
-  const byAmount = new Map<number, R[]>();
+function pairOwnAccountMoves(rows: readonly PairRow[]): Map<string, string> {
+  const byAmount = new Map<number, PairRow[]>();
   for (const r of rows) {
     const list = byAmount.get(Math.abs(r.amountCents)) ?? [];
     list.push(r);
     byAmount.set(Math.abs(r.amountCents), list);
   }
-  const edges: { out: R; inn: R; gap: number; naming: number }[] = [];
+  const edges: { out: PairRow; inn: PairRow; gap: number; naming: number }[] = [];
   for (const group of byAmount.values()) {
     for (const out of group) {
       if (out.amountCents >= 0) continue;
       for (const inn of group) {
         if (inn.amountCents <= 0 || inn.account === out.account) continue;
+        if (out.names && inn.names) continue;
+        if ((out.masked && inn.card) || (inn.masked && out.card)) continue;
         const gap = Math.abs(daysBetween(out.date, inn.date));
         if (gap <= COUNTERPART_WINDOW_DAYS) edges.push({ out, inn, gap, naming: (out.names ? 1 : 0) + (inn.names ? 1 : 0) });
       }
@@ -344,6 +391,7 @@ type Placement =
       brokerage: Brokerage | null;
       other?: Brokerage | null;
       accountIds: readonly string[];
+      byLastFour: boolean;
       otherAccountLabel?: string | null;
     }
   | { kind: 'ignore' };
@@ -356,6 +404,7 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
   const investment = input.accounts.filter((a) => a.type === 'INVESTMENT');
   const sources = input.accounts.filter((a) => DEPOSIT_SOURCE_TYPES.has(a.type));
   const brokerageOf = new Map(input.accounts.map((a) => [a.id, brokerageOfAccount(a.institutionName, a.feedName)]));
+  const labelOf = (id: string) => accountById.get(id)?.label ?? id;
 
   // Every register row on a live account, read through its terminal successor, one copy
   // per real movement on a handover day.
@@ -379,20 +428,27 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
       if (compareDates(date, s.last) > 0) s.last = date;
     }
   }
-  const recordsOf = (a: DepositAccount): { from: ISODate; through: ISODate } | null => {
+  const recordsOf = (a: DepositAccount): { from: ISODate; through: ISODate; began: boolean; ended: boolean } | null => {
     const s = span.get(a.id);
     if (!s) return null;
     let through = s.last;
     if (a.completeThrough) {
-      // Every coverage question ends by yesterday, so a date past today needs no cap.
+      // Every coverage question ends before today, so a date past today needs no cap.
       const vouched = isoDate(a.completeThrough);
       if (compareDates(vouched, through) > 0) through = vouched;
     }
-    return { from: s.first, through };
+    // The reader's word counts only while it still names the record's own edge (Ask's rule).
+    const began = !!a.beganOn && a.beganOn === s.first;
+    const ended = !!a.endedOn && a.endedOn === s.last;
+    return { from: s.first, through, began, ended };
   };
   const covers = (a: DepositAccount, from: ISODate, to: ISODate) => {
     const r = recordsOf(a);
-    return r !== null && compareDates(r.from, from) <= 0 && compareDates(r.through, to) >= 0;
+    if (r === null) return false;
+    // Before an account really began, or after it really ended, there was nothing to miss.
+    const startOk = compareDates(r.from, from) <= 0 || r.began;
+    const endOk = compareDates(r.through, to) >= 0 || r.ended;
+    return startOk && endOk;
   };
 
   let earliest: ISODate | null = null;
@@ -412,7 +468,8 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
   const windowStart = startMonth === null ? null : isoDate(`${startMonth}-01`);
 
   // What a row's description names: investment accounts by last four, the reader's other
-  // accounts by last four (never the row's own account), and brokerages by name.
+  // accounts by last four (never the row's own account), and brokerages by name (never in a
+  // person-to-person payment, where a brokerage's name is a person's).
   const evidence = new Map<string, { inv: DepositAccount[]; own: DepositAccount[]; named: Brokerage[] }>();
   const evidenceOf = (x: Live) => {
     let e = evidence.get(x.row.id);
@@ -421,7 +478,7 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
       e = {
         inv: investment.filter((a) => descriptorCarriesMask(d, a.mask)),
         own: input.accounts.filter((a) => a.type !== 'INVESTMENT' && a.id !== x.account.id && descriptorCarriesMask(d, a.mask)),
-        named: brokeragesNamedIn(d),
+        named: P2P_RE.test(d) ? [] : brokeragesNamedIn(d),
       };
       evidence.set(x.row.id, e);
     }
@@ -431,6 +488,18 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
     const e = evidenceOf(x);
     return e.inv.length > 0 || e.named.length > 0;
   };
+  /** Every destination a row names: investment accounts by last four, and brokerages (by name or by those accounts). */
+  const destinationTokens = (x: Live) => {
+    const e = evidenceOf(x);
+    const t = new Set<string>();
+    for (const a of e.inv) {
+      t.add(`acct:${a.id}`);
+      const b = brokerageOf.get(a.id);
+      if (b) t.add(`brk:${b.key}`);
+    }
+    for (const b of e.named) t.add(`brk:${b.key}`);
+    return t;
+  };
   const countable = (x: Live) =>
     x.row.status === 'POSTED' &&
     !x.row.isSplitParent &&
@@ -438,27 +507,33 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
     x.row.amountCents !== 0 &&
     compareDates(x.date, today) <= 0;
   const filedAsMove = (x: Live) => isUnfiled(x.row.categoryId) || DEPOSIT_CATEGORY_IDS.has(x.row.categoryId!);
-  const isCandidate = (x: Live) => DEPOSIT_SOURCE_TYPES.has(x.account.type) && countable(x) && filedAsMove(x) && namesDestination(x);
+  const bigEnough = (x: Live) => Math.abs(x.row.amountCents) >= MIN_DEPOSIT_CENTS;
+  const isCandidate = (x: Live) =>
+    DEPOSIT_SOURCE_TYPES.has(x.account.type) && countable(x) && bigEnough(x) && filedAsMove(x) && namesDestination(x);
 
-  // Returns: money coming back to the same account within two weeks, same amount, worded
-  // as a reversal or return, or not filed. One to one, closest first.
+  // Returns: money moving the other way on the same account within two weeks, same amount,
+  // naming the same destination — or not filed and worded as a reversal or return. One to
+  // one, closest first. A deposit up to two weeks before the window still claims its return.
   const returnedOn = new Map<string, ISODate>();
   const consumedReturns = new Set<string>();
   if (windowStart !== null) {
-    const candidates = live.filter((x) => isCandidate(x) && compareDates(x.date, windowStart) >= 0);
-    const backs = live.filter(
-      (x) =>
-        DEPOSIT_SOURCE_TYPES.has(x.account.type) &&
-        countable(x) &&
-        (REVERSAL_RE.test(x.row.rawDescriptor ?? '') || isUnfiled(x.row.categoryId)),
-    );
+    const reachBack = addDays(windowStart, -RETURN_WINDOW_DAYS);
+    const candidates = live.filter((x) => isCandidate(x) && compareDates(x.date, reachBack) >= 0);
+    const backs = live.filter((x) => DEPOSIT_SOURCE_TYPES.has(x.account.type) && countable(x));
     const pairs: { orig: Live; back: Live; gap: number }[] = [];
     for (const orig of candidates) {
+      const tokens = destinationTokens(orig);
       for (const back of backs) {
         if (back.row.id === orig.row.id || back.account.id !== orig.account.id) continue;
         if (back.row.amountCents !== -orig.row.amountCents) continue;
         const gap = daysBetween(orig.date, back.date);
         if (gap < 0 || gap > RETURN_WINDOW_DAYS) continue;
+        const sameDestination = [...destinationTokens(back)].some((t) => tokens.has(t));
+        const wordedReturn = isUnfiled(back.row.categoryId) && REVERSAL_RE.test(back.row.rawDescriptor ?? '');
+        if (!sameDestination && !wordedReturn) continue;
+        // Money that moved back must not be a fresh movement of its own the other way: a
+        // destination-naming row filed as a move is a withdrawal, unless worded as a return.
+        if (sameDestination && !isUnfiled(back.row.categoryId) && !REVERSAL_RE.test(back.row.rawDescriptor ?? '')) continue;
         pairs.push({ orig, back, gap });
       }
     }
@@ -490,18 +565,26 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
               if (!COUNTERPART_ACCOUNT_TYPES.has(x.account.type) || !countable(x)) return false;
               if (compareDates(x.date, addDays(windowStart, -COUNTERPART_WINDOW_DAYS)) < 0) return false;
               if (returnedOn.has(x.row.id) || consumedReturns.has(x.row.id)) return false;
+              const bank = DEPOSIT_SOURCE_TYPES.has(x.account.type);
               // The SENDING half of a move is a bank account: a card purchase is not one.
-              if (x.row.amountCents < 0 && !DEPOSIT_SOURCE_TYPES.has(x.account.type)) return false;
+              if (x.row.amountCents < 0 && !bank) return false;
               const c = x.row.categoryId;
-              return x.row.isTransfer === true || isUnfiled(c) || MOVE_CATEGORY_IDS.has(c!);
+              // On a card, only a payment or a transfer is a move — an unfiled card credit is
+              // as likely a refund.
+              return x.row.isTransfer === true || (bank && isUnfiled(c)) || (!isUnfiled(c) && MOVE_CATEGORY_IDS.has(c!));
             })
-            .map((x) => ({
-              id: x.row.id,
-              account: x.account.id,
-              date: x.date,
-              amountCents: x.row.amountCents,
-              names: DEPOSIT_SOURCE_TYPES.has(x.account.type) && namesDestination(x),
-            })),
+            .map((x) => {
+              const bank = DEPOSIT_SOURCE_TYPES.has(x.account.type);
+              return {
+                id: x.row.id,
+                account: x.account.id,
+                date: x.date,
+                amountCents: x.row.amountCents,
+                names: bank && namesDestination(x),
+                masked: bank && evidenceOf(x).inv.length > 0,
+                card: !bank,
+              };
+            }),
         );
 
   const destinationFor = (
@@ -524,7 +607,7 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
     const e = evidenceOf(x);
     if (e.inv.length === 0 && e.named.length === 0) {
       return row.categoryId === 'investment'
-        ? { kind: 'uncounted', reason: 'no-account-named', brokerage: null, accountIds: [] }
+        ? { kind: 'uncounted', reason: 'no-account-named', brokerage: null, accountIds: [], byLastFour: false }
         : { kind: 'ignore' };
     }
 
@@ -532,41 +615,47 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
     if (e.inv.length > 0) {
       const hit = e.inv[0]!;
       const hitBrokerage = brokerageOf.get(hit.id) ?? null;
+      const accountIds = e.inv.map((a) => a.id);
       const shared =
         e.inv.length > 1 ||
-        e.own.length > 0 ||
         input.accounts.some((a) => a.id !== hit.id && usableMask(a.mask) !== null && usableMask(a.mask) === usableMask(hit.mask));
       if (shared) {
-        return { kind: 'uncounted', reason: 'shared-last-four', brokerage: null, accountIds: e.inv.map((a) => a.id) };
+        return { kind: 'uncounted', reason: 'shared-last-four', brokerage: null, accountIds, byLastFour: true };
+      }
+      if (e.own.length > 0) {
+        return { kind: 'uncounted', reason: 'names-two-accounts', brokerage: hitBrokerage, accountIds, byLastFour: true, otherAccountLabel: e.own[0]!.label };
       }
       if (e.named.length > 1) {
-        return { kind: 'uncounted', reason: 'two-brokerages', brokerage: e.named[0]!, other: e.named[1]!, accountIds: [hit.id] };
+        return { kind: 'uncounted', reason: 'two-brokerages', brokerage: e.named[0]!, other: e.named[1]!, accountIds, byLastFour: true };
       }
       if (e.named.length === 1 && hitBrokerage !== null && e.named[0]!.key !== hitBrokerage.key) {
-        return { kind: 'uncounted', reason: 'last-four-vs-name', brokerage: hitBrokerage, other: e.named[0]!, accountIds: [hit.id] };
+        return { kind: 'uncounted', reason: 'last-four-vs-name', brokerage: hitBrokerage, other: e.named[0]!, accountIds, byLastFour: true };
       }
       placed = { destination: destinationFor('account', [hit], hitBrokerage), brokerage: hitBrokerage };
     } else {
       // The last four of one of the reader's own bank or card accounts: a move between them.
       if (e.own.length > 0) return { kind: 'ignore' };
       if (e.named.length > 1) {
-        return { kind: 'uncounted', reason: 'two-brokerages', brokerage: e.named[0]!, other: e.named[1]!, accountIds: [] };
+        return { kind: 'uncounted', reason: 'two-brokerages', brokerage: e.named[0]!, other: e.named[1]!, accountIds: [], byLastFour: false };
       }
       const brokerage = e.named[0]!;
       const there = investment.filter((a) => brokerageOf.get(a.id)?.key === brokerage.key);
       if (NOT_A_DEPOSIT_RE.test(row.rawDescriptor ?? '')) {
-        return { kind: 'uncounted', reason: 'not-a-deposit', brokerage, accountIds: there.map((a) => a.id) };
+        return { kind: 'uncounted', reason: 'not-a-deposit', brokerage, accountIds: there.map((a) => a.id), byLastFour: false };
       }
       if (there.length === 0) {
         // Money that landed in the reader's own account is a bank move that happens to
         // name a brokerage (their Schwab checking) — nothing to say about investing.
-        return partner.has(row.id) ? { kind: 'ignore' } : { kind: 'uncounted', reason: 'not-linked', brokerage, accountIds: [] };
+        return partner.has(row.id)
+          ? { kind: 'ignore' }
+          : { kind: 'uncounted', reason: 'not-linked', brokerage, accountIds: [], byLastFour: false };
       }
       placed = { destination: destinationFor('brokerage', there, brokerage), brokerage };
     }
 
     const accountIds = placed.destination.accountIds;
-    if (returnedOn.has(row.id)) return { kind: 'uncounted', reason: 'returned', brokerage: placed.brokerage, accountIds };
+    const byLastFour = placed.destination.kind === 'account';
+    if (returnedOn.has(row.id)) return { kind: 'uncounted', reason: 'returned', brokerage: placed.brokerage, accountIds, byLastFour };
     const otherId = partner.get(row.id);
     if (otherId) {
       return {
@@ -574,7 +663,8 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
         reason: 'landed-in-your-account',
         brokerage: placed.brokerage,
         accountIds,
-        otherAccountLabel: accountById.get(otherId)?.label ?? null,
+        byLastFour,
+        otherAccountLabel: labelOf(otherId),
       };
     }
 
@@ -589,16 +679,16 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
         // A feed vouches through yesterday at best, so the week is over only once its last
         // day is before today.
         if (compareDates(weekAfter, today) >= 0) {
-          return { kind: 'uncounted', reason: 'too-new', brokerage: placed.brokerage, accountIds, otherAccountLabel: banksThere[0]!.label };
+          return { kind: 'uncounted', reason: 'too-new', brokerage: placed.brokerage, accountIds, byLastFour, otherAccountLabel: banksThere[0]!.label };
         }
         const blind = banksThere.find((a) => !covers(a, weekBefore, weekAfter));
         if (blind) {
-          return { kind: 'uncounted', reason: 'same-brokerage-account', brokerage: placed.brokerage, accountIds, otherAccountLabel: blind.label };
+          return { kind: 'uncounted', reason: 'same-brokerage-account', brokerage: placed.brokerage, accountIds, byLastFour, otherAccountLabel: blind.label };
         }
       }
     }
     if (isUnfiled(row.categoryId)) {
-      return { kind: 'uncounted', reason: 'not-filed', brokerage: placed.brokerage, accountIds };
+      return { kind: 'uncounted', reason: 'not-filed', brokerage: placed.brokerage, accountIds, byLastFour };
     }
     return { kind: 'placed', ...placed };
   };
@@ -609,9 +699,11 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
   if (startMonth !== null) {
     for (let m = startMonth; m <= currentMonth; m = addMonthsToMonthKey(m, 1)) {
       const w = monthWindow(m);
-      // This month needs records only through yesterday — today is not over.
-      const need = m === currentMonth ? addDays(today, -1) : w.to;
-      const to = compareDates(need, w.from) < 0 ? w.from : need;
+      // This month needs records only through the day before yesterday — today is not over
+      // and the latest daily sync may not have run; with no such day yet, nothing to cover.
+      const need = m === currentMonth ? addDays(today, -2) : w.to;
+      const missingRecordsFrom =
+        compareDates(need, w.from) < 0 ? [] : sources.filter((a) => !covers(a, w.from, need)).map((a) => a.label);
       monthIndex.set(m, months.length);
       months.push({
         month: m,
@@ -620,14 +712,14 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
         takenOutCents: 0,
         events: [],
         uncountedCount: 0,
-        missingRecordsFrom: sources.filter((a) => !covers(a, w.from, to)).map((a) => a.label),
+        missingRecordsFrom,
       });
     }
   }
 
   const scopeAccount = input.scopeAccountId ? accountById.get(input.scopeAccountId) : undefined;
   const scope = scopeAccount && scopeAccount.type === 'INVESTMENT' ? scopeAccount : undefined;
-  let byName: { brokerageName: string; putInCents: number; takenOutCents: number } | null = null;
+  let byName: { brokerageName: string; accountsThere: number; putInCents: number; takenOutCents: number } | null = null;
 
   const destinations = new Map<string, { destination: DepositDestination; putInCents: number; takenOutCents: number }>();
   const uncounted: UncountedRow[] = [];
@@ -635,7 +727,7 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
   if (windowStart !== null) {
     for (const x of live) {
       const { row, account, date } = x;
-      if (!DEPOSIT_SOURCE_TYPES.has(account.type) || !countable(x) || !filedAsMove(x)) continue;
+      if (!DEPOSIT_SOURCE_TYPES.has(account.type) || !countable(x) || !bigEnough(x) || !filedAsMove(x)) continue;
       if (compareDates(date, windowStart) < 0 || consumedReturns.has(row.id)) continue;
 
       const month = monthKey(date);
@@ -644,7 +736,8 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
       const outcome = place(x);
       if (outcome.kind === 'ignore') continue;
       if (outcome.kind === 'uncounted') {
-        if (scope && !outcome.accountIds.includes(scope.id)) continue;
+        // Narrowed: only rows whose last four point at this account are this account's to explain.
+        if (scope && !(outcome.byLastFour && outcome.accountIds.includes(scope.id))) continue;
         uncounted.push({
           rowId: row.id,
           date,
@@ -658,6 +751,8 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
           brokerageName: outcome.brokerage?.name ?? null,
           otherBrokerageName: outcome.other?.name ?? null,
           destinationAccountIds: outcome.accountIds,
+          destinationLabels: outcome.accountIds.map(labelOf),
+          byLastFour: outcome.byLastFour,
           otherAccountLabel: outcome.otherAccountLabel ?? null,
           returnedOn: outcome.reason === 'returned' ? returnedOn.get(row.id) ?? null : null,
         });
@@ -670,7 +765,7 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
           // A firm's name says nothing about WHICH account there — never counted as this
           // account's money, only reported beside it.
           if (destination.accountIds.includes(scope.id)) {
-            byName ??= { brokerageName: destination.brokerageName ?? '', putInCents: 0, takenOutCents: 0 };
+            byName ??= { brokerageName: destination.brokerageName ?? '', accountsThere: destination.accountIds.length, putInCents: 0, takenOutCents: 0 };
             if (direction === 'in') byName.putInCents += cents;
             else byName.takenOutCents += cents;
           }

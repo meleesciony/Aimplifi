@@ -27,10 +27,12 @@ import { cents, formatCents } from '@/lib/money';
 function Figure({ parts, testid }: { parts: readonly string[]; testid?: string }) {
   return (
     <span className="ml-auto flex flex-wrap justify-end gap-x-2 tabular-nums" data-testid={testid}>
+      {/* The separator ends a chunk, so a wrapped line never starts with "·". */}
       {parts.map((p, i) => (
         <span key={i} className="whitespace-nowrap">
-          {i > 0 ? ' · ' : ''}
+          {i > 0 ? ' ' : ''}
           {p}
+          {i < parts.length - 1 ? ' ·' : ''}
         </span>
       ))}
     </span>
@@ -49,7 +51,7 @@ function UncountedList({ rows }: { rows: readonly UncountedRow[] }) {
           <li key={u.rowId} data-testid="deposit-uncounted-row" data-reason={u.reason}>
             <div className="flex flex-wrap items-baseline justify-between gap-x-3">
               <span className="min-w-0 break-words">
-                <span className="text-muted-foreground">{formatISODate(u.date)} · </span>
+                <span className="text-muted-foreground">{formatISODate(u.date, 'long')} · </span>
                 {u.descriptor}
               </span>
               <span className="whitespace-nowrap tabular-nums">{formatCents(cents(u.cents))}</span>
