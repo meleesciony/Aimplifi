@@ -7,6 +7,8 @@ import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { PlanFiguresForm } from '@/components/finance/plan-figures-form';
 import { PlanRowActionLink } from '@/components/finance/plan-row-action-link';
 import { getSpendingPlan } from '@/server/spending-plan';
+import { getMeasuredSavings } from '@/server/measured-savings';
+import { MeasuredSavingsCard } from '@/components/finance/measured-savings-card';
 import { traceSafeToSpend } from '@/lib/engine/glass-box/trace';
 import { REVIEW_FIXED_HREF } from '@/lib/engine/spending-plan/fixed-review';
 import { HOME_NEEDS_FILE_HREF } from '@/lib/copy/home-needs-file-copy';
@@ -51,7 +53,7 @@ export default async function SpendingPlanPage() {
 
   const p = await getSpendingPlan(userId);
   const canEditFigures = !isDemoUser(userId);
-  const [accounts, userRow, supersededFunding] = await Promise.all([
+  const [accounts, userRow, supersededFunding, measured] = await Promise.all([
     prisma.account.findMany({
       where: { userId, OR: [{ currency: null }, { currency: 'USD' }] },
       select: { id: true, name: true, displayName: true, type: true },
@@ -61,6 +63,8 @@ export default async function SpendingPlanPage() {
       select: { reserveHoldingAccountId: true },
     }),
     activeSupersededPredecessorIds([userId]),
+    // #790: what the reader actually set aside, against this plan's savings line.
+    getMeasuredSavings(userId, p.plannedSavingsCents),
   ]);
   const eligibleAccounts = accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type) && !supersededFunding.has(a.id))
@@ -200,7 +204,8 @@ export default async function SpendingPlanPage() {
                 }),
                 testId: 'plan-legend-fixed',
               },
-              { swatch: 'bg-sky-400/80', label: 'Savings', href: null, testId: 'plan-legend-savings' },
+              // #790: the savings line opens what was actually set aside.
+              { swatch: 'bg-sky-400/80', label: 'Savings', href: '#money-set-aside', testId: 'plan-legend-savings' },
               {
                 swatch: 'bg-positive-500/80',
                 label: 'Guilt-free',
@@ -301,6 +306,11 @@ export default async function SpendingPlanPage() {
           ) : null}
         </p>
       </section>
+
+      {/* #790 — the plan's savings line, measured: what actually went into the
+          reader's linked savings and investment accounts. Rendered from the
+          engine verbatim; this page does no arithmetic on it. */}
+      <MeasuredSavingsCard measured={measured} canLink={canEditFigures} />
 
       {/* C.19 / H.3 — owner, four times: "where is mortgage? Fixed expense list
           must include mortgage". The figure always held it (C.24 unions the

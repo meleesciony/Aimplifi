@@ -335,11 +335,13 @@ export function descriptorCarriesMask(descriptor: string, mask: string | null): 
   return re.test(descriptor);
 }
 
-interface Live {
+/** A register row on a live account: read through its terminal successor, dated. */
+export interface LiveDepositRow {
   row: DepositRow;
   account: DepositAccount;
   date: ISODate;
 }
+type Live = LiveDepositRow;
 
 /**
  * On a handover day, per (real account, day, amount), keep the rows of the copy that
@@ -447,25 +449,46 @@ type Placement =
     }
   | { kind: 'ignore' };
 
-export function computeDepositHistory(input: DepositHistoryInput): DepositHistory {
-  const today = isoDate(input.today);
-  const currentMonth = monthKey(today);
+/**
+ * Every register row on a live account, read through its terminal successor, one copy
+ * per real movement on a handover day. Exported so a reader of the same rows — the
+ * measured-savings engine (#790) — reads exactly these, never a re-derivation.
+ */
+export function liveDepositRows(
+  input: Pick<DepositHistoryInput, 'rows' | 'accounts' | 'terminalOf' | 'handoverDates'>,
+): LiveDepositRow[] {
   const terminal = (id: string) => input.terminalOf?.get(id) ?? id;
   const accountById = new Map(input.accounts.map((a) => [a.id, a]));
-  const investment = input.accounts.filter((a) => a.type === 'INVESTMENT');
-  const sources = input.accounts.filter((a) => DEPOSIT_SOURCE_TYPES.has(a.type));
-  const brokerageOf = new Map(input.accounts.map((a) => [a.id, brokerageOfAccount(a.institutionName, a.feedName)]));
-  const labelOf = (id: string) => accountById.get(id)?.label ?? id;
-
-  // Every register row on a live account, read through its terminal successor, one copy
-  // per real movement on a handover day.
-  const live = collapseHandoverCopies(
+  return collapseHandoverCopies(
     input.rows
       .map((r) => ({ row: r, account: accountById.get(terminal(r.accountId)) }))
       .filter((x): x is { row: DepositRow; account: DepositAccount } => x.account !== undefined)
       .map((x) => ({ ...x, date: isoDate(x.row.date) })),
     input.handoverDates ?? new Set<string>(),
   );
+}
+
+/** A row that is money that has moved: posted, not a split parent, not excluded, not $0, not after today. */
+export function countableDepositRow(x: LiveDepositRow, today: ISODate): boolean {
+  return (
+    x.row.status === 'POSTED' &&
+    !x.row.isSplitParent &&
+    !isExcludedFromTotals(x.row) &&
+    x.row.amountCents !== 0 &&
+    compareDates(x.date, today) <= 0
+  );
+}
+
+export function computeDepositHistory(input: DepositHistoryInput): DepositHistory {
+  const today = isoDate(input.today);
+  const currentMonth = monthKey(today);
+  const accountById = new Map(input.accounts.map((a) => [a.id, a]));
+  const investment = input.accounts.filter((a) => a.type === 'INVESTMENT');
+  const sources = input.accounts.filter((a) => DEPOSIT_SOURCE_TYPES.has(a.type));
+  const brokerageOf = new Map(input.accounts.map((a) => [a.id, brokerageOfAccount(a.institutionName, a.feedName)]));
+  const labelOf = (id: string) => accountById.get(id)?.label ?? id;
+
+  const live = liveDepositRows(input);
 
   // Each account's record: its first row → the later of its last row and the day a live
   // feed vouches for. A row after today proves nothing yet.
@@ -554,12 +577,7 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
     for (const b of e.named) t.add(`brk:${b.key}`);
     return t;
   };
-  const countable = (x: Live) =>
-    x.row.status === 'POSTED' &&
-    !x.row.isSplitParent &&
-    !isExcludedFromTotals(x.row) &&
-    x.row.amountCents !== 0 &&
-    compareDates(x.date, today) <= 0;
+  const countable = (x: Live) => countableDepositRow(x, today);
   // Filed as a move — Transfer or Investment & Savings, the filing every spending figure
   // reads (#789, `isMoneyMoveCategoryId`) — or not filed at all. The reader's own filing is
   // honored here exactly as there (critic cycle 2, P1-1): one row, one verdict.
