@@ -806,6 +806,10 @@ const SYNONYMS: { re: RegExp; target: SpendTarget }[] = [
   { re: /\b(subscriptions?)\b/, target: catTarget('subscriptions') },
   { re: /\b(fees?|charges)\b/, target: catTarget('fees') },
   { re: /\b(taxes?)\b/, target: catTarget('taxes') },
+  // #789 (critic cycle 1, P2-1): the leaf's own name, so "how much did I spend on
+  // investment & savings" reaches the answer that says why no spending figure counts
+  // it. The full name only — "investments" alone is a portfolio question elsewhere.
+  { re: /\binvestments? (?:&|and) savings\b/, target: catTarget('investment') },
 ];
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

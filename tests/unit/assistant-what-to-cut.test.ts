@@ -41,7 +41,7 @@ const series = detectRecurring(
   today,
   NO_RECURRING_OVERRIDES,
 );
-const seedOpportunities = findOpportunities(series, 700, 250, []);
+const seedOpportunities = findOpportunities(series, 700, 250, [], new Set());
 const dials = { returnIsDefault: true, inflationIsDefault: true };
 
 function answerFrom(
@@ -334,7 +334,7 @@ describe('answerWhatToCut — phrases the coach list, originates no figure', () 
   });
 
   it('test_regression__w6a_ask_cut_list_omits_a_money_dial_merchant', () => {
-    const protectedGym = findOpportunities(series, 700, 250, ['fitness']);
+    const protectedGym = findOpportunities(series, 700, 250, ['fitness'], new Set());
     const a = answerFrom(protectedGym, ['Fitness']);
     expect(a.headline).not.toContain('LA Fitness');
     expect(a.facts.some((f) => f.label === 'LA Fitness')).toBe(false);

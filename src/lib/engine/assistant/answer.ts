@@ -71,7 +71,7 @@ import {
   frozenTotalNote,
 } from '@/lib/engine/account/feed-dropped-view';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
-import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, type CategoryMeta, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { addMonthsClamped, compareDates, formatMonth, isoDate, type ISODate } from '@/lib/dates';
 import type { GoalProgress } from '@/lib/engine/goals/progress';
@@ -612,10 +612,21 @@ export function answerSpendByCategory(breakdown: SpendingBreakdown, target: Spen
     // it is accumulated from `byCategory`, which no longer holds this category —
     // so the count has to come from the dropped set, scoped to this same target.
     const uncounted = uncountedFor(breakdown, target);
+    // #789: a leaf that is never spending reads "No … spending" for EVERY month —
+    // true, and useless without the reason, beside a register full of its rows.
+    const moveNote =
+      target.type === 'category' && isMoneyMoveCategoryId(target.categoryId)
+        ? target.categoryId === 'investment'
+          ? `Money filed ${target.label} is saving, not spending, so no spending figure counts it.`
+          : `A transfer moves your own money between your accounts, so no spending figure counts it.`
+        : null;
     return {
       kind: 'spend_by_category',
       headline: `No ${target.label} spending ${tf.label}.`,
-      detail: uncounted > 0 ? handoverDayUncountedNote(uncounted, target.label) : undefined,
+      detail:
+        [moveNote, uncounted > 0 ? handoverDayUncountedNote(uncounted, target.label) : null]
+          .filter((x): x is string => x !== null)
+          .join(' ') || undefined,
       facts,
       source: REPORTS_SOURCE,
     };
@@ -840,7 +851,7 @@ function isPurchaseRow(t: AskTxnRow, meta: ReadonlyMap<string, CategoryMeta>): b
   if (t.isSplitParent || t.isTransfer || isExcludedFromTotals(t)) return false;
   if (t.amountCents >= 0) return false;
   const id = namedCategoryId(t);
-  if (id === 'transfer') return false;
+  if (isMoneyMoveCategoryId(id)) return false; // #789: Transfer and Investment & Savings move money
   const group = meta.get(id)?.group;
   if (group === 'Income' || group === NON_ACTIONABLE_GROUP) return false;
   return true;
@@ -973,6 +984,14 @@ export interface MerchantSpendResult {
    *  denying. */
   excludedLoanPaymentCount: number;
   excludedLoanPaymentCents: number;
+  /** #789 (critic cycle 1, P2-2): outflows to this name, in the window, filed as money
+   *  moved between the reader's own accounts (`isMoneyMoveCategoryId`) — never spending, so
+   *  never in `count`. Non-zero with `count === 0` means "you sent money there, and it
+   *  is saving", a different fact from "you spent nothing there". */
+  moneyMoveCount: number;
+  moneyMoveCents: number;
+  /** True when every one of those rows is filed Investment & Savings (the words then say saving). */
+  moneyMoveAllInvesting: boolean;
   /** Matched rows, contribution-desc then most-recent-first. SIGNED: a purchase is
    *  positive, a refund negative, so `items` always sums to `totalCents` — which is
    *  what the Glass-Box trace asserts at runtime.
@@ -1107,6 +1126,21 @@ export function merchantSpend(
       ? matchedAll
       : matchedAll.filter((t) => !(typeof t.id === 'string' && excludedFlowIds.has(t.id)));
   const excludedLoanRows = matchedAll.length - named.length;
+  // #789: money moved to this name (a brokerage deposit filed Investment & Savings) is
+  // not a spend row, so `isSpendRow` drops it; counted here only so the answer can say
+  // where it went instead of denying that anything did.
+  const moved = rows.filter(
+    (t) =>
+      t.date <= today &&
+      t.date.slice(0, 7) >= tf.fromYm &&
+      t.date.slice(0, 7) <= tf.toYm &&
+      t.amountCents < 0 &&
+      !t.isTransfer &&
+      !t.isSplitParent &&
+      !isExcludedFromTotals(t) &&
+      isMoneyMoveCategoryId(t.categoryId) &&
+      merchantMatches(t.merchant, q),
+  );
   const excludedLoanCents = named.length === matchedAll.length ? 0 : matchedAll
     .filter((t) => typeof t.id === 'string' && excludedFlowIds!.has(t.id))
     .reduce((s, t) => s + -Math.min(0, t.amountCents), 0);
@@ -1190,6 +1224,9 @@ export function merchantSpend(
     excludedAggregateCount: aggregateRows.length,
     excludedLoanPaymentCount: excludedLoanRows,
     excludedLoanPaymentCents: excludedLoanCents,
+    moneyMoveCount: moved.length,
+    moneyMoveCents: moved.reduce((s, t) => s - t.amountCents, 0),
+    moneyMoveAllInvesting: moved.length > 0 && moved.every((t) => t.categoryId === 'investment'),
     items,
     // U.20: over `matched` — the same array every figure above is derived from,
     // and via the same predicate `items` is flagged with, so the count and the
@@ -1311,6 +1348,23 @@ export function answerMerchantSpend(res: MerchantSpendResult, tf: Timeframe): As
       kind: 'merchant_spend',
       headline: `Payments to ${res.merchant} aren't counted as spending ${tf.label}.`,
       detail: `${fmt(res.excludedLoanPaymentCents)} went there${res.excludedLoanPaymentCount === 1 ? '' : ` across ${res.excludedLoanPaymentCount} payments`} — counted on the loan instead.`,
+      facts: [],
+      source: ACTIVITY_SOURCE,
+    };
+  }
+
+  if (res.count === 0 && res.moneyMoveCount > 0) {
+    // #789 (critic cycle 1, P2-2): money DID go there — moved into the reader's own
+    // investing or savings, which is not spending. Denying it would be the same false
+    // "no spending" the loan branch above refuses to print.
+    return {
+      kind: 'merchant_spend',
+      headline: `Money sent to ${res.merchant} isn't spending ${tf.label}.`,
+      detail: `${fmt(res.moneyMoveCents)} went there${res.moneyMoveCount === 1 ? '' : ` across ${res.moneyMoveCount} transfers`} — ${
+        res.moneyMoveAllInvesting
+          ? 'money moved into investing or savings is saving, not spending.'
+          : 'it is filed as money moved between your own accounts, which is not spending.'
+      }`,
       facts: [],
       source: ACTIVITY_SOURCE,
     };
@@ -2839,7 +2893,7 @@ export function answerSubscriptions(summary: RecurringSummary): AssistantAnswer 
   }
   if (summary.priceIncreases.length > 0) {
     detailParts.push(
-      `${summary.priceIncreases.length} ${summary.priceIncreases.length === 1 ? 'subscription has' : 'subscriptions have'} gone up in price recently.`,
+      `${summary.priceIncreases.length} recurring ${summary.priceIncreases.length === 1 ? 'charge has' : 'charges have'} gone up in price recently.`,
     );
   }
   return {

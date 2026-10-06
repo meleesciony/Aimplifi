@@ -38,6 +38,7 @@ describe('summarizeSharedMovement (pure)', () => {
     isTransfer: false,
     status: 'POSTED',
     isSplitParent: false,
+    categoryId: null,
     ...over,
   });
 

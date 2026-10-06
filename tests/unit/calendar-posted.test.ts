@@ -33,7 +33,7 @@ function row(over: Partial<PostedTxnLike> & Pick<PostedTxnLike, 'date' | 'amount
   // silently: U.24 made the field required on PostedTxnLike precisely so a new builder
   // has to answer, and a helper that spread `undefined` here would hand every future
   // test back the silence the field exists to break.
-  return { isTransfer: false, excludeFromTotals: false, onHandoverDay: false, ...over };
+  return { isTransfer: false, excludeFromTotals: false, onHandoverDay: false, categoryId: null, ...over };
 }
 
 const BOUNDS = { oldestPostedDate: isoDate('2025-01-05'), newestPostedDate: isoDate('2026-08-03') };

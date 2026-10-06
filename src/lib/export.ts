@@ -173,7 +173,7 @@ export function excludedTransferCsvNote(rows: readonly ExportTxn[]): string | nu
       : null,
     hasTransfer
       ? 'rows marked yes in transfer are ones Aimplifi treated as moving money between accounts ' +
-        'rather than as spending or income.'
+        'or into investing rather than as spending or income.'
       : null,
     `${hasExcluded && hasTransfer ? 'Both kinds are' : 'They are'} left out of the money-in, ` +
       'money-out and net figures on Aimplifi\'s Transactions page, so a sum of the amount column ' +

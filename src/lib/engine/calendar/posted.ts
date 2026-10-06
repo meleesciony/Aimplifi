@@ -31,6 +31,12 @@ export interface PostedTxnLike {
   isTransfer: boolean;
   excludeFromTotals?: boolean | null;
   /**
+   * #789: the filing, REQUIRED because the shared summarize reads it
+   * (`isMoneyMoveCategoryId`) — money moved between the reader's own accounts leaves the
+   * totals here exactly as it leaves the register's (the K.1 equality).
+   */
+  categoryId: string | null;
+  /**
    * True for a PENDING row (critics K.1 F-1, both independently): the bank has
    * reported it but it has not POSTED — it can be repriced or vanish. The money
    * stays in the figures (the register's summary counts pending too, and the
@@ -79,6 +85,12 @@ export interface PostedCalendarDay {
    * explanation — these counts let the surface say what the zero is made of.
    */
   transferCount: number;
+  /**
+   * #789 (critic cycle 2, P2-2): rows filed Investment & Savings and not flagged a
+   * transfer — money into or out of investing, which leaves the figures too, so the
+   * surface names it rather than printing an unexplained zero.
+   */
+  investingCount: number;
   excludedCount: number;
   /**
    * U.24: rows on this day the released-handover boundary kept on BOTH sides and
@@ -217,7 +229,8 @@ export function buildPostedCalendarMonth(params: {
       netCents: s.netCents,
       count: s.count,
       pendingCount: dayRows.filter((r) => r.pending === true).length,
-      transferCount: dayRows.filter((r) => r.isTransfer).length,
+      transferCount: dayRows.filter((r) => r.isTransfer || r.categoryId === 'transfer').length,
+      investingCount: dayRows.filter((r) => !r.isTransfer && r.categoryId === 'investment').length,
       excludedCount: s.excludedCount,
       countedOnHandoverDays: s.countedOnHandoverDays,
       handoverRowCount: dayRows.filter((r) => r.onHandoverDay).length,

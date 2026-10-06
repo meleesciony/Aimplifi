@@ -154,6 +154,7 @@ describe('behavioral engines follow the same basis', () => {
       isTransfer: false,
       status: 'POSTED',
       isSplitParent: false,
+      categoryId: null,
     };
     const base = { accountCount: 1, since: isoDate('2026-06-01'), today: isoDate('2026-06-20') };
     const withRow = summarizeSharedMovement({ rows: [row], ...base });

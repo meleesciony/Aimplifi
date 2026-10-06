@@ -133,4 +133,4 @@ export function thinHistoryNote(chargeCount: number): string | null {
  *  screen. The lens total is GROSS posted charges: refunds (positive rows) are
  *  never subtracted, and nothing pending is in it. */
 export const LENS_SCOPE_NOTE =
-  'Covers every posted charge at this merchant across your history — gross, refunds not netted, nothing pending. The summary below nets refunds and includes pending; the list may show only a slice.';
+  'Covers every posted charge at this merchant across your history — gross, refunds not netted, nothing pending, and no transfer or money moved into investing. The summary below nets refunds and includes pending; the list may show only a slice.';

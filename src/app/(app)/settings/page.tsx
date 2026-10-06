@@ -24,8 +24,9 @@ import { getCategoryMeta } from '@/server/category-meta';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCustomCategories } from '@/server/category-meta';
 import { CUSTOM_CATEGORY_GROUPS } from '@/lib/engine/categorize/assign';
-import { PAYMENT_ACCOUNT_TYPES } from '@/lib/engine/settings/dials';
+import { PAYMENT_ACCOUNT_TYPES, parseStoredDials } from '@/lib/engine/settings/dials';
 import { loadDialCatalog, resolvedMoneyDialIds } from '@/server/money-dials';
+import { INVESTMENT_DIAL_RETIRED_NOTE, storedDialOnInvestment } from '@/lib/engine/settings/money-dial-ids';
 import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import { deletionSummary } from '@/lib/engine/account/deletion';
 import { getVapidPublicKey, pushProviderConfigured } from '@/lib/push';
@@ -232,6 +233,12 @@ export default async function SettingsPage() {
         dialOptions={dialOptions}
         canWrite={!isDemoUser(userId)}
       />
+      {/* #789: a dial on Investment & Savings is no longer read — named, never dropped silently. */}
+      {storedDialOnInvestment(parseStoredDials(user.moneyDials)) && (
+        <p className="px-1 pt-2 text-xs text-muted-foreground" data-testid="money-dial-investment-retired">
+          {INVESTMENT_DIAL_RETIRED_NOTE}
+        </p>
+      )}
       </div>
       <p className="px-1 text-xs text-muted-foreground" data-testid="assumptions-change">
         {COACH_COPY.assumptionsChange()}

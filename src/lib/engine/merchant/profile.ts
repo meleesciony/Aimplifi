@@ -29,6 +29,7 @@
  * predates a KNOWN_MERCHANTS edit; recorded residual, STATUS §Merchant
  * Pattern Lens.)
  */
+import { isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { type Cents, cents, roundHalfAwayFromZero } from '@/lib/money';
 import { medianOfSorted } from '@/lib/stats';
 import { type ISODate, addMonthsClamped, compareDates, isoDate, startOfMonth } from '@/lib/dates';
@@ -46,6 +47,8 @@ export interface LensTxn {
   isTransfer: boolean;
   /** O.15: reader-excluded rows leave every total via this one basis. */
   excludeFromTotals?: boolean | null;
+  /** #789 (critic cycle 2, P3-1): a row filed Transfer or Investment & Savings is not a charge. */
+  categoryId?: string | null;
 }
 
 /** One fully-covered 3-calendar-month window of qualifying charges. */
@@ -86,7 +89,7 @@ export const LENS_WINDOW_MONTHS = 3;
 /** Same inclusion rule as the anomaly engine (split parents excluded upstream;
  *  O.15 — excluded rows leave the lens's money figures like every other total). */
 function isQualifyingCharge(t: LensTxn): boolean {
-  return t.status === 'POSTED' && !t.isTransfer && !isExcludedFromTotals(t) && t.amountCents < 0;
+  return t.status === 'POSTED' && !t.isTransfer && !isMoneyMoveCategoryId(t.categoryId) && !isExcludedFromTotals(t) && t.amountCents < 0;
 }
 
 function windowOf(

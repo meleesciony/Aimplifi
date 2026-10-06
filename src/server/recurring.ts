@@ -20,6 +20,7 @@ import { confirmedPauseState } from '@/lib/engine/income/pause';
 import { getRecurringOverrides } from '@/server/recurring-overrides';
 import { getRecurringPaidThrough } from '@/server/recurring-paid-through';
 import { summarizeRecurring, type RecurringSummary } from '@/lib/engine/recurring/summary';
+import { moneyMoveMerchantCanonicals } from '@/lib/engine/fi/insights';
 import { upcomingRenewals, type UpcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { categoryName } from '@/lib/engine/categorize/categories';
 import { getCategoryMeta } from '@/server/category-meta';
@@ -91,7 +92,12 @@ export async function getRecurring(userId: string): Promise<RecurringData> {
     getBillCadences(userId),
   ]);
   const series = detectRecurring(txns, isoDate(today), overrides, paidThrough);
-  const summary = summarizeRecurring(series, today);
+  // #789 (critic cycle 2, P2-3): a series the reader's stored rows file as a money move is
+  // more saving when it rises, never a price increase.
+  const moves = moneyMoveMerchantCanonicals(
+    snap.transactions.filter((t) => t.status === 'POSTED' && !t.isSplitParent && spendingIds.has(t.accountId)),
+  );
+  const summary = summarizeRecurring(series, today, moves);
   const renewals = upcomingRenewals(summary.items, today);
 
   const accountNames: Record<string, string> = {};

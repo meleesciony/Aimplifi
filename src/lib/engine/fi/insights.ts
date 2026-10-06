@@ -13,7 +13,7 @@ import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
-import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 // O.20h: the creep bar classifies rows with the register's own classifier. The
 // cycle here is type-only in the other direction (spend-class imports TxnLike),
 // which TypeScript elides — the runtime graph is acyclic.
@@ -83,12 +83,20 @@ export interface TxnLike {
  * glass-box month-flow panel. The converse leak (`isTransfer: true` under a
  * real spend category) is NOT in scope here — both predicates already agree
  * on the flag, and flipping it needs a product decision (H.7b / detector).
+ *
+ * DECISIONS #789: the same leaf gate for Investment & Savings. A brokerage
+ * deposit the categorizer files there ("VANGUARD BUY INVESTMENT") has no
+ * paired row to flag — the app holds no rows for the brokerage side — so it
+ * counted as an EXPENSE: the savings rate fell by exactly the money saved, the
+ * FI number grew by it, and a withdrawal back to checking netted spending
+ * down. Both directions now count on neither side (`MONEY_MOVE_CATEGORY_IDS`).
  */
 export function countsInFlows(t: TxnLike, excludedFlowIds?: ReadonlySet<string>): boolean {
   if (typeof t.id === 'string' && excludedFlowIds?.has(t.id)) return false;
-  // Match `isSpendRow`'s transfer-leaf gate (reports.ts): a filed Transfer is
-  // not income or spend even when the pairing detector left `isTransfer` false.
-  if (t.categoryId === 'transfer') return false;
+  // Match `isSpendRow`'s leaf gate (reports.ts): a filed Transfer or Investment &
+  // Savings is not income or spend even when the pairing detector left
+  // `isTransfer` false.
+  if (isMoneyMoveCategoryId(t.categoryId)) return false;
   return !t.isTransfer && t.status === 'POSTED' && !t.isSplitParent && !isExcludedFromTotals(t);
 }
 
@@ -262,11 +270,39 @@ export interface Opportunity {
  * single pre-blended argument would let a caller hand over a real rate and get an answer
  * deflated twice, with nothing in the types to notice.
  */
+/**
+ * The canonical merchants whose rows the reader's register files as money moved
+ * between their own accounts (`isMoneyMoveCategoryId`: Transfer, or Investment & Savings).
+ * A detected series is keyed by merchant and
+ * carries only the merchant's DEFAULT filing, so the stored filings reach it through
+ * this set (#789, critic cycle 1 P0-1).
+ */
+export function moneyMoveMerchantCanonicals(
+  txns: readonly { categoryId?: string | null; rawDescriptor: string }[],
+): Set<string> {
+  const out = new Set<string>();
+  for (const t of txns) if (isMoneyMoveCategoryId(t.categoryId)) out.add(normalizeMerchant(t.rawDescriptor).canonical);
+  return out;
+}
+
+/**
+ * A recurring series that moves the reader's own money — its merchant's default filing
+ * is Transfer or Investment & Savings, or its rows are filed that way — is never a cut
+ * candidate and never a price that crept (#789, critic cycle 1 P0-1): cutting a
+ * contribution cannot lower an FI number that no longer counts it, and a rising
+ * auto-invest is more saving, not a bill that grew.
+ */
+export function isMoneyMoveSeries(s: RecurringSeriesResult, moneyMoveMerchants: ReadonlySet<string>): boolean {
+  return isMoneyMoveCategoryId(s.categoryId) || moneyMoveMerchants.has(s.merchantCanonical);
+}
+
 export function findOpportunities(
   series: readonly RecurringSeriesResult[],
   nominalReturnBps: number,
   inflationBps: number,
   moneyDialIds: readonly string[],
+  /** `moneyMoveMerchantCanonicals` over the same rows the series were detected from. */
+  moneyMoveMerchants: ReadonlySet<string>,
 ): Opportunity[] {
   const out: Opportunity[] = [];
   const push = (
@@ -297,6 +333,8 @@ export function findOpportunities(
   };
 
   for (const s of series) {
+    // #789: money moved into investing or savings is never a cut.
+    if (isMoneyMoveSeries(s, moneyMoveMerchants)) continue;
     // W.6(a) on this list, not only on wealth-target proposals: a money dial
     // is not a cut candidate. Coach and Ask share this array.
     if (categoryMatchesMoneyDial(s.categoryId, moneyDialIds)) continue;

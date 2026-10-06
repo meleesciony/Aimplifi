@@ -9,6 +9,7 @@
  *     prefixes ("SQ *", "TST*", "PAYPAL *"), store numbers, POS/terminal ids,
  *     phone numbers, city/state suffixes → title-cased candidate, low confidence.
  */
+import { BROKERAGE_ONLY_NAME_RE, SHARED_BROKERAGE_MOVE_RE, paysTheFirmWord } from './brokerage-move';
 
 /**
  * THE transfer-descriptor pattern. Anchored/word-bounded on purpose: substring
@@ -381,6 +382,12 @@ export const KNOWN_MERCHANTS: KnownMerchant[] = [
 interface GenericRule {
   pattern: RegExp;
   categoryId: string;
+  /**
+   * A reason the rule does NOT apply, read on the description after the bank-channel
+   * prefixes are stripped — the next rule is tried instead (#789 critic cycle 2, P1-2: a
+   * brokerage's name beside a fee or premium word is a payment to the firm itself).
+   */
+  refuse?: (stripped: string) => unknown;
 }
 const GENERIC_CONFIDENCE_BPS = 8500;
 export const GENERIC_CATEGORY_RULES: GenericRule[] = [
@@ -563,7 +570,15 @@ export const GENERIC_CATEGORY_RULES: GenericRule[] = [
   // Brokerages / robo-advisors / crypto exchanges → investment (#163).
   // FIDELITY must be qualified (critic P1-3): 'FIDELITY NATIONAL TITLE' is an
   // escrow company — a $1,500 closing payment is not an investment.
-  { pattern: /\b(VANGUARD|FIDELITY INVEST\w*|FID BKG|CHARLES SCHWAB|SCHWAB|COINBASE|ROBINHOOD|E\*?TRADE|WEALTHFRONT|BETTERMENT|ACORNS|MERRILL)\b/i, categoryId: 'investment' },
+  // #789 (critic cycle 1, P1-3): six of the names are also ordinary businesses
+  // (LES SCHWAB TIRES, MERRILL GARDENS, VANGUARD CLEANING SYSTEMS, ROBINHOOD
+  // BURGERS …), and Investment & Savings is no longer spending — so a shared name
+  // files here only beside an investing word (`brokerage-move.ts`: one author for
+  // this rule and "Money you put in"'s words). Critic cycle 2, P1-2: a brokerage's name
+  // beside a fee, premium, membership, loan or interest word ("COINBASE ONE", "MERRILL
+  // LYNCH ADVISORY FEE") is a payment to the firm itself — spending, never filed here.
+  { pattern: BROKERAGE_ONLY_NAME_RE, categoryId: 'investment', refuse: paysTheFirmWord },
+  { pattern: SHARED_BROKERAGE_MOVE_RE, categoryId: 'investment', refuse: paysTheFirmWord },
   // Credit bureaus / monitoring → financial; legal services → legal (#163).
   { pattern: /\b(EXPERIAN|EQUIFAX|TRANSUNION|CREDIT KARMA|CREDIT ?REPORT)\b/i, categoryId: 'financial' },
   { pattern: /\b(LEGALZOOM|ROCKET LAWYER|NOTARY|LAW OFFICE|ATTORNEY)\b/i, categoryId: 'legal' },
@@ -883,7 +898,7 @@ export function normalizeMerchant(rawDescriptor: string): MerchantMatch {
   // Generic keyword fallback: a real-world merchant name we can categorize even
   // without a specific pattern (#63). Auto-files (with an "AI" badge), not silent.
   for (const g of GENERIC_CATEGORY_RULES) {
-    if (g.pattern.test(rawDescriptor)) {
+    if (g.pattern.test(rawDescriptor) && !g.refuse?.(stripped)) {
       return {
         canonical: cleaned || 'Unknown Merchant',
         categoryId: g.categoryId,

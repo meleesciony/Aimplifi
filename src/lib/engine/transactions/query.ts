@@ -15,6 +15,7 @@ import { compareDates, isoDate } from '@/lib/dates';
 import type { FreshnessResult } from '@/lib/engine/sync/health';
 import type { ProvenanceVerdict } from '@/lib/engine/categorize/provenance';
 import { type ExcludableTxn, isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
+import { isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { reimbursementState } from '@/lib/engine/transactions/reimbursement';
 import type { RowOrigin } from '@/lib/engine/transactions/origin';
 import type { TxnTagRef } from '@/lib/engine/transactions/tags';
@@ -334,13 +335,16 @@ export function sortByDateDesc(rows: readonly TxnView[]): TxnView[] {
 }
 
 function matchesType(t: TxnView, type: FlowType): boolean {
+  // #789: the type filter reads the totals' own rule, so "Expense" never lists money
+  // moved into investing that the Money out tile leaves out.
+  const move = t.isTransfer || isMoneyMoveCategoryId(t.categoryId);
   switch (type) {
     case 'income':
-      return !t.isTransfer && t.amountCents > 0;
+      return !move && t.amountCents > 0;
     case 'expense':
-      return !t.isTransfer && t.amountCents < 0;
+      return !move && t.amountCents < 0;
     case 'transfer':
-      return t.isTransfer;
+      return move;
     case 'all':
     default:
       return true;
@@ -438,6 +442,12 @@ export interface TotalableTxn extends ExcludableTxn {
   isTransfer: boolean;
   amountCents: number;
   /**
+   * #789: a row filed Transfer or Investment & Savings (`isMoneyMoveCategoryId`) is neither
+   * money in nor money out — the same verdict every spending and income figure gives it.
+   * Both production row types carry it.
+   */
+  categoryId?: string | null;
+  /**
    * U.20: whether this row sits on a day the reconciliation boundary released to
    * both sides of a combined pair.
    *
@@ -462,7 +472,8 @@ export function summarizeTransactions(rows: readonly TotalableTxn[]): TxnSummary
   let handovers = 0;
   for (const t of rows) {
     if (isExcludedFromTotals(t)) excluded += 1;
-    if (t.isTransfer) continue; // transfers are neither income nor expense
+    // Transfers — flagged, or filed as a money move (#789) — are neither income nor expense.
+    if (t.isTransfer || isMoneyMoveCategoryId(t.categoryId)) continue;
     // O.15: excluded rows stay LISTED (and counted as rows) but leave the
     // money figures, the same direction as every other total in the app.
     if (isExcludedFromTotals(t)) continue;

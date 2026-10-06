@@ -173,8 +173,9 @@ export function uncountedReason(u: UncountedRow): string {
     case 'not-linked':
       return `No ${u.brokerageName} investment account is linked here, so it isn’t counted. Link it on Accounts to count it.`;
     case 'not-filed':
-      // Transfer only: a row filed Investment & Savings still counts as spending in reports
-      // (STATUS, #788 "found, not changed"), so this card never advises that filing.
+      // Transfer only. Since #789 an Investment & Savings filing would count here too and
+      // is no longer spending anywhere, but one word is enough and Transfer is the one the
+      // register offers for money moved between the reader's own accounts.
       return 'It isn’t filed yet. File it as Transfer to count it.';
     case 'not-a-deposit':
       return u.direction === 'in'

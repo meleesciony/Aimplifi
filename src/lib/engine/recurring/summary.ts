@@ -8,6 +8,7 @@
  * Pure: integer cents in/out, ISO dates, no I/O, no `new Date()`.
  */
 import { daysBetween, isoDate } from '@/lib/dates';
+import { isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { isSeriesActive } from './detect';
 import type { Cadence, RecurringSeriesResult } from './detect';
 
@@ -47,6 +48,12 @@ export interface RecurringItem extends RecurringSeriesResult {
   /** Still charging? false once overdue by more than half a cadence again. */
   active: boolean;
   daysSinceLast: number;
+  /**
+   * #789 (critic cycle 2, P2-3): the series moves the reader's own money — filed Transfer
+   * or Investment & Savings by default, or by the reader on its stored rows. A larger
+   * amount is more saving, never a price that rose.
+   */
+  movesMoney: boolean;
 }
 
 export interface RecurringSummary {
@@ -60,13 +67,15 @@ export interface RecurringSummary {
   /** Active recurring income, per month. */
   monthlyIncomeCents: number;
   activeSubscriptionCount: number;
-  /** Active EXPENSE series with a detected price increase (income raises excluded). */
+  /** Active EXPENSE series with a detected price increase (income raises and money moves excluded). */
   priceIncreases: RecurringItem[];
 }
 
 export function summarizeRecurring(
   series: readonly RecurringSeriesResult[],
   today: string,
+  /** Canonical merchants whose stored rows the reader filed as a money move (`moneyMoveMerchantCanonicals`). */
+  moneyMoveMerchants: ReadonlySet<string> = new Set(),
 ): RecurringSummary {
   const t = isoDate(today);
 
@@ -75,7 +84,8 @@ export function summarizeRecurring(
     const monthlyEquivalentCents = Math.round((Math.abs(s.typicalAmountCents) * num) / den);
     const daysSinceLast = daysBetween(isoDate(s.lastSeenAt), t);
     const active = isSeriesActive(s, t);
-    return { ...s, monthlyEquivalentCents, active, daysSinceLast };
+    const movesMoney = isMoneyMoveCategoryId(s.categoryId) || moneyMoveMerchants.has(s.merchantCanonical);
+    return { ...s, monthlyEquivalentCents, active, daysSinceLast, movesMoney };
   });
 
   items.sort((a, b) => {
@@ -98,6 +108,7 @@ export function summarizeRecurring(
     (i) =>
       i.active &&
       !i.isIncome &&
+      !i.movesMoney &&
       i.previousAmountCents !== null &&
       Math.abs(i.lastAmountCents) > Math.abs(i.previousAmountCents),
   );
@@ -131,14 +142,15 @@ export type PriceChangeTone = 'favorable' | 'adverse';
  * so no e2e ever renders a rising-income row.
  */
 export function priceChangeBadge(
-  item: Pick<RecurringSeriesResult, 'isIncome' | 'lastAmountCents' | 'previousAmountCents'>,
+  item: Pick<RecurringSeriesResult, 'isIncome' | 'lastAmountCents' | 'previousAmountCents'> & { movesMoney?: boolean },
 ): { increased: boolean; tone: PriceChangeTone; previousMagnitudeCents: number } | null {
   if (item.previousAmountCents === null) return null;
   const mag = Math.abs(item.lastAmountCents);
   const prev = Math.abs(item.previousAmountCents);
   if (mag === prev) return null;
   const increased = mag > prev;
-  // Income: a rise helps. Expense: a fall helps.
-  const favorable = item.isIncome ? increased : !increased;
+  // Income: a rise helps. Money moved into savings or investing (#789): a rise is more
+  // saving, never adverse. Expense: a fall helps.
+  const favorable = item.isIncome || item.movesMoney ? increased : !increased;
   return { increased, tone: favorable ? 'favorable' : 'adverse', previousMagnitudeCents: prev };
 }

@@ -128,7 +128,13 @@ describe('merchantSpend — aggregation', () => {
 
   it('excludes the transfer categoryId even without the isTransfer flag', () => {
     const xfer: AskTxnRow[] = [{ date: '2026-06-05', amountCents: -2000, categoryId: 'transfer', merchant: 'Costco', status: 'POSTED', merchantCategoryId: null, aggregateMerchant: false }];
-    expect(merchantSpend(xfer, THIS_MONTH, 'costco', '2026-06-30').count).toBe(0);
+    const res = merchantSpend(xfer, THIS_MONTH, 'costco', '2026-06-30');
+    expect(res.count).toBe(0);
+    // #789: never a bare "no spending" — and a TRANSFER is not called saving.
+    expect([res.moneyMoveCount, res.moneyMoveAllInvesting]).toEqual([1, false]);
+    expect(answerMerchantSpend(res, THIS_MONTH).detail).toBe(
+      '$20.00 went there — it is filed as money moved between your own accounts, which is not spending.',
+    );
   });
 
   it('empty result keeps the title-cased query as the display name', () => {
@@ -146,6 +152,9 @@ describe('merchantSpend — aggregation', () => {
       excludedAggregateCount: 0,
       excludedLoanPaymentCount: 0,
       excludedLoanPaymentCents: 0,
+      moneyMoveCount: 0, // #789: nothing moved there either
+      moneyMoveCents: 0,
+      moneyMoveAllInvesting: false,
       items: [],
       countedOnHandoverDays: 0, // U.20: required, like the breakdown's, and 0 is the empty-set truth
     });

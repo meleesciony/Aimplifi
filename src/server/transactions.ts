@@ -352,6 +352,8 @@ export interface PostedCalendarRead {
     amountCents: number;
     isTransfer: boolean;
     excludeFromTotals: boolean;
+    /** #789: read by the shared summarize's money-move test (`isMoneyMoveCategoryId`). */
+    categoryId: string | null;
     /** PENDING rows stay in the figures (the register's summary counts them — the gate requires
      *  it) but must be NAMED wherever the surface says "posted" (critics K.1 F-1). */
     pending: boolean;
@@ -374,7 +376,7 @@ export async function getPostedCalendarRows(
   // loads every row per call (see getTransactions) — this select is a strict subset of that work.
   const raw = await prisma.transaction.findMany({
     where: registerRowWhere(userId),
-    select: { accountId: true, date: true, amountCents: true, isTransfer: true, excludeFromTotals: true, status: true },
+    select: { accountId: true, date: true, amountCents: true, isTransfer: true, excludeFromTotals: true, status: true, categoryId: true },
   });
   // U.31: keep + handover keys from ONE read of the link table (`getReconciliationBoundary`)
   // — the two used to be fetched by separate sequential calls that each independently
@@ -399,6 +401,8 @@ export async function getPostedCalendarRows(
         amountCents: r.amountCents,
         isTransfer: r.isTransfer,
         excludeFromTotals: r.excludeFromTotals,
+        // #789: the money-move test the register's totals read, so the two stay equal (K.1).
+        categoryId: r.categoryId,
         pending: r.status === 'PENDING',
         onHandoverDay: handoverKeys.has(handoverKey(r.accountId, r.date)),
       })),
@@ -585,6 +589,7 @@ export async function getTransactions(userId: string, filter: TxnFilter = {}, pa
         status: r.status,
         isTransfer: r.isTransfer,
         excludeFromTotals: r.excludeFromTotals, // O.15: lens money figures obey the basis
+        categoryId: r.categoryId, // #789: money moves are not charges
       })),
       filter.merchant,
       today,

@@ -103,6 +103,7 @@ export async function getHouseholdDigestContext(
           status: true,
           isSplitParent: true,
           excludeFromTotals: true, // O.15: the shared tally obeys the one basis
+          categoryId: true, // #789: so does a row filed as a money move
         },
       })
     : [];

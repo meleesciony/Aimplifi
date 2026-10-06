@@ -73,7 +73,8 @@ import {
   monthWindow,
   type ISODate,
 } from '@/lib/dates';
-import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { BANK_RETURN_RE, paysTheFirmWord } from '@/lib/engine/categorize/brokerage-move';
+import { CATEGORY_BY_ID, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { stripBankNoise } from '@/lib/engine/categorize/normalize';
 import { REVERSAL_RE } from '@/lib/engine/spending-plan/bonus';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
@@ -95,33 +96,18 @@ export const RETURN_WINDOW_DAYS = 14;
 export const HISTORY_MONTHS = 12;
 /** Below this, a deposit is an account-verification test amount, not money put in. */
 export const MIN_DEPOSIT_CENTS = 100;
-/**
- * Words that make a brokerage-named row a payment to (or a refund or payout from) the
- * brokerage itself — a fee, a bill, a loan or mortgage, an insurance premium, a
- * membership, a card payment, a rebate — not money put in or taken out of investing.
- */
-const NOT_A_DEPOSIT_RE =
-  /\b(FEES?|MEMBERSHIP|SUBSCRIPTION|CARD PAYMENT|CARD PMT|CREDIT CARD|(?:VISA|MASTERCARD|AMEX)(?: CARD)? (?:PAYMENT|PMT|AUTOPAY|BILL)|INTEREST(?! (?:INCOME|FUND))|ADVISORY|LOANS?|MORTGAGE|MTG|LENDING|INSURANCE|INS|PREMIUM|REBATE|REFUND|CASH ?BACK|ROBINHOOD GOLD|COINBASE ONE)\b/i;
-/**
- * How a BANK words money it sends back: a returned item, an ACH return, a reversal, a
- * chargeback. A bare "REV" or "RETURN" is not enough — "SMITH REV TRUST", "DEPT OF REV",
- * "TAX RETURN", "RETURN OF CAPITAL" and a store's "RETURN" are other money.
- */
-const BANK_RETURN_RE =
-  /\b(RETURNED ITEM|RETURN ITEM|RETURNED|ACH RETURN|ACH DEBIT RETURN|RETURN ACH|ACH RTN|RTN|ACH REV|NSF|UNPAID ITEM|UNPAID|ELECTRONIC RETURN|RETURN OF POSTED|TRANSFER RETURN|REVERSAL|REVERSED|CHARGEBACK|CHGBK)\b/i;
 /** Person-to-person payments: a brokerage's name in one is a person's name. */
 const P2P_RE = /\b(ZELLE|VENMO|CASH ?APP|SQUARE CASH|APPLE CASH)\b/i;
 
 /**
  * The word that makes a brokerage-named row a payment to or from the brokerage itself,
- * else null. Read AFTER the purchase-channel prefixes the categorizer strips
- * (`stripBankNoise`: "DEBIT CARD PMT", "POS PURCHASE", …), so a debit-card buy is never
- * read as a card payment — the guard reads what the categorizer reads.
+ * else null — the categorizer's own test (`paysTheFirmWord`, `brokerage-move.ts`; #789
+ * critic cycle 2, P1-2), read AFTER the purchase-channel prefixes the categorizer strips
+ * (`stripBankNoise`: "DEBIT CARD PMT", "POS PURCHASE", …), so a debit-card buy is never read
+ * as a card payment and the two read one description the same way.
  */
 export function notADepositWord(descriptor: string): string | null {
-  const read = stripBankNoise(descriptor).replace(/^POS\s+CARD\s+(?:PAYMENT|PMT)\s*[-–—]?\s*/i, '');
-  const m = NOT_A_DEPOSIT_RE.exec(read);
-  return m ? m[1]!.toUpperCase() : null;
+  return paysTheFirmWord(stripBankNoise(descriptor));
 }
 
 const isUnfiled = (categoryId: string | null | undefined) => !categoryId || categoryId === 'uncategorized';
@@ -571,7 +557,10 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
     !isExcludedFromTotals(x.row) &&
     x.row.amountCents !== 0 &&
     compareDates(x.date, today) <= 0;
-  const filedAsMove = (x: Live) => isUnfiled(x.row.categoryId) || DEPOSIT_CATEGORY_IDS.has(x.row.categoryId!);
+  // Filed as a move — Transfer or Investment & Savings, the filing every spending figure
+  // reads (#789, `isMoneyMoveCategoryId`) — or not filed at all. The reader's own filing is
+  // honored here exactly as there (critic cycle 2, P1-1): one row, one verdict.
+  const filedAsMove = (x: Live) => isUnfiled(x.row.categoryId) || isMoneyMoveCategoryId(x.row.categoryId);
   const bigEnough = (x: Live) => Math.abs(x.row.amountCents) >= MIN_DEPOSIT_CENTS;
   const isCandidate = (x: Live) =>
     DEPOSIT_SOURCE_TYPES.has(x.account.type) && countable(x) && bigEnough(x) && filedAsMove(x) && namesDestination(x);

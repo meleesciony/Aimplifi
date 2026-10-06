@@ -28,6 +28,7 @@
 import { type Cents, cents } from '@/lib/money';
 import { medianOfSorted } from '@/lib/stats';
 import { type ISODate, compareDates, daysBetween } from '@/lib/dates';
+import { isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { isAggregateCanonical, normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 
@@ -42,6 +43,8 @@ export interface AnomalyTxn {
   isSplitParent?: boolean;
   /** O.15: reader-excluded rows leave every total via this one basis. */
   excludeFromTotals?: boolean | null;
+  /** #789: a row filed as a money move (`isMoneyMoveCategoryId`) is not a charge. Absent = unfiled. */
+  categoryId?: string | null;
 }
 
 export interface UnusualCharge {
@@ -74,11 +77,14 @@ export const ANOMALY_MAX_RESULTS = 3;
 
 /** The single inclusion rule: a POSTED, non-transfer, non-split-parent,
  *  non-excluded outflow (O.15 — a row the reader excluded from totals is not
- *  their spending pattern either, so it must not set or break a baseline). */
+ *  their spending pattern either, so it must not set or break a baseline) that
+ *  is not money moved between the reader's own accounts (#789, critic cycle 1
+ *  P3-1: a lump-sum brokerage deposit is saving, never an "unusual charge"). */
 function isQualifyingCharge(t: AnomalyTxn): boolean {
   return (
     t.status === 'POSTED' &&
     !t.isTransfer &&
+    !isMoneyMoveCategoryId(t.categoryId) &&
     !(t.isSplitParent ?? false) &&
     !isExcludedFromTotals(t) &&
     t.amountCents < 0

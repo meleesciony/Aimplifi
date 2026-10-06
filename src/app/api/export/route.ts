@@ -8,7 +8,7 @@ import { prisma } from '@/lib/db';
 import { auditLog, rateLimitDurable } from '@/server/authz';
 import { getDashboardData } from '@/server/finance';
 import { netWorthReportPdf, netWorthToCsv, transactionsToCsv } from '@/lib/export';
-import { categoryName } from '@/lib/engine/categorize/categories';
+import { categoryName, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { getCategoryMeta } from '@/server/category-meta';
 import { getWithheldRegisterAccountSummary, registerRowWhere } from '@/server/transactions';
 import { activeSupersededPredecessorIds, getReconciliationBoundary } from '@/server/reconciliation';
@@ -90,9 +90,11 @@ export async function GET(request: NextRequest) {
         // stored columns that `summarizeTransactions` reads to keep a row out of
         // the register's in/out/net tiles, so anything cleverer here would be a
         // second opinion about which rows count — the H.8 divergence U.23 just
-        // finished removing from this same route's where-clause.
+        // finished removing from this same route's where-clause. #789 (critic cycle 2,
+        // P3-2): the register's tiles also leave out a row FILED as a money move, so the
+        // transfer column is that same test — the stored flag or the filing — not a third.
         excludeFromTotals: t.excludeFromTotals,
-        isTransfer: t.isTransfer,
+        isTransfer: t.isTransfer || isMoneyMoveCategoryId(t.categoryId),
       })),
       withheld,
     );

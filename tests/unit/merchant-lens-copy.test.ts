@@ -141,7 +141,7 @@ describe('merchantLensCopy — pinned rendering', () => {
     // summary below nets refunds and includes pending. The note must say both
     // bases so the figures can be reconciled — byte-locked here.
     expect(LENS_SCOPE_NOTE).toBe(
-      'Covers every posted charge at this merchant across your history — gross, refunds not netted, nothing pending. The summary below nets refunds and includes pending; the list may show only a slice.',
+      'Covers every posted charge at this merchant across your history — gross, refunds not netted, nothing pending, and no transfer or money moved into investing. The summary below nets refunds and includes pending; the list may show only a slice.',
     );
   });
 });

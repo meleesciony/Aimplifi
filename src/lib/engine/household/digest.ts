@@ -16,6 +16,7 @@
  * week. §4.5's relational-shame guardrail is enforced by scope, and here also by
  * saying nothing a partner could read as a verdict on the other's spending.
  */
+import { isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { compareDates, type ISODate } from '@/lib/dates';
 import { cents, type Cents } from '@/lib/money';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
@@ -31,6 +32,11 @@ export interface MovementRow {
   isSplitParent: boolean;
   /** O.15: reader-excluded rows leave every total via this one basis. */
   excludeFromTotals?: boolean | null;
+  /**
+   * #789: a row FILED Transfer or Investment & Savings leaves the register's figures too.
+   * REQUIRED, so a reader that forgets to select it cannot compile.
+   */
+  categoryId: string | null;
 }
 
 export interface SharedMovementSummary {
@@ -54,7 +60,8 @@ export interface SharedMovementSummary {
  * The exclusion set is the SAME one every other money surface uses (coach.ts,
  * radar.ts, engine/transactions/query.ts), so a shared-account total here can
  * never disagree with what the register shows for those accounts:
- *   - transfers are neither spend nor income,
+ *   - transfers — flagged, or filed Transfer or Investment & Savings (#789,
+ *     `isMoneyMoveCategoryId`) — are neither spend nor income,
  *   - a split PARENT is a container (its children carry the money — counting
  *     both double-counts),
  *   - PENDING is not money that has moved (and its amount can still change).
@@ -73,7 +80,7 @@ export function summarizeSharedMovement(input: {
 
   for (const r of rows) {
     if (compareDates(r.date, since) < 0 || compareDates(r.date, today) > 0) continue;
-    if (r.isTransfer || r.isSplitParent || r.status !== 'POSTED' || isExcludedFromTotals(r)) continue;
+    if (r.isTransfer || isMoneyMoveCategoryId(r.categoryId) || r.isSplitParent || r.status !== 'POSTED' || isExcludedFromTotals(r)) continue;
     transactionCount += 1;
     if (r.amountCents < 0) outflow += -r.amountCents;
     else inflow += r.amountCents;

@@ -6,7 +6,7 @@
  * wins; a name maps only when it uniquely matches a catalog display name or
  * built-in name. Ambiguous or unknown tokens are dropped — never guessed.
  */
-import { CATEGORIES } from '@/lib/engine/categorize/categories';
+import { CATEGORIES, CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
 import { isBudgetable } from '@/lib/engine/budgets/status';
 
 const DIAL_ID_CAP = 12;
@@ -94,6 +94,24 @@ export function resolveMoneyDialIds(
     if (out.length >= DIAL_ID_CAP) break;
   }
   return out;
+}
+
+/**
+ * #789 (critic cycle 1, P1-2): a stored dial on Investment & Savings — by id or by its
+ * built-in name. The leaf is never spending since #789, so it left the catalog and
+ * `resolveMoneyDialIds` drops the token like any unknown one; this names it, so Settings
+ * says so instead of a dial vanishing without a word. (Transfer was never a dial.)
+ */
+/** What Settings says when `storedDialOnInvestment`. */
+export const INVESTMENT_DIAL_RETIRED_NOTE =
+  'Investment & Savings was one of your money dials. Money moved into investing or savings isn’t spending, so it can’t be a dial — it isn’t shown above, and saving these settings removes it.';
+
+export function storedDialOnInvestment(stored: readonly string[]): boolean {
+  const name = CATEGORY_BY_ID.get('investment')!.name.toLowerCase();
+  return stored.some((token) => {
+    const t = token.trim().toLowerCase();
+    return t === 'investment' || t === name;
+  });
 }
 
 export function dialDisplayNames(

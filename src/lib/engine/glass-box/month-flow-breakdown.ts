@@ -123,8 +123,9 @@ export interface MonthFlowBreakdown {
  * remember is one a call site can forget.
  *
  * The enumeration is COMPLETE against `countsInFlows`, whose clauses are, in
- * order: not a transfer FLAG (`isTransfer`), not the transfer CATEGORY leaf
- * (`categoryId === 'transfer'` — O.20j; same gate `isSpendRow` already had),
+ * order: not a transfer FLAG (`isTransfer`), not a money-move CATEGORY leaf
+ * (`isMoneyMoveCategoryId`: Transfer — O.20j, the gate `isSpendRow` already had — or
+ * Investment & Savings — #789),
  * POSTED only, not a split container, and not excluded from totals.
  * (C.25/#403 adds an optional further clause — a caller-supplied set of
  * loan-payment row ids carried elsewhere — which this builder threads through
@@ -167,7 +168,8 @@ export interface MonthFlowBreakdown {
  */
 export const MONTH_FLOW_BASIS: Record<MonthFlow, string> = {
   expense:
-    'Posted spending only — transfers between your own accounts, charges still pending, ' +
+    'Posted spending only — transfers between your own accounts, money moved into or out of ' +
+    'investing or savings, charges still pending, ' +
     'split containers (the pieces they were split into are counted instead) and anything ' +
     'you excluded from totals are all left out. Money going out counts here even when it ' +
     'sits in an income category, and money coming in counts against this total as a ' +
@@ -176,7 +178,8 @@ export const MONTH_FLOW_BASIS: Record<MonthFlow, string> = {
     'Uncategorized, does not. A reimbursement — the return of money you spent — counts ' +
     'against neither this figure nor the income one.',
   income:
-    'Posted income only — transfers between your own accounts, deposits still pending, ' +
+    'Posted income only — transfers between your own accounts, money moved into or out of ' +
+    'investing or savings, deposits still pending, ' +
     'split containers (the pieces they were split into are counted instead) and anything ' +
     'you excluded from totals are all left out. Money coming in counts here when its ' +
     'category is an income one, and also when it carries no category at all or still sits ' +

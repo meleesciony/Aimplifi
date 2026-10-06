@@ -36,6 +36,8 @@ import {
   detectLifestyleCreep,
   findOpportunities,
   hoursOfWork,
+  isMoneyMoveSeries,
+  moneyMoveMerchantCanonicals,
   monthlyFlows,
   monthsOfRunway,
   type CreepResult,
@@ -58,7 +60,7 @@ import {
   fulfillmentByCategory,
   type FulfillmentCurve,
 } from '@/lib/engine/fi/fulfillment';
-import { categoryName } from '@/lib/engine/categorize/categories';
+import { categoryName, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { detectUnusualCharges, type UnusualCharge } from '@/lib/engine/anomaly/detect';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import {
@@ -503,11 +505,15 @@ export async function getCoachData(
   // deflated by the inflation assumption. They render one scroll below the FI card that W.2
   // moved into today's money; printing 30-year NOMINAL future values beside it put two dollar
   // figures in two different units on one page with only the word "future" between them.
+  // #789 (critic cycle 1, P0-1): money moved into investing or savings is never a cut,
+  // never a price that crept — read from the same rows the series were detected from.
+  const moneyMoveMerchants = moneyMoveMerchantCanonicals(txns);
   const opportunities = findOpportunities(
     series,
     user.expectedReturnBps,
     inflationBps,
     moneyDialIds,
+    moneyMoveMerchants,
   );
   // Unusual Charge Radar (#249): pure detection over the SAME already-fetched rows —
   // no re-fetch, no model call, deterministic.
@@ -537,7 +543,8 @@ export async function getCoachData(
   // and the SAME detected series — no new queries, no persistence.
   const streaks = {
     cardCleared: computeCardClearedStreak(snap.statements, snap.cardPayments, today),
-    noCreep: computeNoCreepStreak(series, today),
+    // #789: a rising auto-invest is more saving, not a subscription that crept.
+    noCreep: computeNoCreepStreak(series.filter((s) => !isMoneyMoveSeries(s, moneyMoveMerchants)), today),
   };
 
   // life-energy view: 5 largest non-transfer purchases in the last 90 days
@@ -552,6 +559,8 @@ export async function getCoachData(
         // C.25 (#403): a loan payment carried elsewhere is not a drain the
         // reader can weigh — the committed line owns it.
         !(t.id !== undefined && snap.loanPaymentFlowExclusions?.excludeIds.has(t.id)) &&
+        // #789 (critic cycle 1, P1-1): money moved into investing is not a purchase.
+        !isMoneyMoveCategoryId(t.categoryId) &&
         t.status === 'POSTED' &&
         t.amountCents < 0 &&
         t.date >= cutoff,

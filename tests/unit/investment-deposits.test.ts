@@ -13,6 +13,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 import { prisma } from '@/lib/db';
 import { isoDate } from '@/lib/dates';
 import { GENERIC_CATEGORY_RULES } from '@/lib/engine/categorize/normalize';
+import { BROKERAGE_ONLY_NAME_RE, SHARED_BROKERAGE_MOVE_RE } from '@/lib/engine/categorize/brokerage-move';
 import { BROKERAGES, brokerageOfAccount, brokeragesNamedIn } from '@/lib/engine/investments/brokerages';
 import {
   computeDepositHistory,
@@ -412,6 +413,9 @@ describe('F10 — fees, bills and card payments to a brokerage are not money put
       [...BASE, rh, ml],
     );
     expect(month(h, '2026-09').putInCents).toBe(0);
+    // #789 (critic cycle 2, P1-1): the FILING decides. Rows filed Investment & Savings are
+    // deposit candidates whatever their text, and each is refused here by its word — the
+    // same word that keeps the categorizer from filing it there (`paysTheFirmWord`).
     expect(h.uncounted.map((u) => [u.reason, u.brokerageName])).toEqual([
       ['not-a-deposit', 'Robinhood'],
       ['not-a-deposit', 'Robinhood'],
@@ -559,7 +563,9 @@ describe('critic cycle 4 — the lead counts only what it counted; returns are a
     const h = history(
       [
         row('chk', '2026-09-01', -20000, 'DEBIT PURCHASE -VISA COINBASE.COM/BTCBUY', 'investment'),
-        row('chk', '2026-09-02', -30000, 'SCHWAB VISA PAYMENT', 'investment'),
+        // #789: the brokerage-only spelling, so the row is read (a bare "SCHWAB" with no
+        // investing word is spending and never a candidate — see F10).
+        row('chk', '2026-09-02', -30000, 'CHARLES SCHWAB VISA PAYMENT', 'investment'),
         row('chk', '2026-09-03', -40000, 'VANGUARD INTEREST INCOME FUND', 'investment'),
       ],
       [...BASE, cb],
@@ -631,7 +637,9 @@ describe('critic cycle 2, P3-11 — subscriptions, test deposits and people name
     const cb = acct('cb', 'INVESTMENT', 'Coinbase', '3003', 'Coinbase');
     const h = history(
       [
-        row('chk', '2026-09-01', -500, 'ROBINHOOD GOLD', 'investment'),
+        // #789: unfiled, so the membership guard is what refuses it (filed Investment &
+        // Savings, a bare shared name with no investing word is spending — never a candidate).
+        row('chk', '2026-09-01', -500, 'ROBINHOOD GOLD', null),
         row('chk', '2026-09-02', -499, 'COINBASE ONE', 'investment'),
         row('chk', '2026-09-03', -43, 'ROBINHOOD MICRO DEPOSIT', 'transfer'),
         row('chk', '2026-09-04', 43, 'ROBINHOOD MICRO DEPOSIT', 'transfer'),
@@ -714,7 +722,7 @@ describe('A6 — a linked bank or card account at the same brokerage', () => {
 
 describe('A7/A8 — ambiguity is never counted, and says which ambiguity', () => {
   it('two brokerages named', () => {
-    const h = history([row('chk', '2026-09-05', -50000, 'VANGUARD SCHWAB MOVE', 'investment')]);
+    const h = history([row('chk', '2026-09-05', -50000, 'VANGUARD SCHWAB TRANSFER', 'investment')]);
     expect(h.uncounted).toMatchObject([{ reason: 'two-brokerages', brokerageName: 'Vanguard', otherBrokerageName: 'Charles Schwab' }]);
     expect(uncountedReason(h.uncounted[0]!)).toBe('It names both Vanguard and Charles Schwab, so we can’t tell where it went.');
   });
@@ -1159,11 +1167,20 @@ describe('the words', () => {
 
 describe('the brokerage list', () => {
   it('drift lock: the categorizer’s investment rule and this list name the same brokerages', () => {
-    const rule = GENERIC_CATEGORY_RULES.find((r) => r.categoryId === 'investment');
-    expect(rule?.pattern.source).toBe(String.raw`\b(VANGUARD|FIDELITY INVEST\w*|FID BKG|CHARLES SCHWAB|SCHWAB|COINBASE|ROBINHOOD|E\*?TRADE|WEALTHFRONT|BETTERMENT|ACORNS|MERRILL)\b`);
-    const samples = ['VANGUARD', 'FIDELITY INVESTMENTS', 'FID BKG SVC', 'CHARLES SCHWAB', 'SCHWAB', 'COINBASE', 'ROBINHOOD', 'E*TRADE', 'ETRADE', 'WEALTHFRONT', 'BETTERMENT', 'ACORNS', 'MERRILL'];
-    for (const s of samples) {
-      expect(rule!.pattern.test(s), s).toBe(true);
+    // #789 (critic cycle 1, P1-3): two rules — names only a brokerage carries, and names a
+    // business also carries, which file here only beside an investing word.
+    const rules = GENERIC_CATEGORY_RULES.filter((r) => r.categoryId === 'investment');
+    expect(rules.map((r) => r.pattern)).toEqual([BROKERAGE_ONLY_NAME_RE, SHARED_BROKERAGE_MOVE_RE]);
+    const files = (s: string) => rules.some((r) => r.pattern.test(s));
+    const only = ['FIDELITY INVESTMENTS', 'FID BKG SVC', 'CHARLES SCHWAB', 'COINBASE', 'E*TRADE', 'ETRADE', 'WEALTHFRONT'];
+    const shared = ['VANGUARD', 'SCHWAB', 'ROBINHOOD', 'BETTERMENT', 'ACORNS', 'MERRILL'];
+    for (const s of only) {
+      expect(files(s), s).toBe(true);
+      expect(brokeragesNamedIn(s).length, s).toBe(1);
+    }
+    for (const s of shared) {
+      expect(files(s), `${s} alone`).toBe(false);
+      expect(files(`${s} BUY INVESTMENT`), `${s} BUY INVESTMENT`).toBe(true);
       expect(brokeragesNamedIn(s).length, s).toBe(1);
     }
     expect(BROKERAGES.length).toBe(10);
@@ -1301,6 +1318,14 @@ describe('the real loader (DECISIONS #788)', () => {
     const h = await getDepositHistory('user-demo');
     expect(h.thisYear).toEqual({ fromMonth: '2026-01', putInCents: 450000, takenOutCents: 200000, monthsMissingRecords: 0 });
     expect(h.destinations.map((d) => [d.destination.key, d.putInCents, d.takenOutCents])).toEqual([['acct-brokerage', 975000, 200000]]);
+    expect(h.uncounted).toEqual([]);
+  });
+});
+
+describe('#789 critic cycle 2, P1-1 — the reader’s own filing counts here exactly as everywhere', () => {
+  it('a bare "Vanguard" the reader filed Investment & Savings is money put in at Vanguard', () => {
+    const h = history([row('chk', '2026-09-10', -50000, 'Vanguard', 'investment')]);
+    expect(month(h, '2026-09').putInCents).toBe(50000);
     expect(h.uncounted).toEqual([]);
   });
 });

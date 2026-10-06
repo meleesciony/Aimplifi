@@ -226,7 +226,7 @@ describe('STATUS_PENDING_EFFECT is true — clause by clause', () => {
     const movement = (status: string) =>
       summarizeSharedMovement({
         rows: [
-          { date: isoDate('2026-06-10'), amountCents: -4000, isTransfer: false, isSplitParent: false, status },
+          { date: isoDate('2026-06-10'), amountCents: -4000, isTransfer: false, isSplitParent: false, status, categoryId: null },
         ],
         accountCount: 1,
         since: isoDate('2026-06-01'),

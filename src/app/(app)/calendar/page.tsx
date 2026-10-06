@@ -681,13 +681,16 @@ export default async function CalendarPage({
                         )}
                         {day.posted.inCents === 0 &&
                           day.posted.outCents === 0 &&
-                          (day.posted.transferCount > 0 || day.posted.excludedCount > 0) && (
+                          (day.posted.transferCount > 0 || day.posted.investingCount > 0 || day.posted.excludedCount > 0) && (
                             // A day where money visibly moved must not read "net $0.00"
                             // unexplained (critic F-6): say what the zero is made of.
                             <li className="text-xs text-muted-foreground" data-testid="cal-posted-nonmoney">
                               {[
                                 day.posted.transferCount > 0
                                   ? `${day.posted.transferCount} transfer${day.posted.transferCount === 1 ? '' : 's'} between your accounts`
+                                  : null,
+                                day.posted.investingCount > 0
+                                  ? `${day.posted.investingCount} move${day.posted.investingCount === 1 ? '' : 's'} into or out of investing`
                                   : null,
                                 day.posted.excludedCount > 0
                                   ? `${day.posted.excludedCount} row${day.posted.excludedCount === 1 ? '' : 's'} you excluded`

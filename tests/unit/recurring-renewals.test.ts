@@ -42,6 +42,7 @@ function item(
     monthlyEquivalentCents: Math.abs(over.lastAmountCents),
     active: true,
     daysSinceLast: 20,
+    movesMoney: false,
     ...rest,
     nextExpectedAt: isoDate(nextExpectedAt),
     priceChangedAt: priceChangedAt ? isoDate(priceChangedAt) : null,

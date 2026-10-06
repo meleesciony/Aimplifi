@@ -524,7 +524,7 @@ describe('answerSubscriptions', () => {
     const a = answerSubscriptions(summary);
     expect(a.headline).toBe("You're paying about $49.97/mo across 3 active subscriptions.");
     expect(a.detail).toBe(
-      'Recurring bills (rent, loans, utilities) add $1,800.00/mo on top — $1,849.97/mo of recurring charges in total. 1 subscription has gone up in price recently.',
+      'Recurring bills (rent, loans, utilities) add $1,800.00/mo on top — $1,849.97/mo of recurring charges in total. 1 recurring charge has gone up in price recently.',
     );
     expect(a.facts[0]).toEqual({ label: 'NETFLIX', value: '$17.99/mo' });
   });
