@@ -25,7 +25,7 @@
  *    so the guard checks the GROUP, not the single 'income' id) — so a refund or
  *    credit can't be silently booked as spending.
  */
-import { CATEGORY_BY_ID } from './categories';
+import { CATEGORY_BY_ID, isMoneyMoveCategoryId } from './categories';
 import { categorize, type CategorySource, type RuleLike } from './pipeline';
 
 export interface BackfillRow {
@@ -120,7 +120,8 @@ export function planBackfill(
     // Sign guard (#44): don't book an inflow as spend. Any Income-GROUP leaf
     // (paycheck, interest-income, tax-refund, …) is sign-appropriate (#163).
     const isIncomeGroup = CATEGORY_BY_ID.get(out.categoryId)?.group === 'Income';
-    if (r.amountCents > 0 && !isIncomeGroup && out.categoryId !== 'transfer') {
+    // A money move goes both ways (#792): Transfer or Investment & Savings is sign-neutral.
+    if (r.amountCents > 0 && !isIncomeGroup && !isMoneyMoveCategoryId(out.categoryId)) {
       stillUnsure++;
       continue;
     }

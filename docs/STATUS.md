@@ -38,7 +38,7 @@ rates) — no other doc may restate them.
 
 **Ship.** `eb029d93` on `origin/main` (3 commits, this slice only; the squash of the #789 branch onto main after #791). No `prisma/` diff. Vercel Production deployment (GitHub record 6896863038, `aimplifi-ikh649bh3`) success. **`scripts/investment-not-spending-live-deploy-check.mjs` DEPLOY PROOF PASS 6/6** on www.aimplifi.app — this commit's build is the one served, the demo's guilt-free $1,309.08 and cash-needed $5,412.33 unchanged, the merchant lens names what it leaves out ("…and no transfer or money moved into investing"), no horizontal scroll at 380px (read before the deploy: the old lens wording). **CI verify run 37541208942 = SUCCESS** (`scripts/ci-status.sh` exit 0).
 
-**Open (found by cycle 3, not changed — the next slice fixes them).**
+**Found by cycle 3, not changed in #789 — taken as DECISIONS #792** (every item below except the recorded bounds and /recurring's monthly total; see PROGRESS for its graph position).
 - P2-A /recurring: a contribution series that rose is badged favorable on its row, but "Coming up" still marks its renewal "↑ was $200.00" in rose, and the hero counts it as a bill in "Monthly recurring" (`recurring/renewals.ts:74-75`, `recurring-view.tsx:499-501`).
 - P2-B `moneyMoveMerchantCanonicals` collects any row filed as a move, transfer-flagged ones included, under AGGREGATE names (Venmo, Check, PayPal Transfer): one "VENMO CASHOUT" filed Transfer takes a Venmo rent series filed Rent out of price increases, the cut list and the creep streak (`fi/insights.ts:280-285`).
 - P2-C the cash-flow radar's "day-to-day spend" pace still counts rows filed Investment & Savings (`radar/burn.ts:68` reads the flag only; pre-existing, conservative direction).

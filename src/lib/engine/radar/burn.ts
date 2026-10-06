@@ -22,6 +22,7 @@ import { type Cents, ZERO, roundHalfAwayFromZero } from '@/lib/money';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import type { TransactionLike } from '@/lib/engine/cash-needed/assemble';
+import { isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 
 /** Look back 8 complete weeks of daily spend ("based on your last 8 weeks"). */
 export const BURN_LOOKBACK_DAYS = 56;
@@ -65,7 +66,10 @@ export function discretionaryDailyOutflows(
   for (const t of transactions) {
     if (t.accountId !== params.paymentAccountId) continue;
     if (t.status !== 'POSTED') continue;
-    if (t.isTransfer) continue;
+    // #792 (#789 critic cycle 3, P2-C): money moved between the reader's own accounts or
+    // into investing — flagged, or FILED Transfer or Investment & Savings — is not a
+    // spending pace, the same verdict every spending figure gives the row.
+    if (t.isTransfer || isMoneyMoveCategoryId(t.categoryId)) continue;
     if (t.isSplitParent) continue;
     // O.15: an excluded row is not the reader's spending pace either.
     if (isExcludedFromTotals(t)) continue;

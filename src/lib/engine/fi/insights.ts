@@ -273,16 +273,28 @@ export interface Opportunity {
 /**
  * The canonical merchants whose rows the reader's register files as money moved
  * between their own accounts (`isMoneyMoveCategoryId`: Transfer, or Investment & Savings).
- * A detected series is keyed by merchant and
- * carries only the merchant's DEFAULT filing, so the stored filings reach it through
- * this set (#789, critic cycle 1 P0-1).
+ * A detected series is keyed by merchant and carries only the merchant's DEFAULT filing,
+ * so the stored filings reach it through this set (#789, critic cycle 1 P0-1).
+ *
+ * A merchant is in the set only when its rows that a series could hold say so: at least
+ * one filed as a money move and NONE filed to anything else (#792; #789 critic cycle 3,
+ * P2-B). Rows flagged a transfer are left out — the recurring detector never reads them —
+ * and so are rows not filed yet. Otherwise one "VENMO CASHOUT" filed Transfer would turn
+ * a Venmo rent series filed Rent into money moved: an aggregate name (Venmo, Check,
+ * PayPal Transfer) covers many unrelated payees, and the filing of one row is never the
+ * verdict on another's.
  */
 export function moneyMoveMerchantCanonicals(
-  txns: readonly { categoryId?: string | null; rawDescriptor: string }[],
+  txns: readonly { categoryId?: string | null; rawDescriptor: string; isTransfer?: boolean }[],
 ): Set<string> {
-  const out = new Set<string>();
-  for (const t of txns) if (isMoneyMoveCategoryId(t.categoryId)) out.add(normalizeMerchant(t.rawDescriptor).canonical);
-  return out;
+  const moves = new Set<string>();
+  const other = new Set<string>();
+  for (const t of txns) {
+    if (t.isTransfer === true || !t.categoryId || t.categoryId === 'uncategorized') continue;
+    const canonical = normalizeMerchant(t.rawDescriptor).canonical;
+    (isMoneyMoveCategoryId(t.categoryId) ? moves : other).add(canonical);
+  }
+  return new Set([...moves].filter((c) => !other.has(c)));
 }
 
 /**

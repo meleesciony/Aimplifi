@@ -97,7 +97,9 @@ export function summarizeRecurring(
   });
 
   const subscriptions = items.filter((i) => i.active && i.isSubscription);
-  const income = items.filter((i) => i.active && i.isIncome);
+  // A recurring withdrawal from a brokerage is money moved, never income (#792; #789
+  // critic cycle 3, P3-7) — the same verdict every income figure gives its rows.
+  const income = items.filter((i) => i.active && i.isIncome && !i.movesMoney);
   const bills = items.filter((i) => i.active && !i.isIncome && !i.isSubscription);
   const inactive = items.filter((i) => !i.active);
   // A "price increase" is a COST signal, so only expenses belong here. A recurring

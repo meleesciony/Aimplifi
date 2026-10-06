@@ -17,6 +17,14 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-06 — Money moves, the remaining readers (DECISIONS #792) — #789's cycle-3 P2s/P3s
+
+#789 shipped on its third critic's PASS (`eb029d93`; deploy proof `scripts/investment-not-spending-live-deploy-check.mjs` PASS 6/6 — this commit's build served, the demo's guilt-free $1,309.08 and cash-needed $5,412.33 unchanged, the lens names what it leaves out). Its four P2s and seven P3s were taken as this slice, on branch `slice-792-money-move-readers` from `eb029d93`.
+
+**Plan (assertions → `tests/unit/money-move-readers.test.ts`).** A1 renewals mark only adverse rises; A2 the merchant set reads filed, unflagged rows and needs every one to be a move (the Venmo shape); A3 the radar pace skips filed moves; A4 the repair card declines a flagged row filed as a move; A5 INVESTIGATIONS is a business; A6 a learned move rule files both signs; backfill and the bank-text edit re-file money coming back; A7 the type filter reads the filing; A8 a recurring withdrawal is not income and never a pause; A9 the Remove button reloads on a deadline, reports a refusal, and names itself with its visible words.
+
+**Built.** `recurring/renewals.ts`, `fi/insights.ts` (`moneyMoveMerchantCanonicals`), `radar/burn.ts`, `categorize/transfer-flag-repair.ts`, `categorize/brokerage-move.ts` (INVEST spelled out; `readsAsBrokerageMove` removed), `categorize/pipeline.ts` / `categorize/backfill.ts` / `transactions/descriptor.ts` (sign-neutral moves), `recurring/summary.ts` + `income/pause.ts`, `remove-untracked-target-button.tsx`, `lib/export.ts`, `investments/deposits.ts` (`DEPOSIT_CATEGORY_IDS` = `MONEY_MOVE_CATEGORY_IDS`), a stale comment. Unit 11/11 + render 4/4; mutation **18/18** killed (two first-round survivors closed). DECISIONS #792; REGRESSION row; edge cases §#792.
+
 ## 2026-10-06 — A card payment counts once it leaves checking (DECISIONS #791) — owner's live report, ahead of the savings slices
 
 Owner, live, mid-session: "Problem. Accounts doesn’t match home page. I’ve clearly paid off my ccs for this cycle. However it says I still owe" (Activity screenshot: three card payments out of checking on Oct 5). Diagnosed read-only on production with scratch probes (SELECT only, session read-only, not committed; figures kept out of the repo): each payment POSTED on checking and equalled one card's statement balance; the issuer had shown one on the card side, the other two cards' feeds had nothing newer than the days before. Home credits a payment only when both legs post within 3 days → two paid bills demanded. Owner chose "Fix it next (Recommended)" over waiting or finishing the savings work first.

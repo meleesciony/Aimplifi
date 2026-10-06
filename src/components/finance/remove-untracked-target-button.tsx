@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { clearBudget } from '@/server/budget-actions';
-import { withDeadline } from '@/components/triage/action-deadline';
+import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 
 export function RemoveUntrackedTargetButton({ categoryId, name }: { categoryId: string; name: string }) {
@@ -21,8 +21,14 @@ export function RemoveUntrackedTargetButton({ categoryId, name }: { categoryId: 
     try {
       await withDeadline(clearBudget(categoryId), FORM_ACTION_DEADLINE_MS);
       window.location.reload();
-    } catch {
-      // Critic cycle 2, P3-5: a failed removal says so instead of reloading as if it worked.
+    } catch (err) {
+      // A deadline usually means the write committed and only the confirmation was lost
+      // (`action-deadline.ts`): reload, and the page shows whether the target is gone
+      // (#792; #789 critic cycle 3, P3-3). A real refusal says so instead (critic cycle 2, P3-5).
+      if (err instanceof ActionDeadline) {
+        window.location.reload();
+        return;
+      }
       setBusy(false);
       setFailed(true);
     }
@@ -36,14 +42,14 @@ export function RemoveUntrackedTargetButton({ categoryId, name }: { categoryId: 
         className="min-h-11"
         disabled={busy}
         onClick={() => void onRemove()}
-        aria-label={`Remove the monthly target on ${name}`}
+        aria-label={`Remove target: the monthly target on ${name}`}
         data-testid={`budget-untracked-remove-${categoryId}`}
       >
         {busy ? 'Removing…' : 'Remove target'}
       </Button>
       {failed && (
         <span role="alert" className="text-xs text-destructive" data-testid={`budget-untracked-remove-error-${categoryId}`}>
-          Couldn’t remove the target — nothing changed. Try again.
+          Couldn’t remove the target. Try again.
         </span>
       )}
     </>

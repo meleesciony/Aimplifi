@@ -70,7 +70,7 @@ transfer AND filed there is named once, as a transfer. /recurring: a Vanguard co
 $500.00 → $600.00 is not a price increase (its badge reads favorable); Netflix $15.99 → $17.99 is, and
 Ask says "1 recurring charge has gone up in price recently." The merchant lens counts no deposit as a
 charge. The household digest leaves a shared account's deposit out of money out, as the register does.
-The CSV marks the row `transfer,yes`, and its note says "moving money between accounts or into
+The CSV marks the row `transfer,yes`, and its note says "moving money between accounts, or into or out of
 investing".
 
 **/budgets.** Investment & Savings is not offered or accepted as a target, nor as a money dial. A target
@@ -95,3 +95,16 @@ included — is tracked exactly as before.
 
 **Demo.** The demo seed holds no row filed Investment & Savings (its brokerage and savings transfers
 are transfer-flagged), so no demo figure moves.
+
+**§#792 — the remaining readers.** /recurring "Coming up": a 529 contribution $200.00 → $250.00 carries
+no "↑ was" mark; Netflix $15.99 → $17.99 carries "was $15.99". The merchant set: five "VENMO PAYMENT"
+rows filed Rent plus one "VENMO CASHOUT" filed Transfer (flagged or not) → Venmo is NOT a money move;
+"Vanguard" rows filed Investment & Savings plus one unfiled → it is; one filed Shopping → it is not. The
+radar's daily outflows over 31 days: four $200.00 grocery runs → $800.00; plus two $2,000.00 deposits
+filed Investment & Savings → still $800.00 (filed Shopping instead → $4,800.00). The repair card: a
+flagged −$2,000.00 filed Investment & Savings is declined; a flagged −$40.00 grocery run is cleared →
+$40.00 of money out claimed, not $2,040.00. "VANGUARD INVESTIGATIONS LLC" is not Investment & Savings;
+"ROBINHOOD INVESTMENTS", "SCHWAB INVESTING TRANSFER" are. A learned Investment & Savings rule on a
+Betterment ACH files −$500.00 and +$500.00 alike. "VANGUARD ACH RTN" +$5,000.00 in review is re-filed
+Investment & Savings. A monthly +$500.00 "ROBINHOOD CREDITS" is not recurring income and, when it stops,
+not a pause; a $4,000.00 payroll that stops is.

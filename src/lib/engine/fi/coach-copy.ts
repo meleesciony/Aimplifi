@@ -938,7 +938,7 @@ export const COACH_COPY = {
         //
         // The label deliberately does NOT say "what the app counts as income".
         // `type=income` in the register is a SIGN filter (`matchesType`,
-        // transactions/query.ts — `!isTransfer && amountCents > 0`), not
+        // transactions/query.ts — not a money move, `amountCents > 0`), not
         // `isIncomeFlowRow`, so a credit this engine refuses still appears
         // there. A label asserting the engine's definition over a destination
         // that implements a different one is a claim the page cannot keep —

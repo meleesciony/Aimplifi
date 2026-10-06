@@ -48,10 +48,11 @@ export const BANK_RETURN_RE =
  * Words a brokerage's own money movement carries and a purchase at a same-named business
  * does not — money going in, and money coming back out: a withdrawal, a sale's credit, or a
  * deposit the bank returned, worded the way a bank words a return (`BANK_RETURN_RE`; critic
- * cycle 2, P2-1 — "VANGUARD ACH RTN" is the deposit coming back, not income).
+ * cycle 2, P2-1 — "VANGUARD ACH RTN" is the deposit coming back, not income). INVEST is
+ * spelled out (#792; critic cycle 3, P3-1): "VANGUARD INVESTIGATIONS LLC" is a business.
  */
 export const INVESTING_MOVE_WORD_RE = new RegExp(
-  String.raw`\b(BUY|SELL|INVEST\w*|MONEY ?LINK|MONEY ?LINE|BROKERAGE|BKG|SECURITIES|FUNDS?|DEBITS|CREDITS|EDI|LYNCH|EDGE|IRA|ROTH|401\(?K\)?|CONTRIB\w*|TRANSFER|XFER|TRNSFR|REDEMPTION|REDEEM|WITHDRAW\w*|SWEEP)\b|${BANK_RETURN_RE.source}`,
+  String.raw`\b(BUY|SELL|INVEST(?:MENTS?|ING|ORS?|ED)?|MONEY ?LINK|MONEY ?LINE|BROKERAGE|BKG|SECURITIES|FUNDS?|DEBITS|CREDITS|EDI|LYNCH|EDGE|IRA|ROTH|401\(?K\)?|CONTRIB\w*|TRANSFER|XFER|TRNSFR|REDEMPTION|REDEEM|WITHDRAW\w*|SWEEP)\b|${BANK_RETURN_RE.source}`,
   'i',
 );
 
@@ -78,13 +79,4 @@ export function paysTheFirmWord(stripped: string): string | null {
   const read = stripped.replace(/^POS\s+CARD\s+(?:PAYMENT|PMT)\s*[-–—]?\s*/i, '');
   const m = PAYS_THE_FIRM_RE.exec(read);
   return m ? m[1]!.toUpperCase() : null;
-}
-
-/**
- * Does this description name a brokerage the way the brokerage's own money movement does —
- * and not as a payment to the firm itself? `stripped` is the description after
- * `stripBankNoise` (the categorizer passes it; it defaults to the description).
- */
-export function readsAsBrokerageMove(descriptor: string, stripped: string = descriptor): boolean {
-  return (BROKERAGE_ONLY_NAME_RE.test(descriptor) || SHARED_BROKERAGE_MOVE_RE.test(descriptor)) && !paysTheFirmWord(stripped);
 }

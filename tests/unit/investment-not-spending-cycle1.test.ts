@@ -20,7 +20,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { prisma } from '@/lib/db';
 import { isoDate } from '@/lib/dates';
-import { INVESTING_MOVE_WORD_RE, readsAsBrokerageMove } from '@/lib/engine/categorize/brokerage-move';
+import { INVESTING_MOVE_WORD_RE } from '@/lib/engine/categorize/brokerage-move';
 import { isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { isSpendRow } from '@/lib/engine/reports/reports';
@@ -54,7 +54,6 @@ describe('P1-3 — a brokerage name means money moving only where a business can
     ]) {
       const r = categorize({ rawDescriptor: d, amountCents: -85000, date: '2026-05-22', accountId: 'chk', isTransfer: false } as never);
       expect(r.categoryId, d).not.toBe('investment');
-      expect(readsAsBrokerageMove(d), d).toBe(false);
     }
   });
 
@@ -75,7 +74,6 @@ describe('P1-3 — a brokerage name means money moving only where a business can
     ]) {
       const r = categorize({ rawDescriptor: d, amountCents: -50000, date: '2026-05-04', accountId: 'chk', isTransfer: false } as never);
       expect(r.categoryId, d).toBe('investment');
-      expect(readsAsBrokerageMove(d), d).toBe(true);
     }
     expect(INVESTING_MOVE_WORD_RE.test('TIRES')).toBe(false);
   });
