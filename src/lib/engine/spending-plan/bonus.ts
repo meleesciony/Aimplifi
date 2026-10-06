@@ -76,7 +76,7 @@ const ORDINARY_LOW_PCT = 50;
  *  pay's own window for "other income". */
 const WINDOW_MONTHS = 3;
 /** Words a bank puts on money it takes back. */
-const REVERSAL_RE = /\b(REVERSAL|REVERSED|REVERSE|REV|RETURN|RETURNED|CHARGEBACK|CHGBK)\b/i;
+export const REVERSAL_RE = /\b(REVERSAL|REVERSED|REVERSE|REV|RETURN|RETURNED|CHARGEBACK|CHGBK)\b/i;
 
 export interface BonusDeposit {
   date: ISODate;

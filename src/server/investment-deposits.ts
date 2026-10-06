@@ -15,6 +15,7 @@ import { prisma } from '@/lib/db';
 import { isoDate } from '@/lib/dates';
 import { accountLabel } from '@/lib/engine/account/display-name';
 import { handoverDatesFromKeys } from '@/lib/engine/account/reconcile-boundary';
+import { accountRecords } from '@/lib/engine/analyst/account-records';
 import { liveInstitutionByItem, resolveLiveInstitutionName } from '@/lib/engine/categorize/transfers';
 import {
   computeDepositHistory,
@@ -42,25 +43,49 @@ export async function loadDepositInputs(userId: string): Promise<Omit<DepositHis
         institutionName: true,
         plaidItemId: true,
         feedDroppedAt: true,
+        provider: true,
       },
     }),
-    prisma.plaidItem.findMany({ where: { userId }, select: { itemId: true, institution: true } }),
+    prisma.plaidItem.findMany({
+      where: { userId },
+      select: { itemId: true, institution: true, lastSyncedAt: true, lastSyncError: true },
+    }),
   ]);
 
   const superseded = new Set(snap.supersededAccountIds ?? []);
   const inSnapshot = new Set(snap.accounts.map((a) => a.id));
   const institutionNameByItem = liveInstitutionByItem(plaidItems, (i) => i.institution);
-  const accounts: DepositAccount[] = accountRows
-    .filter((a) => inSnapshot.has(a.id) && !superseded.has(a.id))
-    .map((a) => ({
-      id: a.id,
-      type: a.type,
-      label: accountLabel(a),
-      mask: a.mask,
-      institutionName: resolveLiveInstitutionName(a.plaidItemId, a.institutionName, institutionNameByItem),
-      feedName: a.name,
-      feedDroppedAt: a.feedDroppedAt,
-    }));
+  const liveRows = accountRows.filter((a) => inSnapshot.has(a.id) && !superseded.has(a.id));
+  // The day a live feed vouches each record complete through — the same rule Ask's
+  // same-account answers read (`accountRecords`: demo through today; a healthy Plaid item
+  // through the day before its last successful sync; manual, dropped or failing: none).
+  const completeThrough = new Map(
+    accountRecords({
+      accounts: liveRows.map((a) => ({
+        id: a.id,
+        name: accountLabel(a),
+        provider: a.provider,
+        plaidItemId: a.plaidItemId,
+        feedDroppedAt: a.feedDroppedAt,
+        recordStartWord: null,
+        recordEndWord: null,
+      })),
+      rows: [],
+      spendingAccountIds: new Set<string>(),
+      terminalOf: snap.terminalOf ?? new Map<string, string>(),
+      plaidItems,
+      today,
+    }).map((r) => [r.id, r.completeThrough]),
+  );
+  const accounts: DepositAccount[] = liveRows.map((a) => ({
+    id: a.id,
+    type: a.type,
+    label: accountLabel(a),
+    mask: a.mask,
+    institutionName: resolveLiveInstitutionName(a.plaidItemId, a.institutionName, institutionNameByItem),
+    feedName: a.name,
+    completeThrough: completeThrough.get(a.id) ?? null,
+  }));
 
   const rows: DepositRow[] = [];
   for (const t of snap.transactions) {
@@ -73,6 +98,7 @@ export async function loadDepositInputs(userId: string): Promise<Omit<DepositHis
       rawDescriptor: t.rawDescriptor,
       status: t.status,
       categoryId: t.categoryId ?? null,
+      isTransfer: t.isTransfer,
       isSplitParent: t.isSplitParent ?? false,
       excludeFromTotals: t.excludeFromTotals ?? null,
     });

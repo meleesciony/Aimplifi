@@ -53,7 +53,7 @@ try {
   const rule = (await card.getByTestId('deposit-rule').textContent()) ?? '';
   check(
     '/investments: the card states its rule (what counts, what does not)',
-    rule.includes('Not counted: retirement contributions taken out of your paycheck'),
+    rule.includes('Never seen here: retirement contributions taken out of your paycheck'),
   );
   const lead = (await card.getByTestId('deposit-lead').count()) > 0 ? (await card.getByTestId('deposit-lead').textContent())?.trim() : null;
   const empty = (await card.getByTestId('deposit-empty').count()) > 0 ? (await card.getByTestId('deposit-empty').textContent())?.trim() : null;

@@ -33,12 +33,19 @@ function seed(email: string) {
     const stamp = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
     const chk = `e2e-dep-chk-${stamp}`;
     const vg = `e2e-dep-vg-${stamp}`;
+    const itemId = `e2e-dep-item-${stamp}`;
+    // A healthy Plaid connection synced today vouches the checking record complete through
+    // yesterday — so no month reads "missing records" (accountRecords).
+    db.prepare(
+      `INSERT INTO PlaidItem (id, userId, itemId, accessToken, institution, institutionId, lastSyncedAt, createdAt)
+       VALUES (?, ?, ?, 'ciphertext-not-used-by-this-spec', 'First Example Bank', NULL, '2026-06-10', CURRENT_TIMESTAMP)`,
+    ).run(`e2e-dep-pi-${stamp}`, uid, itemId);
     const account = db.prepare(
-      `INSERT INTO Account (id, userId, provider, providerRef, name, type, mask, institutionName, currentBalanceCents, currency)
-       VALUES (?, ?, 'manual', ?, ?, ?, ?, ?, ?, 'USD')`,
+      `INSERT INTO Account (id, userId, provider, providerRef, plaidItemId, name, type, mask, institutionName, currentBalanceCents, currency)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'USD')`,
     );
-    account.run(chk, uid, `ref-dep-chk-${stamp}`, 'Everyday Checking', 'CHECKING', '7712', null, 1250000);
-    account.run(vg, uid, `ref-dep-vg-${stamp}`, 'Vanguard Brokerage', 'INVESTMENT', '5521', 'Vanguard', 4800000);
+    account.run(chk, uid, 'plaid', `ref-dep-chk-${stamp}`, itemId, 'Everyday Checking', 'CHECKING', '7712', null, 1250000);
+    account.run(vg, uid, 'manual', `ref-dep-vg-${stamp}`, null, 'Vanguard Brokerage', 'INVESTMENT', '5521', 'Vanguard', 4800000);
     const txn = db.prepare(
       `INSERT INTO "Transaction" (id, accountId, date, amountCents, rawDescriptor, categoryId, status, isTransfer, isSplitParent)
        VALUES (?, ?, ?, ?, ?, ?, 'POSTED', 0, 0)`,
@@ -68,9 +75,14 @@ test.describe('money you put in (DECISIONS #788)', () => {
     await expect(card.getByTestId('deposit-lead')).toHaveText(
       '$1,050.00 put in and $300.00 taken out so far this year — $750.00 more in than out.',
     );
-    // Over the window (Jun 2025 – Jun 2026) the only rows are this year's, so the account's
-    // total equals the year's: $600.00 + $450.00 in, $300.00 out.
-    await expect(card.getByTestId('deposit-destination')).toHaveText(/Vanguard Brokerage\s*\$1,050\.00 put in · \$300\.00 taken out/);
+    // By where it went: the last four place $450.00 on the account itself; the brokerage's
+    // name places $600.00 in and $300.00 out at the firm, never on one account there.
+    const dest = card.getByTestId('deposit-destination');
+    await expect(dest).toHaveCount(2);
+    await expect(dest.nth(0)).toContainText('Vanguard$600.00 put in · $300.00 taken out');
+    await expect(dest.nth(0)).toContainText('Matched by name only — your linked account there is Vanguard Brokerage');
+    await expect(dest.nth(1)).toContainText('Vanguard Brokerage$450.00 put in');
+    await expect(dest.nth(1)).toContainText('Matched by its last four digits');
 
     const may = card.locator('[data-testid="deposit-month"][data-month="2026-05"]');
     await expect(may.getByTestId('deposit-month-summary')).toContainText('$450.00 put in · $300.00 taken out');
@@ -80,21 +92,22 @@ test.describe('money you put in (DECISIONS #788)', () => {
     await expect(rows.nth(0)).toContainText('ONLINE TRANSFER TO XXXXXX5521');
     await expect(rows.nth(0)).toContainText('Everyday Checking → Vanguard Brokerage');
     await expect(rows.nth(0)).toContainText('$450.00');
-    await expect(rows.nth(1)).toContainText('Vanguard Brokerage → Everyday Checking');
+    await expect(rows.nth(1)).toContainText('Vanguard → Everyday Checking');
 
-    // A month with nothing says so rather than disappearing.
-    await expect(card.locator('[data-testid="deposit-month"][data-month="2026-03"]')).toContainText('None');
+    // A month with nothing says so rather than disappearing — and a covered month says "None".
+    await expect(card.locator('[data-testid="deposit-month"][data-month="2026-03"]').getByTestId('deposit-month-figure')).toHaveText('None');
+    await expect(card.getByTestId('deposit-month-missing')).toHaveCount(0);
 
     const uncounted = card.getByTestId('deposit-uncounted');
     await uncounted.locator('summary').click();
     await expect(uncounted.getByTestId('deposit-uncounted-row')).toHaveCount(1);
     await expect(uncounted.getByTestId('deposit-uncounted-row')).toContainText(
-      'Left Everyday Checking. No Robinhood investment account is linked here, so it isn\'t counted. Link it on Accounts to count it.',
+      'Left Everyday Checking. No Robinhood investment account is linked here, so it isn’t counted. Link it on Accounts to count it.',
     );
     await expect(card.getByTestId('deposit-link-account')).toHaveAttribute('href', '/accounts');
 
     await card.getByTestId('deposit-rule').locator('summary').click();
-    await expect(card.getByTestId('deposit-rule')).toContainText('Not counted: retirement contributions taken out of your paycheck');
+    await expect(card.getByTestId('deposit-rule')).toContainText('Never seen here: retirement contributions taken out of your paycheck');
   });
 
   test('the shared demo: $750 a month into the Brokerage by its last four, read-only', async ({ page }) => {
