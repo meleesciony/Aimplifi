@@ -30,6 +30,12 @@ Owner, live, mid-session: "Problem. Accounts doesn’t match home page. I’ve c
 
 **Built.** `detectInTransitCardPayments` + `CARD_PAYMENT_WORDS_RE` (`detected-payments.ts`); two-pass assembler with late-arrival exclusion (`assemble.ts`); `CardSnapshot.inTransitPayments`, `CashNeededResult.inTransitPayments` (`types.ts`, `engine.ts`); `inTransitPaymentsSentence` (`in-transit-copy.ts`) on Home's card (every branch), /cards and Ask. Unit 18/18; e2e 2/2 first try on a fresh build; mutation **19/19** killed (two first-round survivors closed with tests). Read-only replay of the rule on the owner's live rows: exactly the two in-transit payments matched; every other card unchanged.
 
+**Gate (on `7b887321`).** Git Bash `VERIFY_E2E=1 bash scripts/verify.sh` exit 1: tsc 0, probes 0, eslint 0; vitest first run 13 failed (two suites' hand-built results lacked `inTransitPayments` — fixtures fixed), re-run on the final tree 9,132 passed + 2 failed (`vercel-build.test.ts`, Git Bash env; PowerShell 31/31); build compiled; Playwright 472 passed / 4 flaky / 0 failed, both new e2e first try.
+
+**Critic cycle 1** (Opus, separate worktree, on `7b887321`) = **FAIL — 2 P1 / 4 P2 / 4 P3** (DECISIONS #791). Worktree junction removed link-only; worktree removed.
+
+**Fix cycle 1.** Credit by date like the pair rule; estimate from charges since close after an in-transit settlement; late/early arrivals; card-payment test by filing + card words or bill-pay words beside an issuer; returns only on a later day and never a top-up; household names; Glass-Box basis. Unit 25/25 + render 6/6; mutation 29/29; live replay (read-only) still exactly the two payments.
+
 ## 2026-10-05/06 — Money you put in: brokerage deposits read from the bank side (DECISIONS #788)
 
 Owner, on remote control: "As a world class dev, ai engineer, personal finance expert and data scientist, build this out." No attachment; the next owner-agreed slice was brokerage deposit history, gated on "verify the endpoint is covered before building". Plaid's billing pages (fetched) say calling `/investments/transactions/get` adds a monthly per-login subscription ended only by unlinking → human gate → owner chose "Bank side, no new fee" (DECISIONS #788).

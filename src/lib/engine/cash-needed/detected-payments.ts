@@ -171,8 +171,11 @@ export function detectCardPayments(
 //
 //   1. a POSTED outflow on a CHECKING or SAVINGS account (not a split parent), dated
 //      after that statement closed and no later than today;
-//   2. it reads as a card payment: filed Credit Card Payment, or a transfer (flag or
-//      filing) whose bank text carries a card-payment word (`CARD_PAYMENT_WORDS_RE`);
+//   2. it reads as a card payment: filed Credit Card Payment; or filed Transfer (or not
+//      filed but flagged a transfer) and its bank text carries a card-payment word
+//      (`CARD_PAYMENT_WORDS_RE`), or a bill-pay word beside a card issuer's name
+//      (`BILL_PAY_WORDS_RE` + `CARD_ISSUER_RE`). A row filed to anything else is the
+//      reader's or the categorizer's word that it is not a card payment, flag or no flag;
 //   3. its amount is EXACTLY that statement's unpaid remainder, and no other card's
 //      current statement has the same remainder — the cent-exact statement balance is
 //      the fingerprint, and an ambiguous one names no card;
@@ -182,7 +185,13 @@ export function detectCardPayments(
 //   5. it is not a move between the reader's own bank accounts (no POSTED equal and
 //      opposite row on another checking or savings account within the pair window),
 //      and it did not come back (no POSTED inflow of the same amount on the same
-//      account after it — a returned payment).
+//      account on a LATER day — a returned payment — unless that inflow is itself
+//      money the reader moved in from another of their accounts, a top-up).
+//
+// A card-side credit of the same amount on the matched card that posts OUTSIDE the
+// pair window (up to `IN_TRANSIT_ARRIVAL_WINDOW_DAYS` either side) is that payment
+// arriving: it stays credited, is never announced as a credit for the next statement,
+// and is no longer described as not yet shown (critic cycle 1, P2-1).
 //
 // Every other bank outflow abstains, and the bill is demanded as before. A part
 // payment never matches (it is not the remainder) — the card side picks it up when it
@@ -191,7 +200,17 @@ export function detectCardPayments(
 
 /** Words a bank prints on a card payment. Read only on a row already filed as a move. */
 export const CARD_PAYMENT_WORDS_RE =
-  /\b(CRCARD ?PMT|CR ?CARD|CARD (?:ONLINE )?(?:PMT|PAYMENT)|CARDPMT|CREDIT ?CARD|CREDIT ?CRD|AUTOPAY|AUTO ?PAY|AUTOMATIC PAYMENT|E-?PAYMENT|EPAY)\b/i;
+  /\b(CRCARD ?PMT|CR ?CARD|CARD (?:ONLINE )?(?:PMT|PAYMENT)|CARDPMT|CREDIT ?CARD|CREDIT ?CRD|CRD ?PMT)\b/i;
+/**
+ * Words every kind of bill prints ("VERIZON WIRELESS EPAY", "TOYOTA FINANCIAL AUTOPAY"),
+ * so they read as a card payment only beside a card issuer's name (critic cycle 1, P2-2).
+ */
+export const BILL_PAY_WORDS_RE = /\b(AUTOPAY|AUTO ?PAY|AUTOMATIC PAYMENT|E-?PAYMENT|EPAY|ONLINE PMT|ONLINE PAYMENT)\b/i;
+/** Card issuers' names as banks print them on a payment. */
+export const CARD_ISSUER_RE =
+  /\b(AMEX|AMERICAN EXPRESS|CHASE|CITI|CITIBANK|CITI CARDS?|DISCOVER|CAPITAL ONE|CAPITALONE|BARCLAYS?|BARCLAYCARD|SYNCB|SYNCHRONY|WELLS FARGO|BK OF AMER|BANK OF AMERICA|BOFA|US ?BANK|GOLDMAN SACHS|GS BANK|APPLE ?CARD|ELAN|COMENITY|TD BANK|PNC|NAVY FEDERAL|USAA|CREDIT ONE|MERRICK)\b/i;
+/** How far either side of the bank debit a LATE card-side credit is still that payment arriving. */
+export const IN_TRANSIT_ARRIVAL_WINDOW_DAYS = 14;
 
 export interface InTransitTxn extends DetectedPaymentTxn {
   rawDescriptor: string;
@@ -217,6 +236,8 @@ export interface InTransitPayment {
   fromAccountId: string;
   /** Position of the bank-side row in the array handed in. */
   txnIndex: number;
+  /** Position of the card-side credit that arrived outside the pair window, if one has. */
+  arrivedTxnIndex: number | null;
 }
 
 export function detectInTransitCardPayments(params: {
@@ -228,9 +249,23 @@ export function detectInTransitCardPayments(params: {
   const { transactions: txns, accountTypeById, today } = params;
   const posted = (t: InTransitTxn) => t.status === 'POSTED' && !t.isSplitParent;
   const within = (a: string, b: string) => Math.abs(daysBetween(isoDate(a), isoDate(b))) <= PAYMENT_PAIR_WINDOW_DAYS;
+  const unfiled = (t: InTransitTxn) => !t.categoryId || t.categoryId === 'uncategorized';
   const readsAsCardPayment = (t: InTransitTxn) =>
     t.categoryId === 'credit-card-payment' ||
-    ((t.isTransfer || t.categoryId === 'transfer') && CARD_PAYMENT_WORDS_RE.test(t.rawDescriptor));
+    ((t.categoryId === 'transfer' || (unfiled(t) && t.isTransfer)) &&
+      (CARD_PAYMENT_WORDS_RE.test(t.rawDescriptor) ||
+        (BILL_PAY_WORDS_RE.test(t.rawDescriptor) && CARD_ISSUER_RE.test(t.rawDescriptor))));
+  // A deposit that is half of a move in from another of the reader's bank accounts (a
+  // top-up of exactly the bill) is not the payment coming back.
+  const isTopUp = (u: InTransitTxn) =>
+    txns.some(
+      (w) =>
+        posted(w) &&
+        w.amountCents === -u.amountCents &&
+        w.accountId !== u.accountId &&
+        PAYS_A_CARD.has(accountTypeById.get(w.accountId) ?? '') &&
+        within(w.date, u.date),
+    );
 
   const debits = txns
     .map((t, i) => ({ t, i }))
@@ -246,6 +281,7 @@ export function detectInTransitCardPayments(params: {
 
   const open = params.candidates.filter((c) => c.unpaidCents > 0).map((c) => ({ ...c }));
   const out: InTransitPayment[] = [];
+  const arrivals = new Set<number>();
   for (const { t, i } of debits) {
     const amount = -t.amountCents;
     const otherSide = txns.some((u, j) => {
@@ -256,7 +292,7 @@ export function detectInTransitCardPayments(params: {
       // 5. a move between the reader's own bank accounts, or money that came back.
       if (PAYS_A_CARD.has(type)) {
         if (u.accountId !== t.accountId) return within(u.date, t.date);
-        return compareDates(isoDate(u.date), isoDate(t.date)) >= 0;
+        return compareDates(isoDate(u.date), isoDate(t.date)) > 0 && !isTopUp(u);
       }
       return false;
     });
@@ -266,6 +302,16 @@ export function detectInTransitCardPayments(params: {
     );
     if (matches.length !== 1) continue;
     const hit = matches[0]!;
+    const arrived = txns.findIndex(
+      (u, j) =>
+        !arrivals.has(j) &&
+        posted(u) &&
+        u.accountId === hit.cardAccountId &&
+        u.amountCents === amount &&
+        !within(u.date, t.date) &&
+        Math.abs(daysBetween(isoDate(u.date), isoDate(t.date))) <= IN_TRANSIT_ARRIVAL_WINDOW_DAYS,
+    );
+    if (arrived >= 0) arrivals.add(arrived);
     out.push({
       cardAccountId: hit.cardAccountId,
       statementId: hit.statementId,
@@ -273,6 +319,7 @@ export function detectInTransitCardPayments(params: {
       date: isoDate(t.date),
       fromAccountId: t.accountId,
       txnIndex: i,
+      arrivedTxnIndex: arrived >= 0 ? arrived : null,
     });
     hit.unpaidCents = 0;
   }

@@ -30,6 +30,7 @@
 import { type Cents, cents, formatCents, sumCents } from '@/lib/money';
 import type { ISODate } from '@/lib/dates';
 import type { CashNeededResult } from '@/lib/engine/cash-needed/types';
+import { inTransitPaymentsSentence } from '@/lib/engine/cash-needed/in-transit-copy';
 import { currentCycleAmountSource, frozenCardsNote } from '@/lib/engine/account/feed-dropped-view';
 import {
   mapToConsciousBuckets,
@@ -147,9 +148,19 @@ export function traceCashNeeded(
   const sum = sumCents(rows.map((r) => r.amountCents));
 
   const basis: string[] = [];
+  // #791 (critic cycle 1, P3): the reader auditing this number is told which payments it
+  // already counts as paid although the card company has not shown them yet.
+  const inTransit = inTransitPaymentsSentence(result.inTransitPayments);
+  if (inTransit) basis.push(inTransit);
   if (rows.some((r) => r.isEstimated)) {
+    // An estimate after a statement settled in transit reads the charges since that close,
+    // not the card balance (#791); each such row's own note says so.
+    const estimatedIds = new Set(rows.filter((r) => r.isEstimated).map((r) => r.id.split(':').slice(2).join(':')));
+    const fromCharges = result.cards.some((c) => estimatedIds.has(c.cardId) && c.notes.some((n) => n.includes('estimated from the charges since')));
     basis.push(
-      'Rows marked "est." use the current card balance because a statement has not been generated yet.',
+      fromCharges
+        ? 'Rows marked "est." are estimated because a statement has not been generated yet — from the current card balance, or, after a statement paid by a payment the card company has not shown yet, from the charges since that statement closed (the row says which).'
+        : 'Rows marked "est." use the current card balance because a statement has not been generated yet.',
     );
   }
   if (result.upcoming.length > 0) {

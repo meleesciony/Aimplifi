@@ -105,7 +105,11 @@ function buildObligation(
     dueDate = card.nextDueDate;
     isEstimated = true;
     if (statementBalance > 0) {
-      const msg = `${card.name}: statement not generated yet — due amount estimated from the current balance (${formatCents(statementBalance)}).`;
+      // #791: after a statement settled by a payment the card company has not shown yet, the
+      // estimate is the charges since that statement closed — its balance may still hold the payment.
+      const msg = card.estimateFromChargesSince
+        ? `${card.name}: statement not generated yet — due amount estimated from the charges since the last statement closed on ${formatISODate(card.estimateFromChargesSince)} (${formatCents(statementBalance)}), because the card company’s balance may still include a payment counted in transit.`
+        : `${card.name}: statement not generated yet — due amount estimated from the current balance (${formatCents(statementBalance)}).`;
       notes.push(msg);
       assumptions.add(msg);
     }
@@ -548,15 +552,19 @@ export function computeCashNeeded(input: CashNeededInput): CashNeededResult {
             balanceCents: input.paymentAccount.balanceCents,
           }
         : null,
-    // #791: card order, then date — the reader's own list of payments counted in transit.
+    // #791: card order, then date — the payments counted in transit that the card company
+    // has NOT shown yet (one it has shown, late, is no longer "before the card company shows it").
     inTransitPayments: input.cards.flatMap((card) =>
-      (card.inTransitPayments ?? []).map((x) => ({
-        cardId: card.id,
-        cardName: card.name,
-        amountCents: x.amountCents,
-        date: x.date,
-        fromAccountName: x.fromAccountName,
-      })),
+      (card.inTransitPayments ?? [])
+        .filter((x) => !x.shownByCard)
+        .map((x) => ({
+          cardId: card.id,
+          cardName: card.name,
+          amountCents: x.amountCents,
+          date: x.date,
+          fromAccountId: x.fromAccountId,
+          fromAccountName: x.fromAccountName,
+        })),
     ),
     assumptions: [...assumptions],
   };

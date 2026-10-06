@@ -178,7 +178,12 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
       cycleEnd: statement.cycleEnd,
       storedPayments: p.cardPayments.filter((cp) => cp.statementId === statement.id),
     }) +
-    inTransit.filter((x) => x.cardAccountId === cardId && x.statementId === statement.id).reduce((sum, x) => sum + x.amountCents, 0);
+    // Credited the way detected payments are (critic cycle 1, P1-1): to every statement of
+    // the card that closed before the money left, so paying the newest statement in transit
+    // can never surface an older, already-covered one as a past-due bill.
+    inTransit
+      .filter((x) => x.cardAccountId === cardId && compareDates(x.date, isoDate(statement.cycleEnd)) > 0)
+      .reduce((sum, x) => sum + x.amountCents, 0);
   const statementsOf = (cardId: string) =>
     p.statements
       .filter((s) => s.accountId === cardId)
@@ -210,6 +215,8 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
   });
   const accountName = new Map(p.accounts.map((a) => [a.id, accountLabel(a)]));
 
+  const arrivedIndexes = new Set(inTransitPayments.flatMap((x) => (x.arrivedTxnIndex !== null ? [x.arrivedTxnIndex] : [])));
+
   const cards: CardSnapshot[] = creditCards
     .map((card) => {
       const own = statementsOf(card.id);
@@ -221,21 +228,6 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
       let postCloseCredit = 0;
       if (current) {
         paymentsApplied = paidAgainst(current);
-        // A card credit that is the LATE arrival of a payment counted in transit (it
-        // posted after the pair window, so the pair rule never saw it) is that same
-        // money — it may not also be announced as a credit for the next statement.
-        const arrivals = new Set<number>();
-        for (const x of inTransitHere) {
-          const k = p.transactions.findIndex(
-            (t, i) =>
-              !arrivals.has(i) &&
-              t.accountId === card.id &&
-              t.status === 'POSTED' &&
-              t.amountCents === x.amountCents &&
-              compareDates(isoDate(t.date), x.date) >= 0,
-          );
-          if (k >= 0) arrivals.add(k);
-        }
         postCloseCredit = p.transactions
           .filter(
             (t, i) =>
@@ -248,7 +240,9 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
               // Disjoint by identity, not by the isTransfer flag — see
               // DetectedCardPayment.txnIndex.
               !detectedIndexes.has(i) &&
-              !arrivals.has(i) &&
+              // A card credit that is a payment counted in transit ARRIVING outside the
+              // pair window is that same money, not a credit for the next statement.
+              !arrivedIndexes.has(i) &&
               t.amountCents > 0 &&
               compareDates(isoDate(t.date), isoDate(current.cycleEnd)) > 0,
           )
@@ -281,6 +275,32 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
         nextDueDate = nextDayOfMonth(card.dueDayOfMonth, addDays(nextCycleCloseDate, 1));
       }
 
+      // #791 (critic cycle 1, P1-2): the next cycle is normally estimated from the card
+      // company's balance — but while a payment counted in transit has not reached the card
+      // side, that balance may still hold it, and the estimate would ask for the paid money
+      // a second time (on /cards, the calendar and the radar walk). So when the statement
+      // was settled by such a payment, the estimate is what was charged on the card since
+      // that statement closed: posted rows after the close, less the payments to it.
+      const unshownInTransit = inTransitHere.some((x) => x.arrivedTxnIndex === null);
+      const settledClose = !current && own.length > 0 ? own[0]!.cycleEnd : null;
+      const chargesSinceClose =
+        unshownInTransit && settledClose !== null
+          ? p.transactions.reduce(
+              (sum, t, i) =>
+                t.accountId === card.id &&
+                t.status === 'POSTED' &&
+                !t.isSplitParent &&
+                // (A card holds at most one payment in transit — it pays its one current
+                // statement's whole remainder — and this runs only while that one has not
+                // arrived, so no arrival can be among these rows.)
+                !detectedIndexes.has(i) &&
+                compareDates(isoDate(t.date), isoDate(settledClose)) > 0
+                  ? sum - t.amountCents
+                  : sum,
+              0,
+            )
+          : null;
+
       return {
         id: card.id,
         // The label, resolved ONCE here (TASKS L.7) — the same reason `feedDroppedAt` is
@@ -298,7 +318,10 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
               cycleEnd: isoDate(current.cycleEnd),
             }
           : null,
-        currentBalanceCents: cents(card.currentBalanceCents),
+        currentBalanceCents: cents(chargesSinceClose ?? card.currentBalanceCents),
+        ...(chargesSinceClose !== null && settledClose !== null
+          ? { estimateFromChargesSince: isoDate(settledClose) }
+          : {}),
         nextCycleCloseDate,
         nextDueDate,
         paymentsAppliedCents: cents(paymentsApplied),
@@ -312,7 +335,9 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
         inTransitPayments: inTransitHere.map((x) => ({
           amountCents: cents(x.amountCents),
           date: x.date,
+          fromAccountId: x.fromAccountId,
           fromAccountName: accountName.get(x.fromAccountId) ?? '',
+          shownByCard: x.arrivedTxnIndex !== null,
         })),
         frozenSince: card.feedDroppedAt ?? null,
         // C.11 critic P0-1: a manual card's statement/balance is a typed figure;

@@ -85,7 +85,13 @@ export function CashNeededCard({
   const { headline } = result;
   // #791: a card counted as paid while its payment is in transit says so on every branch —
   // the reader's card company may still show the bill as open.
-  const inTransit = inTransitPaymentsSentence(result.inTransitPayments);
+  const inTransit = inTransitPaymentsSentence(result.inTransitPayments, {
+    // Household scope: the partner's card and account carry their owner, as every other
+    // name on this card does (critic cycle 1, P3).
+    card: (n) => (accountOwnerLabel[n.cardId] ? `${n.cardName} (${accountOwnerLabel[n.cardId]}'s)` : n.cardName),
+    account: (n) =>
+      accountOwnerLabel[n.fromAccountId] ? `${n.fromAccountName} (${accountOwnerLabel[n.fromAccountId]}'s)` : n.fromAccountName,
+  });
   const inTransitNote = inTransit ? (
     <p className="text-xs text-muted-foreground" data-testid="cash-needed-in-transit">
       {inTransit}

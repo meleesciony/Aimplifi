@@ -51,7 +51,13 @@ export interface CardSnapshot {
    * `paymentsAppliedCents`). Carried even when they settled the statement, so a surface
    * can say the bill was counted as paid before the issuer showed it. Absent = none.
    */
-  inTransitPayments?: readonly { amountCents: Cents; date: ISODate; fromAccountName: string }[];
+  inTransitPayments?: readonly { amountCents: Cents; date: ISODate; fromAccountId: string; fromAccountName: string; shownByCard: boolean }[];
+  /**
+   * #791 (critic cycle 1, P1-2): set when the estimate path should read `currentBalanceCents`
+   * as the charges since THIS statement close date — the card company's balance may still
+   * hold a payment counted in transit. Absent = the issuer's balance, as before.
+   */
+  estimateFromChargesSince?: ISODate;
   /** YYYY-MM-DD the bank stopped sharing this card, else null/absent (TASKS L.14).
    *
    *  The original of this comment claimed the engine's `assumptions` are rendered by "/cards, the
@@ -274,6 +280,7 @@ export interface InTransitPaymentNote {
   amountCents: Cents;
   /** The day the money left the bank account. */
   date: ISODate;
+  fromAccountId: string;
   fromAccountName: string;
 }
 
