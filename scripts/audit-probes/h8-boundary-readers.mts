@@ -288,6 +288,7 @@ for (const user of users.rows) {
           status: r.status,
           isSplitParent: r.isSplitParent,
           excludeFromTotals: r.excludeFromTotals,
+          categoryId: r.categoryId,
         })),
         accountCount: digestScope.length,
         since,
