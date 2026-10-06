@@ -35,9 +35,11 @@
  *     refunded by) the brokerage, not money put in or taken out: listed.
  *  4. It was not returned: money moving the other way on the same account within 14
  *     days, same amount, that names the same destination (not filed, or worded as a
- *     return) — or is worded as a reversal or return and not filed to spending —
- *     cancels it (listed). A deposit up to 14 days before the window still takes its
- *     return inside it.
+ *     return) — or names no destination, is worded the way a BANK words a return
+ *     ("RETURNED ITEM", "ACH RETURN", "REVERSAL", …; never a bare "REV" or "RETURN",
+ *     which are revocable trusts, tax refunds and store returns) and is not filed to
+ *     spending — cancels it (listed). A row naming a different destination never
+ *     cancels it. A deposit up to 14 days before the window still takes its return.
  *  5. It did not land in another of the reader's own accounts: a row that is
  *     evidence of a move — posted, not excluded, not after today, flagged as a
  *     transfer or filed Transfer / card payment / Investment & Savings (or, on a bank
@@ -98,7 +100,14 @@ export const MIN_DEPOSIT_CENTS = 100;
  * membership, a card payment, a rebate — not money put in or taken out of investing.
  */
 const NOT_A_DEPOSIT_RE =
-  /\b(FEES?|MEMBERSHIP|SUBSCRIPTION|CARD PAYMENT|CARD PMT|CREDIT CARD|VISA|MASTERCARD|AMEX|INTEREST|ADVISORY|LOANS?|MORTGAGE|MTG|LENDING|INSURANCE|INS|PREMIUM|REBATE|REFUND|CASH ?BACK|ROBINHOOD GOLD|COINBASE ONE)\b/i;
+  /\b(FEES?|MEMBERSHIP|SUBSCRIPTION|CARD PAYMENT|CARD PMT|CREDIT CARD|(?:VISA|MASTERCARD|AMEX)(?: CARD)? (?:PAYMENT|PMT|AUTOPAY|BILL)|INTEREST(?! (?:INCOME|FUND))|ADVISORY|LOANS?|MORTGAGE|MTG|LENDING|INSURANCE|INS|PREMIUM|REBATE|REFUND|CASH ?BACK|ROBINHOOD GOLD|COINBASE ONE)\b/i;
+/**
+ * How a BANK words money it sends back: a returned item, an ACH return, a reversal, a
+ * chargeback. A bare "REV" or "RETURN" is not enough — "SMITH REV TRUST", "DEPT OF REV",
+ * "TAX RETURN", "RETURN OF CAPITAL" and a store's "RETURN" are other money.
+ */
+const BANK_RETURN_RE =
+  /\b(RETURNED ITEM|RETURN ITEM|RETURNED|ACH RETURN|RETURN OF POSTED|TRANSFER RETURN|REVERSAL|REVERSED|CHARGEBACK|CHGBK)\b/i;
 /** Person-to-person payments: a brokerage's name in one is a person's name. */
 const P2P_RE = /\b(ZELLE|VENMO|CASH ?APP|SQUARE CASH|APPLE CASH)\b/i;
 
@@ -290,7 +299,7 @@ export interface DepositHistory {
   destinations: readonly { destination: DepositDestination; putInCents: number; takenOutCents: number }[];
   uncounted: readonly UncountedRow[];
   /** Linked investment accounts with no brokerage we know: matched only by their last four digits. */
-  lastFourOnly: readonly string[];
+  lastFourOnly: readonly { label: string; lastFour: string }[];
   /** Linked investment accounts with no brokerage we know AND no usable last four: never matched. */
   unmatchable: readonly string[];
   /** The account the history is narrowed to, when it is. */
@@ -573,11 +582,14 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
         if (back.row.amountCents !== -orig.row.amountCents) continue;
         const gap = daysBetween(orig.date, back.date);
         if (gap < 0 || gap > RETURN_WINDOW_DAYS) continue;
-        const sameDestination = [...destinationTokens(back)].some((t) => tokens.has(t));
+        const backTokens = destinationTokens(back);
+        const sameDestination = [...backTokens].some((t) => tokens.has(t));
+        // Money naming a DIFFERENT destination is that destination's, never this deposit's return.
+        if (backTokens.size > 0 && !sameDestination) continue;
         // Worded as a return and filed where a deposit's return can sit — unfiled, as a move, or
         // as income other than a refund (a categorizer files "ONLINE TRANSFER RETURN" Transfer).
         // A store refund filed Shopping or Refund is the reader's word that it is not this.
-        const wordedReturn = REVERSAL_RE.test(back.row.rawDescriptor ?? '') && mayBeADepositReturn(back.row.categoryId);
+        const wordedReturn = BANK_RETURN_RE.test(back.row.rawDescriptor ?? '') && mayBeADepositReturn(back.row.categoryId);
         if (!sameDestination && !wordedReturn) continue;
         // Money that moved back must not be a fresh movement of its own the other way: a
         // destination-naming row filed as a move is a withdrawal, unless worded as a return.
@@ -887,7 +899,9 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
       (a, b) => b.putInCents - a.putInCents || (a.destination.key < b.destination.key ? -1 : 1),
     ),
     uncounted,
-    lastFourOnly: investment.filter((a) => !brokerageOf.get(a.id) && usableMask(a.mask) !== null).map((a) => a.label),
+    lastFourOnly: investment
+      .filter((a) => !brokerageOf.get(a.id) && usableMask(a.mask) !== null)
+      .map((a) => ({ label: a.label, lastFour: usableMask(a.mask)! })),
     unmatchable: investment.filter((a) => !brokerageOf.get(a.id) && usableMask(a.mask) === null).map((a) => a.label),
     scope: scope ? { accountId: scope.id, label: scope.label, byBrokerageName: byName } : null,
   };

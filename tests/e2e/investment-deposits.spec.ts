@@ -73,7 +73,7 @@ test.describe('money you put in (DECISIONS #788)', () => {
     await expect(card).toBeVisible();
     // $600.00 + $450.00 in; $300.00 out → $750.00 more in than out.
     await expect(card.getByTestId('deposit-lead')).toHaveText(
-      '$1,050.00 put in and $300.00 taken out so far this year — $750.00 more in than out.',
+      '$1,050.00 put in and $300.00 taken out so far this year — $750.00 more in than out. One movement we couldn’t count is listed under “Not counted”.',
     );
     // By where it went: the last four place $450.00 on the account itself; the brokerage's
     // name places $600.00 in and $300.00 out at the firm, never on one account there.

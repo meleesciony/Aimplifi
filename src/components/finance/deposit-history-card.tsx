@@ -90,7 +90,7 @@ export function DepositHistoryCard({ history, canLink }: { history: DepositHisto
         <DisclosureChevron />
         How we read this
       </summary>
-      <p className="pb-1 pl-[22px]">{depositRuleNote(history.recordsFromMonth)}</p>
+      <p className="pb-1 pl-[22px]">{depositRuleNote(history.months[0]?.month ?? null)}</p>
     </details>
   );
 

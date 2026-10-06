@@ -36,46 +36,43 @@ export function thisYearSpan(fromMonth: string): string {
 
 const MISSING_NOTE = 'Some months are missing records — they’re marked below.';
 
-/** The lead line, or null when there is no covered month to speak about. */
+/**
+ * The lead line, or null when there is no covered month to speak about. Every figure in it
+ * is what was COUNTED, and it says so whenever something was left out: it never claims
+ * money did not move (critic cycles 3–4: a zero is a claim about the matcher, not the rows).
+ */
 export function depositLead(h: DepositHistory): string | null {
   if (!h.thisYear) return null;
   const { putInCents, takenOutCents, fromMonth, monthsMissingRecords } = h.thisYear;
   const span = thisYearSpan(fromMonth);
   const label = h.scope?.label ?? null;
-  const missing = monthsMissingRecords > 0;
+  const left = h.uncounted.filter((u) => u.month >= fromMonth).length;
+  const tail = [
+    left > 0
+      ? `${left === 1 ? 'One movement we couldn’t count is' : `${left} movements we couldn’t count are`} listed under “Not counted”.`
+      : null,
+    monthsMissingRecords > 0 ? MISSING_NOTE : null,
+  ].filter((x): x is string => x !== null);
+  const withTail = (sentence: string) => [sentence, ...tail].join(' ');
 
   if (putInCents === 0 && takenOutCents === 0) {
-    // A zero is a claim (docs/lessons/a-zero-is-a-claim-and-must-name-which-zero.md):
-    // "nothing moved" is true only when nothing was left out and every month has records.
-    const left = h.uncounted.filter((u) => u.month >= fromMonth).length;
-    if (left > 0) {
-      const what = left === 1 ? 'One movement we couldn’t count is' : `${left} movements we couldn’t count are`;
-      return `Nothing counted ${label ? `for ${label} ` : ''}${span}. ${what} listed under “Not counted”.`;
-    }
-    // Never "nothing moved": the card can say only what it matched (critic cycle 3, P1-2).
-    if (missing) {
-      return label
-        ? `Nothing placed on ${label} by its last four digits ${span} in the records we have. ${MISSING_NOTE}`
-        : `Nothing matched ${span} in the records we have. ${MISSING_NOTE}`;
-    }
-    return label
-      ? `Nothing placed on ${label} by its last four digits ${span}.`
-      : `Nothing matched ${span} — no row from your linked checking or savings names one of your investment accounts by its last four digits, or a brokerage we know.`;
+    if (left > 0) return withTail(`Nothing counted ${label ? `for ${label} ` : ''}${span}.`);
+    const where = monthsMissingRecords > 0 ? ' in the records we have' : '';
+    return withTail(label ? `Nothing placed on ${label} by its last four digits ${span}${where}.` : `Nothing matched ${span}${where}.`);
   }
 
   const into = label ? ` to ${label}` : '';
   const outOf = label ? ` from ${label}` : '';
-  let sentence: string;
-  if (takenOutCents === 0) sentence = `${money(putInCents)} put in${into} ${span}.`;
-  else if (putInCents === 0) sentence = `${money(takenOutCents)} taken out${outOf} ${span}, nothing put in.`;
-  else {
-    const net = putInCents - takenOutCents;
-    const netWords =
-      net === 0 ? 'as much in as out' : net > 0 ? `${money(net)} more in than out` : `${money(-net)} more out than in`;
-    sentence = `${label ? `For ${label}: ` : ''}${money(putInCents)} put in and ${money(takenOutCents)} taken out ${span} — ${netWords}.`;
-  }
-  return missing ? `${sentence} ${MISSING_NOTE}` : sentence;
+  if (takenOutCents === 0) return withTail(`${money(putInCents)} put in${into} ${span}.`);
+  if (putInCents === 0) return withTail(`${money(takenOutCents)} taken out${outOf} ${span}; nothing counted going in.`);
+  const net = putInCents - takenOutCents;
+  const netWords =
+    net === 0 ? 'as much in as out' : net > 0 ? `${money(net)} more in than out` : `${money(-net)} more out than in`;
+  return withTail(`${label ? `For ${label}: ` : ''}${money(putInCents)} put in and ${money(takenOutCents)} taken out ${span} — ${netWords}.`);
 }
+
+/** How the matcher reads an account's last four, said once for every sentence that needs it. */
+export const LAST_FOUR_MARKERS = 'after X, *, “..”, “ending in” or “acct”';
 
 /** Which linked investment accounts the card can match only by last four, or not at all. */
 export function matchingNote(h: DepositHistory): string | null {
@@ -83,7 +80,9 @@ export function matchingNote(h: DepositHistory): string | null {
   const parts: string[] = [];
   if (h.lastFourOnly.length > 0) {
     const one = h.lastFourOnly.length === 1;
-    parts.push(`We can match ${listOf(h.lastFourOnly)} only when a description names ${one ? 'its' : 'their'} last four digits.`);
+    parts.push(
+      `We can match ${listOf(h.lastFourOnly.map((a) => a.label))} only when a description shows ${one ? 'its' : 'their'} last four digits ${LAST_FOUR_MARKERS} — for example X${h.lastFourOnly[0]!.lastFour}.`,
+    );
   }
   if (h.unmatchable.length > 0) {
     const one = h.unmatchable.length === 1;
@@ -142,11 +141,13 @@ export function monthMissingNote(m: DepositMonth): string | null {
   return (
     m.missingRecordsDetail
       .map((d) =>
-        d.startsOn
-          ? `Records from ${d.label} begin ${formatISODate(d.startsOn, 'long')}`
-          : d.endsOn
-            ? `Records from ${d.label} run only through ${formatISODate(d.endsOn, 'long')}`
-            : `Records from ${d.label} don’t cover all of ${m.partial ? 'this month so far' : 'this month'}`,
+        d.startsOn && d.endsOn
+          ? `Records from ${d.label} begin ${formatISODate(d.startsOn, 'long')} and run only through ${formatISODate(d.endsOn, 'long')}`
+          : d.startsOn
+            ? `Records from ${d.label} begin ${formatISODate(d.startsOn, 'long')}`
+            : d.endsOn
+              ? `Records from ${d.label} run only through ${formatISODate(d.endsOn, 'long')}`
+              : `Records from ${d.label} don’t cover all of ${m.partial ? 'this month so far' : 'this month'}`,
       )
       .join('; ') + '.'
   );
@@ -195,24 +196,24 @@ export function uncountedReason(u: UncountedRow): string {
         ? `The same amount arrived in ${u.otherAccountLabel ?? 'another of your accounts'} within a week, so it looks like a move between your own accounts.`
         : `The same amount left ${u.otherAccountLabel ?? 'another of your accounts'} within a week, so it looks like a move between your own accounts.`;
     case 'no-account-named':
-      return 'It’s filed Investment & Savings, but the description doesn’t name an investment account or a brokerage we know, so it isn’t counted.';
+      return `It’s filed Investment & Savings, but we couldn’t read an investment account’s last four digits (${LAST_FOUR_MARKERS}) or a brokerage we know in its description, so it isn’t counted.`;
   }
 }
 
 /** The "how we read this" note: the rule, stated as the code applies it. */
-export function depositRuleNote(recordsFromMonth: string | null): string {
+export function depositRuleNote(firstShownMonth: string | null): string {
   const names = BROKERAGES.map((b) => b.name);
   const list = `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
-  const records = recordsFromMonth
-    ? ` Months are read from ${formatMonth(recordsFromMonth)}, the first full month your linked checking and savings records cover; a month whose records are incomplete says so.`
+  const records = firstShownMonth
+    ? ` The months shown start in ${formatMonth(firstShownMonth)}: the last 12 complete months, or fewer when your linked checking and savings records start later; a month whose records are incomplete says so.`
     : '';
   return (
-    'Counted: money your linked checking and savings accounts sent to a linked investment account (put in) or got back from one (taken out), $1.00 or more, filed Transfer or Investment & Savings, when the bank’s description names the account’s last four digits or the brokerage — ' +
+    `Counted: money your linked checking and savings accounts sent to a linked investment account (put in) or got back from one (taken out), $1.00 or more, filed Transfer or Investment & Savings, when the bank’s description shows the account’s last four digits ${LAST_FOUR_MARKERS} (for example X1234), or names the brokerage — ` +
     list +
     '. A brokerage’s name says which firm, not which account, so those amounts are shown under the firm. ' +
     'Not counted, and listed under “Not counted” with the reason: rows not filed yet; money that moved back within two weeks; money that arrived in (or left) another of your accounts within a week; fees, bills, loans, insurance, memberships, rebates and refunds between you and a brokerage itself; brokerages not linked here; descriptions that could mean more than one account; rows filed Investment & Savings that name no account; and — if you also link a bank or card account at the same brokerage — rows its records can’t rule out. ' +
     'A Zelle, Venmo or Cash App payment names a person, not a brokerage. ' +
-    'Never seen here: retirement contributions taken out of your paycheck, money your paycheck sends straight to an investment account, money moved from banks you haven’t linked, descriptions that name neither the account’s last four digits nor a brokerage we know, and market gains or losses — so “None matched” means nothing we could match, not that no money moved.' +
+    'Never seen here: retirement contributions taken out of your paycheck, money your paycheck sends straight to an investment account, money moved from banks you haven’t linked, and market gains or losses. Not matched: a description that shows the last four digits any other way (“TO IRA 1234”) or names a brokerage not on the list — so “None matched” means nothing we could match, not that no money moved.' +
     records
   );
 }

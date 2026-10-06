@@ -51,7 +51,9 @@ Owner, on remote control: "As a world class dev, ai engineer, personal finance e
 
 **Routed to the human gate (budget exhausted; GRAPH.md §4).** Not pushed: `main` 4 ahead of `origin/main` (`0de71e5e`…`5264d723`); production unchanged. Open findings written to STATUS ("HUMAN GATE 2026-10-06").
 
-**Next.** Owner's call: fix the two copy P1s (+ the three P2s) and run a 5th review; ship a narrower card; or pause.
+**Human gate → owner (2026-10-06): "Fix and review once more (Recommended)"** — a 5th review; ship only if it finds nothing serious (DECISIONS #788).
+
+**Fix cycle 4.** Lead states only what was counted ("nothing counted going in"; "listed under Not counted" and the missing-records note whenever they apply); zero = "Nothing matched"; matching note gives the markers and an example (X6604); rule note describes the matcher ("Not matched: … “TO IRA 1234” …") and the first SHOWN month; a deposit's return without a destination needs a BANK's return words (`BANK_RETURN_RE`), never a bare REV/RETURN; a row naming a different destination never cancels; "VISA PAYMENT" not bare VISA; "INTEREST INCOME FUND" is a fund; a same-month begin-and-end note says both. Unit 91/91; tsc 0.
 
 ## 2026-10-05 — Bonuses that land pay this month's savings first, on their own line (DECISIONS #787)
 
