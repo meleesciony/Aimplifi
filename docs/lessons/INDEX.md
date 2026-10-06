@@ -112,3 +112,4 @@ and rule live in each lesson file — open the file before acting on a hook.
 - [A rhythm read from dates cannot see a new job](a-rhythm-read-from-dates-cannot-see-a-new-job.md) — six twice-a-month paydays fit a 14-day grid; bound the figure by the lowest count the dates allow
 - [Money taken back is found by what it is](money-taken-back-is-found-by-what-it-is-not-whose-name-it-carries.md) — a reversal rewrites the payer's name; net by unfiled/income/reversal words
 - [A narrowed word list reopens what it used to catch](a-narrowed-word-list-reopens-what-it-caught.md) — #788 narrowed return words to stop false hits and silently re-counted bounces; test both directions
+- [A junctioned worktree cannot build](a-junctioned-worktree-cannot-build.md) — Turbopack rejects a node_modules junction outside the root: tsc/eslint/vitest run there, next build and e2e do not; gate in the main tree
