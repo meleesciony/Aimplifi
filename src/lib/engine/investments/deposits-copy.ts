@@ -95,7 +95,10 @@ export function matchingNote(h: DepositHistory): string | null {
 
 /** Narrowed view: what this card is showing. */
 export function scopeNote(h: DepositHistory): string | null {
-  return h.scope ? `Showing only money placed on ${h.scope.label} by its last four digits.` : null;
+  if (!h.scope) return null;
+  return h.scope.hasLastFour
+    ? `Showing only money placed on ${h.scope.label} by its last four digits.`
+    : `Showing only money placed on ${h.scope.label} by its last four digits — it has none on file, so nothing can be placed on it here.`;
 }
 
 /** Narrowed view: money matched only by the brokerage's name, which may or may not be this account's. */
@@ -107,8 +110,8 @@ export function scopeByNameNote(h: DepositHistory): string | null {
   if (b.takenOutCents > 0) parts.push(`${money(b.takenOutCents)} came back from ${b.brokerageName}`);
   const which =
     b.accountsThere === 1
-      ? `the description names the firm, not an account — it may or may not be ${h.scope.label}’s`
-      : `the description doesn’t say which of your ${b.accountsThere} accounts there`;
+      ? `the descriptions name the firm, not an account — it may or may not be ${h.scope.label}’s`
+      : `the descriptions don’t say which of your ${b.accountsThere} accounts there`;
   return `Also, over these months ${listOf(parts)} by name only — ${which}, so it isn’t counted here. See all your investments for it.`;
 }
 
@@ -202,7 +205,7 @@ export function uncountedReason(u: UncountedRow): string {
 
 /** The "how we read this" note: the rule, stated as the code applies it. */
 export function depositRuleNote(firstShownMonth: string | null): string {
-  const names = BROKERAGES.map((b) => b.name);
+  const names = BROKERAGES.map((b) => (b.spelledAs ? `${b.name} (written ${b.spelledAs})` : b.name));
   const list = `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`;
   const records = firstShownMonth
     ? ` The months shown start in ${formatMonth(firstShownMonth)}: the last 12 complete months, or fewer when your linked checking and savings records start later; a month whose records are incomplete says so.`
@@ -213,7 +216,7 @@ export function depositRuleNote(firstShownMonth: string | null): string {
     '. A brokerage’s name says which firm, not which account, so those amounts are shown under the firm. ' +
     'Not counted, and listed under “Not counted” with the reason: rows not filed yet; money that moved back within two weeks; money that arrived in (or left) another of your accounts within a week; fees, bills, loans, insurance, memberships, rebates and refunds between you and a brokerage itself; brokerages not linked here; descriptions that could mean more than one account; rows filed Investment & Savings that name no account; and — if you also link a bank or card account at the same brokerage — rows its records can’t rule out. ' +
     'A Zelle, Venmo or Cash App payment names a person, not a brokerage. ' +
-    'Never seen here: retirement contributions taken out of your paycheck, money your paycheck sends straight to an investment account, money moved from banks you haven’t linked, and market gains or losses. Not matched: a description that shows the last four digits any other way (“TO IRA 1234”) or names a brokerage not on the list — so “None matched” means nothing we could match, not that no money moved.' +
+    'Never seen here: retirement contributions taken out of your paycheck, money your paycheck sends straight to an investment account, money moved from banks you haven’t linked, and market gains or losses. Not matched: a description that shows the last four digits any other way (“TO IRA 1234”), spells a brokerage another way (“FIDELITY MONEYLINE”, “E TRADE”) or names one not on the list — so “None matched” means nothing we could match, not that no money moved.' +
     records
   );
 }

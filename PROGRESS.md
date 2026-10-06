@@ -17,7 +17,7 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
-## 2026-10-05 — Money you put in: brokerage deposits read from the bank side (DECISIONS #788) — IN PROGRESS
+## 2026-10-05/06 — Money you put in: brokerage deposits read from the bank side (DECISIONS #788)
 
 Owner, on remote control: "As a world class dev, ai engineer, personal finance expert and data scientist, build this out." No attachment; the next owner-agreed slice was brokerage deposit history, gated on "verify the endpoint is covered before building". Plaid's billing pages (fetched) say calling `/investments/transactions/get` adds a monthly per-login subscription ended only by unlinking → human gate → owner chose "Bank side, no new fee" (DECISIONS #788).
 
@@ -53,7 +53,15 @@ Owner, on remote control: "As a world class dev, ai engineer, personal finance e
 
 **Human gate → owner (2026-10-06): "Fix and review once more (Recommended)"** — a 5th review; ship only if it finds nothing serious (DECISIONS #788).
 
-**Fix cycle 4.** Lead states only what was counted ("nothing counted going in"; "listed under Not counted" and the missing-records note whenever they apply); zero = "Nothing matched"; matching note gives the markers and an example (X6604); rule note describes the matcher ("Not matched: … “TO IRA 1234” …") and the first SHOWN month; a deposit's return without a destination needs a BANK's return words (`BANK_RETURN_RE`), never a bare REV/RETURN; a row naming a different destination never cancels; "VISA PAYMENT" not bare VISA; "INTEREST INCOME FUND" is a fund; a same-month begin-and-end note says both. Unit 91/91; tsc 0.
+**Fix cycle 4.** Lead states only what was counted ("nothing counted going in"; "listed under Not counted" and the missing-records note whenever they apply); zero = "Nothing matched"; matching note gives the markers and an example (X6604); rule note describes the matcher ("Not matched: … “TO IRA 1234” …") and the first SHOWN month; a deposit's return without a destination needs a BANK's return words (`BANK_RETURN_RE`), never a bare REV/RETURN; a row naming a different destination never cancels; "VISA PAYMENT" not bare VISA; "INTEREST INCOME FUND" is a fund; a same-month begin-and-end note says both. Mutation round 6: 62/67 + 4 re-targeted skips (killed) + 1 survivor closed with a test (a bank-worded return filed Refund) + 4 new → **71/71 distinct killed**. Unit 91/91; eslint 0.
+
+**Gate (on `1207b3ed`, committed locally).** Git Bash `VERIFY_E2E=1 bash scripts/verify.sh` exit 1: tsc 0, probes 0, eslint 0; vitest 9,111 passed + 2 failed (`vercel-build.test.ts`, Git Bash environment — PowerShell 31/31); build compiled; Playwright **472 passed / 2 flaky / 0 failed** (`action-menu.spec.ts:391`, `register-return.spec.ts:119` — untouched, passed on retry); both new e2e tests and the /investments axe scan passed first try.
+
+**Critic cycle 5 (owner-approved)** (Opus, separate worktree, on `1207b3ed`) = **PASS — 0 P0 / 0 P1 / 4 P2 / 5 P3**; every cycle-4 finding CLOSED by execution; it reproduced the full unit suite (9,111) and `next build`; 360/380px Chromium + WebKit with axe clean. Worktree junction removed link-only; worktree removed.
+
+**Taken before ship (not re-reviewed; each narrows or corrects words).** N1 bounce wordings outside the cycle-4 list (and a return filed Fees, and destination-named "… ACH RTN") now cancel; N2 rule note spells Fidelity/E*TRADE as the matcher reads them; N3 the not-a-deposit guard reads after `stripBankNoise` (debit-card channels); N5 a narrowed view of an account with no last four says so; N6 "the descriptions". N4/N7/N8 and three cycle-4 P3s recorded in DECISIONS #788. Unit 94/94; tsc 0; eslint 0. Mutation: **77/77 distinct** killed (re-targeted after each text change).
+
+**Gate (ship candidate).** Git Bash `VERIFY_E2E=1 bash scripts/verify.sh` exit 1: tsc 0, probes 0, eslint 0; vitest 9,114 passed + 2 failed (`vercel-build.test.ts`, Git Bash environment); build compiled; Playwright **469 passed / 5 flaky / 0 failed** (an 11.3-minute loaded run; `category-rename:110`, `goal-demo-and-nudge:19`, `register-return:119`, `transactions:298`, `transactions:611` passed on retry — the three new ones alone, no retries, same build: 4/4); both new e2e tests and the axe scan passed first try. No `prisma/` diff.
 
 ## 2026-10-05 — Bonuses that land pay this month's savings first, on their own line (DECISIONS #787)
 

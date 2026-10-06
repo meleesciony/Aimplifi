@@ -578,6 +578,53 @@ describe('critic cycle 4 — the lead counts only what it counted; returns are a
   });
 });
 
+describe('critic cycle 5 (PASS) — taken before ship: bounce words, card prefixes, an account with no last four', () => {
+  it('test_regression__a_bounce_in_any_common_bank_wording_cancels_its_deposit (N1)', () => {
+    const unfiled = ['NSF RETURN', 'ACH DEBIT RETURN', 'RETURN ACH DEBIT', 'ACH REV', 'RETURN NSF', 'ELECTRONIC RETURN', 'ACH RTN R01', 'RTN ITEM', 'UNPAID ITEM'];
+    for (const desc of unfiled) {
+      const h = history([row('chk', '2026-09-01', -50000, 'ONLINE TRANSFER TO XXXXXX6604'), row('chk', '2026-09-04', 50000, desc, null)]);
+      expect(h.uncounted.map((u) => u.reason), desc).toEqual(['returned']);
+      expect(month(h, '2026-09').putInCents, desc).toBe(0);
+    }
+    // The categorizer files this one Fees.
+    const fee = history([row('chk', '2026-09-01', -50000, 'TO X6604'), row('chk', '2026-09-04', 50000, 'ACH RETURN R01 INSUFFICIENT FUNDS', 'fees')]);
+    expect(fee.uncounted.map((u) => u.reason)).toEqual(['returned']);
+    // Naming the destination and filed as a move: a return, not a withdrawal.
+    const cb = acct('cb', 'INVESTMENT', 'Coinbase', '3003', 'Coinbase');
+    for (const [dep, back] of [
+      ['VANGUARD BUY INVESTMENT', 'VANGUARD ACH RTN'],
+      ['COINBASE INC', 'COINBASE INC ACH UNPAID'],
+      ['FID BKG SVC LLC MONEYLINE', 'FID BKG SVC LLC ACH RTN'],
+    ]) {
+      const fid = acct('fid', 'INVESTMENT', 'Fidelity Brokerage', '4002', 'Fidelity Investments');
+      const h = history([row('chk', '2026-09-01', -50000, dep, 'investment'), row('chk', '2026-09-04', 50000, back, 'investment')], [...BASE, cb, fid]);
+      expect(h.uncounted.map((u) => u.reason), back).toEqual(['returned']);
+      expect(month(h, '2026-09'), back).toMatchObject({ putInCents: 0, takenOutCents: 0 });
+    }
+  });
+
+  it('a debit-card purchase channel is not a card payment — the guard reads what the categorizer reads (N3)', () => {
+    const cb = acct('cb', 'INVESTMENT', 'Coinbase', '3003', 'Coinbase');
+    const h = history(
+      [
+        row('chk', '2026-09-01', -10000, 'DEBIT CARD PMT COINBASE', 'investment'),
+        row('chk', '2026-09-02', -20000, 'DEBIT CARD PAYMENT COINBASE.COM', 'investment'),
+        row('chk', '2026-09-03', -30000, 'POS CARD PAYMENT COINBASE', 'investment'),
+      ],
+      [...BASE, cb],
+    );
+    expect(h.uncounted).toEqual([]);
+    expect(month(h, '2026-09')).toMatchObject({ putInCents: 60000 });
+  });
+
+  it('narrowed to an account with no last four on file, the card says nothing can be placed on it (N5)', () => {
+    const blind = acct('old401k', 'INVESTMENT', 'Old 401(k)', null, 'Guideline');
+    const h = history([], [...BASE, blind], { scopeAccountId: 'old401k' });
+    expect(h.scope?.hasLastFour).toBe(false);
+    expect(scopeNote(h)).toBe('Showing only money placed on Old 401(k) by its last four digits — it has none on file, so nothing can be placed on it here.');
+  });
+});
+
 describe('critic cycle 2, P3-11 — subscriptions, test deposits and people named like brokerages', () => {
   it('memberships are payments to the brokerage; amounts under $1.00 are test deposits; a Zelle to "MARY SCHWAB" names a person', () => {
     const rh = acct('rh', 'INVESTMENT', 'Robinhood Individual', '3001', 'Robinhood');
@@ -920,15 +967,20 @@ describe('F5 — one investment account (?account=)', () => {
   it('money matched only by its brokerage’s name is reported beside it, never as its own', () => {
     const h = history(rows(), BASE, { scopeAccountId: 'vg' });
     expect(h.destinations).toEqual([]);
-    expect(h.scope).toEqual({ accountId: 'vg', label: 'Vanguard Brokerage', byBrokerageName: { brokerageName: 'Vanguard', accountsThere: 1, putInCents: 50000, takenOutCents: 0 } });
+    expect(h.scope).toEqual({
+      accountId: 'vg',
+      label: 'Vanguard Brokerage',
+      hasLastFour: true,
+      byBrokerageName: { brokerageName: 'Vanguard', accountsThere: 1, putInCents: 50000, takenOutCents: 0 },
+    });
     // Critic cycle 2, P2-5(a/b): never "nothing moved" beside money that may be this account's.
     expect(depositLead(h)).toBe('Nothing placed on Vanguard Brokerage by its last four digits so far this year.');
     expect(scopeByNameNote(h)).toBe(
-      'Also, over these months $500.00 went to Vanguard by name only — the description names the firm, not an account — it may or may not be Vanguard Brokerage’s, so it isn’t counted here. See all your investments for it.',
+      'Also, over these months $500.00 went to Vanguard by name only — the descriptions name the firm, not an account — it may or may not be Vanguard Brokerage’s, so it isn’t counted here. See all your investments for it.',
     );
     const two = history(rows(), [...BASE, acct('vg2', 'INVESTMENT', 'Vanguard IRA', '7001', 'Vanguard')], { scopeAccountId: 'vg' });
     expect(scopeByNameNote(two)).toBe(
-      'Also, over these months $500.00 went to Vanguard by name only — the description doesn’t say which of your 2 accounts there, so it isn’t counted here. See all your investments for it.',
+      'Also, over these months $500.00 went to Vanguard by name only — the descriptions don’t say which of your 2 accounts there, so it isn’t counted here. See all your investments for it.',
     );
   });
 
@@ -1083,7 +1135,11 @@ describe('the words', () => {
 
   it('the rule note names every brokerage, what is listed, what is never seen, and where records start', () => {
     const note = depositRuleNote('2025-02');
-    expect(note).toContain('Vanguard, Fidelity, Charles Schwab, Coinbase, Robinhood, E*TRADE, Wealthfront, Betterment, Acorns or Merrill');
+    // The spellings the matcher reads, where the name alone would mislead (critic cycle 5, N2).
+    expect(note).toContain(
+      'Vanguard, Fidelity (written “Fidelity Investments” or “FID BKG”), Charles Schwab, Coinbase, Robinhood, E*TRADE (written “E*TRADE” or “ETRADE”), Wealthfront, Betterment, Acorns or Merrill',
+    );
+    expect(note).toContain('spells a brokerage another way (“FIDELITY MONEYLINE”, “E TRADE”)');
     expect(note).toContain('A brokerage’s name says which firm, not which account');
     expect(note).toContain('rows not filed yet; money that moved back within two weeks; money that arrived in (or left) another of your accounts within a week; fees, bills, loans, insurance, memberships, rebates and refunds between you and a brokerage itself; brokerages not linked here; descriptions that could mean more than one account; rows filed Investment & Savings that name no account');
     expect(note).toContain('A Zelle, Venmo or Cash App payment names a person, not a brokerage.');
@@ -1091,7 +1147,7 @@ describe('the words', () => {
     expect(note).toContain('$1.00 or more');
     expect(note).toContain('Never seen here: retirement contributions taken out of your paycheck, money your paycheck sends straight to an investment account, money moved from banks you haven’t linked, and market gains or losses.');
     expect(note).toContain('when the bank’s description shows the account’s last four digits after X, *, “..”, “ending in” or “acct” (for example X1234), or names the brokerage');
-    expect(note).toContain('Not matched: a description that shows the last four digits any other way (“TO IRA 1234”) or names a brokerage not on the list');
+    expect(note).toContain('Not matched: a description that shows the last four digits any other way (“TO IRA 1234”), spells a brokerage another way');
     // The FIRST SHOWN month (critic cycle 4, P3), never the records' first month.
     expect(note).toContain('The months shown start in Feb 2025: the last 12 complete months, or fewer when your linked checking and savings records start later; a month whose records are incomplete says so.');
     expect(depositRuleNote(null)).not.toContain('The months shown start');

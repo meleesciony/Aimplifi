@@ -74,6 +74,7 @@ import {
   type ISODate,
 } from '@/lib/dates';
 import { CATEGORY_BY_ID } from '@/lib/engine/categorize/categories';
+import { stripBankNoise } from '@/lib/engine/categorize/normalize';
 import { REVERSAL_RE } from '@/lib/engine/spending-plan/bonus';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { brokerageOfAccount, brokeragesNamedIn, type Brokerage } from './brokerages';
@@ -107,13 +108,19 @@ const NOT_A_DEPOSIT_RE =
  * "TAX RETURN", "RETURN OF CAPITAL" and a store's "RETURN" are other money.
  */
 const BANK_RETURN_RE =
-  /\b(RETURNED ITEM|RETURN ITEM|RETURNED|ACH RETURN|RETURN OF POSTED|TRANSFER RETURN|REVERSAL|REVERSED|CHARGEBACK|CHGBK)\b/i;
+  /\b(RETURNED ITEM|RETURN ITEM|RETURNED|ACH RETURN|ACH DEBIT RETURN|RETURN ACH|ACH RTN|RTN|ACH REV|NSF|UNPAID ITEM|UNPAID|ELECTRONIC RETURN|RETURN OF POSTED|TRANSFER RETURN|REVERSAL|REVERSED|CHARGEBACK|CHGBK)\b/i;
 /** Person-to-person payments: a brokerage's name in one is a person's name. */
 const P2P_RE = /\b(ZELLE|VENMO|CASH ?APP|SQUARE CASH|APPLE CASH)\b/i;
 
-/** The word that makes a brokerage-named row a payment to or from the brokerage itself, else null. */
+/**
+ * The word that makes a brokerage-named row a payment to or from the brokerage itself,
+ * else null. Read AFTER the purchase-channel prefixes the categorizer strips
+ * (`stripBankNoise`: "DEBIT CARD PMT", "POS PURCHASE", …), so a debit-card buy is never
+ * read as a card payment — the guard reads what the categorizer reads.
+ */
 export function notADepositWord(descriptor: string): string | null {
-  const m = NOT_A_DEPOSIT_RE.exec(descriptor);
+  const read = stripBankNoise(descriptor).replace(/^POS\s+CARD\s+(?:PAYMENT|PMT)\s*[-–—]?\s*/i, '');
+  const m = NOT_A_DEPOSIT_RE.exec(read);
   return m ? m[1]!.toUpperCase() : null;
 }
 
@@ -122,12 +129,14 @@ const isUnfiled = (categoryId: string | null | undefined) => !categoryId || cate
 const REFUND_CATEGORY_IDS: ReadonlySet<string> = new Set(['refund', 'reimbursement', 'tax-refund']);
 /**
  * Filings under which money worded as a return can be a deposit coming back: not filed,
- * filed as a move, or filed as income other than a refund (the bonus engine's netting
- * rule). Anything else is the reader's word that it was something else.
+ * filed as a move, filed as a bank fee (the categorizer files "ACH RETURN R01
+ * INSUFFICIENT FUNDS" Fees), or filed as income other than a refund (the bonus engine's
+ * netting rule). Anything else is the reader's word that it was something else.
  */
 const mayBeADepositReturn = (categoryId: string | null | undefined) =>
   isUnfiled(categoryId) ||
   DEPOSIT_CATEGORY_IDS.has(categoryId!) ||
+  categoryId === 'fees' ||
   (CATEGORY_BY_ID.get(categoryId!)?.group === 'Income' && !REFUND_CATEGORY_IDS.has(categoryId!));
 
 export interface DepositRow {
@@ -306,6 +315,8 @@ export interface DepositHistory {
   scope: {
     accountId: string;
     label: string;
+    /** Whether the account has last four digits on file — without them nothing can be placed on it. */
+    hasLastFour: boolean;
     /**
      * Money matched only by the name of this account's brokerage — it may or may not be
      * this account's. `accountsThere` is how many linked investment accounts that firm has.
@@ -593,7 +604,13 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
         if (!sameDestination && !wordedReturn) continue;
         // Money that moved back must not be a fresh movement of its own the other way: a
         // destination-naming row filed as a move is a withdrawal, unless worded as a return.
-        if (sameDestination && !isUnfiled(back.row.categoryId) && !REVERSAL_RE.test(back.row.rawDescriptor ?? '')) continue;
+        if (
+          sameDestination &&
+          !isUnfiled(back.row.categoryId) &&
+          !REVERSAL_RE.test(back.row.rawDescriptor ?? '') &&
+          !BANK_RETURN_RE.test(back.row.rawDescriptor ?? '')
+        )
+          continue;
         pairs.push({ orig, back, gap });
       }
     }
@@ -903,6 +920,8 @@ export function computeDepositHistory(input: DepositHistoryInput): DepositHistor
       .filter((a) => !brokerageOf.get(a.id) && usableMask(a.mask) !== null)
       .map((a) => ({ label: a.label, lastFour: usableMask(a.mask)! })),
     unmatchable: investment.filter((a) => !brokerageOf.get(a.id) && usableMask(a.mask) === null).map((a) => a.label),
-    scope: scope ? { accountId: scope.id, label: scope.label, byBrokerageName: byName } : null,
+    scope: scope
+      ? { accountId: scope.id, label: scope.label, hasLastFour: usableMask(scope.mask) !== null, byBrokerageName: byName }
+      : null,
   };
 }

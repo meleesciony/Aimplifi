@@ -24,15 +24,17 @@ export interface Brokerage {
   readonly descriptor: RegExp;
   /** How a connection's institution (or feed) name names it. */
   readonly institution: RegExp;
+  /** The spellings the descriptor pattern reads, when the name alone would mislead (the rule note prints them). */
+  readonly spelledAs?: string;
 }
 
 export const BROKERAGES: readonly Brokerage[] = [
   { key: 'vanguard', name: 'Vanguard', descriptor: /\bVANGUARD\b/i, institution: /\bvanguard\b/i },
-  { key: 'fidelity', name: 'Fidelity', descriptor: /\b(?:FIDELITY INVEST\w*|FID BKG)\b/i, institution: /\bfidelity\b/i },
+  { key: 'fidelity', name: 'Fidelity', descriptor: /\b(?:FIDELITY INVEST\w*|FID BKG)\b/i, institution: /\bfidelity\b/i, spelledAs: '“Fidelity Investments” or “FID BKG”' },
   { key: 'schwab', name: 'Charles Schwab', descriptor: /\b(?:CHARLES SCHWAB|SCHWAB)\b/i, institution: /\bschwab\b/i },
   { key: 'coinbase', name: 'Coinbase', descriptor: /\bCOINBASE\b/i, institution: /\bcoinbase\b/i },
   { key: 'robinhood', name: 'Robinhood', descriptor: /\bROBINHOOD\b/i, institution: /\brobinhood\b/i },
-  { key: 'etrade', name: 'E*TRADE', descriptor: /\bE\*?TRADE\b/i, institution: /\bE ?\*? ?TRADE\b/i },
+  { key: 'etrade', name: 'E*TRADE', descriptor: /\bE\*?TRADE\b/i, institution: /\bE ?\*? ?TRADE\b/i, spelledAs: '“E*TRADE” or “ETRADE”' },
   { key: 'wealthfront', name: 'Wealthfront', descriptor: /\bWEALTHFRONT\b/i, institution: /\bwealthfront\b/i },
   { key: 'betterment', name: 'Betterment', descriptor: /\bBETTERMENT\b/i, institution: /\bbetterment\b/i },
   { key: 'acorns', name: 'Acorns', descriptor: /\bACORNS\b/i, institution: /\bacorns\b/i },
