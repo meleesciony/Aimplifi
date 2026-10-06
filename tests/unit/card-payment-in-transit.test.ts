@@ -552,6 +552,84 @@ describe('#791 critic cycle 2', () => {
   });
 });
 
+describe('#791 critic cycle 3', () => {
+  it('P2-4: once the card side shows the payment late, the next cycle reads the card company’s balance again', () => {
+    // Paid Oct 5 in transit; the card side posts it Oct 11 (outside the pair window). The issuer's
+    // balance is now $478.91 — exactly the charges since the close. Today Oct 13.
+    const r = computeCashNeeded(
+      assembleCashNeededInput({
+        ...base([
+          { accountId: 'chk', date: '2026-10-05', amountCents: -432109 },
+          { accountId: 'b', date: '2026-09-20', amountCents: -47891, rawDescriptor: 'KROGER', isTransfer: false, categoryId: 'groceries' },
+          { accountId: 'b', date: '2026-10-11', amountCents: 432109, rawDescriptor: 'PAYMENT RECEIVED', isTransfer: false, categoryId: 'credit-card-payment' },
+        ]),
+        accounts: base([]).accounts.map((a) => (a.id === 'b' ? { ...a, currentBalanceCents: 47891 } : a)),
+        today: isoDate('2026-10-13'),
+      }),
+    );
+    expect(r.inTransitPayments).toEqual([]);
+    expect(due(r, 'Card B')).toBe(0);
+    // Not $0.00: subtracting the arrived payment again would take the $4,321.09 off twice.
+    expect([...r.upcoming, ...r.cards].find((c) => c.cardName === 'Card B' && c.isEstimated)?.remainingDueCents).toBe(47891);
+  });
+
+  it('P3-6: a payment the pair rule credits on the same day the remainder leaves counts toward what was left', () => {
+    // $100.00 and the $4,221.09 remainder both leave Oct 5; the $100.00 shows on the card the same day.
+    const r = run([
+      { accountId: 'chk', date: '2026-10-05', amountCents: -10000, rawDescriptor: 'ONLINE PMT', isTransfer: false, categoryId: null },
+      { accountId: 'b', date: '2026-10-05', amountCents: 10000, rawDescriptor: 'PAYMENT RECEIVED', isTransfer: false, categoryId: null },
+      { accountId: 'chk', date: '2026-10-05', amountCents: -422109 },
+    ]);
+    expect(r.inTransitPayments.map((x) => [x.cardName, x.amountCents])).toEqual([['Card B', 422109]]);
+    expect(due(r, 'Card B')).toBe(0);
+  });
+
+  it('P3-6: a card side 14 days before the bank side is the payment arriving; 15 days before is not', () => {
+    const statements = [{ id: 'sb', accountId: 'b', cycleEnd: '2026-09-10', dueDate: '2026-10-25', statementBalanceCents: 432109, minimumPaymentCents: 4300 }];
+    const listed = (creditDate: string) =>
+      computeCashNeeded(
+        assembleCashNeededInput({
+          ...base(
+            [
+              { accountId: 'chk', date: '2026-10-05', amountCents: -432109 },
+              { accountId: 'b', date: creditDate, amountCents: 432109, rawDescriptor: 'PAYMENT RECEIVED', isTransfer: false, categoryId: null },
+            ],
+            { statements },
+          ),
+          today: isoDate('2026-10-14'),
+        }),
+      ).inTransitPayments.map((x) => x.cardName);
+    expect(listed('2026-09-21')).toEqual([]); // 14 days early: arrived
+    expect(listed('2026-09-20')).toEqual(['Card B']); // 15: not
+  });
+
+  it('P2-1: the matcher reads each row a bounded number of times — never once per pair of rows', () => {
+    // 2,000 rows, a quarter of them deposits into checking or savings. Before the fix the
+    // top-up pass read every row once per deposit (~1,000,000 reads); now it is a few passes.
+    let reads = 0;
+    const row = (accountId: string, date: string, amountCents: number, rawDescriptor = 'KROGER', categoryId: string | null = 'groceries'): InTransitTxn => {
+      const t = { accountId, date, amountCents, rawDescriptor, categoryId, isTransfer: categoryId === 'transfer' } as InTransitTxn;
+      Object.defineProperty(t, 'status', { enumerable: true, get: () => (reads++, 'POSTED') });
+      return t;
+    };
+    const txns: InTransitTxn[] = Array.from({ length: 2000 }, (_, i) =>
+      i % 4 === 0
+        ? row(i % 8 === 0 ? 'chk' : 'sav', isoDate('2026-09-11'), 432109, 'ONLINE TRANSFER', 'transfer')
+        : row('b', isoDate('2026-09-12'), -(100 + i)),
+    );
+    txns.push(row('chk', '2026-10-05', -432109, DESC, 'transfer'));
+    const found = detectInTransitCardPayments({
+      transactions: txns,
+      accountTypeById: new Map([['chk', 'CHECKING'], ['sav', 'SAVINGS'], ['b', 'CREDIT']]),
+      today: TODAY,
+      candidates: [{ cardAccountId: 'b', statementId: 'sb', cycleEnd: '2026-09-10', statementBalanceCents: 432109, payments: [] }],
+    });
+    // Every same-amount deposit is dated before the payment, so none is it coming back.
+    expect(found.map((x) => x.amountCents)).toEqual([432109]);
+    expect(reads).toBeLessThan(txns.length * 10);
+  });
+});
+
 describe('#791 — Ask', () => {
   it('the all-clear and the amount due both name the payment counted in transit', () => {
     const clear = answerCashNeeded(run(OWNER_SHAPE), 'Everyday Checking');

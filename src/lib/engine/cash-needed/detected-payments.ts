@@ -289,28 +289,6 @@ export function detectInTransitCardPayments(params: {
   );
   if (earliestClose === null) return [];
 
-  // Top-ups: each move IN from another of the reader's bank accounts explains ONE inflow,
-  // closest dates first (critic cycle 2, P2-1) — one savings withdrawal can never be both
-  // the top-up beside a return and the reason the return is ignored.
-  const topUps = new Set<number>();
-  {
-    const edges: { inflow: number; outflow: number; gap: number }[] = [];
-    txns.forEach((u, j) => {
-      if (!posted(u) || u.amountCents <= 0 || !isBank(u.accountId)) return;
-      txns.forEach((w, k) => {
-        if (!posted(w) || w.amountCents !== -u.amountCents || w.accountId === u.accountId || !isBank(w.accountId)) return;
-        if (within(w.date, u.date)) edges.push({ inflow: j, outflow: k, gap: Math.abs(daysBetween(isoDate(w.date), isoDate(u.date))) });
-      });
-    });
-    edges.sort((a, b) => a.gap - b.gap || a.inflow - b.inflow || a.outflow - b.outflow);
-    const usedOut = new Set<number>();
-    for (const e of edges) {
-      if (topUps.has(e.inflow) || usedOut.has(e.outflow)) continue;
-      topUps.add(e.inflow);
-      usedOut.add(e.outflow);
-    }
-  }
-
   const debits = txns
     .map((t, i) => ({ t, i }))
     .filter(
@@ -324,6 +302,44 @@ export function detectInTransitCardPayments(params: {
         params.candidates.some((c) => fingerprints(c, t.date).includes(-t.amountCents)),
     )
     .sort((a, b) => compareDates(isoDate(a.t.date), isoDate(b.t.date)) || a.i - b.i);
+  if (debits.length === 0) return [];
+
+  // Top-ups: each move IN from another of the reader's bank accounts explains ONE inflow,
+  // closest dates first (critic cycle 2, P2-1) — one savings withdrawal can never be both
+  // the top-up beside a return and the reason the return is ignored.
+  //
+  // Decided only for the debits' amounts, with outflows looked up by amount (critic cycle
+  // 3, P2-1 — the all-pairs scan was quadratic in the history, on every assemble). An edge
+  // joins an inflow and an outflow of ONE amount, so each amount's matching shares no row
+  // with any other's, and the inflows of a debit's amount — the only ones the return check
+  // below ever asks about — get the same answer as when every amount was decided.
+  const debitAmounts = new Set(debits.map(({ t }) => -t.amountCents));
+  const outflowsByAmount = new Map<number, number[]>();
+  txns.forEach((w, k) => {
+    if (!posted(w) || w.amountCents >= 0 || !debitAmounts.has(-w.amountCents) || !isBank(w.accountId)) return;
+    const list = outflowsByAmount.get(-w.amountCents);
+    if (list) list.push(k);
+    else outflowsByAmount.set(-w.amountCents, [k]);
+  });
+  const topUps = new Set<number>();
+  {
+    const edges: { inflow: number; outflow: number; gap: number }[] = [];
+    txns.forEach((u, j) => {
+      if (!posted(u) || u.amountCents <= 0 || !isBank(u.accountId)) return;
+      for (const k of outflowsByAmount.get(u.amountCents) ?? []) {
+        const w = txns[k]!;
+        if (w.accountId === u.accountId) continue;
+        if (within(w.date, u.date)) edges.push({ inflow: j, outflow: k, gap: Math.abs(daysBetween(isoDate(w.date), isoDate(u.date))) });
+      }
+    });
+    edges.sort((a, b) => a.gap - b.gap || a.inflow - b.inflow || a.outflow - b.outflow);
+    const usedOut = new Set<number>();
+    for (const e of edges) {
+      if (topUps.has(e.inflow) || usedOut.has(e.outflow)) continue;
+      topUps.add(e.inflow);
+      usedOut.add(e.outflow);
+    }
+  }
 
   const consumed = new Set<string>();
   const out: InTransitPayment[] = [];

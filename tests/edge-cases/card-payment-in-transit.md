@@ -61,3 +61,12 @@ $2,345.67 "NORTHWIND BANK CRCARDPMT" left checking Jun 5; card side empty. Home:
 the sentence; /cards: "Nothing due this cycle" + the sentence. (By the estimate rule above its next
 cycle is $2,900.00 − $2,345.67 = $554.33; the unit tests lock that rule, the e2e does not assert it.)
 Control without the debit: $2,345.67 needed, no sentence.
+
+**Critic cycle 3 (no rule changed).** Paid $4,321.09 in transit Oct 5; the card side posts it Oct 11 (filed
+Credit Card Payment, outside the pair window); issuer balance $478.91 = the Sep 20 $478.91 charge; today
+Oct 13 → nothing listed, $0.00 due this cycle, next cycle $478.91 (the issuer's balance again — not
+$478.91 − $4,321.09 = −$3,842.18, shown as $0.00, as if the payment were still unshown). $100.00 paid by the pair rule Oct 5 and
+the $4,221.09 remainder the same day → in transit $4,221.09 ($4,321.09 − $100.00). A card side 14 days
+before the bank side (Sep 21 for Oct 5) is the payment arriving; 15 days (Sep 20) is not.
+The matcher reads each row a bounded number of times: 2,001 rows, 500 of them same-amount deposits dated
+before the payment → the payment still matches, under 20,010 reads (the cycle-2 pass made ~1,000,000).
