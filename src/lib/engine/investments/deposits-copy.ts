@@ -139,7 +139,7 @@ export function monthFigureParts(m: DepositMonth): string[] {
 }
 
 /** Under a month whose records are incomplete: where each account's records begin or stop. */
-export function monthMissingNote(m: DepositMonth): string | null {
+export function monthMissingNote(m: Pick<DepositMonth, 'missingRecordsFrom' | 'missingRecordsDetail' | 'partial'>): string | null {
   if (m.missingRecordsDetail.length === 0) return null;
   return (
     m.missingRecordsDetail
