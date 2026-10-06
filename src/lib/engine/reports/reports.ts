@@ -4,7 +4,7 @@
  * excluded); refunds net against their category. Rolls leaf subcategories up to
  * their parent group. Integer cents in/out, no I/O.
  */
-import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, type CategoryMeta, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import { isoDate, monthWindow } from '@/lib/dates';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
@@ -245,7 +245,8 @@ export function isSpendRow(
     if (t.date > range.asOf) return false;
   }
   const id = t.categoryId ?? 'uncategorized';
-  if (id === 'transfer') return false;
+  // A filed Transfer or Investment & Savings moves the reader's own money (#789).
+  if (isMoneyMoveCategoryId(id)) return false;
   if (meta.get(id)?.group === 'Income') return false; // income isn't spending
   // O.20c: an UNFILED inflow is income — the same rule `isIncomeFlowRow` now
   // applies to both stores of "nobody labelled this row" (a raw null and the

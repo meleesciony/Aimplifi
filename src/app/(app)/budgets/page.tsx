@@ -10,7 +10,13 @@ import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CATEGORIES, categoryName, mergeCategoryMeta } from '@/lib/engine/categorize/categories';
 import { isSpendRow, wholeMonthWindow } from '@/lib/engine/reports/reports';
-import { isBudgetable, netSpendByCategory, summarizeBudgets } from '@/lib/engine/budgets/status';
+import {
+  isBudgetable,
+  netSpendByCategory,
+  summarizeBudgets,
+  untrackedBudgetTargets,
+  untrackedBudgetTargetSentence,
+} from '@/lib/engine/budgets/status';
 import { parseStoredDials } from '@/lib/engine/settings/dials';
 import { buildDialCatalog, resolveMoneyDialIds } from '@/lib/engine/settings/money-dial-ids';
 import { cents, formatCents } from '@/lib/money';
@@ -244,7 +250,11 @@ export default async function BudgetsPage() {
     ...overlay.custom.filter((c) => isBudgetable(c.id)),
   ];
 
-  const rows = summarizeBudgets(spendByCategory, budgetByCategory, {
+  // #789: a stored target on a leaf that is never spending (Investment &
+  // Savings, Transfer) would read "$0.00 spent" forever — named below the list
+  // instead of tracked as a row.
+  const { tracked: trackedBudgetByCategory, untracked: untrackedTargets } = untrackedBudgetTargets(budgetByCategory);
+  const rows = summarizeBudgets(spendByCategory, trackedBudgetByCategory, {
     name: (id) => categoryName(id, meta),
     isDial: (id) => dialIdSet.has(id),
   });
@@ -530,6 +540,11 @@ export default async function BudgetsPage() {
               <p className="text-sm text-muted-foreground">No spending recorded yet this month.</p>
             )}
           </ul>
+          {untrackedTargets.map((u) => (
+            <p key={u.categoryId} className="mt-3 text-xs text-muted-foreground" data-testid="budgets-untracked-target">
+              {untrackedBudgetTargetSentence(categoryName(u.categoryId, meta), u.budgetCents, u.categoryId)}
+            </p>
+          ))}
           <p className="mt-3 text-xs text-muted-foreground">
             A conscious-spending view, not a guilt meter: money-dial categories are where
             spending buys you the most life.

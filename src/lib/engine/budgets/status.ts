@@ -10,8 +10,8 @@
  * Conscious-spending framing, not a guilt meter: `isDial` marks a category the
  * user spends on intentionally; the engine reports it, the UI never scolds it.
  */
-import { parseDollarInput, type Cents } from '@/lib/money';
-import { isIncomeCategoryId } from '@/lib/engine/categorize/categories';
+import { cents, formatCents, parseDollarInput, type Cents } from '@/lib/money';
+import { isIncomeCategoryId, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 
 /**
  * Categories for which a monthly budget target is meaningful. The whole Income
@@ -23,8 +23,14 @@ import { isIncomeCategoryId } from '@/lib/engine/categorize/categories';
  * definition (DECISIONS #111) and stay budgetable. Shared by the page's
  * category picker AND the server action, so the offered set equals the
  * accepted set.
+ *
+ * Investment & Savings (DECISIONS #789): money moved into investing or savings
+ * is never spending (`MONEY_MOVE_CATEGORY_IDS`), so a spending target on it
+ * could only ever read $0.00 spent — a zero that is not a fact about the money.
+ * A target already stored on it is named on /budgets, not tracked
+ * (`untrackedBudgetTargets`).
  */
-const NON_BUDGETABLE = new Set(['transfer', 'credit-card-payment', 'uncategorized']);
+const NON_BUDGETABLE = new Set(['transfer', 'credit-card-payment', 'uncategorized', 'investment']);
 export function isBudgetable(categoryId: string): boolean {
   return !NON_BUDGETABLE.has(categoryId) && !isIncomeCategoryId(categoryId);
 }
@@ -97,6 +103,38 @@ export function summarizeBudgets(
   // Highest spend first; ties broken by name for deterministic ordering.
   rows.sort((a, b) => b.spentCents - a.spentCents || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   return rows;
+}
+
+/**
+ * Stored targets this page can no longer track (DECISIONS #789): a target on a
+ * leaf whose rows move the reader's own money (`MONEY_MOVE_CATEGORY_IDS` —
+ * Transfer, Investment & Savings) can never have spending against it, so as a
+ * row it would read "$0.00 spent" forever. They leave the rows and are named
+ * instead, in category-id order. Every other stored target is tracked exactly
+ * as before — including legacy targets on other non-budgetable ids, which this
+ * slice does not touch.
+ */
+export function untrackedBudgetTargets(budgetByCategory: ReadonlyMap<string, number>): {
+  tracked: Map<string, number>;
+  untracked: { categoryId: string; budgetCents: number }[];
+} {
+  const tracked = new Map<string, number>();
+  const untracked: { categoryId: string; budgetCents: number }[] = [];
+  for (const [categoryId, budgetCents] of budgetByCategory) {
+    if (isMoneyMoveCategoryId(categoryId)) untracked.push({ categoryId, budgetCents });
+    else tracked.set(categoryId, budgetCents);
+  }
+  untracked.sort((a, b) => (a.categoryId < b.categoryId ? -1 : a.categoryId > b.categoryId ? 1 : 0));
+  return { tracked, untracked };
+}
+
+/** The sentence /budgets prints for one untracked target (`untrackedBudgetTargets`). */
+export function untrackedBudgetTargetSentence(name: string, budgetCents: number, categoryId: string): string {
+  const what =
+    categoryId === 'investment'
+      ? 'money moved into investing or savings is saving, not spending'
+      : 'a transfer moves your own money between your accounts, so it is not spending';
+  return `Your ${formatCents(cents(budgetCents))} monthly target on ${name} isn’t tracked here: ${what}, so no spending figure counts it.`;
 }
 
 /**

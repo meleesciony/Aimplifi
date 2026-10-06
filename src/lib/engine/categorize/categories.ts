@@ -270,6 +270,24 @@ export function isIncomeCategoryId(id: string): boolean {
 }
 
 /**
+ * The leaves whose rows MOVE the reader's own money instead of spending or
+ * earning it: Transfer (O.20j, DECISIONS #446) and Investment & Savings
+ * (DECISIONS #789 — money moved into investing or savings is saving, which is
+ * what the register's own chip has always told the reader: "Money moved into
+ * investing is saving, not spending"). Every flow and spending predicate refuses
+ * a row filed here in either direction — never spending, never income, never a
+ * refund that nets spending down — whether or not the pairing detector set
+ * `isTransfer`, which it cannot for a brokerage the app holds no rows for.
+ * One set, read by `reports.isSpendRow`, `insights.countsInFlows`, the trends
+ * purchase predicate and Ask's, so the four cannot disagree about a leaf.
+ */
+export const MONEY_MOVE_CATEGORY_IDS: ReadonlySet<string> = new Set(['transfer', 'investment']);
+
+export function isMoneyMoveCategoryId(id: string | null | undefined): boolean {
+  return id != null && MONEY_MOVE_CATEGORY_IDS.has(id);
+}
+
+/**
  * The minimal metadata every category-resolution site needs (name/group for
  * display + grouping, discretionary for lifestyle-creep). A structural SUBSET of
  * SystemCategory, so `CATEGORY_BY_ID` (Map<string, SystemCategory>) is itself a

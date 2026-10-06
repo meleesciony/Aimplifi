@@ -780,3 +780,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #786 — Regular pay counts the lower level after one change of pay, never more than a usual month of the new pay (2026-10-05) → docs/DECISIONS.md
 - #787 — Bonuses that land pay this month's savings first, on their own line (2026-10-05) → docs/DECISIONS.md
 - #788 — Money you put in: brokerage deposits read from the bank side (2026-10-05) → docs/DECISIONS.md
+- #789 — Investment & Savings is never spending: one definition of saving before measuring it (2026-10-06) → docs/DECISIONS.md

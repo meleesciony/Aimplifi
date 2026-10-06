@@ -13,7 +13,7 @@ import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
-import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 // O.20h: the creep bar classifies rows with the register's own classifier. The
 // cycle here is type-only in the other direction (spend-class imports TxnLike),
 // which TypeScript elides — the runtime graph is acyclic.
@@ -83,12 +83,20 @@ export interface TxnLike {
  * glass-box month-flow panel. The converse leak (`isTransfer: true` under a
  * real spend category) is NOT in scope here — both predicates already agree
  * on the flag, and flipping it needs a product decision (H.7b / detector).
+ *
+ * DECISIONS #789: the same leaf gate for Investment & Savings. A brokerage
+ * deposit the categorizer files there ("VANGUARD BUY INVESTMENT") has no
+ * paired row to flag — the app holds no rows for the brokerage side — so it
+ * counted as an EXPENSE: the savings rate fell by exactly the money saved, the
+ * FI number grew by it, and a withdrawal back to checking netted spending
+ * down. Both directions now count on neither side (`MONEY_MOVE_CATEGORY_IDS`).
  */
 export function countsInFlows(t: TxnLike, excludedFlowIds?: ReadonlySet<string>): boolean {
   if (typeof t.id === 'string' && excludedFlowIds?.has(t.id)) return false;
-  // Match `isSpendRow`'s transfer-leaf gate (reports.ts): a filed Transfer is
-  // not income or spend even when the pairing detector left `isTransfer` false.
-  if (t.categoryId === 'transfer') return false;
+  // Match `isSpendRow`'s leaf gate (reports.ts): a filed Transfer or Investment &
+  // Savings is not income or spend even when the pairing detector left
+  // `isTransfer` false.
+  if (isMoneyMoveCategoryId(t.categoryId)) return false;
   return !t.isTransfer && t.status === 'POSTED' && !t.isSplitParent && !isExcludedFromTotals(t);
 }
 

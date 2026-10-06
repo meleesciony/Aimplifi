@@ -70,7 +70,7 @@ import {
   frozenTotalNote,
 } from '@/lib/engine/account/feed-dropped-view';
 import type { LargestTxn } from '@/lib/engine/trends/trends';
-import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, type CategoryMeta, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { addMonthsClamped, compareDates, formatMonth, isoDate, type ISODate } from '@/lib/dates';
 import type { GoalProgress } from '@/lib/engine/goals/progress';
@@ -611,10 +611,21 @@ export function answerSpendByCategory(breakdown: SpendingBreakdown, target: Spen
     // it is accumulated from `byCategory`, which no longer holds this category —
     // so the count has to come from the dropped set, scoped to this same target.
     const uncounted = uncountedFor(breakdown, target);
+    // #789: a leaf that is never spending reads "No … spending" for EVERY month —
+    // true, and useless without the reason, beside a register full of its rows.
+    const moveNote =
+      target.type === 'category' && isMoneyMoveCategoryId(target.categoryId)
+        ? target.categoryId === 'investment'
+          ? `Money filed ${target.label} is saving, not spending, so no spending figure counts it.`
+          : `A transfer moves your own money between your accounts, so no spending figure counts it.`
+        : null;
     return {
       kind: 'spend_by_category',
       headline: `No ${target.label} spending ${tf.label}.`,
-      detail: uncounted > 0 ? handoverDayUncountedNote(uncounted, target.label) : undefined,
+      detail:
+        [moveNote, uncounted > 0 ? handoverDayUncountedNote(uncounted, target.label) : null]
+          .filter((x): x is string => x !== null)
+          .join(' ') || undefined,
       facts,
       source: REPORTS_SOURCE,
     };
@@ -839,7 +850,7 @@ function isPurchaseRow(t: AskTxnRow, meta: ReadonlyMap<string, CategoryMeta>): b
   if (t.isSplitParent || t.isTransfer || isExcludedFromTotals(t)) return false;
   if (t.amountCents >= 0) return false;
   const id = namedCategoryId(t);
-  if (id === 'transfer') return false;
+  if (isMoneyMoveCategoryId(id)) return false; // #789: Transfer and Investment & Savings move money
   const group = meta.get(id)?.group;
   if (group === 'Income' || group === NON_ACTIONABLE_GROUP) return false;
   return true;

@@ -17,6 +17,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-06 — Measured savings, part 1: Investment & Savings is never spending (DECISIONS #789)
+
+Owner, on remote control: "As a world class dev, ai engineer, personal finance expert and data scientist, build this out." No attachment; the ledgers' next owner-agreed slice is "measured savings against the target" (STATUS #785 entry). Split into two slices (one job per node): #789 gives "saving" one definition (the STATUS "FOUND 2026-10-05" contradiction #788 routed here), #790 measures it against the plan's savings line.
+
+**Carried in.** CI verify run 37473497626 on `e664d4e4` (the #788 docs commit) = SUCCESS (`scripts/ci-status.sh` exit 0).
+
+**Found (measured, real categorizer).** Brokerage descriptors ("VANGUARD BUY INVESTMENT", "FID BKG SVC LLC MONEYLINE", "ROBINHOOD DEBITS", "E*TRADE ACH" …) are filed Investment & Savings and can never be transfer-flagged, so every reader who invests from checking had the deposit counted as spending (savings rate, FI number, reports, trends, budgets, Ask "biggest purchase"); money taken back netted spending down. The register's chip on the same rows said "Not spending".
+
+**Plan (assertions → `tests/unit/investment-not-spending.test.ts`).** A1 one set of money-move leaves (Transfer, Investment & Savings); A2 reports: neither direction is a spend row; A3 flows: not income, not expense, not a refund — hand-verified month 77% → 92% savings rate; A4 the /reports bar panels list what the bar summed and reconcile; A5 trends and Ask never name the deposit the biggest purchase; A6 Ask's zero for the leaf gives the reason; A7 /budgets: not budgetable, not a dial, a stored target named not tracked, legacy targets untouched; A8 the demo moves no figure (no such rows).
+
+**Built.** `MONEY_MOVE_CATEGORY_IDS` / `isMoneyMoveCategoryId` (`categories.ts`) read by `reports.isSpendRow`, `insights.countsInFlows`, trends' and Ask's purchase predicates; `NON_BUDGETABLE` + `untrackedBudgetTargets` / `untrackedBudgetTargetSentence` (`budgets/status.ts`) wired on /budgets; Ask's one-category zero gives the reason. Unit 13/13; fail-old 11/13 on the pre-change source (the 2 passing are context: the categorizer's filing, the register chip); mutation **10/10 killed**; e2e `investment-not-spending.spec.ts` 1/1 first try on a fresh build. Edge cases `tests/edge-cases/investment-and-savings-is-not-spending.md`.
+
 ## 2026-10-05/06 — Money you put in: brokerage deposits read from the bank side (DECISIONS #788)
 
 Owner, on remote control: "As a world class dev, ai engineer, personal finance expert and data scientist, build this out." No attachment; the next owner-agreed slice was brokerage deposit history, gated on "verify the endpoint is covered before building". Plaid's billing pages (fetched) say calling `/investments/transactions/get` adds a monthly per-login subscription ended only by unlinking → human gate → owner chose "Bank side, no new fee" (DECISIONS #788).

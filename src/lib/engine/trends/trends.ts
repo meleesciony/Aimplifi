@@ -31,7 +31,7 @@ import {
 import { cents, roundHalfAwayFromZero } from '@/lib/money';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import type { BreakdownRow } from '@/lib/engine/glass-box/category-breakdown';
-import { CATEGORY_BY_ID, type CategoryMeta } from '@/lib/engine/categorize/categories';
+import { CATEGORY_BY_ID, type CategoryMeta, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { monthsPerCadence } from '@/lib/engine/recurring/detect';
 import { isExcludedFromTotals } from '@/lib/engine/transactions/exclude';
 import {
@@ -402,7 +402,7 @@ function isSpendRow(t: TrendTxn, meta: ReadonlyMap<string, CategoryMeta>): boole
   if (t.isSplitParent || t.isTransfer || isExcludedFromTotals(t)) return false;
   if (t.amountCents >= 0) return false; // refunds/inflows are not "purchases"
   const id = namedCategoryId(t) ?? 'uncategorized';
-  if (id === 'transfer') return false;
+  if (isMoneyMoveCategoryId(id)) return false; // #789: Transfer and Investment & Savings move money
   if (meta.get(id)?.group === 'Income') return false;
   return true;
 }
