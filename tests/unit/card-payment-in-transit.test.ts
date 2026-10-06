@@ -213,7 +213,7 @@ describe('#791 — every refusal (the bill is demanded as before)', () => {
         transactions: [split],
         accountTypeById: new Map([['chk', 'CHECKING'], ['b', 'CREDIT']]),
         today: TODAY,
-        candidates: [{ cardAccountId: 'b', statementId: 'sb', cycleEnd: '2026-09-10', unpaidCents: 432109 }],
+        candidates: [{ cardAccountId: 'b', statementId: 'sb', cycleEnd: '2026-09-10', statementBalanceCents: 432109, payments: [] }],
       }),
     ).toEqual([]);
   });
@@ -226,7 +226,7 @@ describe('#791 — every refusal (the bill is demanded as before)', () => {
       ],
       accountTypeById: new Map([['chk', 'CHECKING'], ['b', 'CREDIT']]),
       today: TODAY,
-      candidates: [{ cardAccountId: 'b', statementId: 'sb', cycleEnd: '2026-09-10', unpaidCents: 432109 }],
+      candidates: [{ cardAccountId: 'b', statementId: 'sb', cycleEnd: '2026-09-10', statementBalanceCents: 432109, payments: [] }],
     });
     expect(found.map((f) => [f.date, f.amountCents])).toEqual([['2026-10-05', 432109]]);
   });
@@ -291,10 +291,12 @@ describe('#791 critic cycle 1 — the in-transit credit agrees with the pair rul
     ]);
     const nextB = [...r.upcoming, ...r.cards].find((c) => c.cardName === 'Card B' && c.isEstimated);
     expect(nextB?.remainingDueCents).toBe(47891);
+    // Card C: no charges since the close, but its issuer balance of $10,100.00 less the
+    // $9,876.54 not shown yet leaves $223.46 — the larger figure (critic cycle 2, P2-2).
     const nextC = [...r.upcoming, ...r.cards].find((c) => c.cardName === 'Card C' && c.isEstimated);
-    expect(nextC?.remainingDueCents ?? 0).toBe(0);
+    expect(nextC?.remainingDueCents).toBe(22346);
     expect(r.cards.find((c) => c.cardName === 'Card B')!.notes.join(' ')).toContain(
-      'estimated from the charges since the last statement closed on Thu, Sep 10 ($478.91), because the card company’s balance may still include a payment counted in transit.',
+      'estimated from the charges since the last statement closed on Thu, Sep 10 ($478.91), because the card company’s balance may still include the $4,321.09 payment counted in transit.',
     );
     // Card A was paid through the pair rule: its estimate still reads the issuer's balance ($200.00).
     expect([...r.upcoming, ...r.cards].find((c) => c.cardName === 'Card A' && c.isEstimated)?.remainingDueCents).toBe(20000);
@@ -352,6 +354,201 @@ describe('#791 critic cycle 1 — the in-transit credit agrees with the pair rul
       { accountId: 'chk', date: '2026-10-06', amountCents: 432109, rawDescriptor: 'RETURNED ITEM' },
     ]);
     expect(due(returned, 'Card B')).toBe(432109);
+  });
+});
+
+describe('#791 critic cycle 2', () => {
+  it('P1-1: only the NEWEST statement is ever current — paying it never resurfaces an older one', () => {
+    // Sep $4,321.09 paid Oct 5 from checking; the card side posts Oct 9, outside the pair
+    // window. Oct statement $1,000.00 (closed Oct 10, due Nov 5) paid Nov 5. Today Nov 6.
+    const statements = [
+      { id: 'sb-sep', accountId: 'b', cycleEnd: '2026-09-10', dueDate: '2026-10-05', statementBalanceCents: 432109, minimumPaymentCents: 4300 },
+      { id: 'sb-oct', accountId: 'b', cycleEnd: '2026-10-10', dueDate: '2026-11-05', statementBalanceCents: 100000, minimumPaymentCents: 3500 },
+    ];
+    const rows: Row[] = [
+      { accountId: 'chk', date: '2026-10-05', amountCents: -432109 },
+      { accountId: 'b', date: '2026-10-09', amountCents: 432109, rawDescriptor: 'PAYMENT RECEIVED', isTransfer: false, categoryId: null },
+      { accountId: 'chk', date: '2026-11-05', amountCents: -100000 },
+    ];
+    const r = computeCashNeeded(assembleCashNeededInput({ ...base(rows, { statements }), today: isoDate('2026-11-06') }));
+    expect(r.headline.requiredCents).toBe(0);
+    expect(r.cards.flatMap((c) => c.notes).some((n) => n.includes('Due date has passed'))).toBe(false);
+  });
+
+  it('P1-1: an older statement paid from an unlinked bank does not come back when the newer one is paid', () => {
+    const statements = [
+      { id: 'sb-aug', accountId: 'b', cycleEnd: '2026-08-10', dueDate: '2026-09-05', statementBalanceCents: 300000, minimumPaymentCents: 3500 },
+      { id: 'sb', accountId: 'b', cycleEnd: '2026-09-10', dueDate: '2026-10-05', statementBalanceCents: 50000, minimumPaymentCents: 3500 },
+    ];
+    expect(run([{ accountId: 'chk', date: '2026-10-05', amountCents: -50000 }], { statements }).headline.requiredCents).toBe(0);
+  });
+
+  it('P2-1: a top-up beside a returned payment never hides the return — one move explains one deposit', () => {
+    const r = run([
+      { accountId: 'sav', date: '2026-10-04', amountCents: -432109, rawDescriptor: 'TRANSFER TO CHECKING' },
+      { accountId: 'chk', date: '2026-10-04', amountCents: 432109, rawDescriptor: 'TRANSFER FROM SAVINGS' },
+      { accountId: 'chk', date: '2026-10-05', amountCents: -432109 },
+      { accountId: 'chk', date: '2026-10-06', amountCents: 432109, rawDescriptor: 'RETURNED ITEM' },
+    ]);
+    expect(due(r, 'Card B')).toBe(432109);
+    expect(r.inTransitPayments).toEqual([]);
+  });
+
+  it('P2-2: the estimate is the larger of the charges since the close and the balance less the unshown payment', () => {
+    // No card rows since the close; the issuer balance $4,800.00 still holds the $4,321.09.
+    const onlyB = (rows: Row[], over: object = {}) =>
+      computeCashNeeded(
+        assembleCashNeededInput({
+          ...base(rows),
+          accounts: base([]).accounts.map((a) => (a.id === 'b' ? { ...a, ...over } : a)),
+        }),
+      );
+    const est = (r: ReturnType<typeof run>) => [...r.upcoming, ...r.cards].find((c) => c.cardName === 'Card B' && c.isEstimated);
+    const r = onlyB([{ accountId: 'chk', date: '2026-10-05', amountCents: -432109 }]);
+    expect(est(r)?.remainingDueCents).toBe(47891); // 480,000 − 432,109
+    expect(r.cards.find((c) => c.cardName === 'Card B')!.notes.join(' ')).toContain(
+      'estimated from the card company’s balance less the $4,321.09 payment it hasn’t shown yet ($478.91)',
+    );
+    // The issuer already took the payment off (balance $78.91) but $478.91 posted since: the charges win.
+    const r2 = onlyB(
+      [
+        { accountId: 'chk', date: '2026-10-05', amountCents: -432109 },
+        { accountId: 'b', date: '2026-09-20', amountCents: -47891, rawDescriptor: 'KROGER', isTransfer: false, categoryId: 'groceries' },
+      ],
+      { currentBalanceCents: 7891 },
+    );
+    expect(est(r2)?.remainingDueCents).toBe(47891);
+    // A manual card's typed balance is never replaced; a card with no next due date keeps its real balance.
+    expect(est(onlyB([{ accountId: 'chk', date: '2026-10-05', amountCents: -432109 }], { provider: 'manual' }))?.remainingDueCents).toBe(480000);
+    const undated = onlyB([{ accountId: 'chk', date: '2026-10-05', amountCents: -432109 }], { dueDayOfMonth: null, cycleCloseDayOfMonth: null });
+    expect(undated.cards.flatMap((c) => c.notes).join(' ')).not.toContain('estimated from');
+  });
+
+  it('P2-2: what the charges count — posted, after the close day, never a payment the pair rule credited', () => {
+    // Card B with an issuer balance of $0, so only the charges can make the figure.
+    const b = (rows: Row[]) => {
+      const r = computeCashNeeded(
+        assembleCashNeededInput({
+          ...base([{ accountId: 'chk', date: '2026-10-05', amountCents: -432109 }, ...rows]),
+          accounts: base([]).accounts.map((a) => (a.id === 'b' ? { ...a, currentBalanceCents: 0 } : a)),
+        }),
+      );
+      return [...r.upcoming, ...r.cards].find((c) => c.cardName === 'Card B' && c.isEstimated)?.remainingDueCents ?? 0;
+    };
+    const charge = (date: string, cents: number, extra: Partial<Row> = {}): Row => ({ accountId: 'b', date, amountCents: -cents, rawDescriptor: 'KROGER', isTransfer: false, categoryId: 'groceries', ...extra });
+    expect(b([charge('2026-09-20', 10000)])).toBe(10000);
+    expect(b([charge('2026-09-10', 10000)])).toBe(0); // on the close day: inside the statement
+    expect(b([charge('2026-09-20', 10000, { status: 'PENDING' })])).toBe(0); // pending: not posted yet
+    // A $50.00 mid-cycle payment the pair rule credits is not ALSO subtracted from the new charges.
+    expect(
+      b([
+        charge('2026-09-20', 10000),
+        { accountId: 'chk', date: '2026-09-25', amountCents: -5000, rawDescriptor: 'ONLINE PMT', isTransfer: false, categoryId: null },
+        { accountId: 'b', date: '2026-09-25', amountCents: 5000, rawDescriptor: 'PAYMENT RECEIVED', isTransfer: false, categoryId: null },
+      ]),
+    ).toBe(10000);
+  });
+
+  it('P2-3: an unrelated refund of the same amount is not the payment arriving', () => {
+    const statements = [{ id: 'sb', accountId: 'b', cycleEnd: '2026-09-28', dueDate: '2026-10-25', statementBalanceCents: 432109, minimumPaymentCents: 4300 }];
+    const rows: Row[] = [
+      { accountId: 'chk', date: '2026-10-05', amountCents: -432109 },
+      { accountId: 'b', date: '2026-10-13', amountCents: 432109, rawDescriptor: 'BEST BUY REFUND', isTransfer: false, categoryId: 'electronics' },
+    ];
+    const r = computeCashNeeded(assembleCashNeededInput({ ...base(rows, { statements }), today: isoDate('2026-10-14') }));
+    expect(r.inTransitPayments.map((x) => x.cardName)).toEqual(['Card B']);
+    expect(r.cards.flatMap((c) => c.notes).some((n) => n.includes('$4,321.09 credit posted after statement close'))).toBe(true);
+  });
+
+  it('P3-3: a card side up to 31 days late is the payment arriving; past that it is not', () => {
+    const statements = [{ id: 'sb', accountId: 'b', cycleEnd: '2026-09-28', dueDate: '2026-11-25', statementBalanceCents: 432109, minimumPaymentCents: 4300 }];
+    const at = (day: string, today: string) =>
+      computeCashNeeded(
+        assembleCashNeededInput({
+          ...base([{ accountId: 'chk', date: '2026-10-05', amountCents: -432109 }, { accountId: 'b', date: day, amountCents: 432109, rawDescriptor: 'PAYMENT RECEIVED', isTransfer: false, categoryId: null }], { statements }),
+          today: isoDate(today),
+        }),
+      );
+    expect(at('2026-11-05', '2026-11-06').inTransitPayments).toEqual([]); // 31 days: arrived
+    expect(at('2026-11-06', '2026-11-07').inTransitPayments.map((x) => x.cardName)).toEqual(['Card B']); // 32: not
+  });
+
+  it('P2-4: a payment made after the in-transit one never undoes it; the whole statement balance also matches', () => {
+    const after = computeCashNeeded(
+      assembleCashNeededInput({
+        ...base([
+          { accountId: 'chk', date: '2026-10-05', amountCents: -432109 },
+          { accountId: 'chk', date: '2026-10-06', amountCents: -10000, rawDescriptor: 'ONLINE PMT', isTransfer: false, categoryId: null },
+          { accountId: 'b', date: '2026-10-06', amountCents: 10000, rawDescriptor: 'PAYMENT RECEIVED', isTransfer: false, categoryId: null },
+        ]),
+        today: isoDate('2026-10-07'),
+      }),
+    );
+    expect(due(after, 'Card B')).toBe(0);
+    // $100.00 paid Sep 20, then the full statement balance Oct 5: matched by the whole balance.
+    const before = run([
+      { accountId: 'chk', date: '2026-09-20', amountCents: -10000, rawDescriptor: 'ONLINE PMT', isTransfer: false, categoryId: null },
+      { accountId: 'b', date: '2026-09-20', amountCents: 10000, rawDescriptor: 'PAYMENT RECEIVED', isTransfer: false, categoryId: null },
+      { accountId: 'chk', date: '2026-10-05', amountCents: -432109 },
+    ]);
+    expect(due(before, 'Card B')).toBe(0);
+  });
+
+  it('P2-4: the remainder is read ON the day the money left — payments before it count, payments after do not', () => {
+    // $100.00 paid Sep 20, the $4,221.09 remainder Oct 5, then $50.00 more Oct 6. Today Oct 7.
+    const r = computeCashNeeded(
+      assembleCashNeededInput({
+        ...base([
+          { accountId: 'chk', date: '2026-09-20', amountCents: -10000, rawDescriptor: 'ONLINE PMT', isTransfer: false, categoryId: null },
+          { accountId: 'b', date: '2026-09-20', amountCents: 10000, rawDescriptor: 'PAYMENT RECEIVED', isTransfer: false, categoryId: null },
+          { accountId: 'chk', date: '2026-10-05', amountCents: -422109 },
+          { accountId: 'chk', date: '2026-10-06', amountCents: -5000, rawDescriptor: 'ONLINE PMT', isTransfer: false, categoryId: null },
+          { accountId: 'b', date: '2026-10-06', amountCents: 5000, rawDescriptor: 'PAYMENT RECEIVED', isTransfer: false, categoryId: null },
+        ]),
+        today: isoDate('2026-10-07'),
+      }),
+    );
+    expect(r.inTransitPayments.map((x) => [x.cardName, x.amountCents])).toEqual([['Card B', 422109]]);
+  });
+
+  it('an arrival is never a credit the pair rule used, never dated inside the statement, never more than 14 days early', () => {
+    const statements = [{ id: 'sb', accountId: 'b', cycleEnd: '2026-09-10', dueDate: '2026-10-25', statementBalanceCents: 432109, minimumPaymentCents: 4300 }];
+    const listed = (rows: Row[], today = '2026-10-14') =>
+      computeCashNeeded(assembleCashNeededInput({ ...base([{ accountId: 'chk', date: '2026-10-05', amountCents: -432109 }, ...rows], { statements }), today: isoDate(today) }))
+        .inTransitPayments.map((x) => x.cardName);
+    const credit = (date: string): Row => ({ accountId: 'b', date, amountCents: 432109, rawDescriptor: 'PAYMENT RECEIVED', isTransfer: false, categoryId: null });
+    // A second payment of the same amount on Oct 12, paired with its own debit: the pair rule's, not an arrival.
+    expect(listed([{ accountId: 'chk', date: '2026-10-12', amountCents: -432109, rawDescriptor: 'ONLINE PMT', isTransfer: false, categoryId: null }, credit('2026-10-12')])).toEqual(['Card B']);
+    // Dated on or before the close: inside the statement already — even within 14 days of the debit.
+    const late = [{ id: 'sb', accountId: 'b', cycleEnd: '2026-09-28', dueDate: '2026-10-25', statementBalanceCents: 432109, minimumPaymentCents: 4300 }];
+    expect(
+      computeCashNeeded(assembleCashNeededInput({ ...base([{ accountId: 'chk', date: '2026-10-05', amountCents: -432109 }, credit('2026-09-27')], { statements: late }), today: isoDate('2026-10-14') }))
+        .inTransitPayments.map((x) => x.cardName),
+    ).toEqual(['Card B']);
+    // After the close but 20 days before the debit: too early to be this payment.
+    expect(listed([credit('2026-09-15')])).toEqual(['Card B']);
+    // Control: 10 days early, after the close — the payment arriving first.
+    expect(listed([credit('2026-09-25')])).toEqual([]);
+  });
+
+  it('a card with no next due date keeps the card company’s balance on the undated list', () => {
+    const r = computeCashNeeded(
+      assembleCashNeededInput({
+        ...base([{ accountId: 'chk', date: '2026-10-05', amountCents: -432109 }]),
+        accounts: base([]).accounts.map((a) => (a.id === 'b' ? { ...a, dueDayOfMonth: null, cycleCloseDayOfMonth: null } : a)),
+      }),
+    );
+    const undated = r.unknownDueDateCards.find((c) => c.cardName === 'Card B');
+    if (undated) expect(undated.currentBalanceCents).toBe(480000);
+    expect(r.cards.find((c) => c.cardName === 'Card B')?.notes.join(' ') ?? '').not.toContain('estimated from');
+  });
+
+  it('P3-4: an issuer’s loan, mortgage or insurance payment is not a card payment', () => {
+    for (const d of ['CHASE MORTGAGE EPAY', 'CHASE HOME LENDING EPAY', 'CHASE AUTO EPAY', 'DISCOVER STUDENT LOAN EPAY', 'WELLS FARGO AUTO EPAY', 'USAA P&C EPAY', 'CAPITAL ONE AUTO FINANCE EPAY', 'GOLDMAN SACHS MARCUS EPAY', 'AMEX PERSONAL LOAN EPAY']) {
+      expect(due(run([{ accountId: 'chk', date: '2026-10-05', amountCents: -432109, rawDescriptor: d }]), 'Card B'), d).toBe(432109);
+    }
+    // "AUTO PAY" is still a card payment beside an issuer.
+    expect(due(run([{ accountId: 'chk', date: '2026-10-05', amountCents: -432109, rawDescriptor: 'CHASE AUTO PAY' }]), 'Card B')).toBe(0);
   });
 });
 

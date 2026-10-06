@@ -185,11 +185,24 @@ export function CardsBreakdown({
 
       {/* #791: the figure above already counts these as paid; the card company may not show
           it yet, and the Accounts balance comes from the card company. */}
-      {inTransitPaymentsSentence(result.inTransitPayments) && (
-        <p className="text-xs text-muted-foreground" data-testid="cards-in-transit">
-          {inTransitPaymentsSentence(result.inTransitPayments)}
-        </p>
-      )}
+      {(() => {
+        // Named the way this page names cards: the partner who owns it, and the last-4
+        // identity line when two cards share a name (critic cycle 2, P3-2).
+        const identity = cardIdentityLabels(result.cards.map((c) => ({ cardId: c.cardId, cardName: c.cardName })), cardMask);
+        const sentence = inTransitPaymentsSentence(result.inTransitPayments, {
+          card: (n) => {
+            const owned = accountOwnerLabel[n.cardId] ? `${n.cardName} (${accountOwnerLabel[n.cardId]}'s)` : n.cardName;
+            return identity[n.cardId] ? `${owned} ${identity[n.cardId]}` : owned;
+          },
+          account: (n) =>
+            accountOwnerLabel[n.fromAccountId] ? `${n.fromAccountName} (${accountOwnerLabel[n.fromAccountId]}'s)` : n.fromAccountName,
+        });
+        return sentence ? (
+          <p className="text-xs text-muted-foreground" data-testid="cards-in-transit">
+            {sentence}
+          </p>
+        ) : null;
+      })()}
 
       {scenario === 'MINIMUM' && result.minimumPathInterestCents !== null && (
         <p className="text-sm text-warning-500" data-testid="minimum-interest">

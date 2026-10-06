@@ -36,6 +36,14 @@ Owner, live, mid-session: "Problem. Accounts doesn’t match home page. I’ve c
 
 **Fix cycle 1.** Credit by date like the pair rule; estimate from charges since close after an in-transit settlement; late/early arrivals; card-payment test by filing + card words or bill-pay words beside an issuer; returns only on a later day and never a top-up; household names; Glass-Box basis. Unit 25/25 + render 6/6; mutation 29/29; live replay (read-only) still exactly the two payments.
 
+**Gate (on `d04a946e`).** Git Bash `VERIFY_E2E=1 bash scripts/verify.sh` exit 1: tsc 0, probes 0, eslint 0; vitest 9,145 passed + 2 failed (`vercel-build.test.ts`, Git Bash env; PowerShell 31/31); build compiled; Playwright 474 passed / 2 flaky / 0 failed.
+
+**Critic cycle 2** (Opus, separate worktree, on `d04a946e`) = **FAIL — 1 P1 / 5 P2 / 7 P3** (DECISIONS #791). Worktree junction removed link-only; worktree removed.
+
+**Fix cycle 2.** Newest statement only; one move explains one inflow; estimate = max(charges, balance − unshown) with its basis named, never manual or undated; arrivals filed as payments, unpaired, after the close, −14…+31 days; remainder read on the debit's day or the whole balance; issuer loan/insurance EPAYs refused; pre-filter; identity and partner labels; dead Glass-Box branch removed. Unit 37/37 + render 7/7; 47 related files 969/969; mutation 18/18. Live replay (read-only): the two Oct 5 Capital One payments plus five Chase/Amex autopays posted Oct 6 match their statements to the cent; loan payments do not.
+
+**#789 state while this ran.** Branch `slice-789-investment-not-spending` at `a30fcc29` (critic cycle 1 fixes + regression tests + ledgers + Ask transfer wording): gate on the cycle-1 tree (Git Bash) tsc 0 / eslint 0 / vitest 9,138 passed + vercel-build env / build / Playwright 472 passed, 3 flaky, 0 failed (+ one Playwright worker force-killed at teardown — harness, no test failed); 15/15 cycle-1 mutations killed. A code change (Ask's transfer wording) followed that gate → re-gate before its critic cycle 2.
+
 ## 2026-10-05/06 — Money you put in: brokerage deposits read from the bank side (DECISIONS #788)
 
 Owner, on remote control: "As a world class dev, ai engineer, personal finance expert and data scientist, build this out." No attachment; the next owner-agreed slice was brokerage deposit history, gated on "verify the endpoint is covered before building". Plaid's billing pages (fetched) say calling `/investments/transactions/get` adds a monthly per-login subscription ended only by unlinking → human gate → owner chose "Bank side, no new fee" (DECISIONS #788).

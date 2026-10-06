@@ -183,6 +183,8 @@ export default async function DashboardPage({
       ...data.reminders
         .filter((r) => r.obligationType === 'card')
         .map((r) => ({ cardId: r.accountId, cardName: r.accountName })),
+      // #791: a card named in the in-transit sentence is told apart the same way.
+      ...data.payInFull.inTransitPayments.map((x) => ({ cardId: x.cardId, cardName: x.cardName })),
     ],
     data.cardMask,
   );

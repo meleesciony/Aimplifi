@@ -150,17 +150,14 @@ export function traceCashNeeded(
   const basis: string[] = [];
   // #791 (critic cycle 1, P3): the reader auditing this number is told which payments it
   // already counts as paid although the card company has not shown them yet.
-  const inTransit = inTransitPaymentsSentence(result.inTransitPayments);
+  const inTransit = inTransitPaymentsSentence(result.inTransitPayments, {
+    // A partner's card is never named in the second person here (critic cycle 2, P3-2).
+    card: (n) => (partnerCardIds.has(n.cardId) ? `${n.cardName} (a partner’s card)` : n.cardName),
+  });
   if (inTransit) basis.push(inTransit);
   if (rows.some((r) => r.isEstimated)) {
-    // An estimate after a statement settled in transit reads the charges since that close,
-    // not the card balance (#791); each such row's own note says so.
-    const estimatedIds = new Set(rows.filter((r) => r.isEstimated).map((r) => r.id.split(':').slice(2).join(':')));
-    const fromCharges = result.cards.some((c) => estimatedIds.has(c.cardId) && c.notes.some((n) => n.includes('estimated from the charges since')));
     basis.push(
-      fromCharges
-        ? 'Rows marked "est." are estimated because a statement has not been generated yet — from the current card balance, or, after a statement paid by a payment the card company has not shown yet, from the charges since that statement closed (the row says which).'
-        : 'Rows marked "est." use the current card balance because a statement has not been generated yet.',
+      'Rows marked "est." use the current card balance because a statement has not been generated yet.',
     );
   }
   if (result.upcoming.length > 0) {

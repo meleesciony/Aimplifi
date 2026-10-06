@@ -176,27 +176,30 @@ export function detectCardPayments(
 //      (`CARD_PAYMENT_WORDS_RE`), or a bill-pay word beside a card issuer's name
 //      (`BILL_PAY_WORDS_RE` + `CARD_ISSUER_RE`). A row filed to anything else is the
 //      reader's or the categorizer's word that it is not a card payment, flag or no flag;
-//   3. its amount is EXACTLY that statement's unpaid remainder, and no other card's
-//      current statement has the same remainder — the cent-exact statement balance is
-//      the fingerprint, and an ambiguous one names no card;
+//   3. its amount is EXACTLY what was left to pay on that statement on the day the money
+//      left (the statement balance less the payments to it on or before that day — a
+//      payment made later never changes what this one paid), or EXACTLY the whole
+//      statement balance; and no other card's current statement matches it — the
+//      cent-exact amount is the fingerprint, and an ambiguous one names no card;
 //   4. the card side has not shown it yet: no POSTED credit of the same amount on any
 //      card within the pair window (when there is one, the pair rule above owns it, so
 //      the payment is counted once whichever way it is seen);
 //   5. it is not a move between the reader's own bank accounts (no POSTED equal and
 //      opposite row on another checking or savings account within the pair window),
 //      and it did not come back (no POSTED inflow of the same amount on the same
-//      account on a LATER day — a returned payment — unless that inflow is itself
-//      money the reader moved in from another of their accounts, a top-up).
+//      account on a LATER day — a returned payment — unless that inflow is itself one
+//      half of a move in from another of the reader's accounts, each move explaining
+//      ONE inflow: a top-up never hides a return beside it).
 //
-// A card-side credit of the same amount on the matched card that posts OUTSIDE the
-// pair window (up to `IN_TRANSIT_ARRIVAL_WINDOW_DAYS` either side) is that payment
-// arriving: it stays credited, is never announced as a credit for the next statement,
-// and is no longer described as not yet shown (critic cycle 1, P2-1).
+// A card-side credit of the same amount on the matched card, filed as a payment (Credit
+// Card Payment, Transfer, or not filed), not one the pair rule already used, dated after
+// the statement closed and outside the pair window — from 14 days before the bank side to
+// 31 days after it — is that payment ARRIVING: it stays credited, is never announced as a
+// credit for the next statement, and is no longer described as not yet shown.
 //
 // Every other bank outflow abstains, and the bill is demanded as before. A part
-// payment never matches (it is not the remainder) — the card side picks it up when it
-// posts. One payment pays one statement; a second payment of the same amount finds the
-// statement already paid.
+// payment never matches — the card side picks it up when it posts. One payment pays one
+// statement; a second payment of the same amount finds the statement already paid.
 
 /** Words a bank prints on a card payment. Read only on a row already filed as a move. */
 export const CARD_PAYMENT_WORDS_RE =
@@ -209,8 +212,17 @@ export const BILL_PAY_WORDS_RE = /\b(AUTOPAY|AUTO ?PAY|AUTOMATIC PAYMENT|E-?PAYM
 /** Card issuers' names as banks print them on a payment. */
 export const CARD_ISSUER_RE =
   /\b(AMEX|AMERICAN EXPRESS|CHASE|CITI|CITIBANK|CITI CARDS?|DISCOVER|CAPITAL ONE|CAPITALONE|BARCLAYS?|BARCLAYCARD|SYNCB|SYNCHRONY|WELLS FARGO|BK OF AMER|BANK OF AMERICA|BOFA|US ?BANK|GOLDMAN SACHS|GS BANK|APPLE ?CARD|ELAN|COMENITY|TD BANK|PNC|NAVY FEDERAL|USAA|CREDIT ONE|MERRICK)\b/i;
-/** How far either side of the bank debit a LATE card-side credit is still that payment arriving. */
-export const IN_TRANSIT_ARRIVAL_WINDOW_DAYS = 14;
+/**
+ * The issuers also lend and insure: "CHASE MORTGAGE EPAY", "DISCOVER STUDENT LOAN EPAY",
+ * "CAPITAL ONE AUTO FINANCE EPAY", "USAA P&C EPAY" are not card payments (critic cycle 2,
+ * P3-4). "AUTO" is a loan only when it is not "AUTO PAY".
+ */
+export const NOT_A_CARD_BILL_RE =
+  /\b(MORTGAGE|MTG|HOME LENDING|HOME LOAN|LOAN|LENDING|STUDENT|AUTO(?! ?PAY)|FINANCE|INSURANCE|INS|P&C|MARCUS|SAVINGS|CHECKING)\b/i;
+/** How long BEFORE the bank side a card-side credit can be that payment arriving early. */
+export const IN_TRANSIT_ARRIVAL_BEFORE_DAYS = 14;
+/** How long AFTER the bank side a card-side credit can be that payment arriving late. */
+export const IN_TRANSIT_ARRIVAL_AFTER_DAYS = 31;
 
 export interface InTransitTxn extends DetectedPaymentTxn {
   rawDescriptor: string;
@@ -218,12 +230,14 @@ export interface InTransitTxn extends DetectedPaymentTxn {
   isTransfer: boolean;
 }
 
-/** One card's current statement, with what is still unpaid on it after every other payment. */
+/** One card's current statement, with the payments already credited against it. */
 export interface InTransitCandidate {
   cardAccountId: string;
   statementId: string;
   cycleEnd: string;
-  unpaidCents: number;
+  statementBalanceCents: number;
+  /** Stored and pair-detected payments against this statement, with their dates. */
+  payments: readonly { date: string; amountCents: number }[];
 }
 
 export interface InTransitPayment {
@@ -245,27 +259,57 @@ export function detectInTransitCardPayments(params: {
   accountTypeById: ReadonlyMap<string, string>;
   today: ISODate;
   candidates: readonly InTransitCandidate[];
+  /** Indexes of the card credits the pair rule already credited — never an arrival. */
+  pairedIndexes?: ReadonlySet<number>;
 }): InTransitPayment[] {
   const { transactions: txns, accountTypeById, today } = params;
+  const paired = params.pairedIndexes ?? new Set<number>();
   const posted = (t: InTransitTxn) => t.status === 'POSTED' && !t.isSplitParent;
   const within = (a: string, b: string) => Math.abs(daysBetween(isoDate(a), isoDate(b))) <= PAYMENT_PAIR_WINDOW_DAYS;
   const unfiled = (t: InTransitTxn) => !t.categoryId || t.categoryId === 'uncategorized';
+  const isBank = (accountId: string) => PAYS_A_CARD.has(accountTypeById.get(accountId) ?? '');
   const readsAsCardPayment = (t: InTransitTxn) =>
     t.categoryId === 'credit-card-payment' ||
     ((t.categoryId === 'transfer' || (unfiled(t) && t.isTransfer)) &&
       (CARD_PAYMENT_WORDS_RE.test(t.rawDescriptor) ||
-        (BILL_PAY_WORDS_RE.test(t.rawDescriptor) && CARD_ISSUER_RE.test(t.rawDescriptor))));
-  // A deposit that is half of a move in from another of the reader's bank accounts (a
-  // top-up of exactly the bill) is not the payment coming back.
-  const isTopUp = (u: InTransitTxn) =>
-    txns.some(
-      (w) =>
-        posted(w) &&
-        w.amountCents === -u.amountCents &&
-        w.accountId !== u.accountId &&
-        PAYS_A_CARD.has(accountTypeById.get(w.accountId) ?? '') &&
-        within(w.date, u.date),
-    );
+        (BILL_PAY_WORDS_RE.test(t.rawDescriptor) &&
+          CARD_ISSUER_RE.test(t.rawDescriptor) &&
+          !NOT_A_CARD_BILL_RE.test(t.rawDescriptor))));
+
+  // What a candidate statement still owed on a given day, and its whole balance.
+  const unpaidOn = (c: InTransitCandidate, day: string) =>
+    c.statementBalanceCents -
+    c.payments.filter((x) => compareDates(isoDate(x.date), isoDate(day)) <= 0).reduce((sum, x) => sum + x.amountCents, 0);
+  const fingerprints = (c: InTransitCandidate, day: string) => [unpaidOn(c, day), c.statementBalanceCents].filter((v) => v > 0);
+  // Only debits that could pay a candidate are worth the history scans below (critic
+  // cycle 2, P3-5): dated after some candidate closed, of an amount some candidate owes.
+  const earliestClose = params.candidates.reduce<string | null>(
+    (min, c) => (min === null || compareDates(isoDate(c.cycleEnd), isoDate(min)) < 0 ? c.cycleEnd : min),
+    null,
+  );
+  if (earliestClose === null) return [];
+
+  // Top-ups: each move IN from another of the reader's bank accounts explains ONE inflow,
+  // closest dates first (critic cycle 2, P2-1) — one savings withdrawal can never be both
+  // the top-up beside a return and the reason the return is ignored.
+  const topUps = new Set<number>();
+  {
+    const edges: { inflow: number; outflow: number; gap: number }[] = [];
+    txns.forEach((u, j) => {
+      if (!posted(u) || u.amountCents <= 0 || !isBank(u.accountId)) return;
+      txns.forEach((w, k) => {
+        if (!posted(w) || w.amountCents !== -u.amountCents || w.accountId === u.accountId || !isBank(w.accountId)) return;
+        if (within(w.date, u.date)) edges.push({ inflow: j, outflow: k, gap: Math.abs(daysBetween(isoDate(w.date), isoDate(u.date))) });
+      });
+    });
+    edges.sort((a, b) => a.gap - b.gap || a.inflow - b.inflow || a.outflow - b.outflow);
+    const usedOut = new Set<number>();
+    for (const e of edges) {
+      if (topUps.has(e.inflow) || usedOut.has(e.outflow)) continue;
+      topUps.add(e.inflow);
+      usedOut.add(e.outflow);
+    }
+  }
 
   const debits = txns
     .map((t, i) => ({ t, i }))
@@ -273,13 +317,15 @@ export function detectInTransitCardPayments(params: {
       ({ t }) =>
         posted(t) &&
         t.amountCents < 0 &&
-        PAYS_A_CARD.has(accountTypeById.get(t.accountId) ?? '') &&
+        isBank(t.accountId) &&
+        compareDates(isoDate(t.date), isoDate(earliestClose)) > 0 &&
         compareDates(isoDate(t.date), today) <= 0 &&
-        readsAsCardPayment(t),
+        readsAsCardPayment(t) &&
+        params.candidates.some((c) => fingerprints(c, t.date).includes(-t.amountCents)),
     )
     .sort((a, b) => compareDates(isoDate(a.t.date), isoDate(b.t.date)) || a.i - b.i);
 
-  const open = params.candidates.filter((c) => c.unpaidCents > 0).map((c) => ({ ...c }));
+  const consumed = new Set<string>();
   const out: InTransitPayment[] = [];
   const arrivals = new Set<number>();
   for (const { t, i } of debits) {
@@ -292,25 +338,27 @@ export function detectInTransitCardPayments(params: {
       // 5. a move between the reader's own bank accounts, or money that came back.
       if (PAYS_A_CARD.has(type)) {
         if (u.accountId !== t.accountId) return within(u.date, t.date);
-        return compareDates(isoDate(u.date), isoDate(t.date)) > 0 && !isTopUp(u);
+        return compareDates(isoDate(u.date), isoDate(t.date)) > 0 && !topUps.has(j);
       }
       return false;
     });
     if (otherSide) continue;
-    const matches = open.filter(
-      (c) => c.unpaidCents === amount && compareDates(isoDate(t.date), isoDate(c.cycleEnd)) > 0,
+    const matches = params.candidates.filter(
+      (c) =>
+        !consumed.has(c.statementId) &&
+        compareDates(isoDate(t.date), isoDate(c.cycleEnd)) > 0 &&
+        fingerprints(c, t.date).includes(amount),
     );
     if (matches.length !== 1) continue;
     const hit = matches[0]!;
-    const arrived = txns.findIndex(
-      (u, j) =>
-        !arrivals.has(j) &&
-        posted(u) &&
-        u.accountId === hit.cardAccountId &&
-        u.amountCents === amount &&
-        !within(u.date, t.date) &&
-        Math.abs(daysBetween(isoDate(u.date), isoDate(t.date))) <= IN_TRANSIT_ARRIVAL_WINDOW_DAYS,
-    );
+    const arrived = txns.findIndex((u, j) => {
+      if (arrivals.has(j) || paired.has(j) || !posted(u)) return false;
+      if (u.accountId !== hit.cardAccountId || u.amountCents !== amount) return false;
+      if (!(u.categoryId === 'credit-card-payment' || u.categoryId === 'transfer' || unfiled(u))) return false;
+      if (compareDates(isoDate(u.date), isoDate(hit.cycleEnd)) <= 0 || within(u.date, t.date)) return false;
+      const gap = daysBetween(isoDate(t.date), isoDate(u.date));
+      return gap >= -IN_TRANSIT_ARRIVAL_BEFORE_DAYS && gap <= IN_TRANSIT_ARRIVAL_AFTER_DAYS;
+    });
     if (arrived >= 0) arrivals.add(arrived);
     out.push({
       cardAccountId: hit.cardAccountId,
@@ -321,7 +369,7 @@ export function detectInTransitCardPayments(params: {
       txnIndex: i,
       arrivedTxnIndex: arrived >= 0 ? arrived : null,
     });
-    hit.unpaidCents = 0;
+    consumed.add(hit.statementId);
   }
   return out;
 }
@@ -349,9 +397,23 @@ export function detectedPaymentCentsForStatement(params: {
   cycleEnd: string;
   storedPayments: readonly { date: string; amountCents: number }[];
 }): number {
+  return detectedPaymentsForStatement(params).reduce((sum, d) => sum + d.amountCents, 0);
+}
+
+/**
+ * The detected payments creditable against ONE statement, as rows — the list
+ * `detectedPaymentCentsForStatement` sums, shared so the in-transit matcher (#791) reads
+ * the same payments, with their dates, that the amount due subtracted.
+ */
+export function detectedPaymentsForStatement(params: {
+  detected: readonly DetectedCardPayment[];
+  cardAccountId: string;
+  cycleEnd: string;
+  storedPayments: readonly { date: string; amountCents: number }[];
+}): DetectedCardPayment[] {
   const close = isoDate(params.cycleEnd);
   const unclaimed = params.storedPayments.map((p) => ({ date: isoDate(p.date), amountCents: p.amountCents, used: false }));
-  let total = 0;
+  const out: DetectedCardPayment[] = [];
   for (const d of params.detected) {
     if (d.cardAccountId !== params.cardAccountId) continue;
     if (compareDates(d.date, close) <= 0) continue;
@@ -365,7 +427,7 @@ export function detectedPaymentCentsForStatement(params: {
       twin.used = true;
       continue;
     }
-    total += d.amountCents;
+    out.push(d);
   }
-  return total;
+  return out;
 }

@@ -19,6 +19,7 @@ import {
   detectCardPayments,
   detectInTransitCardPayments,
   detectedPaymentCentsForStatement,
+  detectedPaymentsForStatement,
   type InTransitPayment,
 } from './detected-payments';
 import type { CardSnapshot, CashNeededInput, PendingTx, Scenario, ScheduledItem } from './types';
@@ -188,13 +189,21 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
     p.statements
       .filter((s) => s.accountId === cardId)
       .sort((a, b) => compareDates(isoDate(b.cycleEnd), isoDate(a.cycleEnd)));
-  // Current obligation = the most recent statement that is either not yet
-  // due OR still carries an unpaid remainder (delinquent statements must
-  // NEVER vanish into the estimate path — Hostile Critic finding P1-2).
-  const currentOf = (own: readonly StatementLike[], paidAgainst: (s: StatementLike) => number) =>
-    own.find(
-      (s) => compareDates(isoDate(s.dueDate), p.today) >= 0 || s.statementBalanceCents - paidAgainst(s) > 0,
-    ) ?? null;
+  // Current obligation = the NEWEST statement, when it is either not yet due OR still
+  // carries an unpaid remainder (a delinquent statement must NEVER vanish into the
+  // estimate path — Hostile Critic finding P1-2). Only the newest (#791 critic cycle 2,
+  // P1-1): a card's newest statement already carries everything owed from the ones before
+  // it, so once it is paid nothing older is owed. Walking back to an older statement
+  // re-demanded money the newer statement had already rolled up — $3,321.09 "past due" on
+  // a card whose newest $1,000.00 statement had just been paid, when a payment of the
+  // older one reached the card side outside the pair window (pre-existing in the pair
+  // rule; a payment counted in transit reached it too).
+  const currentOf = (own: readonly StatementLike[], paidAgainst: (s: StatementLike) => number) => {
+    const s = own[0];
+    return s && (compareDates(isoDate(s.dueDate), p.today) >= 0 || s.statementBalanceCents - paidAgainst(s) > 0)
+      ? s
+      : null;
+  };
   const creditCards = p.accounts.filter((a) => a.type === 'CREDIT');
 
   // #791 — payments in transit. First pass: each card's current statement and what is
@@ -206,12 +215,25 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
     accountTypeById,
     today: p.today,
     candidates: creditCards.flatMap((card) => {
-      const paidAgainst = paidAgainstOf(card.id, []);
-      const current = currentOf(statementsOf(card.id), paidAgainst);
-      return current
-        ? [{ cardAccountId: card.id, statementId: current.id, cycleEnd: current.cycleEnd, unpaidCents: current.statementBalanceCents - paidAgainst(current) }]
-        : [];
+      const current = currentOf(statementsOf(card.id), paidAgainstOf(card.id, []));
+      if (!current) return [];
+      const stored = p.cardPayments.filter((cp) => cp.statementId === current.id);
+      // Each payment with its date, so the matcher asks what was left on the day the money
+      // left — a payment made AFTER it never changes what it paid (critic cycle 2, P2-4).
+      return [
+        {
+          cardAccountId: card.id,
+          statementId: current.id,
+          cycleEnd: current.cycleEnd,
+          statementBalanceCents: current.statementBalanceCents,
+          payments: [
+            ...stored.map((cp) => ({ date: cp.date, amountCents: cp.amountCents })),
+            ...detectedPaymentsForStatement({ detected: detectedPayments, cardAccountId: card.id, cycleEnd: current.cycleEnd, storedPayments: stored }),
+          ],
+        },
+      ];
     }),
+    pairedIndexes: detectedIndexes,
   });
   const accountName = new Map(p.accounts.map((a) => [a.id, accountLabel(a)]));
 
@@ -275,31 +297,38 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
         nextDueDate = nextDayOfMonth(card.dueDayOfMonth, addDays(nextCycleCloseDate, 1));
       }
 
-      // #791 (critic cycle 1, P1-2): the next cycle is normally estimated from the card
-      // company's balance — but while a payment counted in transit has not reached the card
-      // side, that balance may still hold it, and the estimate would ask for the paid money
-      // a second time (on /cards, the calendar and the radar walk). So when the statement
-      // was settled by such a payment, the estimate is what was charged on the card since
-      // that statement closed: posted rows after the close, less the payments to it.
-      const unshownInTransit = inTransitHere.some((x) => x.arrivedTxnIndex === null);
+      // #791 (critic cycles 1–2, P1-2 / P2-2): the next cycle is normally estimated from the
+      // card company's balance — but while a payment counted in transit has not reached the
+      // card side, that balance may still hold it, and the estimate would ask for the paid
+      // money a second time (on /cards, the calendar and the radar walk). So, when such a
+      // payment settled the statement, the estimate is the LARGER of (a) the charges posted on
+      // the card since that statement closed, less payments to it, and (b) the card company's
+      // balance less the payment it has not shown yet. (a) alone undercounts a feed that is
+      // behind; (b) alone undercounts once the issuer has already taken the payment off.
+      // Never for a manual card (its balance is the reader's own figure, and its card side
+      // never shows anything), and never without a next due date (the balance is then
+      // printed as the card's balance, not as an estimate).
+      const unshown = inTransitHere.filter((x) => x.arrivedTxnIndex === null).reduce((sum, x) => sum + x.amountCents, 0);
       const settledClose = !current && own.length > 0 ? own[0]!.cycleEnd : null;
-      const chargesSinceClose =
-        unshownInTransit && settledClose !== null
-          ? p.transactions.reduce(
-              (sum, t, i) =>
-                t.accountId === card.id &&
-                t.status === 'POSTED' &&
-                !t.isSplitParent &&
-                // (A card holds at most one payment in transit — it pays its one current
-                // statement's whole remainder — and this runs only while that one has not
-                // arrived, so no arrival can be among these rows.)
-                !detectedIndexes.has(i) &&
-                compareDates(isoDate(t.date), isoDate(settledClose)) > 0
-                  ? sum - t.amountCents
-                  : sum,
-              0,
-            )
-          : null;
+      let estimate: { cents: number; basis: 'charges' | 'balance'; since: ISODate } | null = null;
+      if (unshown > 0 && settledClose !== null && nextDueDate !== undefined && card.provider !== 'manual') {
+        const charges = p.transactions.reduce(
+          (sum, t, i) =>
+            t.accountId === card.id &&
+            t.status === 'POSTED' &&
+            !t.isSplitParent &&
+            !detectedIndexes.has(i) &&
+            compareDates(isoDate(t.date), isoDate(settledClose)) > 0
+              ? sum - t.amountCents
+              : sum,
+          0,
+        );
+        const balanceLessUnshown = card.currentBalanceCents - unshown;
+        estimate =
+          balanceLessUnshown > charges
+            ? { cents: balanceLessUnshown, basis: 'balance', since: isoDate(settledClose) }
+            : { cents: charges, basis: 'charges', since: isoDate(settledClose) };
+      }
 
       return {
         id: card.id,
@@ -318,9 +347,9 @@ export function assembleCashNeededInput(p: AssembleParams): CashNeededInput {
               cycleEnd: isoDate(current.cycleEnd),
             }
           : null,
-        currentBalanceCents: cents(chargesSinceClose ?? card.currentBalanceCents),
-        ...(chargesSinceClose !== null && settledClose !== null
-          ? { estimateFromChargesSince: isoDate(settledClose) }
+        currentBalanceCents: cents(estimate?.cents ?? card.currentBalanceCents),
+        ...(estimate !== null
+          ? { inTransitEstimate: { basis: estimate.basis, since: estimate.since, unshownCents: cents(unshown) } }
           : {}),
         nextCycleCloseDate,
         nextDueDate,

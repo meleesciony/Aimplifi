@@ -82,6 +82,12 @@ describe('Home’s card names the payment on every branch', () => {
     );
   });
 
+  it('two cards with one name are told apart by the page’s own identity line (critic cycle 2, P3-2)', () => {
+    const r = result([PAID_B]);
+    render(<CashNeededCard result={r} paymentAccountName="Everyday Checking" today={TODAY} cardIdentity={{ b: '····6271', c: '····0966' }} />);
+    expect(screen.getByTestId('cash-needed-in-transit').textContent).toContain('$4,321.09 to Card B ····6271 (left Everyday Checking');
+  });
+
   it('nothing in transit, nothing said', () => {
     render(<CashNeededCard result={result([])} paymentAccountName="Everyday Checking" today={TODAY} />);
     expect(screen.queryByTestId('cash-needed-in-transit')).toBeNull();

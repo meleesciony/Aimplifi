@@ -106,9 +106,12 @@ function buildObligation(
     isEstimated = true;
     if (statementBalance > 0) {
       // #791: after a statement settled by a payment the card company has not shown yet, the
-      // estimate is the charges since that statement closed — its balance may still hold the payment.
-      const msg = card.estimateFromChargesSince
-        ? `${card.name}: statement not generated yet — due amount estimated from the charges since the last statement closed on ${formatISODate(card.estimateFromChargesSince)} (${formatCents(statementBalance)}), because the card company’s balance may still include a payment counted in transit.`
+      // estimate says which figure it read — the issuer's balance may still hold that payment.
+      const t = card.inTransitEstimate;
+      const msg = t
+        ? t.basis === 'charges'
+          ? `${card.name}: statement not generated yet — due amount estimated from the charges since the last statement closed on ${formatISODate(t.since)} (${formatCents(statementBalance)}), because the card company’s balance may still include the ${formatCents(t.unshownCents)} payment counted in transit.`
+          : `${card.name}: statement not generated yet — due amount estimated from the card company’s balance less the ${formatCents(t.unshownCents)} payment it hasn’t shown yet (${formatCents(statementBalance)}).`
         : `${card.name}: statement not generated yet — due amount estimated from the current balance (${formatCents(statementBalance)}).`;
       notes.push(msg);
       assumptions.add(msg);

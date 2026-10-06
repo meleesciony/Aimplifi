@@ -68,7 +68,7 @@ test.describe('a card payment in transit (DECISIONS #791)', () => {
     const card = page.getByTestId('cash-needed-card');
     await expect(card).toContainText('Cards: nothing due');
     await expect(card.getByTestId('cash-needed-in-transit')).toHaveText(
-      'Counted as paid before the card company shows it: $2,345.67 to Northwind Rewards (left Everyday Checking Fri, Jun 5). It matches what was left to pay on that card’s statement, to the cent.',
+      'Counted as paid before the card company shows it: $2,345.67 to Northwind Rewards ····6631 (left Everyday Checking Fri, Jun 5). It matches what was left to pay on that card’s statement, to the cent.',
     );
     // /cards says the same, beside its own "Nothing due this cycle".
     await page.goto('/cards');

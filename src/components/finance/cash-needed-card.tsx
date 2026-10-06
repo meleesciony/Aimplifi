@@ -88,7 +88,11 @@ export function CashNeededCard({
   const inTransit = inTransitPaymentsSentence(result.inTransitPayments, {
     // Household scope: the partner's card and account carry their owner, as every other
     // name on this card does (critic cycle 1, P3).
-    card: (n) => (accountOwnerLabel[n.cardId] ? `${n.cardName} (${accountOwnerLabel[n.cardId]}'s)` : n.cardName),
+    // …and the page's own identity line, so two cards with one name are told apart (critic cycle 2, P3-2).
+    card: (n) => {
+      const owned = accountOwnerLabel[n.cardId] ? `${n.cardName} (${accountOwnerLabel[n.cardId]}'s)` : n.cardName;
+      return cardIdentity[n.cardId] ? `${owned} ${cardIdentity[n.cardId]}` : owned;
+    },
     account: (n) =>
       accountOwnerLabel[n.fromAccountId] ? `${n.fromAccountName} (${accountOwnerLabel[n.fromAccountId]}'s)` : n.fromAccountName,
   });

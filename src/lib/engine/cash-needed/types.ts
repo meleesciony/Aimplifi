@@ -53,11 +53,12 @@ export interface CardSnapshot {
    */
   inTransitPayments?: readonly { amountCents: Cents; date: ISODate; fromAccountId: string; fromAccountName: string; shownByCard: boolean }[];
   /**
-   * #791 (critic cycle 1, P1-2): set when the estimate path should read `currentBalanceCents`
-   * as the charges since THIS statement close date — the card company's balance may still
-   * hold a payment counted in transit. Absent = the issuer's balance, as before.
+   * #791 (critic cycles 1–2): set when the estimate path's `currentBalanceCents` is NOT the
+   * card company's balance as-is, because a payment counted in transit settled the statement
+   * and that balance may still hold it — `basis` says which figure was used: the charges
+   * since `since` (the statement close), or the balance less the `unshownCents` payment.
    */
-  estimateFromChargesSince?: ISODate;
+  inTransitEstimate?: { basis: 'charges' | 'balance'; since: ISODate; unshownCents: Cents };
   /** YYYY-MM-DD the bank stopped sharing this card, else null/absent (TASKS L.14).
    *
    *  The original of this comment claimed the engine's `assumptions` are rendered by "/cards, the
