@@ -72,3 +72,19 @@ export async function recordNudgeDismissal(userId: string, dismissKey: string): 
     return false;
   }
 }
+
+/**
+ * Undo one dismissal (DECISIONS #795): the "Undo" on the feed's confirmation
+ * line. Scoped to the one user and the one key; deleting nothing is still
+ * success (the row is not dismissed either way). Demo: no-op, like the write.
+ */
+export async function removeNudgeDismissal(userId: string, dismissKey: string): Promise<boolean> {
+  if (userId === DEMO_USER_ID) return false;
+  if (!dismissKey || dismissKey.length > MAX_DISMISS_KEY_LEN) return false;
+  try {
+    await prisma.nudgeDismissal.deleteMany({ where: { userId, dismissKey } });
+    return true;
+  } catch {
+    return false;
+  }
+}

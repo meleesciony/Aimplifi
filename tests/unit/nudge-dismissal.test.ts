@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, afterEach, describe, expect, it } from 'vitest';
 import { prisma } from '@/lib/db';
 import { DEMO_USER_ID } from '@/lib/demo-user';
-import { getNudgeDismissedKeys, recordNudgeDismissal } from '@/server/nudge';
+import { getNudgeDismissedKeys, recordNudgeDismissal, removeNudgeDismissal } from '@/server/nudge';
 
 const USER_A = `nd-user-a-${Date.now()}-${process.pid}`;
 const USER_B = `nd-user-b-${Date.now()}-${process.pid}`;
@@ -71,5 +71,38 @@ describe('server/nudge — dismissal store', () => {
       await prisma.nudgeDismissal.create({ data: { userId: DEMO_USER_ID, dismissKey: KEY } });
       expect((await getNudgeDismissedKeys(DEMO_USER_ID)).size).toBe(0);
     });
+  });
+});
+
+// DECISIONS #795 — Undo on the feed's confirmation line.
+describe('server/nudge — removeNudgeDismissal (undo)', () => {
+  const USER_U = `nd-user-u-${Date.now()}-${process.pid}`;
+  const USER_V = `nd-user-v-${Date.now()}-${process.pid}`;
+  beforeAll(async () => {
+    await prisma.user.create({ data: { id: USER_U, email: `${USER_U}@test.local` } });
+    await prisma.user.create({ data: { id: USER_V, email: `${USER_V}@test.local` } });
+  });
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { id: { in: [USER_U, USER_V] } } });
+  });
+  afterEach(async () => {
+    await prisma.nudgeDismissal.deleteMany({ where: { userId: { in: [USER_U, USER_V] } } });
+  });
+
+  it('undoes exactly the one user’s one key, and nothing else', async () => {
+    await recordNudgeDismissal(USER_U, KEY);
+    await recordNudgeDismissal(USER_U, 'unusual_charge:txn-1');
+    await recordNudgeDismissal(USER_V, KEY);
+    expect(await removeNudgeDismissal(USER_U, KEY)).toBe(true);
+    expect((await getNudgeDismissedKeys(USER_U)).has(KEY)).toBe(false);
+    expect((await getNudgeDismissedKeys(USER_U)).has('unusual_charge:txn-1')).toBe(true);
+    expect((await getNudgeDismissedKeys(USER_V)).has(KEY)).toBe(true);
+  });
+
+  it('undoing a key that was never dismissed is still success; the demo and a bad key are refused', async () => {
+    expect(await removeNudgeDismissal(USER_U, KEY)).toBe(true);
+    expect(await removeNudgeDismissal(DEMO_USER_ID, KEY)).toBe(false);
+    expect(await removeNudgeDismissal(USER_U, '')).toBe(false);
+    expect(await removeNudgeDismissal(USER_U, 'k'.repeat(201))).toBe(false);
   });
 });

@@ -22,7 +22,7 @@ import {
   frozenNoWarningNote,
 } from '@/lib/engine/account/feed-dropped-view';
 import { logEngagement } from '@/server/engagement-actions';
-import { dismissNudge } from '@/server/nudge-actions';
+import { dismissNudge, undismissNudge } from '@/server/nudge-actions';
 import { confirmIncomePauseAction, undoIncomePauseAction } from '@/server/income-pause-actions';
 
 /**
@@ -106,10 +106,30 @@ export function TodayFeedCard({
 
   const hiddenCount = feedAll.ordered.length - visible.length;
 
+  // DECISIONS #795 (owner, 2026-10-07: "I thought it would delete the log"):
+  // a dismissal used to vanish its row without a word, and the only trace was
+  // "Show everything (N hidden)" — which read as the warnings still being there.
+  // Now the card says what happened, offers one Undo, and names the hidden
+  // rows as dismissed rather than hidden.
+  const [lastDismissed, setLastDismissed] = useState<Proposal | null>(null);
+
   function dismiss(p: Proposal) {
     setSessionDismissed((prev) => new Set(prev).add(p.dismissKey));
+    setLastDismissed(p);
     void dismissNudge(p.dismissKey);
     void logEngagement({ surface: 'dashboard', verb: 'dismissed', subjectKey: p.subjectKey });
+  }
+
+  function undo() {
+    const p = lastDismissed;
+    if (!p) return;
+    setSessionDismissed((prev) => {
+      const next = new Set(prev);
+      next.delete(p.dismissKey);
+      return next;
+    });
+    setLastDismissed(null);
+    void undismissNudge(p.dismissKey);
   }
 
   return (
@@ -184,6 +204,27 @@ export function TodayFeedCard({
           </ul>
         )}
 
+        {lastDismissed && (
+          <p
+            role="status"
+            data-testid="today-feed-dismissed-note"
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
+          >
+            <span>
+              Dismissed <span className="font-medium text-foreground">{proposalCopy(lastDismissed).title}</span> — it
+              won’t come back to Today.
+            </span>
+            <button
+              type="button"
+              data-testid="today-feed-undo"
+              onClick={undo}
+              className="tap-target font-medium text-foreground underline underline-offset-2 hover:no-underline"
+            >
+              Undo
+            </button>
+          </p>
+        )}
+
         {(hiddenCount > 0 || showAll) && (
           <div className="pt-1">
             <Button
@@ -192,7 +233,7 @@ export function TodayFeedCard({
               data-testid="today-feed-show-all"
               onClick={() => setShowAll((v) => !v)}
             >
-              {showAll ? 'Show less' : `Show everything${hiddenCount > 0 ? ` (${hiddenCount} hidden)` : ''}`}
+              {showAll ? 'Hide dismissed' : `Show dismissed (${hiddenCount})`}
             </Button>
           </div>
         )}

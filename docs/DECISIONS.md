@@ -14,6 +14,16 @@ considered. Append-only.
 > Only entries #749 onward live here; append new entries as before — the numbering
 > never resets, the archives hold the lower numbers.
 
+## #795 — A dismissal says so: confirmation, one Undo, and "dismissed" instead of "hidden" (2026-10-07)
+
+**Context.** The #794 log settled the owner's report in one reproduction: nine `[nudge-dismiss] … ok:true` lines, no `[client-error]` line — every tap reached the server and was saved, and on the owner's next look the rows were gone: "No it's all hidden. Is that intentional. I thought it would delete the log." The control worked; the message failed twice. A dismissed row vanished without a word (so the first tap read as nothing, and the owner tapped the same row seven times in four seconds), and the only trace was "Show everything (N hidden)" — which reads as the warnings still being there, not as an archive.
+
+**Decision.** Hiding stays the behaviour: a nudge is a suggestion about a transaction that stays in Activity untouched, and a dismissal is persisted — it will not come back to Today. What changes is that the card now says so. After a dismissal a status line names the row ("Dismissed <title> — it won't come back to Today.") with one **Undo**, which reverts the session state and calls `undismissNudge` → `removeNudgeDismissal` (the one user's one key, `deleteMany`, same fence and rate-limit bucket as the dismissal; deleting nothing is still success). The reveal control reads "Show dismissed (N)" / "Hide dismissed". No engine change; the #794 instrumentation stays.
+
+**Locked.** `tests/unit/nudge-dismissal.test.ts` (+2): undo removes exactly the one user's one key and nothing else; a never-dismissed key is success, the demo and a bad key are refused. `tests/e2e/today-feed.spec.ts`: the control reads "dismissed (1)" and the confirmation line appears after a dismissal. `tests/e2e/today-feed-undo.spec.ts`: dismiss → note → Undo → the row is back and the note is gone.
+
+**Critic.** A copy line, a status line and a scoped delete under the existing fence and bucket; no separate critic context.
+
 ## #794 — The browser gets a voice: client errors and dismiss attempts reach the server log (2026-10-07)
 
 **Context.** Owner, on their phone minutes after #793 shipped: "What's the point of having these × on the right if you can't click away the warning?" — then, asked precisely: the row stays put, and still does after a full reload. Reproduced the tap on the live site in WebKit (iPhone 13) and in Chromium at 6× CPU / 4G with the tap landing the instant the × rendered: the demo's row disappears every time (5 → 4), and a real account's dismissal persists by a stable key (`unusual_charge:<txnId>`, upserted). Vercel's server log for the last three hours: no errors. So the failure is in the owner's browser on the owner's Home — and the app had no eyes there: `(app)/error.tsx` reports only with a Sentry DSN (dormant), and a page whose JavaScript dies before React takes over never reaches a boundary at all; the server HTML stays on screen with every button dead and nothing in any log. Rule 0 forbids guessing at the cause from here.

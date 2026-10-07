@@ -13,7 +13,7 @@
  * dismissKey for a material warning is inert for suppression by construction.
  */
 import { requireUserId, rateLimitDurable } from '@/server/authz';
-import { recordNudgeDismissal } from '@/server/nudge';
+import { recordNudgeDismissal, removeNudgeDismissal } from '@/server/nudge';
 
 // Bound the write path (the repo rule: every request path uses rateLimitDurable). A
 // generous ceiling — a real user dismisses a handful of nudges — that still caps a
@@ -32,6 +32,24 @@ export async function dismissNudge(dismissKey: string): Promise<boolean> {
     // "did the tap reach the server?" for a reader whose row will not go away.
     // The key is engine-minted (kind + ids), never a figure.
     console.log(`[nudge-dismiss] ${JSON.stringify({ userId, dismissKey, ok })}`);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Undo the last dismissal (DECISIONS #795). Same fence and ceiling as the
+ * dismissal it reverses — one bucket, so a dismiss/undo loop cannot double it.
+ */
+export async function undismissNudge(dismissKey: string): Promise<boolean> {
+  try {
+    const userId = await requireUserId();
+    if (!(await rateLimitDurable(`nudge-dismiss:${userId}`, DISMISS_LIMIT, DISMISS_WINDOW_MS))) {
+      return false;
+    }
+    const ok = await removeNudgeDismissal(userId, dismissKey);
+    console.log(`[nudge-undismiss] ${JSON.stringify({ userId, dismissKey, ok })}`);
     return ok;
   } catch {
     return false;
