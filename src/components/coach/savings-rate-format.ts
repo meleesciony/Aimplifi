@@ -4,23 +4,24 @@
  * the "−855105.8%" the owner reported RECURS whenever the pooled window has a single
  * near-zero-income month, and a "1-month average" is a comparison of this month with
  * itself. The engine keeps the true bps; presentation is floored and gated here.
+ *
+ * #796: the floor and the one-decimal rule now live in the engine (`savingsRatePct`), so
+ * Ask's savings answers print every rate exactly as this card does.
  */
+import { RATE_FLOOR_BPS, savingsRatePct } from '@/lib/engine/assistant/trace-view';
 
-/** −100%. A savings rate past this has stopped being a meaningful percentage — it only
- *  balloons as the income denominator shrinks toward zero — so it is never shown precisely. */
-export const RATE_FLOOR_BPS = -10_000;
+export { RATE_FLOOR_BPS };
 
 /** An "average" needs at least two contributing months; one income month IS the current
  *  month, so a "1-month average" compares this month to itself. */
 export const MIN_AVERAGE_MONTHS = 2;
 
 /**
- * Format a savings rate (bps) for display. Below −100% renders as "below −100%": still
+ * Format a savings rate (bps) for display. Below −100% renders as "below -100%": still
  * true, never a fabricated giant number. At or above the floor, one-decimal percent.
  */
 export function formatSavingsRateBps(bps: number): string {
-  // ASCII hyphen to match toFixed()'s own sign on the same surface (no mixed minus glyphs).
-  return bps < RATE_FLOOR_BPS ? 'below -100%' : `${(bps / 100).toFixed(1)}%`;
+  return savingsRatePct(bps);
 }
 
 /** Whether the "N-month average" comparison line should be shown at all. */

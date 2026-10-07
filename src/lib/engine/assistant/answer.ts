@@ -99,7 +99,7 @@ import type { AnswerTrace } from './trace';
 // Runtime import is safe: trace-view is dependency-light and imports only TYPES
 // from this module's graph (no cycle). Shared so the savings-rate headline and
 // the derivation panel format the same bps through the same function (slice 3).
-import { bpsToPct1dp } from './trace-view';
+import { savingsRatePct } from './trace-view';
 import { accountLabel } from '@/lib/engine/account/display-name';
 
 export interface AssistantFact {
@@ -3022,14 +3022,15 @@ export function answerSavingsRate(input: {
       source,
     };
   }
-  // ONE formatter for the percent (bpsToPct1dp) — the derivation panel renders
-  // the same bps through the same function, so headline and panel can never
-  // display two different roundings of the same rate (slice 3).
-  const pct = bpsToPct1dp(input.rateBps);
+  // ONE formatter for the percent (savingsRatePct, which /coach uses too) — the
+  // derivation panel renders the same bps through the same function, so headline and
+  // panel can never display two different roundings of the same rate (slice 3), and
+  // a rate past −100% is floored here as it is on the card (#796).
+  const pct = savingsRatePct(input.rateBps);
   const saved = input.incomeCents - input.expensesCents;
   return {
     kind: 'savings_rate',
-    headline: `Your savings rate was ${pct}% in ${input.monthLabel}.`,
+    headline: `Your savings rate was ${pct} in ${input.monthLabel}.`,
     // The builder's own figure, in bps — the independent half of the derivation
     // trace's gate (the trace RECOMPUTES the rate from the month's flows).
     headlineBps: input.rateBps,
@@ -3063,20 +3064,25 @@ function monthList(months: readonly string[]): string {
 }
 
 const SAVINGS_PERIOD_BASIS =
-  'Income minus expenses, divided by income, over the whole period — so a big month counts for more than a small one. Income is after-tax pay as it lands in your accounts; transfers between your own accounts count as neither.';
+  'Income minus expenses, divided by income, over the whole period — so a big month counts for more than a small one. Income is pay as it lands in your accounts, after taxes and anything taken out of your paycheck; transfers between your own accounts count as neither.';
 
-/** Gated on spending > 0: only then would counting withheld savings raise the rate. */
+/**
+ * What an "effective" (all-in) savings rate would add. Gated on spending > 0: only then
+ * would counting money withheld from pay raise the rate — (kept + c) ÷ (income + c) is
+ * above kept ÷ income exactly when kept < income. It states the rule above, not a claim
+ * about any account: the app never reads a 401(k)'s own transactions.
+ */
 const SAVINGS_WITHHELD_NOTE =
-  "If part of your pay goes straight to a 401(k), an HSA or an employer match and that account isn't linked here, that saving isn't in these figures — counting it would raise this rate.";
+  'A 401(k) contribution taken out of your paycheck, or an employer match, is not in that income — counting it would raise this rate.';
 
 type SavingsPeriodOk = Extract<SavingsPeriod, { ok: true }>;
 
 /** The figure sentence for a measured period, without its scope prefix. */
 function savingsFigure(p: SavingsPeriodOk): string {
-  const pct = p.rateBps === null ? '' : bpsToPct1dp(p.rateBps);
-  if (p.keptCents > 0) return `${pct}% — you kept ${fmt(p.keptCents)} of the ${fmt(p.incomeCents)} you brought in.`;
-  if (p.keptCents === 0) return `${pct}% — you spent all ${fmt(p.incomeCents)} you brought in.`;
-  return `${pct}% — you spent ${fmt(-p.keptCents)} more than the ${fmt(p.incomeCents)} you brought in.`;
+  const pct = p.rateBps === null ? '' : savingsRatePct(p.rateBps);
+  if (p.keptCents > 0) return `${pct} — you kept ${fmt(p.keptCents)} of the ${fmt(p.incomeCents)} you brought in.`;
+  if (p.keptCents === 0) return `${pct} — you spent all ${fmt(p.incomeCents)} you brought in.`;
+  return `${pct} — you spent ${fmt(-p.keptCents)} more than the ${fmt(p.incomeCents)} you brought in.`;
 }
 
 /** Month-by-month (12 or fewer) or year-by-year rates, each pooled the same way. */
@@ -3084,7 +3090,7 @@ function savingsBreakdown(p: SavingsPeriodOk): AssistantFact[] {
   const rateOf = (income: number, expenses: number, active: boolean) => {
     if (!active) return 'nothing on record';
     const bps = savingsRateBps(income as Cents, expenses as Cents);
-    return bps === null ? 'no income' : `${bpsToPct1dp(bps)}%`;
+    return bps === null ? 'no income' : savingsRatePct(bps);
   };
   if (p.months.length <= 12) {
     return p.months.map((m) => ({

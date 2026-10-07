@@ -109,7 +109,9 @@ const ymLabel = (ym: string) => `${MONTH_TITLE[Number(ym.slice(5, 7)) - 1]} ${ym
 /**
  * U.36: these intents only delegate to a loader that fetches its own boundary
  * (`getSpendingPlan`) or, for `savings_rate`, a snapshot that already carries
- * the keys (`getCoachData`). The composer views are unused — fetching them
+ * the keys (`getCoachData`) — or, for a `savings_rate` over a named period (#796),
+ * read only the composer's snapshot rows through `monthlyFlows`, which takes no
+ * handover keys (the income answer reads the same way). The composer views are unused — fetching them
  * here is a second snapshot of the same table, paid and discarded. Waste, not
  * a desync: each artifact stays internally consistent. Every other kind still
  * fetches eagerly (#466): a per-intent "does this spend case need keys?"
@@ -808,8 +810,11 @@ async function buildAnswer(
           nearest,
         });
         const measured = period.ok ? period : nearest?.ok ? nearest : null;
-        // The derivation panel recomputes the rate from the period's summed figures;
-        // `headlineBps` is the builder's own pooled figure — the equality is the gate.
+        // The derivation panel shows the period's summed income and expenses and the rate
+        // they make. Here the headline and the trace divide the SAME sums through the same
+        // `savingsRateBps`, so the equality guards the wiring (which period's sums reach the
+        // panel), not an independent computation; the engine's sums are locked by the
+        // period tests and the /coach-bars test (ask-savings-period-server.test.ts).
         return answer.headlineBps === undefined || !measured
           ? answer
           : {

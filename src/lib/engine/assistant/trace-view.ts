@@ -96,7 +96,26 @@ export function factView(
  *  savings-rate headline builder AND the derivation panel — so the two can
  *  never display different roundings of the same rate. */
 export function bpsToPct1dp(bps: number): string {
-  return (bps / 100).toFixed(1);
+  // Integer tenths, not `(bps / 100).toFixed(1)`: 2745 bps is 27.45, which binary
+  // floating point stores as 27.4499… and `toFixed` printed as "27.4" (#796 critic F4).
+  // `bps / 10` is exact at a half (an integer + .5), so `Math.round` rounds it once, up.
+  const tenths = Math.round(bps / 10);
+  const abs = Math.abs(tenths);
+  return `${tenths < 0 ? '-' : ''}${Math.floor(abs / 10)}.${abs % 10}`;
+}
+
+/** −100%. Past it a savings rate stops being a meaningful percentage — it only balloons
+ *  as income shrinks toward zero (the owner's "−855105.8%", TASKS L.11). */
+export const RATE_FLOOR_BPS = -10_000;
+
+/**
+ * A savings rate for display, with its % sign: one decimal, or "below -100%" past the
+ * floor. The ONE display rule for /coach and Ask (headline, facts and derivation panel),
+ * so no surface prints a giant number another floors (#796 critic F3).
+ */
+export function savingsRatePct(bps: number): string {
+  // ASCII hyphen, matching the sign of the one-decimal form on the same surfaces.
+  return bps < RATE_FLOOR_BPS ? 'below -100%' : `${bpsToPct1dp(bps)}%`;
 }
 
 /**

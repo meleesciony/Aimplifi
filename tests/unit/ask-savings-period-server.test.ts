@@ -71,6 +71,22 @@ describe('#796 period savings on the demo, through askAssistant', () => {
     expect(answer.intent).toEqual({ kind: 'savings_rate', timeframe: { fromYm: '2025-01', toYm: '2025-12', label: '2025' } });
   });
 
+  it('critic cycle 1 F6: the records cut on the real path — December 2024 is only partly on record, so "since 2024" starts in January 2025', async () => {
+    const answer = await askAssistant('what has my savings rate been since 2024?');
+    expect(answer.headline).toMatch(
+      /^Your records start Dec 12, 2024, so this covers January 2025 to May 2026: your savings rate was -?\d+\.\d% — you (kept|spent) /,
+    );
+    expect(answer.detail).toContain("June 2026 isn't over yet, so it's left out.");
+    expect(answer.facts.slice(3).map((f) => f.label)).toEqual(['2025', '2026 (Jan–May)']);
+  });
+
+  it('critic cycle 1 F6: the month in progress on the real path — answered with the last full month, May 2026', async () => {
+    const coach = await getCoachData(DEMO);
+    const answer = await askAssistant("what's my savings rate this month?");
+    expect(answer.headline).toMatch(/^June 2026 isn't over yet, so here is the last full month\. Your savings rate in May 2026 was /);
+    expect(answer.headlineBps).toBe(coach.currentRateBps);
+  });
+
   it('a year before the records says so and answers the months that are on record', async () => {
     const answer = await askAssistant('how much did I save in 2023?');
     expect(answer.kind).toBe('savings_rate');

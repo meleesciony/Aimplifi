@@ -35,10 +35,10 @@ import type { DerivationRow, DerivationTrace } from '@/lib/engine/assistant/deri
 // reconciles a figure" decision in tested functions, not inline logic.
 import {
   CORRECTABLE_KINDS,
-  bpsToPct1dp,
   derivationView,
   factView,
   reconciledView,
+  savingsRatePct,
 } from '@/lib/engine/assistant/trace-view';
 import { HANDOVER_DAY_ROW_MARKER } from '@/lib/engine/glass-box/category-breakdown';
 import { formatCents, type Cents } from '@/lib/money';
@@ -1082,7 +1082,7 @@ function SavingsRateDerivation({ trace }: { trace: DerivationTrace & { intentKin
           {fmtCents(trace.savedCents)} ÷ {fmtCents(trace.incomeCents)}
         </span>
         <span data-testid="ask-deriv-rate" className="shrink-0 tabular-nums">
-          {bpsToPct1dp(trace.rateBps)}%
+          {savingsRatePct(trace.rateBps)}
         </span>
       </p>
     </>

@@ -37,7 +37,8 @@ import { intentFromKind } from '@/lib/engine/assistant/llm';
 import { frameFromIntent, resolveEllipsis } from '@/lib/engine/assistant/frame';
 import { answerSavingsRatePeriod, savingsPeriodPhrase } from '@/lib/engine/assistant/answer';
 import { traceSavingsRateDerivation } from '@/lib/engine/assistant/derivation';
-import { derivationView } from '@/lib/engine/assistant/trace-view';
+import { RATE_FLOOR_BPS, bpsToPct1dp, derivationView, savingsRatePct } from '@/lib/engine/assistant/trace-view';
+import { formatSavingsRateBps } from '@/components/coach/savings-rate-format';
 import { followUpQuestions } from '@/lib/engine/assistant/follow-ups';
 
 const TODAY = isoDate('2026-10-07');
@@ -171,6 +172,66 @@ describe('A. a savings question keeps the period it names', () => {
     }
   });
 
+  it('critic cycle 1 F1: a word that changes WHICH part of the period abstains — never the whole year or one month', () => {
+    for (const q of [
+      'savings rate for the first half of 2025',
+      'savings rate for the second half of 2025',
+      'savings rate in h1 2025',
+      'savings rate in early 2025',
+      'savings rate in late 2025',
+      'savings rate at the end of 2025',
+      'savings rate at the start of 2025',
+      'savings rate in the middle of 2025',
+      'savings rate before 2025',
+      'savings rate after 2025',
+      'savings rate until 2025',
+      'savings rate excluding 2025',
+      'savings rate except december 2025',
+      'savings rate not counting may 2025',
+      'what was my savings rate may-june 2025', // the parser reads only June
+      'what was my savings rate may and june',
+      'savings rate in 2025 over 3 months',
+    ]) {
+      expect(parse(q).kind, q).toBe('unknown');
+    }
+    // The LLM path reads with the same rules.
+    expect(intentFromKind('savings_rate', 'my stash ratio for the first half of 2025', TODAY)).toBeNull();
+    expect(intentFromKind('savings_rate', 'my stash ratio in 2025 without rent', TODAY)).toBeNull();
+  });
+
+  it('critic cycle 1 F2: a savings phrasing it cannot read whole abstains — never spending, income or this month', () => {
+    for (const q of [
+      'how much did I save in 2025 on groceries', // was: "You spent $… on Groceries in 2025."
+      'how much did I save last year on groceries',
+      'did I spend more than I earned lately', // was: "You spent $… this month."
+      'what percent of my income did I save in the first half of 2025', // was: the year's income
+      'what percent of my income did I save lately', // was: "No income recorded this month."
+      'how much did I save in the first half of 2025',
+    ]) {
+      expect(parse(q).kind, q).toBe('unknown');
+    }
+  });
+
+  it('critic cycle 1 F7: "savings rate" with a store, a condition or a goal is a different question', () => {
+    for (const q of [
+      'savings rate on groceries last year',
+      'what would my savings rate be in 2025 without rent',
+      'how much am I saving for my vacation goal this year',
+      'what savings rate do I need to retire at 60',
+      'what should my savings rate be',
+      "what's my savings rate on groceries",
+      'what was my real savings rate in 2024 and 2025',
+    ]) {
+      expect(parse(q).kind, q).toBe('unknown');
+    }
+    // …while the ways people actually ask still answer.
+    expect(windowOf('can you tell me my savings rate for 2025')).toMatchObject({ fromYm: '2025-01', toYm: '2025-12' });
+    expect(windowOf('how is my savings rate looking this year')).toMatchObject({ fromYm: '2026-01', toYm: '2026-10' });
+    expect(windowOf('may I see my savings rate for 2025')).toMatchObject({ fromYm: '2025-01', toYm: '2025-12' });
+    expect(windowOf('what was my savings rate in may')).toMatchObject({ fromYm: '2026-05', toYm: '2026-05' });
+    expect(parse("what's my current savings rate")).toEqual({ kind: 'savings_rate' });
+  });
+
   it('leaves questions it does not own to their routes', () => {
     expect(parse('how much did I save').kind).not.toBe('savings_rate'); // no period: likely a balance
     expect(parse('how much have I saved').kind).not.toBe('savings_rate');
@@ -194,6 +255,9 @@ describe('A. a savings question keeps the period it names', () => {
       timeframe: { fromYm: '2025-11', toYm: '2026-10', label: 'the last 12 months' },
     });
     expect(parseExplicitTimeframe('past years', TODAY)).toBeNull();
+    // The standing creep verdict reads its own window; "over the past year" now abstains
+    // there exactly as "over the last 12 months" already did (critic cycle 1, P3).
+    expect(parse('is my lifestyle creeping over the past year').kind).toBe(parse('is my lifestyle creeping over the last 12 months').kind);
   });
 
   it('one reader for every path: the LLM\'s kind re-reads the period from the reader\'s words', () => {
@@ -341,7 +405,11 @@ describe('C. the answer names what it measured and what it left out', () => {
     expect(a.detail).toContain('No income or spending is on record for July 2025.');
     expect(a.detail).toContain('No income is on record for June 2025; its spending is counted.');
     expect(a.detail).toContain('Income minus expenses, divided by income, over the whole period');
-    expect(a.detail).toContain("If part of your pay goes straight to a 401(k), an HSA or an employer match and that account isn't linked here");
+    expect(a.detail).toContain(
+      'A 401(k) contribution taken out of your paycheck, or an employer match, is not in that income — counting it would raise this rate.',
+    );
+    // Critic cycle 1 F5: never implies a linked retirement account's contributions are counted.
+    expect(a.detail).not.toMatch(/linked|HSA/);
     expect(a.facts.slice(0, 3)).toEqual([
       { label: 'Income', value: '$35,200.00' },
       { label: 'Expenses', value: '$29,600.00' },
@@ -432,6 +500,39 @@ describe('C. the answer names what it measured and what it left out', () => {
     expect(words('2025-01', '2025-12').kind).toBe('savings_rate');
     const a = answerSavingsRatePeriod({ period: measure('2025-01', '2025-12', null), asked: { fromYm: '2025-01', toYm: '2025-12' }, nearest: null });
     expect(a.headline).toBe("There's nothing on record yet to work out a savings rate from.");
+  });
+
+  it('critic cycle 1 F3: a month of near-zero income is "below -100%", as on /coach — never a giant number', () => {
+    // Pay slid to January 31, so February's only income is a $0.12 interest credit.
+    const thin = [flow('2026-01', 1_200_000, 450_000), flow('2026-02', 12, 455_000), flow('2026-03', 600_000, 450_000)];
+    const at = (fromYm: string, toYm: string) =>
+      answerSavingsRatePeriod({
+        period: savingsOverPeriod({ flows: thin, fromYm, toYm, today: TODAY, recordsStart: isoDate('2025-01-01') }),
+        asked: { fromYm, toYm },
+        nearest: null,
+      });
+    expect(at('2026-02', '2026-02').headline).toBe(
+      'Your savings rate in February 2026 was below -100% — you spent $4,549.88 more than the $0.12 you brought in.',
+    );
+    const quarter = at('2026-01', '2026-03');
+    // (1,800,012 − 1,355,000) ÷ 1,800,012 = 24.72…%
+    expect(quarter.headline).toBe(
+      'Your savings rate from January to March 2026 was 24.7% — you kept $4,450.12 of the $18,000.12 you brought in.',
+    );
+    expect(quarter.facts.find((f) => f.label === 'Feb 2026')?.value).toBe('below -100%');
+    expect(JSON.stringify(quarter)).not.toMatch(/\d{4,}\.\d%/);
+  });
+
+  it('critic cycle 1 F4: one rounding, from integer tenths — 27.45% is 27.5%, never 27.4%', () => {
+    expect(bpsToPct1dp(2745)).toBe('27.5'); // (27.45).toFixed(1) === '27.4'
+    expect(bpsToPct1dp(-1450)).toBe('-14.5');
+    expect(bpsToPct1dp(-4)).toBe('0.0'); // never "-0.0"
+    expect(bpsToPct1dp(10000)).toBe('100.0');
+    expect(savingsRatePct(RATE_FLOOR_BPS)).toBe('-100.0%');
+    expect(savingsRatePct(RATE_FLOOR_BPS - 1)).toBe('below -100%');
+    // /coach prints through the same rule.
+    expect(formatSavingsRateBps(2745)).toBe('27.5%');
+    expect(formatSavingsRateBps(-8551058)).toBe('below -100%');
   });
 
   it('more than 12 months: a rate per calendar year', () => {
