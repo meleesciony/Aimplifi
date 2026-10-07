@@ -37,8 +37,8 @@ from zero: −$0.05 over 12 months → $0.00 (never −$0.00); −$0.18 over 12 
 **Words.** Lead, against a $1,000.00 plan: $1,250.00 → "… $250.00 more than the $1,000.00 your plan sets
 aside."; $1,000.00 → "exactly what your plan sets aside"; $400.00 → "… of the $1,000.00 … — $600.00 to
 go."; $0.00 → "Nothing counted as set aside so far this month — your plan sets aside $1,000.00.";
-−$300.00 → "So far this month $300.00 more has come out of your savings and investment accounts than gone
-in — …". A month with missing records adds "Records for part of this month are missing, so this figure
+−$300.00 → "So far this month you've taken out $300.00 more than you set aside — …" (cycle 4; with money in
+it could not trace, "… (not counting $X that came in that we couldn't trace) — …"). A month with missing records adds "Records for part of this month are missing, so this figure
 may be incomplete." A line for an account kind the reader does not link is not drawn.
 
 **Demo (e2e and unit loader, `today = 2026-06-10`).** Every month: +$500.00 into High-Yield Savings (the
@@ -56,7 +56,7 @@ asserts only the measured half).
 |---|---|---|---|
 | +$20,000.00 "TRANSFER FROM MARCUS SAVINGS" (not filed), +$15,000.00 "LOAN DISBURSEMENT", +$1,000.00 from a card advance, +$300.00 "FROM CHECKING" 8 days after the checking side, and $100.00 checking → savings the same day | +$100.00 | $36,300.00 untraced, listed | +$100.00; the 12-month average $8.33 |
 | Savings → another linked savings $200.00 (2 days apart), +$450.00 back from Vanguard by its last four, +$1,200.00 payroll filed Paycheck, +$380.00 payout filed Side Gig | +$2,030.00 | — | +$1,580.00 (the $450.00 nets against Investments) |
-| Oct: $500.00 from checking, then −$5,000.00 at a garage, excluded from totals | −$4,500.00 | — | −$4,500.00: "$4,500.00 more has come out …" |
+| Oct: $500.00 from checking, then −$5,000.00 at a garage, excluded from totals | −$4,500.00 | — | −$4,500.00: "you've taken out $4,500.00 more than you set aside" |
 | "INTEREST" $43.21 (not filed), "MONTHLY INTEREST" $2.10 (filed Income), "INT PAID" $1.05, "DIV CREDIT" $0.99, and "ACME INT'L PAYROLL" $1,500.00 filed Paycheck | +$1,500.00 | $47.35 earnings | +$1,500.00 |
 | Oct: checking → savings $500.00, both halves filed Investment & Savings | +$500.00 | — | +$500.00; no "couldn't count" note (Investments still lists both) |
 
@@ -65,7 +65,8 @@ $200.00; $200.00 set aside reads "exactly what your plan sets aside" and names t
 With a $500.00 target it is max($200.00, $500.00) = $500.00. Goals $300.00 ($100.00 debt-free) under a $500.00 target:
 the target already won, the line stays $500.00, and nothing is said about debt.~~ (Superseded at cycle 2 — below.)
 
-**Words.** A reader who links savings only: "… more has come out of your savings accounts than gone in". One complete
+**Words.** ~~A reader who links savings only: "… more has come out of your savings accounts than gone in".~~ (Superseded
+at cycle 4: "you've taken out $X more than you set aside", for every reader.) One complete
 month (records from Sep 1; −$1.00 fee, +$250.00 from checking): "In Sep 2026, the one complete month with full records,
 you set aside $249.00." Ten months averaged with two left out: "… 2 months with missing records are left out."
 

@@ -71,7 +71,9 @@ try {
     const lead = present ? ((await page.getByTestId('measured-lead').textContent()) ?? '').trim() : '';
     check(
       '/spending-plan: the lead measures this month against the plan',
-      /^(So far this month you’ve set aside \$[\d,]+\.\d{2}|Nothing counted as set aside so far this month|So far this month \$[\d,]+\.\d{2} more has come out)/.test(lead),
+      // The three lead shapes, in #790's final words (critic cycle 5, P2-1: never the cycle-4 P1 sentence).
+      /^(So far this month you’ve set aside \$[\d,]+\.\d{2}|Nothing counted as set aside so far this month|So far this month you’ve taken out \$[\d,]+\.\d{2} more than you set aside)/.test(lead) &&
+        !/more has come out/.test(lead),
       lead,
     );
     const average = present && (await page.getByTestId('measured-average').count()) > 0 ? ((await page.getByTestId('measured-average').textContent()) ?? '').trim() : '';

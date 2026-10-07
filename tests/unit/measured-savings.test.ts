@@ -451,6 +451,14 @@ describe('#790 critic cycles 1–2, P1-3 / P1-B — the plan line less its extra
     expect(measuredLead(measure(fromChecking('2026-10-02', 20_000), allDebt))).toBe(
       'So far this month you’ve set aside $200.00. Your plan’s savings line of $900.00 is all extra debt payments, which no savings or investment account shows.',
     );
+    // Zero and more taken out, beside a debt-free goal: the figure, then the qualifier (critic cycle 5, P2-3).
+    const goalsLine = savingsPlanLine({ plannedSavingsCents: 110_000, debtPaydownCents: 90_000 });
+    expect(measuredLead(measure([], goalsLine))).toBe(
+      'Nothing counted as set aside so far this month — your plan sets aside $200.00 apart from extra debt payments. Your plan’s savings line of $1,100.00 includes $900.00 a month of extra debt payments, which no savings or investment account shows.',
+    );
+    expect(measuredLead(measure([row('sav', '2026-10-02', -30_000, 'TRANSFER TO CHECKING')], goalsLine))).toBe(
+      'So far this month you’ve taken out $300.00 more than you set aside — your plan sets aside $200.00 apart from extra debt payments. Your plan’s savings line of $1,100.00 includes $900.00 a month of extra debt payments, which no savings or investment account shows.',
+    );
     expect(measuredLead(measure([], allDebt))).toBe(
       'Nothing counted as set aside so far this month. Your plan’s savings line of $900.00 is all extra debt payments, which no savings or investment account shows.',
     );

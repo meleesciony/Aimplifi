@@ -17,7 +17,7 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
-## 2026-10-07 — Money you set aside: measured savings against the plan's savings line (DECISIONS #790) — at the owner's gate
+## 2026-10-07 — Money you set aside: measured savings against the plan's savings line (DECISIONS #790)
 
 **Picked up.** The branch `slice-790-measured-savings` (`7df2b358`, built 2026-10-06, never gated) cherry-picked onto #792 in a worktree (`C:\dev\_maker_790`, branch `slice-790-rebased`; one conflict in `deposits.ts`), its DECISIONS and edge-case drafts brought in from the 2026-10-06 session scratchpad after checking them against its tests.
 
@@ -27,7 +27,11 @@
 
 **Cycle-3 fixes** (`18a24e62`, main tree): a brokerage's movement never pairs; bank-worded returns only; pay only; #788's week; the rule note names when it can overstate. Mutation 19/19. Gate: tsc 0, probes 0, eslint 0; vitest 9,293 passed + 2 (`vercel-build`; PowerShell 31/31); build compiled; Playwright 482 passed / 1 flaky / 0 failed.
 
-**Critic cycle 4** = FAIL, 0 P0 / 1 P1 (copy: "more has come out … than gone in" while untraced money in is left out) / 3 P2 / 4 P3. **Budget spent → owner's gate.** Owner: "Fix it, one more review (Recommended)". Fixed in the main tree (counted-money wording; guards and edges locked; mutation 8/8); next: full gate and critic cycle 5 — ship only on its PASS.
+**Critic cycle 4** = FAIL, 0 P0 / 1 P1 (copy: "more has come out … than gone in" while untraced money in is left out) / 3 P2 / 4 P3. **Budget spent → owner's gate.** Owner: "Fix it, one more review (Recommended)". Fixed in the main tree (`b3c3725b`: counted-money wording; guards and edges locked; mutation 8/8).
+
+**Gate on `b3c3725b`** (Git Bash `VERIFY_E2E=1 bash scripts/verify.sh`): tsc 0, probes 0, eslint 0; vitest 9,296 passed + 2 (`vercel-build`); build compiled; Playwright 481 passed / 2 flaky (untouched) / 0 failed, both `measured-savings.spec.ts` first try.
+
+**Critic cycle 5** (owner-approved) = **PASS — 0 P0 / 0 P1 / 3 P2 / 6 P3.** Fixed before ship, copy/tests/ledgers only: the deploy proof and ledgers carried the old sentence; the debt qualifier's word order in the zero and negative leads (mutation killed). P2-2 (the categorizer's DIR DEP order) and the P3s → STATUS.
 
 ## 2026-10-06 — Money moves, the remaining readers (DECISIONS #792) — #789's cycle-3 P2s/P3s
 

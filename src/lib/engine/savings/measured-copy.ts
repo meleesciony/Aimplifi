@@ -66,6 +66,9 @@ export function measuredLead(ms: MeasuredSavings): string | null {
   // An all-debt line is named by the debt note, never as "no savings aside yet" (P2-C).
   const noLine = debt ? '' : ' Your plan doesn’t set any savings aside yet.';
   const sets = planSetsAside(ms);
+  // "your plan sets aside $200.00 apart from extra debt payments" — the figure before the
+  // qualifier where the sentence ends on it (critic cycle 5, P2-3).
+  const setsFigure = `your plan sets aside ${money(planned)}${ms.plan.debtPaydownCents > 0 ? ' apart from extra debt payments' : ''}`;
   let s: string;
   if (total > 0) {
     if (planned <= 0) s = `So far this month you’ve set aside ${money(total)}.${noLine}`;
@@ -75,7 +78,7 @@ export function measuredLead(ms: MeasuredSavings): string | null {
   } else if (total === 0) {
     s =
       planned > 0
-        ? `Nothing counted as set aside so far this month — ${sets} ${money(planned)}.`
+        ? `Nothing counted as set aside so far this month — ${setsFigure}.`
         : debt
           ? 'Nothing counted as set aside so far this month.'
           : 'Nothing counted as set aside so far this month, and your plan doesn’t set any savings aside yet.';
@@ -84,7 +87,7 @@ export function measuredLead(ms: MeasuredSavings): string | null {
     // money in the figure leaves out — a tax refund untraced, then a withdrawal.
     s =
       `So far this month you’ve taken out ${money(-total)} more than you set aside${notCounting(m.untracedInCents)}` +
-      (planned > 0 ? ` — ${sets} ${money(planned)}.` : '.');
+      (planned > 0 ? ` — ${setsFigure}.` : '.');
   }
   if (debt) s += ` ${debt}`;
   if (m.missingRecordsFrom.length > 0) s += ' Records for part of this month are missing, so this figure may be incomplete.';
