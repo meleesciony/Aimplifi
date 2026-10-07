@@ -31,8 +31,8 @@ import {
   MONTH_TITLE,
   parseExplicitTimeframe,
   parseTimeframe,
-  readSavingsWindow,
   resolveSpendTarget,
+  savingsFollowUpWindow,
   unresolvedDateShape,
   type AssistantIntent,
   type AssistantIntentKind,
@@ -273,8 +273,8 @@ export function resolveEllipsis(
       // The fragment's period is read by the savings reader itself (#796), so "what
       // about the last 6 months?" is the same six FINISHED months the question asked
       // whole would be, and a period it cannot read abstains.
-      const read = readSavingsWindow(rest, today);
-      return read.kind === 'window' ? { kind: 'savings_rate', timeframe: read.timeframe } : null;
+      const timeframe = savingsFollowUpWindow(rest, today);
+      return timeframe ? { kind: 'savings_rate', timeframe } : null;
     }
     case 'spend_by_category':
       return frame.target

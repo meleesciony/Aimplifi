@@ -150,7 +150,7 @@ describe('A. a savings question keeps the period it names', () => {
 
   it('ABSTAINS on a period it cannot read — never the standing last-month figure under it', () => {
     for (const q of [
-      'savings rate over the past two years', // years it does not count
+      'savings rate over the past three years', // more than the 24-month cap
       'savings rate last quarter',
       'savings rate in the last 30 days',
       'savings rate last week',
@@ -163,7 +163,6 @@ describe('A. a savings question keeps the period it names', () => {
       'savings rate over the last 12 months of 2025', // two periods at once
       'savings rate over the last 36 months', // past the 24-month cap
       'how did my savings rate change since last year',
-      'how much did I save over the past two years',
       'how much did I save on groceries last year', // a discount question, not spending
       'how much did I save at costco',
       'how much did i save with coupons in 2025',
@@ -230,6 +229,114 @@ describe('A. a savings question keeps the period it names', () => {
     expect(windowOf('may I see my savings rate for 2025')).toMatchObject({ fromYm: '2025-01', toYm: '2025-12' });
     expect(windowOf('what was my savings rate in may')).toMatchObject({ fromYm: '2026-05', toYm: '2026-05' });
     expect(parse("what's my current savings rate")).toEqual({ kind: 'savings_rate' });
+  });
+
+  it('critic cycle 2 P1-1: two periods abstain; one compound period is read whole', () => {
+    for (const q of [
+      'how much did I save in 2025 and so far this year', // was: Jan–May 2026 only
+      'savings rate for 2025 and ytd',
+      'what was my savings rate this year and last year',
+      'savings rate last month of 2025',
+      'how much did I save in 2025 last month',
+      'savings rate 2025 this year',
+      'savings rate last year 2024',
+      'savings rate this month last year',
+      'savings rate last year in december',
+      'savings rate ytd last year',
+    ]) {
+      expect(parse(q).kind, q).toBe('unknown');
+    }
+    // was: all of 2025, for a question about March
+    expect(windowOf('what was my savings rate in march of last year')).toEqual({ fromYm: '2025-03', toYm: '2025-03', label: 'March 2025' });
+    expect(windowOf('savings rate january of this year')).toMatchObject({ fromYm: '2026-01', toYm: '2026-01' });
+    expect(windowOf('savings rate in march 2025')).toMatchObject({ fromYm: '2025-03', toYm: '2025-03' });
+    expect(windowOf('savings rate over the past two years')).toMatchObject({ fromYm: '2024-10', toYm: '2026-09' });
+  });
+
+  it('critic cycle 2 P1-2: "last may" / "this past may" is that month, never the standing answer', () => {
+    expect(windowOf('savings rate last may')).toMatchObject({ fromYm: '2026-05', toYm: '2026-05' });
+    expect(windowOf('what was my savings rate this past may')).toMatchObject({ fromYm: '2026-05', toYm: '2026-05' });
+    // "last june" is the latest June that has FINISHED: on 2026-06-10, June 2025.
+    expect(parseAssistantQuery('how much did I save last june', isoDate('2026-06-10'))).toMatchObject({
+      kind: 'savings_rate',
+      timeframe: { fromYm: '2025-06', toYm: '2025-06' },
+    });
+    expect(parse('what was my savings rate may and june').kind).toBe('unknown');
+    expect(windowOf('may I see my savings rate for 2025')).toMatchObject({ fromYm: '2025-01', toYm: '2025-12' });
+  });
+
+  it('critic cycle 2 P1-3: the LLM / learned-phrase path reads with the same grammar and licence', () => {
+    for (const q of [
+      'whats my saving rate last yr',
+      'savings rate past yr',
+      'savings rate last 6 mos',
+      'savings rate past 12 mths',
+      "savings rate in '25",
+      'savings rate when I lived in Denver',
+      'savings rate on groceries last year',
+      'how much did I save in 2025 on groceries',
+      'how much did I save for retirement last year',
+      'how much am I saving for my vacation goal this year',
+      'what was my savings rate in Q4 of last year',
+      'savings rate a year ago',
+    ]) {
+      expect(intentFromKind('savings_rate', q, TODAY), q).toBeNull();
+    }
+    expect(intentFromKind('savings_rate', 'what was my savings rate in march of last year', TODAY)).toMatchObject({
+      timeframe: { fromYm: '2025-03', toYm: '2025-03' },
+    });
+  });
+
+  it('critic cycle 2 P2-1: a follow-up carries the same word licence', () => {
+    const frame = frameFromIntent(parse('what was my savings rate last year') as AssistantIntent);
+    for (const q of [
+      'what about 2024 for my wife?',
+      'and 2024 pre-tax?',
+      'how about 2024 gross?',
+      'what about 2024 in my 401k?',
+      'what about 2024 per paycheck?',
+      'what about 2024 weekly?',
+      'and in 2024 on average?',
+      'and 2024 this year?',
+    ]) {
+      expect(resolveEllipsis(q, TODAY, frame), q).toBeNull();
+    }
+    expect(resolveEllipsis('what about march of last year?', TODAY, frame)).toMatchObject({
+      timeframe: { fromYm: '2025-03', toYm: '2025-03' },
+    });
+  });
+
+  it('critic cycle 2 P2-2: "could", "can … be" and "then" are not the measured figure', () => {
+    for (const q of [
+      'what could my savings rate have been last year',
+      'what can my savings rate be in 2025',
+      'what was my savings rate then',
+    ]) {
+      expect(parse(q).kind, q).toBe('unknown');
+    }
+    expect(windowOf('can you tell me my savings rate for 2025')).toMatchObject({ fromYm: '2025-01', toYm: '2025-12' });
+  });
+
+  it('critic cycle 2 P2-5: a savings TOTAL over a period is the period answer; without one, the balance', () => {
+    for (const q of ['what was my net savings last year', 'my savings % last year', 'what was my total savings for 2025']) {
+      expect(windowOf(q), q).toMatchObject({ fromYm: '2025-01', toYm: '2025-12' });
+    }
+    expect(parse('what is my savings account balance').kind).toBe('account_balance');
+    expect(parse('what is my savings').kind).toBe('account_balance');
+    expect(parse('how much is in my savings?').kind).toBe('account_balance');
+  });
+
+  it('critic cycle 2: everyday phrasings that used to abstain', () => {
+    for (const q of [
+      'how much did we save last year',
+      'i want to know my savings rate for last year',
+      'savings rate last year pls',
+      'what % of my take-home pay did I keep in 2025',
+    ]) {
+      expect(windowOf(q), q).toMatchObject({ fromYm: '2025-01', toYm: '2025-12' });
+    }
+    // The goal tail stays with the goal routes; a store inside it never reaches spending.
+    expect(parse('how much did I save for my trip on groceries last year').kind).toBe('unknown');
   });
 
   it('leaves questions it does not own to their routes', () => {
@@ -404,7 +511,13 @@ describe('C. the answer names what it measured and what it left out', () => {
     expect(a.headlineBps).toBe(1591);
     expect(a.detail).toContain('No income or spending is on record for July 2025.');
     expect(a.detail).toContain('No income is on record for June 2025; its spending is counted.');
-    expect(a.detail).toContain('Income minus expenses, divided by income, over the whole period');
+    expect(a.detail).toContain('Income minus expenses, divided by income, with the months added up first');
+    // Critic cycle 2 (P2-4 / P3): no unconditional "after taxes"; the one way the figure
+    // can err high is said as a rule.
+    expect(a.detail).not.toContain('after taxes');
+    expect(a.detail).toContain(
+      'An account adds nothing before its first transaction here, so a card whose history starts partway through can make the rate read high.',
+    );
     expect(a.detail).toContain(
       'A 401(k) contribution taken out of your paycheck, or an employer match, is not in that income — counting it would raise this rate.',
     );
@@ -455,6 +568,17 @@ describe('C. the answer names what it measured and what it left out', () => {
     );
     expect(a.headlineBps).toBeUndefined();
     expect(a.detail).not.toContain('401(k)');
+  });
+
+  it('a 100% month: the 401(k) note is withheld (counting withheld pay could not raise it), and one month is not "added up"', () => {
+    const all = answerSavingsRatePeriod({
+      period: savingsOverPeriod({ flows: [flow('2025-05', 400_000, 0)], fromYm: '2025-05', toYm: '2025-05', today: TODAY, recordsStart: isoDate('2025-01-01') }),
+      asked: { fromYm: '2025-05', toYm: '2025-05' },
+      nearest: null,
+    });
+    expect(all.headline).toBe('Your savings rate in May 2025 was 100.0% — you kept $4,000.00 of the $4,000.00 you brought in.');
+    expect(all.detail).not.toContain('401(k)');
+    expect(all.detail?.startsWith('Income minus expenses, divided by income. Income is money')).toBe(true);
   });
 
   it('before the records: says so, then answers the full months that ARE on record', () => {
@@ -527,6 +651,10 @@ describe('C. the answer names what it measured and what it left out', () => {
     expect(bpsToPct1dp(2745)).toBe('27.5'); // (27.45).toFixed(1) === '27.4'
     expect(bpsToPct1dp(-1450)).toBe('-14.5');
     expect(bpsToPct1dp(-4)).toBe('0.0'); // never "-0.0"
+    // Critic cycle 2 P2-3: a half rounds away from zero on either sign.
+    expect(bpsToPct1dp(-2745)).toBe('-27.5');
+    expect(bpsToPct1dp(-25)).toBe('-0.3');
+    expect(bpsToPct1dp(25)).toBe('0.3');
     expect(bpsToPct1dp(10000)).toBe('100.0');
     expect(savingsRatePct(RATE_FLOOR_BPS)).toBe('-100.0%');
     expect(savingsRatePct(RATE_FLOOR_BPS - 1)).toBe('below -100%');

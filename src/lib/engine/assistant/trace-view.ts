@@ -98,8 +98,11 @@ export function factView(
 export function bpsToPct1dp(bps: number): string {
   // Integer tenths, not `(bps / 100).toFixed(1)`: 2745 bps is 27.45, which binary
   // floating point stores as 27.4499… and `toFixed` printed as "27.4" (#796 critic F4).
-  // `bps / 10` is exact at a half (an integer + .5), so `Math.round` rounds it once, up.
-  const tenths = Math.round(bps / 10);
+  // `|bps| / 10` is exact at a half (an integer + .5); a half rounds away from zero, so
+  // −27.45% and 27.45% print as mirror images (critic cycle 2, P2-3). The rate itself is
+  // already whole basis points (`savingsRateBps`), so a true 27.4496% — 2745 bps — prints
+  // 27.5%: rounding to bps first is the app's stored precision, on /coach and Ask alike.
+  const tenths = Math.sign(bps) * Math.round(Math.abs(bps) / 10);
   const abs = Math.abs(tenths);
   return `${tenths < 0 ? '-' : ''}${Math.floor(abs / 10)}.${abs % 10}`;
 }

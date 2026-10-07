@@ -25,7 +25,7 @@ import {
   parseTargetDate,
   parseTimeframe,
   resolveSpendTarget,
-  savingsRateIntentFromText,
+  savingsIntentForKind,
   unconsumedSpendObject,
   unresolvedDateShape,
   whatToCutFromQuestion,
@@ -130,11 +130,10 @@ export function intentFromKind(
     case 'forecast':
       return { kind };
     case 'savings_rate': {
-      // The period is re-read from the reader's own words by the parser's own reader
-      // (#796): a named period the model cannot see must not fall back to the standing
-      // last-complete-month answer, and an unreadable one abstains here as it does there.
-      const savings = savingsRateIntentFromText(question.toLowerCase(), today, question);
-      return savings.kind === 'savings_rate' ? savings : null;
+      // Re-derived from the reader's own words by the parser's own savings reading
+      // (#796): a period it cannot read, a store, a goal or a condition abstains here as
+      // it does there — never the standing last-complete-month answer under it.
+      return savingsIntentForKind(question, today);
     }
     case 'subscriptions': {
       // A model that tagged a cut question as the roster still owes the cut

@@ -11,7 +11,11 @@
  * One deliberate difference from the coach card's average: a month with spending and
  * no income KEEPS its spending here. Over a period, a month lived on savings is money
  * that was not kept, and dropping it would flatter the rate — the direction a savings
- * figure must never err in. The answer names such a month.
+ * figure should not err in where the app can help it. The answer names such a month.
+ *
+ * Where it cannot (recorded, #796 critic cycle 2): "on record" is the reader's earliest
+ * row on ANY account, so a card whose history here starts later adds no spending before
+ * then and the rate can read high — as on /coach's chart. The answer says so as a rule.
  *
  * Which months a period can honestly cover is decided from two facts only:
  *

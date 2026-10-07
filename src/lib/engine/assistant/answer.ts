@@ -3063,8 +3063,18 @@ function monthList(months: readonly string[]): string {
   return shown.length <= 2 ? shown.join(' and ') : `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`;
 }
 
-const SAVINGS_PERIOD_BASIS =
-  'Income minus expenses, divided by income, over the whole period — so a big month counts for more than a small one. Income is pay as it lands in your accounts, after taxes and anything taken out of your paycheck; transfers between your own accounts count as neither.';
+/**
+ * The basis, said for what was measured: "added up first" only over more than one
+ * month. The last sentence is a rule, not a claim about any account: a card whose
+ * history here starts partway through adds no spending before it (#796 critic cycle 2,
+ * P2-4) — the one way this figure can err high.
+ */
+const savingsPeriodBasis = (months: number) =>
+  `${
+    months > 1
+      ? 'Income minus expenses, divided by income, with the months added up first — so a big month counts for more than a small one.'
+      : 'Income minus expenses, divided by income.'
+  } Income is money as it lands in your accounts, after anything taken out of your pay first; transfers between your own accounts count as neither. An account adds nothing before its first transaction here, so a card whose history starts partway through can make the rate read high.`;
 
 /**
  * What an "effective" (all-in) savings rate would add. Gated on spending > 0: only then
@@ -3136,7 +3146,7 @@ function savingsPeriodAnswer(
     p.rateBps !== null && noIncome.length > 0
       ? `No income is on record for ${monthList(noIncome)}; ${noIncome.length === 1 ? 'its' : 'their'} spending is counted.`
       : null,
-    SAVINGS_PERIOD_BASIS,
+    savingsPeriodBasis(p.months.length),
     p.rateBps !== null && p.expensesCents > 0 ? SAVINGS_WITHHELD_NOTE : null,
   ].filter((s): s is string => s !== null);
   const opening = (s: string) => (lead ? `${lead} ${s}` : s);
