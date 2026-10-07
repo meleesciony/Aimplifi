@@ -1059,7 +1059,7 @@ export function TransactionList({
                           prefetch={false}
                           data-testid="txn-detail-link"
                           aria-label={`Open the details of this ${t.merchantName} transaction`}
-                          className={`tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground ${ROW_REST}`}
+                          className={`tap-target inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground ${ROW_REST}`}
                         >
                           Details
                         </Link>
@@ -1099,7 +1099,7 @@ export function TransactionList({
                           prefetch={false}
                           data-testid="txn-rule-link"
                           aria-label={`Create a categorization rule from this ${t.merchantName} transaction`}
-                          className={`tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground ${ROW_REST}`}
+                          className={`tap-target inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground ${ROW_REST}`}
                         >
                           Rule…
                         </Link>

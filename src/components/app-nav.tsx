@@ -30,11 +30,16 @@ import { searchDestinations } from '@/lib/nav/search';
 const PRIMARY = PRIMARY_DESTINATIONS;
 const SHEET = SHEET_DESTINATIONS;
 
+/**
+ * UI.1 — the active row carries a brand tint AND a short left rail (shape,
+ * not colour alone — the same rule as the bottom bar's top rail), with the
+ * icon lit in brand; idle rows are quiet and warm up on hover.
+ */
 function sidebarLinkClass(active: boolean) {
-  return `flex min-w-0 items-start gap-2 rounded-lg px-2 py-1.5 text-sm ${
+  return `group/nav relative flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors ${
     active
-      ? 'bg-accent font-medium text-foreground'
-      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+      ? 'bg-brand-500/12 font-medium text-foreground before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-brand-500'
+      : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground'
   }`;
 }
 
@@ -108,7 +113,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
     <>
       <div data-testid="main-nav">
       <nav
-        className="flex min-w-0 items-center justify-between gap-3 border-b border-border/70 px-4 py-3 sm:hidden"
+        className="flex min-w-0 items-center justify-between gap-2 border-b border-border/60 px-4 py-2.5 sm:hidden"
         aria-label="Main"
       >
         {wordmark}
@@ -128,24 +133,27 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
           aria-controls="nav-more-sheet"
           aria-haspopup="dialog"
           onClick={() => setMoreOpen((o) => !o)}
-          className={`flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium ${
+          className={`flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors ${
             moreOpen || secondaryActive
-              ? 'bg-brand-500/15 text-brand-500'
-              : 'bg-accent/60 text-foreground'
+              ? 'border-brand-500/30 bg-brand-500/15 text-brand-500'
+              : 'border-border/70 bg-card text-foreground shadow-surface'
           }`}
         >
           {moreOpen ? <X className="size-4" aria-hidden /> : <Menu className="size-4" aria-hidden />}
           More
         </button>
-        <SignOutButton />
+        {/* UI.1 — icon-only on a phone header this crowded; the accessible
+            name stays "Sign out" (sr-only text), so auth.spec's role query
+            and the sign-out-form testid are unchanged. */}
+        <SignOutButton iconOnly />
       </nav>
 
       <aside
-        className="sticky top-0 hidden h-svh w-56 shrink-0 flex-col overflow-y-auto border-r border-border/70 bg-background/90 px-3 py-4 sm:flex"
+        className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col overflow-y-auto border-r border-border/60 bg-sidebar px-3 py-5 sm:flex"
         aria-label="Main"
         data-testid="desktop-sidebar"
       >
-        <div className="mb-4 px-2">{wordmark}</div>
+        <div className="mb-6 px-2.5">{wordmark}</div>
         <SidebarGroup label="Daily">
           {PRIMARY.map((item) => (
             <SidebarRow
@@ -304,7 +312,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
       ) : null}
 
       <nav
-        className="pb-safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-40 flex border-t border-border/70 bg-background/90 backdrop-blur-md sm:hidden"
+        className="pb-safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-40 flex border-t border-border/60 bg-background/85 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.6)] backdrop-blur-xl sm:hidden"
         aria-label="Primary"
         data-testid="bottom-nav"
       >
@@ -319,13 +327,21 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
               aria-current={active ? 'page' : undefined}
               data-testid={`bottom-${item.testid}`}
               onClick={closeMore}
-              className={`pointer-events-auto relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${
+              className={`pointer-events-auto relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] transition-colors ${
                 active
-                  ? 'text-brand-500 before:absolute before:inset-x-5 before:top-0 before:h-0.5 before:rounded-full before:bg-brand-500'
+                  ? 'font-medium text-brand-500 before:absolute before:inset-x-5 before:top-0 before:h-0.5 before:rounded-full before:bg-brand-500'
                   : 'text-muted-foreground'
               }`}
             >
-              <Icon className="size-5" aria-hidden />
+              {/* UI.1 — the icon sits in a soft pill when active (the top rail
+                  stays the shape-not-colour indicator; the pill is the polish). */}
+              <span
+                className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors ${
+                  active ? 'bg-brand-500/15' : ''
+                }`}
+              >
+                <Icon className="size-5" aria-hidden />
+              </span>
               {item.label}
               {item.href === '/triage' && (
                 <span className="absolute right-1/2 top-1 translate-x-4">{reviewBadge}</span>
@@ -340,8 +356,8 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
 
 function SidebarGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="mb-4">
-      <p className="mb-1 px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+    <div className="mb-5">
+      <p className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">
         {label}
       </p>
       <ul className="space-y-0.5">{children}</ul>
@@ -371,7 +387,12 @@ function SidebarRow({
         title={item.description}
         className={sidebarLinkClass(active)}
       >
-        <Icon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+        <Icon
+          className={`size-4 shrink-0 transition-colors ${
+            active ? 'text-brand-500' : 'text-muted-foreground/80 group-hover/nav:text-foreground'
+          }`}
+          aria-hidden
+        />
         <span className="flex min-w-0 items-center gap-1">
           {item.label}
           {reviewBadge}

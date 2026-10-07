@@ -10,12 +10,21 @@
  * land on /sign-in rather than report a false failure.
  */
 import { useState } from 'react';
+import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FORM_ACTION_DEADLINE_MS } from '@/components/finance/form-deadline';
 import { ActionDeadline, withDeadline } from '@/components/triage/action-deadline';
 import { doSignOut } from '@/server/auth-actions';
 
-export function SignOutButton({ testId = 'sign-out-form' }: { testId?: string } = {}) {
+/**
+ * `iconOnly` (UI.1): the phone header renders the icon with sr-only text, so
+ * the accessible name is still "Sign out" — the role query in auth.spec and
+ * the `sign-out-form` testid are unchanged. The sidebar keeps the word.
+ */
+export function SignOutButton({
+  testId = 'sign-out-form',
+  iconOnly = false,
+}: { testId?: string; iconOnly?: boolean } = {}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,8 +52,23 @@ export function SignOutButton({ testId = 'sign-out-form' }: { testId?: string } 
 
   return (
     <form onSubmit={onSubmit} className="shrink-0 sm:pt-0.5" data-testid={testId}>
-      <Button variant="ghost" size="sm" type="submit" disabled={busy}>
-        {busy ? '…' : 'Sign out'}
+      <Button
+        variant="ghost"
+        size="sm"
+        type="submit"
+        disabled={busy}
+        className={iconOnly ? 'size-10 rounded-full px-0 text-muted-foreground' : undefined}
+      >
+        {busy ? (
+          '…'
+        ) : iconOnly ? (
+          <>
+            <LogOut aria-hidden />
+            <span className="sr-only">Sign out</span>
+          </>
+        ) : (
+          'Sign out'
+        )}
       </Button>
       {error && (
         <p role="alert" className="sr-only">
