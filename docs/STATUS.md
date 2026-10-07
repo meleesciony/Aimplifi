@@ -36,7 +36,7 @@ rates) — no other doc may restate them.
 
 **Critic (Opus, fresh contexts, isolated worktrees).** Cycle 1 FAIL (1 P1 / 12 P2), cycle 2 FAIL (1 P1 / 5 P2), **cycle 3 PASS — 0 P0 / 0 P1 / 5 P2** (four fixed before ship). DECISIONS #793 carries every cycle.
 
-**Ship.** _pending — filled at close._
+**Ship.** `070769dd` on `origin/main` (PR #37 rebase-merged, 4 commits, this slice only; branch shas `cdee08ea` / `85ff16a0` / `8bd534f1` / `8f40e380` rewritten as `4980e4b3` / `d968f951` / `c10505e1` / `070769dd`). No `prisma/` diff. CI verify on the final branch sha **37563084207 = SUCCESS** and on `main` **37564596760 = SUCCESS** (`scripts/ci-status.sh` exit 0, full `VERIFY_E2E=1`). Vercel Production deployment (GitHub record 6900582027, `aimplifi-jcqllx7qj`) success. Live: unsigned `/` → 307 `/sign-in`; `/sign-in` → 200; the served stylesheet `020ri6m9n9i4w.css` carries `shadow-surface` and `--surface-shadow:`, and the sign-in card renders `border-border/80` with its own `shadow-lg` winning over the token (the `cn()` fix, live). Local `main` had one stale pre-squash #789 commit (also on two slice branches) and was reset to `origin/main`.
 
 **Open (found, not changed).**
 - Cycle-3 F2 (simulated, not the demo): a real user's action-tier income-pause row carries both "Yes, it's paused" and the × dismiss, leaving a 56px text column at 320px / ~116px at 380 (`today-feed-card.tsx` ProposalRow actions column). Stack the actions under the text below `sm` in the next feed slice.

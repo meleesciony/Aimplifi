@@ -29,7 +29,7 @@
 
 **Gate (cycle-2 tree `8bd534f1`, `VERIFY_E2E=1 bash scripts/verify.sh`, full log kept).** tsc 0, probes tsc 0, eslint 0; vitest **9,211 passed** / 665 files + 1 skipped, the 2 failures `tests/unit/vercel-build.test.ts` (known Git-Bash env; PowerShell 31/31); `next build` compiled; Playwright **477 passed / 0 failed / 2 flaky** (`action-menu:391`, `rule-inventory:81`, retry-passed, untouched). Final tree (class-only polish + the assertion): tsc 0, eslint 0, `ui-visual-system.test.tsx` 14/14; fresh build, Playwright `ui-visual-system` + `today-feed` + `phase5-a11y` **19/19**.
 
-**Ship.** _pending — filled at close._
+**Ship.** `070769dd` on `origin/main` (PR #37 rebase-merged, 4 commits, this slice only; branch shas `cdee08ea` / `85ff16a0` / `8bd534f1` / `8f40e380` rewritten as `4980e4b3` / `d968f951` / `c10505e1` / `070769dd`). No `prisma/` diff. CI verify on the final branch sha **37563084207 = SUCCESS** and on `main` **37564596760 = SUCCESS** (`scripts/ci-status.sh` exit 0, full `VERIFY_E2E=1`). Vercel Production deployment (GitHub record 6900582027, `aimplifi-jcqllx7qj`) success. Live: unsigned `/` → 307 `/sign-in`; `/sign-in` → 200; the served stylesheet `020ri6m9n9i4w.css` carries `shadow-surface` and `--surface-shadow:`, and the sign-in card renders `border-border/80` with its own `shadow-lg` winning over the token (the `cn()` fix, live). Local `main` had one stale pre-squash #789 commit (also on two slice branches) and was reset to `origin/main`.
 
 ## 2026-10-06 — A card payment counts once it leaves checking (DECISIONS #791) — owner's live report, ahead of the savings slices
 
