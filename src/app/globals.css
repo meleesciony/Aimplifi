@@ -155,6 +155,14 @@ html {
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
+  /* UI.1 — the one surface-depth token. A dark page swallows a drop shadow,
+     so a card's lift comes from a 1px lit top edge (inset highlight) plus a
+     soft ambient shadow underneath. `shadow-surface` is how every card and
+     summary surface gets depth; `shadow-surface-hover` is the tappable
+     surfaces' hover lift. Values live on :root / .dark below. */
+  --shadow-surface: var(--surface-shadow);
+  --shadow-surface-hover: var(--surface-shadow-hover);
+
   /* U.2 — semantic scales. Values ARE Tailwind emerald (brand + positive)
      and amber (warning), aliased so a rename cannot drift from the shipped
      pixels. Call sites use these names; never emerald-* or amber-*. */
@@ -228,35 +236,52 @@ html {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --surface-shadow:
+    inset 0 1px 0 0 oklch(1 0 0 / 70%), 0 1px 2px 0 oklch(0 0 0 / 5%),
+    0 8px 24px -16px oklch(0 0 0 / 12%);
+  --surface-shadow-hover:
+    inset 0 1px 0 0 oklch(1 0 0 / 70%), 0 2px 4px 0 oklch(0 0 0 / 6%),
+    0 16px 32px -16px oklch(0 0 0 / 18%);
 }
 
 .dark {
   /* slight brand-green chroma so dark mode is Aimplifi, not a generic
-     shadcn slate. Contrast stays in the same band as the prior neutrals. */
-  --background: oklch(0.148 0.014 165);
+     shadcn slate. Contrast stays in the same band as the prior neutrals.
+     UI.1: the page sits a step deeper and the card a step higher than
+     before (0.148/0.188 → 0.14/0.196) so a card reads as a lifted surface
+     instead of a slightly different grey; the sidebar sits between them. */
+  --background: oklch(0.14 0.012 165);
   --foreground: oklch(0.97 0.008 165);
-  --card: oklch(0.188 0.016 165);
+  --card: oklch(0.196 0.016 165);
   --card-foreground: oklch(0.97 0.008 165);
-  --popover: oklch(0.188 0.016 165);
+  --popover: oklch(0.21 0.016 165);
   --popover-foreground: oklch(0.97 0.008 165);
-  --primary: oklch(0.96 0.01 165);
-  --primary-foreground: oklch(0.18 0.02 165);
-  --secondary: oklch(0.248 0.018 165);
+  /* UI.1: the primary action is the brand, not a white slab. Emerald on
+     near-black is ~9:1, so the dark foreground reads at every size. */
+  --primary: oklch(0.73 0.165 162);
+  --primary-foreground: oklch(0.15 0.025 165);
+  --secondary: oklch(0.252 0.018 165);
   --secondary-foreground: oklch(0.97 0.008 165);
-  --muted: oklch(0.248 0.018 165);
+  --muted: oklch(0.252 0.018 165);
   --muted-foreground: oklch(0.72 0.02 165);
-  --accent: oklch(0.248 0.018 165);
+  --accent: oklch(0.252 0.018 165);
   --accent-foreground: oklch(0.97 0.008 165);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0.01 165 / 12%);
+  --border: oklch(1 0.01 165 / 11%);
   --input: oklch(1 0.01 165 / 16%);
-  --ring: oklch(0.72 0.12 165);
+  --ring: oklch(0.72 0.14 162);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.188 0.016 165);
+  --surface-shadow:
+    inset 0 1px 0 0 oklch(1 0 0 / 6%), 0 1px 2px 0 oklch(0 0 0 / 40%),
+    0 12px 32px -20px oklch(0 0 0 / 60%);
+  --surface-shadow-hover:
+    inset 0 1px 0 0 oklch(1 0 0 / 9%), 0 2px 4px 0 oklch(0 0 0 / 40%),
+    0 20px 40px -20px oklch(0 0 0 / 70%);
+  --sidebar: oklch(0.162 0.014 165);
   --sidebar-foreground: oklch(0.97 0.008 165);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -284,5 +309,13 @@ html {
   }
   html {
     @apply font-sans;
+    /* UI.1 — a thin, quiet scrollbar on Windows/Linux Chromium and Firefox,
+       where the default 17px light-grey bar is the brightest thing on a dark
+       page. macOS/iOS overlay bars are unaffected. */
+    scrollbar-width: thin;
+    scrollbar-color: oklch(1 0 0 / 16%) transparent;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--color-brand-500) 35%, transparent);
   }
 }

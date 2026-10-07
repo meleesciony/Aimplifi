@@ -27,7 +27,10 @@ export function GoalProgressBar({ name, progress }: { name: string; progress: Go
       className="h-2 w-full overflow-hidden rounded-full bg-muted"
       data-testid="goal-progress-bar"
     >
-      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+      <div
+        className="h-full rounded-full bg-gradient-to-r from-brand-600 to-brand-400"
+        style={{ width: `${pct}%` }}
+      />
     </div>
   );
 }

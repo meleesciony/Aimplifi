@@ -27,7 +27,7 @@
  * claim about the codebase, so it moves when the set does.
  */
 export const SURFACE_LINK_CARD_CLASS =
-  'block rounded-2xl border bg-card p-4 shadow-sm ring-1 ring-foreground/5 transition hover:border-foreground/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50';
+  'block rounded-2xl border border-border/80 bg-card p-4 shadow-surface transition-[border-color,box-shadow] hover:border-brand-500/35 hover:shadow-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50';
 
 /**
  * The same surface, for a summary card that is NOT itself one big link.
@@ -39,4 +39,14 @@ export const SURFACE_LINK_CARD_CLASS =
  * their own focus rings.
  */
 export const SURFACE_CARD_CLASS =
-  'rounded-2xl border bg-card p-4 shadow-sm ring-1 ring-foreground/5';
+  'rounded-2xl border border-border/80 bg-card p-4 shadow-surface';
+
+/**
+ * UI.1 — the stage glow. Added to the ONE card on a page whose figure the page
+ * exists to answer (cash needed on Home): a brand-tinted edge and a soft
+ * radial bloom in the top-right corner, kept behind the content by
+ * `isolate` + `-z-10`. Decoration only — it carries no meaning, so the
+ * figure, its sentence and the disclosure read exactly as before.
+ */
+export const STAGE_GLOW_CLASS =
+  'relative isolate border-brand-500/25 before:pointer-events-none before:absolute before:-right-20 before:-top-24 before:-z-10 before:size-64 before:rounded-full before:bg-brand-500/15 before:blur-3xl';

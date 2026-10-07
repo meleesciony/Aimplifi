@@ -35,7 +35,7 @@ import {
 /** Same chrome as Details / Rule… on the register row — one definition, so the
  *  row's chips cannot drift apart in size again (REGRESSION_LEDGER 2026-08-03). */
 export const ROW_CHIP =
-  'tap-target inline-flex shrink-0 items-center justify-center rounded border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50';
+  'tap-target inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50';
 
 /** The explanation panel's preferred width, and the page gutter it must keep. */
 const PANEL_PX = 240;

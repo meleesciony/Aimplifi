@@ -57,14 +57,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         Skip to content
       </a>
       <AppNav reviewBadge={<ReviewBadge userId={session.user.id} />} />
-      <div className="pb-bottom-nav mx-auto min-w-0 w-full max-w-5xl flex-1 px-4 sm:px-6">
+      <div className="pb-bottom-nav mx-auto min-w-0 w-full max-w-5xl flex-1 px-4 sm:px-8">
         {isDemo && (
           <p
-            className="mb-2 mt-2 inline-flex max-w-full items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-xs text-muted-foreground"
+            className="mb-1 mt-3 inline-flex max-w-full items-center gap-2 whitespace-nowrap rounded-full border border-border/70 bg-card/70 px-3 py-1 text-xs text-muted-foreground"
             data-testid="demo-banner"
           >
             <span className="inline-block size-1.5 shrink-0 rounded-full bg-brand-500" aria-hidden />
-            Demo dataset · fictional accounts · as of {formatISODate(isoDate(today), 'long')}
+            {/* UI.1 — one line on a phone: the middle phrase is a desktop
+                elaboration; "demo dataset" and the as-of date are the facts. */}
+            <span>
+              Demo dataset<span className="hidden sm:inline"> · fictional accounts</span> · as of{' '}
+              {formatISODate(isoDate(today), 'long')}
+            </span>
           </p>
         )}
         <main id="content" tabIndex={-1} className="pt-3 outline-none sm:pt-6">

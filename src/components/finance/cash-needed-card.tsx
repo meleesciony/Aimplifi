@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/card';
 import { GlassBoxNumber } from '@/components/finance/glass-box';
 import { MONEY_DISPLAY_CLASS } from '@/components/finance/page-chrome';
+import { STAGE_GLOW_CLASS } from '@/components/finance/surface-card-styles';
 import {
   CARD_DUPLICATE_PAIR_TESTID,
   CARD_DUPLICATE_TESTID,
@@ -258,7 +259,7 @@ export function CashNeededCard({
   );
 
   return (
-    <Card data-testid="cash-needed-card" size="sm" className="border-positive-900/40">
+    <Card data-testid="cash-needed-card" size="sm" className={STAGE_GLOW_CLASS}>
       <CardHeader className="pb-1.5">
         <CardDescription>Cash needed for cards this cycle</CardDescription>
         <GlassBoxNumber
