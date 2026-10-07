@@ -434,7 +434,7 @@ test('#796: a savings rate over a named period — "last year" is all of 2025, i
   await expect(headline).toContainText(/Your savings rate in 2025 was -?\d+\.\d% — you (kept|spent) \$[\d,]+\.\d{2}/);
   const pct = ((await headline.textContent()) ?? '').match(/(-?\d+\.\d)%/)?.[1];
   expect(pct).toBeTruthy();
-  await expect(page.getByTestId('ask-answer')).toContainText('over the whole period');
+  await expect(page.getByTestId('ask-answer')).toContainText('with the months added up first');
 
   // The derivation panel re-adds the period's income and expenses to the headline's rate.
   await headline.click();
