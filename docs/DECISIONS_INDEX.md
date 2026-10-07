@@ -784,3 +784,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #791 — A card payment counts once it leaves checking, before the card company shows it (2026-10-06) → docs/DECISIONS.md
 - #793 — The visual system: one depth token, the brand as the primary, and a shell that reads the same on a phone (2026-10-06) → docs/DECISIONS.md
 - #794 — The browser gets a voice: client errors and dismiss attempts reach the server log (2026-10-07) → docs/DECISIONS.md
+- #795 — A dismissal says so: confirmation, one Undo, and "dismissed" instead of "hidden" (2026-10-07) → docs/DECISIONS.md

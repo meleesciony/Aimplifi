@@ -189,7 +189,9 @@ test('dismiss collapses an opportunity in-session; show-everything brings it bac
   // Now one item is hidden → the control appears and reveals it again.
   const showAll = page.getByTestId('today-feed-show-all');
   await expect(showAll).toBeVisible();
-  await expect(showAll).toContainText('1 hidden');
+  await expect(showAll).toContainText('dismissed (1)');
+  // #795: the dismissal says so, and offers one Undo.
+  await expect(page.getByTestId('today-feed-dismissed-note')).toContainText(/Dismissed .*won’t come back/);
   await showAll.click();
   await expect(page.getByTestId('nudge-unused-subscription')).toBeVisible();
 });

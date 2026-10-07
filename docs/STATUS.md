@@ -28,7 +28,11 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
-## 🔎 OPEN 2026-10-07 — The owner's phone: the Today-feed × does nothing, before and after a full reload (DECISIONS #794)
+## ✅ CLOSED 2026-10-07 — The owner's phone: the Today-feed × "does nothing" (DECISIONS #794 → #795)
+
+**Finding.** With #794 live, one reproduction by the owner put nine `[nudge-dismiss] … ok:true` lines and zero `[client-error]` lines in the production log: every tap reached the server and was saved, and the owner then confirmed the rows were hidden ("I thought it would delete the log"). Not a dead page, not a failed write — a dismissal that vanished its row without a word, and a reveal control that read "Show everything (N hidden)". #795 adds the confirmation line with Undo and renames the control "Show dismissed (N)". The #794 instrumentation stays (Vercel log: `[client-error]`, `[nudge-dismiss]`, `[nudge-undismiss]`).
+
+## 🔎 (superseded) 2026-10-07 — The owner's phone: the Today-feed × does nothing, before and after a full reload (DECISIONS #794)
 
 **What is known.** Reported minutes after #793 shipped. Not reproducible on the demo: on the live site the tap removes the row in WebKit (iPhone 13) and in Chromium at 6× CPU / 4G with the tap landing the instant the × renders; a real account's dismissal persists by a stable key. Vercel server log, last 3 h: no errors. The failure is in the owner's browser on the owner's Home, where the app reported nothing. #794 adds the eyes: `/api/client-error` (JS errors, unhandled rejections, hydration failures → one structured log line) and a `[nudge-dismiss]` log per attempt. **Next:** the owner reproduces once on the deployed build; `vercel logs --level error` then says whether the page's JavaScript failed (a `[client-error]` line, kind `hydration` or `error`) or the tap reached the server (`[nudge-dismiss] … ok:true`) — and the fix follows the evidence, not a guess. Candidate classes, unproven: a hydration failure specific to the owner's data (every client handler dead, native disclosures still working); an iOS-only tap quirk on the restyled button.
 
