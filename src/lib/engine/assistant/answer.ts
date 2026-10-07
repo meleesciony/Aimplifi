@@ -3074,7 +3074,7 @@ const savingsPeriodBasis = (months: number) =>
     months > 1
       ? 'Income minus expenses, divided by income, with the months added up first — so a big month counts for more than a small one.'
       : 'Income minus expenses, divided by income.'
-  } Income is money as it lands in your accounts, after anything taken out of your pay first; transfers between your own accounts count as neither. An account adds nothing before its first transaction here, so a card whose history starts partway through can make the rate read high.`;
+  } Income is money as it lands in your accounts, after anything taken out of your pay first; a transfer between your own accounts counts as neither, once it is recognised as one. An account adds nothing before its first transaction here, so a card whose history starts partway through can make the rate read high.`;
 
 /**
  * What an "effective" (all-in) savings rate would add. Gated on spending > 0: only then

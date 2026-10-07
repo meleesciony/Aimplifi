@@ -29,7 +29,6 @@ import { firstFullMonthOnRecord, savingsOverPeriod, type SavingsPeriod } from '@
 import {
   parseAssistantQuery,
   parseExplicitTimeframe,
-  readSavingsWindow,
   validateIntent,
   type AssistantIntent,
 } from '@/lib/engine/assistant/intent';
@@ -368,13 +367,15 @@ describe('A. a savings question keeps the period it names', () => {
   });
 
   it('one reader for every path: the LLM\'s kind re-reads the period from the reader\'s words', () => {
-    expect(intentFromKind('savings_rate', 'what fraction of my paycheck did i stash away in 2025', TODAY)).toEqual({
+    expect(intentFromKind('savings_rate', 'what fraction of my paycheck did i put away in 2025', TODAY)).toEqual({
       kind: 'savings_rate',
       timeframe: { fromYm: '2025-01', toYm: '2025-12', label: 'in 2025' },
     });
     expect(intentFromKind('savings_rate', 'how is my saving going lately', TODAY)).toBeNull();
     expect(intentFromKind('savings_rate', 'my stash ratio in 2031', TODAY)).toBeNull();
     expect(intentFromKind('savings_rate', 'what portion of pay do i keep', TODAY)).toEqual({ kind: 'savings_rate' });
+    // A word outside the vocabulary is a subject the model may have read; the route abstains.
+    expect(intentFromKind('savings_rate', 'what fraction of my paycheck did i stash away in 2025', TODAY)).toBeNull();
   });
 
   it('the follow-up frame swaps the period with the same reader, and abstains where it does', () => {
@@ -409,10 +410,75 @@ describe('A. a savings question keeps the period it names', () => {
     expect(validateIntent({ kind: 'savings_rate', timeframe: 'last year' })).toBeNull();
   });
 
-  it('readSavingsWindow: a unit is not a period, and a time word it cannot read is not "none"', () => {
-    expect(readSavingsWindow('how much do i save per month', TODAY)).toEqual({ kind: 'none' });
-    expect(readSavingsWindow('my savings rate lately', TODAY)).toEqual({ kind: 'unreadable' });
-    expect(readSavingsWindow('so far', TODAY)).toEqual({ kind: 'unreadable' });
+  it('a unit is not a period, and a time word it cannot read is not "none"', () => {
+    expect(parse('how much do i save per month')).toEqual({ kind: 'savings_rate' });
+    expect(parse('my savings rate lately').kind).toBe('unknown');
+    expect(parse('my savings rate so far').kind).toBe('unknown');
+  });
+
+  it('critic cycle 3 P1-1: "<period> to now" is a range this cannot read — never its first end alone', () => {
+    for (const q of [
+      'what was my savings rate march to now?', // was: March 2026 alone
+      'what is my savings rate 2025 to today?', // was: calendar 2025
+      'savings rate january to now',
+      'savings rate june 2025 to now',
+      'savings rate in 2024 to current',
+      'savings rate last year to today',
+    ]) {
+      expect(parse(q).kind, q).toBe('unknown');
+      expect(intentFromKind('savings_rate', q, TODAY), q).toBeNull();
+    }
+    const frame = frameFromIntent(parse('what was my savings rate last year') as AssistantIntent);
+    expect(resolveEllipsis('what about 2024 to now?', TODAY, frame)).toBeNull();
+    expect(resolveEllipsis('and january to now?', TODAY, frame)).toBeNull();
+    // No period: "now" / "current" is the standing answer.
+    expect(parse("what's my savings rate now")).toEqual({ kind: 'savings_rate' });
+  });
+
+  it('critic cycle 3 P1-2: the LLM path licenses its words — a bonus, a person, rent or a comparison abstains', () => {
+    for (const q of [
+      'what percent of my bonus did I save last year?',
+      'how much of my tax refund did I save last year?',
+      'what percent of my raise did I save in 2025?',
+      'how much did my wife save last year?',
+      'how much did my business save last year?',
+      'what percent of my paycheck went to rent last year?',
+      'how much did I invest in 2025?',
+      'did I save less last year',
+      'how much did my wife save at costco last year',
+      'how has my savings changed since 2024',
+    ]) {
+      expect(intentFromKind('savings_rate', q, TODAY), q).toBeNull();
+    }
+  });
+
+  it('critic cycle 3 P2-1: a save question with no period reaches the balance and runway routes again', () => {
+    expect(parse('how much have I saved in my savings account?').kind).toBe('account_balance');
+    expect(parse('how much have I saved in savings?').kind).toBe('account_balance');
+    expect(parse('how much have I saved in my emergency fund?').kind).toBe('runway');
+  });
+
+  it('critic cycle 3 P2-2: the plural and the synonyms are the savings-rate route', () => {
+    for (const q of ['what were my savings rates in 2025?', 'savings-rate for 2025', 'my savings ratio in 2025', 'what was my rate of savings in 2025']) {
+      expect(windowOf(q), q).toMatchObject({ fromYm: '2025-01', toYm: '2025-12' });
+    }
+  });
+
+  it('critic cycle 3 P2-3: an amount PER month is an average this does not give — abstain, never the period total', () => {
+    for (const q of ['how much did I save per month last year?', "what's my savings per month in 2025", 'how much did I save a month in 2025']) {
+      expect(parse(q).kind, q).toBe('unknown');
+    }
+  });
+
+  it('critic cycle 3: everyday phrasings', () => {
+    expect(windowOf("last year's savings rate")).toMatchObject({ fromYm: '2025-01', toYm: '2025-12' });
+    expect(windowOf("2025's savings rate")).toMatchObject({ fromYm: '2025-01', toYm: '2025-12' });
+    expect(windowOf('savings rate this past year')).toMatchObject({ fromYm: '2025-10', toYm: '2026-09' });
+    expect(windowOf('savings rate this year to date')).toMatchObject({ fromYm: '2026-01', toYm: '2026-10' });
+    expect(windowOf('how much do I save a year')).toMatchObject({ fromYm: '2025-10', toYm: '2026-09' });
+    expect(windowOf('savings rate for the last 6 complete months')).toMatchObject({ fromYm: '2026-04', toYm: '2026-09' });
+    // An AVERAGE across months, with no period named: the last 12 full months, as /coach's average reads.
+    expect(windowOf("what's my average savings rate")).toMatchObject({ fromYm: '2025-10', toYm: '2026-09' });
   });
 });
 
@@ -695,7 +761,7 @@ describe('D. the panel recomputes the period rate from its sums', () => {
     expect(trace.kind === 'derivation' && trace.basis[0]).toMatch(/^Every full month from April to December 2025, added up/);
     // A one-month period is not "your most recent full month".
     const one = traceSavingsRateDerivation({ incomeCents: 500_000, expensesCents: 400_000, monthLabel: 'in April 2025' }, 2000, 1);
-    expect(one.kind === 'derivation' && one.basis[0]).toMatch(/^The full month in April 2025, counted the way \/coach counts it\./);
+    expect(one.kind === 'derivation' && one.basis[0]).toMatch(/^The month of April 2025, counted the way \/coach counts it\./);
   });
 
   it('a builder figure that drifts from the sums does not reconcile', () => {

@@ -257,7 +257,7 @@ export function traceSavingsRateDerivation(
         periodMonths === undefined
           ? `Your most recent full month (${flow.monthLabel}).`
           : periodMonths === 1
-            ? `The full month ${flow.monthLabel}, counted the way /coach counts it.`
+            ? `The month of ${flow.monthLabel.replace(/^in /, '')}, counted the way /coach counts it.`
             : `Every full month ${flow.monthLabel}, added up — each month counted the way /coach counts it.`
       } Income and expenses exclude transfers between your own accounts; merchandise refunds count against spending, and a reimbursement — your own money coming back — counts on neither side.`,
     ],
