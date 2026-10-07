@@ -92,4 +92,5 @@ expected value to match the code.
 - [§Bonuses pay this month's savings first (DECISIONS #784 / #787)](../tests/edge-cases/bonuses-pay-savings-first.md)
 - [§Money you put in — brokerage deposits from the bank side (DECISIONS #788)](../tests/edge-cases/investment-deposits.md)
 - [§Investment & Savings is never spending (DECISIONS #789 / #792)](../tests/edge-cases/investment-and-savings-is-not-spending.md)
+- [§Money you set aside — measured savings against the plan's savings line (DECISIONS #790)](../tests/edge-cases/measured-savings.md)
 - [§A card payment counts once it leaves checking (DECISIONS #791)](../tests/edge-cases/card-payment-in-transit.md)
