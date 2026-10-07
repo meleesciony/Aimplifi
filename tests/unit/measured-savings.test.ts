@@ -191,8 +191,8 @@ describe('#790 — the words', () => {
     expect(lead(100_000, 100_000)).toBe('So far this month you’ve set aside $1,000.00 — exactly what your plan sets aside.');
     expect(lead(40_000, 100_000)).toBe('So far this month you’ve set aside $400.00 of the $1,000.00 your plan sets aside — $600.00 to go.');
     expect(lead(40_000, 0)).toBe('So far this month you’ve set aside $400.00. Your plan doesn’t set any savings aside yet.');
-    expect(lead(-30_000, 100_000)).toBe('So far this month $300.00 more has come out of your savings and investment accounts than gone in — your plan sets aside $1,000.00.');
-    expect(lead(-30_000, 0)).toBe('So far this month $300.00 more has come out of your savings and investment accounts than gone in.');
+    expect(lead(-30_000, 100_000)).toBe('So far this month you’ve taken out $300.00 more than you set aside — your plan sets aside $1,000.00.');
+    expect(lead(-30_000, 0)).toBe('So far this month you’ve taken out $300.00 more than you set aside.');
     expect(lead(40_000, 100_000, true)).toBe(
       'So far this month you’ve set aside $400.00 of the $1,000.00 your plan sets aside — $600.00 to go. Records for part of this month are missing, so this figure may be incomplete.',
     );
@@ -207,12 +207,7 @@ describe('#790 — the words', () => {
     );
     const out = measure([row('sav', '2026-09-01', -120_000, 'TRANSFER TO CHECKING')], 0);
     expect(measuredAverageSentence(out)).toBe(
-      'Over the 12 complete months with full records (Oct 2025 – Sep 2026), an average of $100.00 a month more came out of your savings and investment accounts than went in.',
-    );
-    // Only the kinds the reader links are named (critic cycle 1, P3-3).
-    const savingsOnly = measure([row('sav', '2026-09-01', -120_000, 'TRANSFER TO CHECKING')], 0, [CHK, SAV]);
-    expect(measuredAverageSentence(savingsOnly)).toBe(
-      'Over the 12 complete months with full records (Oct 2025 – Sep 2026), an average of $100.00 a month more came out of your savings accounts than went in.',
+      'Over the 12 complete months with full records (Oct 2025 – Sep 2026), you took out an average of $100.00 a month more than you set aside.',
     );
   });
 
@@ -238,10 +233,24 @@ describe('#790 — the words', () => {
     expect(two.thisMonth!.partial).toBe(true);
   });
 
-  it('the lead names the kinds linked when more came out (critic cycle 1, P3-3)', () => {
-    expect(measuredLead(measure([row('sav', '2026-10-02', -30_000, 'TRANSFER TO CHECKING')], 100_000, [CHK, SAV]))).toBe(
-      'So far this month $300.00 more has come out of your savings accounts than gone in — your plan sets aside $1,000.00.',
+  it('test_regression__790_more_taken_out_says_counted_money_only: a tax refund we could not trace, then a withdrawal, never reads as "more came out than went in" (critic cycle 4, P1-1)', () => {
+    const ms = measure([row('sav', '2026-10-02', 300_000, 'IRS TREAS 310 TAX REF', 'tax-refund'), row('sav', '2026-10-06', -100_000, 'TRANSFER TO CHECKING')], 100_000, [CHK, SAV]);
+    expect(ms.thisMonth!.totalCents).toBe(-100_000);
+    expect(ms.thisMonth!.untracedInCents).toBe(300_000);
+    expect(measuredLead(ms)).toBe(
+      'So far this month you’ve taken out $1,000.00 more than you set aside (not counting $3,000.00 that came in that we couldn’t trace) — your plan sets aside $1,000.00.',
     );
+    // A month like it inside the average: the average names what it left out.
+    const avg = measure([row('sav', '2026-09-02', 300_000, 'IRS TREAS 310 TAX REF', 'tax-refund'), row('sav', '2026-09-06', -120_000, 'TRANSFER TO CHECKING')], 0, [CHK, SAV]);
+    expect(measuredAverageSentence(avg)).toBe(
+      'Over the 12 complete months with full records (Oct 2025 – Sep 2026), you took out an average of $100.00 a month more than you set aside. Not counted: $3,000.00 that came into your savings over those months that we couldn’t trace.',
+    );
+    // One complete month, more taken out.
+    const one = measureSavings({
+      deposit: { today: TODAY, rows: [row('chk', '2026-09-01', -1000, 'BLUE DOOR COFFEE', 'coffee'), row('sav', '2026-09-01', -100, 'MONTHLY FEE', 'fees')], accounts: BASE },
+      plan: 0,
+    });
+    expect(measuredAverageSentence(one)).toBe('In Sep 2026, the one complete month with full records, you took out $1.00 more than you set aside.');
   });
 
   it('the empty states name which zero', () => {
@@ -254,7 +263,10 @@ describe('#790 — the words', () => {
       'Interest and dividends are left out',
       'is listed and not counted',
       'even a row you excluded from totals',
-      'it can overstate only when your filings say a coincidence was a transfer',
+      'it can overstate only when your filings say a coincidence was a move',
+      'money in on a row you excluded from totals is left out too',
+      'a brokerage the app doesn’t recognise',
+      'a deposit your bank words as a return',
       'filed as pay (Paycheck, Bonus or Side Gig',
       'a cash-management account your provider reports as checking',
       'extra debt payments',
@@ -330,7 +342,7 @@ describe('#790 critic cycle 1 — money in must be traceable; money out always c
     expect(sep.untracedRows.map((r) => r.descriptor)).toEqual(['TRANSFER FROM MARCUS SAVINGS X9981', 'LOAN DISBURSEMENT UPSTART', 'TRANSFER FROM CARD', 'TRANSFER FROM CHECKING']);
     expect(sep.totalCents).toBe(10_000);
     expect(untracedNote(sep)).toBe(
-      '$36,300.00 came into your savings that we couldn’t match to a transfer from your linked checking or savings, a linked investment account, money returned to the same account, or pay — so it isn’t counted: it may be money you saved before, or money borrowed.',
+      '$36,300.00 came into your savings that we couldn’t match to a transfer from your linked checking or savings, a linked investment account, money returned to the same account, or pay — so it isn’t counted.',
     );
     // The average never reads it either: 10,000 / 12 = 833.33 → 833.
     expect(ms.average!.averageCents).toBe(833);
@@ -361,7 +373,7 @@ describe('#790 critic cycle 1 — money in must be traceable; money out always c
   it('test_regression__790_an_excluded_withdrawal_still_leaves_savings: money out counts even when the reader excluded the row from totals', () => {
     const ms = measure([...fromChecking('2026-10-02', 50_000), row('sav', '2026-10-09', -500_000, 'HONDA OF EXAMPLE SERVICE', 'auto-maintenance', { excludeFromTotals: true })]);
     expect(ms.thisMonth!.savingsNetCents).toBe(-450_000);
-    expect(measuredLead(ms)).toBe('So far this month $4,500.00 more has come out of your savings and investment accounts than gone in — your plan sets aside $1,000.00.');
+    expect(measuredLead(ms)).toBe('So far this month you’ve taken out $4,500.00 more than you set aside — your plan sets aside $1,000.00.');
   });
 
   it('interest a bank words its own way is earnings, not money set aside (critic cycle 1, P2-1)', () => {
@@ -663,5 +675,53 @@ describe('#790 critic cycle 3 — a brokerage’s movement is never half of a mo
     expect(sep.earningsCents).toBe(0);
     expect(sep.savingsNetCents).toBe(25_000);
     expect(sep.untracedInCents).toBe(10_000);
+  });
+});
+
+describe('#790 critic cycle 4 — the guards and the edges, each locked', () => {
+  it('test_regression__790_a_counted_deposit_never_pairs_even_when_its_own_counterpart_went_elsewhere (P2-3, M8)', () => {
+    // #788 pairs the arrival with an unfiled Zelle out of checking (two rows naming no
+    // destination pair first), so it counts the Vanguard deposit. That counted row must not
+    // vouch for the arrival here too.
+    const ms = measure([
+      row('chk', '2026-09-03', -100_000, 'VANGUARD BUY INVESTMENT', 'investment', { isTransfer: true }),
+      row('sav', '2026-09-05', 100_000, 'ONLINE TRANSFER FROM SAV 9999', 'transfer', { isTransfer: true }),
+      row('chk', '2026-09-10', -100_000, 'ZELLE TO SOMEONE', null),
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.putInCents).toBe(100_000);
+    expect(sep.untracedInCents).toBe(100_000);
+    expect(sep.totalCents).toBe(100_000); // never $2,000.00
+  });
+
+  it('test_regression__790_landed_in_your_account_is_a_move_on_both_pages: a deposit Investments reads as landed in the reader’s own savings counts here once (P2-3, M1)', () => {
+    const rows = [
+      row('chk', '2026-09-03', -60_000, 'VANGUARD BUY INVESTMENT', 'investment', { isTransfer: true }),
+      row('sav', '2026-09-08', 60_000, 'TRANSFER FROM CHECKING', 'transfer', { isTransfer: true }),
+    ];
+    const dep = computeDepositHistory({ today: TODAY, rows: [...ANCHORS(), ...rows], accounts: BASE });
+    expect(dep.uncounted.filter((u) => u.month === '2026-09').map((u) => u.reason)).toEqual(['landed-in-your-account']);
+    const sep = month(measure(rows), '2026-09');
+    expect(sep.putInCents).toBe(0);
+    expect(sep.savingsNetCents).toBe(60_000);
+    expect(sep.untracedInCents).toBe(0);
+    expect(sep.uncountedInvestmentRows).toBe(0); // counted here, so not "couldn't count"
+  });
+
+  it('the edges: a move exactly a week apart pairs; a bank return exactly two weeks later counts, a day later does not; money out worded INTEREST is money out (P3-1)', () => {
+    const ms = measure([
+      row('chk', '2026-09-01', -70_000, 'TRANSFER TO SAVINGS', 'transfer'),
+      row('sav', '2026-09-08', 70_000, 'TRANSFER FROM CHECKING', 'transfer'), // 7 days
+      row('sav', '2026-09-02', -15_000, 'EXAMPLE CLINIC', 'medical'),
+      row('sav', '2026-09-16', 15_000, 'ACH RETURN', null), // 14 days
+      row('sav', '2026-09-03', -16_000, 'EXAMPLE PHARMACY', 'medical'),
+      row('sav', '2026-09-18', 16_000, 'ACH RETURN', null), // 15 days
+      row('sav', '2026-09-20', -500, 'INTEREST ADJUSTMENT', null),
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.untracedInCents).toBe(16_000);
+    expect(sep.earningsCents).toBe(0);
+    // +700 (paired) −150 +150 (returned) −160 −5
+    expect(sep.savingsNetCents).toBe(70_000 - 16_000 - 500);
   });
 });

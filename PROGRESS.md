@@ -27,7 +27,7 @@
 
 **Cycle-3 fixes** (`18a24e62`, main tree): a brokerage's movement never pairs; bank-worded returns only; pay only; #788's week; the rule note names when it can overstate. Mutation 19/19. Gate: tsc 0, probes 0, eslint 0; vitest 9,293 passed + 2 (`vercel-build`; PowerShell 31/31); build compiled; Playwright 482 passed / 1 flaky / 0 failed.
 
-**Critic cycle 4** = FAIL, 0 P0 / 1 P1 (copy: "more has come out … than gone in" while untraced money in is left out) / 3 P2 / 4 P3. **Budget spent → owner's gate (STATUS).** Not shipped; branch pushed only.
+**Critic cycle 4** = FAIL, 0 P0 / 1 P1 (copy: "more has come out … than gone in" while untraced money in is left out) / 3 P2 / 4 P3. **Budget spent → owner's gate.** Owner: "Fix it, one more review (Recommended)". Fixed in the main tree (counted-money wording; guards and edges locked; mutation 8/8); next: full gate and critic cycle 5 — ship only on its PASS.
 
 ## 2026-10-06 — Money moves, the remaining readers (DECISIONS #792) — #789's cycle-3 P2s/P3s
 

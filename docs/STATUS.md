@@ -34,7 +34,7 @@ rates) — no other doc may restate them.
 
 **Critic.** Four Opus cycles: 3 P1 → 2 P1 → 2 P1 → **1 P1** (DECISIONS #790 carries each). Cycle 4's P1 is copy: the negative lead and average say "more has come out … than gone in" while untraced money in is left out of the figure, so the sentence can be false beside the card's own untraced line. The arithmetic was verified on the rule; cycle 3's double count is fixed. Open P2s: unfiled transfers between banks that post 4–6 days apart are untraced (errs low; Investments calls a like pair its own move); a card payment the sweep paired with the card can still vouch for an equal savings arrival (disclosed); two guards lack failing tests. P3s in DECISIONS.
 
-**Owner decision needed:** fix the P1 sentence (count-based wording, e.g. "you took out $X more than you set aside") and lock the two guards, with one more critic cycle beyond the budget, then ship — or narrow the section (e.g. no in/out sentence for a month with untraced money) — or park it.
+**Owner decision (2026-10-07): "Fix it, one more review (Recommended)."** Fixed (count-based wording with the untraced money named; the two guards and the window edges locked; mutation 8/8); critic cycle 5, beyond the budget by the owner's word, decides the ship.
 
 ## ✅ BUILT 2026-10-07 — Money moves, the remaining readers: one verdict for a row filed as a move (DECISIONS #792)
 

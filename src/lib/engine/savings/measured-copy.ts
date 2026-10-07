@@ -28,11 +28,14 @@ export function signedMoney(c: number): string {
   return c > 0 ? `+${money(c)}` : c < 0 ? `−${money(-c)}` : money(0);
 }
 
-/** "your savings and investment accounts" / "your savings accounts" / "your investment accounts" — the kinds the reader links. */
-function accountKinds(ms: MeasuredSavings): string {
-  if (ms.hasSavingsAccounts && ms.hasInvestmentAccounts) return 'your savings and investment accounts';
-  if (ms.hasInvestmentAccounts) return 'your investment accounts';
-  return 'your savings accounts';
+/**
+ * "(not counting $3,000.00 that came in that we couldn’t trace)" — beside a sentence about
+ * what was counted, when money came into savings that the figure leaves out (critic cycle 4,
+ * P1-1: a sentence about counted money must not read as one about every dollar). Empty when
+ * there is none.
+ */
+function notCounting(untracedCents: number): string {
+  return untracedCents > 0 ? ` (not counting ${money(untracedCents)} that came in that we couldn’t trace)` : '';
 }
 
 /**
@@ -77,7 +80,11 @@ export function measuredLead(ms: MeasuredSavings): string | null {
           ? 'Nothing counted as set aside so far this month.'
           : 'Nothing counted as set aside so far this month, and your plan doesn’t set any savings aside yet.';
   } else {
-    s = `So far this month ${money(-total)} more has come out of ${accountKinds(ms)} than gone in` + (planned > 0 ? ` — ${sets} ${money(planned)}.` : '.');
+    // Counted money only (critic cycle 4, P1-1): "more came out than went in" was false beside
+    // money in the figure leaves out — a tax refund untraced, then a withdrawal.
+    s =
+      `So far this month you’ve taken out ${money(-total)} more than you set aside${notCounting(m.untracedInCents)}` +
+      (planned > 0 ? ` — ${sets} ${money(planned)}.` : '.');
   }
   if (debt) s += ` ${debt}`;
   if (m.missingRecordsFrom.length > 0) s += ' Records for part of this month are missing, so this figure may be incomplete.';
@@ -89,24 +96,28 @@ export function measuredAverageSentence(ms: MeasuredSavings): string | null {
   const a = ms.average;
   if (!a) return null;
   const amount = money(Math.abs(a.averageCents));
-  const kinds = accountKinds(ms);
   let s: string;
   if (a.months === 1) {
     const span = formatMonth(a.fromMonth);
     s =
       a.averageCents >= 0
         ? `In ${span}, the one complete month with full records, you set aside ${amount}.`
-        : `In ${span}, the one complete month with full records, ${amount} more came out of ${kinds} than went in.`;
+        : `In ${span}, the one complete month with full records, you took out ${amount} more than you set aside.`;
   } else {
     const span = `${formatMonth(a.fromMonth)} – ${formatMonth(a.toMonth)}`;
     const lead = `Over the ${a.months} complete months with full records (${span}), `;
     s =
       a.averageCents >= 0
         ? `${lead}you set aside an average of ${amount} a month.`
-        : `${lead}an average of ${amount} a month more came out of ${kinds} than went in.`;
+        : `${lead}you took out an average of ${amount} a month more than you set aside.`;
   }
   if (ms.plannedSavingsCents > 0)
     s += ` Your plan today sets aside ${money(ms.plannedSavingsCents)} a month${ms.plan.debtPaydownCents > 0 ? ' apart from extra debt payments' : ''}.`;
+  // The averaged months' money in the figure leaves out, said beside it (critic cycle 4, P1-1).
+  const untraced = ms.months
+    .filter((m) => !m.partial && m.missingRecordsFrom.length === 0)
+    .reduce((sum, m) => sum + m.untracedInCents, 0);
+  if (untraced > 0) s += ` Not counted: ${money(untraced)} that came into your savings over those months that we couldn’t trace.`;
   const left = ms.monthsMissingRecords.length;
   if (left > 0) s += left === 1 ? ' One month with missing records is left out.' : ` ${left} months with missing records are left out.`;
   return s;
@@ -128,7 +139,7 @@ export function untracedNote(m: MeasuredMonth): string | null {
   if (m.untracedInCents === 0) return null;
   return (
     `${money(m.untracedInCents)} came into your savings that we couldn’t match to a transfer from your linked checking or savings, ` +
-    'a linked investment account, money returned to the same account, or pay — so it isn’t counted: it may be money you saved before, or money borrowed.'
+    'a linked investment account, money returned to the same account, or pay — so it isn’t counted.'
   );
 }
 
@@ -136,9 +147,9 @@ export function untracedNote(m: MeasuredMonth): string | null {
 export const MEASURED_RULE_NOTE =
   'Counted: money into your linked savings accounts, net of what came out, and money your checking or savings put into a linked investment account, net of what came back, read exactly as “Money you put in” on Investments reads it — its rows and rules are there. ' +
   'Money into savings counts when it is a transfer from one of your linked checking or savings accounts — both halves filed as a transfer or to Investment & Savings (or marked a transfer and filed nothing else), the same amount, within a week — when it came back from a linked investment account, when your bank returned money that left the same savings account, or when it is filed as pay (Paycheck, Bonus or Side Gig — pay split straight into savings). ' +
-  'Anything else — a bank or brokerage you haven’t linked, a loan, a card, money from someone else, a pension or benefits — is listed and not counted. ' +
+  'Anything else — a bank or brokerage you haven’t linked, a loan, a card, money from someone else, a pension or benefits — is listed and not counted; money in on a row you excluded from totals is left out too. ' +
   'Money out of savings always counts as money out, even a row you excluded from totals, and so does money sent to an account you haven’t linked. ' +
-  'So this can understate what you saved; it can overstate only when your filings say a coincidence was a transfer — the same amount filed as a transfer leaving checking within a week of an arrival filed as a transfer — or money from elsewhere is filed as pay. ' +
+  'So this can understate what you saved; it can overstate only when your filings say a coincidence was a move — the same amount filed as a transfer leaving one of your linked checking or savings accounts within a week of an arrival filed as a transfer, money to and back from a brokerage the app doesn’t recognise filed to Investment & Savings, or a deposit your bank words as a return of an equal payment — or when money from elsewhere is filed as pay. ' +
   'Interest and dividends are left out (they are what the account earned, not money you set aside). Money moved between your savings and investment accounts counts once. Only posted rows count. ' +
   'Not counted: money left in checking, savings at a bank you haven’t linked, a cash-management account your provider reports as checking, extra debt payments (the comparison leaves them out of your plan’s line too), and retirement contributions taken out of your paycheck. ' +
   'Money kept in savings for a bill counts when it goes in and as money out when the bill is paid. Months start where your linked checking and savings records cover a whole month; the average uses only complete months whose records are complete.';

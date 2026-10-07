@@ -102,3 +102,13 @@ payments …"). Debt-free goals only: savings $200.00 + debt-free $900.00 + rese
 
 **The server.** A reader with a $200.00 savings goal and a $900.00 debt-free goal and no target: `getSpendingPlan` →
 planned $1,100.00, `measuredSavingsLine` {planned $1,100.00, debt $900.00, compared $200.00}.
+
+**Critic cycle 4 (hand-verified, unit).** Counted money only, in words: +$3,000.00 "IRS TREAS 310 TAX REF" (Tax
+Refund — untraced) then −$1,000.00 to checking → "So far this month you've taken out $1,000.00 more than you set aside (not
+counting $3,000.00 that came in that we couldn't trace) — …"; the same in Sep with −$1,200.00, averaged over 12 months →
+"… you took out an average of $100.00 a month more than you set aside. Not counted: $3,000.00 that came into your savings
+over those months that we couldn't trace." −$1,000.00 "VANGUARD BUY INVESTMENT" (counted by Investments, whose arrival
+partner was an unfiled Zelle) + $1,000.00 "ONLINE TRANSFER FROM SAV" → +$1,000.00, never $2,000.00. −$600.00 "VANGUARD BUY
+INVESTMENT" + $600.00 "TRANSFER FROM CHECKING" five days later → Investments: landed in your account; here +$600.00 counted
+once. Edges: a move 7 days apart pairs (8 does not); a bank return 14 days after counts (15 does not); −$5.00 "INTEREST
+ADJUSTMENT" is money out.
