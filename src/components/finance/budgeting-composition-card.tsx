@@ -91,7 +91,7 @@ export function BudgetingCompositionCard({
 
   return (
     <section
-      className="rounded-2xl border bg-card p-5 shadow-sm"
+      className="rounded-2xl border bg-card p-5 shadow-surface"
       data-testid="budgeting-composition"
     >
       <h2 className="text-sm font-semibold">Your monthly plan</h2>

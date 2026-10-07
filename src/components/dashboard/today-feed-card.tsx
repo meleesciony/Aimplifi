@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transactions/links';
 import { Button } from '@/components/ui/button';
@@ -321,6 +322,20 @@ function ProposalRow({
               Couldn’t save that — try again.
             </p>
           )}
+          {/* Inside the text column (critic cycle 2, N3): the disclosure lines
+              up under the sentence it explains, not under the glyph. */}
+          <details className="mt-1">
+            <summary className="cursor-pointer text-xs text-muted-foreground">
+              Why am I seeing this?
+            </summary>
+            {/* The tier RULE plus the verbatim inputs that triggered it (NUDGE_PLAN:80-81).
+                Every value here is copied from the proposal, not recomputed. Rule line
+                comes from the copy module (per-kind honest override — #251 critic F2). */}
+            <p className="mt-1 text-xs text-muted-foreground">{tierRule(proposal)}</p>
+            <p className="mt-1 text-xs text-muted-foreground" data-testid="nudge-why-inputs">
+              Based on: {whyInputs(proposal)}
+            </p>
+          </details>
         </div>
         <div className="flex shrink-0 items-start gap-1">
           {pauseAction && (
@@ -346,24 +361,17 @@ function ProposalRow({
               aria-label={`Dismiss: ${title}`}
               data-testid={`nudge-dismiss-${proposal.kind}`}
               onClick={() => onDismiss(proposal)}
+              // Below `sm` the word costs the text column ~40px of a 320px row
+              // (critic cycle 2, N3): an × with the word sr-only. The accessible
+              // name is the aria-label above either way.
+              className="max-sm:size-9 max-sm:rounded-full max-sm:px-0"
             >
-              Dismiss
+              <X className="size-4 sm:hidden" aria-hidden />
+              <span className="max-sm:sr-only">Dismiss</span>
             </Button>
           )}
         </div>
       </div>
-      <details className="mt-1">
-        <summary className="cursor-pointer text-xs text-muted-foreground">
-          Why am I seeing this?
-        </summary>
-        {/* The tier RULE plus the verbatim inputs that triggered it (NUDGE_PLAN:80-81).
-            Every value here is copied from the proposal, not recomputed. Rule line
-            comes from the copy module (per-kind honest override — #251 critic F2). */}
-        <p className="mt-1 text-xs text-muted-foreground">{tierRule(proposal)}</p>
-        <p className="mt-1 text-xs text-muted-foreground" data-testid="nudge-why-inputs">
-          Based on: {whyInputs(proposal)}
-        </p>
-      </details>
     </div>
   );
 }

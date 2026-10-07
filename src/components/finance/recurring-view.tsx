@@ -294,7 +294,7 @@ function Section({
 }) {
   if (items.length === 0) return null;
   return (
-    <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+    <section className="overflow-hidden rounded-2xl border bg-card shadow-surface">
       <div className="flex items-baseline justify-between px-4 pt-4">
         <h2 className={`text-sm font-semibold ${muted ? 'text-muted-foreground' : ''}`}>{title}</h2>
         {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
@@ -382,7 +382,7 @@ export function RecurringView({
       {/* Hero: total monthly recurring */}
       <section
         data-testid="recurring-hero"
-        className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-sm"
+        className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-surface"
       >
         <p className={`${PAGE_SECTION_LABEL_CLASS} justify-center`}>
           <Repeat className="size-3.5" aria-hidden /> Monthly recurring
@@ -426,7 +426,7 @@ export function RecurringView({
       {data.renewals.occurrences.length > 0 && (
         <section
           data-testid="coming-up"
-          className="overflow-hidden rounded-2xl border bg-card shadow-sm"
+          className="overflow-hidden rounded-2xl border bg-card shadow-surface"
         >
           <div className="flex items-baseline justify-between px-4 pt-4">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold">
@@ -561,7 +561,7 @@ export function RecurringView({
       )}
 
       {!hasAny ? (
-        <p className="rounded-2xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground shadow-sm">
+        <p className="rounded-2xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground shadow-surface">
           No recurring charges detected yet. Subscriptions and bills appear here once they&apos;ve
           billed three times at a steady price — which for a quarterly bill is about six months,
           and for a yearly one about two years.
@@ -627,7 +627,7 @@ export function RecurringView({
 
       {canRenameBills && billsTakenOff.length > 0 ? (
         <section
-          className="rounded-2xl border bg-card p-4 shadow-sm"
+          className="rounded-2xl border bg-card p-4 shadow-surface"
           data-testid="recurring-bills-taken-off"
         >
           <p className="text-xs text-muted-foreground">Taken off the plan</p>
