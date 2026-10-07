@@ -28,6 +28,21 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ⛔ HUMAN GATE 2026-10-07 — Ask: a savings rate over the period the reader names (DECISIONS #796), critic budget spent
+
+**What it is.** Ask answers "what was my (effective) savings rate over last year?", "how much did I save in 2025?", "what percent of my income did I save last year?", "did I spend more than I earned this year?", "what was my total savings for 2025?" for the period named — pooled income minus expenses over that period's finished, on-record months, every month left out named, the derivation panel reconciling. Branch `slice-796-ask-savings-period` (`f4860f13`), **not shipped**; `main` does not carry it.
+
+**Gate.** Final tree `f20bcc9b`: tsc 0, probes 0, eslint 0; vitest 9,354 passed + 2 (`vercel-build`, Git Bash env; PowerShell 8/8); build compiled; Playwright 481 passed / 3 flaky (untouched) / 0 failed.
+
+**Critic cycle 4 = FAIL, 1 P1 / 4 P2 / 8 P3 (budget 4/4 spent).** Money exact; no route outside the savings family moved.
+- **P1** `intent.ts` `periodText`: the possessive strip (`'s`) reads "the 2020's" / "the 2010's" as the single year → a confident 2020 figure, or a before-records answer for a decade that IS partly on record. Fix: map `the (19|20)x0's` to an unreadable time word before the strip; lock it.
+- **P2-1** an amount per month is still answered with the period total on the "savings rate" route and in follow-ups ("how much am I saving per month this year"); and "per year since 2024" → a 17-month total.
+- **P2-2** the licence never requires the reader's own subject: "what's a typical / the average savings rate", "the US savings rate last year" → the reader's own figure.
+- **P2-3** the LLM / learned-phrase path ignores the parser's hand-offs ("how much have I saved" → standing month if the model picks savings_rate; "today/now/currently"); the average rule is missing there.
+- **P2-4** "what's my savings percentage" (no period) → a savings account's balance (pre-existing).
+- **P3** "overall / in total" with no period = one month; "how much did I save to my savings account last year" → today's balance (pre-existing); a unit-plus-balance arm no test can fail; "typical" untested; the across-months JSDoc overclaims /coach agreement when a no-income month exists; a dead `unreadable` branch in `savingsIntentOf`; some phrasings now abstain ("for the current year", "is my savings rate good"); the panel's flat transfers sentence.
+- **Recorded open by the maker (not defects of the rule):** rates are whole bps shown to one decimal (double rounding, ~1 in 20 rates 0.1 high — same on /coach and Ask; a fix moves both surfaces to cents); per-account history coverage (a card whose history starts later adds $0 spending before — disclosed as a rule sentence, as on /coach's chart).
+
 ## ✅ BUILT 2026-10-07 — Money you set aside: measured savings against the plan's savings line (DECISIONS #790)
 
 **What it is.** Guilt-free (`/spending-plan`, `#money-set-aside`; the plan's Savings legend links to it) shows what the reader actually set aside this month against the plan's savings line, the average over complete months with full records, and every month one tap from its rows. Set aside = money into the linked savings accounts (money in only when traceable: a move from the reader's linked checking or savings, a withdrawal from a linked investment account, a bank's return, or pay) net of everything that came out, plus "Money you put in" (#788) net of what came back. Untraced money in, interest and dividends are listed and left out. The comparison uses the plan's savings line less debt-free goals' extra payments, and says so. Every in/out sentence is in counted money.

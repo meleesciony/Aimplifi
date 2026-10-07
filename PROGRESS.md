@@ -17,6 +17,18 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-07 — Ask: a savings rate over the period the reader names (DECISIONS #796) — AT THE OWNER'S GATE, not shipped
+
+**Picked up.** Owner: "The ask section doesn't answer basic questions like, what was my effective saving rate over last year." Measured first: the savings-rate route matched the question and dropped "last year" — live, the demo answered "Your savings rate was 37.6% in May 2026." (`scripts/ask-savings-period-live-deploy-check.mjs` fails 3/8 against today's production for exactly this); "how much did I save last year?" got the capabilities list; "what percent of my income did I save last year" answered the year's income; "how much did I spend over the past year" answered this month.
+
+**Built** (branch `slice-796-ask-savings-period`, rebased on `514f45b3`; head `f4860f13`, tree identical to the gated `f20bcc9b`). Engine `src/lib/engine/fi/savings-period.ts` (pooled over finished months from the first full month on record; cuts reported; a no-income month keeps its spending); words `answerSavingsRatePeriod`; one closed period grammar + word licence in `intent.ts` used by the parser, the follow-up frame and the LLM / learned-phrase kind; one floored rate formatter shared with /coach; `savings_rate` carries an optional timeframe through `validateIntent`; "the past year" = the last 12 months for every route. Tests: `tests/unit/ask-savings-period.test.ts` (52), `tests/unit/ask-savings-period-server.test.ts` (6, real `askAssistant` on the demo — 4/4 FAIL on the old source), the #796 e2e; edge cases `tests/edge-cases/savings-rate-over-a-period.md`. Mutation 17/17 across cycles.
+
+**Gates** (main tree, Git Bash `VERIFY_E2E=1 bash scripts/verify.sh`). Final tree `f20bcc9b`: tsc 0, probes 0, eslint 0; vitest 9,354 passed + 2 (`vercel-build`, Git Bash env; PowerShell 8/8 with standing-reads); build compiled; Playwright 481 passed / 3 flaky (goal-demo-and-nudge:19, merchant-lens:22 and :77, untouched) / 0 failed, the #796 e2e first try. (Gate 3 on `22f8983b` failed the #796 e2e on a stale assertion — the spec still read cycle 1's basis words; fixed in `a0c82c0b`.)
+
+**Critic (Opus, worktree `C:\dev\_critic_796`).** Cycle 1 FAIL 3 P1 (qualifier words read as the whole year; savings tails fell to spend/income; giant negative rates) — cycle 2 FAIL 3 P1 (two periods read as one; "last may"; the LLM path skipped the licence) — cycle 3 FAIL 2 P1 ("march to now"; the LLM fallback unlicensed) — **cycle 4 FAIL 1 P1**: the possessive strip added in cycle 3 reads "the 2020's" as the year 2020 (cycle 3's tree abstained). Money exact by hand every cycle (demo 2025: $63,700.00 in, $46,213.75 out, 27.5%); no route outside the savings family changed (160 questions, old vs new). **Budget spent → owner's gate.** Open findings in `docs/STATUS.md`.
+
+**Also shipped, separately:** `514f45b3` on `main` — the lessons INDEX line (286 > 220 chars) that made CI run 37667520589 on `13a04010` red; docs only.
+
 ## 2026-10-07 — Money you set aside: measured savings against the plan's savings line (DECISIONS #790)
 
 **Picked up.** The branch `slice-790-measured-savings` (`7df2b358`, built 2026-10-06, never gated) cherry-picked onto #792 in a worktree (`C:\dev\_maker_790`, branch `slice-790-rebased`; one conflict in `deposits.ts`), its DECISIONS and edge-case drafts brought in from the 2026-10-06 session scratchpad after checking them against its tests.
