@@ -25,6 +25,7 @@ import {
   parseTargetDate,
   parseTimeframe,
   resolveSpendTarget,
+  savingsRateIntentFromText,
   unconsumedSpendObject,
   unresolvedDateShape,
   whatToCutFromQuestion,
@@ -72,7 +73,7 @@ export function buildIntentPrompt(question: string): string {
     '- next_dollar: where an extra dollar goes given the reader\'s own rates (debt vs match vs emergency fund vs investing) — "where should my next dollar go?", "should I pay off debt or invest". Never an amount or date. Not "when will I be debt-free" (that is debt_payoff), not "how much should I pay off my cards before I can invest" / "how much do I need to pay my cards" (that is cash_needed), not "how many months of runway" (that is runway)',
     '- cash_flow_radar: will the payment account run out of money / go negative / overdraft in the next 90 days (committed flows + card dues — same as Cash flow radar)',
     '- forecast: projected cash balance from recurring income and bills only (NOT card payments; use cash_flow_radar for running out of money)',
-    '- savings_rate: percent of income saved',
+    '- savings_rate: percent of income saved, or how much was saved, over a month or a period they name (e.g. "what was my savings rate last year?", "how much did I save in 2025?", "did I spend more than I earned this year?")',
     '- none: the question is NOT about the user\'s own personal finances (off-topic, chit-chat, advice, or unanswerable from their accounts) — use this rather than forcing a fit',
     `Question: ${question}`,
     'Respond with ONLY a JSON object, no prose: {"intent":"<one allowed intent, or none>"}.',
@@ -127,8 +128,14 @@ export function intentFromKind(
     case 'debt_payoff':
     case 'cash_flow_radar':
     case 'forecast':
-    case 'savings_rate':
       return { kind };
+    case 'savings_rate': {
+      // The period is re-read from the reader's own words by the parser's own reader
+      // (#796): a named period the model cannot see must not fall back to the standing
+      // last-complete-month answer, and an unreadable one abstains here as it does there.
+      const savings = savingsRateIntentFromText(question.toLowerCase(), today, question);
+      return savings.kind === 'savings_rate' ? savings : null;
+    }
     case 'subscriptions': {
       // A model that tagged a cut question as the roster still owes the cut
       // route — the kind is a hint. "What subscriptions am I paying for?"

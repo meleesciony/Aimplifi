@@ -231,6 +231,8 @@ export function traceCashNeededDerivation(
 export function traceSavingsRateDerivation(
   flow: { incomeCents: number; expensesCents: number; monthLabel: string },
   expectedBps: number,
+  /** #796: the figures are this many months of a named PERIOD, not the latest full month. */
+  periodMonths?: number,
 ): DerivationTrace {
   const saved = flow.incomeCents - flow.expensesCents;
   const rows: DerivationRow[] = [
@@ -251,7 +253,13 @@ export function traceSavingsRateDerivation(
     monthLabel: flow.monthLabel,
     reconciled: sum === saved && recomputed !== null && recomputed === expectedBps,
     basis: [
-      `Your most recent full month (${flow.monthLabel}). Income and expenses exclude transfers between your own accounts; merchandise refunds count against spending, and a reimbursement — your own money coming back — counts on neither side.`,
+      `${
+        periodMonths === undefined
+          ? `Your most recent full month (${flow.monthLabel}).`
+          : periodMonths === 1
+            ? `The full month ${flow.monthLabel}, counted the way /coach counts it.`
+            : `Every full month ${flow.monthLabel}, added up — each month counted the way /coach counts it.`
+      } Income and expenses exclude transfers between your own accounts; merchandise refunds count against spending, and a reimbursement — your own money coming back — counts on neither side.`,
     ],
   };
 }

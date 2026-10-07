@@ -349,12 +349,17 @@ export function followUpQuestions(intent: AssistantIntent, today?: ISODate, voca
         "What's my cash flow forecast?",
       ]);
 
-    case 'savings_rate':
+    case 'savings_rate': {
+      // #796: the other common period one tap away, then where the money goes and
+      // what to cut — never a chip naming a period the answer may have found empty.
+      const tf = intent.timeframe;
+      const calendarYear = !!tf && tf.fromYm.endsWith('-01') && tf.toYm.endsWith('-12') && tf.fromYm.slice(0, 4) === tf.toYm.slice(0, 4);
       return take([
-        'How much did I spend this month?',
-        'What is my net worth?',
-        'How much is guilt-free to spend this month?',
+        calendarYear ? 'What was my savings rate over the last 12 months?' : 'What was my savings rate last year?',
+        'Where does my money go?',
+        'What should I cut?',
       ]);
+    }
   }
 }
 

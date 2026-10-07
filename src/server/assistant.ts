@@ -31,11 +31,12 @@ import { seededHorizon, solveWealthTarget } from '@/lib/engine/solve/wealth-targ
 import { wealthContributionBasis } from '@/lib/engine/fi/discretionary-cuts';
 import { wealthTargetPlanUnproven } from '@/lib/engine/fi/coach-copy';
 import { RETIREMENT_ASSUMPTIONS } from '@/lib/engine/investments/retirement';
-import { compareDates, isoDate, type ISODate } from '@/lib/dates';
+import { addMonthsToMonthKey, compareDates, isoDate, monthKey, type ISODate } from '@/lib/dates';
 import { analystAccountRecords, buildAnalystAnswer, loadAccountRecordFacts, saveRecordEdgeWord } from '@/server/analyst';
 import { DEMO_ENTRY_BLOCKED, isDemoUser } from '@/lib/demo-user';
 import { asOfWindow, spendingByCategory, type ReportTxn } from '@/lib/engine/reports/reports';
 import { monthlyFlows } from '@/lib/engine/fi/insights';
+import { savingsOverPeriod } from '@/lib/engine/fi/savings-period';
 import { askVocabulary, mergeCategoryMeta, type CategoryMeta } from '@/lib/engine/categorize/categories';
 import { getCategoryOverlay } from '@/server/category-meta';
 import { parseAssistantQuery, validateIntent, type AssistantIntent } from '@/lib/engine/assistant/intent';
@@ -76,12 +77,14 @@ import {
   answerGoalStatusAmbiguous,
   answerGoalStatusNoMatch,
   answerSavingsRate,
+  answerSavingsRatePeriod,
   answerSpendByCategory,
   answerSpendTotal,
   answerSubscriptions,
   answerTopCategories,
   answerUnknown,
   assistantAccounts,
+  savingsPeriodPhrase,
   largestPurchases,
   merchantSpend,
   toAskTxnRows as engineAskTxnRows,
@@ -771,6 +774,57 @@ async function buildAnswer(
       return answerIncome(income, intent.timeframe);
     }
     case 'savings_rate': {
+      if (intent.timeframe) {
+        // #796: a period the reader named. The month figures are `monthlyFlows` over
+        // the rows the income answer above sums (the /coach chart's own figures); the
+        // engine cuts the window to finished, on-record months and pools them.
+        const rows = snap.transactions.filter((t) => t.date <= today);
+        const flows = monthlyFlows(rows, snap.loanPaymentFlowExclusions?.excludeIds);
+        const recordsStart = rows.reduce<string | null>((min, t) => (min === null || t.date < min ? t.date : min), null);
+        const asOf = isoDate(today);
+        const measure = (fromYm: string, toYm: string) =>
+          savingsOverPeriod({ flows, fromYm, toYm, today: asOf, recordsStart: recordsStart === null ? null : isoDate(recordsStart) });
+        const lastFinished = addMonthsToMonthKey(monthKey(today), -1);
+        const period = measure(intent.timeframe.fromYm, intent.timeframe.toYm);
+        // When the period itself can't be measured, the nearest one that can: the last
+        // full month, or the latest full months on record (up to 12).
+        const nearest =
+          period.ok || period.reason === 'no-records'
+            ? null
+            : period.reason === 'unfinished'
+              ? measure(lastFinished, lastFinished)
+              : measure(
+                  period.firstFullYm > addMonthsToMonthKey(lastFinished, -11)
+                    ? period.firstFullYm
+                    : addMonthsToMonthKey(lastFinished, -11),
+                  lastFinished,
+                );
+        const answer = answerSavingsRatePeriod({
+          period,
+          asked: {
+            fromYm: intent.timeframe.fromYm,
+            toYm: intent.timeframe.toYm < lastFinished ? intent.timeframe.toYm : lastFinished,
+          },
+          nearest,
+        });
+        const measured = period.ok ? period : nearest?.ok ? nearest : null;
+        // The derivation panel recomputes the rate from the period's summed figures;
+        // `headlineBps` is the builder's own pooled figure — the equality is the gate.
+        return answer.headlineBps === undefined || !measured
+          ? answer
+          : {
+              ...answer,
+              trace: traceSavingsRateDerivation(
+                {
+                  incomeCents: measured.incomeCents,
+                  expensesCents: measured.expensesCents,
+                  monthLabel: savingsPeriodPhrase(measured.fromYm, measured.toYm),
+                },
+                answer.headlineBps,
+                measured.months.length,
+              ),
+            };
+      }
       // Delegate to the Coach read-path so the rate is byte-identical to /coach
       // (its currentRateBps = the most recent complete month's savingsRateBps).
       const coach = await getCoachData(userId);

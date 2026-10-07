@@ -424,6 +424,33 @@ test('Glass-Box 3: savings rate is tappable — income − expenses = kept, and 
   await expect(page.getByTestId('ask-deriv-rate')).toHaveText(`${pct}%`);
 });
 
+test('#796: a savings rate over a named period — "last year" is all of 2025, it reconciles, and a follow-up swaps the period', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/ask');
+  // The owner's question. Before #796 this answered May 2026 alone ("Your savings rate was … in May 2026").
+  await ask(page, 'What was my effective savings rate over last year?');
+
+  const headline = page.getByTestId('ask-headline');
+  await expect(headline).toContainText(/Your savings rate in 2025 was -?\d+\.\d% — you (kept|spent) \$[\d,]+\.\d{2}/);
+  const pct = ((await headline.textContent()) ?? '').match(/(-?\d+\.\d)%/)?.[1];
+  expect(pct).toBeTruthy();
+  await expect(page.getByTestId('ask-answer')).toContainText('over the whole period');
+
+  // The derivation panel re-adds the period's income and expenses to the headline's rate.
+  await headline.click();
+  await expect(page.getByTestId('ask-trace')).toBeVisible();
+  const lines = await page.getByTestId('ask-deriv-row-amount').allTextContents();
+  expect(lines).toHaveLength(2);
+  const kept = centsOf((await page.getByTestId('ask-deriv-saved').textContent()) ?? '');
+  expect(lines.reduce((s, t) => s + centsOf(t), 0)).toBe(kept);
+  await expect(page.getByTestId('ask-deriv-rate')).toHaveText(`${pct}%`);
+
+  // The follow-up carries the question and reads the new period as FINISHED months
+  // (demo today is 2026-06-10, so June is left out).
+  await ask(page, 'what about the last 6 months?');
+  await expect(page.getByTestId('ask-headline')).toContainText(/Your savings rate from December 2025 to May 2026 was -?\d+\.\d%/);
+});
+
 test('Glass-Box 3: an UNTRACED derivation figure (safe-to-spend) stays a plain, untappable <p>', async ({ page }) => {
   // Slice 3 built formula panels for net_worth / cash_needed / savings_rate ONLY.
   // Every other derivation intent must keep the honest non-offer — no trace, no tap.

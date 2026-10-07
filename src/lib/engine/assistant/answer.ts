@@ -80,6 +80,9 @@ import { COACH_COPY } from '@/lib/engine/fi/coach-copy';
 import type { CutCounterfactual } from '@/lib/engine/fi/counterfactual';
 import type { CutRadarCounterfactual } from '@/lib/engine/radar/cut-counterfactual';
 import { runwayTitle, type CreepResult, type Opportunity } from '@/lib/engine/fi/insights';
+import type { SavingsPeriod } from '@/lib/engine/fi/savings-period';
+import { savingsRateBps } from '@/lib/engine/fi/fi';
+import { analystMonthLabel } from './analyst-grammar';
 import type { StayingWealthyRow } from '@/lib/engine/fi/staying-wealthy';
 import type { NextDollarPlan } from '@/lib/engine/fi/next-dollar';
 import type { DebtAccount, DebtPayoffResult } from '@/lib/engine/debt/payoff';
@@ -3039,6 +3042,173 @@ export function answerSavingsRate(input: {
   };
 }
 
+// ─── savings over a period (DECISIONS #796) ─────────────────────────────────
+
+/** "in September 2026", "in 2025", "from May to September 2026", "from October 2025 to March 2026". */
+export function savingsPeriodPhrase(fromYm: string, toYm: string): string {
+  if (fromYm === toYm) return `in ${analystMonthLabel(fromYm)}`;
+  const [fy, fm] = [fromYm.slice(0, 4), fromYm.slice(5, 7)];
+  const [ty, tm] = [toYm.slice(0, 4), toYm.slice(5, 7)];
+  if (fy === ty && fm === '01' && tm === '12') return `in ${fy}`;
+  if (fy === ty) return `from ${analystMonthLabel(fromYm).split(' ')[0]} to ${analystMonthLabel(toYm)}`;
+  return `from ${analystMonthLabel(fromYm)} to ${analystMonthLabel(toYm)}`;
+}
+
+/** "March 2025", "March 2025 and April 2025", "…, and 4 more months". */
+function monthList(months: readonly string[]): string {
+  const shown = months.slice(0, 3).map(analystMonthLabel);
+  const more = months.length - shown.length;
+  if (more > 0) return `${shown.join(', ')} and ${more} more month${more === 1 ? '' : 's'}`;
+  return shown.length <= 2 ? shown.join(' and ') : `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]}`;
+}
+
+const SAVINGS_PERIOD_BASIS =
+  'Income minus expenses, divided by income, over the whole period — so a big month counts for more than a small one. Income is after-tax pay as it lands in your accounts; transfers between your own accounts count as neither.';
+
+/** Gated on spending > 0: only then would counting withheld savings raise the rate. */
+const SAVINGS_WITHHELD_NOTE =
+  "If part of your pay goes straight to a 401(k), an HSA or an employer match and that account isn't linked here, that saving isn't in these figures — counting it would raise this rate.";
+
+type SavingsPeriodOk = Extract<SavingsPeriod, { ok: true }>;
+
+/** The figure sentence for a measured period, without its scope prefix. */
+function savingsFigure(p: SavingsPeriodOk): string {
+  const pct = p.rateBps === null ? '' : bpsToPct1dp(p.rateBps);
+  if (p.keptCents > 0) return `${pct}% — you kept ${fmt(p.keptCents)} of the ${fmt(p.incomeCents)} you brought in.`;
+  if (p.keptCents === 0) return `${pct}% — you spent all ${fmt(p.incomeCents)} you brought in.`;
+  return `${pct}% — you spent ${fmt(-p.keptCents)} more than the ${fmt(p.incomeCents)} you brought in.`;
+}
+
+/** Month-by-month (12 or fewer) or year-by-year rates, each pooled the same way. */
+function savingsBreakdown(p: SavingsPeriodOk): AssistantFact[] {
+  const rateOf = (income: number, expenses: number, active: boolean) => {
+    if (!active) return 'nothing on record';
+    const bps = savingsRateBps(income as Cents, expenses as Cents);
+    return bps === null ? 'no income' : `${bpsToPct1dp(bps)}%`;
+  };
+  if (p.months.length <= 12) {
+    return p.months.map((m) => ({
+      label: `${MON[Number(m.month.slice(5, 7)) - 1]} ${m.month.slice(0, 4)}`,
+      value: rateOf(m.incomeCents, m.expensesCents, m.hasActivity),
+    }));
+  }
+  const years = new Map<string, { from: string; to: string; income: number; expenses: number; active: boolean }>();
+  for (const m of p.months) {
+    const y = m.month.slice(0, 4);
+    const slot = years.get(y) ?? { from: m.month, to: m.month, income: 0, expenses: 0, active: false };
+    slot.to = m.month;
+    slot.income += m.incomeCents;
+    slot.expenses += m.expensesCents;
+    slot.active ||= m.hasActivity;
+    years.set(y, slot);
+  }
+  return [...years.entries()].map(([y, s]) => {
+    const whole = s.from.endsWith('-01') && s.to.endsWith('-12');
+    const span = whole ? '' : ` (${MON[Number(s.from.slice(5, 7)) - 1]}–${MON[Number(s.to.slice(5, 7)) - 1]})`;
+    return { label: `${y}${span}`, value: rateOf(s.income, s.expenses, s.active) };
+  });
+}
+
+/**
+ * The answer for a measured period. `lead` is a whole sentence put before the figure
+ * (why a different period is being answered); `note` opens the detail.
+ */
+function savingsPeriodAnswer(
+  p: SavingsPeriodOk,
+  source: AssistantSource,
+  lead: string | null = null,
+  note: string | null = null,
+): AssistantAnswer {
+  const range = savingsPeriodPhrase(p.fromYm, p.toYm);
+  const empty = p.months.filter((m) => !m.hasActivity).map((m) => m.month);
+  const noIncome = p.months.filter((m) => m.hasActivity && m.incomeCents <= 0 && m.expensesCents > 0).map((m) => m.month);
+  const notes = [
+    note,
+    p.inProgressYm ? `${analystMonthLabel(p.inProgressYm)} isn't over yet, so it's left out.` : null,
+    // When every month is empty the headline already says so.
+    empty.length > 0 && empty.length < p.months.length ? `No income or spending is on record for ${monthList(empty)}.` : null,
+    p.rateBps !== null && noIncome.length > 0
+      ? `No income is on record for ${monthList(noIncome)}; ${noIncome.length === 1 ? 'its' : 'their'} spending is counted.`
+      : null,
+    SAVINGS_PERIOD_BASIS,
+    p.rateBps !== null && p.expensesCents > 0 ? SAVINGS_WITHHELD_NOTE : null,
+  ].filter((s): s is string => s !== null);
+  const opening = (s: string) => (lead ? `${lead} ${s}` : s);
+
+  if (p.rateBps === null) {
+    return {
+      kind: 'savings_rate',
+      headline: opening(
+        p.expensesCents > 0
+          ? `No income is on record ${range}, so there's no savings rate to work out — ${fmt(p.expensesCents)} of spending is.`
+          : `No income or spending is on record ${range}, so there's no savings rate to work out.`,
+      ),
+      detail: notes.join(' '),
+      facts: [{ label: 'Expenses', value: fmt(p.expensesCents) }],
+      source,
+    };
+  }
+
+  return {
+    kind: 'savings_rate',
+    headline: opening(
+      p.beforeRecords
+        ? `Your records start ${humanDate(p.beforeRecords.recordsStart)}, so this covers ${range.replace(/^(?:in|from) /, '')}: your savings rate was ${savingsFigure(p)}`
+        : `Your savings rate ${range} was ${savingsFigure(p)}`,
+    ),
+    headlineBps: p.rateBps,
+    detail: notes.join(' '),
+    facts: [
+      { label: 'Income', value: fmt(p.incomeCents) },
+      { label: 'Expenses', value: fmt(p.expensesCents) },
+      { label: 'Kept', value: fmt(p.keptCents) },
+      ...savingsBreakdown(p),
+    ],
+    source,
+  };
+}
+
+/**
+ * A savings rate over a period the reader named (DECISIONS #796). `nearest` is the
+ * closest period that IS measurable, which the server works out when `period` is not:
+ * the last full month for an unfinished one, the latest full months on record (up to
+ * 12) for one before the records — or null when there is none to try.
+ */
+export function answerSavingsRatePeriod(input: {
+  period: SavingsPeriod;
+  /** The asked window, cut at the last finished month, for naming what isn't on record. */
+  asked: { fromYm: string; toYm: string };
+  nearest: SavingsPeriod | null;
+}): AssistantAnswer {
+  const source: AssistantSource = { label: 'Open coach', href: '/coach' };
+  const { period, asked, nearest } = input;
+  if (period.ok) return savingsPeriodAnswer(period, source);
+  if (period.reason === 'no-records') {
+    return { kind: 'savings_rate', headline: "There's nothing on record yet to work out a savings rate from.", facts: [], source };
+  }
+  const lead =
+    period.reason === 'unfinished'
+      ? `${analystMonthLabel(period.firstYm)} isn't over yet, so here is the last full month.`
+      : `Your records start ${humanDate(period.recordsStart)}, so no full month ${savingsPeriodPhrase(asked.fromYm, asked.toYm)} is on record.`;
+  if (nearest?.ok) {
+    // `nearest` starts on or after the first full month on record by construction, so
+    // it never carries a records-start scope of its own.
+    const n = nearest.months.length;
+    const note =
+      period.reason === 'unfinished'
+        ? null
+        : n >= 12
+          ? `That is the latest ${n} full months on record.`
+          : `That is every full month on record so far.`;
+    return savingsPeriodAnswer(nearest, source, lead, note);
+  }
+  const headline =
+    period.reason === 'unfinished'
+      ? `${analystMonthLabel(period.firstYm)} isn't over yet, and no full month before it is on record yet.`
+      : `${lead} No full month is on record yet.`;
+  return { kind: 'savings_rate', headline, facts: [], source };
+}
+
 // ─── unknown / capabilities ─────────────────────────────────────────────────
 
 export const ASSISTANT_SUGGESTIONS: readonly string[] = [
@@ -3047,6 +3217,7 @@ export const ASSISTANT_SUGGESTIONS: readonly string[] = [
   'How much is guilt-free to spend this month?',
   'How much did I spend at Costco this month?',
   'What subscriptions am I paying for?',
+  'What was my savings rate last year?',
   'Will I run out of money in the next 90 days?',
   'What was my biggest purchase this month?',
   'When will I be debt-free?',
@@ -3068,7 +3239,7 @@ export function answerUnknown(): AssistantAnswer {
     kind: 'unknown',
     headline: 'I can answer questions grounded in your own accounts and transactions.',
     detail:
-      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, your spending buckets, what you owe on your cards, when you can retire, what to cut, whether spending is outpacing income, whether you are staying wealthy, your rich life, where your next dollar goes, subscriptions, your 90-day forecast, income, or savings rate.',
+      'Try asking about net worth, spending by category, month, or a specific store, guilt-free spending, your spending buckets, what you owe on your cards, when you can retire, what to cut, whether spending is outpacing income, whether you are staying wealthy, your rich life, where your next dollar goes, subscriptions, your 90-day forecast, income, or your savings rate for a month or a year.',
     facts: [],
     suggestions: [...ASSISTANT_SUGGESTIONS],
   };

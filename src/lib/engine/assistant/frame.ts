@@ -31,6 +31,7 @@ import {
   MONTH_TITLE,
   parseExplicitTimeframe,
   parseTimeframe,
+  readSavingsWindow,
   resolveSpendTarget,
   unresolvedDateShape,
   type AssistantIntent,
@@ -63,6 +64,7 @@ const TIMEFRAME_KINDS = new Set<AskFrame['kind']>([
   'top_categories',
   'largest_purchases',
   'income',
+  'savings_rate',
 ]);
 
 /**
@@ -93,6 +95,10 @@ export function frameFromIntent(intent: AssistantIntent): AskFrame | null {
     case 'spend_total':
     case 'income':
       return { kind: intent.kind, timeframe: intent.timeframe };
+    case 'savings_rate':
+      // The standing answer (no period) still carries its kind, so "what about last
+      // year?" can name the first period (#796).
+      return intent.timeframe ? { kind: intent.kind, timeframe: intent.timeframe } : { kind: intent.kind };
     case 'spend_by_category':
       return { kind: intent.kind, timeframe: intent.timeframe, target: intent.target };
     case 'merchant_spend':
@@ -263,6 +269,13 @@ export function resolveEllipsis(
     case 'spend_total':
     case 'income':
       return { kind: frame.kind, timeframe: when };
+    case 'savings_rate': {
+      // The fragment's period is read by the savings reader itself (#796), so "what
+      // about the last 6 months?" is the same six FINISHED months the question asked
+      // whole would be, and a period it cannot read abstains.
+      const read = readSavingsWindow(rest, today);
+      return read.kind === 'window' ? { kind: 'savings_rate', timeframe: read.timeframe } : null;
+    }
     case 'spend_by_category':
       return frame.target
         ? { kind: 'spend_by_category', timeframe: when, target: frame.target }

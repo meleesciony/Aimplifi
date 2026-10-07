@@ -128,7 +128,11 @@ export type AssistantIntent =
   | { kind: 'cash_flow_radar' }
   /** Recurring-only balance walk — same engine as /forecast (DECISIONS #72 / #75). */
   | { kind: 'forecast' }
-  | { kind: 'savings_rate' }
+  /**
+   * No `timeframe`: the most recent complete month, byte-identical to /coach. With one
+   * (DECISIONS #796): the pooled rate over that period's finished, on-record months.
+   */
+  | { kind: 'savings_rate'; timeframe?: Timeframe }
   | { kind: 'unknown'; question: string };
 
 export type AssistantIntentKind = AssistantIntent['kind'];
@@ -377,6 +381,12 @@ export function parseExplicitTimeframe(qRaw: string, today: ISODate): Timeframe 
   }
   if (/\b(last|previous|prior) year\b/.test(q)) {
     return { fromYm: `${y - 1}-01`, toYm: `${y - 1}-12`, label: `${y - 1}` };
+  }
+  // "the past year" / "the last twelve months" are the trailing 12 months, the same
+  // window as "the last 12 months" (#796). Before this they resolved nothing, and the
+  // spend routes answered the silent this-month default under them.
+  if (/\bpast\s+year\b/.test(q) || /\b(?:last|past|previous|trailing)\s+twelve\s+months?\b/.test(q)) {
+    return { fromYm: addMonthsToMonthKey(todayYm, -11), toYm: todayYm, label: 'the last 12 months' };
   }
   const lastN = q.match(/\b(?:last|past|previous|trailing)\s+(\d{1,2})\s+months?\b/);
   if (lastN) {
@@ -2142,6 +2152,212 @@ export function analystIntentText(intent: Extract<AssistantIntent, { kind: 'spen
   );
 }
 
+// ─── savings over a period (DECISIONS #796) ──────────────────────────────────
+
+/**
+ * What a savings question says about WHEN. `unreadable` is not `none`: a question that
+ * names a period we cannot read must abstain, never fall back to the standing
+ * last-complete-month answer — before #796, "what was my savings rate last year?"
+ * answered one month and named it, a true figure under a different window.
+ */
+export type SavingsWindowRead = { kind: 'none' } | { kind: 'window'; timeframe: Timeframe } | { kind: 'unreadable' };
+
+const NUMBER_WORDS: Readonly<Record<string, number>> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+};
+/** "the last 12 months", "past six months": a rate over the trailing N FINISHED months. */
+const SAVINGS_TRAILING_RE =
+  /\b(?:last|past|previous|trailing)\s+(\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:full\s+)?months?\b/;
+/** "the past year": the trailing 12 finished months. */
+const SAVINGS_PAST_YEAR_RE = /\bpast\s+year\b/;
+/** "annual", "per year": a year-long rate — the trailing 12 finished months unless a period is named. */
+const SAVINGS_ANNUAL_RE = /\b(?:annual|annually|yearly)\b|\b(?:a|per)\s+year\b/;
+/** A word about time. Once the readers below have had their turn, its presence means unreadable. */
+const TIME_WORD_RE =
+  /\b(?:years?|months?|quarters?|quarterly|q[1-4]|weeks?|weekly|days?|daily|decades?|since|so far|lately|recently|fiscal|semester|season)\b/;
+/** Phrases about time that are not a period: a unit ("a month", "monthly") or "now". */
+const NOT_A_PERIOD_RE =
+  /\b(?:a|per|each|every)\s+month\b|\bmonth\s+(?:by|over)\s+month\b|\bthese\s+days\b|\bnowadays\b|\bright\s+now\b/g;
+/** Two periods set against each other is a comparison, which this answer is not. */
+const SAVINGS_COMPARE_RE =
+  /\b(?:vs|versus|compared?|comparison|comparing|than|against|trend\w*|improv\w*|higher|lower|better|worse|increas\w*|decreas\w*|changed?|changes)\b/;
+const YEAR_TOKEN_RE = /(?<![\w/.$-])20\d{2}(?![\w/])/g;
+const YEAR_RANGE_RE =
+  /(?<![\w/.$-])20\d{2}\s*[-–—]\s*20\d{2}(?![\w/])|\b(?:between|from)\s+20\d{2}\s+(?:and|to|through|thru|until)\s+20\d{2}\b/;
+
+/** How many different calendar months the text names — "may" only where the parser reads it as one. */
+function monthsNamed(q: string): number {
+  const seen = new Set<number>();
+  for (let i = 0; i < 12; i++) {
+    const alt = i === 8 ? `${MONTH_NAMES[i]}|${MONTH_ABBR[i]}|sept` : `${MONTH_NAMES[i]}|${MONTH_ABBR[i]}`;
+    if (!new RegExp(`\\b(?:${alt})\\b`).test(q)) continue;
+    if (i === 4 && !/\b(?:in|during|for|of|since|from|to|through|and|between)\s+may\b/.test(q) && !/\bmay\s+\d{4}\b/.test(q)) {
+      continue;
+    }
+    seen.add(i);
+  }
+  return seen.size;
+}
+
+/** The trailing `n` finished months: the current month is never part of a rate. */
+function trailingFinishedMonths(n: number, today: ISODate): Timeframe {
+  const lastFinished = addMonthsToMonthKey(monthKey(today), -1);
+  return {
+    fromYm: addMonthsToMonthKey(lastFinished, -(n - 1)),
+    toYm: lastFinished,
+    label: n === 1 ? 'last month' : `the last ${n} full months`,
+  };
+}
+
+/**
+ * Read the period a savings question names. One reader for every path that can produce
+ * a savings intent — the parser, the conversation frame and the LLM's kind — so no path
+ * reads a period another refused (the #229 / TASKS 2.7 rule).
+ */
+export function readSavingsWindow(text: string, today: ISODate): SavingsWindowRead {
+  const q = text.toLowerCase().replace(NOT_A_PERIOD_RE, ' ');
+  if (unresolvedDateShape(q, today)) return { kind: 'unreadable' };
+  const months = monthsNamed(q);
+  const years = q.match(YEAR_TOKEN_RE)?.length ?? 0;
+  if (months > 1 || (years > 1 && !YEAR_RANGE_RE.test(q))) return { kind: 'unreadable' };
+
+  const explicit = parseExplicitTimeframe(q, today);
+  const trailing = SAVINGS_TRAILING_RE.exec(q);
+  let read: SavingsWindowRead;
+  if (trailing || SAVINGS_PAST_YEAR_RE.test(q)) {
+    // A trailing count beside a named month or year ("the last 6 months of 2025") is
+    // two periods at once.
+    const n = trailing ? (NUMBER_WORDS[trailing[1]] ?? Number(trailing[1])) : 12;
+    read =
+      months > 0 || years > 0 || n < 1 || n > 24
+        ? { kind: 'unreadable' }
+        : { kind: 'window', timeframe: trailingFinishedMonths(n, today) };
+  } else if (explicit) {
+    read = { kind: 'window', timeframe: explicit };
+  } else if (SAVINGS_ANNUAL_RE.test(q)) {
+    read = { kind: 'window', timeframe: trailingFinishedMonths(12, today) };
+  } else if (TIME_WORD_RE.test(q)) {
+    read = { kind: 'unreadable' };
+  } else {
+    read = { kind: 'none' };
+  }
+  return read.kind !== 'none' && SAVINGS_COMPARE_RE.test(q) ? { kind: 'unreadable' } : read;
+}
+
+/** The savings intent for `text`'s period; `unknown` when the period cannot be read. */
+export function savingsRateIntentFromText(text: string, today: ISODate, question: string): AssistantIntent {
+  const w = readSavingsWindow(text, today);
+  if (w.kind === 'unreadable') return { kind: 'unknown', question };
+  return w.kind === 'window' ? { kind: 'savings_rate', timeframe: w.timeframe } : { kind: 'savings_rate' };
+}
+
+const SAVINGS_LEAD = String.raw`^(?:(?:so|and|ok|okay|hey|now|also|please)[,\s]+)*`;
+const INCOME_NOUN = String.raw`(?:income|pay|paycheck|paychecks|salary|earnings|take[- ]home(?: pay)?)`;
+
+/**
+ * Phrasings whose tail may hold ONLY words about when (`onlyWhenWords`). `period`: the
+ * phrasing needs a named period — "how much have I saved?" with none is more likely
+ * the balance of a savings account than last month's figure, so it is left to the
+ * routes below.
+ */
+const SAVINGS_PHRASES: readonly { re: RegExp; period: boolean; storeAbstains?: boolean }[] = [
+  // "how much did I save last year", "how much money have I saved in 2025". A store or
+  // category after it ("on groceries", "at Costco") asks about a discount this cannot
+  // answer, and the spend routes below would answer it as SPENDING — so it abstains.
+  {
+    re: new RegExp(`${SAVINGS_LEAD}how much (?:money )?(?:did|have) i (?:actually |really )?saved?\\b(.*)$`),
+    period: true,
+    storeAbstains: true,
+  },
+  // "what percent of my income did I save last year", "what share of my pay am I keeping"
+  {
+    re: new RegExp(
+      `${SAVINGS_LEAD}(?:what|which) (?:percent(?:age)?|share|portion|fraction|proportion|part) of (?:my )?${INCOME_NOUN} (?:did|do|am|have|was|were) i (?:actually |really )?(?:save|saving|saved|keep|keeping|kept|put away|putting away)\\b(.*)$`,
+    ),
+    period: false,
+  },
+  // "how much of my income did I save in 2025" — the past-tense twin of the shipped "do I save"
+  {
+    re: new RegExp(`${SAVINGS_LEAD}how much of my ${INCOME_NOUN} (?:did|have) i (?:actually |really )?(?:save|saved|keep|kept)\\b(.*)$`),
+    period: false,
+  },
+  // "did I spend more than I earned last year", "am I spending more than I make"
+  {
+    re: new RegExp(
+      `${SAVINGS_LEAD}(?:did|do|am|have|was|were) i (?:been )?(?:spend|spending|spent) more than i (?:earned|earn|made|make|brought in|bring in|took home|take home|got paid|get paid)\\b(.*)$`,
+    ),
+    period: false,
+  },
+  // "did I make more than I spent in 2025"
+  {
+    re: new RegExp(`${SAVINGS_LEAD}(?:did|do|have) i (?:earn|earned|make|made|bring in|brought in) (?:more|less) than i (?:spent|spend)\\b(.*)$`),
+    period: false,
+  },
+];
+
+/** The only words a licensed savings phrasing may be followed by. */
+const WHEN_WORDS: ReadonlySet<string> = new Set([
+  ...['in', 'over', 'during', 'for', 'across', 'within', 'throughout', 'this', 'last', 'past', 'the'],
+  ...['previous', 'prior', 'trailing', 'since', 'so', 'far', 'year', 'years', 'month', 'months'],
+  ...['to', 'date', 'ytd', 'year-to-date', 'of', 'and', 'between', 'through', 'thru', 'until', 'from'],
+  ...['full', 'calendar', 'whole', 'entire', 'total', 'overall', 'altogether', 'annual', 'annually', 'yearly'],
+  ...Object.keys(NUMBER_WORDS),
+  ...MONTH_NAMES,
+  ...MONTH_ABBR,
+  'sept',
+  '-',
+  '–',
+  '—',
+]);
+
+/** True when every word of `rest` is a word about when (or `rest` is empty). */
+function onlyWhenWords(rest: string): boolean {
+  const words = rest
+    .replace(/[?.!,;:]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.every((w) => WHEN_WORDS.has(w) || /^20\d{2}$/.test(w) || /^\d{1,2}$/.test(w));
+}
+
+/**
+ * The savings family (DECISIONS #796): a savings rate, how much was saved, or whether
+ * spending outran income — over a period the reader names, or the standing last
+ * complete month when they name none. `null` when the question is not one of these
+ * (the rest of the router decides); `unknown` when it is, but its period cannot be read.
+ */
+export function savingsFromQuestion(question: string, today: ISODate): AssistantIntent | null {
+  const q = normalize(question);
+  // The shipped route: "savings rate" anywhere, or "how much of my income do I save".
+  // The period is read from the whole question.
+  if (/\bsavings? rate\b/.test(q) || /\bhow much (of my income )?(do i|am i) sav/.test(q)) {
+    return savingsRateIntentFromText(q, today, question);
+  }
+  for (const { re, period, storeAbstains } of SAVINGS_PHRASES) {
+    const m = re.exec(q);
+    if (!m) continue;
+    const rest = m[1] ?? '';
+    if (storeAbstains && /^\s*(?:on|at|with)\b/.test(rest)) return { kind: 'unknown', question };
+    // A tail that is not only words about when ("on groceries", "for my trip", "by
+    // cancelling Netflix") is a different question; leave it to the routes below.
+    if (!onlyWhenWords(rest)) return null;
+    const intent = savingsRateIntentFromText(rest, today, question);
+    if (period && intent.kind === 'savings_rate' && !intent.timeframe) return null;
+    return intent;
+  }
+  return null;
+}
+
 export function parseAssistantQuery(
   question: string,
   today: ISODate,
@@ -2160,10 +2376,10 @@ export function parseAssistantQuery(
   // Net worth
   if (/\bnet[\s-]?worth\b/.test(q)) return { kind: 'net_worth' };
 
-  // Savings RATE (before the generic "savings" account match)
-  if (/\bsavings? rate\b/.test(q) || /\bhow much (of my income )?(do i|am i) sav/.test(q)) {
-    return { kind: 'savings_rate' };
-  }
+  // Savings RATE, and how much was saved over a period (before the generic "savings"
+  // account match). #796: the period the reader names is read, never dropped.
+  const savings = savingsFromQuestion(question, today);
+  if (savings) return savings;
 
   // P.1: "what should I cut?" BEFORE subscriptions, so "what subscriptions
   // should I cut" is the opportunities list, not the full recurring roster.
@@ -2691,8 +2907,12 @@ export function validateIntent(
     case 'next_dollar':
     case 'cash_flow_radar':
     case 'forecast':
-    case 'savings_rate':
       return { kind: o.kind };
+    case 'savings_rate':
+      // #796: an echoed period is checked like any other; a malformed one rejects the
+      // intent rather than silently becoming the standing last-month answer.
+      if (o.timeframe === undefined) return { kind: 'savings_rate' };
+      return isTimeframe(o.timeframe) ? { kind: 'savings_rate', timeframe: o.timeframe } : null;
     case 'account_balance':
       return typeof o.query === 'string' ? { kind: 'account_balance', query: o.query } : null;
     case 'debt_free_by_date': {
