@@ -561,7 +561,7 @@ export function RecurringView({
       )}
 
       {!hasAny ? (
-        <p className="rounded-2xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground shadow-surface">
+        <p className="rounded-2xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
           No recurring charges detected yet. Subscriptions and bills appear here once they&apos;ve
           billed three times at a steady price — which for a quarterly bill is about six months,
           and for a yearly one about two years.

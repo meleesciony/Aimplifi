@@ -177,6 +177,7 @@ function NetWorthCard({ data }: { data: AccountsView }) {
                   formatter={(value) => [formatCents(cents(Math.round((value as number) * 100))), 'Net worth']}
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.fullDate ?? ''}
                   contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                  separator=": "
                   labelStyle={CHART_TOOLTIP_LABEL_STYLE}
                 />
                 <Area type="monotone" dataKey="dollars" stroke={CHART_POSITIVE} strokeWidth={2} fill="url(#nwacct)" />

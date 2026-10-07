@@ -44,6 +44,22 @@ test('phone shell: icon sign-out keeps its name, banner is one line, stage carri
 
   await expect(page.getByTestId('dashboard-safe-to-spend-split')).toBeVisible();
   await expect(page.getByTestId('dashboard-safe-to-spend-split')).toHaveText(/Fixed[\s\S]*Savings[\s\S]*Guilt-free/);
+
+  // The feed's × keeps its name and the 44px floor on both axes (critic cycle 3
+  // F1), and the "Why am I seeing this?" disclosure lines up under the title,
+  // not under the glyph (cycle 2 N3).
+  const row = page.locator('[data-testid="today-feed-card"] [data-testid^="nudge-"][data-tier]').first();
+  await expect(row).toBeVisible();
+  const dismiss = row.getByRole('button', { name: /^Dismiss: / });
+  if (await dismiss.count()) {
+    const d = await dismiss.boundingBox();
+    expect(d, 'dismiss bounding box').toBeTruthy();
+    expect(d!.width).toBeGreaterThanOrEqual(44);
+    expect(d!.height).toBeGreaterThanOrEqual(44);
+  }
+  const titleX = (await row.locator('p').first().boundingBox())!.x;
+  const summaryX = (await row.locator('summary').first().boundingBox())!.x;
+  expect(Math.abs(titleX - summaryX)).toBeLessThanOrEqual(1);
 });
 
 test('desktop shell: stage pair shares a top edge, active sidebar row is tinted, feed glyphs match their kind', async ({ page }) => {

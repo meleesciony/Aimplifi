@@ -110,6 +110,7 @@ export function NetWorthCard({
                 ]}
                 labelFormatter={(_, payload) => payload?.[0]?.payload?.fullDate ?? ''}
                 contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                separator=": "
                 labelStyle={CHART_TOOLTIP_LABEL_STYLE}
               />
               <Area type="monotone" dataKey="dollars" stroke={CHART_POSITIVE} strokeWidth={2} fill="url(#nw)" />

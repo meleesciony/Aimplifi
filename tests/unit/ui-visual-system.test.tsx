@@ -206,6 +206,8 @@ describe('UI.1 — Today feed glyphs', () => {
     // Dismiss keeps its accessible name while the word is sr-only below sm.
     expect(row).toContain('aria-label={`Dismiss: ${title}`}');
     expect(row).toContain('<span className="max-sm:sr-only">Dismiss</span>');
+    // The × keeps the 44px floor on both axes (critic cycle 3 F1).
+    expect(row).toContain('max-sm:size-11 max-sm:rounded-full');
   });
 });
 
