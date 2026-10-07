@@ -782,3 +782,4 @@ Regenerating refuses to write if it would drop any number this file already carr
 - #788 — Money you put in: brokerage deposits read from the bank side (2026-10-05) → docs/DECISIONS.md
 - #789 — Investment & Savings is never spending: one definition of saving before measuring it (2026-10-06) → docs/DECISIONS.md
 - #791 — A card payment counts once it leaves checking, before the card company shows it (2026-10-06) → docs/DECISIONS.md
+- #793 — The visual system: one depth token, the brand as the primary, and a shell that reads the same on a phone (2026-10-06) → docs/DECISIONS.md

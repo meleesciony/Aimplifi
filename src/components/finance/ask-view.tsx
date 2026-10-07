@@ -651,7 +651,7 @@ export function AskView({
                   type="button"
                   onClick={() => pick(s)}
                   data-testid="ask-suggestion"
-                  className="rounded-full border bg-card px-3 py-1.5 text-sm text-muted-foreground shadow-surface transition hover:border-foreground/30 hover:text-foreground"
+                  className="rounded-full border bg-card px-3 py-1.5 text-sm text-muted-foreground transition hover:border-foreground/30 hover:text-foreground"
                 >
                   {s}
                 </button>

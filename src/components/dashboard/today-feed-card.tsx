@@ -364,7 +364,7 @@ function ProposalRow({
               // Below `sm` the word costs the text column ~40px of a 320px row
               // (critic cycle 2, N3): an × with the word sr-only. The accessible
               // name is the aria-label above either way.
-              className="max-sm:size-9 max-sm:rounded-full max-sm:px-0"
+              className="max-sm:size-11 max-sm:rounded-full max-sm:px-0"
             >
               <X className="size-4 sm:hidden" aria-hidden />
               <span className="max-sm:sr-only">Dismiss</span>

@@ -356,6 +356,7 @@ export function ReportsView({
                   cursor={{ fillOpacity: 0.06 }}
                   formatter={(v) => formatCents(cents(Math.round(Number(v) * 100)))}
                   contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                  separator=": "
                   labelStyle={CHART_TOOLTIP_LABEL_STYLE}
                 />
                 <Bar

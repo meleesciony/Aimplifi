@@ -145,6 +145,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
                 formatter={(v) => [formatCents(cents(Math.round(Number(v) * 100))), 'Balance']}
                 labelFormatter={(_, p) => p?.[0]?.payload?.full ?? ''}
                 contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                separator=": "
                 labelStyle={CHART_TOOLTIP_LABEL_STYLE}
               />
               <Area type="monotone" dataKey="dollars" stroke={color} strokeWidth={2} fill="url(#fc)" />
