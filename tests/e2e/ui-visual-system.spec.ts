@@ -80,11 +80,12 @@ test('desktop shell: stage pair shares a top edge, active sidebar row is tinted,
     const glyph = rows.nth(i).locator('span[aria-hidden][data-glyph-tone]').first();
     await expect(glyph.locator('svg')).toBeVisible();
     const kind = await rows.nth(i).getAttribute('data-testid');
+    const tier = await rows.nth(i).getAttribute('data-tier');
     const tone = await glyph.getAttribute('data-glyph-tone');
-    if (kind === 'nudge-price-increase') expect(tone).toBe('warning');
-    if (kind === 'nudge-income_pause') {
-      const tier = await rows.nth(i).getAttribute('data-tier');
-      expect(tone).toBe(tier === 'handled' ? 'muted' : 'warning');
+    // Handled is always muted; otherwise the kind decides.
+    if (tier === 'handled') expect(tone).toBe('muted');
+    else if (kind === 'nudge-price-increase' || kind === 'nudge-goal_behind_pace' || kind === 'nudge-income_pause') {
+      expect(tone).toBe('warning');
     }
   }
 });

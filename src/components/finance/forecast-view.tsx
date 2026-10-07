@@ -43,7 +43,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
       {/* Hero */}
       <section
         data-testid="forecast-hero"
-        className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 shadow-sm"
+        className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 shadow-surface"
       >
         {/* The scope caveat qualifies EVERY figure on this page, so the reader meets it
             before the first one (P1-18 / C.12 — the /cards placement rule: the caveat
@@ -111,7 +111,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
             <div
               key={m.dayOffset}
               data-testid="forecast-milestone"
-              className="grid min-w-0 grid-cols-[1fr_auto] items-center gap-x-3 rounded-2xl border bg-card px-4 py-3 shadow-sm md:block md:p-3 md:text-center"
+              className="grid min-w-0 grid-cols-[1fr_auto] items-center gap-x-3 rounded-2xl border bg-card px-4 py-3 shadow-surface md:block md:p-3 md:text-center"
             >
               <p className="text-xs text-muted-foreground">{m.dayOffset} days</p>
               <p
@@ -127,7 +127,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
       )}
 
       {/* Balance line */}
-      <section className="rounded-2xl border bg-card p-5 shadow-sm">
+      <section className="rounded-2xl border bg-card p-5 shadow-surface">
         <h2 className="mb-3 text-sm font-semibold">Projected balance</h2>
         <div className="h-56" data-testid="forecast-chart">
           <ResponsiveContainer width="100%" height="100%">
@@ -244,7 +244,7 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
 
       {/* Upcoming flows */}
       {f.upcoming.length > 0 && (
-        <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <section className="overflow-hidden rounded-2xl border bg-card shadow-surface">
           <h2 className="px-4 pt-4 text-sm font-semibold">Upcoming flows</h2>
           <ul className="mt-2 divide-y" data-testid="forecast-upcoming">
             {f.upcoming.map((e, i) => (

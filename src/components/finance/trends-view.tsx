@@ -259,7 +259,7 @@ export function TrendsView({
       {/* Pace — the in-progress month projected forward */}
       {pace ? (
         <section
-          className="rounded-2xl border bg-card p-5 shadow-sm"
+          className="rounded-2xl border bg-card p-5 shadow-surface"
           data-testid="trends-pace"
           aria-label="Spending pace this month"
         >
@@ -331,7 +331,7 @@ export function TrendsView({
         // first days of a month; it keeps its heading and says why, in the same
         // words the dashboard card uses (the labels module's shared-wording rule).
         <section
-          className="rounded-2xl border bg-card p-5 shadow-sm"
+          className="rounded-2xl border bg-card p-5 shadow-surface"
           data-testid="trends-pace-empty"
           aria-label="Spending pace this month"
         >
@@ -357,7 +357,7 @@ export function TrendsView({
       )}
 
       {/* Category movers — last completed month vs a 3-month baseline */}
-      <section className="rounded-2xl border bg-card p-5 shadow-sm" data-testid="trends-movers">
+      <section className="rounded-2xl border bg-card p-5 shadow-surface" data-testid="trends-movers">
         <div className="mb-1 flex items-baseline justify-between">
           <h2 className="text-sm font-semibold">What changed</h2>
           {comparedYm && (
@@ -424,7 +424,7 @@ export function TrendsView({
       </section>
 
       {/* Largest purchases this month */}
-      <section className="rounded-2xl border bg-card p-5 shadow-sm" data-testid="trends-largest">
+      <section className="rounded-2xl border bg-card p-5 shadow-surface" data-testid="trends-largest">
         <div className="mb-1 flex items-center gap-2">
           <Receipt className="size-3.5 text-muted-foreground" aria-hidden />
           <h2 className="text-sm font-semibold">Biggest purchases this month</h2>
@@ -468,7 +468,7 @@ export function TrendsView({
 
       {/* New merchants */}
       {newMerchants.length > 0 && (
-        <section className="rounded-2xl border bg-card p-5 shadow-sm" data-testid="trends-new-merchants">
+        <section className="rounded-2xl border bg-card p-5 shadow-surface" data-testid="trends-new-merchants">
           <div className="mb-1 flex items-center gap-2">
             <Store className="size-3.5 text-muted-foreground" aria-hidden />
             <h2 className="text-sm font-semibold">New this month</h2>

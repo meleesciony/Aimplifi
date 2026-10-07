@@ -343,7 +343,7 @@ export function AskView({
         {/* keep the prior answer visible (dimmed) while a follow-up is pending,
             so re-asking doesn't flash the card away */}
         {answer && !error && (
-          <div data-testid="ask-answer" className={`rounded-2xl border bg-card p-4 shadow-sm ${pending ? 'opacity-60' : ''}`}>
+          <div data-testid="ask-answer" className={`rounded-2xl border bg-card p-4 shadow-surface ${pending ? 'opacity-60' : ''}`}>
             {asked && <p className="mb-2 text-xs text-muted-foreground">“{asked}”</p>}
             {/* A learned phrase carries its own, more specific disclosure below. */}
             {answer.interpreted && !answer.learned && (
@@ -651,7 +651,7 @@ export function AskView({
                   type="button"
                   onClick={() => pick(s)}
                   data-testid="ask-suggestion"
-                  className="rounded-full border bg-card px-3 py-1.5 text-sm text-muted-foreground shadow-sm transition hover:border-foreground/30 hover:text-foreground"
+                  className="rounded-full border bg-card px-3 py-1.5 text-sm text-muted-foreground shadow-surface transition hover:border-foreground/30 hover:text-foreground"
                 >
                   {s}
                 </button>

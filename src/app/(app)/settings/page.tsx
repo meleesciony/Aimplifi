@@ -190,7 +190,7 @@ export default async function SettingsPage() {
       <nav
         aria-label="Settings sections"
         data-testid="settings-index"
-        className="space-y-2 rounded-2xl border bg-card p-4 text-sm shadow-sm"
+        className="space-y-2 rounded-2xl border bg-card p-4 text-sm shadow-surface"
       >
         {settingsIndexGroups({ notifications: !!vapidPublicKey }).map((group) => (
           <div key={group.label} className="flex flex-wrap items-center gap-x-1 gap-y-1">

@@ -294,7 +294,7 @@ export function ReportsView({
       </div>
 
       {/* Income vs Expense */}
-      <section className="rounded-2xl border bg-card p-5 shadow-sm">
+      <section className="rounded-2xl border bg-card p-5 shadow-surface">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold">Income vs. spending</h2>
@@ -360,6 +360,7 @@ export function ReportsView({
                 />
                 <Bar
                   dataKey="income"
+                  name="Income"
                   fill={CHART_POSITIVE}
                   radius={[3, 3, 0, 0]}
                   className="cursor-pointer"
@@ -367,6 +368,7 @@ export function ReportsView({
                 />
                 <Bar
                   dataKey="expense"
+                  name="Spending"
                   fill={CHART_NEGATIVE}
                   radius={[3, 3, 0, 0]}
                   className="cursor-pointer"
@@ -557,7 +559,7 @@ export function ReportsView({
       </section>
 
       {/* Spending by category */}
-      <section className="rounded-2xl border bg-card p-5 shadow-sm">
+      <section className="rounded-2xl border bg-card p-5 shadow-surface">
         <div className="mb-3 flex items-baseline justify-between">
           <h2 className="text-sm font-semibold">Spending by category</h2>
           <span className="text-xs text-muted-foreground" data-testid="reports-category-total">

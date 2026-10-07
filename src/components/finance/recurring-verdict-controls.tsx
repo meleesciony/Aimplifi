@@ -173,7 +173,7 @@ export function RecurringInstructions({
   const { busy, error, run } = useVerdictRunner();
   if (rows.length === 0) return null;
   return (
-    <section className="rounded-2xl border bg-card p-4 shadow-sm" data-testid="recurring-instructions">
+    <section className="rounded-2xl border bg-card p-4 shadow-surface" data-testid="recurring-instructions">
       <h2 className="text-sm font-medium">What you&rsquo;ve told Aimplifi</h2>
       <p className="mt-1 text-xs text-muted-foreground">
         These override what Aimplifi works out on its own. Removing one puts that payee back to

@@ -78,7 +78,7 @@ export function SpendClassPanel({
   return (
     <section
       id={SPEND_CLASS_PANEL_ID}
-      className="scroll-mt-20 rounded-2xl border bg-card p-5 shadow-sm"
+      className="scroll-mt-20 rounded-2xl border bg-card p-5 shadow-surface"
       data-testid="spend-class-panel"
     >
       <h2 className="text-sm font-semibold">Fixed vs guilt-free</h2>

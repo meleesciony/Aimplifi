@@ -93,7 +93,7 @@ export default async function SpendingPlanPage() {
         <h1 className={PAGE_TITLE_CLASS}>Guilt-free</h1>
         <section
           data-testid="spending-plan-hero"
-          className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-sm"
+          className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-surface"
         >
           <p className={`${PAGE_SECTION_LABEL_CLASS} justify-center`}>
             Guilt-free to spend
@@ -141,7 +141,7 @@ export default async function SpendingPlanPage() {
       <h1 className={PAGE_TITLE_CLASS}>Guilt-free</h1>
       <section
         data-testid="spending-plan-hero"
-        className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-sm"
+        className="rounded-2xl border bg-gradient-to-br from-card to-accent/30 p-6 text-center shadow-surface"
       >
         <p className={`${PAGE_SECTION_LABEL_CLASS} justify-center`}>
           {positive ? 'Guilt-free to spend' : 'Over plan'}
@@ -231,7 +231,7 @@ export default async function SpendingPlanPage() {
         </ul>
       </section>
 
-      <section className="rounded-2xl border bg-card p-5 shadow-sm">
+      <section className="rounded-2xl border bg-card p-5 shadow-surface">
         <h2 className="mb-3 text-sm font-semibold">How we got there</h2>
         <dl className="divide-y text-sm">
           {rows.map((r) => (
@@ -310,7 +310,7 @@ export default async function SpendingPlanPage() {
           is assembled in the engine (`buildFixedList`) and rendered here
           verbatim; this page performs no arithmetic on it. */}
       <section
-        className="rounded-2xl border bg-card p-5 shadow-sm"
+        className="rounded-2xl border bg-card p-5 shadow-surface"
         data-testid="fixed-composition"
       >
         <h2 className="mb-1 text-sm font-semibold">What makes up your fixed costs</h2>
@@ -508,7 +508,7 @@ export default async function SpendingPlanPage() {
           the WHOLE cost and its rhythm. Placed directly under the Fixed list it
           feeds, because a control belongs beside the figure it moves. */}
       <section
-        className="rounded-2xl border bg-card p-5 shadow-sm"
+        className="rounded-2xl border bg-card p-5 shadow-surface"
         data-testid="reserves-section"
       >
         <h2 className="mb-1 text-sm font-semibold">Money you set aside each month</h2>
@@ -620,7 +620,7 @@ export default async function SpendingPlanPage() {
       {figuresForm}
 
       <section
-        className="rounded-2xl border bg-card p-5 shadow-sm"
+        className="rounded-2xl border bg-card p-5 shadow-surface"
         data-testid="spending-plan-how-to-use"
       >
         <h2 className="mb-2 text-sm font-semibold">Using Aimplifi</h2>
@@ -665,7 +665,7 @@ export default async function SpendingPlanPage() {
           inside (notes, not cases — the second note holds more than one), and the
           consequence they share. */}
       <details
-        className="rounded-2xl border bg-card p-5 shadow-sm"
+        className="rounded-2xl border bg-card p-5 shadow-surface"
         data-testid="spending-plan-disclosures"
       >
         <summary className="grid cursor-pointer grid-cols-[auto_1fr] items-start gap-x-1.5 [&::-webkit-details-marker]:hidden">

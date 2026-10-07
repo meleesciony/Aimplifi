@@ -16,6 +16,10 @@ const eslintConfig = [
       // Session-audit scratch output (probe scripts, screenshots) — gitignored,
       // not product code.
       ".audit/**",
+      // Claude Code's isolated agent worktrees (a critic's full checkout of the
+      // repo, git-excluded) — linting them doubled every finding and failed
+      // verify.sh while a critic was running (DECISIONS #793).
+      ".claude/worktrees/**",
     ],
   },
   {

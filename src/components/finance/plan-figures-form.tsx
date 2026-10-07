@@ -61,7 +61,7 @@ export function PlanFiguresForm({
   if (!canEdit) {
     return (
       <section
-        className="rounded-2xl border bg-card p-5 shadow-sm"
+        className="rounded-2xl border bg-card p-5 shadow-surface"
         data-testid="plan-figures-form"
       >
         <h2 className="mb-1 text-sm font-semibold">Your plan</h2>
@@ -75,7 +75,7 @@ export function PlanFiguresForm({
 
   return (
     <section
-      className="rounded-2xl border bg-card p-5 shadow-sm"
+      className="rounded-2xl border bg-card p-5 shadow-surface"
       data-testid="plan-figures-form"
     >
       <h2 className="mb-1 text-sm font-semibold">Your plan</h2>
