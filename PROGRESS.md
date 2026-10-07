@@ -17,6 +17,16 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-07 — "The × does nothing": instrument, read the log, then fix the message (DECISIONS #794, #795)
+
+**Picked up.** Owner, on their phone minutes after #793: "What's the point of having these × on the right if you can't click away the warning?" Asked precisely: the row stays put, before and after a full reload. Rule 0: reproduced on the live site — WebKit (iPhone 13) and Chromium at 6× CPU / 4G with the tap landing the instant the × rendered: the demo's row disappears every time; a real account's key is stable and upserted; Vercel's server log, 3 h: no errors. The browser reported nothing, so no guess was possible.
+
+**#794 (instrument).** `/api/client-error` (signed-in, rate-limited, validated, one structured log line, nothing stored), a root-layout reporter (errors, unhandled rejections, hydration lines, `keepalive`, ≤5/page), `[nudge-dismiss]` per attempt. Gate: tsc 0, eslint 0, vitest **9,218 passed** (+2 known `vercel-build` env), build ✓, Playwright `client-error` + `today-feed` + `phase5-a11y` 18/18; CI run on `ed33373f` success; merged `737c4034`, production deployment 6901988620 success; live anonymous POST → 401.
+
+**The read.** One owner reproduction → nine `[nudge-dismiss] … ok:true` lines (seven on one `price-increase` key in four seconds, two on one `unusual_charge`), zero `[client-error]` lines; the owner then: "No it's all hidden. Is that intentional. I thought it would delete the log." The control worked; the message failed — a silent vanish and a "Show everything (N hidden)" that read as the warnings still being there.
+
+**#795 (fix the message).** Confirmation line "Dismissed <title> — it won't come back to Today." with one Undo (`undismissNudge` → `removeNudgeDismissal`, same fence and bucket); "Show dismissed (N)" / "Hide dismissed". Gate: tsc 0, eslint 0, vitest **9,220 passed** (+2 known), build ✓, Playwright `today-feed` + `today-feed-undo` + `client-error` 10/10; CI run on `671aaddd` success; merged `ae0c4803`, production deployment 6902999455 success. Live (WebKit, demo): dismiss 5 → 4, note "Dismissed New Car Fund is behind pace — it won't come back to Today.", control "Show dismissed (1)", Undo → 5 rows, note gone. No `prisma/` diff on either.
+
 ## 2026-10-06 — The visual system pass: depth token, brand primary, shell, Home stage, feed glyphs (DECISIONS #793)
 
 **Picked up.** Owner: "do a ui / ux pass and make this app a pleasure to use, intuitive, and graphically beautiful"; then "Mobile app needs to be just as polished." Branched `slice-793-ui-visual-system` from `origin/main` at `6d705ffa` (the #792 branch stays its own gate-pending lane). Rule 0 first: a dev server against the seeded e2e SQLite file (not the owner's `dev.db`) and Playwright screenshots of all 19 routes at 1366 and iPhone 13, before touching anything; the same script after every change.
