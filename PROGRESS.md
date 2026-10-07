@@ -33,6 +33,8 @@
 
 **Critic cycle 5** (owner-approved) = **PASS — 0 P0 / 0 P1 / 3 P2 / 6 P3.** Fixed before ship, copy/tests/ledgers only: the deploy proof and ledgers carried the old sentence; the debt qualifier's word order in the zero and negative leads (mutation killed). P2-2 (the categorizer's DIR DEP order) and the P3s → STATUS.
 
+**Shipped** `804a4243` (fast-forward of `main`, this slice only). Final-tree gate: tsc 0, probes 0, eslint 0, vitest 9,296 passed + 2 (`vercel-build`; PowerShell 31/31), build compiled. CI run 37665341565 SUCCESS; production deployment 6917383772 success; `scripts/measured-savings-live-deploy-check.mjs` PASS 8/8. No `prisma/` diff. Worktrees `_maker_790`, `_critic_790`, `_critic_792` removed (junctions link-only).
+
 ## 2026-10-06 — Money moves, the remaining readers (DECISIONS #792) — #789's cycle-3 P2s/P3s
 
 #789 shipped on its third critic's PASS (`eb029d93`; deploy proof `scripts/investment-not-spending-live-deploy-check.mjs` PASS 6/6 — this commit's build served, the demo's guilt-free $1,309.08 and cash-needed $5,412.33 unchanged, the lens names what it leaves out). Its four P2s and seven P3s were taken as this slice, on branch `slice-792-money-move-readers` from `eb029d93`.
