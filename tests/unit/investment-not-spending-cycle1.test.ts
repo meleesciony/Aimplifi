@@ -24,7 +24,8 @@ import { INVESTING_MOVE_WORD_RE } from '@/lib/engine/categorize/brokerage-move';
 import { isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { categorize } from '@/lib/engine/categorize/pipeline';
 import { isSpendRow } from '@/lib/engine/reports/reports';
-import { countsInFlows, findOpportunities, isMoneyMoveSeries, moneyMoveMerchantCanonicals } from '@/lib/engine/fi/insights';
+import { countsInFlows, findOpportunities, isMoneyMoveSeries } from '@/lib/engine/fi/insights';
+import { moneyMoveSeriesVerdicts } from '@/lib/engine/recurring/money-move-verdict';
 import { detectRecurring, type RecurringTxn } from '@/lib/engine/recurring/detect';
 import { detectUnusualCharges } from '@/lib/engine/anomaly/detect';
 import { answerMerchantSpend, merchantSpend, toAskTxnRows } from '@/lib/engine/assistant/answer';
@@ -110,14 +111,14 @@ describe('P0-1 — money moved into investing is never a cut', () => {
   const stored = rows.map((r) => ({ ...r, categoryId: r.rawDescriptor.startsWith('NY 529') ? 'investment' : null }));
 
   it('a rising auto-invest — by its default filing, or by the reader’s — is not a price that crept; Netflix still is', () => {
-    const moves = moneyMoveMerchantCanonicals(stored);
+    const moves = moneyMoveSeriesVerdicts(series, stored);
     const opps = findOpportunities(series, 700, 250, [], moves);
     expect(opps.some((o) => /vanguard/i.test(o.merchant))).toBe(false);
     expect(opps.some((o) => /529/i.test(o.merchant))).toBe(false);
     expect(opps.some((o) => o.kind === 'price-increase' && /netflix/i.test(o.merchant))).toBe(true);
     expect(series.filter((s) => isMoneyMoveSeries(s, moves)).length).toBe(2);
     // Anti-vacuity: with no money-move knowledge the 529 rise WOULD be a cut.
-    expect(findOpportunities(series, 700, 250, [], new Set()).some((o) => /529/i.test(o.merchant))).toBe(true);
+    expect(findOpportunities(series, 700, 250, [], new Map()).some((o) => /529/i.test(o.merchant))).toBe(true);
   });
 });
 

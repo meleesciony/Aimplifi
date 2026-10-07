@@ -97,23 +97,37 @@ included — is tracked exactly as before.
 are transfer-flagged), so no demo figure moves.
 
 **§#792 — the remaining readers.** /recurring "Coming up": a 529 contribution $200.00 → $250.00 carries
-no "↑ was" mark; Netflix $15.99 → $17.99 carries "was $15.99". The merchant set: five "VENMO PAYMENT"
+no "↑ was" mark; Netflix $15.99 → $17.99 carries "was $15.99". ~~The merchant set: five "VENMO PAYMENT"
 rows filed Rent plus one "VENMO CASHOUT" filed Transfer (flagged or not) → Venmo is NOT a money move;
-"Vanguard" rows filed Investment & Savings plus one unfiled → it is; one filed Shopping → it is not. The
+"Vanguard" rows filed Investment & Savings plus one unfiled → it is; one filed Shopping → it is not.~~
+(Superseded at critic cycles 1 and 2: a series is decided by its own rows — below.) The
 radar's daily outflows over 31 days: four $200.00 grocery runs → $800.00; plus two $2,000.00 deposits
 filed Investment & Savings → still $800.00 (filed Shopping instead → $4,800.00). The repair card: a
 flagged −$2,000.00 filed Investment & Savings is declined; a flagged −$40.00 grocery run is cleared →
 $40.00 of money out claimed, not $2,040.00. "VANGUARD INVESTIGATIONS LLC" is not Investment & Savings;
-"ROBINHOOD INVESTMENTS", "SCHWAB INVESTING TRANSFER" are. A learned Investment & Savings rule on a
+"ROBINHOOD INVESTMENTS", "SCHWAB INVESTING TRANSFER" are (and, from cycle 1, "VANGUARD INVESTMNT"). A
+learned Investment & Savings rule on a
 Betterment ACH files −$500.00 and +$500.00 alike. "VANGUARD ACH RTN" +$5,000.00 in review is re-filed
-Investment & Savings. A monthly +$500.00 "ROBINHOOD CREDITS" is not recurring income and, when it stops,
-not a pause; a $4,000.00 payroll that stops is.
+Investment & Savings. ~~A monthly +$500.00 "ROBINHOOD CREDITS" is not recurring income and, when it stops,
+not a pause; a $4,000.00 payroll that stops is.~~ (Superseded at critic cycle 1: listed, not counted, and
+still a pause — below.)
 
-**#792 critic cycle 1 (hand-verified, unit).** The merchant set by majority of filed, unflagged rows:
+**#792 critic cycle 1 (hand-verified, unit).** ~~The merchant set by majority of filed, unflagged rows:
 5 × Rent + 1 × Transfer (Venmo) → not a move; 4 × Investment & Savings + 1 × Education (529) → a move, and
-its $200.00 → $250.00 rise is not a price increase; 1 + 1 → a move (tie); 1 move + 2 Shopping → not.
+its $200.00 → $250.00 rise is not a price increase; 1 + 1 → a move (tie); 1 move + 2 Shopping → not.~~
+(Superseded at cycle 2 by the series' own rows — below; the 529 and tie outcomes stand.)
 "ROBINHOOD CREDITS" +$500.00 on the 10th, Jan–May 2026, beside a $4,000.00 payroll on the 1st: on
 2026-06-05 both are listed under recurring income, Robinhood badged as money moved, and "Recurring income"
 reads the payroll's monthly figure only; on 2026-07-25 both are lapsed income and a confirmed pause on
 either reads "paused". Three Betterment deposits of −$500.00 and one +$1,200.00 withdrawal, all filed
 Investment & Savings, learn a rule that files both signs; the same four filed Shopping learn nothing.
+
+**#792 critic cycle 2 (hand-verified, unit) — a series is decided by the reader's filings of ITS OWN rows.**
+Twelve "VENMO PAYMENT" rent payments in 2025, −$1,800.00 rising to −$1,950.00 from September, six filed Rent
+and six not filed yet, beside eight "VENMO CASHOUT" +$400.00 filed Transfer: the rent series is not a move
+(the cash-outs are not its rows) and its rise is a price increase. Four 529 contributions filed Investment &
+Savings and one Education: a move, and its $200.00 → $250.00 rise is not a price. "FIDELITY INVESTMENTS
+ANNUITY PMT" +$1,800.00 monthly, filed Investment & Savings by default and re-filed Income by the reader on
+every row, beside a $1,900.00 benefit: recurring income, no badge, in the section's figure. A series of four:
+2 moves + 2 Shopping → a move; 1 move + 2 Shopping + 1 not filed → not; 1 move + 4 not filed → a move; none
+filed → absent (the default filing decides). "VANGUARD INVESTIG" is a business.

@@ -20,6 +20,7 @@ import { priceChangeBadge, type RecurringItem } from '@/lib/engine/recurring/sum
 import { renewalsWithin } from '@/lib/engine/recurring/renewals';
 import { recurringPanelSentences } from '@/lib/engine/recurring/panel';
 import { RecurringChargesPanel } from '@/components/finance/recurring-charges-panel';
+import { MoneyMoveBadge } from '@/components/finance/money-move-badge';
 import {
   NotABillButton,
   PaidThisCycleButton,
@@ -171,17 +172,7 @@ function Row({
                 You marked this
               </span>
             )}
-            {/* #792 critic cycle 1, P2-2: money coming back from investing (or filed as a
-                transfer) stays listed with its controls, and says why the income total
-                above leaves it out. */}
-            {item.isIncome && item.movesMoney && (
-              <span
-                data-testid="recurring-money-move-badge"
-                className="shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-              >
-                Money moved, not income
-              </span>
-            )}
+            <MoneyMoveBadge item={item} />
             {item.possiblyUnused && (
               <span className="shrink-0 rounded border border-warning-500/40 bg-warning-500/10 px-1.5 py-0.5 text-[10px] font-medium text-warning-600 dark:text-warning-400">
                 Worth a look?

@@ -14,6 +14,7 @@ import { detectRecurring } from '@/lib/engine/recurring/detect';
 import { buildAutomationBlueprint, type BlueprintStep, type PayCadence } from '@/lib/engine/automation/blueprint';
 import { coastFI, fiNumberCents, monthsToFI } from '@/lib/engine/fi/fi';
 import { cutCounterfactual, sumCutMonthlyCents, type CutCounterfactual } from '@/lib/engine/fi/counterfactual';
+import { moneyMoveSeriesVerdicts } from '@/lib/engine/recurring/money-move-verdict';
 import {
   drawdownCounterfactual,
   type DrawdownCounterfactual,
@@ -37,7 +38,6 @@ import {
   findOpportunities,
   hoursOfWork,
   isMoneyMoveSeries,
-  moneyMoveMerchantCanonicals,
   monthlyFlows,
   monthsOfRunway,
   type CreepResult,
@@ -508,15 +508,14 @@ export async function getCoachData(
   // figures in two different units on one page with only the word "future" between them.
   // #789 (critic cycle 1, P0-1): money moved into investing or savings is never a cut,
   // never a price that crept — read from the same rows the series were detected from.
-  // #792 critic cycle 1, P2-1: the rows the series were detected from — a row no series
-  // read never decides one.
-  const moneyMoveMerchants = moneyMoveMerchantCanonicals(seriesRows);
+  // #792: each series' own rows decide it, by the reader's filings of them.
+  const moneyMoveVerdicts = moneyMoveSeriesVerdicts(series, seriesRows);
   const opportunities = findOpportunities(
     series,
     user.expectedReturnBps,
     inflationBps,
     moneyDialIds,
-    moneyMoveMerchants,
+    moneyMoveVerdicts,
   );
   // Unusual Charge Radar (#249): pure detection over the SAME already-fetched rows —
   // no re-fetch, no model call, deterministic.
@@ -547,7 +546,7 @@ export async function getCoachData(
   const streaks = {
     cardCleared: computeCardClearedStreak(snap.statements, snap.cardPayments, today),
     // #789: a rising auto-invest is more saving, not a subscription that crept.
-    noCreep: computeNoCreepStreak(series.filter((s) => !isMoneyMoveSeries(s, moneyMoveMerchants)), today),
+    noCreep: computeNoCreepStreak(series.filter((s) => !isMoneyMoveSeries(s, moneyMoveVerdicts)), today),
   };
 
   // life-energy view: 5 largest non-transfer purchases in the last 90 days

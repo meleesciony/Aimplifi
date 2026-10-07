@@ -55,6 +55,9 @@ export type Cadence =
  * list exactly what it saw, rather than re-deriving a different array.
  */
 export interface RecurringOccurrence {
+  /** The id the detector was given for this row — the reader's filing of it is read by
+   *  `moneyMoveSeriesVerdicts` (#792). */
+  id: string;
   /** YYYY-MM-DD, the day the charge posted. */
   date: ISODate;
   /** Signed integer cents — negative for a charge, positive for income. */
@@ -306,6 +309,7 @@ function buildSeries(args: {
     nextExpectedAt,
     occurrences: sorted.length,
     occurrenceRows: sorted.map((t) => ({
+      id: t.id,
       date: isoDate(t.date),
       amountCents: t.amountCents,
       descriptor: t.rawDescriptor,

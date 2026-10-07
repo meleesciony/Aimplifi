@@ -14,7 +14,8 @@ import { confirmedPauseState, lapsedIncomeSeries } from '@/lib/engine/income/pau
 import { categorize, type RuleLike } from '@/lib/engine/categorize/pipeline';
 import { normalizeMerchant } from '@/lib/engine/categorize/normalize';
 import { planTransferFlagRepair, type TransferFlagRepairRow } from '@/lib/engine/categorize/transfer-flag-repair';
-import { moneyMoveMerchantCanonicals } from '@/lib/engine/fi/insights';
+import { moneyMoveSeriesVerdicts, seriesVerdictKey } from '@/lib/engine/recurring/money-move-verdict';
+import { repairOutOfScopeNote } from '@/components/settings/transfer-repair-copy';
 import { discretionaryDailyOutflows } from '@/lib/engine/radar/burn';
 import { detectRecurring, type RecurringTxn } from '@/lib/engine/recurring/detect';
 import { summarizeRecurring } from '@/lib/engine/recurring/summary';
@@ -39,7 +40,7 @@ describe('P2-A — a contribution that rose is not marked as a price rise in the
     ];
     const series = detectRecurring(rows, isoDate('2026-06-01'), []);
     const plan529 = series.find((s) => /529/i.test(s.merchantCanonical))!.merchantCanonical;
-    const summary = summarizeRecurring(series, '2026-06-01', new Set([plan529]));
+    const summary = summarizeRecurring(series, '2026-06-01', new Map([[seriesVerdictKey(series.find((x) => x.merchantCanonical === plan529)!), true]]));
     const renewals = upcomingRenewals(summary.items, '2026-06-01');
     const all = renewals.occurrences;
     const of = (re: RegExp) => all.filter((o) => re.test(o.merchantCanonical));
@@ -49,39 +50,64 @@ describe('P2-A — a contribution that rose is not marked as a price rise in the
   });
 });
 
-describe('P2-B — one row’s filing is never the verdict on another merchant’s series', () => {
-  const r = (rawDescriptor: string, categoryId: string | null, isTransfer = false) => ({ rawDescriptor, categoryId, isTransfer });
-  const venmo = normalizeMerchant('VENMO PAYMENT').canonical;
+describe('P2-B — a series is decided by the reader’s filings of ITS OWN rows (#792 critic cycles 1 and 2)', () => {
+  type Stored = RecurringTxn & { categoryId: string | null };
+  let n = 0;
+  const T = (date: string, amountCents: number, rawDescriptor: string, categoryId: string | null): Stored => ({ id: `r${++n}`, accountId: 'chk', date, amountCents, rawDescriptor, categoryId });
+  const months = (from: number, count: number, day: string) =>
+    Array.from({ length: count }, (_, i) => {
+      const y = 2025 + Math.floor((from + i - 1) / 12);
+      const m = ((from + i - 1) % 12) + 1;
+      return `${y}-${String(m).padStart(2, '0')}-${day}`;
+    });
+  const verdicts = (rows: Stored[], today: string) => {
+    const series = detectRecurring(rows, isoDate(today), []);
+    return { series, verdicts: moneyMoveSeriesVerdicts(series, rows) };
+  };
 
-  it('a Venmo cash-out filed Transfer (flagged or not) does not turn Venmo rent filed Rent into money moved', () => {
-    const rent = ['1', '2', '3', '4', '5'].map(() => r('VENMO PAYMENT', 'rent'));
-    expect(moneyMoveMerchantCanonicals([...rent, r('VENMO CASHOUT', 'transfer', true)]).has(venmo)).toBe(false);
-    expect(normalizeMerchant('VENMO CASHOUT').canonical).toBe(venmo); // the aggregate name both rows share
-    expect(moneyMoveMerchantCanonicals([...rent, r('VENMO CASHOUT', 'transfer', false)]).has(venmo)).toBe(false);
+  it('test_regression__792_venmo_cashouts_never_decide_the_rent_series: 12 Venmo rent payments (6 filed Rent, 6 not filed yet) that rose, beside 8 cash-outs filed Transfer — the rise is a price increase', () => {
+    const rent = months(1, 12, '01').map((d, i) => T(d, i < 8 ? -180_000 : -195_000, 'VENMO PAYMENT', i % 2 === 0 ? 'rent' : null));
+    const cashouts = months(3, 8, '20').map((d) => T(d, 40_000, 'VENMO CASHOUT', 'transfer'));
+    const { series, verdicts: v } = verdicts([...rent, ...cashouts], '2026-01-10');
+    const venmoRent = series.find((s) => !s.isIncome && /venmo/i.test(s.merchantCanonical));
+    expect(venmoRent).toBeDefined();
+    expect(v.get(seriesVerdictKey(venmoRent!))).toBe(false);
+    const summary = summarizeRecurring(series, '2026-01-10', v);
+    expect(summary.priceIncreases.map((i) => i.merchantCanonical)).toContain(venmoRent!.merchantCanonical);
   });
 
-  it('a merchant most of whose filed rows move money is in the set; a row not filed yet does not change that', () => {
-    const vg = normalizeMerchant('Vanguard').canonical;
-    expect(moneyMoveMerchantCanonicals([r('Vanguard', 'investment'), r('Vanguard', 'investment'), r('Vanguard', null), r('Vanguard', 'uncategorized')]).has(vg)).toBe(true);
-    // A tie counts as a move (calling a contribution a cut is the costlier mistake); fewer does not.
-    expect(moneyMoveMerchantCanonicals([r('Vanguard', 'investment'), r('Vanguard', 'shopping')]).has(vg)).toBe(true);
-    expect(moneyMoveMerchantCanonicals([r('Vanguard', 'investment'), r('Vanguard', 'shopping'), r('Vanguard', 'shopping')]).has(vg)).toBe(false);
-    // A transfer-flagged row is never read here — the recurring detector never reads it either.
-    expect(moneyMoveMerchantCanonicals([r('Vanguard', 'investment', true)]).has(vg)).toBe(false);
+  it('test_regression__792_one_misfiled_contribution_does_not_veto_the_series: four 529 rows filed Investment & Savings and one a bank hint filed Education stay a move; the rise is more saving', () => {
+    const rows = [...months(1, 4, '20').map((d) => T(d, -20_000, 'NY 529 COLLEGE SAVINGS PLAN', 'investment')), T('2025-05-20', -25_000, 'NY 529 COLLEGE SAVINGS PLAN', 'education')];
+    const { series, verdicts: v } = verdicts(rows, '2025-06-01');
+    const plan = series.find((s) => /529/.test(s.merchantCanonical))!;
+    expect(v.get(seriesVerdictKey(plan))).toBe(true);
+    expect(summarizeRecurring(series, '2025-06-01', v).priceIncreases).toEqual([]);
   });
 
-  it('test_regression__792_one_misfiled_contribution_does_not_veto_the_series: four 529 rows filed Investment & Savings and one a bank hint filed Education stay a move', () => {
-    const plan = normalizeMerchant('NY 529 COLLEGE SAVINGS PLAN').canonical;
-    const rows = [...['1', '2', '3', '4'].map(() => r('NY 529 COLLEGE SAVINGS PLAN', 'investment')), r('NY 529 COLLEGE SAVINGS PLAN', 'education')];
-    expect(moneyMoveMerchantCanonicals(rows).has(plan)).toBe(true);
-    // The rise it holds is more saving, never a price increase or a cut.
-    const T = (date: string, amountCents: number): RecurringTxn => ({ id: date, accountId: 'chk', date, amountCents, rawDescriptor: 'NY 529 COLLEGE SAVINGS PLAN' });
-    const series = detectRecurring(
-      [...['2026-01-20', '2026-02-20', '2026-03-20', '2026-04-20'].map((d) => T(d, -20000)), T('2026-05-20', -25000)],
-      isoDate('2026-06-01'),
-      [],
-    );
-    expect(summarizeRecurring(series, '2026-06-01', moneyMoveMerchantCanonicals(rows)).priceIncreases).toEqual([]);
+  it('test_regression__792_the_readers_income_filing_overrides_a_move_default: an annuity the categorizer files Investment & Savings, every row re-filed Income by the reader, is recurring income again', () => {
+    const rows = [...months(1, 5, '15').map((d) => T(d, 180_000, 'FIDELITY INVESTMENTS ANNUITY PMT', 'income')), ...months(1, 5, '03').map((d) => T(d, 190_000, 'SSA TREAS 310 XXSOC SEC', 'govt-benefits'))];
+    const { series, verdicts: v } = verdicts(rows, '2025-06-05');
+    const annuity = series.find((s) => /fidelity/i.test(s.merchantCanonical))!;
+    expect(annuity.categoryId).toBe('investment'); // the default the reader corrected
+    expect(v.get(seriesVerdictKey(annuity))).toBe(false);
+    const summary = summarizeRecurring(series, '2025-06-05', v);
+    expect(summary.income.find((i) => i.merchantCanonical === annuity.merchantCanonical)?.movesMoney).toBe(false);
+    expect(summary.monthlyIncomeCents).toBe(summary.income.reduce((sum, i) => sum + i.monthlyEquivalentCents, 0));
+    // Anti-vacuity: with no filings read, the default would leave the annuity out.
+    expect(summarizeRecurring(series, '2025-06-05').income.find((i) => i.merchantCanonical === annuity.merchantCanonical)?.movesMoney).toBe(true);
+  });
+
+  it('a tie is a move; more filed otherwise is not; rows not filed yet never vote; no filed row leaves the default', () => {
+    const shape = (filings: (string | null)[]) => {
+      n = 0;
+      const rows = filings.map((c, i) => T(months(1, filings.length, '10')[i]!, -30_000, 'VANGUARD BUY INVESTMENT', c));
+      const { series, verdicts: v } = verdicts(rows, isoDate(`${months(1, filings.length + 1, '15').at(-1)}`));
+      return v.get(seriesVerdictKey(series[0]!));
+    };
+    expect(shape(['investment', 'investment', 'shopping', 'shopping'])).toBe(true);
+    expect(shape(['investment', 'shopping', 'shopping', null])).toBe(false);
+    expect(shape(['investment', null, null, null, null])).toBe(true);
+    expect(shape([null, null, null, null])).toBeUndefined();
   });
 });
 
@@ -109,12 +135,14 @@ describe('P2-D — the repair card never claims money no figure regains', () => 
     expect(plan.clearIds).toEqual(['b']);
     expect(plan.outflowCents).toBe(4000);
     expect(plan.declinedOutOfScopeCount).toBe(1);
+    // The card's note names it among the marks it does not cover (#792 critic cycle 1, P3-3).
+    expect(repairOutOfScopeNote(1)).toContain('filed as a transfer or Investment & Savings');
   });
 });
 
 describe('P3-1 / P3-2 — the categorizer', () => {
   it('INVEST reads every INVEST… word but INVESTIGAT…: an investigations firm is a business, a truncated bank word is still the move', () => {
-    for (const d of ['VANGUARD INVESTIGATIONS LLC', 'FIDELITY INVESTIGATIONS LLC']) expect(filed(d, -85000), d).not.toBe('investment');
+    for (const d of ['VANGUARD INVESTIGATIONS LLC', 'FIDELITY INVESTIGATIONS LLC', 'VANGUARD INVESTIG']) expect(filed(d, -85000), d).not.toBe('investment');
     for (const d of [
       'VANGUARD BUY INVESTMENT',
       'ACORNS INVEST',

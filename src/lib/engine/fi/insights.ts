@@ -19,6 +19,7 @@ import { CATEGORY_BY_ID, type CategoryMeta, isIncomeCategoryId, isMoneyMoveCateg
 // which TypeScript elides — the runtime graph is acyclic.
 import { classifySpendClass } from '@/lib/engine/spending-plan/spend-class';
 import type { RecurringSeriesResult } from '@/lib/engine/recurring/detect';
+import { isMoneyMoveSeries, type MoneyMoveVerdicts } from '@/lib/engine/recurring/money-move-verdict';
 // U.16: the handover-day sentence has ONE author (`category-breakdown`), so the
 // three transaction panels that can show it cannot state it in different words.
 import { breakdownHandoverDayCopy } from '@/lib/engine/glass-box/category-breakdown';
@@ -270,57 +271,17 @@ export interface Opportunity {
  * single pre-blended argument would let a caller hand over a real rate and get an answer
  * deflated twice, with nothing in the types to notice.
  */
-/**
- * The canonical merchants whose rows the reader's register files as money moved
- * between their own accounts (`isMoneyMoveCategoryId`: Transfer, or Investment & Savings).
- * A detected series is keyed by merchant and carries only the merchant's DEFAULT filing,
- * so the stored filings reach it through this set (#789, critic cycle 1 P0-1).
- *
- * A merchant is in the set when most of its rows that a series could hold say so: at
- * least as many filed as a money move as filed to anything else (#792 critic cycle 1,
- * P2-1). Rows flagged a transfer are left out — the recurring detector never reads them —
- * and so are rows not filed yet. A majority, not a veto, either way: one "VENMO CASHOUT"
- * filed Transfer must not turn five Venmo rent payments filed Rent into money moved (an
- * aggregate name — Venmo, Check, PayPal Transfer — covers unrelated payees; #789 critic
- * cycle 3, P2-B), and one 529 contribution a bank hint filed Education must not put four
- * filed Investment & Savings back into price increases and the cut list. A tie counts as
- * a move: calling a contribution a cut is the costlier mistake.
- *
- * Callers pass the rows the series were detected from (posted, not a split parent, on a
- * spending account), so a row no series read never decides one.
- */
-export function moneyMoveMerchantCanonicals(
-  txns: readonly { categoryId?: string | null; rawDescriptor: string; isTransfer?: boolean }[],
-): Set<string> {
-  const moves = new Map<string, number>();
-  const other = new Map<string, number>();
-  for (const t of txns) {
-    if (t.isTransfer === true || !t.categoryId || t.categoryId === 'uncategorized') continue;
-    const canonical = normalizeMerchant(t.rawDescriptor).canonical;
-    const tally = isMoneyMoveCategoryId(t.categoryId) ? moves : other;
-    tally.set(canonical, (tally.get(canonical) ?? 0) + 1);
-  }
-  return new Set([...moves].filter(([c, n]) => n >= (other.get(c) ?? 0)).map(([c]) => c));
-}
-
-/**
- * A recurring series that moves the reader's own money — its merchant's default filing
- * is Transfer or Investment & Savings, or its rows are filed that way — is never a cut
- * candidate and never a price that crept (#789, critic cycle 1 P0-1): cutting a
- * contribution cannot lower an FI number that no longer counts it, and a rising
- * auto-invest is more saving, not a bill that grew.
- */
-export function isMoneyMoveSeries(s: RecurringSeriesResult, moneyMoveMerchants: ReadonlySet<string>): boolean {
-  return isMoneyMoveCategoryId(s.categoryId) || moneyMoveMerchants.has(s.merchantCanonical);
-}
+// #792: whether a series moves money is decided from the reader's filings of the rows it
+// holds (`recurring/money-move-verdict.ts`); re-exported for the coach and Ask.
+export { isMoneyMoveSeries } from '@/lib/engine/recurring/money-move-verdict';
 
 export function findOpportunities(
   series: readonly RecurringSeriesResult[],
   nominalReturnBps: number,
   inflationBps: number,
   moneyDialIds: readonly string[],
-  /** `moneyMoveMerchantCanonicals` over the same rows the series were detected from. */
-  moneyMoveMerchants: ReadonlySet<string>,
+  /** `moneyMoveSeriesVerdicts` over the rows the series were detected from. */
+  moneyMoveVerdicts: MoneyMoveVerdicts,
 ): Opportunity[] {
   const out: Opportunity[] = [];
   const push = (
@@ -352,7 +313,7 @@ export function findOpportunities(
 
   for (const s of series) {
     // #789: money moved into investing or savings is never a cut.
-    if (isMoneyMoveSeries(s, moneyMoveMerchants)) continue;
+    if (isMoneyMoveSeries(s, moneyMoveVerdicts)) continue;
     // W.6(a) on this list, not only on wealth-target proposals: a money dial
     // is not a cut candidate. Coach and Ask share this array.
     if (categoryMatchesMoneyDial(s.categoryId, moneyDialIds)) continue;

@@ -11,6 +11,7 @@
  * P3-1 the merchant lens counted deposits as charges; P3 the household digest and the
  * register disagreed. Every amount and name below is invented.
  */
+import { seriesVerdictKey } from '@/lib/engine/recurring/money-move-verdict';
 import { describe, expect, it } from 'vitest';
 import { isoDate } from '@/lib/dates';
 import {
@@ -127,7 +128,7 @@ describe('P2-3 — a rising contribution is more saving, not a price that rose',
   const plan529 = series.find((s) => /529/i.test(s.merchantCanonical))!.merchantCanonical;
 
   it('by its default filing, or by the reader’s filing of its rows; Netflix still is', () => {
-    const s = summarizeRecurring(series, '2026-06-01', new Set([plan529]));
+    const s = summarizeRecurring(series, '2026-06-01', new Map([[seriesVerdictKey(series.find((x) => x.merchantCanonical === plan529)!), true]]));
     expect(s.priceIncreases.some((i) => /vanguard|529/i.test(i.merchantCanonical))).toBe(false);
     expect(s.priceIncreases.some((i) => /netflix/i.test(i.merchantCanonical))).toBe(true);
     const vg = s.items.find((i) => /vanguard/i.test(i.merchantCanonical))!;

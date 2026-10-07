@@ -313,7 +313,7 @@ describe('demo wiring — seed opportunities do not invent a radar dip move', ()
     TODAY,
     NO_RECURRING_OVERRIDES,
   );
-  const opportunities = findOpportunities(series, 700, 250, [], new Set());
+  const opportunities = findOpportunities(series, 700, 250, [], new Map());
 
   it('the demo has opportunities, and none of them sit on checking scheduled', () => {
     expect(opportunities.length).toBeGreaterThan(0);

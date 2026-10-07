@@ -8,7 +8,7 @@
  * Pure: integer cents in/out, ISO dates, no I/O, no `new Date()`.
  */
 import { daysBetween, isoDate } from '@/lib/dates';
-import { isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
+import { isMoneyMoveSeries, type MoneyMoveVerdicts } from './money-move-verdict';
 import { isSeriesActive } from './detect';
 import type { Cadence, RecurringSeriesResult } from './detect';
 
@@ -74,8 +74,8 @@ export interface RecurringSummary {
 export function summarizeRecurring(
   series: readonly RecurringSeriesResult[],
   today: string,
-  /** Canonical merchants whose stored rows the reader filed as a money move (`moneyMoveMerchantCanonicals`). */
-  moneyMoveMerchants: ReadonlySet<string> = new Set(),
+  /** The reader's filings of each series' rows (`moneyMoveSeriesVerdicts`); absent = default filings only. */
+  moneyMoveVerdicts: MoneyMoveVerdicts = new Map(),
 ): RecurringSummary {
   const t = isoDate(today);
 
@@ -84,7 +84,7 @@ export function summarizeRecurring(
     const monthlyEquivalentCents = Math.round((Math.abs(s.typicalAmountCents) * num) / den);
     const daysSinceLast = daysBetween(isoDate(s.lastSeenAt), t);
     const active = isSeriesActive(s, t);
-    const movesMoney = isMoneyMoveCategoryId(s.categoryId) || moneyMoveMerchants.has(s.merchantCanonical);
+    const movesMoney = isMoneyMoveSeries(s, moneyMoveVerdicts);
     return { ...s, monthlyEquivalentCents, active, daysSinceLast, movesMoney };
   });
 

@@ -416,7 +416,7 @@ describe('test_regression__o20c: ONE definition of an unidentified inflow', () =
 });
 
 describe('savings opportunities ranked by compounded impact', () => {
-  const opportunities = findOpportunities(series, 700, 250, [], new Set());
+  const opportunities = findOpportunities(series, 700, 250, [], new Map());
 
   it('finds the unused gym, the Netflix increase, insurance re-shop, negotiable internet', () => {
     const kinds = opportunities.map((o) => o.kind);
@@ -462,13 +462,13 @@ describe('savings opportunities ranked by compounded impact', () => {
   it('test_regression__w6a_opportunities_skip_money_dial_categories', () => {
     // Demo Settings dials are travel/dining — neither is a seed opportunity
     // category, so the ranking is byte-identical to the empty-dial list.
-    const demoDials = findOpportunities(series, 700, 250, ['travel', 'dining'], new Set());
+    const demoDials = findOpportunities(series, 700, 250, ['travel', 'dining'], new Map());
     expect(demoDials.map((o) => `${o.kind}:${o.merchant}:${o.monthlyCents}`)).toEqual(
       opportunities.map((o) => `${o.kind}:${o.merchant}:${o.monthlyCents}`),
     );
     // Fitness IS the unused-gym category. A reader who set it as a money dial
     // is spending there on purpose — do not rank the gym as a cut.
-    const protectedGym = findOpportunities(series, 700, 250, ['fitness'], new Set());
+    const protectedGym = findOpportunities(series, 700, 250, ['fitness'], new Map());
     expect(protectedGym.some((o) => o.merchant === 'LA Fitness')).toBe(false);
     expect(protectedGym.some((o) => o.kind === 'price-increase' && o.merchant === 'Netflix')).toBe(
       true,
@@ -1154,7 +1154,7 @@ describe('monthly Money Review narrative from seed data', () => {
     const review = generateMoneyReview({
       flows,
       creep: detectLifestyleCreep(seed.transactions, isoDate('2026-06-10')),
-      opportunities: findOpportunities(series, 700, 250, [], new Set()),
+      opportunities: findOpportunities(series, 700, 250, [], new Map()),
       runwayMonths: 3.2,
       pendingTransfer: { amountCents: cents(105_000), byDate: 'Tue, Jun 23', frozenFunding: null },
     });
