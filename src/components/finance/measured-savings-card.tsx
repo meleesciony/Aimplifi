@@ -17,10 +17,23 @@ import {
   untracedNote,
 } from '@/lib/engine/savings/measured-copy';
 
-function Line({ label, cents, testid, children }: { label: ReactNode; cents: number; testid: string; children?: ReactNode }) {
+function Line({
+  label,
+  cents,
+  testid,
+  leftOut = false,
+  children,
+}: {
+  label: ReactNode;
+  cents: number;
+  testid: string;
+  /** A line the figure leaves out reads muted, apart from the counted lines (critic cycle 2, P3-E). */
+  leftOut?: boolean;
+  children?: ReactNode;
+}) {
   return (
     <li data-testid={testid}>
-      <div className="flex items-baseline justify-between gap-x-3">
+      <div className={`flex items-baseline justify-between gap-x-3${leftOut ? ' text-muted-foreground' : ''}`}>
         <span className="min-w-0 break-words">{label}</span>
         <span className="shrink-0 whitespace-nowrap tabular-nums" data-testid={`${testid}-figure`}>
           {signedMoney(cents)}
@@ -31,13 +44,13 @@ function Line({ label, cents, testid, children }: { label: ReactNode; cents: num
   );
 }
 
-function SavingsRows({ rows, testid }: { rows: readonly SavingsRowView[]; testid: string }) {
+function SavingsRows({ rows, testid, noun = 'row' }: { rows: readonly SavingsRowView[]; testid: string; noun?: string }) {
   if (rows.length === 0) return null;
   return (
     <details>
       <summary className={`${DISCLOSURE_SUMMARY_CLASS} text-xs text-muted-foreground`} data-testid={`${testid}-toggle`}>
         <DisclosureChevron />
-        {rows.length === 1 ? 'The row' : `The ${rows.length} rows`}
+        {rows.length === 1 ? `The ${noun}` : `The ${rows.length} ${noun}s`}
       </summary>
       <ul className="space-y-1.5 pb-1 pl-[22px]" data-testid={testid}>
         {rows.map((r) => (
@@ -90,16 +103,16 @@ function MonthLines({ m, prefix, measured }: { m: MeasuredMonth; prefix: string;
         </Line>
       )}
       {untraced && (
-        <Line label="Money in we can’t trace, left out" cents={m.untracedInCents} testid={`${prefix}-untraced`}>
+        <Line label="Money in we can’t trace, left out" cents={m.untracedInCents} testid={`${prefix}-untraced`} leftOut>
           <p className="text-xs text-muted-foreground" data-testid={`${prefix}-untraced-note`}>
             {untraced}
           </p>
-          <SavingsRows rows={m.untracedRows} testid={`${prefix}-untraced-rows`} />
+          <SavingsRows rows={m.untracedRows} testid={`${prefix}-untraced-rows`} noun="untraced row" />
         </Line>
       )}
       {m.earningsCents !== 0 && (
-        <Line label="Interest and dividends, left out" cents={m.earningsCents} testid={`${prefix}-earnings`}>
-          <SavingsRows rows={m.earningsRows} testid={`${prefix}-earnings-rows`} />
+        <Line label="Interest and dividends, left out" cents={m.earningsCents} testid={`${prefix}-earnings`} leftOut>
+          <SavingsRows rows={m.earningsRows} testid={`${prefix}-earnings-rows`} noun="interest or dividend row" />
         </Line>
       )}
     </ul>

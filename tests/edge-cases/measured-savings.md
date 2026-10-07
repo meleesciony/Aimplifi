@@ -9,7 +9,7 @@ and date is invented. Unit `today = 2026-10-17`, records start 2025-01-02 and fe
 2026-10-16 unless a case says otherwise; e2e and demo `today = 2026-06-10`.
 
 **The rule.** Set aside (a month) = money into the linked SAVINGS accounts, net of what came out, read
-from their own rows (posted, not a split parent, not excluded, not $0, not after today), with rows filed
+from their own rows (posted, not a split parent, not $0, not after today — an excluded row still counts when money goes out), with rows filed
 Interest Income or Investment Income left out and listed + money into the linked INVESTMENT accounts, net of
 what came back, exactly as "Money you put in" counts it. Months, and the accounts whose records are
 missing from each, are #788's. The average uses only complete months whose records are complete.
@@ -55,11 +55,29 @@ asserts only the measured half).
 | "INTEREST" $43.21 (not filed), "MONTHLY INTEREST" $2.10 (filed Income), "INT PAID" $1.05, "DIV CREDIT" $0.99, and "ACME INT'L PAYROLL" $1,500.00 filed Paycheck | +$1,500.00 | $47.35 earnings | +$1,500.00 |
 | Oct: checking → savings $500.00, both halves filed Investment & Savings | +$500.00 | — | +$500.00; no "couldn't count" note (Investments still lists both) |
 
-**The plan line.** Goals $1,100.00 a month of which $900.00 is a debt-free goal, no target: the line compared is
+~~**The plan line.** Goals $1,100.00 a month of which $900.00 is a debt-free goal, no target: the line compared is
 $200.00; $200.00 set aside reads "exactly what your plan sets aside" and names the $900.00 of extra debt payments.
 With a $500.00 target it is max($200.00, $500.00) = $500.00. Goals $300.00 ($100.00 debt-free) under a $500.00 target:
-the target already won, the line stays $500.00, and nothing is said about debt.
+the target already won, the line stays $500.00, and nothing is said about debt.~~ (Superseded at cycle 2 — below.)
 
 **Words.** A reader who links savings only: "… more has come out of your savings accounts than gone in". One complete
 month (records from Sep 1; −$1.00 fee, +$250.00 from checking): "In Sep 2026, the one complete month with full records,
 you set aside $249.00." Ten months averaged with two left out: "… 2 months with missing records are left out."
+
+**Critic cycle 2 (hand-verified, unit).** The plan line is planned − debt: goals $1,100.00 with $900.00 debt-free →
+$200.00 ("$50.00 of the $200.00 your plan sets aside apart from extra debt payments — $150.00 to go", then the debt
+sentence); a $1,000.00 target that won over $900.00 debt-free → $100.00 ("$100.00 — exactly what your plan sets aside
+apart from extra debt payments"); all $900.00 debt → $0.00 ("Your plan's savings line of $900.00 is all extra debt
+payments …"). Debt-free goals only: savings $200.00 + debt-free $900.00 + reserve $50.00 + debt-free with no amount → $900.00.
+
+| Case (Sep 2026) | Savings, net | Left out | Set aside |
+|---|---|---|---|
+| −$500.00 daycare (Childcare) + $500.00 Zelle from a person (not filed); −$1,234.56 card payment (flagged) + $1,234.56 external transfer (not filed); −$70.00 check + $70.00 mobile deposit (neither filed nor flagged) | $0.00 | $1,804.56 untraced | $0.00 |
+| $300.00 flagged, not filed, 2 days apart; $200.00 filed Transfer, 3 days apart; $110.00 filed Transfer, 4 days apart | +$500.00 | $110.00 untraced | +$500.00 |
+| −$5,000.00 to Vanguard by its last four + $5,000.00 "LOAN DISBURSEMENT" filed Loan Payment two days later | $0.00 | $5,000.00 untraced | +$5,000.00 (put in), never $10,000.00 |
+| One −$500.00 out, two +$500.00 in (same and next day) | +$500.00 | $500.00 | +$500.00 |
+| Out on the 1st and the 3rd, in on the 3rd and the 6th ($400.00 each) | +$400.00 | $400.00 | +$400.00 |
+| −$400.00 out and +$400.00 "FROM CHECKING" on the same savings account | −$400.00 | $400.00 | −$400.00 |
+| −$500.00 to Vanguard, +$500.00 "… RETURNED" six days later; −$10.00 fee, +$10.00 "FEE REVERSAL" | $0.00 | — | $0.00 |
+| +$250.00 "TRANSFER FROM INTEREST CHECKING" (flagged) with its checking half; +$4,000.00 IRA distribution (Retirement Income) | +$250.00 | $4,000.00 untraced; no earnings | +$250.00 |
+| Oct: −$60.00 after today, −$80.00 split parent, a $0.00 row, −$20.00 fee | −$20.00 | — | −$20.00 |

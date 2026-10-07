@@ -36,17 +36,21 @@ function accountKinds(ms: MeasuredSavings): string {
 }
 
 /**
- * Beside a comparison with the plan, when the plan's savings line holds extra debt
- * payments (debt-free goals) this measure can't see (critic cycle 1, P1-3): name them,
- * and the line it compares with instead. Null when the line holds none that matter.
+ * When the plan's savings line holds extra debt payments (debt-free goals), which no
+ * savings or investment account shows (critic cycles 1 and 2, P1-3 / P1-B / P2-C): the
+ * sentence that says so, after the comparison. Null when it holds none.
  */
 export function debtPaydownNote(ms: MeasuredSavings): string | null {
   const p = ms.plan;
-  if (p.debtPaydownCents <= 0 || p.comparedCents === p.plannedSavingsCents) return null;
-  return (
-    `Your plan’s savings line of ${money(p.plannedSavingsCents)} includes ${money(p.debtPaydownCents)} a month of extra debt payments, ` +
-    `which no savings or investment account shows, so this compares with ${money(p.comparedCents)} — the line without them.`
-  );
+  if (p.debtPaydownCents <= 0) return null;
+  return p.comparedCents === 0
+    ? `Your plan’s savings line of ${money(p.plannedSavingsCents)} is all extra debt payments, which no savings or investment account shows.`
+    : `Your plan’s savings line of ${money(p.plannedSavingsCents)} includes ${money(p.debtPaydownCents)} a month of extra debt payments, which no savings or investment account shows.`;
+}
+
+/** "your plan sets aside" — or, beside extra debt payments, what it sets aside apart from them. */
+function planSetsAside(ms: MeasuredSavings): string {
+  return ms.plan.debtPaydownCents > 0 ? 'your plan sets aside apart from extra debt payments' : 'your plan sets aside';
 }
 
 /** The lead: this month so far, against the plan's savings line. Null with no month to measure. */
@@ -55,24 +59,26 @@ export function measuredLead(ms: MeasuredSavings): string | null {
   if (!m) return null;
   const planned = ms.plannedSavingsCents;
   const total = m.totalCents;
+  const debt = debtPaydownNote(ms);
+  // An all-debt line is named by the debt note, never as "no savings aside yet" (P2-C).
+  const noLine = debt ? '' : ' Your plan doesn’t set any savings aside yet.';
+  const sets = planSetsAside(ms);
   let s: string;
   if (total > 0) {
-    if (planned <= 0) s = `So far this month you’ve set aside ${money(total)}. Your plan doesn’t set any savings aside yet.`;
-    else if (total > planned)
-      s = `So far this month you’ve set aside ${money(total)} — ${money(total - planned)} more than the ${money(planned)} your plan sets aside.`;
-    else if (total === planned) s = `So far this month you’ve set aside ${money(total)} — exactly what your plan sets aside.`;
-    else s = `So far this month you’ve set aside ${money(total)} of the ${money(planned)} your plan sets aside — ${money(planned - total)} to go.`;
+    if (planned <= 0) s = `So far this month you’ve set aside ${money(total)}.${noLine}`;
+    else if (total > planned) s = `So far this month you’ve set aside ${money(total)} — ${money(total - planned)} more than the ${money(planned)} ${sets}.`;
+    else if (total === planned) s = `So far this month you’ve set aside ${money(total)} — exactly what ${sets}.`;
+    else s = `So far this month you’ve set aside ${money(total)} of the ${money(planned)} ${sets} — ${money(planned - total)} to go.`;
   } else if (total === 0) {
     s =
       planned > 0
-        ? `Nothing counted as set aside so far this month — your plan sets aside ${money(planned)}.`
-        : 'Nothing counted as set aside so far this month, and your plan doesn’t set any savings aside yet.';
+        ? `Nothing counted as set aside so far this month — ${sets} ${money(planned)}.`
+        : debt
+          ? 'Nothing counted as set aside so far this month.'
+          : 'Nothing counted as set aside so far this month, and your plan doesn’t set any savings aside yet.';
   } else {
-    s =
-      `So far this month ${money(-total)} more has come out of ${accountKinds(ms)} than gone in` +
-      (planned > 0 ? ` — your plan sets aside ${money(planned)}.` : '.');
+    s = `So far this month ${money(-total)} more has come out of ${accountKinds(ms)} than gone in` + (planned > 0 ? ` — ${sets} ${money(planned)}.` : '.');
   }
-  const debt = debtPaydownNote(ms);
   if (debt) s += ` ${debt}`;
   if (m.missingRecordsFrom.length > 0) s += ' Records for part of this month are missing, so this figure may be incomplete.';
   return s;
@@ -99,7 +105,8 @@ export function measuredAverageSentence(ms: MeasuredSavings): string | null {
         ? `${lead}you set aside an average of ${amount} a month.`
         : `${lead}an average of ${amount} a month more came out of ${kinds} than went in.`;
   }
-  if (ms.plannedSavingsCents > 0) s += ` Your plan today sets aside ${money(ms.plannedSavingsCents)} a month.`;
+  if (ms.plannedSavingsCents > 0)
+    s += ` Your plan today sets aside ${money(ms.plannedSavingsCents)} a month${ms.plan.debtPaydownCents > 0 ? ' apart from extra debt payments' : ''}.`;
   const left = ms.monthsMissingRecords.length;
   if (left > 0) s += left === 1 ? ' One month with missing records is left out.' : ` ${left} months with missing records are left out.`;
   return s;
@@ -113,15 +120,18 @@ export function uncountedInvestmentsNote(m: MeasuredMonth): string | null {
   return `Investments lists ${k} ${k === 1 ? 'movement' : 'movements'} ${when} it couldn’t count.`;
 }
 
-/** Beside the savings line: money into savings this measure could not trace (critic cycle 1, P1-1). Null when there is none. */
+/**
+ * Beside the savings line: money into savings this measure could not trace (critic cycles 1
+ * and 2, P1-1 / P2-B). It names what was not found, never a cause it does not know.
+ */
 export function untracedNote(m: MeasuredMonth): string | null {
   if (m.untracedInCents === 0) return null;
   return (
-    `${money(m.untracedInCents)} came into your savings from an account we can’t see — a bank you haven’t linked, a loan or a card — ` +
-    'so it isn’t counted: it may be money you saved before. Money filed as income counts.'
+    `${money(m.untracedInCents)} came into your savings that we couldn’t match to a transfer from your linked checking or savings, ` +
+    'a linked investment account, money returned to the same account, or pay — so it isn’t counted: it may be money you saved before, or money borrowed.'
   );
 }
 
 /** The rule, stated as the engine applies it. */
 export const MEASURED_RULE_NOTE =
-  'Counted: money into your linked savings accounts, net of what came out, and money your checking or savings put into a linked investment account, net of what came back, read exactly as “Money you put in” on Investments reads it — its rows and rules are there. Money into savings counts when the other half left one of your linked checking or savings accounts, when it came back from a linked investment account, or when it is filed as income (pay split straight into savings); money from anywhere else — a bank you haven’t linked, a loan, a card — is listed and not counted. Money out of savings always counts as money out, even a row you excluded from totals, and so does money sent to an account you haven’t linked, so this can understate what you saved, never overstate it. Interest and dividends are left out (they are what the account earned, not money you set aside). Money moved between your savings and investment accounts counts once. Only posted rows count. Not counted: money left in checking, savings at a bank you haven’t linked, a cash-management account your provider reports as checking, extra debt payments, and retirement contributions taken out of your paycheck. Money kept in savings for a bill counts when it goes in and as money out when the bill is paid. Months start where your linked checking and savings records cover a whole month; the average uses only complete months whose records are complete.';
+  'Counted: money into your linked savings accounts, net of what came out, and money your checking or savings put into a linked investment account, net of what came back, read exactly as “Money you put in” on Investments reads it — its rows and rules are there. Money into savings counts when it is a transfer from one of your linked checking or savings accounts (both halves filed as a transfer or to Investment & Savings, within three days), when it came back from a linked investment account, when it returns money that left the same savings account, or when it is filed as income (pay split straight into savings — not a retirement withdrawal); anything else — a bank you haven’t linked, a loan, a card, a person — is listed and not counted. Money out of savings always counts as money out, even a row you excluded from totals, and so does money sent to an account you haven’t linked, so this can understate what you saved, never overstate it. Interest and dividends are left out (they are what the account earned, not money you set aside). Money moved between your savings and investment accounts counts once. Only posted rows count. Not counted: money left in checking, savings at a bank you haven’t linked, a cash-management account your provider reports as checking, extra debt payments (the comparison leaves them out of your plan’s line too), and retirement contributions taken out of your paycheck. Money kept in savings for a bill counts when it goes in and as money out when the bill is paid. Months start where your linked checking and savings records cover a whole month; the average uses only complete months whose records are complete.';

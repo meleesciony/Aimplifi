@@ -14,13 +14,16 @@
  *               it can place on a linked investment account, every rule of that engine)
  *
  * Money INTO a savings account counts only when it is traceable to new saving (critic
- * cycle 1, P1-1): the other half left one of the reader's linked checking or savings
- * accounts, or it came back from a linked investment account ("Money you put in" counts
- * it taken out), or it is filed as income (pay split straight into savings). Anything
- * else — money from a bank the reader hasn't linked, a loan, a card — may be money saved
- * long ago or money borrowed, so it is listed and NOT counted. Money OUT of a savings
- * account always counts as money out, including a row the reader excluded from totals
- * (critic cycle 1, P1-2: an exclusion says "not my spending", and the money still left).
+ * cycles 1 and 2, P1-1 / P1-A): its other half left one of the reader's linked checking or
+ * savings accounts as a MOVE — both halves filed Transfer or Investment & Savings, or
+ * flagged a transfer and filed nothing else, within the transfer detector's ±3 days — or
+ * it came back from a linked investment account ("Money you put in" counts it taken out),
+ * or it reverses money that left the same savings account (a return or reversal within two
+ * weeks), or it is filed as income other than a retirement withdrawal (pay split straight
+ * into savings). Anything else may be money saved long ago or money borrowed, so it is
+ * listed and NOT counted. Money OUT of a savings account always counts as money out,
+ * including a row the reader excluded from totals (critic cycle 1, P1-2: an exclusion says
+ * "not my spending", and the money still left).
  * Both directions err low: the figure can understate saving, never flatter it.
  *
  * Money moved between a savings account and an investment account counts once: it
@@ -37,9 +40,11 @@
  * Pure: typed inputs in, a typed result out; no DB, no React, integer cents only.
  */
 import { compareDates, daysBetween, isoDate, monthKey, type ISODate } from '@/lib/dates';
-import { isIncomeCategoryId } from '@/lib/engine/categorize/categories';
+import { isIncomeCategoryId, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
+import { BANK_RETURN_RE } from '@/lib/engine/categorize/brokerage-move';
+import { REVERSAL_RE } from '@/lib/engine/spending-plan/bonus';
 import {
-  COUNTERPART_WINDOW_DAYS,
+  RETURN_WINDOW_DAYS,
   computeDepositHistory,
   liveDepositRows,
   type DepositHistory,
@@ -60,6 +65,18 @@ export const EARNINGS_WORD_RE = /\b(INTEREST|INT|DIVIDENDS?|DIV)\b/i;
 
 /** Accounts a move into savings may come from and still be the reader's own saving. */
 const CASH_ACCOUNT_TYPES: ReadonlySet<string> = new Set(['CHECKING', 'SAVINGS']);
+
+/** The transfer detector's own window (`categorize/transfers.ts`: equal and opposite, ±3 days). */
+export const MOVE_PAIR_WINDOW_DAYS = 3;
+
+/** Words that make an earnings-worded row a move instead ("TRANSFER FROM INTEREST CHECKING"). */
+const MOVE_WORD_RE = /\b(TRANSFER|XFER|TRNSFR|ZELLE|WIRE)\b/i;
+
+/**
+ * Income filings that are not new money set aside: a retirement withdrawal is the reader's
+ * own savings coming back (critic cycle 2, P3-F); interest and dividends are earnings.
+ */
+const NOT_NEW_INCOME_IDS: ReadonlySet<string> = new Set(['retirement-income', 'interest-income', 'investment-income']);
 
 export interface SavingsRowView {
   rowId: string;
@@ -123,19 +140,21 @@ export interface SavingsPlanLine {
 }
 
 /**
- * The plan's savings line without debt-free goals: the larger of the other goal
- * contributions and the savings-% target — `max(goals, target)`, the plan's own rule
- * (`computeSpendingPlan`), on the goals this measure can see.
+ * The plan's savings line less its extra debt payments (critic cycle 2, P1-B). The plan
+ * reserves ONE pool — max(goal contributions, savings-% target), "never added together" —
+ * and a debt-free goal's payment comes out of that pool whichever side won (Ask's
+ * debt-free answer says so). What reaches a savings or investment account is the rest:
+ * planned − debt, i.e. max(other goals, target − debt). Debt is never more than the
+ * line (goal contributions are inside it), so the result is never below zero.
  */
-export function savingsPlanLine(input: {
-  plannedSavingsCents: number;
-  goalContributionsCents: number;
-  debtPaydownCents: number;
-  savingsTargetCents: number;
-}): SavingsPlanLine {
-  const debt = Math.max(0, Math.min(input.debtPaydownCents, input.goalContributionsCents));
-  const compared = debt === 0 ? input.plannedSavingsCents : Math.max(input.goalContributionsCents - debt, input.savingsTargetCents);
-  return { plannedSavingsCents: input.plannedSavingsCents, debtPaydownCents: debt, comparedCents: Math.min(compared, input.plannedSavingsCents) };
+export function savingsPlanLine(input: { plannedSavingsCents: number; debtPaydownCents: number }): SavingsPlanLine {
+  const debt = Math.max(0, Math.min(input.debtPaydownCents, input.plannedSavingsCents));
+  return { plannedSavingsCents: input.plannedSavingsCents, debtPaydownCents: debt, comparedCents: input.plannedSavingsCents - debt };
+}
+
+/** The monthly contributions of debt-free goals (`Goal.kind === 'debt_free'`) — extra debt payments. */
+export function debtPaydownContributionsCents(goals: readonly { kind: string | null; monthlyContributionCents: number | null }[]): number {
+  return goals.filter((g) => g.kind === 'debt_free').reduce((sum, g) => sum + (g.monthlyContributionCents ?? 0), 0);
 }
 
 export interface MeasuredSavings {
@@ -192,13 +211,27 @@ const isUnfiled = (categoryId: string | null | undefined) => !categoryId || cate
 function isEarnings(x: LiveDepositRow): boolean {
   const c = x.row.categoryId;
   if (c && EARNINGS_CATEGORY_IDS.has(c)) return true;
-  return x.row.amountCents > 0 && (isUnfiled(c) || c === 'income') && EARNINGS_WORD_RE.test(x.row.rawDescriptor ?? '');
+  const words = x.row.rawDescriptor ?? '';
+  // A move worded with "INTEREST" ("TRANSFER FROM INTEREST CHECKING") is a move (critic cycle 2, P3-A).
+  if (x.row.isTransfer === true || MOVE_WORD_RE.test(words)) return false;
+  return x.row.amountCents > 0 && (isUnfiled(c) || c === 'income') && EARNINGS_WORD_RE.test(words);
 }
 
 /**
- * One-to-one pairing of equal, opposite rows on two different linked checking or savings
- * accounts within `COUNTERPART_WINDOW_DAYS`, at least one leg on a savings account —
- * closest dates first, then earlier dates and ids. Returns every paired row id.
+ * A half of a move between the reader's own accounts, by its own filing (critic cycle 2,
+ * P1-A): filed Transfer or Investment & Savings, or flagged a transfer and filed nothing
+ * else. A row filed to anything else — daycare, a card payment, a loan — is never one.
+ */
+function isMoveLeg(x: LiveDepositRow): boolean {
+  const c = x.row.categoryId;
+  return isMoneyMoveCategoryId(c) || (x.row.isTransfer === true && isUnfiled(c));
+}
+
+/**
+ * One-to-one pairing of equal, opposite move halves (`isMoveLeg`) on two different linked
+ * checking or savings accounts within `MOVE_PAIR_WINDOW_DAYS`, at least one leg on a
+ * savings account — closest dates first, then earlier dates and ids. Returns every paired
+ * row id.
  */
 function pairCashMoves(rows: readonly LiveDepositRow[]): Set<string> {
   const byAmount = new Map<number, LiveDepositRow[]>();
@@ -216,7 +249,7 @@ function pairCashMoves(rows: readonly LiveDepositRow[]): Set<string> {
         if (inn.row.amountCents <= 0 || inn.account.id === out.account.id) continue;
         if (out.account.type !== 'SAVINGS' && inn.account.type !== 'SAVINGS') continue;
         const gap = Math.abs(daysBetween(out.date, inn.date));
-        if (gap <= COUNTERPART_WINDOW_DAYS) edges.push({ out, inn, gap });
+        if (gap <= MOVE_PAIR_WINDOW_DAYS) edges.push({ out, inn, gap });
       }
     }
   }
@@ -232,6 +265,38 @@ function pairCashMoves(rows: readonly LiveDepositRow[]): Set<string> {
   return paired;
 }
 
+/**
+ * Money coming back to the savings account it left (critic cycle 2, P2-A): an inflow worded
+ * as a return or reversal, equal to an outflow on the SAME account up to two weeks before
+ * it (#788's return window), one to one, closest first. Returns the inflows' ids.
+ */
+function pairReturns(rows: readonly LiveDepositRow[]): Set<string> {
+  const outs = rows.filter((x) => x.row.amountCents < 0);
+  const ins = rows
+    .filter((x) => x.row.amountCents > 0 && (BANK_RETURN_RE.test(x.row.rawDescriptor ?? '') || REVERSAL_RE.test(x.row.rawDescriptor ?? '')))
+    .sort((a, b) => compareDates(a.date, b.date) || byId(a.row.id, b.row.id));
+  const used = new Set<string>();
+  const out = new Set<string>();
+  for (const inn of ins) {
+    let best: LiveDepositRow | null = null;
+    let bestGap = Infinity;
+    for (const o of outs) {
+      if (used.has(o.row.id) || o.account.id !== inn.account.id || o.row.amountCents !== -inn.row.amountCents) continue;
+      const gap = daysBetween(o.date, inn.date);
+      if (gap < 0 || gap > RETURN_WINDOW_DAYS) continue;
+      if (gap < bestGap || (gap === bestGap && best && byId(o.row.id, best.row.id) < 0)) {
+        best = o;
+        bestGap = gap;
+      }
+    }
+    if (best) {
+      used.add(best.row.id);
+      out.add(inn.row.id);
+    }
+  }
+  return out;
+}
+
 export function measureSavings(input: MeasuredSavingsInput): MeasuredSavings {
   const today = isoDate(input.deposit.today);
   const deposits: DepositHistory = computeDepositHistory(input.deposit);
@@ -241,10 +306,15 @@ export function measureSavings(input: MeasuredSavingsInput): MeasuredSavings {
 
   // The rows #788 reads (terminal successor, one copy per real movement on a handover day).
   const live = liveDepositRows(input.deposit).filter((x) => readable(x, today));
-  const paired = pairCashMoves(live.filter((x) => CASH_ACCOUNT_TYPES.has(x.account.type)));
   /** Savings rows #788 counts as money taken back out of a linked investment account. */
   const fromInvestments = new Set<string>();
   for (const m of deposits.months) for (const e of m.events) if (e.direction === 'out') fromInvestments.add(e.rowId);
+  // Only move halves pair (critic cycle 2, P1-A). A checking row "Money you put in" counts
+  // cannot also vouch for a savings arrival: #788 pairs the same kinds of rows over a wider
+  // window first and stops counting a deposit whose other half landed in the reader's own
+  // account ('landed-in-your-account').
+  const paired = pairCashMoves(live.filter((x) => CASH_ACCOUNT_TYPES.has(x.account.type) && isMoveLeg(x)));
+  const returned = pairReturns(live.filter((x) => x.account.type === 'SAVINGS' && !paired.has(x.row.id)));
 
   type Slot = MeasuredMonth & { savingsRows: SavingsRowView[]; earningsRows: SavingsRowView[]; untracedRows: SavingsRowView[] };
   const slots = new Map<string, Slot>();
@@ -290,8 +360,12 @@ export function measureSavings(input: MeasuredSavingsInput): MeasuredSavings {
     if (x.row.amountCents > 0) {
       // An exclusion still keeps money IN out of the figure (it errs low).
       if (x.row.excludeFromTotals === true) continue;
+      const c = x.row.categoryId;
       const traced =
-        paired.has(x.row.id) || fromInvestments.has(x.row.id) || (!!x.row.categoryId && isIncomeCategoryId(x.row.categoryId));
+        paired.has(x.row.id) ||
+        fromInvestments.has(x.row.id) ||
+        returned.has(x.row.id) ||
+        (!!c && isIncomeCategoryId(c) && !NOT_NEW_INCOME_IDS.has(c));
       if (!traced) {
         slot.untracedInCents += x.row.amountCents;
         slot.untracedRows.push(view);

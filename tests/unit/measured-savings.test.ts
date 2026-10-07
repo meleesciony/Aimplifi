@@ -13,7 +13,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import { isoDate } from '@/lib/dates';
 import { computeDepositHistory, type DepositAccount, type DepositRow } from '@/lib/engine/investments/deposits';
-import { EARNINGS_CATEGORY_IDS, measureSavings, savingsPlanLine, type MeasuredSavings, type SavingsPlanLine } from '@/lib/engine/savings/measured';
+import { EARNINGS_CATEGORY_IDS, debtPaydownContributionsCents, measureSavings, savingsPlanLine, type MeasuredSavings, type SavingsPlanLine } from '@/lib/engine/savings/measured';
 import {
   MEASURED_NO_RECORDS,
   MEASURED_NO_SAVING_ACCOUNTS,
@@ -305,7 +305,7 @@ describe('#790 critic cycle 1 — money in must be traceable; money out always c
     expect(sep.untracedRows.map((r) => r.descriptor)).toEqual(['TRANSFER FROM MARCUS SAVINGS X9981', 'LOAN DISBURSEMENT UPSTART', 'TRANSFER FROM CARD', 'TRANSFER FROM CHECKING']);
     expect(sep.totalCents).toBe(10_000);
     expect(untracedNote(sep)).toBe(
-      '$36,300.00 came into your savings from an account we can’t see — a bank you haven’t linked, a loan or a card — so it isn’t counted: it may be money you saved before. Money filed as income counts.',
+      '$36,300.00 came into your savings that we couldn’t match to a transfer from your linked checking or savings, a linked investment account, money returned to the same account, or pay — so it isn’t counted: it may be money you saved before, or money borrowed.',
     );
     // The average never reads it either: 10,000 / 12 = 833.33 → 833.
     expect(ms.average!.averageCents).toBe(833);
@@ -378,28 +378,153 @@ describe('#790 critic cycle 1 — only moves that touch savings are read as move
   });
 });
 
-describe('#790 critic cycle 1, P1-3 — the plan line holds extra debt payments this can’t see', () => {
-  it('savingsPlanLine: the line without debt-free goals is max(other goals, target), never above the whole line', () => {
-    expect(savingsPlanLine({ plannedSavingsCents: 110_000, goalContributionsCents: 110_000, debtPaydownCents: 90_000, savingsTargetCents: 0 })).toEqual({
-      plannedSavingsCents: 110_000,
-      debtPaydownCents: 90_000,
-      comparedCents: 20_000,
-    });
-    expect(savingsPlanLine({ plannedSavingsCents: 110_000, goalContributionsCents: 110_000, debtPaydownCents: 90_000, savingsTargetCents: 50_000 }).comparedCents).toBe(50_000);
-    // The target won the plan's max(): the debt goals were never in the line.
-    expect(savingsPlanLine({ plannedSavingsCents: 50_000, goalContributionsCents: 30_000, debtPaydownCents: 10_000, savingsTargetCents: 50_000 }).comparedCents).toBe(50_000);
-    expect(savingsPlanLine({ plannedSavingsCents: 35_000, goalContributionsCents: 35_000, debtPaydownCents: 0, savingsTargetCents: 0 }).comparedCents).toBe(35_000);
+describe('#790 critic cycles 1–2, P1-3 / P1-B — the plan line less its extra debt payments', () => {
+  it('savingsPlanLine: planned − debt, whichever side of the plan’s max() won; never below zero', () => {
+    // Goals won: $200.00 of savings goals + $900.00 debt-free → $1,100.00; $200.00 reaches savings.
+    expect(savingsPlanLine({ plannedSavingsCents: 110_000, debtPaydownCents: 90_000 })).toEqual({ plannedSavingsCents: 110_000, debtPaydownCents: 90_000, comparedCents: 20_000 });
+    // The $1,000.00 target won over $900.00 debt-free: the debt payment comes out of that pool.
+    expect(savingsPlanLine({ plannedSavingsCents: 100_000, debtPaydownCents: 90_000 }).comparedCents).toBe(10_000);
+    // All debt.
+    expect(savingsPlanLine({ plannedSavingsCents: 90_000, debtPaydownCents: 90_000 }).comparedCents).toBe(0);
+    expect(savingsPlanLine({ plannedSavingsCents: 35_000, debtPaydownCents: 0 }).comparedCents).toBe(35_000);
   });
 
-  it('test_regression__790_extra_debt_payments_are_not_to_go: the lead compares with the line without them and says why', () => {
-    const plan = savingsPlanLine({ plannedSavingsCents: 110_000, goalContributionsCents: 110_000, debtPaydownCents: 90_000, savingsTargetCents: 0 });
-    const ms = measure(fromChecking('2026-10-02', 20_000), plan);
-    expect(ms.plannedSavingsCents).toBe(20_000);
-    expect(measuredLead(ms)).toBe(
-      'So far this month you’ve set aside $200.00 — exactly what your plan sets aside. Your plan’s savings line of $1,100.00 includes $900.00 a month of extra debt payments, which no savings or investment account shows, so this compares with $200.00 — the line without them.',
+  it('debt-free goals are the only extra debt payments in the line', () => {
+    expect(
+      debtPaydownContributionsCents([
+        { kind: null, monthlyContributionCents: 20_000 },
+        { kind: 'debt_free', monthlyContributionCents: 90_000 },
+        { kind: 'reserve', monthlyContributionCents: 5_000 },
+        { kind: 'debt_free', monthlyContributionCents: null },
+      ]),
+    ).toBe(90_000);
+  });
+
+  it('test_regression__790_extra_debt_payments_are_not_to_go: every comparison says what the plan sets aside apart from them, and the arithmetic adds up', () => {
+    const targetWon = measure(fromChecking('2026-10-02', 10_000), savingsPlanLine({ plannedSavingsCents: 100_000, debtPaydownCents: 90_000 }));
+    expect(targetWon.plannedSavingsCents).toBe(10_000);
+    expect(measuredLead(targetWon)).toBe(
+      'So far this month you’ve set aside $100.00 — exactly what your plan sets aside apart from extra debt payments. Your plan’s savings line of $1,000.00 includes $900.00 a month of extra debt payments, which no savings or investment account shows.',
     );
-    // No debt-free goal, or one the target outweighs: no note.
+    const goalsWon = measure(fromChecking('2026-10-02', 5_000), savingsPlanLine({ plannedSavingsCents: 110_000, debtPaydownCents: 90_000 }));
+    expect(measuredLead(goalsWon)).toBe(
+      'So far this month you’ve set aside $50.00 of the $200.00 your plan sets aside apart from extra debt payments — $150.00 to go. Your plan’s savings line of $1,100.00 includes $900.00 a month of extra debt payments, which no savings or investment account shows.',
+    );
+    const allDebt = savingsPlanLine({ plannedSavingsCents: 90_000, debtPaydownCents: 90_000 });
+    expect(measuredLead(measure(fromChecking('2026-10-02', 20_000), allDebt))).toBe(
+      'So far this month you’ve set aside $200.00. Your plan’s savings line of $900.00 is all extra debt payments, which no savings or investment account shows.',
+    );
+    expect(measuredLead(measure([], allDebt))).toBe(
+      'Nothing counted as set aside so far this month. Your plan’s savings line of $900.00 is all extra debt payments, which no savings or investment account shows.',
+    );
+    const avg = measure([...fromChecking('2026-09-01', 120_000), ...fromChecking('2026-08-01', 60_000)], savingsPlanLine({ plannedSavingsCents: 100_000, debtPaydownCents: 90_000 }));
+    expect(measuredAverageSentence(avg)).toBe(
+      'Over the 12 complete months with full records (Oct 2025 – Sep 2026), you set aside an average of $150.00 a month. Your plan today sets aside $100.00 a month apart from extra debt payments.',
+    );
+    // No debt-free goal: the line is the plan's, said as before.
     expect(measuredLead(measure(fromChecking('2026-10-02', 20_000), 110_000))).not.toMatch(/debt/);
-    expect(measuredLead(measure(fromChecking('2026-10-02', 20_000), savingsPlanLine({ plannedSavingsCents: 50_000, goalContributionsCents: 30_000, debtPaydownCents: 10_000, savingsTargetCents: 50_000 })))).not.toMatch(/debt/);
+  });
+});
+
+describe('#790 critic cycle 2, P1-A — a transfer is a transfer by its filing, the app’s window, and one count', () => {
+  it('test_regression__790_a_daycare_payment_never_vouches_for_a_zelle: halves filed to anything but a move never pair', () => {
+    const ms = measure([
+      row('chk', '2026-09-01', -50_000, 'BRIGHT START DAYCARE', 'childcare'),
+      row('sav', '2026-09-02', 50_000, 'ZELLE FROM JORDAN LEE', null),
+      row('chk', '2026-09-10', -123_456, 'CAPITAL ONE CRCARDPMT', 'credit-card-payment', { isTransfer: true }),
+      row('sav', '2026-09-11', 123_456, 'EXTERNAL TRANSFER FROM ALLY', null),
+      // Neither half filed nor flagged: no evidence either moved between the reader's accounts.
+      row('chk', '2026-09-20', -7_000, 'CHECK 1042', null),
+      row('sav', '2026-09-20', 7_000, 'MOBILE DEPOSIT', null),
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.savingsNetCents).toBe(0);
+    expect(sep.untracedInCents).toBe(180_456);
+  });
+
+  it('flagged halves filed nothing else pair; the transfer detector’s ±3 days, not a week', () => {
+    const ms = measure([
+      row('chk', '2026-09-01', -30_000, 'ONLINE TRANSFER', null, { isTransfer: true }),
+      row('sav', '2026-09-03', 30_000, 'ONLINE TRANSFER', 'uncategorized', { isTransfer: true }),
+      row('chk', '2026-09-10', -20_000, 'TRANSFER TO SAVINGS', 'transfer'),
+      row('sav', '2026-09-13', 20_000, 'TRANSFER FROM CHECKING', 'transfer'), // 3 days: in
+      row('chk', '2026-09-20', -11_000, 'TRANSFER TO SAVINGS', 'transfer'),
+      row('sav', '2026-09-24', 11_000, 'TRANSFER FROM CHECKING', 'transfer'), // 4 days: out
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.savingsNetCents).toBe(50_000);
+    expect(sep.untracedInCents).toBe(11_000);
+  });
+
+  it('test_regression__790_one_checking_row_is_counted_once: a deposit "Money you put in" counts and a loan arriving in savings are not one move', () => {
+    const ms = measure([
+      row('chk', '2026-09-03', -500_000, 'ONLINE TRANSFER TO BROKERAGE XXXXXX5521', 'transfer'),
+      row('sav', '2026-09-05', 500_000, 'LENDINGCLUB LOAN DISBURSEMENT', 'loan-payment'),
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.putInCents).toBe(500_000);
+    expect(sep.savingsNetCents).toBe(0);
+    expect(sep.untracedInCents).toBe(500_000);
+    expect(sep.totalCents).toBe(500_000); // was $10,000.00 at cycle 2
+  });
+
+  it('one checking row pairs with one arrival, closest first; a row never pairs with itself', () => {
+    const one = measure([
+      row('chk', '2026-09-10', -50_000, 'TRANSFER TO SAVINGS', 'transfer'),
+      row('sav', '2026-09-10', 50_000, 'TRANSFER FROM CHECKING', 'transfer'),
+      row('sav', '2026-09-11', 50_000, 'TRANSFER FROM CHECKING', 'transfer'),
+    ]);
+    expect(month(one, '2026-09').savingsNetCents).toBe(50_000);
+    expect(month(one, '2026-09').untracedInCents).toBe(50_000);
+    // Out on the 1st and the 3rd; in on the 3rd and the 6th: the 3rd pairs with the 3rd, and
+    // the 1st is five days from the 6th.
+    const closest = measure([
+      row('chk', '2026-09-01', -40_000, 'TRANSFER TO SAVINGS', 'transfer'),
+      row('chk', '2026-09-03', -40_000, 'TRANSFER TO SAVINGS', 'transfer'),
+      row('sav', '2026-09-03', 40_000, 'TRANSFER FROM CHECKING', 'transfer'),
+      row('sav', '2026-09-06', 40_000, 'TRANSFER FROM CHECKING', 'transfer'),
+    ]);
+    expect(month(closest, '2026-09').savingsNetCents).toBe(40_000);
+    expect(month(closest, '2026-09').untracedInCents).toBe(40_000);
+    const self = measure([row('sav', '2026-09-03', -40_000, 'TRANSFER TO CHECKING', 'transfer'), row('sav', '2026-09-04', 40_000, 'TRANSFER FROM CHECKING', 'transfer')]);
+    expect(month(self, '2026-09').savingsNetCents).toBe(-40_000);
+    expect(month(self, '2026-09').untracedInCents).toBe(40_000);
+  });
+});
+
+describe('#790 critic cycle 2 — returns, earnings words, income kinds, and the rows read', () => {
+  it('money returned to the savings account it left counts back (P2-A)', () => {
+    const ms = measure([
+      row('sav', '2026-09-02', -50_000, 'TRANSFER TO VANGUARD X5521', 'transfer'),
+      row('sav', '2026-09-08', 50_000, 'TRANSFER TO VANGUARD X5521 RETURNED', null),
+      row('sav', '2026-09-12', -1_000, 'EXCESS WITHDRAWAL FEE', 'fees'),
+      row('sav', '2026-09-14', 1_000, 'FEE REVERSAL', null),
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.untracedInCents).toBe(0);
+    expect(sep.totalCents).toBe(0);
+  });
+
+  it('a transfer worded with INTEREST is a move, not earnings (P3-A); a retirement withdrawal is not new saving (P3-F)', () => {
+    const ms = measure([
+      row('chk', '2026-09-05', -25_000, 'TRANSFER TO SAVINGS', 'transfer'),
+      row('sav', '2026-09-05', 25_000, 'TRANSFER FROM INTEREST CHECKING X7712', null, { isTransfer: true }),
+      row('sav', '2026-09-15', 400_000, 'FIDELITY IRA DISTRIBUTION', 'retirement-income'),
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.earningsCents).toBe(0);
+    expect(sep.savingsNetCents).toBe(25_000);
+    expect(sep.untracedInCents).toBe(400_000);
+  });
+
+  it('a row after today, a split parent and a $0 row are never read', () => {
+    const ms = measure([
+      row('sav', '2026-10-20', -6_000, 'SCHEDULED TRANSFER', 'transfer'),
+      row('sav', '2026-10-06', -8_000, 'SPLIT PARENT', 'shopping', { isSplitParent: true }),
+      row('sav', '2026-10-07', 0, 'ZERO ADJUSTMENT', null),
+      row('sav', '2026-10-08', -2_000, 'COUNTED', 'fees'),
+    ]);
+    expect(ms.thisMonth!.savingsNetCents).toBe(-2_000);
+    expect(ms.thisMonth!.savingsRows.map((r) => r.descriptor)).toEqual(['COUNTED']);
   });
 });

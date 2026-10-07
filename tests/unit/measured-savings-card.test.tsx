@@ -111,7 +111,10 @@ describe('#790 — the section', () => {
     draw([CHK, SAV, VG], [row('sav', '2026-10-06', 2_000_000, 'TRANSFER FROM MARCUS SAVINGS X9981')]);
     expect(screen.getByTestId('measured-this-month-savings-figure').textContent).toBe('$0.00');
     expect(screen.getByTestId('measured-this-month-untraced-figure').textContent).toBe('+$20,000.00');
-    expect(screen.getByTestId('measured-this-month-untraced-note').textContent).toMatch(/^\$20,000\.00 came into your savings from an account we can’t see/);
+    expect(screen.getByTestId('measured-this-month-untraced-note').textContent).toMatch(/^\$20,000\.00 came into your savings that we couldn’t match/);
+    // Named apart from the counted rows, and muted (critic cycle 2, P3-E).
+    expect(screen.getByTestId('measured-this-month-untraced-rows-toggle').textContent).toBe('The untraced row');
+    expect(screen.getByTestId('measured-this-month-untraced').firstElementChild!.className).toContain('text-muted-foreground');
     expect(screen.getByTestId('measured-this-month-untraced-rows').textContent).toContain('TRANSFER FROM MARCUS SAVINGS X9981');
     expect(screen.getByTestId('measured-lead').textContent).toBe('Nothing counted as set aside so far this month — your plan sets aside $1,000.00.');
   });
