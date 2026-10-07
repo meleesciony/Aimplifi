@@ -64,7 +64,7 @@
  * identical. Undo is automatic: it changes the history, so the derived rule
  * updates or disappears on the next read.
  */
-import { CATEGORY_BY_ID } from './categories';
+import { CATEGORY_BY_ID, isMoneyMoveCategoryId } from './categories';
 import { cleanDescriptor, normalizeMerchant } from './normalize';
 import type { RuleLike } from './pipeline';
 import { computeDescriptorSignature, hasDistinguishingToken } from './signature';
@@ -105,9 +105,11 @@ export interface LearnedCorrectionInput {
 function isIncomeCategory(categoryId: string): boolean {
   return CATEGORY_BY_ID.get(categoryId)?.group === 'Income';
 }
-/** Spend = a real category that is neither transfer nor an Income-group bucket. */
+/** Spend = a real category that is neither a money move nor an Income-group bucket. */
 function isSpendCategory(categoryId: string): boolean {
-  if (categoryId === 'transfer') return false;
+  // A money move — Transfer or Investment & Savings — goes both ways (#792 critic cycle 1,
+  // P2-3): one withdrawal filed Investment & Savings must not unlearn the deposits' rule.
+  if (isMoneyMoveCategoryId(categoryId)) return false;
   const cat = CATEGORY_BY_ID.get(categoryId);
   return cat ? cat.group !== 'Income' : false;
 }

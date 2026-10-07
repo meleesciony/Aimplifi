@@ -60,11 +60,11 @@ export interface RecurringSummary {
   items: RecurringItem[]; // all, active first then monthly-equivalent desc
   subscriptions: RecurringItem[]; // active, isSubscription
   bills: RecurringItem[]; // active recurring expenses that aren't subscriptions/income
-  income: RecurringItem[]; // active, isIncome
+  income: RecurringItem[]; // active, isIncome (money moves listed, badged, not counted)
   inactive: RecurringItem[]; // appears to have stopped
   /** Active subscriptions + bills, per month — the headline. */
   monthlyRecurringSpendCents: number;
-  /** Active recurring income, per month. */
+  /** Active recurring income, per month — money moved out of investing listed, never counted. */
   monthlyIncomeCents: number;
   activeSubscriptionCount: number;
   /** Active EXPENSE series with a detected price increase (income raises and money moves excluded). */
@@ -97,9 +97,11 @@ export function summarizeRecurring(
   });
 
   const subscriptions = items.filter((i) => i.active && i.isSubscription);
-  // A recurring withdrawal from a brokerage is money moved, never income (#792; #789
-  // critic cycle 3, P3-7) — the same verdict every income figure gives its rows.
-  const income = items.filter((i) => i.active && i.isIncome && !i.movesMoney);
+  // A recurring withdrawal from a brokerage stays LISTED with the money coming in — the
+  // reader keeps its row and its controls (#792 critic cycle 1, P2-2) — and badged as money
+  // moved; it is never COUNTED as income (#792; #789 critic cycle 3, P3-7), the verdict
+  // every income figure gives its rows. See `monthlyIncomeCents` below.
+  const income = items.filter((i) => i.active && i.isIncome);
   const bills = items.filter((i) => i.active && !i.isIncome && !i.isSubscription);
   const inactive = items.filter((i) => !i.active);
   // A "price increase" is a COST signal, so only expenses belong here. A recurring
@@ -118,7 +120,7 @@ export function summarizeRecurring(
   const monthlyRecurringSpendCents =
     subscriptions.reduce((s, i) => s + i.monthlyEquivalentCents, 0) +
     bills.reduce((s, i) => s + i.monthlyEquivalentCents, 0);
-  const monthlyIncomeCents = income.reduce((s, i) => s + i.monthlyEquivalentCents, 0);
+  const monthlyIncomeCents = income.reduce((s, i) => s + (i.movesMoney ? 0 : i.monthlyEquivalentCents), 0);
 
   return {
     items,

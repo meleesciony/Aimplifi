@@ -492,8 +492,9 @@ export async function getCoachData(
   // halves of one page would disagree about a demoted bill.
   const overrides = await getRecurringOverrides(userId);
   const paidThrough = await getRecurringPaidThrough(userId);
+  const seriesRows = txns.filter((t) => t.status === 'POSTED' && !t.isSplitParent && spendingIds.has(t.accountId));
   const series = detectRecurring(
-    txns.filter((t) => t.status === 'POSTED' && !t.isSplitParent && spendingIds.has(t.accountId)),
+    seriesRows,
     today,
     // O.13f: the same reader verdicts /recurring and the projections read. A coach
     // "you could cancel this subscription" about a series he has already told the
@@ -507,7 +508,9 @@ export async function getCoachData(
   // figures in two different units on one page with only the word "future" between them.
   // #789 (critic cycle 1, P0-1): money moved into investing or savings is never a cut,
   // never a price that crept — read from the same rows the series were detected from.
-  const moneyMoveMerchants = moneyMoveMerchantCanonicals(txns);
+  // #792 critic cycle 1, P2-1: the rows the series were detected from — a row no series
+  // read never decides one.
+  const moneyMoveMerchants = moneyMoveMerchantCanonicals(seriesRows);
   const opportunities = findOpportunities(
     series,
     user.expectedReturnBps,

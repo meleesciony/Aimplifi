@@ -106,7 +106,7 @@ export function repairOutOfScopeNote(count: number): string | null {
   return (
     `${count} marked ${plural(count, 'row', 'rows')} today's check declines ` +
     `${plural(count, 'is', 'are')} not covered here — still waiting on your review, pinned or ` +
-    `excluded by you, pending, in a non-USD account, or filed as a transfer — and ` +
+    `excluded by you, pending, in a non-USD account, or filed as a transfer or Investment & Savings — and ` +
     `${plural(count, 'stays exactly as it is', 'stay exactly as they are')}.`
   );
 }

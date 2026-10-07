@@ -61,7 +61,7 @@
  * assembled from values carried VERBATIM out of the history — this engine never
  * computes a new money figure, it only repeats one it was given.
  */
-import { CATEGORY_BY_ID } from './categories';
+import { CATEGORY_BY_ID, isMoneyMoveCategoryId } from './categories';
 import { canonicalIsProposable } from './learn';
 import type { LearnedCorrectionInput } from './learn';
 import { normalizeMerchant } from './normalize';
@@ -137,7 +137,9 @@ function isIncomeCategory(categoryId: string): boolean {
   return CATEGORY_BY_ID.get(categoryId)?.group === 'Income';
 }
 function isSpendCategory(categoryId: string): boolean {
-  if (categoryId === 'transfer') return false;
+  // A money move — Transfer or Investment & Savings — goes both ways (#792 critic cycle 1,
+  // P2-3): one withdrawal filed Investment & Savings must not unlearn the deposits' rule.
+  if (isMoneyMoveCategoryId(categoryId)) return false;
   const cat = CATEGORY_BY_ID.get(categoryId);
   return cat ? cat.group !== 'Income' : false;
 }

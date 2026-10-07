@@ -4,7 +4,9 @@
  * reader's filings to recurring series (P2-B), the cash-flow radar's spending pace
  * (P2-C), the transfer-flag repair card's dollar claim (P2-D), the investing word list
  * (P3-1), the learned-rule and backfill sign guards (P3-2), the register's type filter
- * (P3-4) and recurring income (P3-7). Every amount and name below is invented.
+ * (P3-4) and recurring income (P3-7) — and #792's own critic cycle 1 (P1-1 a stopped
+ * brokerage deposit stays pausable, P2-1 a majority not a veto, P2-2 listed not counted,
+ * P2-3 the learner, P3-1 truncated INVEST). Every amount and name below is invented.
  */
 import { describe, expect, it } from 'vitest';
 import { isoDate } from '@/lib/dates';
@@ -19,6 +21,8 @@ import { summarizeRecurring } from '@/lib/engine/recurring/summary';
 import { upcomingRenewals } from '@/lib/engine/recurring/renewals';
 import { filterTransactions, type TxnView } from '@/lib/engine/transactions/query';
 import { planBackfill } from '@/lib/engine/categorize/backfill';
+import { deriveLearnedRules, type LearnedCorrectionInput } from '@/lib/engine/categorize/learn';
+import { proposeCategory } from '@/lib/engine/categorize/propose';
 import { shouldApplyRematchCategory } from '@/lib/engine/transactions/descriptor';
 
 const filed = (rawDescriptor: string, amountCents = -50000, rules: RuleLike[] = []) =>
@@ -56,12 +60,28 @@ describe('P2-B — one row’s filing is never the verdict on another merchant�
     expect(moneyMoveMerchantCanonicals([...rent, r('VENMO CASHOUT', 'transfer', false)]).has(venmo)).toBe(false);
   });
 
-  it('a merchant every filed row of which moves money is in the set; a row not filed yet does not change that', () => {
+  it('a merchant most of whose filed rows move money is in the set; a row not filed yet does not change that', () => {
     const vg = normalizeMerchant('Vanguard').canonical;
     expect(moneyMoveMerchantCanonicals([r('Vanguard', 'investment'), r('Vanguard', 'investment'), r('Vanguard', null), r('Vanguard', 'uncategorized')]).has(vg)).toBe(true);
-    expect(moneyMoveMerchantCanonicals([r('Vanguard', 'investment'), r('Vanguard', 'shopping')]).has(vg)).toBe(false);
+    // A tie counts as a move (calling a contribution a cut is the costlier mistake); fewer does not.
+    expect(moneyMoveMerchantCanonicals([r('Vanguard', 'investment'), r('Vanguard', 'shopping')]).has(vg)).toBe(true);
+    expect(moneyMoveMerchantCanonicals([r('Vanguard', 'investment'), r('Vanguard', 'shopping'), r('Vanguard', 'shopping')]).has(vg)).toBe(false);
     // A transfer-flagged row is never read here — the recurring detector never reads it either.
     expect(moneyMoveMerchantCanonicals([r('Vanguard', 'investment', true)]).has(vg)).toBe(false);
+  });
+
+  it('test_regression__792_one_misfiled_contribution_does_not_veto_the_series: four 529 rows filed Investment & Savings and one a bank hint filed Education stay a move', () => {
+    const plan = normalizeMerchant('NY 529 COLLEGE SAVINGS PLAN').canonical;
+    const rows = [...['1', '2', '3', '4'].map(() => r('NY 529 COLLEGE SAVINGS PLAN', 'investment')), r('NY 529 COLLEGE SAVINGS PLAN', 'education')];
+    expect(moneyMoveMerchantCanonicals(rows).has(plan)).toBe(true);
+    // The rise it holds is more saving, never a price increase or a cut.
+    const T = (date: string, amountCents: number): RecurringTxn => ({ id: date, accountId: 'chk', date, amountCents, rawDescriptor: 'NY 529 COLLEGE SAVINGS PLAN' });
+    const series = detectRecurring(
+      [...['2026-01-20', '2026-02-20', '2026-03-20', '2026-04-20'].map((d) => T(d, -20000)), T('2026-05-20', -25000)],
+      isoDate('2026-06-01'),
+      [],
+    );
+    expect(summarizeRecurring(series, '2026-06-01', moneyMoveMerchantCanonicals(rows)).priceIncreases).toEqual([]);
   });
 });
 
@@ -93,9 +113,19 @@ describe('P2-D — the repair card never claims money no figure regains', () => 
 });
 
 describe('P3-1 / P3-2 — the categorizer', () => {
-  it('INVEST is spelled out: an investigations firm is a business', () => {
-    expect(filed('VANGUARD INVESTIGATIONS LLC')).not.toBe('investment');
-    for (const d of ['VANGUARD BUY INVESTMENT', 'ACORNS INVEST', 'SCHWAB INVESTING TRANSFER', 'ROBINHOOD INVESTMENTS']) expect(filed(d), d).toBe('investment');
+  it('INVEST reads every INVEST… word but INVESTIGAT…: an investigations firm is a business, a truncated bank word is still the move', () => {
+    for (const d of ['VANGUARD INVESTIGATIONS LLC', 'FIDELITY INVESTIGATIONS LLC']) expect(filed(d, -85000), d).not.toBe('investment');
+    for (const d of [
+      'VANGUARD BUY INVESTMENT',
+      'ACORNS INVEST',
+      'SCHWAB INVESTING TRANSFER',
+      'ROBINHOOD INVESTMENTS',
+      // #792 critic cycle 1, P3-1: banks truncate.
+      'VANGUARD INVESTMNT',
+      'ROBINHOOD INVESTMNTS',
+      'SCHWAB DES:INVESTMNT',
+    ])
+      expect(filed(d), d).toBe('investment');
   });
 
   it('a learned Investment & Savings rule files the withdrawal as well as the deposit', () => {
@@ -117,6 +147,27 @@ describe('P3-1 / P3-2 — the categorizer', () => {
     // Anti-vacuity: a learned SPENDING rule still refuses the inflow.
     expect(filed(desc, 50000, [{ ...rule, categoryId: 'shopping' }])).not.toBe('shopping');
   });
+
+  it('test_regression__792_one_withdrawal_does_not_unlearn_the_deposits: deposits and a withdrawal all filed Investment & Savings learn a rule that files both', () => {
+    const desc = 'BETTERMENT DES:BETTERMENT ID:0000123 INDN:SAM SAVER';
+    const c = (id: string, seq: number, amountCents: number): LearnedCorrectionInput => ({ transactionId: id, toCategoryId: 'investment', isUndo: false, seq, rawDescriptor: desc, amountCents });
+    const history = [c('d1', 1, -50000), c('d2', 2, -50000), c('d3', 3, -50000), c('w1', 4, 120000)];
+    const rules = deriveLearnedRules(history);
+    expect(rules.length).toBeGreaterThan(0);
+    expect(rules.every((x) => x.categoryId === 'investment')).toBe(true);
+    expect(filed(desc, -50000, rules)).toBe('investment');
+    expect(filed(desc, 120000, rules)).toBe('investment');
+    // Anti-vacuity: the same mixed signs filed to a spending category still learn nothing.
+    expect(deriveLearnedRules(history.map((x) => ({ ...x, toCategoryId: 'shopping' })))).toEqual([]);
+  });
+
+  it('a proposal from deposits filed Investment & Savings is offered for the withdrawal too', () => {
+    const desc = 'BETTERMENT DES:BETTERMENT ID:0000123 INDN:SAM SAVER';
+    const deposits: LearnedCorrectionInput[] = [1, 2].map((seq) => ({ transactionId: `d${seq}`, toCategoryId: 'investment', isUndo: false, seq, rawDescriptor: desc, amountCents: -50000 }));
+    expect(proposeCategory({ rawDescriptor: desc, amountCents: 120000 }, deposits)?.categoryId).toBe('investment');
+    // Anti-vacuity: deposits filed to spending are never proposed for money coming in.
+    expect(proposeCategory({ rawDescriptor: desc, amountCents: 120000 }, deposits.map((d) => ({ ...d, toCategoryId: 'shopping' })))).toBeNull();
+  });
 });
 
 describe('P3-4 — the register’s type filter reads the filing', () => {
@@ -131,27 +182,37 @@ describe('P3-4 — the register’s type filter reads the filing', () => {
   });
 });
 
-describe('P3-7 — a recurring withdrawal from a brokerage is not recurring income', () => {
-  it('not in /recurring’s income, and never a "pay that stopped" nudge; a payroll still is both', () => {
-    const T = (date: string, amountCents: number, rawDescriptor: string): RecurringTxn => ({ id: `${date}:${rawDescriptor}`, accountId: 'chk', date, amountCents, rawDescriptor });
-    const months = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05'];
-    const rows: RecurringTxn[] = [
-      ...months.map((m) => T(`${m}-10`, 50000, 'ROBINHOOD CREDITS')),
-      ...months.map((m) => T(`${m}-01`, 400000, 'NORTHWIND PAYROLL PPD')),
-    ];
+describe('P3-7 — a recurring withdrawal from a brokerage is listed, never counted as recurring income', () => {
+  const T = (date: string, amountCents: number, rawDescriptor: string): RecurringTxn => ({ id: `${date}:${rawDescriptor}`, accountId: 'chk', date, amountCents, rawDescriptor });
+  const months = ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05'];
+  const rows: RecurringTxn[] = [
+    ...months.map((m) => T(`${m}-10`, 50000, 'ROBINHOOD CREDITS')),
+    ...months.map((m) => T(`${m}-01`, 400000, 'NORTHWIND PAYROLL PPD')),
+  ];
+
+  it('listed with the money coming in, badged as a move, and left out of the monthly income figure (#792 critic cycle 1, P2-2)', () => {
     const series = detectRecurring(rows, isoDate('2026-06-05'), []);
     expect(series.find((s) => /robinhood/i.test(s.merchantCanonical))?.categoryId).toBe('investment');
-    const income = summarizeRecurring(series, '2026-06-05').income.map((i) => i.merchantCanonical);
-    expect(income.some((m) => /robinhood/i.test(m))).toBe(false);
-    expect(income.some((m) => /northwind/i.test(m))).toBe(true);
-    // Both stop: only the payroll is a pause.
-    const lapsed = lapsedIncomeSeries(series, isoDate('2026-07-25')).map((p) => p.merchantCanonical);
-    expect(lapsed.some((m) => /robinhood/i.test(m))).toBe(false);
-    expect(lapsed.some((m) => /northwind/i.test(m))).toBe(true);
-    // A pause the reader confirmed on that merchant reads inert, never "paused".
+    const s = summarizeRecurring(series, '2026-06-05');
+    const rh = s.income.find((i) => /robinhood/i.test(i.merchantCanonical));
+    const payroll = s.income.find((i) => /northwind/i.test(i.merchantCanonical));
+    expect(rh?.movesMoney).toBe(true);
+    expect(payroll?.movesMoney).toBe(false);
+    // Every active series is in a section — none falls out of the page.
+    expect(s.items.filter((i) => i.active).every((i) => s.subscriptions.includes(i) || s.bills.includes(i) || s.income.includes(i))).toBe(true);
+    expect(s.monthlyIncomeCents).toBe(payroll!.monthlyEquivalentCents);
+  });
+
+  it('test_regression__792_money_move_deposit_stays_pausable: a stopped brokerage deposit is still a pause, so a confirmation keeps it out of the projection (#792 critic cycle 1, P1-1)', () => {
+    const series = detectRecurring(rows, isoDate('2026-06-05'), []);
     const rh = series.find((s) => /robinhood/i.test(s.merchantCanonical))!.merchantCanonical;
     const payroll = series.find((s) => /northwind/i.test(s.merchantCanonical))!.merchantCanonical;
-    expect(confirmedPauseState(series, isoDate('2026-07-25'), rh).status).toBe('inert');
+    // Both stop. A MONTHLY income series is projected whether or not it is still arriving,
+    // so a confirmed pause is the reader's only way to stop counting it.
+    const lapsed = lapsedIncomeSeries(series, isoDate('2026-07-25')).map((p) => p.merchantCanonical);
+    expect(lapsed).toContain(rh);
+    expect(lapsed).toContain(payroll);
+    expect(confirmedPauseState(series, isoDate('2026-07-25'), rh).status).toBe('paused');
     expect(confirmedPauseState(series, isoDate('2026-07-25'), payroll).status).toBe('paused');
   });
 });

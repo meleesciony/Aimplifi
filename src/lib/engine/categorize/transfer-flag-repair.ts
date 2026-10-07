@@ -76,8 +76,9 @@ export interface TransferFlagRepairPlan {
    * count). */
   endorsedCount: number;
   /** Flagged rows today's rule declines that this repair deliberately does NOT
-   * touch: still awaiting review, review-pinned, pending, non-USD, or
-   * reader-excluded. Disclosed, never silently dropped ("no silent caps").
+   * touch: still awaiting review, review-pinned, pending, non-USD,
+   * reader-excluded, or filed Investment & Savings (#792). Disclosed, never
+   * silently dropped ("no silent caps").
    * (Filed-as-`transfer` alone is no longer in this bucket — O.20j #487 makes
    * the leaf evidence, so those flags are endorsed.) */
   declinedOutOfScopeCount: number;

@@ -108,3 +108,12 @@ $40.00 of money out claimed, not $2,040.00. "VANGUARD INVESTIGATIONS LLC" is not
 Betterment ACH files −$500.00 and +$500.00 alike. "VANGUARD ACH RTN" +$5,000.00 in review is re-filed
 Investment & Savings. A monthly +$500.00 "ROBINHOOD CREDITS" is not recurring income and, when it stops,
 not a pause; a $4,000.00 payroll that stops is.
+
+**#792 critic cycle 1 (hand-verified, unit).** The merchant set by majority of filed, unflagged rows:
+5 × Rent + 1 × Transfer (Venmo) → not a move; 4 × Investment & Savings + 1 × Education (529) → a move, and
+its $200.00 → $250.00 rise is not a price increase; 1 + 1 → a move (tie); 1 move + 2 Shopping → not.
+"ROBINHOOD CREDITS" +$500.00 on the 10th, Jan–May 2026, beside a $4,000.00 payroll on the 1st: on
+2026-06-05 both are listed under recurring income, Robinhood badged as money moved, and "Recurring income"
+reads the payroll's monthly figure only; on 2026-07-25 both are lapsed income and a confirmed pause on
+either reads "paused". Three Betterment deposits of −$500.00 and one +$1,200.00 withdrawal, all filed
+Investment & Savings, learn a rule that files both signs; the same four filed Shopping learn nothing.

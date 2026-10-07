@@ -31,7 +31,7 @@
  */
 
 /** Names only a brokerage, robo-adviser or exchange carries. */
-export const BROKERAGE_ONLY_NAME_RE = /\b(FIDELITY INVEST\w*|FID BKG|CHARLES SCHWAB|COINBASE|E\*?TRADE|WEALTHFRONT)\b/i;
+export const BROKERAGE_ONLY_NAME_RE = /\b(FIDELITY INVEST(?!IGAT)\w*|FID BKG|CHARLES SCHWAB|COINBASE|E\*?TRADE|WEALTHFRONT)\b/i;
 
 /** Brokerage names ordinary businesses also carry. */
 export const SHARED_BROKERAGE_NAME_RE = /\b(VANGUARD|SCHWAB|ROBINHOOD|BETTERMENT|ACORNS|MERRILL)\b/i;
@@ -48,11 +48,13 @@ export const BANK_RETURN_RE =
  * Words a brokerage's own money movement carries and a purchase at a same-named business
  * does not — money going in, and money coming back out: a withdrawal, a sale's credit, or a
  * deposit the bank returned, worded the way a bank words a return (`BANK_RETURN_RE`; critic
- * cycle 2, P2-1 — "VANGUARD ACH RTN" is the deposit coming back, not income). INVEST is
- * spelled out (#792; critic cycle 3, P3-1): "VANGUARD INVESTIGATIONS LLC" is a business.
+ * cycle 2, P2-1 — "VANGUARD ACH RTN" is the deposit coming back, not income). INVEST reads
+ * any INVEST… word but INVESTIGAT… (#792; #789 critic cycle 3, P3-1): "VANGUARD
+ * INVESTIGATIONS LLC" is a business, while a bank's truncated "INVESTMNT" is still the move
+ * (#792 critic cycle 1, P3-1).
  */
 export const INVESTING_MOVE_WORD_RE = new RegExp(
-  String.raw`\b(BUY|SELL|INVEST(?:MENTS?|ING|ORS?|ED)?|MONEY ?LINK|MONEY ?LINE|BROKERAGE|BKG|SECURITIES|FUNDS?|DEBITS|CREDITS|EDI|LYNCH|EDGE|IRA|ROTH|401\(?K\)?|CONTRIB\w*|TRANSFER|XFER|TRNSFR|REDEMPTION|REDEEM|WITHDRAW\w*|SWEEP)\b|${BANK_RETURN_RE.source}`,
+  String.raw`\b(BUY|SELL|INVEST(?!IGAT)\w*|MONEY ?LINK|MONEY ?LINE|BROKERAGE|BKG|SECURITIES|FUNDS?|DEBITS|CREDITS|EDI|LYNCH|EDGE|IRA|ROTH|401\(?K\)?|CONTRIB\w*|TRANSFER|XFER|TRNSFR|REDEMPTION|REDEEM|WITHDRAW\w*|SWEEP)\b|${BANK_RETURN_RE.source}`,
   'i',
 );
 
