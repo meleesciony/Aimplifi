@@ -14,6 +14,7 @@ import {
   measuredLead,
   signedMoney,
   uncountedInvestmentsNote,
+  untracedNote,
 } from '@/lib/engine/savings/measured-copy';
 
 function Line({ label, cents, testid, children }: { label: ReactNode; cents: number; testid: string; children?: ReactNode }) {
@@ -61,7 +62,10 @@ function SavingsRows({ rows, testid }: { rows: readonly SavingsRowView[]; testid
  */
 function MonthLines({ m, prefix, measured }: { m: MeasuredMonth; prefix: string; measured: MeasuredSavings }) {
   const uncounted = uncountedInvestmentsNote(m);
-  const showInvestments = measured.hasInvestmentAccounts || m.investmentsNetCents !== 0 || m.uncountedInvestmentRows > 0;
+  // Critic cycle 1, P3-2: a line for an account kind the reader does not link is not drawn
+  // ("Money you put in" lists an unlinked brokerage's rows on Investments).
+  const showInvestments = measured.hasInvestmentAccounts || m.investmentsNetCents !== 0;
+  const untraced = untracedNote(m);
   return (
     <ul className="space-y-1.5">
       {(measured.hasSavingsAccounts || m.savingsNetCents !== 0) && (
@@ -83,6 +87,14 @@ function MonthLines({ m, prefix, measured }: { m: MeasuredMonth; prefix: string;
               {uncounted}
             </p>
           )}
+        </Line>
+      )}
+      {untraced && (
+        <Line label="Money in we can’t trace, left out" cents={m.untracedInCents} testid={`${prefix}-untraced`}>
+          <p className="text-xs text-muted-foreground" data-testid={`${prefix}-untraced-note`}>
+            {untraced}
+          </p>
+          <SavingsRows rows={m.untracedRows} testid={`${prefix}-untraced-rows`} />
         </Line>
       )}
       {m.earningsCents !== 0 && (

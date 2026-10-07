@@ -35,6 +35,7 @@ import {
   computeSpendingPlan,
   daysInMonth,
   PLAN_FIXED_NEVER_CATEGORY_IDS,
+  savingsTargetCents,
   scheduledOccurrencesBetween,
   type FixedSeriesCensus,
   type PlanScheduledItem,
@@ -70,6 +71,7 @@ import {
   type FixedSetupProposal,
 } from '@/lib/engine/spending-plan/setup-proposals';
 import { categoryName } from '@/lib/engine/categorize/categories';
+import { savingsPlanLine, type SavingsPlanLine } from '@/lib/engine/savings/measured';
 import {
   classifySeriesProjection,
   detectRecurring,
@@ -104,6 +106,8 @@ export interface SpendingPlanWithNotes extends SpendingPlan {
    * scopes in one object, each documented on its own field.
    */
   disclosures: SpendingPlanDisclosures;
+  /** The plan's savings line and the part "Money you set aside" compares with (#790). */
+  measuredSavingsLine: SavingsPlanLine;
   /** Stored overrides (null = using suggestion). For the Plan figures form. */
   incomeOverrideCents: number | null;
   fixedOverrideCents: number | null;
@@ -605,6 +609,17 @@ export async function getSpendingPlan(userId: string): Promise<SpendingPlanWithN
 
   return {
     ...plan,
+    // #790 critic cycle 1, P1-3: the savings line as "Money you set aside" can measure it —
+    // recomputed without debt-free goals' extra payments, which no savings or investment
+    // account shows. The same max(goals, target) the plan applies, on the other goals.
+    measuredSavingsLine: savingsPlanLine({
+      plannedSavingsCents: plan.plannedSavingsCents,
+      goalContributionsCents,
+      debtPaydownCents: goals
+        .filter((g) => g.kind === 'debt_free')
+        .reduce((sum, g) => sum + (g.monthlyContributionCents ?? 0), 0),
+      savingsTargetCents: savingsTargetCents(plan.patternIncomeCents, user?.savingsTargetBps ?? null),
+    }),
     incomeOverrideCents: user?.planIncomeOverrideCents ?? null,
     fixedOverrideCents: user?.planFixedOverrideCents ?? null,
     fixedSetup,

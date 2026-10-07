@@ -7,7 +7,8 @@ import { EmptyDashboard } from '@/components/onboarding/empty-dashboard';
 import { PlanFiguresForm } from '@/components/finance/plan-figures-form';
 import { PlanRowActionLink } from '@/components/finance/plan-row-action-link';
 import { getSpendingPlan } from '@/server/spending-plan';
-import { getMeasuredSavings } from '@/server/measured-savings';
+import { loadDepositInputs } from '@/server/investment-deposits';
+import { measureSavings } from '@/lib/engine/savings/measured';
 import { MeasuredSavingsCard } from '@/components/finance/measured-savings-card';
 import { traceSafeToSpend } from '@/lib/engine/glass-box/trace';
 import { REVIEW_FIXED_HREF } from '@/lib/engine/spending-plan/fixed-review';
@@ -51,9 +52,13 @@ export default async function SpendingPlanPage() {
 
   if ((await prisma.account.count({ where: { userId, OR: [{ currency: null }, { currency: 'USD' }] } })) === 0) return <EmptyDashboard />;
 
-  const p = await getSpendingPlan(userId);
+  // #790: the inputs of "Money you set aside" are "Money you put in"'s, loaded beside the
+  // plan rather than after it (critic cycle 1, P2-3).
+  const [p, depositInputs] = await Promise.all([getSpendingPlan(userId), loadDepositInputs(userId)]);
+  // What the reader actually set aside, against the plan's savings line as it can be measured.
+  const measured = measureSavings({ deposit: depositInputs, plan: p.measuredSavingsLine });
   const canEditFigures = !isDemoUser(userId);
-  const [accounts, userRow, supersededFunding, measured] = await Promise.all([
+  const [accounts, userRow, supersededFunding] = await Promise.all([
     prisma.account.findMany({
       where: { userId, OR: [{ currency: null }, { currency: 'USD' }] },
       select: { id: true, name: true, displayName: true, type: true },
@@ -63,8 +68,6 @@ export default async function SpendingPlanPage() {
       select: { reserveHoldingAccountId: true },
     }),
     activeSupersededPredecessorIds([userId]),
-    // #790: what the reader actually set aside, against this plan's savings line.
-    getMeasuredSavings(userId, p.plannedSavingsCents),
   ]);
   const eligibleAccounts = accounts
     .filter((a) => (PAYMENT_ACCOUNT_TYPES as readonly string[]).includes(a.type) && !supersededFunding.has(a.id))

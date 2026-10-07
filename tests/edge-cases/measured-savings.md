@@ -1,10 +1,9 @@
 ## §Money you set aside — measured savings against the plan's savings line (DECISIONS #790)
 
-Engine: `src/lib/engine/savings/measured.ts` (`measureSavings`), words
-`src/lib/engine/savings/measured-copy.ts`, loader `src/server/measured-savings.ts`, section
+Engine: `src/lib/engine/savings/measured.ts` (`measureSavings`, `savingsPlanLine`), words
+`src/lib/engine/savings/measured-copy.ts`, inputs `loadDepositInputs` beside `getSpendingPlan`, section
 `src/components/finance/measured-savings-card.tsx` on Guilt-free (`/spending-plan`, `#money-set-aside`).
-It reads the rows and months of #788's deposit engine (`liveDepositRows`, `countableDepositRow`,
-`computeDepositHistory`). Tests: `tests/unit/measured-savings.test.ts`,
+It reads the rows and months of #788's deposit engine (`liveDepositRows`, `computeDepositHistory`). Tests: `tests/unit/measured-savings.test.ts`,
 `tests/unit/measured-savings-card.test.tsx`, `tests/e2e/measured-savings.spec.ts`. Every account, amount
 and date is invented. Unit `today = 2026-10-17`, records start 2025-01-02 and feeds vouch through
 2026-10-16 unless a case says otherwise; e2e and demo `today = 2026-06-10`.
@@ -45,3 +44,22 @@ into savings; Mar 2026 has $2,000.00 back out of the Brokerage. June so far: $50
 12 × $750.00 − $2,000.00 = $7,000.00; total $14,520.00 → **$1,210.00 a month**. The demo plan's savings
 line is its two goals' $200.00 + $150.00 = $350.00 (unit DB; other e2e specs add demo goals, so the e2e
 asserts only the measured half).
+
+**Critic cycle 1 (hand-verified, unit).** Money in must be traceable; money out always counts.
+
+| Case (Sep 2026 unless said) | Savings, net | Left out | Set aside |
+|---|---|---|---|
+| +$20,000.00 "TRANSFER FROM MARCUS SAVINGS" (not filed), +$15,000.00 "LOAN DISBURSEMENT", +$1,000.00 from a card advance, +$300.00 "FROM CHECKING" 8 days after the checking side, and $100.00 checking → savings the same day | +$100.00 | $36,300.00 untraced, listed | +$100.00; the 12-month average $8.33 |
+| Savings → another linked savings $200.00 (2 days apart), +$450.00 back from Vanguard by its last four, +$1,200.00 payroll filed Paycheck, +$380.00 payout filed Side Gig | +$2,030.00 | — | +$1,580.00 (the $450.00 nets against Investments) |
+| Oct: $500.00 from checking, then −$5,000.00 at a garage, excluded from totals | −$4,500.00 | — | −$4,500.00: "$4,500.00 more has come out …" |
+| "INTEREST" $43.21 (not filed), "MONTHLY INTEREST" $2.10 (filed Income), "INT PAID" $1.05, "DIV CREDIT" $0.99, and "ACME INT'L PAYROLL" $1,500.00 filed Paycheck | +$1,500.00 | $47.35 earnings | +$1,500.00 |
+| Oct: checking → savings $500.00, both halves filed Investment & Savings | +$500.00 | — | +$500.00; no "couldn't count" note (Investments still lists both) |
+
+**The plan line.** Goals $1,100.00 a month of which $900.00 is a debt-free goal, no target: the line compared is
+$200.00; $200.00 set aside reads "exactly what your plan sets aside" and names the $900.00 of extra debt payments.
+With a $500.00 target it is max($200.00, $500.00) = $500.00. Goals $300.00 ($100.00 debt-free) under a $500.00 target:
+the target already won, the line stays $500.00, and nothing is said about debt.
+
+**Words.** A reader who links savings only: "… more has come out of your savings accounts than gone in". One complete
+month (records from Sep 1; −$1.00 fee, +$250.00 from checking): "In Sep 2026, the one complete month with full records,
+you set aside $249.00." Ten months averaged with two left out: "… 2 months with missing records are left out."
