@@ -17,6 +17,16 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-07 — Money you set aside: measured savings against the plan's savings line (DECISIONS #790) — in flight
+
+**Picked up.** The branch `slice-790-measured-savings` (`7df2b358`, built 2026-10-06, never gated) cherry-picked onto #792 in a worktree (`C:\dev\_maker_790`, branch `slice-790-rebased`; one conflict in `deposits.ts`), its DECISIONS and edge-case drafts brought in from the 2026-10-06 session scratchpad after checking them against its tests.
+
+**Critic cycles (Opus, worktree `C:\dev\_critic_790`).** Cycle 1 FAIL (3 P1: untraced money in counted; excluded withdrawals vanished; debt payments in the plan line). Cycle 2 FAIL (2 P1: pairing ignored filing; the line kept debt when the target won). Cycle 3 FAIL (2 P1: one checking deposit counted twice; "never overstate" false). Each fix narrowed the rule (DECISIONS #790 carries every cycle); mutation 20/20, 36/36, 19-mutant cycle-3 sweep.
+
+**Gate (`5342a749`, the cycle-2 tree, main tree, Git Bash `VERIFY_E2E=1 bash scripts/verify.sh`).** tsc 0, probes 0, eslint 0; vitest 9,285 passed + 2 (`vercel-build`, Git Bash env); build compiled; Playwright 479 passed / 4 flaky / 0 failed — both `measured-savings.spec.ts` tests first try.
+
+**Next.** Cycle-3 fixes (in the main tree on `slice-790-rebased`): full gate, then critic cycle 4 — the last of the budget; a FAIL routes to the owner.
+
 ## 2026-10-06 — Money moves, the remaining readers (DECISIONS #792) — #789's cycle-3 P2s/P3s
 
 #789 shipped on its third critic's PASS (`eb029d93`; deploy proof `scripts/investment-not-spending-live-deploy-check.mjs` PASS 6/6 — this commit's build served, the demo's guilt-free $1,309.08 and cash-needed $5,412.33 unchanged, the lens names what it leaves out). Its four P2s and seven P3s were taken as this slice, on branch `slice-792-money-move-readers` from `eb029d93`.

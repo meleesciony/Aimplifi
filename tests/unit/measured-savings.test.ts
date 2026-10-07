@@ -27,6 +27,7 @@ import {
 } from '@/lib/engine/savings/measured-copy';
 import { loadDepositInputs } from '@/server/investment-deposits';
 import { getSpendingPlan } from '@/server/spending-plan';
+import { prisma } from '@/lib/db';
 
 const TODAY = isoDate('2026-10-17');
 const YESTERDAY = '2026-10-16';
@@ -253,7 +254,8 @@ describe('#790 — the words', () => {
       'Interest and dividends are left out',
       'is listed and not counted',
       'even a row you excluded from totals',
-      'never overstate it',
+      'it can overstate only when your filings say a coincidence was a transfer',
+      'filed as pay (Paycheck, Bonus or Side Gig',
       'a cash-management account your provider reports as checking',
       'extra debt payments',
     ])
@@ -273,6 +275,29 @@ describe('#790 — the real loader on the demo seed', () => {
     expect(ms.months.find((m) => m.month === '2026-03')!.totalCents).toBe(-37_000);
     expect(ms.average).toMatchObject({ fromMonth: '2025-06', toMonth: '2026-05', months: 12, averageCents: 121_000 });
     expect(ms.months.every((m) => m.untracedInCents === 0)).toBe(true);
+  });
+
+  it('test_regression__790_the_server_takes_debt_free_goals_out_of_the_line: a reader with a $900.00 debt-free goal and a $200.00 savings goal compares with $200.00', async () => {
+    const uid = `measured-790-${Date.now()}-${process.pid}`;
+    try {
+      await prisma.user.create({ data: { id: uid, email: `${uid}@test.local` } });
+      await prisma.account.create({
+        data: { userId: uid, provider: 'manual', providerRef: `${uid}-chk`, name: 'Everyday Checking', type: 'CHECKING', currentBalanceCents: 500_000, currency: 'USD' },
+      });
+      await prisma.goal.createMany({
+        data: [
+          { userId: uid, name: 'Rainy day', targetCents: 1_000_000, monthlyContributionCents: 20_000 },
+          { userId: uid, name: 'Debt-free by Dec 2027', targetCents: 2_000_000, monthlyContributionCents: 90_000, kind: 'debt_free' },
+        ],
+      });
+      const p = await getSpendingPlan(uid);
+      expect(p.plannedSavingsCents).toBe(110_000);
+      expect(p.measuredSavingsLine).toEqual({ plannedSavingsCents: 110_000, debtPaydownCents: 90_000, comparedCents: 20_000 });
+    } finally {
+      await prisma.goal.deleteMany({ where: { userId: uid } });
+      await prisma.account.deleteMany({ where: { userId: uid } });
+      await prisma.user.deleteMany({ where: { id: uid } });
+    }
   });
 
   it('the plan the page compares with: the demo has no debt-free goal, so it is the whole savings line', async () => {
@@ -431,9 +456,12 @@ describe('#790 critic cycle 2, P1-A — a transfer is a transfer by its filing, 
     const ms = measure([
       row('chk', '2026-09-01', -50_000, 'BRIGHT START DAYCARE', 'childcare'),
       row('sav', '2026-09-02', 50_000, 'ZELLE FROM JORDAN LEE', null),
-      row('chk', '2026-09-10', -123_456, 'CAPITAL ONE CRCARDPMT', 'credit-card-payment', { isTransfer: true }),
-      row('sav', '2026-09-11', 123_456, 'EXTERNAL TRANSFER FROM ALLY', null),
-      // Neither half filed nor flagged: no evidence either moved between the reader's accounts.
+      // A flagged half filed to spending is not a move either (the sweep's flag is not the filing).
+      row('chk', '2026-09-10', -123_456, 'ZELLE TO JORDAN LEE', 'gifts', { isTransfer: true }),
+      row('sav', '2026-09-11', 123_456, 'ONLINE TRANSFER', 'transfer'),
+      // Rule level: neither half filed nor flagged — no evidence either moved between the
+      // reader's accounts. (In production the transfer sweep files both halves Transfer when
+      // the amounts coincide; that bound is the next test.)
       row('chk', '2026-09-20', -7_000, 'CHECK 1042', null),
       row('sav', '2026-09-20', 7_000, 'MOBILE DEPOSIT', null),
     ]);
@@ -442,18 +470,30 @@ describe('#790 critic cycle 2, P1-A — a transfer is a transfer by its filing, 
     expect(sep.untracedInCents).toBe(180_456);
   });
 
-  it('flagged halves filed nothing else pair; the transfer detector’s ±3 days, not a week', () => {
+  it('flagged halves filed nothing else pair; within a week, "Money you put in"’s own window (cycle 3, P2-4)', () => {
     const ms = measure([
       row('chk', '2026-09-01', -30_000, 'ONLINE TRANSFER', null, { isTransfer: true }),
       row('sav', '2026-09-03', 30_000, 'ONLINE TRANSFER', 'uncategorized', { isTransfer: true }),
       row('chk', '2026-09-10', -20_000, 'TRANSFER TO SAVINGS', 'transfer'),
       row('sav', '2026-09-13', 20_000, 'TRANSFER FROM CHECKING', 'transfer'), // 3 days: in
-      row('chk', '2026-09-20', -11_000, 'TRANSFER TO SAVINGS', 'transfer'),
-      row('sav', '2026-09-24', 11_000, 'TRANSFER FROM CHECKING', 'transfer'), // 4 days: out
+      row('chk', '2026-09-20', -11_000, 'TRANSFER TO MARCUS', 'transfer'),
+      row('sav', '2026-09-24', 11_000, 'TRANSFER FROM CHASE', 'transfer'), // 4 days: a transfer between banks, in
+      row('chk', '2026-09-01', -9_000, 'TRANSFER TO SAVINGS', 'transfer'),
+      row('sav', '2026-09-09', 9_000, 'TRANSFER FROM CHECKING', 'transfer'), // 8 days: out
     ]);
     const sep = month(ms, '2026-09');
-    expect(sep.savingsNetCents).toBe(50_000);
-    expect(sep.untracedInCents).toBe(11_000);
+    expect(sep.savingsNetCents).toBe(61_000);
+    expect(sep.untracedInCents).toBe(9_000);
+  });
+
+  it('recorded bound (cycle 3, P2-2): halves the app itself files Transfer pair, whatever they really were', () => {
+    // The categorizer files a card payment Transfer and the sweep files a coincident deposit
+    // Transfer + flagged: the app's one verdict for each row says "a move", so this counts.
+    const ms = measure([
+      row('chk', '2026-09-03', -50_000, 'CHASE CREDIT CRD EPAY', 'transfer', { isTransfer: true }),
+      row('sav', '2026-09-05', 50_000, 'MOBILE DEPOSIT', 'transfer', { isTransfer: true }),
+    ]);
+    expect(month(ms, '2026-09').savingsNetCents).toBe(50_000);
   });
 
   it('test_regression__790_one_checking_row_is_counted_once: a deposit "Money you put in" counts and a loan arriving in savings are not one move', () => {
@@ -476,13 +516,13 @@ describe('#790 critic cycle 2, P1-A — a transfer is a transfer by its filing, 
     ]);
     expect(month(one, '2026-09').savingsNetCents).toBe(50_000);
     expect(month(one, '2026-09').untracedInCents).toBe(50_000);
-    // Out on the 1st and the 3rd; in on the 3rd and the 6th: the 3rd pairs with the 3rd, and
-    // the 1st is five days from the 6th.
+    // Out on the 5th and the 10th; in on the 10th and the 14th: the 10th pairs with the 10th
+    // first, and the 5th is nine days from the 14th — past the week.
     const closest = measure([
-      row('chk', '2026-09-01', -40_000, 'TRANSFER TO SAVINGS', 'transfer'),
-      row('chk', '2026-09-03', -40_000, 'TRANSFER TO SAVINGS', 'transfer'),
-      row('sav', '2026-09-03', 40_000, 'TRANSFER FROM CHECKING', 'transfer'),
-      row('sav', '2026-09-06', 40_000, 'TRANSFER FROM CHECKING', 'transfer'),
+      row('chk', '2026-09-05', -40_000, 'TRANSFER TO SAVINGS', 'transfer'),
+      row('chk', '2026-09-10', -40_000, 'TRANSFER TO SAVINGS', 'transfer'),
+      row('sav', '2026-09-10', 40_000, 'TRANSFER FROM CHECKING', 'transfer'),
+      row('sav', '2026-09-14', 40_000, 'TRANSFER FROM CHECKING', 'transfer'),
     ]);
     expect(month(closest, '2026-09').savingsNetCents).toBe(40_000);
     expect(month(closest, '2026-09').untracedInCents).toBe(40_000);
@@ -526,5 +566,102 @@ describe('#790 critic cycle 2 — returns, earnings words, income kinds, and the
     ]);
     expect(ms.thisMonth!.savingsNetCents).toBe(-2_000);
     expect(ms.thisMonth!.savingsRows.map((r) => r.descriptor)).toEqual(['COUNTED']);
+  });
+});
+
+describe('#790 critic cycle 3 — a brokerage’s movement is never half of a move; returns are the bank’s; pay is pay', () => {
+  it('test_regression__790_a_counted_deposit_never_vouches_for_a_brokerage_arrival: Schwab → savings and checking → Vanguard are two movements (P1-1)', () => {
+    const ms = measure([
+      row('sav', '2026-09-03', 500_000, 'SCHWAB BROKERAGE MONEYLINK TRANSFER', 'investment', { isTransfer: true }),
+      row('chk', '2026-09-04', -500_000, 'VANGUARD BUY INVESTMENT', 'investment', { isTransfer: true }),
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.putInCents).toBe(500_000); // the Vanguard deposit, counted once
+    expect(sep.savingsNetCents).toBe(0);
+    expect(sep.untracedInCents).toBe(500_000); // Schwab is not linked
+    expect(sep.totalCents).toBe(500_000); // was $10,000.00 at cycle 3
+    expect(sep.uncountedInvestmentRows).toBe(1); // Investments still lists the Schwab row
+  });
+
+  it('two unlinked brokerages are not one move: checking → Fidelity and Schwab → savings', () => {
+    const ms = measure([
+      row('chk', '2026-09-03', -200_000, 'FIDELITY INVESTMENTS MONEYLINE', 'investment', { isTransfer: true }),
+      row('sav', '2026-09-04', 200_000, 'SCHWAB BROKERAGE MONEYLINK TRANSFER', 'investment', { isTransfer: true }),
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.savingsNetCents).toBe(0);
+    expect(sep.untracedInCents).toBe(200_000);
+  });
+
+  it('a return is the bank’s wording, on the same account, after the money left, for the same amount, never a row already paired (P2-1)', () => {
+    const SAV2 = acct('sav2', 'SAVINGS', 'Vacation Savings', '6604', 'Second Example Bank');
+    const ms = measure(
+      [
+        row('sav2', '2025-01-02', -100, 'MONTHLY FEE', 'fees'),
+        // A deposit Investments counts; "ACH CREDIT RETURN" is not a bank's return wording, and
+        // #788 did not un-count it — so the arrival is not this deposit coming back.
+        row('sav', '2026-09-02', -100_000, 'TRANSFER TO VANGUARD X5521', 'transfer'),
+        row('sav', '2026-09-07', 100_000, 'ACH CREDIT RETURN', null),
+        // A trust distribution is not a return of an insurance payment.
+        row('sav', '2026-09-10', -80_000, 'NORTHWIND INSURANCE PREMIUM', 'insurance'),
+        row('sav', '2026-09-12', 80_000, 'SMITH FAMILY REV TRUST DIST', null),
+        // Before the money left; another account; another amount.
+        row('sav', '2026-09-15', 30_000, 'ACH RETURN', null),
+        row('sav', '2026-09-18', -30_000, 'EXAMPLE GYM', 'fitness'),
+        row('sav', '2026-09-20', -20_000, 'EXAMPLE CLINIC', 'medical'),
+        row('sav2', '2026-09-22', 20_000, 'ACH RETURN', null),
+        row('sav', '2026-09-23', -12_000, 'EXAMPLE PHARMACY', 'medical'),
+        row('sav', '2026-09-24', 11_900, 'ACH RETURN', null),
+        // An outflow already paired as a move to checking is not returned again.
+        row('sav', '2026-09-25', -5_000, 'TRANSFER TO CHECKING', 'transfer'),
+        row('chk', '2026-09-25', 5_000, 'TRANSFER FROM SAVINGS', 'transfer'),
+        row('sav', '2026-09-27', 5_000, 'ACH RETURN', null),
+      ],
+      100_000,
+      [...BASE, SAV2],
+    );
+    const sep = month(ms, '2026-09');
+    expect(sep.putInCents).toBe(100_000);
+    expect(sep.untracedInCents).toBe(100_000 + 80_000 + 30_000 + 20_000 + 11_900 + 5_000);
+    // −1,000 − 800 − 300 − 200 − 120 − 50 out of savings; +1,000 into Vanguard.
+    expect(sep.totalCents).toBe(-100_000 - 80_000 - 30_000 - 20_000 - 12_000 - 5_000 + 100_000);
+  });
+
+  it('test_regression__790_a_counted_deposit_is_not_returned_here: a return Investments refused (the reader filed it Refund) leaves the deposit counted there and the arrival untraced here', () => {
+    const ms = measure([
+      row('sav', '2026-09-02', -100_000, 'TRANSFER TO VANGUARD X5521', 'transfer'),
+      row('sav', '2026-09-07', 100_000, 'ACH RETURN', 'refund'),
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.putInCents).toBe(100_000);
+    expect(sep.untracedInCents).toBe(100_000);
+    expect(sep.totalCents).toBe(0); // never +$1,000.00: one deposit, counted once
+  });
+
+  it('only pay is new money: a pension filed Income, benefits and a refund are not counted (P3-1)', () => {
+    const ms = measure([
+      row('sav', '2026-09-01', 150_000, 'ACME CORP PAYROLL', 'paycheck'),
+      row('sav', '2026-09-02', 50_000, 'ACME ANNUAL BONUS', 'bonus'),
+      row('sav', '2026-09-03', 38_000, 'STRIPE PAYOUT', 'side-income'),
+      row('sav', '2026-09-04', 210_000, 'NORTHWIND PENSION PAYMENT', 'income'),
+      row('sav', '2026-09-05', 90_000, 'SSA TREAS 310', 'govt-benefits'),
+      row('sav', '2026-09-06', 4_500, 'EXAMPLE STORE REFUND', 'refund'),
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.savingsNetCents).toBe(238_000);
+    expect(sep.untracedInCents).toBe(304_500);
+  });
+
+  it('a flagged row worded INT is a move, not interest; ZELLE and WIRE words are never earnings (P2-3)', () => {
+    const ms = measure([
+      row('chk', '2026-09-05', -25_000, 'TRANSFER', 'transfer'),
+      row('sav', '2026-09-05', 25_000, 'FROM INT CHECKING 7712', null, { isTransfer: true }),
+      row('sav', '2026-09-09', 4_000, 'ZELLE FROM DIV SMITH', null),
+      row('sav', '2026-09-10', 6_000, 'INTL WIRE IN INT', null),
+    ]);
+    const sep = month(ms, '2026-09');
+    expect(sep.earningsCents).toBe(0);
+    expect(sep.savingsNetCents).toBe(25_000);
+    expect(sep.untracedInCents).toBe(10_000);
   });
 });

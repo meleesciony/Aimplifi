@@ -469,7 +469,7 @@ export function liveDepositRows(
 }
 
 /** A row that is money that has moved: posted, not a split parent, not excluded, not $0, not after today. */
-export function countableDepositRow(x: LiveDepositRow, today: ISODate): boolean {
+function countableDepositRow(x: LiveDepositRow, today: ISODate): boolean {
   return (
     x.row.status === 'POSTED' &&
     !x.row.isSplitParent &&

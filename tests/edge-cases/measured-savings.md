@@ -8,11 +8,16 @@ It reads the rows and months of #788's deposit engine (`liveDepositRows`, `compu
 and date is invented. Unit `today = 2026-10-17`, records start 2025-01-02 and feeds vouch through
 2026-10-16 unless a case says otherwise; e2e and demo `today = 2026-06-10`.
 
-**The rule.** Set aside (a month) = money into the linked SAVINGS accounts, net of what came out, read
-from their own rows (posted, not a split parent, not $0, not after today — an excluded row still counts when money goes out), with rows filed
-Interest Income or Investment Income left out and listed + money into the linked INVESTMENT accounts, net of
-what came back, exactly as "Money you put in" counts it. Months, and the accounts whose records are
-missing from each, are #788's. The average uses only complete months whose records are complete.
+**The rule.** Set aside (a month) = money into the linked SAVINGS accounts, net of what came out, read from
+their own rows (posted, not a split parent, not $0, not after today) + money into the linked INVESTMENT accounts,
+net of what came back, exactly as "Money you put in" counts it. Money IN to savings counts only when it is half of a
+move from a linked checking or savings account (both halves filed Transfer / Investment & Savings or flagged and
+filed nothing else, equal, within a week, neither half a brokerage's movement by #788's verdict), money back from a
+linked investment account, a bank's return of money that left the same account (bank return wording, equal, ≤ 14
+days later), or pay (Paycheck, Bonus, Side Gig); anything else is listed as untraced. Interest and dividends (filed,
+or worded INTEREST / INT / DIVIDEND / DIV on an unflagged row with no TRANSFER / XFER / ZELLE / WIRE word) are listed
+and left out. Money OUT always counts, an excluded row included. Months, and the accounts whose records are missing
+from each, are #788's. The average uses only complete months whose records are complete.
 
 **Hand-verified cases (unit).**
 
@@ -81,3 +86,19 @@ payments …"). Debt-free goals only: savings $200.00 + debt-free $900.00 + rese
 | −$500.00 to Vanguard, +$500.00 "… RETURNED" six days later; −$10.00 fee, +$10.00 "FEE REVERSAL" | $0.00 | — | $0.00 |
 | +$250.00 "TRANSFER FROM INTEREST CHECKING" (flagged) with its checking half; +$4,000.00 IRA distribution (Retirement Income) | +$250.00 | $4,000.00 untraced; no earnings | +$250.00 |
 | Oct: −$60.00 after today, −$80.00 split parent, a $0.00 row, −$20.00 fee | −$20.00 | — | −$20.00 |
+
+**Critic cycle 3 (hand-verified, unit).**
+
+| Case (Sep 2026) | Savings, net | Left out | Set aside |
+|---|---|---|---|
+| +$5,000.00 "SCHWAB BROKERAGE MONEYLINK" into savings, −$5,000.00 "VANGUARD BUY INVESTMENT" from checking the next day (both Investment & Savings, flagged) | $0.00 | $5,000.00 untraced | +$5,000.00 (put in) — never $10,000.00; Investments still lists the Schwab row |
+| −$2,000.00 to Fidelity (not linked) from checking, +$2,000.00 from Schwab (not linked) into savings | $0.00 | $2,000.00 untraced | $0.00 |
+| $300.00 flagged, 2 days; $200.00 Transfer, 3 days; $110.00 "TO MARCUS" / "FROM CHASE", 4 days; $90.00, 8 days | +$610.00 | $90.00 | +$610.00 |
+| −$500.00 card payment "CHASE CREDIT CRD EPAY" (Transfer, flagged) + $500.00 mobile deposit (Transfer, flagged) | +$500.00 | — | +$500.00 (recorded bound: the app files both a move) |
+| Returns: "ACH CREDIT RETURN" after a deposit Investments counts; a trust distribution "… REV TRUST DIST" after an equal premium; "ACH RETURN" before the money left, on another account, for $119.00 of $120.00, and after an outflow already paired | each untraced | $2,469.00 | −$1,470.00 (−$2,470.00 out, +$1,000.00 put in) |
+| −$1,000.00 to Vanguard, +$1,000.00 "ACH RETURN" filed Refund (Investments refused it as a return) | −$1,000.00 | $1,000.00 | $0.00 — never +$1,000.00 |
+| Paycheck $1,500.00, bonus $500.00, side gig $380.00; pension filed Income $2,100.00, benefits $900.00, refund $45.00 | +$2,380.00 | $3,045.00 untraced | +$2,380.00 |
+| +$250.00 "FROM INT CHECKING" (flagged) with its checking half; "ZELLE FROM DIV SMITH" $40.00; "INTL WIRE IN INT" $60.00 | +$250.00 | $100.00 untraced; no earnings | +$250.00 |
+
+**The server.** A reader with a $200.00 savings goal and a $900.00 debt-free goal and no target: `getSpendingPlan` →
+planned $1,100.00, `measuredSavingsLine` {planned $1,100.00, debt $900.00, compared $200.00}.

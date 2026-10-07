@@ -14,17 +14,21 @@
  *               it can place on a linked investment account, every rule of that engine)
  *
  * Money INTO a savings account counts only when it is traceable to new saving (critic
- * cycles 1 and 2, P1-1 / P1-A): its other half left one of the reader's linked checking or
- * savings accounts as a MOVE — both halves filed Transfer or Investment & Savings, or
- * flagged a transfer and filed nothing else, within the transfer detector's ±3 days — or
- * it came back from a linked investment account ("Money you put in" counts it taken out),
- * or it reverses money that left the same savings account (a return or reversal within two
- * weeks), or it is filed as income other than a retirement withdrawal (pay split straight
+ * cycles 1–3): its other half left one of the reader's linked checking or savings accounts
+ * as a MOVE — both halves filed Transfer or Investment & Savings, or flagged a transfer and
+ * filed nothing else, equal, within a week ("Money you put in"'s own counterpart window),
+ * and neither half one "Money you put in" reads as a brokerage's movement — or it came back
+ * from a linked investment account ("Money you put in" counts it taken out), or the bank
+ * returned money that left the same savings account (worded the way a bank words a return,
+ * within two weeks), or it is filed as pay (Paycheck, Bonus, Side Gig — pay split straight
  * into savings). Anything else may be money saved long ago or money borrowed, so it is
  * listed and NOT counted. Money OUT of a savings account always counts as money out,
  * including a row the reader excluded from totals (critic cycle 1, P1-2: an exclusion says
  * "not my spending", and the money still left).
- * Both directions err low: the figure can understate saving, never flatter it.
+ * It overstates only where the app's own filings say a coincidence was a move: an equal
+ * amount filed Transfer leaving checking within a week of an arrival filed Transfer (the
+ * transfer sweep files a card payment or a check that way), or money from elsewhere filed
+ * as pay (critic cycle 3, P1-2: the earlier "never overstates" was false).
  *
  * Money moved between a savings account and an investment account counts once: it
  * leaves one side (−) and arrives on the other (+). Money moved from checking to savings
@@ -40,10 +44,10 @@
  * Pure: typed inputs in, a typed result out; no DB, no React, integer cents only.
  */
 import { compareDates, daysBetween, isoDate, monthKey, type ISODate } from '@/lib/dates';
-import { isIncomeCategoryId, isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
+import { isMoneyMoveCategoryId } from '@/lib/engine/categorize/categories';
 import { BANK_RETURN_RE } from '@/lib/engine/categorize/brokerage-move';
-import { REVERSAL_RE } from '@/lib/engine/spending-plan/bonus';
 import {
+  COUNTERPART_WINDOW_DAYS,
   RETURN_WINDOW_DAYS,
   computeDepositHistory,
   liveDepositRows,
@@ -66,17 +70,30 @@ export const EARNINGS_WORD_RE = /\b(INTEREST|INT|DIVIDENDS?|DIV)\b/i;
 /** Accounts a move into savings may come from and still be the reader's own saving. */
 const CASH_ACCOUNT_TYPES: ReadonlySet<string> = new Set(['CHECKING', 'SAVINGS']);
 
-/** The transfer detector's own window (`categorize/transfers.ts`: equal and opposite, ±3 days). */
-export const MOVE_PAIR_WINDOW_DAYS = 3;
+/**
+ * How far apart the two halves of a move may post: "Money you put in"'s own counterpart
+ * window (critic cycle 3, P2-4), so Investments and Guilt-free read one pair of rows the
+ * same way — a transfer between banks can take more than the transfer detector's 3 days.
+ */
+export const MOVE_PAIR_WINDOW_DAYS = COUNTERPART_WINDOW_DAYS;
 
 /** Words that make an earnings-worded row a move instead ("TRANSFER FROM INTEREST CHECKING"). */
 const MOVE_WORD_RE = /\b(TRANSFER|XFER|TRNSFR|ZELLE|WIRE)\b/i;
 
 /**
- * Income filings that are not new money set aside: a retirement withdrawal is the reader's
- * own savings coming back (critic cycle 2, P3-F); interest and dividends are earnings.
+ * The filings that make money arriving in savings new money from pay (critic cycles 2–3,
+ * P3-F / P3-1): pay split straight into savings. Every other income filing — a pension or
+ * IRA distribution (Plaid files a pension plain Income), benefits, a refund — may be the
+ * reader's own savings coming back or money that is not pay, so it is not counted.
  */
-const NOT_NEW_INCOME_IDS: ReadonlySet<string> = new Set(['retirement-income', 'interest-income', 'investment-income']);
+export const PAY_CATEGORY_IDS: ReadonlySet<string> = new Set(['paycheck', 'bonus', 'side-income']);
+
+/**
+ * "Money you put in"'s verdicts that make a row the reader's own move, not a brokerage's:
+ * every other row it counts or lists is a brokerage's movement and never half of a move
+ * between the reader's checking and savings (critic cycle 3, P1-1).
+ */
+const OWN_MOVE_REASONS: ReadonlySet<string> = new Set(['landed-in-your-account', 'no-account-named']);
 
 export interface SavingsRowView {
   rowId: string;
@@ -266,14 +283,17 @@ function pairCashMoves(rows: readonly LiveDepositRow[]): Set<string> {
 }
 
 /**
- * Money coming back to the savings account it left (critic cycle 2, P2-A): an inflow worded
- * as a return or reversal, equal to an outflow on the SAME account up to two weeks before
- * it (#788's return window), one to one, closest first. Returns the inflows' ids.
+ * Money the bank returned to the savings account it left (critic cycles 2–3, P2-A / P2-1): an
+ * inflow worded the way a bank words a return (`BANK_RETURN_RE` — never a bare REV or RETURN,
+ * which are trusts, tax refunds and store returns), equal to an outflow on the SAME account
+ * up to two weeks before it (#788's return window), one to one, closest first. An outflow
+ * "Money you put in" counted is not offered: a return #788 recognises un-counts the deposit
+ * there. Returns the inflows' ids.
  */
-function pairReturns(rows: readonly LiveDepositRow[]): Set<string> {
-  const outs = rows.filter((x) => x.row.amountCents < 0);
+function pairReturns(rows: readonly LiveDepositRow[], counted: ReadonlySet<string>): Set<string> {
+  const outs = rows.filter((x) => x.row.amountCents < 0 && !counted.has(x.row.id));
   const ins = rows
-    .filter((x) => x.row.amountCents > 0 && (BANK_RETURN_RE.test(x.row.rawDescriptor ?? '') || REVERSAL_RE.test(x.row.rawDescriptor ?? '')))
+    .filter((x) => x.row.amountCents > 0 && BANK_RETURN_RE.test(x.row.rawDescriptor ?? ''))
     .sort((a, b) => compareDates(a.date, b.date) || byId(a.row.id, b.row.id));
   const used = new Set<string>();
   const out = new Set<string>();
@@ -308,13 +328,25 @@ export function measureSavings(input: MeasuredSavingsInput): MeasuredSavings {
   const live = liveDepositRows(input.deposit).filter((x) => readable(x, today));
   /** Savings rows #788 counts as money taken back out of a linked investment account. */
   const fromInvestments = new Set<string>();
-  for (const m of deposits.months) for (const e of m.events) if (e.direction === 'out') fromInvestments.add(e.rowId);
-  // Only move halves pair (critic cycle 2, P1-A). A checking row "Money you put in" counts
-  // cannot also vouch for a savings arrival: #788 pairs the same kinds of rows over a wider
-  // window first and stops counting a deposit whose other half landed in the reader's own
-  // account ('landed-in-your-account').
-  const paired = pairCashMoves(live.filter((x) => CASH_ACCOUNT_TYPES.has(x.account.type) && isMoveLeg(x)));
-  const returned = pairReturns(live.filter((x) => x.account.type === 'SAVINGS' && !paired.has(x.row.id)));
+  /** Every row #788 counts, either way. */
+  const counted = new Set<string>();
+  for (const m of deposits.months)
+    for (const e of m.events) {
+      counted.add(e.rowId);
+      if (e.direction === 'out') fromInvestments.add(e.rowId);
+    }
+  // A row #788 reads as a brokerage's movement — counted, or listed for any reason but "the
+  // reader's own move" — is never half of a move here: a checking deposit to Vanguard that
+  // #788 counts cannot also vouch for a Schwab withdrawal arriving in savings (critic cycle
+  // 3, P1-1: one row counted twice, "$10,000.00 set aside" for $5,000.00).
+  const brokerageRows = new Set(counted);
+  for (const u of deposits.uncounted) if (!OWN_MOVE_REASONS.has(u.reason)) brokerageRows.add(u.rowId);
+  // Only move halves pair (critic cycle 2, P1-A).
+  const paired = pairCashMoves(live.filter((x) => CASH_ACCOUNT_TYPES.has(x.account.type) && isMoveLeg(x) && !brokerageRows.has(x.row.id)));
+  const returned = pairReturns(
+    live.filter((x) => x.account.type === 'SAVINGS' && !paired.has(x.row.id)),
+    counted,
+  );
 
   type Slot = MeasuredMonth & { savingsRows: SavingsRowView[]; earningsRows: SavingsRowView[]; untracedRows: SavingsRowView[] };
   const slots = new Map<string, Slot>();
@@ -362,10 +394,7 @@ export function measureSavings(input: MeasuredSavingsInput): MeasuredSavings {
       if (x.row.excludeFromTotals === true) continue;
       const c = x.row.categoryId;
       const traced =
-        paired.has(x.row.id) ||
-        fromInvestments.has(x.row.id) ||
-        returned.has(x.row.id) ||
-        (!!c && isIncomeCategoryId(c) && !NOT_NEW_INCOME_IDS.has(c));
+        paired.has(x.row.id) || fromInvestments.has(x.row.id) || returned.has(x.row.id) || (!!c && PAY_CATEGORY_IDS.has(c));
       if (!traced) {
         slot.untracedInCents += x.row.amountCents;
         slot.untracedRows.push(view);
