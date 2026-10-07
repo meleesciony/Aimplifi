@@ -64,10 +64,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             data-testid="demo-banner"
           >
             <span className="inline-block size-1.5 shrink-0 rounded-full bg-brand-500" aria-hidden />
-            {/* UI.1 — one line on a phone: the middle phrase is a desktop
-                elaboration; "demo dataset" and the as-of date are the facts. */}
-            <span>
-              Demo dataset<span className="hidden sm:inline"> · fictional accounts</span> · as of{' '}
+            {/* UI.1 — one line everywhere: the middle phrase is a wide-screen
+                elaboration (from lg, where the sidebar leaves the room);
+                "demo dataset" and the as-of date are the facts, and the pill
+                truncates rather than spills if a viewport is narrower still. */}
+            <span className="min-w-0 truncate">
+              Demo dataset<span className="hidden lg:inline"> · fictional accounts</span> · as of{' '}
               {formatISODate(isoDate(today), 'long')}
             </span>
           </p>

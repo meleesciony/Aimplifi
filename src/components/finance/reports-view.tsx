@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useId, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
+import { CHART_TOOLTIP_CONTENT_STYLE, CHART_TOOLTIP_LABEL_STYLE } from '@/components/finance/chart-tooltip-style';
 import { CategoryBreakdownPanel } from '@/components/finance/category-breakdown-panel';
 import {
   handoverDayAnswerNote,
@@ -354,7 +355,8 @@ export function ReportsView({
                 <Tooltip
                   cursor={{ fillOpacity: 0.06 }}
                   formatter={(v) => formatCents(cents(Math.round(Number(v) * 100)))}
-                  contentStyle={{ borderRadius: 8, fontSize: 12 }}
+                  contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                  labelStyle={CHART_TOOLTIP_LABEL_STYLE}
                 />
                 <Bar
                   dataKey="income"

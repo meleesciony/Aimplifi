@@ -57,7 +57,7 @@ export function SignOutButton({
         size="sm"
         type="submit"
         disabled={busy}
-        className={iconOnly ? 'size-10 rounded-full px-0 text-muted-foreground' : undefined}
+        className={iconOnly ? 'size-11 rounded-full px-0 text-muted-foreground' : undefined}
       >
         {busy ? (
           '…'

@@ -38,6 +38,7 @@ import { TakeBillOffPlanButton } from '@/components/finance/take-bill-off-plan-b
 import { NotABillButton, PaidThisCycleButton } from '@/components/finance/recurring-verdict-controls';
 import { ConvertToReserveButton } from '@/components/finance/convert-to-reserve-button';
 import { PutBillBackOnPlanButton } from '@/components/finance/put-bill-back-on-plan-button';
+import { planSplitWidths } from '@/lib/engine/spending-plan/split-widths';
 
 export const metadata = { title: "Spending plan" };
 
@@ -107,9 +108,16 @@ export default async function SpendingPlanPage() {
     );
   }
 
-  const total = Math.max(1, p.patternIncomeCents);
-  const pct = (n: number) => `${Math.max(0, Math.min(100, (n / total) * 100))}%`;
-  const leftWidth = pct(Math.max(0, p.leftToSpendCents));
+  // The bar's widths come from the one helper the Home guilt-free card also
+  // reads (DECISIONS #793), so the two surfaces cannot disagree about a share.
+  // The fields are named here on purpose: this page reads the savings this
+  // month's PAY funds, never planned savings (DECISIONS #784/#787; locked).
+  const split = planSplitWidths({
+    patternIncomeCents: p.patternIncomeCents,
+    fixedExpensesCents: p.fixedExpensesCents,
+    savingsFromPayCents: p.savingsFromPayCents,
+    leftToSpendCents: p.leftToSpendCents,
+  });
   const d = p.disclosures;
 
   const trace = traceSafeToSpend(p, d);
@@ -170,11 +178,11 @@ export default async function SpendingPlanPage() {
           role="img"
           aria-label="Allocation of monthly income: fixed expenses, savings, guilt-free"
         >
-          <div className="bg-warning-400/80" style={{ width: pct(p.fixedExpensesCents) }} title="Fixed expenses" />
+          <div className="bg-warning-400/80" style={{ width: split.fixed }} title="Fixed expenses" />
           {/* The savings this month's PAY funds: a bonus that paid the rest is not
               income, and the bar is a split of income (DECISIONS #784/#787). */}
-          <div className="bg-sky-400/80" style={{ width: pct(p.savingsFromPayCents) }} title="Savings" />
-          <div className="bg-positive-500/80" style={{ width: leftWidth }} title="Guilt-free" />
+          <div className="bg-sky-400/80" style={{ width: split.savings }} title="Savings" />
+          <div className="bg-positive-500/80" style={{ width: split.guiltFree }} title="Guilt-free" />
         </div>
         <ul
           data-testid="spending-plan-legend"

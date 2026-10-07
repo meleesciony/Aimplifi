@@ -36,7 +36,7 @@ const SHEET = SHEET_DESTINATIONS;
  * icon lit in brand; idle rows are quiet and warm up on hover.
  */
 function sidebarLinkClass(active: boolean) {
-  return `group/nav relative flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors ${
+  return `group/nav relative flex min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
     active
       ? 'bg-brand-500/12 font-medium text-foreground before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-brand-500'
       : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground'
@@ -312,7 +312,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
       ) : null}
 
       <nav
-        className="pb-safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-40 flex border-t border-border/60 bg-background/85 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.6)] backdrop-blur-xl sm:hidden"
+        className="pb-safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-40 flex border-t border-border/60 bg-background/85 backdrop-blur-xl sm:hidden"
         aria-label="Primary"
         data-testid="bottom-nav"
       >
@@ -327,7 +327,7 @@ export function AppNav({ reviewBadge }: { reviewBadge?: React.ReactNode }) {
               aria-current={active ? 'page' : undefined}
               data-testid={`bottom-${item.testid}`}
               onClick={closeMore}
-              className={`pointer-events-auto relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] transition-colors ${
+              className={`pointer-events-auto relative flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
                 active
                   ? 'font-medium text-brand-500 before:absolute before:inset-x-5 before:top-0 before:h-0.5 before:rounded-full before:bg-brand-500'
                   : 'text-muted-foreground'
