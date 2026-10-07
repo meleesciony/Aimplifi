@@ -32,6 +32,8 @@
 - **Critic cycle 2** = PASS, 0 P0 / 0 P1 / 3 P2 / 7 P3 — fixed before ship (`000686ee`): a series decided by its own rows (`moneyMoveSeriesVerdicts`; the annuity re-filed Income counts again; Venmo cash-outs no longer hide a rent rise), badge component + contrast, `INVEST(?!IG)`. Mutation 8/8.
 - Gate on `000686ee`: tsc 0, probes 0, eslint 0; vitest 9,242 passed + 3 failed — the 2 `vercel-build` and **`recurring-override.test.ts:172`** (the evidence row's new `id`); build compiled; Playwright **481 passed / 0 flaky / 0 failed**.
 - **Critic cycle 3** = FAIL, 0 P0 / 1 P1 (that red test) / 2 P2 / 5 P3, money logic sound. Fixed in tests only (source unchanged from `000686ee`). Budget: 3 of 4 cycles used; the cycle-3 P1 is closed by the deterministic gate, not by a further critic.
+- Gate on the final tree (Git Bash `bash scripts/verify.sh`): tsc 0, probes 0, eslint 0; vitest 9,243 passed + 2 (`vercel-build`; PowerShell 31/31); build compiled (Playwright: the `000686ee` run above, same source).
+- **Shipped** `07512a05` (fast-forward of `main`, this slice only). CI run 37650488620 SUCCESS (`ci-status.sh` exit 0); production deployment 6914945130 success; `scripts/money-move-readers-live-deploy-check.mjs` PASS 7/7. No `prisma/` diff.
 
 ## 2026-10-07 — "The × does nothing": instrument, read the log, then fix the message (DECISIONS #794, #795)
 
