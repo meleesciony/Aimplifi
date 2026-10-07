@@ -259,7 +259,10 @@ export function CashNeededCard({
   );
 
   return (
-    <Card data-testid="cash-needed-card" size="sm" className={STAGE_GLOW_CLASS}>
+    // UI.1 — the brand glow only when the cycle is covered: brand and positive
+    // are one emerald here (U.2), and a green bloom behind a red shortfall would
+    // read as "all good". A shortfall gets the plain card and its red alert.
+    <Card data-testid="cash-needed-card" size="sm" className={covered ? STAGE_GLOW_CLASS : undefined}>
       <CardHeader className="pb-1.5">
         <CardDescription>Cash needed for cards this cycle</CardDescription>
         <GlassBoxNumber

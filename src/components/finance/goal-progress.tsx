@@ -36,10 +36,18 @@ export function GoalProgressBar({ name, progress }: { name: string; progress: Go
 }
 
 export function GoalPaceBadge({ progress }: { progress: GoalProgress }) {
-  const variant =
-    progress.pace === 'funded' ? 'default' : progress.pace === 'behind' || progress.pace === 'date-passed' ? 'outline' : 'secondary';
+  const attention = progress.pace === 'behind' || progress.pace === 'date-passed';
+  const variant = progress.pace === 'funded' ? 'default' : attention ? 'outline' : 'secondary';
   return (
-    <Badge variant={variant} data-testid="goal-pace-badge" data-pace={progress.pace}>
+    <Badge
+      variant={variant}
+      // UI.1 — the attention paces keep a distinct look now that outline and
+      // secondary badges share a soft fill: a warning edge and ink. The text
+      // still carries the verdict; the hue is additive, never the only carrier.
+      className={attention ? 'border-warning-500/50 bg-warning-500/10 text-warning-700 dark:text-warning-300' : undefined}
+      data-testid="goal-pace-badge"
+      data-pace={progress.pace}
+    >
       {GOAL_PACE_LABEL[progress.pace]}
     </Badge>
   );

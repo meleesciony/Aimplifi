@@ -7,6 +7,7 @@
  * rose if the balance is projected to dip below zero.
  */
 import { Area, AreaChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CHART_TOOLTIP_CONTENT_STYLE, CHART_TOOLTIP_LABEL_STYLE } from '@/components/finance/chart-tooltip-style';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { formatISODate, isoDate } from '@/lib/dates';
@@ -143,12 +144,8 @@ export function ForecastView({ data }: { data: CashFlowForecastData }) {
               <Tooltip
                 formatter={(v) => [formatCents(cents(Math.round(Number(v) * 100))), 'Balance']}
                 labelFormatter={(_, p) => p?.[0]?.payload?.full ?? ''}
-                contentStyle={{
-                  background: 'var(--popover)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
+                contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                labelStyle={CHART_TOOLTIP_LABEL_STYLE}
               />
               <Area type="monotone" dataKey="dollars" stroke={color} strokeWidth={2} fill="url(#fc)" />
             </AreaChart>

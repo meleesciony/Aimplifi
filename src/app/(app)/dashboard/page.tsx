@@ -272,7 +272,7 @@ export default async function DashboardPage({
 
       {/* Stage: cash-needed first in the DOM so phones and desktop agree.
           Guilt-free is the pair. Plan form is off this fold. */}
-      <div className="grid gap-3 lg:grid-cols-5 lg:gap-4" data-testid="home-stage">
+      <div className="grid gap-3 lg:grid-cols-5 lg:items-start lg:gap-4" data-testid="home-stage">
         <div className="lg:col-span-3">
           <CashNeededCard
             result={data.payInFull}

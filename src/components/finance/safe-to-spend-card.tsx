@@ -3,6 +3,7 @@ import { cents, formatCents } from '@/lib/money';
 import type { SpendingPlan, SpendingPlanDisclosures } from '@/lib/engine/spending-plan/plan';
 import { LONG_CADENCE_WORDS, longCadencesInTerm } from '@/lib/engine/spending-plan/plan';
 import { bonusShortNote } from '@/lib/engine/spending-plan/bonus-copy';
+import { planSplitWidths } from '@/lib/engine/spending-plan/split-widths';
 import { TrackedActedLink } from '@/components/engagement/tracked-acted-link';
 import { MONEY_NEGATIVE_CLASS, MONEY_PAIR_CLASS, PAGE_SECTION_LABEL_CLASS } from '@/components/finance/page-chrome';
 import { SURFACE_LINK_CARD_CLASS } from '@/components/finance/surface-card-styles';
@@ -31,18 +32,16 @@ export function SafeToSpendCard({
     plan.plannedSavingsCents === 0;
   const ok = !plan.overspent;
   const bonusNote = bonusShortNote(plan);
-  // UI.1 — the same split of income the /spending-plan hero bar draws (its
-  // `pct`, verbatim): fixed, savings this month's pay funds, guilt-free.
-  // Labels only, like that legend — the figures live on the plan page.
-  const total = Math.max(1, plan.patternIncomeCents);
-  const pct = (n: number) => `${Math.max(0, Math.min(100, (n / total) * 100))}%`;
+  // UI.1 — the same split of this month's pay the /spending-plan hero bar
+  // draws, from the one helper both read. Labels only, like that legend — the
+  // figures live on the plan page.
+  const split = planSplitWidths(plan);
   return (
     <TrackedActedLink
       href="/spending-plan"
       subjectKey="safe-to-spend"
       data-testid="dashboard-safe-to-spend"
-      // UI.1 — fills its grid cell so the stage pair sits at one height on desktop.
-      className={`${SURFACE_LINK_CARD_CLASS} flex h-full flex-col`}
+      className={`${SURFACE_LINK_CARD_CLASS} flex flex-col`}
     >
       <div className={PAGE_SECTION_LABEL_CLASS}>
         <Gauge className="size-3.5" aria-hidden />
@@ -89,15 +88,14 @@ export function SafeToSpendCard({
               allows for.
             </p>
           ))}
+          {/* Decorative as a whole (bar AND legend): the link's accessible name
+              is the figure and its sentence, not "Fixed Savings Guilt-free". */}
           {ok ? (
-            <div className="mt-auto pt-4" data-testid="dashboard-safe-to-spend-split">
-              <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
-                <div className="bg-warning-400/80" style={{ width: pct(plan.fixedExpensesCents) }} />
-                <div className="bg-sky-400/80" style={{ width: pct(plan.savingsFromPayCents) }} />
-                <div
-                  className="bg-positive-500/80"
-                  style={{ width: pct(Math.max(0, plan.leftToSpendCents)) }}
-                />
+            <div className="mt-4" data-testid="dashboard-safe-to-spend-split" aria-hidden>
+              <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div className="bg-warning-400/80" style={{ width: split.fixed }} />
+                <div className="bg-sky-400/80" style={{ width: split.savings }} />
+                <div className="bg-positive-500/80" style={{ width: split.guiltFree }} />
               </div>
               <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">

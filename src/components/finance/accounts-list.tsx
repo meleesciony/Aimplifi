@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CHART_TOOLTIP_CONTENT_STYLE, CHART_TOOLTIP_LABEL_STYLE } from '@/components/finance/chart-tooltip-style';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmPrompt, useConfirmArm } from '@/components/ui/confirm-action';
 import { ConnectAccountsButton } from '@/components/finance/connect-accounts-button';
@@ -175,7 +176,8 @@ function NetWorthCard({ data }: { data: AccountsView }) {
                 <Tooltip
                   formatter={(value) => [formatCents(cents(Math.round((value as number) * 100))), 'Net worth']}
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.fullDate ?? ''}
-                  contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                  contentStyle={CHART_TOOLTIP_CONTENT_STYLE}
+                  labelStyle={CHART_TOOLTIP_LABEL_STYLE}
                 />
                 <Area type="monotone" dataKey="dollars" stroke={CHART_POSITIVE} strokeWidth={2} fill="url(#nwacct)" />
               </AreaChart>

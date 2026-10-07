@@ -116,7 +116,7 @@ export function SpendClassBadge({
         data-testid="txn-spend-class"
         data-spend-class={spendClass}
         data-spend-class-reader-set={readerSet ? 'true' : undefined}
-        className="shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground"
+        className="shrink-0 rounded-md border border-transparent bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground"
       >
         {spendClassLabel(spendClass)}
         {readerSet ? <span data-testid="txn-spend-class-reader-set"> · you set this</span> : null}

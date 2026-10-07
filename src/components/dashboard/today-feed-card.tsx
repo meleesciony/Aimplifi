@@ -3,23 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  CirclePause,
-  CreditCard,
-  Handshake,
-  Repeat,
-  ScanSearch,
-  ShieldCheck,
-  Target,
-  TrendingDown,
-  TrendingUp,
-  TriangleAlert,
-  type LucideIcon,
-} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transactions/links';
 import { Button } from '@/components/ui/button';
-import type { NudgeFeed, Proposal, ProposalKind } from '@/lib/engine/nudge/types';
+import type { NudgeFeed, Proposal } from '@/lib/engine/nudge/types';
+import { proposalGlyph } from '@/components/dashboard/today-feed-glyph';
 import {
   proposalCopy,
   proposalFrozenNote,
@@ -212,24 +200,6 @@ export function TodayFeedCard({
   );
 }
 
-/**
- * UI.1 — one glyph + tint per proposal kind. Tone follows the copy's own
- * register: money that is due or short is warning amber; a deposit that
- * stopped is muted; everything that is an opportunity or a check is brand.
- */
-const KIND_GLYPH: Record<ProposalKind, { Icon: LucideIcon; tone: string }> = {
-  payment_due: { Icon: CreditCard, tone: 'bg-warning-500/15 text-warning-400' },
-  cash_flow_dip: { Icon: TrendingDown, tone: 'bg-warning-500/15 text-warning-400' },
-  cash_needed_shortfall: { Icon: TriangleAlert, tone: 'bg-warning-500/15 text-warning-400' },
-  unusual_charge: { Icon: ScanSearch, tone: 'bg-brand-500/12 text-brand-400' },
-  income_pause: { Icon: CirclePause, tone: 'bg-muted text-muted-foreground' },
-  goal_behind_pace: { Icon: Target, tone: 'bg-brand-500/12 text-brand-400' },
-  'unused-subscription': { Icon: Repeat, tone: 'bg-brand-500/12 text-brand-400' },
-  'price-increase': { Icon: TrendingUp, tone: 'bg-brand-500/12 text-brand-400' },
-  'insurance-reshop': { Icon: ShieldCheck, tone: 'bg-brand-500/12 text-brand-400' },
-  'negotiable-bill': { Icon: Handshake, tone: 'bg-brand-500/12 text-brand-400' },
-};
-
 function ProposalRow({
   proposal,
   headline = false,
@@ -261,19 +231,21 @@ function ProposalRow({
         : ('confirm' as const)
       : null;
 
-  const { Icon, tone } = KIND_GLYPH[proposal.kind];
+  const { Icon, tone, toneClass } = proposalGlyph(proposal.kind, proposal.tier);
 
   return (
     <div data-testid={`nudge-${proposal.kind}`} data-tier={proposal.tier}>
-      <div className="flex items-start justify-between gap-3">
-        {/* UI.1 — a glyph per kind gives the ranked list a visual rhythm the
-            seven near-identical text blocks lacked. Decorative (aria-hidden):
-            the kind is already in the title and the testid. */}
+      <div className="flex items-start justify-between gap-2.5 sm:gap-3">
+        {/* UI.1 — a glyph per kind (today-feed-glyph.ts) gives the ranked list a
+            visual rhythm the seven near-identical text blocks lacked. Decorative
+            (aria-hidden): the kind is already in the title and the testid. A
+            step smaller below `sm`, where the text column is the scarce thing. */}
         <span
-          className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full ${tone}`}
+          className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full sm:size-8 ${toneClass}`}
+          data-glyph-tone={tone}
           aria-hidden
         >
-          <Icon className="size-4" />
+          <Icon className="size-3.5 sm:size-4" />
         </span>
         <div className="min-w-0 flex-1">
           <p className={headline ? 'font-semibold' : 'font-medium'}>{title}</p>

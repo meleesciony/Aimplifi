@@ -74,7 +74,7 @@ import {
 import { SPENDING_ACCOUNT_TYPES, type PageInfo, type TxnSummary, type TxnView } from '@/lib/engine/transactions/query';
 import { isAccountExplainedZero, isWindowExplainedZero, type RegisterEmptyReason } from '@/lib/engine/transactions/empty-reason';
 import { accountTypeLabel } from '@/lib/engine/account/type-label';
-import { SpendClassBadge } from '@/components/finance/spend-class-badge';
+import { ROW_CHIP, SpendClassBadge } from '@/components/finance/spend-class-badge';
 import { outOfScopeReason } from '@/lib/engine/spending-plan/spend-class';
 
 /**
@@ -1059,7 +1059,7 @@ export function TransactionList({
                           prefetch={false}
                           data-testid="txn-detail-link"
                           aria-label={`Open the details of this ${t.merchantName} transaction`}
-                          className={`tap-target inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground ${ROW_REST}`}
+                          className={`${ROW_CHIP} ${ROW_REST}`}
                         >
                           Details
                         </Link>
@@ -1099,7 +1099,7 @@ export function TransactionList({
                           prefetch={false}
                           data-testid="txn-rule-link"
                           aria-label={`Create a categorization rule from this ${t.merchantName} transaction`}
-                          className={`tap-target inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground ${ROW_REST}`}
+                          className={`${ROW_CHIP} ${ROW_REST}`}
                         >
                           Rule…
                         </Link>
