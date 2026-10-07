@@ -16,6 +16,7 @@ import { getRecurring } from '@/server/recurring';
 
 const USER = `inv-not-spend-c2-${Date.now()}-${process.pid}`;
 const CHK = `${USER}-chk`;
+const LOAN = `${USER}-loan`;
 
 beforeAll(async () => {
   vi.stubEnv('DEMO_TODAY', '2026-06-10');
@@ -24,8 +25,18 @@ beforeAll(async () => {
   await prisma.account.create({
     data: { id: CHK, userId: USER, provider: 'manual', providerRef: `${USER}-r`, name: 'Everyday Checking', type: 'CHECKING', mask: '3318', currentBalanceCents: 900000, currency: 'USD' },
   });
+  await prisma.account.create({
+    data: { id: LOAN, userId: USER, provider: 'manual', providerRef: `${USER}-l`, name: 'Car Loan', type: 'LOAN', mask: '7740', currentBalanceCents: -1200000, currency: 'USD' },
+  });
   const r = (date: string, amountCents: number, rawDescriptor: string, categoryId: string) => ({ accountId: CHK, date, amountCents, rawDescriptor, categoryId, confidenceBps: 10000, needsReview: false });
   const data = [];
+  // #792 critic cycle 3, P2-2: rows /recurring's detector never reads (pending; on a loan
+  // account), dated first, so the snapshot's positions are not the detector's. A verdict
+  // read by snapshot position would read these rows' filings for the 529's.
+  for (const d of ['2025-12-01', '2025-12-02', '2025-12-03']) {
+    data.push({ ...r(d, -4500, 'PENDING COFFEE', 'shopping'), status: 'PENDING' });
+    data.push({ ...r(d, -9000, 'LOAN INTEREST', 'shopping'), accountId: LOAN });
+  }
   for (const m of ['01', '02', '03', '04', '05']) {
     // A 529 plan the reader files Investment & Savings (the categorizer does not), rising.
     data.push(r(`2026-${m}-20`, m === '05' ? -25000 : -20000, 'NY 529 COLLEGE SAVINGS PLAN', 'investment'));

@@ -168,9 +168,10 @@ describe('"this IS a bill" — a declaration adds the rhythm and nothing else', 
     // surface can render this as a pattern the app observed.
     expect(s.declaredByUser).toBe(true);
     // O.18c — the charges panel's evidence: the one charge the declaration
-    // read, carried verbatim (date, signed amount, bank text).
+    // read, carried verbatim (date, signed amount, bank text) — and, since #792, the
+    // id the detector was given for it (the reader's filing of that row is read by it).
     expect(s.occurrenceRows).toEqual([
-      { date: '2026-05-15', amountCents: -125000, descriptor: RENT_DESC },
+      { id: expect.any(String), date: '2026-05-15', amountCents: -125000, descriptor: RENT_DESC },
     ]);
   });
 

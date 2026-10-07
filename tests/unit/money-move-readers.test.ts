@@ -108,6 +108,10 @@ describe('P2-B — a series is decided by the reader’s filings of ITS OWN rows
     expect(shape(['investment', 'shopping', 'shopping', null])).toBe(false);
     expect(shape(['investment', null, null, null, null])).toBe(true);
     expect(shape([null, null, null, null])).toBeUndefined();
+    // Ingest stores a row in review as 'uncategorized', never null (#792 critic cycle 3, P2-1):
+    // a 529 with two rows filed Investment & Savings and four in review stays a move.
+    expect(shape(['investment', 'investment', 'uncategorized', 'uncategorized', 'uncategorized', 'uncategorized'])).toBe(true);
+    expect(shape(['uncategorized', 'uncategorized', 'uncategorized'])).toBeUndefined();
   });
 });
 

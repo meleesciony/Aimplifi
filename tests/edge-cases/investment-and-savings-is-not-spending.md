@@ -128,6 +128,7 @@ and six not filed yet, beside eight "VENMO CASHOUT" +$400.00 filed Transfer: the
 (the cash-outs are not its rows) and its rise is a price increase. Four 529 contributions filed Investment &
 Savings and one Education: a move, and its $200.00 → $250.00 rise is not a price. "FIDELITY INVESTMENTS
 ANNUITY PMT" +$1,800.00 monthly, filed Investment & Savings by default and re-filed Income by the reader on
-every row, beside a $1,900.00 benefit: recurring income, no badge, in the section's figure. A series of four:
+every row, beside a $1,900.00 benefit: recurring income, no badge, in the section's figure. Series of four to six:
 2 moves + 2 Shopping → a move; 1 move + 2 Shopping + 1 not filed → not; 1 move + 4 not filed → a move; none
 filed → absent (the default filing decides). "VANGUARD INVESTIG" is a business.
+Cycle 3: a row in review is stored `'uncategorized'` — 2 moves + 4 in review → a move; 3 in review → absent.
