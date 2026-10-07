@@ -650,7 +650,9 @@ describe('answerUnknown', () => {
   it('offers capabilities + suggestions', () => {
     const a = answerUnknown();
     expect(a.kind).toBe('unknown');
-    expect(a.suggestions).toHaveLength(19);
+    expect(a.suggestions).toHaveLength(20);
+    // #796: a savings rate over a named period is discoverable from the empty state.
+    expect(a.suggestions).toContain('What was my savings rate last year?');
     expect(a.suggestions).toContain('When will I be debt-free?');
     expect(a.suggestions).toContain('Can I be debt-free by December 2028?');
     expect(a.suggestions).toContain('Can I save $20,000 by December 2028?');
