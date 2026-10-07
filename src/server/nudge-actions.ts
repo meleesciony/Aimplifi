@@ -27,7 +27,12 @@ export async function dismissNudge(dismissKey: string): Promise<boolean> {
     if (!(await rateLimitDurable(`nudge-dismiss:${userId}`, DISMISS_LIMIT, DISMISS_WINDOW_MS))) {
       return false;
     }
-    return await recordNudgeDismissal(userId, dismissKey);
+    const ok = await recordNudgeDismissal(userId, dismissKey);
+    // DECISIONS #794: one log line per attempt, so `vercel logs` can answer
+    // "did the tap reach the server?" for a reader whose row will not go away.
+    // The key is engine-minted (kind + ids), never a figure.
+    console.log(`[nudge-dismiss] ${JSON.stringify({ userId, dismissKey, ok })}`);
+    return ok;
   } catch {
     return false;
   }
