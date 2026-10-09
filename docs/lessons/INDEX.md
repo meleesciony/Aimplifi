@@ -114,3 +114,4 @@ and rule live in each lesson file — open the file before acting on a hook.
 - [A narrowed word list reopens what it used to catch](a-narrowed-word-list-reopens-what-it-caught.md) — #788 narrowed return words to stop false hits and silently re-counted bounces; test both directions
 - [A junctioned worktree cannot build](a-junctioned-worktree-cannot-build.md) — Turbopack rejects a node_modules junction outside the root: tsc/eslint/vitest run there, next build and e2e do not; gate in the main tree
 - [A guard you cannot trigger may guard another engine's refusal](a-guard-you-cannot-trigger-may-guard-the-other-engines-refusal.md) — #790 dropped a guard; #788's refusal rebuilt the double count.
+- [A filing says what a row is, not who charged it](a-filing-says-what-not-who.md) — #796 read Fees & Charges as bank fees; a payee denylist leaked twice. Read the narrower claim by allowlist, list the rest.

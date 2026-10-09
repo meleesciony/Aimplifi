@@ -28,6 +28,20 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
+## ⛔ AT THE OWNER'S GATE 2026-10-09 — Fees you paid (DECISIONS #796): critic budget spent, not shipped
+
+**What it is.** A "Fees you paid" card on /coach: the bank and card fees in the last 12 months of records by kind (overdraft & returned item, monthly account, late, ATM, foreign transaction, wire), each kind one tap from its rows and from how that kind is usually avoided; what came back (capped at what was charged per account and kind); what was filed as a fee and not counted; interest and annual fees left out by amount. Branch `slice-796-bank-fees` at the cycle-3 fixes `c33d0b73` (+ this ledger commit); not on `main`, not deployed.
+
+**Open — critic cycle 4 (0 P0 / 1 P1 / 4 P2 / 5 P3):**
+- P1-1 (a missing lock; the code is right): money-in rows with pending / excluded / transfer / split-parent / loan-exclusion flags are never tested — a mutant that skips `countsInFlows` for money in passes every test.
+- P2-2: locks DECISIONS #796 claims but the tests don't hold — eight interest-phrase alternatives (MINIMUM, BALANCE TRANSFER, PURCHASE, ON CASH, ON BALANCE(S), INTEREST FEE, FINANCE CHARGES, INTEREST CHARGED/CHARGES), the credits' oldest-first sort, credits keyed by the reconnection-merged account.
+- P2-3: "Came back — $70.00 (1 fee returned)" for one refund of two fees — say "1 credit".
+- P2-4: the rule says it sets aside "NON-<bank>" (multi-word banks aren't), dates (only "month number" is), "details:" (only after a space) — low direction; widen the code or narrow the rule.
+- P2-5: the annual-fee reason prints beside an HOA's or a club's annual fee (the categorizer files them under Fees & Charges).
+- P3: real fees the categorizer never files as fees (low); a first-row date after today can print; an in-window refund of an earlier fee counts against an in-window fee; the overdraft advice under a deposited item's return fee; principal called "charges" in the not-counted heading.
+
+**Recorded, not this slice:** `tests/e2e/transactions.spec.ts:639` (CSV re-import: the second import shows "Imported 2" instead of a dedupe) fails 2 of 3 attempts locally on pre-slice `main` (`514f45b3`, baseline build + spec run 2026-10-09) and 3 of 3 once on this slice's first build; CI was green on `514f45b3`. Either a dedupe defect or a stale result panel under load — not diagnosed.
+
 ## ✅ BUILT 2026-10-07 — Money you set aside: measured savings against the plan's savings line (DECISIONS #790)
 
 **What it is.** Guilt-free (`/spending-plan`, `#money-set-aside`; the plan's Savings legend links to it) shows what the reader actually set aside this month against the plan's savings line, the average over complete months with full records, and every month one tap from its rows. Set aside = money into the linked savings accounts (money in only when traceable: a move from the reader's linked checking or savings, a withdrawal from a linked investment account, a bank's return, or pay) net of everything that came out, plus "Money you put in" (#788) net of what came back. Untraced money in, interest and dividends are listed and left out. The comparison uses the plan's savings line less debt-free goals' extra payments, and says so. Every in/out sentence is in counted money.

@@ -17,6 +17,20 @@
 > `docs/archive/PROGRESS_ARCHIVE_2026-09-16_to_2026-09-17.md` (rotated 2026-09-21).
 > Only sessions from 2026-09-18 onward live here; append new sessions at the top as before.
 
+## 2026-10-09 — Fees you paid: bank and card fees by kind on /coach (DECISIONS #796) — AT THE OWNER'S GATE, not shipped
+
+**Picked up.** Owner: "Build this out as a world class dev and data scientist specializing in personal finance." An explorer gap map of SPEC.md Differentiator #3 found the "big wins" engine never counts bank/investment fees; a second mapped every consumer of the opportunity list (a new `OpportunityKind` would silently move the FI cut, the radar cut-walk, Ask's "what to cut" and the Today feed). Built as its own engine and card instead.
+
+**Built** (branch `slice-796-bank-fees`, maker worktree `C:\dev\_maker_796`): `src/lib/engine/fi/bank-fees.ts` (allowlist reader, per-account-and-kind give-back cap, per-account window, `terminalOf`), `bank-fees-copy.ts`, `components/coach/bank-fees-card.tsx`, `getCoachData.bankFees`, the card on /coach after "Worth a look", `PAGE_RETURNS.coach`. Tests: `bank-fees.test.ts`, `bank-fees-card.test.tsx`, `coach-bank-fees.test.ts`, `e2e/bank-fees.spec.ts`; edge cases `tests/edge-cases/bank-fees.md`. Lesson `docs/lessons/a-filing-says-what-not-who.md`; `windows-codegen-via-shell.md` extended (a heredoc's 0x08 made a test regex vacuous; source-hygiene caught it).
+
+**Critic cycles (Opus, separate worktree `C:\dev\_critic_796`).** 1 FAIL (1 P0 / 1 P1): money in that wasn't a fee "came back"; other businesses' fees charged. 2 FAIL (3 P1): the business denylist leaked (WESTGATE, SOLID WASTE, RENTCAFE …); wires worded CREDIT came back; last day unlocked → the allowlist. 3 FAIL (2 P1): wholly-vocabulary texts unread under a false note; "INCOMING WIRE TRANSFER … SERVICE FEES" +$4,000 came back → the give-back cap. 4 FAIL (0 P0 / 1 P1 — a missing lock: money-in rows skipping `countsInFlows`; the code is right) / 4 P2 / 5 P3. DECISIONS #796 carries every finding. **Budget spent → owner's gate.**
+
+**Gates.** `88c0bcc0` (first draft): Playwright 481 passed / 3 flaky / 1 failed (`transactions.spec.ts:639` CSV re-import — fails 2 of 3 on pre-slice `514f45b3` too: baseline build + spec run, so not this slice). `897ca457`: Playwright 485 passed / 0 flaky / 0 failed. `6e79ddf0`: source-hygiene caught the 0x08 (fixed). **`c33d0b73`** (Git Bash `VERIFY_E2E=1 bash scripts/verify.sh`): tsc 0, probes 0, eslint 0; vitest 9,512 passed + 2 failed (`vercel-build.test.ts`, the known Git Bash ENOENT; PowerShell 3/3 on `897ca457`); build compiled; Playwright 481 passed / 4 flaky (`activity-row:421`, `action-menu:391`, `goal-demo-and-nudge:19`, `rule-inventory:81` — untouched surfaces) / 0 failed. Mutation 56/56 (maker). Screenshots at 380/1366: no horizontal scroll.
+
+**Live (read before any deploy):** `bank-fees-live-deploy-check.mjs` MODE=read on www.aimplifi.app — card absent, `?back=_coach` not decoded (row `txn-00841`). Draft probe in the session scratchpad; goes to `scripts/` with the ship.
+
+**Next.** The owner's call on cycle 4: fix the P1 lock + P2s (tests, a count word, the rule's noise list, the annual reason) and run one more review, or fix and ship, or hold.
+
 ## 2026-10-07 — Money you set aside: measured savings against the plan's savings line (DECISIONS #790)
 
 **Picked up.** The branch `slice-790-measured-savings` (`7df2b358`, built 2026-10-06, never gated) cherry-picked onto #792 in a worktree (`C:\dev\_maker_790`, branch `slice-790-rebased`; one conflict in `deposits.ts`), its DECISIONS and edge-case drafts brought in from the 2026-10-06 session scratchpad after checking them against its tests.

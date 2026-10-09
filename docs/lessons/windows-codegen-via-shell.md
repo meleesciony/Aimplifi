@@ -32,3 +32,12 @@ After editing generated code, a `python -c "...count control bytes..."` spot-che
 cheap; the unit gate is the backstop. CRLF is the sibling failure: a whole-file
 line-ending flip (4,513-line diff for a 161-line change) poisons blame/bisect — check
 `git diff --stat` vs `git diff -w --stat` before committing a big file.
+
+**Extended 2026-10-09 (#796): the raw byte can make a test VACUOUS, not just break a build.**
+A python heredoc wrote `/\b(above|below)\b/` into a jsdom test as `/<0x08>(above|below)<0x08>/`
+— two real backspace bytes. tsc, eslint and the test itself passed: a regex that needs a
+backspace never matches, so `not.toMatch` always held and the assertion locked nothing. Only
+`source-hygiene.test.ts` in the full gate caught it. A mutation sweep would not have: it mutates
+the source, not the test. Rule unchanged, reason sharpened — regex text goes through Write/Edit
+(or a `python -c` with `bytes.fromhex` for a byte-exact replace), and after any scripted edit to
+a test, scan it for control bytes before trusting a green run.
