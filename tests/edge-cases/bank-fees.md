@@ -8,15 +8,18 @@ rows. Tests: `tests/unit/bank-fees.test.ts`, `tests/unit/bank-fees-card.test.tsx
 (window 2025-10-18 – 2026-10-17, both ends inclusive); e2e and demo `today = 2026-06-10` (window 2025-06-11 – 2026-06-10).
 
 **The rule.** Rows: checking, savings and card accounts; posted, not a transfer / money move / split parent /
-excluded / loan-payment exclusion (`countsInFlows`); dated in the window; not $0.00. A reconnected account
-(`terminalOf`) is one account.
-- The bank text is read by ALLOWLIST: less numbers, amounts, ordinals, masks (X's + digits), a month written beside a
-  number, "NON-<BANK>" before ATM, and — only after overdraft / returned-item words — a "FOR A $… / DETAILS: …" tail;
+excluded / loan-payment exclusion (`countsInFlows`) — money in and money out alike; dated in the window, never after
+today (a later row isn't a record yet); not $0.00. A reconnected account (`terminalOf`) is one account.
+- The bank text is read by ALLOWLIST: less numbers, amounts, ordinals, masks (X's + digits), a date written with a
+  month's name (AUG 31 / 31 AUG / AUG-31 / AUG31 / AUG 31ST / AUG 2026), "NON-<BANK>" (up to four words) before ATM,
+  and — only after overdraft / returned-item words — a "FOR A $… / DETAILS: …" tail after a space or hyphen;
   "NON SUFFICIENT" → NONSUFFICIENT. Every word must then be a fee word (one required), a connective, or one kind's
   words with one of its anchors. One other word → not a bank or card fee.
 - *Charged* = money out filed under Fees & Charges (`fees`), ATM Fee (`atm-fee`) or Late Fee (`late-fee`) whose text
   reads as a kind — the text's own kind first; the ATM Fee / Late Fee filing supplies the anchor only to text naming
-  none. Interest and annual-fee PHRASES are left out first. Everything else filed there is *not counted* and listed.
+  none. Interest PHRASES, and a card's or account's annual fee worded on its own, are left out first (an HOA's, a
+  club's or an IRA's annual fee is not counted and listed). Everything else filed there is *not counted* and listed.
+  Headings count credits ("1 credit") and not-counted rows ("1 row").
 - *Came back* = money in, any filing, whose text — less refund / reversal / rebate / reimbursement / waived / credit
   words (credit kept beside WIRE) — reads as a counted kind, taken oldest first and only while it fits within what was
   charged of that kind on that account in the window (to the cent).

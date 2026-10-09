@@ -101,6 +101,17 @@ describe('feeTextWords — the noise a bank adds comes off', () => {
     ['MAINTENANCE FEE DETAILS: WESTGATE RESORTS', ['MAINTENANCE', 'FEE', 'DETAILS', 'WESTGATE', 'RESORTS']],
     ['MAINTENANCE FEE FOR A 2 BEDROOM UNIT SUNSET TOWERS', ['MAINTENANCE', 'FEE', 'FOR', 'A', 'BEDROOM', 'UNIT', 'SUNSET', 'TOWERS']],
     ['OVERDRAFT FEE FOR A 12.00 ITEM', ['OVERDRAFT', 'FEE', 'FOR', 'A', 'ITEM']],
+    // What the rule promises to set aside, the code sets aside (cycle 4, P2-4).
+    ['NON-WELLS FARGO ATM FEE', ['NON', 'ATM', 'FEE']],
+    ['NON-BANK OF AMERICA ATM FEE', ['NON', 'ATM', 'FEE']],
+    ['NON-US BANK ATM FEE', ['NON', 'ATM', 'FEE']],
+    ['NON-CAPITAL ONE ATM FEE', ['NON', 'ATM', 'FEE']],
+    ['NON-TD BANK ATM FEE', ['NON', 'ATM', 'FEE']],
+    ['MONTHLY SERVICE FEE 31 AUG', ['MONTHLY', 'SERVICE', 'FEE']],
+    ['MONTHLY SERVICE FEE AUG 31ST', ['MONTHLY', 'SERVICE', 'FEE']],
+    ['MONTHLY SERVICE FEE AUG-31', ['MONTHLY', 'SERVICE', 'FEE']],
+    ['MONTHLY SERVICE FEE AUG31', ['MONTHLY', 'SERVICE', 'FEE']],
+    ['OVERDRAFT ITEM FEE-DETAILS: 0812 CORNER STORE', ['OVERDRAFT', 'ITEM', 'FEE']],
   ])('%s → %j', (raw, expected) => {
     expect(feeTextWords(raw)).toEqual(expected);
   });
@@ -168,10 +179,26 @@ describe('feeKindOf — interest and annual phrases first, then the text must be
     ['fees', 'FINANCE CHARGE', 'interest'],
     ['fees', 'ANNUAL FEE', 'annual'],
     ['fees', 'ANNUAL MEMBERSHIP FEE', 'annual'],
-    ['fees', 'IRA ANNUAL FEE', 'annual'],
+    ['fees', 'ANNUAL FEE AUG 2026', 'annual'],
+    // Another business's annual fee is not "the yearly price of keeping a card or account" (cycle 4, P2-5).
+    ['fees', 'IRA ANNUAL FEE', 'unread'],
+    ['fees', 'HOMEOWNERS ASSN ANNUAL FEE', 'unread'],
+    ['fees', 'ANYTOWN SWIM CLUB ANNUAL FEE', 'unread'],
+    ['fees', 'CAMPGROUND ANNUAL FEE', 'unread'],
     // Each phrase alternative on its own (cycle 3, P3-7): no other alternative or fee word would catch these.
     ['fees', 'PLAN INTEREST', 'interest'],
     ['fees', 'INTEREST CHG', 'interest'],
+    ['fees', 'MINIMUM INTEREST', 'interest'],
+    ['fees', 'BALANCE TRANSFER INTEREST', 'interest'],
+    ['fees', 'PURCHASE INTEREST', 'interest'],
+    ['fees', 'INTEREST ON CASH', 'interest'],
+    ['fees', 'INTEREST ON BALANCE', 'interest'],
+    ['fees', 'INTEREST ON BALANCES', 'interest'],
+    ['fees', 'INTEREST ON PURCHASES', 'interest'],
+    ['fees', 'INTEREST FEE', 'interest'],
+    ['fees', 'FINANCE CHARGES', 'interest'],
+    ['fees', 'INTEREST CHARGED', 'interest'],
+    ['fees', 'INTEREST CHARGES', 'interest'],
     ['fees', 'ANNUAL CARD FEE', 'annual'],
     ['fees', 'ANNUAL ACCOUNT FEE', 'annual'],
     // Interest is read before annual.
@@ -416,6 +443,81 @@ describe('money back is capped at what was charged, per account and kind (cycle 
     expect(f.givenBack).toEqual([]);
   });
 
+  it('money in that the flow basis leaves out never comes back — pending, excluded, transfer, split, loan, money move (cycle 4, P1-1)', () => {
+    n = 0;
+    const loanCredit = row('chk', '2026-05-15', 3_500, 'OVERDRAFT FEE REFUND', 'fees');
+    const f = findBankFees(
+      [
+        row('chk', '2024-01-02', -100, 'COFFEE', 'coffee'),
+        ...[1, 2, 3, 4, 5, 6].map((d) => row('chk', `2026-05-0${d}`, -3_500, 'OVERDRAFT ITEM FEE', 'fees')),
+        row('chk', '2026-05-10', 3_500, 'OVERDRAFT FEE REFUND', 'fees', { status: 'PENDING' }),
+        row('chk', '2026-05-11', 3_500, 'OVERDRAFT FEE REFUND', 'fees', { excludeFromTotals: true }),
+        row('chk', '2026-05-12', 3_500, 'OVERDRAFT FEE REFUND', 'fees', { isTransfer: true }),
+        row('chk', '2026-05-13', 3_500, 'OVERDRAFT FEE REFUND', 'fees', { isSplitParent: true }),
+        row('chk', '2026-05-14', 3_500, 'OVERDRAFT FEE REFUND', 'transfer'),
+        loanCredit,
+      ],
+      TODAY,
+      { excludedFlowIds: new Set([loanCredit.id]) },
+    );
+    expect(f.chargedCents).toBe(21_000);
+    expect(f.givenBack).toEqual([]);
+    expect(bankFeesLead(f)).toBe('You paid at least $210.00 in bank and card fees (6 charges) in the last 12 months.');
+  });
+
+  it('credits are matched oldest first, whatever order they arrive in (cycle 4, P2-2)', () => {
+    n = 0;
+    const f = findBankFees(
+      [
+        row('chk', '2024-01-02', -100, 'COFFEE', 'coffee'),
+        row('chk', '2026-05-01', -3_500, 'OVERDRAFT ITEM FEE', 'fees'),
+        row('chk', '2026-05-12', 3_500, 'OVERDRAFT FEE REFUND', 'fees'),
+        row('chk', '2026-05-10', 3_500, 'OVERDRAFT FEE REFUND', 'fees'),
+      ],
+      TODAY,
+    );
+    expect(f.givenBack.map((r) => r.date)).toEqual(['2026-05-10']);
+  });
+
+  it('one credit can return several fees: counted as one credit (cycle 4, P2-3)', () => {
+    n = 0;
+    const f = findBankFees(
+      [
+        row('chk', '2024-01-02', -100, 'COFFEE', 'coffee'),
+        row('chk', '2026-05-01', -3_500, 'OVERDRAFT ITEM FEE', 'fees'),
+        row('chk', '2026-05-02', -3_500, 'OVERDRAFT ITEM FEE', 'fees'),
+        row('chk', '2026-05-09', 7_000, 'OVERDRAFT FEES REFUND', 'fees'),
+      ],
+      TODAY,
+    );
+    expect(feesGivenBackLine(f)).toBe('Came back — $70.00 (1 credit)');
+  });
+
+  it('a fee and its refund both on a superseded account are matched on the account it became (cycle 4, P2-2)', () => {
+    n = 0;
+    const f = findBankFees(
+      [
+        row('old-chk', '2023-01-04', -100, 'COFFEE', 'coffee'),
+        row('old-chk', '2026-02-10', -3_500, 'OVERDRAFT ITEM FEE', 'fees'),
+        row('old-chk', '2026-02-12', 3_500, 'OVERDRAFT FEE REFUND', 'fees'),
+        row('new-chk', '2026-03-01', -100, 'COFFEE', 'coffee'),
+      ],
+      TODAY,
+      { terminalOf: new Map([['old-chk', 'new-chk']]) },
+    );
+    expect(f.givenBackCents).toBe(3_500);
+  });
+
+  it('a row dated after today is no record: it never sets where an account’s records begin (cycle 4, P3-7)', () => {
+    n = 0;
+    const f = findBankFees(
+      [row('chk', '2024-01-02', -100, 'COFFEE', 'coffee'), row('card', '2026-10-18', -100, 'COFFEE', 'coffee')],
+      TODAY,
+    );
+    expect(f.records).toEqual({ from: '2024-01-02', accountsStartingInWindow: 0, latestAccountStart: null, accounts: 1 });
+    expect(bankFeesLead(f)).toBe('No bank or card fees counted in the last 12 months.');
+  });
+
   it('a reconnected account is one account — for the cap and for where its records begin (cycle 3, P2-4)', () => {
     n = 0;
     const rows = [
@@ -573,8 +675,8 @@ describe('findBankFees — the worked example', () => {
       'ATM fees — $6.00 (2 charges)',
       'Foreign transaction fees — $0.87 (1 charge)',
     ]);
-    expect(feesGivenBackLine(f)).toBe('Came back — $67.50 (3 fees returned)');
-    expect(feesUncountedLine(f)).toBe('Filed as fees, not counted — $3,519.75 (6 charges)');
+    expect(feesGivenBackLine(f)).toBe('Came back — $67.50 (3 credits)');
+    expect(feesUncountedLine(f)).toBe('Filed as fees, not counted — $3,519.75 (6 rows)');
     expect(feesLeftOutLine(f)).toBe(
       'Left out: $84.89 of interest and finance charges (2 charges) and $95.00 of annual fees (1 charge). Interest is what borrowing costs — a balance carried past its due date, or a cash advance. An annual fee is the yearly price of keeping a card or account.',
     );
@@ -856,7 +958,7 @@ describe('the words', () => {
       'an account you reconnected counts as one',
       'pending rows, transfers and money moved to investments or savings, split totals, loan payments the app counts on the loan',
       "rows you've excluded",
-      'numbers, amounts, account digits, dates',
+      'numbers, amounts, account digits, dates written with a month',
       '"NON-<bank> ATM"',
       'after an overdraft or returned-item fee\'s own words, the "for a $…" or "details:" part',
       'the test passes when every word left belongs to one',
@@ -870,7 +972,7 @@ describe('the words', () => {
       "credit beside a wire doesn't count",
       'only up to what was charged of that kind on that account',
       "other money in isn't shown",
-      'Interest and finance charges and annual fees are left out',
+      "Interest and finance charges, and a card's or account's annual fee worded on its own, are left out",
       'Everything errs low',
     ]) {
       expect(BANK_FEES_RULE).toContain(phrase);

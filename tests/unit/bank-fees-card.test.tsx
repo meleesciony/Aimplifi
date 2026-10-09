@@ -83,13 +83,13 @@ describe('BankFeesCard', () => {
     );
     expect(order).toEqual(['bank-fees-kind-overdraft', 'bank-fees-kind-late']);
 
-    expect(screen.getByTestId('bank-fees-given-back').textContent).toContain('Came back — $35.00 (1 fee returned)');
+    expect(screen.getByTestId('bank-fees-given-back').textContent).toContain('Came back — $35.00 (1 credit)');
     // The refund's label IS its bank text: printed once, not twice.
     expect(screen.getByTestId('bank-fees-rows-given-back').textContent?.match(/OVERDRAFT FEE REFUND/g)).toHaveLength(1);
 
     const uncounted = screen.getByTestId('bank-fees-uncounted');
     expect(uncounted.tagName).toBe('DETAILS');
-    expect(uncounted.querySelector('summary')?.textContent).toBe('Filed as fees, not counted — $450.00 (1 charge)');
+    expect(uncounted.querySelector('summary')?.textContent).toBe('Filed as fees, not counted — $450.00 (1 row)');
     expect(uncounted.textContent).toContain(BANK_FEES_UNCOUNTED_NOTE);
     expect(within(uncounted).getByTestId('bank-fees-rows-uncounted').textContent).toContain('HOA MAINTENANCE FEE');
 

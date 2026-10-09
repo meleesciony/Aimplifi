@@ -33,7 +33,8 @@
  *    be read as more returned fees than the fees there were — an incoming wire worded only in
  *    wire words, an ATM withdrawal reversed, never mind how it is worded.
  *  - Interest PHRASES (Interest & Finance Charges, "INTEREST CHARGE", "FINANCE CHARGE" …) and
- *    annual-fee PHRASES are read first and LEFT OUT, totalled separately.
+ *    a card's or account's annual fee (the phrase, with no other word beside it) are read first
+ *    and LEFT OUT, totalled separately.
  *
  * Everything errs low by construction: a real fee worded with any word the vocabulary lacks is
  * listed rather than counted, and a refund that can't be placed isn't shown. The card says
@@ -113,7 +114,17 @@ export const GIVEN_BACK_WORDS = words('REFUND REFUNDED REFUNDS REVERSAL REVERSAL
 
 const MONTH =
   '(JAN(UARY)?|FEB(RUARY)?|MAR(CH)?|APR(IL)?|MAY|JUNE?|JULY?|AUG(UST)?|SEPT?(EMBER)?|OCT(OBER)?|NOV(EMBER)?|DEC(EMBER)?)';
-const TAIL_RE = /\s(FOR AN? \$\d|DETAILS?:)/;
+const TAIL_RE = /[\s-](FOR AN? \$\d|DETAILS?:)/;
+/** A date written with a month's name: "AUG 31", "AUG-31", "AUG31", "AUG 31ST", "AUG 2026", "31 AUG", "31-AUG". */
+const MONTH_DATE_RES = [
+  new RegExp(`\\b${MONTH}[-./ ]?\\d{1,4}(ST|ND|RD|TH)?\\b`, 'g'),
+  new RegExp(`\\b\\d{1,2}(ST|ND|RD|TH)?[-./ ]?${MONTH}\\b`, 'g'),
+];
+/** "NON-<BANK> ATM" — a bank's name of up to four words, hyphen-joined to NON, right before ATM. */
+const NON_BANK_ATM_RE = /\bNON-[A-Z0-9&]+(?:\s+[A-Z0-9&]+){0,3}?(?=\s+ATM\b)/g;
+
+/** The only words an annual fee left out may carry: an annual CARD or ACCOUNT fee, not a club's or an HOA's. */
+const ANNUAL_WORDS = words('ANNUAL MEMBERSHIP CARD ACCOUNT ACCT');
 
 function tokens(s: string): string[] {
   return s
@@ -125,17 +136,17 @@ const OVERDRAFT_ANCHORS = FEE_KIND_WORDS.overdraft.anchors;
 
 /**
  * The words of a bank's text, with the noise a bank adds taken off: numbers, amounts, account
- * masks (X…1234), ordinals, a date written as a month and a number ("AUG 31", "AUG 2026"),
- * "NON-<BANK>" before ATM, and — only after an overdraft or returned-item fee's own words — the
- * "FOR A $12.00 … PURCHASE / DETAILS: …" tail, which names the item that caused the fee, not
- * who charged it (critic cycle 3, P2-3: on any other text that tail can be a business's name).
+ * masks (X…1234), ordinals, a date written with a month's name ("AUG 31", "31 AUG", "AUG31" —
+ * never a lone month name), "NON-<BANK>" before ATM (a bank's name of up to four words), and —
+ * only after an overdraft or returned-item fee's own words — the "FOR A $12.00 … PURCHASE /
+ * DETAILS: …" tail, which names the item that caused the fee, not who charged it (critic cycle 3,
+ * P2-3: on any other text that tail can be a business's name). Critic cycle 4, P2-4: the rule
+ * promised these and the code set aside less.
  */
 export function feeTextWords(rawDescriptor: string): string[] {
-  let s = rawDescriptor
-    .toUpperCase()
-    .replace(/\bNON[- ]SUFFICIENT\b/g, 'NONSUFFICIENT')
-    .replace(new RegExp(`\\b${MONTH}\\.? \\d{1,4}\\b`, 'g'), ' ')
-    .replace(/\bNON-[A-Z0-9&]+(?=\s+ATM\b)/g, ' NON ');
+  let s = rawDescriptor.toUpperCase().replace(/\bNON[- ]SUFFICIENT\b/g, 'NONSUFFICIENT');
+  for (const re of MONTH_DATE_RES) s = s.replace(re, ' ');
+  s = s.replace(NON_BANK_ATM_RE, ' NON ');
   const tail = TAIL_RE.exec(s);
   if (tail && tokens(s.slice(0, tail.index)).some((t) => OVERDRAFT_ANCHORS.has(t))) {
     s = s.slice(0, tail.index);
@@ -166,18 +177,24 @@ function kindOfWords(tokensIn: readonly string[], filed: FeeKind | null): FeeKin
 /**
  * How a row filed under a fee category reads. `null` for a row not filed under one.
  *
- * Interest & Finance Charges is interest whatever its text; interest and annual-fee phrases are
- * left out under every filing. Otherwise the text must be wholly one kind's words or the row is
- * `unread`.
+ * Interest & Finance Charges is interest whatever its text; interest phrases, and a card's or
+ * account's annual fee worded alone, are left out under every filing. Otherwise the text must be
+ * wholly one kind's words or the row is `unread`.
  */
 export function feeKindOf(categoryId: string | null | undefined, rawDescriptor: string): FeeReading | null {
   if (categoryId === INTEREST_CATEGORY_ID) return 'interest';
   if (!COUNTED_SET.has(categoryId ?? '')) return null;
   const upper = rawDescriptor.toUpperCase();
   if (INTEREST_RE.test(upper)) return 'interest';
-  if (ANNUAL_RE.test(upper)) return 'annual';
+  const textWords = feeTextWords(rawDescriptor);
+  // Critic cycle 4, P2-5: the annual phrase alone put an HOA's or a club's annual fee beside
+  // "the yearly price of keeping a card or account". Left out as annual only when the text is
+  // wholly a card's or account's annual-fee words; otherwise the word test decides.
+  if (ANNUAL_RE.test(upper) && textWords.every((t) => ANNUAL_WORDS.has(t) || FEE_WORDS.has(t) || FILLER.has(t))) {
+    return 'annual';
+  }
   const filed: FeeKind | null = categoryId === 'atm-fee' ? 'atm' : categoryId === 'late-fee' ? 'late' : null;
-  return kindOfWords(feeTextWords(rawDescriptor), filed) ?? 'unread';
+  return kindOfWords(textWords, filed) ?? 'unread';
 }
 
 /**
@@ -298,9 +315,10 @@ export function findBankFees(
 
   for (const t of rows) {
     const account = accountOf(t.accountId);
+    if (t.date > today) continue; // a row dated after today is no record yet (critic cycle 4, P3-7)
     const first = firstRowByAccount.get(account);
     if (first === undefined || t.date < first) firstRowByAccount.set(account, t.date);
-    if (t.date < from || t.date > today) continue;
+    if (t.date < from) continue;
     if (t.amountCents === 0) continue;
     if (!countsInFlows(t, opts.excludedFlowIds)) continue;
 

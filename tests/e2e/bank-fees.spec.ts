@@ -115,10 +115,10 @@ test.describe('fees you paid (DECISIONS #796)', () => {
     await expect(kinds.nth(1).locator('summary')).toHaveText('Late fees — $39.00 (1 charge)');
     await expect(kinds.nth(2).locator('summary')).toHaveText('Monthly account fees — $15.00 (1 charge)');
     await expect(card.getByTestId('bank-fees-given-back').locator('summary')).toHaveText(
-      'Came back — $34.00 (1 fee returned)',
+      'Came back — $34.00 (1 credit)',
     );
     await expect(card.getByTestId('bank-fees-uncounted').locator('summary')).toHaveText(
-      'Filed as fees, not counted — $50.00 (1 charge)',
+      'Filed as fees, not counted — $50.00 (1 row)',
     );
     await expect(card.getByTestId('bank-fees-left-out')).toContainText(
       'Left out: $28.17 of interest and finance charges (1 charge).',

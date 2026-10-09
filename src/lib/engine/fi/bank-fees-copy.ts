@@ -109,12 +109,15 @@ export function feeKindLine(k: Pick<FeeKindTotal, 'kind' | 'chargedCents' | 'row
 /** The given-back heading line. */
 export function feesGivenBackLine(f: Pick<BankFees, 'givenBack' | 'givenBackCents'>): string {
   const n = f.givenBack.length;
-  return `Came back — ${formatCents(f.givenBackCents)} (${n === 1 ? '1 fee returned' : `${n} fees returned`})`;
+  // Counts CREDITS, not fees: one refund can return several fees (critic cycle 4, P2-3).
+  return `Came back — ${formatCents(f.givenBackCents)} (${n === 1 ? '1 credit' : `${n} credits`})`;
 }
 
 /** The not-counted heading line. */
 export function feesUncountedLine(f: Pick<BankFees, 'uncounted' | 'uncountedCents'>): string {
-  return `Filed as fees, not counted — ${formatCents(f.uncountedCents)} (${charges(f.uncounted.length)})`;
+  // Rows, not charges: some are principal filed as a fee (critic cycle 4, P3-10).
+  const n = f.uncounted.length;
+  return `Filed as fees, not counted — ${formatCents(f.uncountedCents)} (${n === 1 ? '1 row' : `${n} rows`})`;
 }
 
 /** Under the not-counted heading: why those rows are listed and not in the total. */
@@ -148,4 +151,4 @@ export const BANK_FEES_RULE_SUMMARY = 'How these are counted';
  * and in the engine's own terms (critic cycles 1–2: a rule that describes a narrower or a
  * different test than the code runs is a false sentence).
  */
-export const BANK_FEES_RULE = `Reads your checking, savings and card accounts over the 12 months up to and including today — an account you reconnected counts as one — leaving out pending rows, transfers and money moved to investments or savings, split totals, loan payments the app counts on the loan, and rows you've excluded. The word test: set aside numbers, amounts, account digits, dates, the bank's name in "NON-<bank> ATM", and, after an overdraft or returned-item fee's own words, the "for a $…" or "details:" part naming the item that caused it; the test passes when every word left belongs to one ${KINDS_IN_WORDS} fee, including a word that names that kind (overdraft, ATM, late, wire, foreign, monthly and the like) and a fee word (fee, charge or surcharge), with only a few connecting words (for, a, of, on …) besides. A charge counts when it's filed under Fees & Charges, ATM Fee or Late Fee and passes the word test (a row filed under ATM Fee or Late Fee may leave out the word naming its kind); anything else filed there is listed as not counted. Money in counts as fees that came back, wherever it's filed, when it passes the same test apart from words like refund, reversal, rebate, reimbursement, waived or credit (credit beside a wire doesn't count) — and only up to what was charged of that kind on that account in these 12 months; other money in isn't shown. Interest and finance charges and annual fees are left out. Everything errs low: a real fee worded in a way this card doesn't know is listed, not counted, and money back the card can't place isn't shown.`;
+export const BANK_FEES_RULE = `Reads your checking, savings and card accounts over the 12 months up to and including today — an account you reconnected counts as one — leaving out pending rows, transfers and money moved to investments or savings, split totals, loan payments the app counts on the loan, and rows you've excluded. The word test: set aside numbers, amounts, account digits, dates written with a month's name, the bank's name in "NON-<bank> ATM", and, after an overdraft or returned-item fee's own words, the "for a $…" or "details:" part naming the item that caused it; the test passes when every word left belongs to one ${KINDS_IN_WORDS} fee, including a word that names that kind (overdraft, ATM, late, wire, foreign, monthly and the like) and a fee word (fee, charge or surcharge), with only a few connecting words (for, a, of, on …) besides. A charge counts when it's filed under Fees & Charges, ATM Fee or Late Fee and passes the word test (a row filed under ATM Fee or Late Fee may leave out the word naming its kind); anything else filed there is listed as not counted. Money in counts as fees that came back, wherever it's filed, when it passes the same test apart from words like refund, reversal, rebate, reimbursement, waived or credit (credit beside a wire doesn't count) — and only up to what was charged of that kind on that account in these 12 months; other money in isn't shown. Interest and finance charges, and a card's or account's annual fee worded on its own, are left out. Everything errs low: a real fee worded in a way this card doesn't know is listed, not counted, and money back the card can't place isn't shown.`;
