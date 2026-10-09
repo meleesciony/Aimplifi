@@ -28,19 +28,20 @@ rates) — no other doc may restate them.
 > keep this file loadable. Only OPEN/DECIDED/record items live here, plus the newest
 > BUILT entry, which stays as the home of the current live counts.
 
-## ⛔ AT THE OWNER'S GATE 2026-10-09 — Fees you paid (DECISIONS #796): critic budget spent, not shipped
+## ✅ BUILT 2026-10-09 — Fees you paid: bank and card fees by kind on /coach (DECISIONS #796)
 
-**What it is.** A "Fees you paid" card on /coach: the bank and card fees in the last 12 months of records by kind (overdraft & returned item, monthly account, late, ATM, foreign transaction, wire), each kind one tap from its rows and from how that kind is usually avoided; what came back (capped at what was charged per account and kind); what was filed as a fee and not counted; interest and annual fees left out by amount. Branch `slice-796-bank-fees` at the cycle-3 fixes `c33d0b73` (+ this ledger commit); not on `main`, not deployed.
+**What it is.** A "Fees you paid" card on /coach (`#fees-you-paid`, after "Worth a look"): the bank and card fees in the reader's last 12 months of records by kind (overdraft & returned item, monthly account, late, ATM, foreign transaction, wire), each kind one tap from its rows (each row opens its transaction, "Back to your coach") and from how that kind is usually avoided; what came back (capped at what was charged per account and kind); what was filed as a fee and not counted (an allowlist word test — another business's fee, a payment, principal); interest and a card's or account's annual fee left out by amount. "You paid at least $X …" — it errs low by construction, says so, and prints no net. Its own engine (`src/lib/engine/fi/bank-fees.ts`): no "Worth a look" cut sum, Ask total or Today-feed figure moves. The demo has no fee rows: "No bank or card fees counted in the last 12 months."
 
-**Open — critic cycle 4 (0 P0 / 1 P1 / 4 P2 / 5 P3):**
-- P1-1 (a missing lock; the code is right): money-in rows with pending / excluded / transfer / split-parent / loan-exclusion flags are never tested — a mutant that skips `countsInFlows` for money in passes every test.
-- P2-2: locks DECISIONS #796 claims but the tests don't hold — eight interest-phrase alternatives (MINIMUM, BALANCE TRANSFER, PURCHASE, ON CASH, ON BALANCE(S), INTEREST FEE, FINANCE CHARGES, INTEREST CHARGED/CHARGES), the credits' oldest-first sort, credits keyed by the reconnection-merged account.
-- P2-3: "Came back — $70.00 (1 fee returned)" for one refund of two fees — say "1 credit".
-- P2-4: the rule says it sets aside "NON-<bank>" (multi-word banks aren't), dates (only "month number" is), "details:" (only after a space) — low direction; widen the code or narrow the rule.
-- P2-5: the annual-fee reason prints beside an HOA's or a club's annual fee (the categorizer files them under Fees & Charges).
-- P3: real fees the categorizer never files as fees (low); a first-row date after today can print; an in-window refund of an earlier fee counts against an in-window fee; the overdraft advice under a deposited item's return fee; principal called "charges" in the not-counted heading.
+**Gates.** Final tree `357c0740`, Git Bash `VERIFY_E2E=1 bash scripts/verify.sh`: tsc 0, probes 0, eslint 0; vitest **9,576 passed** + 2 failed (`vercel-build.test.ts`, the known Git Bash ENOENT — PowerShell 3/3); build compiled; Playwright **484 passed / 0 flaky / 1 failed** — `category-rename.spec.ts:110`, pre-existing (below). The slice's own `bank-fees.spec.ts` (2 tests) passes. Mutation: every effective mutant across engine, cap, copy and wiring killed (77 + 13 at the cycle-5 locks). Screenshots 380/1366: no horizontal scroll.
 
-**Recorded, not this slice:** `tests/e2e/transactions.spec.ts:639` (CSV re-import: the second import shows "Imported 2" instead of a dedupe) fails 2 of 3 attempts locally on pre-slice `main` (`514f45b3`, baseline build + spec run 2026-10-09) and 3 of 3 once on this slice's first build; CI was green on `514f45b3`. Either a dedupe defect or a stale result panel under load — not diagnosed.
+**Critic (Opus, separate worktree).** Cycles 1–4 FAIL (P0 1 → P1s 1, 3, 2, 1); budget spent at cycle 4 → the owner chose "Fix, one more review (Recommended)"; **cycle 5 PASS — 0 P0 / 0 P1 / 2 P2 / 6 P3**, both P2s and four P3 locks fixed before ship. DECISIONS #796 carries every cycle.
+
+**Open (recorded, not changed).**
+- The categorizer files "ATM WITHDRAWAL FEE" / "OUT-OF-NETWORK ATM WITHDRAWAL FEE" as Cash (its ATM-withdrawal rule, `normalize.ts`), even with Plaid's BANK_FEES hint — those fees never reach the card (low). Fix there, then here.
+- A deposited check's "RETURNED ITEM FEE" reads as overdraft, under "Charged when a payment is bigger than the balance" (that sentence is false for a depositor); a bare "ACCOUNT FEE" / "MAINTENANCE FEE" is labelled monthly whatever its cadence; an in-window refund of a fee charged before the window is matched against an in-window fee (the sentence stays literally true); cash-advance and balance-transfer fees are listed, never counted.
+- A fee both connections reported on a handover day is counted twice (disclosed by the handover note — "at least" holds otherwise).
+
+**Pre-existing local e2e flakes (proven on pre-slice `main` `514f45b3`, baseline build + isolated runs, 2026-10-09):** `transactions.spec.ts:639` (CSV re-import shows "Imported 2" — failed 2 of 3 on main), `rule-inventory.spec.ts:81` (rule delete — 1 of 3 on main), `category-rename.spec.ts:110` (removing a built-in category — 2 of 4 on main). Each also failed or flaked on this slice's builds; none touches /coach or the fee engine. CI was green on `514f45b3`. Not diagnosed.
 
 ## ✅ BUILT 2026-10-07 — Money you set aside: measured savings against the plan's savings line (DECISIONS #790)
 
