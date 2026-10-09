@@ -36,6 +36,8 @@ rates) — no other doc may restate them.
 
 **Critic (Opus, separate worktree).** Cycles 1–4 FAIL (P0 1 → P1s 1, 3, 2, 1); budget spent at cycle 4 → the owner chose "Fix, one more review (Recommended)"; **cycle 5 PASS — 0 P0 / 0 P1 / 2 P2 / 6 P3**, both P2s and four P3 locks fixed before ship. DECISIONS #796 carries every cycle.
 
+**Ship.** `b897de1b` on `origin/main` (8 commits, this slice only; fast-forward of `514f45b3`). No `prisma/` diff. **CI verify run 38002547854 = SUCCESS** (`scripts/ci-status.sh` exit 0, full `VERIFY_E2E=1`). Vercel Production deployment (GitHub record 6972800572, `aimplifi-h8iopm4ni`) success. **`scripts/bank-fees-live-deploy-check.mjs` DEPLOY PROOF PASS 7/7** on www.aimplifi.app — this commit's build is served (25/25 `/_next/static` files), the card renders on the demo ("No bank or card fees counted in the last 12 months."), the rule is one tap away, `/transactions/txn-00841?back=_coach` offers "Back to your coach", no horizontal scroll at 380px (read before the deploy: card absent, the token not decoded).
+
 **Open (recorded, not changed).**
 - The categorizer files "ATM WITHDRAWAL FEE" / "OUT-OF-NETWORK ATM WITHDRAWAL FEE" as Cash (its ATM-withdrawal rule, `normalize.ts`), even with Plaid's BANK_FEES hint — those fees never reach the card (low). Fix there, then here.
 - A deposited check's "RETURNED ITEM FEE" reads as overdraft, under "Charged when a payment is bigger than the balance" (that sentence is false for a depositor); a bare "ACCOUNT FEE" / "MAINTENANCE FEE" is labelled monthly whatever its cadence; an in-window refund of a fee charged before the window is matched against an in-window fee (the sentence stays literally true); cash-advance and balance-transfer fees are listed, never counted.

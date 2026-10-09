@@ -33,7 +33,7 @@
 
 **Final-tree gate (`357c0740`, Git Bash `VERIFY_E2E=1 bash scripts/verify.sh`):** tsc 0, probes 0, eslint 0; vitest 9,576 passed + 2 failed (`vercel-build`, Git Bash); build compiled; Playwright 484 passed / 0 flaky / 1 failed (`category-rename.spec.ts:110` — 2 of 4 on pre-slice `main`, baseline build). The three local e2e reds of this session (CSV `:639`, `rule-inventory:81`, `category-rename:110`) are all proven pre-existing on `514f45b3` → STATUS.
 
-**Next.** Fast-forward `main` (this slice only, no `prisma/` diff), push, read CI, prove live.
+**Shipped** `b897de1b` (fast-forward of `main`, this slice only; no `prisma/` diff). CI run 38002547854 SUCCESS; production deployment 6972800572 success; `scripts/bank-fees-live-deploy-check.mjs` PASS 7/7. Worktrees `_maker_796`, `_critic_796` removed (junctions link-only; `node_modules` intact), branch deleted.
 
 ## 2026-10-07 — Money you set aside: measured savings against the plan's savings line (DECISIONS #790)
 
