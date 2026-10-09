@@ -13,7 +13,12 @@
  * a payment "INCL LATE FEE", CHARGE-BACK, incoming wires with CREDIT) is locked below (P1-1,
  * P1-2, P2-5, P2-8); the window's last day (P1-3); the window, account by account (P2-7); no
  * sentence points "above" (P2-6); each kind's vocabulary, word by word (P2-9); a same-text
- * credit comes back (P3-11).
+ * credit comes back (P3-11). Cycle 3: every text wholly a kind's words is counted, and the
+ * not-counted note says only that a row failed the named test (P1-1); money back is capped at
+ * what was charged, per account and kind (P1-2); the item tail comes off only after overdraft
+ * words and a "$" (P2-3); a reconnected account is one account (P2-4); every word list is
+ * pinned exactly (P2-5); the text's kind beats the filing's (P3-6); each phrase alternative and
+ * the give-back order are locked (P3-7).
  */
 import { describe, expect, it } from 'vitest';
 
@@ -21,12 +26,14 @@ import { isoDate } from '@/lib/dates';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import {
   FEE_KIND_WORDS,
+  FEE_WORDS,
+  FILLER,
+  GIVEN_BACK_WORDS,
   bankFeeWindowStart,
   feeGivenBackKind,
   feeKindOf,
   feeTextWords,
   findBankFees,
-  readsAsFeeGivenBack,
   type BankFeeRowInput,
   type FeeRecords,
 } from '@/lib/engine/fi/bank-fees';
@@ -80,6 +87,20 @@ describe('feeTextWords — the noise a bank adds comes off', () => {
     ['Wire Fee #4471 x9921', ['WIRE', 'FEE']],
     ['LATE FEE 2ND NOTICE', ['LATE', 'FEE', 'NOTICE']],
     ['OVERDRAFT ITEM FEE - DETAILS: 0812 CORNER STORE', ['OVERDRAFT', 'ITEM', 'FEE']],
+    ['NON-SUFFICIENT FUNDS FEE', ['NONSUFFICIENT', 'FUNDS', 'FEE']],
+    ['NON SUFFICIENT FUNDS FEE', ['NONSUFFICIENT', 'FUNDS', 'FEE']],
+    // A month is noise only as a date (cycle 3, P3-9): beside a number, never alone.
+    ['MONTHLY SERVICE FEE AUG 2026', ['MONTHLY', 'SERVICE', 'FEE']],
+    ['MONTHLY SERVICE FEE SEPT 30', ['MONTHLY', 'SERVICE', 'FEE']],
+    ['MAY LATE FEE', ['MAY', 'LATE', 'FEE']],
+    ['MARKET 24 LATE FEE', ['MARKET', 'LATE', 'FEE']],
+    // A mask needs its digits: two X's are a word.
+    ['XX LATE FEE', ['XX', 'LATE', 'FEE']],
+    // The item tail comes off only after an overdraft or returned-item fee's words, and only with a "$" (cycle 3, P2-3).
+    ['LATE FEE FOR A $1,450.00 RENT PAYMENT RENTCAFE', ['LATE', 'FEE', 'FOR', 'A', 'RENT', 'PAYMENT', 'RENTCAFE']],
+    ['MAINTENANCE FEE DETAILS: WESTGATE RESORTS', ['MAINTENANCE', 'FEE', 'DETAILS', 'WESTGATE', 'RESORTS']],
+    ['MAINTENANCE FEE FOR A 2 BEDROOM UNIT SUNSET TOWERS', ['MAINTENANCE', 'FEE', 'FOR', 'A', 'BEDROOM', 'UNIT', 'SUNSET', 'TOWERS']],
+    ['OVERDRAFT FEE FOR A 12.00 ITEM', ['OVERDRAFT', 'FEE', 'FOR', 'A', 'ITEM']],
   ])('%s → %j', (raw, expected) => {
     expect(feeTextWords(raw)).toEqual(expected);
   });
@@ -100,6 +121,12 @@ describe('feeKindOf — interest and annual phrases first, then the text must be
     ['fees', 'COURTESY PAY FEE', 'overdraft'],
     ['fees', 'PAID ITEM FEE', 'overdraft'],
     ['fees', 'OD FEE', 'overdraft'],
+    // Wholly the kind's words, so counted — never "not counted" under a note that would be false (cycle 3, P1-1).
+    ['fees', 'NON-SUFFICIENT FUNDS FEE', 'overdraft'],
+    ['fees', 'NON SUFFICIENT FUNDS FEE', 'overdraft'],
+    ['fees', 'OUT OF NETWORK WITHDRAWAL FEE', 'atm'],
+    ['fees', 'OUT-OF-NETWORK WITHDRAWAL FEE', 'atm'],
+    ['fees', 'BALANCE INQUIRY FEE', 'atm'],
     // ATM.
     ['fees', 'INTL ATM FEE', 'atm'],
     ['fees', 'NON-CHASE ATM FEE-WITH 08/14', 'atm'],
@@ -142,7 +169,14 @@ describe('feeKindOf — interest and annual phrases first, then the text must be
     ['fees', 'ANNUAL FEE', 'annual'],
     ['fees', 'ANNUAL MEMBERSHIP FEE', 'annual'],
     ['fees', 'IRA ANNUAL FEE', 'annual'],
-    // Not a bank's or card's fee, by ANY word outside the kind (critic cycles 1 and 2).
+    // Each phrase alternative on its own (cycle 3, P3-7): no other alternative or fee word would catch these.
+    ['fees', 'PLAN INTEREST', 'interest'],
+    ['fees', 'INTEREST CHG', 'interest'],
+    ['fees', 'ANNUAL CARD FEE', 'annual'],
+    ['fees', 'ANNUAL ACCOUNT FEE', 'annual'],
+    // Interest is read before annual.
+    ['fees', 'ANNUAL FEE INTEREST CHARGE', 'interest'],
+    // Not a bank's or card's fee, by ANY word outside the kind (critic cycles 1–3).
     ['fees', 'HOA MAINTENANCE FEE', 'unread'],
     ['fees', 'TIMESHARE MAINTENANCE FEE', 'unread'],
     ['fees', 'WESTGATE MAINTENANCE FEE', 'unread'],
@@ -183,7 +217,20 @@ describe('feeKindOf — interest and annual phrases first, then the text must be
     ['fees', 'ADVISORY FEE Q3', 'unread'],
     ['fees', 'FEE', 'unread'],
     ['fees', 'INTEREST', 'unread'],
-    // ATM Fee and Late Fee supply the kind — never the vocabulary.
+    ['fees', 'CASH WITHDRAWAL FEE', 'unread'],
+    ['fees', 'LATE FEE FOR A $1,450.00 RENT PAYMENT RENTCAFE', 'unread'],
+    ['fees', 'MAINTENANCE FEE DETAILS: WESTGATE RESORTS', 'unread'],
+    ['fees', 'MAINTENANCE FEE FOR A 2 BEDROOM UNIT SUNSET TOWERS', 'unread'],
+    ['fees', 'MAY LATE FEE', 'unread'],
+    ['fees', 'XX LATE FEE', 'unread'],
+    // A word ADDED to a kind's vocabulary would count these (cycle 3, P2-5).
+    ['fees', 'PAYMENT INCL LATE FEE', 'unread'],
+    ['fees', 'LATE FEE FROM CITY', 'unread'],
+    ['fees', 'MONTHLY PAYMENT FEE', 'unread'],
+    ['fees', 'ATM DEPOSIT FEE', 'unread'],
+    // The text's own kind beats the filing's (cycle 3, P3-6); the filing supplies a kind only to text naming none.
+    ['atm-fee', 'FOREIGN TRANSACTION FEE', 'foreign'],
+    ['atm-fee', 'INTL TRANSACTION FEE', 'foreign'],
     ['atm-fee', 'CASH WITHDRAWAL CHARGE', 'atm'],
     ['atm-fee', 'SURCHARGE', 'atm'],
     ['atm-fee', 'CASH WITHDRAWAL', 'unread'],
@@ -202,6 +249,38 @@ describe('feeKindOf — interest and annual phrases first, then the text must be
 
   it('reads the text case-insensitively', () => {
     expect(feeKindOf('fees', 'Overdraft Item Fee')).toBe('overdraft');
+  });
+
+  it('the word lists are exactly these — an added word is the direction that overstates (cycle 3, P2-5)', () => {
+    const sorted = (s: ReadonlySet<string>) => [...s].sort();
+    expect(sorted(FEE_WORDS)).toEqual(['CHARGE', 'CHARGES', 'FEE', 'FEES', 'SURCHARGE']);
+    expect(sorted(FILLER)).toEqual(['A', 'AN', 'AND', 'ASSESSED', 'FOR', 'OF', 'ON', 'PER', 'POSTED', 'THE']);
+    expect(sorted(GIVEN_BACK_WORDS)).toEqual(
+      ['CREDIT', 'CREDITED', 'REBATE', 'REBATED', 'REFUND', 'REFUNDED', 'REFUNDS', 'REIMB', 'REIMBURSED', 'REIMBURSEMENT', 'REV', 'REVERSAL', 'REVERSALS', 'REVERSE', 'REVERSED', 'WAIVE', 'WAIVED', 'WAIVER'],
+    );
+    expect(Object.fromEntries(Object.entries(FEE_KIND_WORDS).map(([k, v]) => [k, { anchors: sorted(v.anchors), vocab: sorted(v.vocab) }]))).toEqual({
+      overdraft: {
+        anchors: ['COURTESY', 'INSUFFICIENT', 'NONSUFFICIENT', 'NSF', 'OD', 'OVERDRAFT', 'OVERDRAWN', 'PAID', 'RETURN', 'RETURNED'],
+        vocab: ['ACCOUNT', 'ACCT', 'ACH', 'CHECK', 'CHECKS', 'CONTINUOUS', 'DAILY', 'DEBIT', 'EXTENDED', 'FUND', 'FUNDS', 'ITEM', 'ITEMS', 'PAY', 'PAYMENT', 'PROTECTION', 'SUSTAINED', 'TRANSFER', 'XFER'],
+      },
+      atm: {
+        anchors: ['ATM', 'INQ', 'INQUIRY', 'NETWORK'],
+        vocab: ['BALANCE', 'CASH', 'DOMESTIC', 'FOREIGN', 'INTERNATIONAL', 'INTL', 'NON', 'OPERATOR', 'OUT', 'OWNER', 'TRANSACTION', 'TXN', 'USAGE', 'USE', 'WD', 'WDRL', 'WITH', 'WITHDRAW', 'WITHDRAWAL'],
+      },
+      late: { anchors: ['LATE', 'PAST'], vocab: ['DUE', 'PAYMENT', 'PMT'] },
+      wire: {
+        anchors: ['WIRE'],
+        vocab: ['DOMESTIC', 'FOREIGN', 'IN', 'INCOMING', 'INTERNATIONAL', 'INTL', 'OUT', 'OUTGOING', 'SERVICE', 'SVC', 'TRANSFER', 'TRF'],
+      },
+      foreign: {
+        anchors: ['CROSS', 'CURRENCY', 'FOREIGN', 'FX', 'INTERNATIONAL', 'INTL'],
+        vocab: ['BORDER', 'CONVERSION', 'EXCHANGE', 'PURCHASE', 'SERVICE', 'TRANS', 'TRANSACTION', 'TXN'],
+      },
+      account: {
+        anchors: ['ACCOUNT', 'ACCT', 'BELOW', 'LOW', 'MAINTENANCE', 'MINIMUM', 'MONTHLY', 'SERVICE'],
+        vocab: ['BAL', 'BALANCE', 'CHECKING', 'MIN', 'SAVINGS'],
+      },
+    });
   });
 
   it('every vocabulary word is load-bearing: alone with an anchor and a fee word, it reads as its kind', () => {
@@ -261,9 +340,100 @@ describe('feeGivenBackKind — a counted kind of fee, alone or with a word sayin
     ['WIRE TYPE:WIRE IN ORIG:FIRST AMERICAN TITLE PMT DET:REFUND EARNEST MONEY LESS WIRE FEE', null],
     // CREDIT beside WIRE is money arriving by wire, never a fee credited.
     ['INCOMING WIRE FEE CREDIT', null],
+    // Wholly a kind's words, so the WORDS read as that kind — whether they COUNT is the cap's
+    // call in findBankFees (cycle 3, P1-2), locked below.
+    ['INCOMING WIRE TRANSFER 2207 SERVICE FEES', 'wire'],
+    ['ATM WITHDRAWAL CHARGE REVERSAL', 'atm'],
   ] as const)('%s → %s', (descriptor, kind) => {
     expect(feeGivenBackKind(descriptor)).toBe(kind);
-    expect(readsAsFeeGivenBack(descriptor)).toBe(kind !== null);
+  });
+});
+
+describe('money back is capped at what was charged, per account and kind (cycle 3, P1-2)', () => {
+  it('a principal worded only in a kind\'s words never reads as fees that came back', () => {
+    n = 0;
+    const f = findBankFees(
+      [
+        row('chk', '2024-01-02', -100, 'COFFEE', 'coffee'),
+        row('chk', '2026-05-01', -1_500, 'WIRE FEE', 'fees'),
+        row('chk', '2026-05-02', 400_000, 'INCOMING WIRE TRANSFER 2207 SERVICE FEES', null),
+        row('chk', '2026-05-03', 5_000, 'WIRE TRANSFER IN REFUND OF FEES', 'other-income'),
+        row('chk', '2026-05-04', 20_000, 'ATM WITHDRAWAL CHARGE REVERSAL', 'cash'),
+        row('chk', '2026-05-05', 1_500, 'WIRE FEE REFUND', 'fees'),
+      ],
+      TODAY,
+    );
+    // Only the refund that fits what was charged: $15.00 of wire fees, $15.00 back.
+    expect(f.givenBack.map((r) => [r.date, r.amountCents])).toEqual([['2026-05-05', 1_500]]);
+    expect(bankFeesLead(f)).toBe(
+      'You paid at least $15.00 in bank and card fees (1 charge) in the last 12 months, and $15.00 of fees came back.',
+    );
+  });
+
+  it('credits are taken oldest first until the account’s charges of that kind are used up — and listed newest first', () => {
+    n = 0;
+    const f = findBankFees(
+      [
+        row('chk', '2024-01-02', -100, 'COFFEE', 'coffee'),
+        row('chk', '2026-05-01', -3_500, 'OVERDRAFT ITEM FEE', 'fees'),
+        row('chk', '2026-05-02', -3_500, 'OVERDRAFT ITEM FEE', 'fees'),
+        row('chk', '2026-05-10', 3_500, 'OVERDRAFT FEE REFUND', 'fees'),
+        row('chk', '2026-05-11', 3_500, 'OVERDRAFT FEE REFUND', 'fees'),
+        row('chk', '2026-05-12', 3_500, 'OVERDRAFT FEE REFUND', 'fees'),
+      ],
+      TODAY,
+    );
+    expect(f.givenBack.map((r) => r.date)).toEqual(['2026-05-11', '2026-05-10']);
+    expect(f.givenBackCents).toBe(7_000);
+  });
+
+  it('to the cent: a credit one cent over what is left has nothing to return', () => {
+    n = 0;
+    const f = findBankFees(
+      [
+        row('chk', '2024-01-02', -100, 'COFFEE', 'coffee'),
+        row('chk', '2026-05-01', -3_500, 'OVERDRAFT ITEM FEE', 'fees'),
+        row('chk', '2026-05-10', 3_501, 'OVERDRAFT FEE REFUND', 'fees'),
+        row('chk', '2026-05-11', 3_500, 'OVERDRAFT FEE REFUND', 'fees'),
+      ],
+      TODAY,
+    );
+    expect(f.givenBack.map((r) => r.amountCents)).toEqual([3_500]);
+  });
+
+  it('a refund on another account, or of another kind, has nothing to return', () => {
+    n = 0;
+    const f = findBankFees(
+      [
+        row('chk', '2024-01-02', -100, 'COFFEE', 'coffee'),
+        row('sav', '2024-01-02', -100, 'COFFEE', 'coffee'),
+        row('chk', '2026-05-01', -3_500, 'OVERDRAFT ITEM FEE', 'fees'),
+        row('sav', '2026-05-10', 3_500, 'OVERDRAFT FEE REFUND', 'fees'),
+        row('chk', '2026-05-11', 1_200, 'MONTHLY SERVICE FEE REFUND', 'fees'),
+      ],
+      TODAY,
+    );
+    expect(f.givenBack).toEqual([]);
+  });
+
+  it('a reconnected account is one account — for the cap and for where its records begin (cycle 3, P2-4)', () => {
+    n = 0;
+    const rows = [
+      row('old-chk', '2023-01-04', -100, 'COFFEE', 'coffee'),
+      row('old-chk', '2026-02-10', -3_500, 'OVERDRAFT ITEM FEE', 'fees'),
+      row('new-chk', '2026-03-01', -100, 'COFFEE', 'coffee'),
+      row('new-chk', '2026-03-05', 3_500, 'OVERDRAFT FEE REFUND', 'fees'),
+    ];
+    const linked = findBankFees(rows, TODAY, { terminalOf: new Map([['old-chk', 'new-chk']]) });
+    expect(linked.records).toEqual({ from: '2023-01-04', accountsStartingInWindow: 0, latestAccountStart: null, accounts: 1 });
+    expect(linked.givenBackCents).toBe(3_500);
+    expect(bankFeesLead(linked)).toBe(
+      'You paid at least $35.00 in bank and card fees (1 charge) in the last 12 months, and $35.00 of fees came back.',
+    );
+    // Unlinked, they are two accounts: the new one starts inside the window and has no fee to return.
+    const unlinked = findBankFees(rows, TODAY);
+    expect(unlinked.records.accountsStartingInWindow).toBe(1);
+    expect(unlinked.givenBack).toEqual([]);
   });
 });
 
@@ -352,7 +522,7 @@ describe('findBankFees — the worked example', () => {
     }
   });
 
-  it('counts back only money in that reads as a counted kind of fee', () => {
+  it('counts back only money in that reads as a counted kind of fee, within what was charged', () => {
     expect(f.givenBack.map((r) => [r.date, r.amountCents, r.label])).toEqual([
       ['2026-09-10', 3_500, 'OVERDRAFT FEE REFUND'],
       ['2026-05-25', 2_900, 'LATE FEE'],
@@ -393,7 +563,7 @@ describe('findBankFees — the worked example', () => {
 
   it('prints the lead, the kinds and the other lines exactly', () => {
     expect(bankFeesLead(f)).toBe(
-      "You paid at least $155.87 in bank and card fees (10 charges) in the last 12 months (one account's records begin later, on Jan 15, 2026), and $67.50 in fees came back.",
+      "You paid at least $155.87 in bank and card fees (10 charges) in the last 12 months (one account's records begin later, on Jan 15, 2026), and $67.50 of fees came back.",
     );
     expect(f.kinds.map(feeKindLine)).toEqual([
       'Overdraft and returned-item fees — $70.00 (2 charges)',
@@ -456,16 +626,17 @@ describe('findBankFees — edges', () => {
     );
   });
 
-  it('a refund with no charge in the window still says what came back', () => {
+  it('a refund with no charge of its kind in the window has nothing to return, and is not shown', () => {
     n = 0;
     const f = findBankFees(
       [row('chk', '2025-01-02', -100, 'COFFEE', 'coffee'), row('chk', '2026-01-05', 3_400, 'OVERDRAFT FEE REFUND', 'fees')],
       TODAY,
     );
-    expect(bankFeesLead(f)).toBe('No bank or card fees counted in the last 12 months; $34.00 in fees came back.');
+    expect(f.givenBack).toEqual([]);
+    expect(bankFeesLead(f)).toBe('No bank or card fees counted in the last 12 months.');
   });
 
-  it('more back than charged: both amounts, and no net is ever stated', () => {
+  it('never more back than charged, and no net is ever stated', () => {
     n = 0;
     const f = findBankFees(
       [
@@ -477,10 +648,10 @@ describe('findBankFees — edges', () => {
       TODAY,
     );
     expect(f.chargedCents).toBe(1_200);
-    expect(f.givenBackCents).toBe(4_700);
+    expect(f.givenBackCents).toBe(1_200);
     const lead = bankFeesLead(f);
     expect(lead).toBe(
-      'You paid at least $12.00 in bank and card fees (1 charge) in the last 12 months, and $47.00 in fees came back.',
+      'You paid at least $12.00 in bank and card fees (1 charge) in the last 12 months, and $12.00 of fees came back.',
     );
     expect(lead).not.toMatch(/cost you/);
   });
@@ -678,23 +849,34 @@ describe('the words', () => {
     }
   });
 
-  it('the rule states what the engine reads, in its terms', () => {
+  it('the rule states what the engine reads, in its terms (cycles 1–3)', () => {
     for (const phrase of [
       'checking, savings and card accounts',
       'up to and including today',
-      'pending rows, transfers, split totals, loan payments the app counts on the loan',
+      'an account you reconnected counts as one',
+      'pending rows, transfers and money moved to investments or savings, split totals, loan payments the app counts on the loan',
       "rows you've excluded",
-      'Fees & Charges, ATM Fee or Late Fee',
-      'only the words of one',
+      'numbers, amounts, account digits, dates',
+      '"NON-<bank> ATM"',
+      'after an overdraft or returned-item fee\'s own words, the "for a $…" or "details:" part',
+      'the test passes when every word left belongs to one',
+      'a word that names that kind',
       'fee, charge or surcharge',
-      "One other word, such as a business's name",
+      'a few connecting words',
+      'Fees & Charges, ATM Fee or Late Fee',
+      'may leave out the word naming its kind',
       'listed as not counted',
       'refund, reversal, rebate, reimbursement, waived or credit',
-      "credit doesn't count beside a wire",
+      "credit beside a wire doesn't count",
+      'only up to what was charged of that kind on that account',
+      "other money in isn't shown",
       'Interest and finance charges and annual fees are left out',
       'Everything errs low',
     ]) {
       expect(BANK_FEES_RULE).toContain(phrase);
     }
+    // The not-counted note claims only what is true of every row it heads: they failed the named test.
+    expect(BANK_FEES_UNCOUNTED_NOTE).toContain("doesn't pass this card's word test");
+    expect(BANK_FEES_UNCOUNTED_NOTE).toContain('How these are counted');
   });
 });

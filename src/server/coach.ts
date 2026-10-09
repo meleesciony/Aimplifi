@@ -827,11 +827,12 @@ export async function getCoachData(
       }),
     },
     opportunities,
-    // #796: the same rows, loan-payment exclusions and handover days every other coach
-    // figure reads — one basis (`countsInFlows`), one snapshot.
+    // #796: the same rows, loan-payment exclusions, handover days and reconnection links
+    // every other coach figure reads — one basis (`countsInFlows`), one snapshot.
     bankFees: findBankFees(txns, isoDate(today), {
       excludedFlowIds: snap.loanPaymentFlowExclusions?.excludeIds,
       handoverKeys,
+      terminalOf: snap.terminalOf,
     }),
     unusualCharges,
     incomePauses,

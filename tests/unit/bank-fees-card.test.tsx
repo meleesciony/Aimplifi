@@ -63,7 +63,7 @@ describe('BankFeesCard', () => {
 
     expect(screen.getByTestId('bank-fees-card').id).toBe('fees-you-paid');
     expect(screen.getByTestId('bank-fees-lead').textContent).toBe(
-      'You paid at least $64.00 in bank and card fees (2 charges) in the last 12 months, and $35.00 in fees came back.',
+      'You paid at least $64.00 in bank and card fees (2 charges) in the last 12 months, and $35.00 of fees came back.',
     );
 
     const overdraft = screen.getByTestId('bank-fees-kind-overdraft');
@@ -111,7 +111,7 @@ describe('BankFeesCard', () => {
     render(<BankFeesCard fees={fees} />);
     expect(screen.getByTestId('bank-fees-lead').textContent).toBe('No bank or card fees counted in the last 12 months.');
     // Nothing on the card points at a part of it that isn't there.
-    expect(screen.getByTestId('bank-fees-card').textContent).not.toMatch(/(above|below)/);
+    expect(screen.getByTestId('bank-fees-card').textContent).not.toMatch(/\b(above|below)\b/);
     expect(screen.queryByTestId('bank-fees-kinds')).toBeNull();
     expect(screen.queryByTestId('bank-fees-given-back')).toBeNull();
     expect(screen.queryByTestId('bank-fees-uncounted')).toBeNull();

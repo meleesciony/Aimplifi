@@ -88,19 +88,17 @@ function charges(n: number): string {
 /** The card's lead when there are no checking, savings or card rows to read at all. */
 export const BANK_FEES_NO_RECORDS = 'No checking, savings or card records yet, so there are no fees to count.';
 
-/** The card's first sentence. */
+/**
+ * The card's first sentence. Money back never exceeds what was charged (the engine caps it per
+ * account and kind), so with nothing charged there is nothing back — one zero sentence.
+ */
 export function bankFeesLead(f: BankFees): string {
   if (f.records.from === null) return BANK_FEES_NO_RECORDS;
   const when = feeWindowPhrase({ ...f.records, from: f.records.from });
-  const back = `${formatCents(f.givenBackCents)} in fees came back`;
-  if (f.chargedCents === 0) {
-    return f.givenBackCents === 0
-      ? `No bank or card fees counted ${when}.`
-      : `No bank or card fees counted ${when}; ${back}.`;
-  }
+  if (f.chargedCents === 0) return `No bank or card fees counted ${when}.`;
   const count = f.kinds.reduce((s, k) => s + k.rows.length, 0);
   const paid = `You paid at least ${formatCents(f.chargedCents)} in bank and card fees (${charges(count)}) ${when}`;
-  return f.givenBackCents === 0 ? `${paid}.` : `${paid}, and ${back}.`;
+  return f.givenBackCents === 0 ? `${paid}.` : `${paid}, and ${formatCents(f.givenBackCents)} of fees came back.`;
 }
 
 /** One kind's heading line: "Late fees — $29.00 (1 charge)". */
@@ -120,7 +118,7 @@ export function feesUncountedLine(f: Pick<BankFees, 'uncounted' | 'uncountedCent
 }
 
 /** Under the not-counted heading: why those rows are listed and not in the total. */
-export const BANK_FEES_UNCOUNTED_NOTE = `Their bank text has a word that isn't part of an ${KINDS_IN_WORDS} fee — a business's name, a payment, a product — or no fee word at all, so they're listed here and left out of the total.`;
+export const BANK_FEES_UNCOUNTED_NOTE = `Their bank text doesn't pass this card's word test for an ${KINDS_IN_WORDS} fee (see "How these are counted"), so they're listed here and left out of the total.`;
 
 /**
  * What the figures leave out, by amount, when there is any. `null` when nothing was left out.
@@ -150,4 +148,4 @@ export const BANK_FEES_RULE_SUMMARY = 'How these are counted';
  * and in the engine's own terms (critic cycles 1–2: a rule that describes a narrower or a
  * different test than the code runs is a false sentence).
  */
-export const BANK_FEES_RULE = `Reads your checking, savings and card accounts over the 12 months up to and including today, leaving out pending rows, transfers, split totals, loan payments the app counts on the loan, and rows you've excluded. A charge counts when it's filed under Fees & Charges, ATM Fee or Late Fee and its bank text — numbers, dates, account digits and an overdraft notice's description of the item aside — is only the words of one ${KINDS_IN_WORDS} fee, with a fee word (fee, charge or surcharge). One other word, such as a business's name, and it's listed as not counted instead. Money back counts, wherever it's filed, when its text is one of those fees, alone or with a word like refund, reversal, rebate, reimbursement, waived or credit (credit doesn't count beside a wire). Interest and finance charges and annual fees are left out. Everything errs low: a real fee worded in a way this card doesn't know is listed, not counted.`;
+export const BANK_FEES_RULE = `Reads your checking, savings and card accounts over the 12 months up to and including today — an account you reconnected counts as one — leaving out pending rows, transfers and money moved to investments or savings, split totals, loan payments the app counts on the loan, and rows you've excluded. The word test: set aside numbers, amounts, account digits, dates, the bank's name in "NON-<bank> ATM", and, after an overdraft or returned-item fee's own words, the "for a $…" or "details:" part naming the item that caused it; the test passes when every word left belongs to one ${KINDS_IN_WORDS} fee, including a word that names that kind (overdraft, ATM, late, wire, foreign, monthly and the like) and a fee word (fee, charge or surcharge), with only a few connecting words (for, a, of, on …) besides. A charge counts when it's filed under Fees & Charges, ATM Fee or Late Fee and passes the word test (a row filed under ATM Fee or Late Fee may leave out the word naming its kind); anything else filed there is listed as not counted. Money in counts as fees that came back, wherever it's filed, when it passes the same test apart from words like refund, reversal, rebate, reimbursement, waived or credit (credit beside a wire doesn't count) — and only up to what was charged of that kind on that account in these 12 months; other money in isn't shown. Interest and finance charges and annual fees are left out. Everything errs low: a real fee worded in a way this card doesn't know is listed, not counted, and money back the card can't place isn't shown.`;

@@ -8,15 +8,18 @@ rows. Tests: `tests/unit/bank-fees.test.ts`, `tests/unit/bank-fees-card.test.tsx
 (window 2025-10-18 – 2026-10-17, both ends inclusive); e2e and demo `today = 2026-06-10` (window 2025-06-11 – 2026-06-10).
 
 **The rule.** Rows: checking, savings and card accounts; posted, not a transfer / money move / split parent /
-excluded / loan-payment exclusion (`countsInFlows`); dated in the window; not $0.00.
-- The bank text is read by ALLOWLIST: less digits, amounts, dates, ordinals, masks, month names, an overdraft notice's
-  "FOR A $… / DETAILS: …" tail and "NON-<BANK>" before ATM, every word must be a fee word (one required), a connective,
-  or one kind's anchor/vocabulary words with one of its anchors. One other word → not a bank or card fee.
+excluded / loan-payment exclusion (`countsInFlows`); dated in the window; not $0.00. A reconnected account
+(`terminalOf`) is one account.
+- The bank text is read by ALLOWLIST: less numbers, amounts, ordinals, masks (X's + digits), a month written beside a
+  number, "NON-<BANK>" before ATM, and — only after overdraft / returned-item words — a "FOR A $… / DETAILS: …" tail;
+  "NON SUFFICIENT" → NONSUFFICIENT. Every word must then be a fee word (one required), a connective, or one kind's
+  words with one of its anchors. One other word → not a bank or card fee.
 - *Charged* = money out filed under Fees & Charges (`fees`), ATM Fee (`atm-fee`) or Late Fee (`late-fee`) whose text
-  reads as a kind (the ATM Fee / Late Fee filing supplies the anchor, not the words). Interest and annual-fee PHRASES
-  are left out first. Everything else filed there is *not counted* and listed.
+  reads as a kind — the text's own kind first; the ATM Fee / Late Fee filing supplies the anchor only to text naming
+  none. Interest and annual-fee PHRASES are left out first. Everything else filed there is *not counted* and listed.
 - *Came back* = money in, any filing, whose text — less refund / reversal / rebate / reimbursement / waived / credit
-  words (credit kept beside WIRE) — reads as a counted kind.
+  words (credit kept beside WIRE) — reads as a counted kind, taken oldest first and only while it fits within what was
+  charged of that kind on that account in the window (to the cent).
 - The paid figure says "at least"; no net is stated. The window phrase is decided account by account.
 
 **Worked example (unit, `findBankFees — the worked example`).** Accounts `chk` (first row 2024-01-05) and `card`
@@ -31,15 +34,15 @@ excluded / loan-payment exclusion (`countsInFlows`); dated in the window; not $0
 | 2026-10-18 SERVICE CHARGE | fees | −$10.00 | — | after today |
 | 2026-04-02 FOREIGN TRANSACTION FEE | fees | −$0.87 | foreign | charged |
 | 2026-05-20 LATE FEE | late-fee | −$29.00 | late | charged |
-| 2026-05-25 LATE FEE | late-fee | +$29.00 | late | came back (same-text credit) |
+| 2026-05-25 LATE FEE | late-fee | +$29.00 | late | came back (same-text credit; card late fees charged $29.00) |
 | 2026-06-15 NON-NETWORK ATM FEE | fees | −$3.50 | atm | charged |
 | 2026-06-16 CASH WITHDRAWAL CHARGE | atm-fee | −$2.50 | atm (filing's anchor) | charged |
 | 2026-06-15 ATM SURCHARGE 7-ELEVEN | atm-fee | −$3.00 | ELEVEN | not counted |
 | 2026-07-31, 2026-08-31 MONTHLY MAINTENANCE FEE | fees | −$12.00 ×2 | account | charged |
 | 2026-09-03 OVERDRAFT ITEM FEE (chk handover day) | fees | −$35.00 | overdraft | charged, marked |
 | 2026-09-04 NSF RETURNED ITEM FEE | fees | −$35.00 | overdraft | charged |
-| 2026-09-10 OVERDRAFT FEE REFUND | fees | +$35.00 | overdraft | came back |
-| 2026-03-01 ATM FEE REBATE | refund | +$3.50 | atm | came back |
+| 2026-09-10 OVERDRAFT FEE REFUND | fees | +$35.00 | overdraft | came back (chk overdraft fees charged $70.00) |
+| 2026-03-01 ATM FEE REBATE | refund | +$3.50 | atm | came back (chk ATM fees charged $6.00 in the window) |
 | 2026-03-24 INTEREST CHECKING MONTHLY SERVICE FEE | fees | −$15.00 | INTEREST, CHECKING | not counted |
 | 2026-03-10 HOA MAINTENANCE FEE | fees | −$450.00 | HOA | not counted |
 | 2026-02-10 WESTGATE MAINTENANCE FEE | fees | −$1,850.00 | WESTGATE | not counted |
@@ -64,7 +67,16 @@ Charged $70.00 + $35.00 + $29.00 + $15.00 + $6.00 + $0.87 = **$155.87** (10 char
 $3.50 = **$67.50** (3). Not counted $3.00 + $1.75 + $15.00 + $1,200.00 + $450.00 + $1,850.00 = **$3,519.75** (6).
 Left out: interest $45.12 + $39.77 = **$84.89** (2), annual **$95.00** (1). One printed row on chk's handover day.
 Lead: "You paid at least $155.87 in bank and card fees (10 charges) in the last 12 months (one account's records begin
-later, on Jan 15, 2026), and $67.50 in fees came back."
+later, on Jan 15, 2026), and $67.50 of fees came back."
+
+**The cap (unit, `money back is capped …`).** chk: wire fee $15.00 charged; +$4,000.00 "INCOMING WIRE TRANSFER 2207
+SERVICE FEES", +$50.00 "WIRE TRANSFER IN REFUND OF FEES" (both wholly wire words), +$200.00 "ATM WITHDRAWAL CHARGE
+REVERSAL" (no ATM fee charged) → none fit; +$15.00 "WIRE FEE REFUND" fits exactly → came back $15.00. Two $35.00
+overdraft fees and three $35.00 refunds → the first two (oldest) count, $70.00. A $35.01 refund against a $35.00 fee →
+not counted; a following $35.00 one → counted. A refund on another account, or of a kind not charged there → not
+counted. A predecessor's $35.00 overdraft fee (2026-02-10) and its successor's $35.00 refund (2026-03-05), linked by
+`terminalOf` → one account, records from 2023-01-04, the refund counts; unlinked → two accounts, the new one starting
+inside the window, nothing back.
 
 **Window phrase.** Every account's first row on or before the window's first day → "in the last 12 months" (a first
 row ON 2025-10-18 reaches it) · every account starting inside → "since your records begin on <earliest>" · one inside →
@@ -72,10 +84,10 @@ row ON 2025-10-18 reaches it) · every account starting inside → "since your r
 <date>)". No rows at all → "No checking, savings or card records yet, so there are no fees to count."
 
 **Lead branches.** Records, nothing counted → "No bank or card fees counted in the last 12 months." · only a refund
-($34.00) → "No bank or card fees counted in the last 12 months; $34.00 in fees came back." · $12.00 charged, $47.00
-back → "You paid at least $12.00 in bank and card fees (1 charge) in the last 12 months, and $47.00 in fees came
-back." (no net) · one $29.00 charge → "You paid at least $29.00 in bank and card fees (1 charge) in the last 12
-months." A $0.00 fee row is nothing.
+($34.00, no fee of its kind charged) → nothing back either: the same zero sentence · $12.00 monthly fee charged, its
+$12.00 reversal and a $35.00 overdraft-fee reversal (no overdraft fee charged) → "You paid at least $12.00 in bank and
+card fees (1 charge) in the last 12 months, and $12.00 of fees came back." (no net) · one $29.00 charge → "You paid at
+least $29.00 in bank and card fees (1 charge) in the last 12 months." A $0.00 fee row is nothing.
 
 **Window.** 2026-10-17 → 2025-10-18; 2028-02-29 → 2027-03-01 (Feb 29 − 12 months clamps to Feb 28).
 
@@ -83,5 +95,6 @@ months." A $0.00 fee row is nothing.
 (May 4, May 5) + refund $34.00 (May 12); monthly service $15.00 (Apr 30); card late fee $39.00 (May 21); interest
 $28.17 (left out); APARTMENT LATE FEE $50.00 (not counted); OVERDRAFT PROTECTION FROM SAVINGS +$300.00 filed as fees
 (ignored); an overdraft on 2025-06-10 (outside). Charged $68.00 + $39.00 + $15.00 = **$122.00** (4 charges), came
-back **$34.00**, not counted **$50.00**. Demo: no row filed as a fee, every account reaching back → "No bank or card
+back **$34.00** (within chk's $68.00 of overdraft fees), not counted **$50.00**. Lead: "You paid at least $122.00 in
+bank and card fees (4 charges) in the last 12 months, and $34.00 of fees came back." Demo: no row filed as a fee, every account reaching back → "No bank or card
 fees counted in the last 12 months."

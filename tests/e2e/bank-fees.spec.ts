@@ -106,7 +106,7 @@ test.describe('fees you paid (DECISIONS #796)', () => {
     const card = page.getByTestId('bank-fees-card');
     await expect(card).toBeVisible();
     await expect(card.getByTestId('bank-fees-lead')).toHaveText(
-      'You paid at least $122.00 in bank and card fees (4 charges) in the last 12 months, and $34.00 in fees came back.',
+      'You paid at least $122.00 in bank and card fees (4 charges) in the last 12 months, and $34.00 of fees came back.',
     );
     const kinds = card.getByTestId('bank-fees-kinds').locator('details');
     await expect(kinds).toHaveCount(3);

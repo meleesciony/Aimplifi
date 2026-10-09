@@ -1,8 +1,8 @@
 /**
  * DECISIONS #796 /coach wiring (critic cycle 1 P2-5b; cycle 2 P2-4) — `getCoachData` hands
  * `findBankFees` the coach's own rows (the reader's stored filings and bank text), the
- * provider's today, and the SAME loan-payment exclusion ids and handover days the snapshot
- * carries, and renders exactly what the engine returned.
+ * provider's today, and the SAME loan-payment exclusion ids, handover days and reconnection
+ * links the snapshot carries, and renders exactly what the engine returned.
  *
  * Cycle 2 found the first version vacuous: the demo snapshot has no loan-payment exclusions
  * and no handover days, so passing `undefined` and an empty set satisfied it. The snapshot is
@@ -36,6 +36,7 @@ const { bankFeesLead } = await import('@/lib/engine/fi/bank-fees-copy');
 
 const SENTINEL_EXCLUDED_ID = 'sentinel-loan-payment-row';
 const SENTINEL_HANDOVER = handoverKey('sentinel-account', '2026-01-15');
+const SENTINEL_LINK: [string, string] = ['sentinel-old-account', 'sentinel-new-account'];
 
 describe('#796 — the coach hands the fee engine its own basis', () => {
   it('rows, today, loan-payment exclusions and handover days come from the one snapshot', async () => {
@@ -53,6 +54,7 @@ describe('#796 — the coach hands the fee engine its own basis', () => {
           excluded: snap.loanPaymentFlowExclusions?.excluded ?? [],
         },
         handoverKeys: new Set([...snap.handoverKeys, SENTINEL_HANDOVER]),
+        terminalOf: new Map([...(snap.terminalOf ?? []), SENTINEL_LINK]),
       };
       snapshots.push(wrapped);
       return wrapped;
@@ -80,6 +82,8 @@ describe('#796 — the coach hands the fee engine its own basis', () => {
       expect(opts?.handoverKeys?.has(SENTINEL_HANDOVER)).toBe(true);
       expect(opts?.excludedFlowIds).toBe(snap.loanPaymentFlowExclusions?.excludeIds);
       expect(opts?.handoverKeys).toBe(snap.handoverKeys);
+      expect(opts?.terminalOf?.get(SENTINEL_LINK[0])).toBe(SENTINEL_LINK[1]);
+      expect(opts?.terminalOf).toBe(snap.terminalOf);
 
       // What the page renders is what the engine returned.
       expect(data.bankFees).toBe(result);
