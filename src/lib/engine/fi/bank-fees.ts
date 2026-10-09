@@ -12,30 +12,29 @@
  * move, not a split parent, not excluded, not a loan-payment exclusion), dated in the 12
  * months ending today.
  *
- * A CHARGE counts when the row is money out filed under Fees & Charges, ATM Fee or Late Fee
- * AND its bank text reads as a bank or card fee (`readFeeText`): a fee word (fee / charge /
- * surcharge), no word naming another kind of business (an HOA, a landlord, a school, a
- * utility …), not a returned DEPOSIT, and one of the kinds' phrases — the filing decides the
- * kind for ATM Fee and Late Fee. Everything else filed under those categories is listed as
- * NOT COUNTED, with its amount: the categorizer files HOA maintenance fees, apartment late
- * fees and overdraft-protection transfers there, and a bounced deposit's principal reads
- * "INSUFFICIENT FUNDS" with no fee word (critic cycle 1, P1-2).
+ * THE TEXT IS READ BY ALLOWLIST (critic cycle 2). After the noise a bank adds is taken off —
+ * digits, masks, month names, an overdraft's "FOR A $12.00 … DETAILS: …" tail, a "NON-<BANK>"
+ * before ATM — EVERY word left must belong to one kind's own vocabulary (plus a fee word and a
+ * few connectives), with at least one of that kind's anchor words. One word outside it — a
+ * business's name (WESTGATE, RENTCAFE, DIRECTV, SOLID WASTE), a payment (NAVIENT PAYMENT INCL),
+ * a principal (CHARGE-BACK, DEPOSITED ITEM), a product (IRA, STOP PAYMENT) — and the row is not
+ * read as a bank or card fee. The cycle-1 rule blocked a list of businesses; a list of
+ * businesses can't be finished, and each name it missed was counted.
  *
- * Money BACK counts, wherever it is filed, only when its bank text names one of those fee
- * kinds AND says it was refunded / reversed / rebated / reimbursed / waived / credited
- * (`readsAsFeeGivenBack`). An ATM withdrawal reversal, an overdraft-protection transfer from
- * savings, an airline "fee credit" or a tuition refund is not a bank fee coming back (critic
- * cycle 1, P0-1).
+ *  - A CHARGE is money out filed under Fees & Charges, ATM Fee or Late Fee whose text reads as
+ *    a kind. The ATM Fee and Late Fee filings supply the kind (the anchor), not the vocabulary:
+ *    their text must still be that kind's words alone. Everything else filed there is listed
+ *    as NOT COUNTED, with its amount.
+ *  - CAME BACK is money in, under any filing, whose text reads as a kind once the words saying
+ *    it was given back (REFUND, REVERSAL, REBATE, REIMBURSEMENT, WAIVED, CREDIT …) are taken
+ *    off — so an "INCOMING WIRE CREDIT … PROFESSIONAL FEES" is not a fee coming back, and a
+ *    +$39.00 "LATE FEE" is. CREDIT never counts beside WIRE: "WIRE … CREDIT" is how a bank
+ *    words money arriving by wire.
+ *  - Interest PHRASES (Interest & Finance Charges, "INTEREST CHARGE", "FINANCE CHARGE" …) and
+ *    annual-fee PHRASES are read first and LEFT OUT, totalled separately.
  *
- * Interest and finance charges (Interest & Finance Charges, or the interest PHRASES under
- * Fees & Charges — never the bare word, which "INTEREST CHECKING MONTHLY SERVICE FEE" carries)
- * and annual fees are LEFT OUT and totalled separately: interest is the price of a carried
- * balance, which the debt plan is about, and an annual fee is the price of keeping a card or
- * account.
- *
- * The text is all there is to go on, so a fee from someone else worded like a bank's can
- * still be counted, and a bank fee worded unusually is listed rather than counted. The card
- * prints no net: a refund the text can't place would make one overstate.
+ * Everything errs low by construction: a real fee worded with any word the vocabulary lacks is
+ * listed rather than counted. The card says "at least" and prints no net.
  *
  * The kind is read from the filing and the bank's own text — never from the register's
  * display name, which a reader can rename to anything.
@@ -62,73 +61,121 @@ export type FeeKind = (typeof FEE_KINDS)[number];
 export type FeeReading = FeeKind | 'interest' | 'annual' | 'unread';
 
 const COUNTED_SET: ReadonlySet<string> = new Set(COUNTED_FEE_CATEGORY_IDS);
-const KIND_SET: ReadonlySet<string> = new Set(FEE_KINDS);
 
-// Bank text, upper-cased once. The checks run in the order `readFeeText` lists them.
 const INTEREST_RE =
   /\b(INTEREST (CHARGE[DS]?|CHG|FEE|ON (PURCHASES|CASH|BALANCES?))|(PURCHASE|CASH ADVANCE|BALANCE TRANSFER|PLAN|MINIMUM) INTEREST|FINANCE CHARGES?)\b/;
 const ANNUAL_RE = /\bANNUAL (MEMBERSHIP |CARD |ACCOUNT )?FEE\b/;
-const NOT_A_BANK_RE =
-  /\b(HOA|HOMEOWNERS?|ASSOCIATION|ASSN|ASSOC|CONDO\w*|TIMESHARE|RESORTS?|APARTMENTS?|APTS?|STORAGE|RENT|RENTAL|LEASE|LEASING|LANDLORD|PROPERTY|PROPERTIES|TUITION|UNIVERSITY|COLLEGE|SCHOOL|PARKING|TOLLS?|LIBRARY|COURT|DMV|UTILITY|UTILITIES|ELECTRIC|WATER|SEWER|CABLE|WIRELESS|INTERNET|INSURANCE|MEDICAL|HOSPITAL|CLINIC|DENTAL|GYM|FITNESS|CLUB|MEMBERSHIP|AIRLINES?|AIRWAYS|BAG|BAGGAGE|TICKET\w*|CONVENIENCE|SHIPPING|DELIVERY|SUBSCRIPTION)\b/;
-const DEPOSIT_RETURN_RE = /\b(DEPOSIT(ED)? (ITEM|CHECK)|RETURNED DEPOSIT|DEPOSIT RETURN(ED)?)\b/;
-const FEE_WORD_RE = /\b(FEES?|CHARGES?|SURCHARGE)\b/;
-const OVERDRAFT_RE =
-  /\b(OVERDRAFT|OVERDRAWN|OD (FEE|ITEM|CHARGE)|NSF|NON-?SUFFICIENT|INSUFFICIENT FUNDS?|RETURNED (ITEM|CHECK|CHEQUE|PAYMENT|ACH|DEBIT)|RETURN ITEM|PAID ITEM|ITEM PAID|COURTESY PAY)\b/;
-const ATM_RE = /\bATM\b/;
-const LATE_RE = /\b(LATE (FEE|CHARGE|PAYMENT|PMT)|PAST DUE (FEE|CHARGE))\b/;
-const WIRE_RE = /\bWIRE\b/;
-const FOREIGN_RE =
-  /\b(FOREIGN (TRANSACTION|TRANS|TXN|EXCHANGE|CURRENCY|PURCHASE)|INTERNATIONAL (TRANSACTION|TRANS|TXN|PURCHASE|SERVICE)|INTL (TRANSACTION|TRANS|TXN|PURCHASE|SERVICE)|FX FEE|CURRENCY CONVERSION|CROSS[- ]BORDER)\b/;
-const ACCOUNT_RE =
-  /\b(MONTHLY (MAINTENANCE |SERVICE |ACCOUNT )?(FEE|CHARGE)|MAINTENANCE (FEE|CHARGE)|SERVICE CHARGES?|ACCOUNT (FEE|CHARGE)|MINIMUM BALANCE|LOW BALANCE|BELOW MINIMUM|PAPER STATEMENT|STATEMENT FEE)\b/;
-const GIVEN_BACK_RE = /\b(REVERS\w*|REFUND\w*|REBATE\w*|REIMB\w*|WAIVE\w*|CREDIT(ED)?)\b/;
+
+const words = (s: string): ReadonlySet<string> => new Set(s.split(' '));
+
+/** At least one of these is required: a row with no fee word is a payment, a transfer or principal. */
+const FEE_WORDS = words('FEE FEES CHARGE CHARGES SURCHARGE');
+/** Connectives any kind may carry. */
+const FILLER = words('FOR A AN THE OF ON PER AND ASSESSED POSTED JAN FEB MAR APR MAY JUN JUL AUG SEP SEPT OCT NOV DEC');
 
 /**
- * What a row's bank text says, before the filing has its say. `'fee'` = it reads as a bank or
- * card fee but names no kind — the ATM Fee and Late Fee filings supply one; Fees & Charges
- * cannot.
+ * Each kind: the words that make a row that kind (`anchors`, one required unless the filing
+ * supplies the kind) and every other word it may carry (`vocab`). Checked in this order; a text
+ * that is wholly one kind's words is very rarely wholly another's.
  */
-function readFeeText(rawDescriptor: string): FeeReading | 'fee' {
-  const s = rawDescriptor.toUpperCase();
-  if (INTEREST_RE.test(s)) return 'interest';
-  if (ANNUAL_RE.test(s)) return 'annual';
-  if (NOT_A_BANK_RE.test(s)) return 'unread';
-  if (DEPOSIT_RETURN_RE.test(s)) return 'unread';
-  if (!FEE_WORD_RE.test(s)) return 'unread';
-  if (OVERDRAFT_RE.test(s)) return 'overdraft';
-  if (ATM_RE.test(s)) return 'atm';
-  if (LATE_RE.test(s)) return 'late';
-  if (WIRE_RE.test(s)) return 'wire';
-  if (FOREIGN_RE.test(s)) return 'foreign';
-  if (ACCOUNT_RE.test(s)) return 'account';
-  return 'fee';
+export const FEE_KIND_WORDS: Record<FeeKind, { anchors: ReadonlySet<string>; vocab: ReadonlySet<string> }> = {
+  overdraft: {
+    anchors: words('OVERDRAFT OVERDRAWN OD NSF INSUFFICIENT NONSUFFICIENT RETURNED RETURN COURTESY PAID'),
+    vocab: words('ITEM ITEMS FUND FUNDS NON SUFFICIENT CHECK CHECKS ACH DEBIT PAYMENT PAY EXTENDED CONTINUOUS SUSTAINED DAILY PROTECTION TRANSFER XFER ACCOUNT ACCT'),
+  },
+  atm: {
+    anchors: words('ATM'),
+    vocab: words('WITHDRAWAL WITHDRAW WITH WDRL WD CASH BALANCE INQUIRY INQ NON NETWORK OUT FOREIGN INTL INTERNATIONAL DOMESTIC OPERATOR OWNER USAGE USE TRANSACTION TXN'),
+  },
+  late: {
+    anchors: words('LATE PAST'),
+    vocab: words('PAYMENT PMT DUE'),
+  },
+  wire: {
+    anchors: words('WIRE'),
+    vocab: words('INCOMING OUTGOING DOMESTIC INTERNATIONAL INTL FOREIGN TRANSFER TRF IN OUT SERVICE SVC'),
+  },
+  foreign: {
+    anchors: words('FOREIGN INTERNATIONAL INTL FX CURRENCY CROSS'),
+    vocab: words('TRANSACTION TRANS TXN EXCHANGE PURCHASE CONVERSION BORDER SERVICE'),
+  },
+  account: {
+    anchors: words('MONTHLY MAINTENANCE SERVICE MINIMUM LOW BELOW ACCOUNT ACCT'),
+    vocab: words('BALANCE BAL MIN CHECKING SAVINGS'),
+  },
+};
+
+/** Words that say money is being handed back. CREDIT is not one of them beside WIRE. */
+const GIVEN_BACK_WORDS = words('REFUND REFUNDED REFUNDS REVERSAL REVERSALS REVERSED REVERSE REV REBATE REBATED REIMBURSEMENT REIMBURSED REIMB WAIVED WAIVER WAIVE CREDIT CREDITED');
+
+/**
+ * The words of a bank's text, with the noise a bank adds taken off: an overdraft notice's
+ * "FOR A $12.00 … PURCHASE - DETAILS: …" tail (it names the item that caused the fee, not who
+ * charged it), a "NON-<BANK>" before ATM, and every token that is a number, an amount, a date
+ * or an account mask.
+ */
+export function feeTextWords(rawDescriptor: string): string[] {
+  const s = rawDescriptor
+    .toUpperCase()
+    .replace(/\bFOR AN? \$?\d[\d,]*(\.\d+)?\b.*$/, ' ')
+    .replace(/\bDETAILS?:.*$/, ' ')
+    .replace(/\bNON-[A-Z0-9&]+(?=\s+ATM\b)/g, ' NON ');
+  return s
+    .split(/[^A-Z0-9&]+/)
+    .filter((t) => t !== '' && !/^\d+$/.test(t) && !/^X+\d*$/.test(t) && !/^\d+(ST|ND|RD|TH)$/.test(t));
+}
+
+/** The order kinds are tried in when the text alone decides. */
+const TEXT_ORDER: readonly FeeKind[] = ['overdraft', 'atm', 'late', 'wire', 'foreign', 'account'];
+
+/**
+ * The kind a set of words is wholly made of, or null. `filed` = the kind the ATM Fee or Late Fee
+ * filing supplies: tried first, its anchor waived; then every kind on its own anchors, so a row
+ * filed under Late Fee that reads "OVERDRAFT FEE" is an overdraft fee, never "not a bank fee".
+ */
+function kindOfWords(tokens: readonly string[], filed: FeeKind | null): FeeKind | null {
+  if (!tokens.some((t) => FEE_WORDS.has(t))) return null;
+  const fitsKind = (kind: FeeKind, anchorRequired: boolean) => {
+    const { anchors, vocab } = FEE_KIND_WORDS[kind];
+    const fits = tokens.every((t) => FEE_WORDS.has(t) || FILLER.has(t) || anchors.has(t) || vocab.has(t));
+    return fits && (!anchorRequired || tokens.some((t) => anchors.has(t)));
+  };
+  if (filed !== null && fitsKind(filed, false)) return filed;
+  return TEXT_ORDER.find((kind) => fitsKind(kind, true)) ?? null;
 }
 
 /**
  * How a row filed under a fee category reads. `null` for a row not filed under one.
  *
- * Interest & Finance Charges is interest whatever its text. Otherwise the text decides first —
- * interest and annual phrases are left out, and text that doesn't read as a bank or card fee
- * is `unread` under every filing — then the ATM Fee and Late Fee filings decide the kind, and
- * under Fees & Charges the text's own kind does (no kind → `unread`).
+ * Interest & Finance Charges is interest whatever its text; interest and annual-fee phrases are
+ * left out under every filing. Otherwise the text must be wholly one kind's words — under ATM
+ * Fee and Late Fee, that kind's — or the row is `unread`.
  */
 export function feeKindOf(categoryId: string | null | undefined, rawDescriptor: string): FeeReading | null {
   if (categoryId === INTEREST_CATEGORY_ID) return 'interest';
   if (!COUNTED_SET.has(categoryId ?? '')) return null;
-  const text = readFeeText(rawDescriptor);
-  if (text === 'interest' || text === 'annual' || text === 'unread') return text;
-  if (categoryId === 'atm-fee') return 'atm';
-  if (categoryId === 'late-fee') return 'late';
-  return text === 'fee' ? 'unread' : text;
+  const upper = rawDescriptor.toUpperCase();
+  if (INTEREST_RE.test(upper)) return 'interest';
+  if (ANNUAL_RE.test(upper)) return 'annual';
+  const filed: FeeKind | null = categoryId === 'atm-fee' ? 'atm' : categoryId === 'late-fee' ? 'late' : null;
+  return kindOfWords(feeTextWords(rawDescriptor), filed) ?? 'unread';
 }
 
 /**
- * Bank text that names one of the counted fee kinds and says it is being handed back. Read on
- * MONEY IN under any filing — and the only way money in counts.
+ * The counted kind of fee money in hands back, or null. Under any filing: the text, less the
+ * words saying it was given back, must be wholly one kind's words. CREDIT doesn't count as
+ * "given back" beside WIRE. (Interest and annual-fee wording needs no check of its own here:
+ * INTEREST, FINANCE and ANNUAL are in no kind's vocabulary, so the allowlist refuses them.)
  */
+export function feeGivenBackKind(rawDescriptor: string): FeeKind | null {
+  const all = feeTextWords(rawDescriptor);
+  const wire = all.includes('WIRE');
+  const rest = all.filter((t) => !GIVEN_BACK_WORDS.has(t) || (wire && (t === 'CREDIT' || t === 'CREDITED')));
+  return kindOfWords(rest, null);
+}
+
 export function readsAsFeeGivenBack(rawDescriptor: string): boolean {
-  const s = rawDescriptor.toUpperCase();
-  return GIVEN_BACK_RE.test(s) && KIND_SET.has(readFeeText(s));
+  return feeGivenBackKind(rawDescriptor) !== null;
 }
 
 export interface BankFeeRowInput extends TxnLike {
@@ -162,13 +209,24 @@ export interface LeftOutFees {
   annualCount: number;
 }
 
+/** How far back the records reach, account by account (critic cycle 2, P2-7). */
+export interface FeeRecords {
+  /** The earliest row date among every row handed in, or null when none. */
+  from: ISODate | null;
+  /** Accounts whose own earliest row falls after the window's first day. */
+  accountsStartingInWindow: number;
+  /** The latest of those accounts' first rows (null when none starts in the window). */
+  latestAccountStart: ISODate | null;
+  /** Accounts with any row at all. */
+  accounts: number;
+}
+
 export interface BankFees {
   /** First day of the window (inclusive): the day after today minus 12 months. */
   from: ISODate;
   /** Last day of the window (inclusive): today. */
   to: ISODate;
-  /** The earliest row date among every row handed in (all filings), or null when none. */
-  recordsFrom: ISODate | null;
+  records: FeeRecords;
   /** Kinds with at least one charge, largest total first; ties in `FEE_KINDS` order. */
   kinds: FeeKindTotal[];
   /** Σ kinds[].chargedCents. */
@@ -209,7 +267,7 @@ export function findBankFees(
   const from = bankFeeWindowStart(today);
   const handoverKeys = opts.handoverKeys ?? new Set<string>();
 
-  let recordsFrom: ISODate | null = null;
+  const firstRowByAccount = new Map<string, string>();
   const charged = new Map<FeeKind, FeeRow[]>();
   const givenBack: FeeRow[] = [];
   const uncounted: FeeRow[] = [];
@@ -217,7 +275,8 @@ export function findBankFees(
   const annual: FeeRow[] = [];
 
   for (const t of rows) {
-    if (recordsFrom === null || t.date < recordsFrom) recordsFrom = t.date as ISODate;
+    const first = firstRowByAccount.get(t.accountId);
+    if (first === undefined || t.date < first) firstRowByAccount.set(t.accountId, t.date);
     if (t.date < from || t.date > today) continue;
     if (t.amountCents === 0) continue;
     if (!countsInFlows(t, opts.excludedFlowIds)) continue;
@@ -248,12 +307,19 @@ export function findBankFees(
   givenBack.sort(byDateDesc);
   uncounted.sort(byDateDesc);
 
+  const starts = [...firstRowByAccount.values()].sort();
+  const lateStarts = starts.filter((d) => d > from);
   const printed = [...kinds.flatMap((k) => k.rows), ...givenBack, ...uncounted, ...interest, ...annual];
 
   return {
     from,
     to: today,
-    recordsFrom,
+    records: {
+      from: (starts[0] as ISODate | undefined) ?? null,
+      accountsStartingInWindow: lateStarts.length,
+      latestAccountStart: (lateStarts[lateStarts.length - 1] as ISODate | undefined) ?? null,
+      accounts: starts.length,
+    },
     kinds,
     chargedCents: cents(kinds.reduce((s, k) => s + k.chargedCents, 0)),
     givenBack,

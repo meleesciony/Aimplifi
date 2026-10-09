@@ -50,6 +50,7 @@ describe('BankFeesCard', () => {
     const fees = findBankFees(
       [
         row('chk', '2024-02-01', -500, 'BLUE DOOR COFFEE', 'coffee'),
+        row('card', '2024-03-01', -700, 'BLUE DOOR COFFEE', 'coffee'),
         row('chk', '2026-09-03', -3_500, 'OVERDRAFT ITEM FEE', 'fees', { merchantName: 'Checking overdraft' }),
         row('chk', '2026-09-10', 3_500, 'OVERDRAFT FEE REFUND', 'fees'),
         row('card', '2026-05-20', -2_900, 'LATE FEE', 'late-fee'),
@@ -62,7 +63,7 @@ describe('BankFeesCard', () => {
 
     expect(screen.getByTestId('bank-fees-card').id).toBe('fees-you-paid');
     expect(screen.getByTestId('bank-fees-lead').textContent).toBe(
-      'You paid $64.00 in bank and card fees (2 charges) in the last 12 months, and $35.00 in fees came back.',
+      'You paid at least $64.00 in bank and card fees (2 charges) in the last 12 months, and $35.00 in fees came back.',
     );
 
     const overdraft = screen.getByTestId('bank-fees-kind-overdraft');
@@ -71,7 +72,7 @@ describe('BankFeesCard', () => {
     expect(overdraft.textContent).toContain(FEE_KIND_COPY.overdraft.avoid);
     const link = within(screen.getByTestId('bank-fees-rows-overdraft')).getByTestId('bank-fee-row-link');
     expect(link.textContent).toBe('Checking overdraft');
-    expect(link.getAttribute('href')).toBe('/transactions/f2?back=_coach');
+    expect(link.getAttribute('href')).toBe('/transactions/f3?back=_coach');
     expect(screen.getByTestId('bank-fees-rows-overdraft').textContent).toContain('OVERDRAFT ITEM FEE');
     expect(screen.getByTestId('bank-fees-rows-overdraft').textContent).toContain('Sep 3, 2026');
 
@@ -93,7 +94,7 @@ describe('BankFeesCard', () => {
     expect(within(uncounted).getByTestId('bank-fees-rows-uncounted').textContent).toContain('HOA MAINTENANCE FEE');
 
     expect(screen.getByTestId('bank-fees-left-out').textContent).toBe(
-      'Not counted here: $45.12 of interest and finance charges (1 charge). Interest is the cost of a balance carried from month to month.',
+      'Left out: $45.12 of interest and finance charges (1 charge). Interest is what borrowing costs — a balance carried past its due date, or a cash advance.',
     );
     expect(screen.queryByTestId('bank-fees-handover')).toBeNull();
     // The rule is one tap away, folded under "How these are counted" (audit rule: no always-open essays).
@@ -109,6 +110,8 @@ describe('BankFeesCard', () => {
     const fees = findBankFees([row('chk', '2024-02-01', -500, 'BLUE DOOR COFFEE', 'coffee')], TODAY);
     render(<BankFeesCard fees={fees} />);
     expect(screen.getByTestId('bank-fees-lead').textContent).toBe('No bank or card fees counted in the last 12 months.');
+    // Nothing on the card points at a part of it that isn't there.
+    expect(screen.getByTestId('bank-fees-card').textContent).not.toMatch(/(above|below)/);
     expect(screen.queryByTestId('bank-fees-kinds')).toBeNull();
     expect(screen.queryByTestId('bank-fees-given-back')).toBeNull();
     expect(screen.queryByTestId('bank-fees-uncounted')).toBeNull();

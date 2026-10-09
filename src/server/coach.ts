@@ -211,7 +211,7 @@ export interface CoachData {
   };
   opportunities: Opportunity[];
   /**
-   * #796 — the bank fees in the last 12 months of records, by kind, net of what came back.
+   * #796 — the bank and card fees in the last 12 months of records, by kind, and what came back.
    * Its own engine, deliberately NOT an `Opportunity` kind: none of the cut sums, the radar
    * cut-walk, Ask's "what to cut" total or the Today feed read it.
    */

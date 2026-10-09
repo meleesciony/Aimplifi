@@ -347,7 +347,7 @@ export default async function CoachPage() {
         </CardContent>
       </Card>
 
-      {/* #796 — the fees the reader's banks charged, by kind, net of what came back. Its own
+      {/* #796 — the bank and card fees the reader paid, by kind, and what came back. Its own
           card, not a "Worth a look" row: nothing on that list's cut sums reads it. */}
       <BankFeesCard fees={data.bankFees} />
 

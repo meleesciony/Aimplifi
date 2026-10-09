@@ -1,6 +1,6 @@
 /**
- * DECISIONS #796 — "Fees you paid" on /coach: the bank fees in the last 12 months of the
- * reader's records, by kind, net of what came back.
+ * DECISIONS #796 — "Fees you paid" on /coach: the bank and card fees in the last 12 months of
+ * the reader's records, by kind, and what came back.
  *
  * 1. The shared demo (read-only): nothing in its records is filed as a fee, so the card names
  *    that zero and still prints its rule.
@@ -57,6 +57,7 @@ function seed(email: string): { lateFeeId: string } {
     const rows: [string, string, string, number, string, string][] = [
       // Records begin before the window, so the lead says "in the last 12 months".
       [`e2e-fee-t-${stamp}-0`, chk, '2025-03-02', -1_250, 'BLUE DOOR COFFEE', 'coffee'],
+      [`e2e-fee-t-${stamp}-0c`, card, '2025-04-01', -2_400, 'BLUE DOOR COFFEE', 'coffee'],
       // The day before the window: never counted.
       [`e2e-fee-t-${stamp}-1`, chk, '2025-06-10', -3_400, 'OVERDRAFT ITEM FEE', 'fees'],
       [`e2e-fee-t-${stamp}-2`, chk, '2026-05-04', -3_400, 'OVERDRAFT ITEM FEE', 'fees'],
@@ -105,7 +106,7 @@ test.describe('fees you paid (DECISIONS #796)', () => {
     const card = page.getByTestId('bank-fees-card');
     await expect(card).toBeVisible();
     await expect(card.getByTestId('bank-fees-lead')).toHaveText(
-      'You paid $122.00 in bank and card fees (4 charges) in the last 12 months, and $34.00 in fees came back.',
+      'You paid at least $122.00 in bank and card fees (4 charges) in the last 12 months, and $34.00 in fees came back.',
     );
     const kinds = card.getByTestId('bank-fees-kinds').locator('details');
     await expect(kinds).toHaveCount(3);
@@ -120,7 +121,7 @@ test.describe('fees you paid (DECISIONS #796)', () => {
       'Filed as fees, not counted — $50.00 (1 charge)',
     );
     await expect(card.getByTestId('bank-fees-left-out')).toContainText(
-      'Not counted here: $28.17 of interest and finance charges (1 charge).',
+      'Left out: $28.17 of interest and finance charges (1 charge).',
     );
 
     // Open the late fees and follow the row to its transaction, then back to Coach.

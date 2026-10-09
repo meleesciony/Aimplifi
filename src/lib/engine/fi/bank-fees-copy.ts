@@ -4,9 +4,11 @@
  *
  * Every figure sentence is a statement about the reader's RECORDS over a named window, and the
  * rule — one tap under the figures — says which rows those are, in the same terms the engine
- * reads them. A zero names its basis ("counted"), because a fee filed under another category
- * is in the records and is not counted here. No sentence states a net: a refund whose text the
- * engine can't place would make "they cost you" overstate (critic cycle 1).
+ * reads them. The engine errs low by construction (an allowlist of fee words), so the paid
+ * figure says "at least", a zero says "counted", and no sentence states a net.
+ *
+ * No sentence points at another part of the card ("above", "below"): the kinds are named where
+ * they are meant (critic cycle 2, P2-6 — "the fees above" with nothing above).
  *
  * Educational, never advisory: each kind says how that kind of fee is usually avoided, in
  * general terms; nothing names a bank, a card or a product.
@@ -15,7 +17,7 @@
 import type { ISODate } from '@/lib/dates';
 import { formatMonth } from '@/lib/dates';
 import { formatCents } from '@/lib/money';
-import type { BankFees, FeeKind, FeeKindTotal } from '@/lib/engine/fi/bank-fees';
+import type { BankFees, FeeKind, FeeKindTotal, FeeRecords } from '@/lib/engine/fi/bank-fees';
 
 export const BANK_FEES_CARD_ID = 'fees-you-paid';
 
@@ -25,7 +27,7 @@ export const FEE_KIND_COPY: Record<FeeKind, { label: string; avoid: string }> = 
   overdraft: {
     label: 'Overdraft and returned-item fees',
     avoid:
-      'Charged when a payment is bigger than the balance. Linking savings as overdraft backup, a low-balance alert, or having the bank decline a card purchase instead of covering it usually prevents them.',
+      'Charged when a payment is bigger than the balance. A low-balance alert, a cushion left in checking, or having the bank decline a card purchase instead of covering it usually prevents them.',
   },
   account: {
     label: 'Monthly account fees',
@@ -49,9 +51,13 @@ export const FEE_KIND_COPY: Record<FeeKind, { label: string; avoid: string }> = 
   },
   wire: {
     label: 'Wire fees',
-    avoid: "A standard bank transfer is usually free when the money doesn't have to arrive the same day.",
+    avoid:
+      "Charged for sending a wire, and by some banks for receiving one; a standard bank transfer is usually free when the money doesn't have to arrive the same day.",
   },
 };
+
+/** The counted kinds in words, for the sentences that must name them. */
+const KINDS_IN_WORDS = 'overdraft or returned-item, monthly account, late, ATM, foreign transaction or wire';
 
 /** "Jun 2, 2026" — a calendar date for a sentence or a row. UI boundary only. */
 export function feeDate(date: ISODate): string {
@@ -60,13 +66,19 @@ export function feeDate(date: ISODate): string {
 }
 
 /**
- * The window as the lead names it, given records exist. "in the last 12 months" only when the
- * records reach back to the window's first day; otherwise the window is shorter than 12 months
- * of records and the sentence says where they begin.
+ * The window as the lead names it, given records exist — decided ACCOUNT BY ACCOUNT (critic
+ * cycle 2, P2-7): "in the last 12 months" only when every account's records reach the window's
+ * first day; "since your records begin on …" when none does; otherwise the window, and how many
+ * accounts' records begin inside it.
  */
-export function feeWindowPhrase(f: Pick<BankFees, 'from'> & { recordsFrom: ISODate }): string {
-  if (f.recordsFrom > f.from) return `since your records begin on ${feeDate(f.recordsFrom)}`;
-  return 'in the last 12 months';
+export function feeWindowPhrase(records: FeeRecords & { from: ISODate }): string {
+  const n = records.accountsStartingInWindow;
+  if (n === 0) return 'in the last 12 months';
+  if (n === records.accounts) return `since your records begin on ${feeDate(records.from)}`;
+  const latest = feeDate(records.latestAccountStart ?? records.from);
+  return n === 1
+    ? `in the last 12 months (one account's records begin later, on ${latest})`
+    : `in the last 12 months (records for ${n} accounts begin later, the latest on ${latest})`;
 }
 
 function charges(n: number): string {
@@ -78,8 +90,8 @@ export const BANK_FEES_NO_RECORDS = 'No checking, savings or card records yet, s
 
 /** The card's first sentence. */
 export function bankFeesLead(f: BankFees): string {
-  if (f.recordsFrom === null) return BANK_FEES_NO_RECORDS;
-  const when = feeWindowPhrase({ from: f.from, recordsFrom: f.recordsFrom });
+  if (f.records.from === null) return BANK_FEES_NO_RECORDS;
+  const when = feeWindowPhrase({ ...f.records, from: f.records.from });
   const back = `${formatCents(f.givenBackCents)} in fees came back`;
   if (f.chargedCents === 0) {
     return f.givenBackCents === 0
@@ -87,7 +99,7 @@ export function bankFeesLead(f: BankFees): string {
       : `No bank or card fees counted ${when}; ${back}.`;
   }
   const count = f.kinds.reduce((s, k) => s + k.rows.length, 0);
-  const paid = `You paid ${formatCents(f.chargedCents)} in bank and card fees (${charges(count)}) ${when}`;
+  const paid = `You paid at least ${formatCents(f.chargedCents)} in bank and card fees (${charges(count)}) ${when}`;
   return f.givenBackCents === 0 ? `${paid}.` : `${paid}, and ${back}.`;
 }
 
@@ -108,8 +120,7 @@ export function feesUncountedLine(f: Pick<BankFees, 'uncounted' | 'uncountedCent
 }
 
 /** Under the not-counted heading: why those rows are listed and not in the total. */
-export const BANK_FEES_UNCOUNTED_NOTE =
-  "Their bank text doesn't read as one of the bank and card fees above, so they're listed here and left out of the total.";
+export const BANK_FEES_UNCOUNTED_NOTE = `Their bank text has a word that isn't part of an ${KINDS_IN_WORDS} fee — a business's name, a payment, a product — or no fee word at all, so they're listed here and left out of the total.`;
 
 /**
  * What the figures leave out, by amount, when there is any. `null` when nothing was left out.
@@ -121,14 +132,14 @@ export function feesLeftOutLine(f: Pick<BankFees, 'leftOut'>): string | null {
   const why: string[] = [];
   if (interestCount > 0) {
     parts.push(`${formatCents(interestCents)} of interest and finance charges (${charges(interestCount)})`);
-    why.push('Interest is the cost of a balance carried from month to month.');
+    why.push('Interest is what borrowing costs — a balance carried past its due date, or a cash advance.');
   }
   if (annualCount > 0) {
     parts.push(`${formatCents(annualCents)} of annual fees (${charges(annualCount)})`);
     why.push('An annual fee is the yearly price of keeping a card or account.');
   }
   if (parts.length === 0) return null;
-  return `Not counted here: ${parts.join(' and ')}. ${why.join(' ')}`;
+  return `Left out: ${parts.join(' and ')}. ${why.join(' ')}`;
 }
 
 /** The disclosure that holds the rule. */
@@ -136,8 +147,7 @@ export const BANK_FEES_RULE_SUMMARY = 'How these are counted';
 
 /**
  * The rule, one tap under the figures. A statement about this card, never about the reader —
- * and in the engine's own terms (critic cycle 1, P2-6: the first rule described a narrower
- * test than the code ran).
+ * and in the engine's own terms (critic cycles 1–2: a rule that describes a narrower or a
+ * different test than the code runs is a false sentence).
  */
-export const BANK_FEES_RULE =
-  "Reads your checking, savings and card accounts over the 12 months up to and including today. A charge counts when it's filed under Fees & Charges, ATM Fee or Late Fee and its bank text reads as one of the fees above: it has a fee word (fee, charge or surcharge), names the kind of fee (a row filed under ATM Fee or Late Fee is that kind), and doesn't name another kind of business, such as an HOA, a landlord, a school or a utility. Anything else filed there is listed as not counted. Money back counts, wherever it's filed, when its bank text names one of those fees and says it was refunded, reversed, rebated, reimbursed, waived or credited. The text is all there is to go on, so a fee from someone else worded like a bank's can still be counted. Interest and finance charges and annual fees are left out, and a row you've excluded isn't read.";
+export const BANK_FEES_RULE = `Reads your checking, savings and card accounts over the 12 months up to and including today, leaving out pending rows, transfers, split totals, loan payments the app counts on the loan, and rows you've excluded. A charge counts when it's filed under Fees & Charges, ATM Fee or Late Fee and its bank text — numbers, dates, account digits and an overdraft notice's description of the item aside — is only the words of one ${KINDS_IN_WORDS} fee, with a fee word (fee, charge or surcharge). One other word, such as a business's name, and it's listed as not counted instead. Money back counts, wherever it's filed, when its text is one of those fees, alone or with a word like refund, reversal, rebate, reimbursement, waived or credit (credit doesn't count beside a wire). Interest and finance charges and annual fees are left out. Everything errs low: a real fee worded in a way this card doesn't know is listed, not counted.`;
