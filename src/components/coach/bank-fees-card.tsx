@@ -1,7 +1,8 @@
 /**
- * "Fees you paid" on /coach (DECISIONS #796): the bank fees in the last 12 months of the
- * reader's records, by kind, each kind one tap from its rows and from how that kind of fee is
- * usually avoided; what came back; what is left out; the rule, one tap away.
+ * "Fees you paid" on /coach (DECISIONS #796): the bank and card fees in the last 12 months of
+ * the reader's records, by kind, each kind one tap from its rows and from how that kind of fee
+ * is usually avoided; what came back; what was filed as a fee and not counted; what is left
+ * out; the rule, one tap away.
  *
  * Every figure comes from `findBankFees` and every sentence from `bank-fees-copy.ts` — this
  * file only lays them out. A server component: the disclosures are native `<details>`.
@@ -16,12 +17,14 @@ import {
   BANK_FEES_RULE,
   BANK_FEES_RULE_SUMMARY,
   BANK_FEES_TITLE,
+  BANK_FEES_UNCOUNTED_NOTE,
   FEE_KIND_COPY,
   bankFeesLead,
   feeDate,
   feeKindLine,
   feesGivenBackLine,
   feesLeftOutLine,
+  feesUncountedLine,
 } from '@/lib/engine/fi/bank-fees-copy';
 import {
   HANDOVER_DAY_ROW_MARKER,
@@ -32,9 +35,9 @@ import { formatCents } from '@/lib/money';
 
 function FeeRows({ rows, testid }: { rows: readonly FeeRow[]; testid: string }) {
   return (
-    <ul className="mt-1 space-y-1.5" data-testid={testid}>
+    <ul className="mt-1" data-testid={testid}>
       {rows.map((r) => (
-        <li key={r.transactionId} className="flex min-w-0 items-baseline justify-between gap-2 text-xs">
+        <li key={r.transactionId} className="flex min-w-0 items-baseline justify-between gap-2 py-1 text-xs">
           <span className="min-w-0">
             <Link
               href={withForwardedReturn(
@@ -102,14 +105,20 @@ export function BankFeesCard({ fees }: { fees: BankFees }) {
             <FeeRows rows={fees.givenBack} testid="bank-fees-rows-given-back" />
           </Disclosure>
         )}
+        {fees.uncounted.length > 0 && (
+          <Disclosure summary={feesUncountedLine(fees)} testid="bank-fees-uncounted">
+            <p className="text-xs text-muted-foreground">{BANK_FEES_UNCOUNTED_NOTE}</p>
+            <FeeRows rows={fees.uncounted} testid="bank-fees-rows-uncounted" />
+          </Disclosure>
+        )}
         {leftOut && (
           <p className="text-xs text-muted-foreground" data-testid="bank-fees-left-out">
             {leftOut}
           </p>
         )}
-        {fees.countedOnHandoverDays > 0 && (
+        {fees.amountsOnHandoverDays > 0 && (
           <p className="text-xs text-muted-foreground" data-testid="bank-fees-handover">
-            {handoverDayAmountsNote(fees.countedOnHandoverDays)}
+            {handoverDayAmountsNote(fees.amountsOnHandoverDays)}
           </p>
         )}
         <details data-testid="bank-fees-how">

@@ -5,9 +5,11 @@
  * 1. The shared demo (read-only): nothing in its records is filed as a fee, so the card names
  *    that zero and still prints its rule.
  * 2. A throwaway user (never the demo row) with two overdraft fees (one refunded), a monthly
- *    service fee, a card late fee and an interest charge: the lead, the kinds largest first,
- *    the interest left out, and a fee row that opens its transaction with the way back to
- *    /coach.
+ *    service fee, a card late fee, an interest charge, an apartment's late fee and an
+ *    overdraft-protection transfer the categorizer files as fees: the lead, the kinds largest
+ *    first, the refund, the apartment fee listed and not counted, the transfer never "came
+ *    back", the interest left out, and a fee row that opens its transaction with the way back
+ *    to /coach.
  *
  * Every amount is invented. The e2e server pins `DEMO_TODAY=2026-06-10` for every user, so
  * the window is 2025-06-11 – 2026-06-10.
@@ -64,6 +66,10 @@ function seed(email: string): { lateFeeId: string } {
       [lateFeeId, card, '2026-05-21', -3_900, 'LATE FEE', 'late-fee'],
       // Interest: left out, and named.
       [`e2e-fee-t-${stamp}-7`, card, '2026-05-21', -2_817, 'INTEREST CHARGE ON PURCHASES', 'fees'],
+      // Filed as fees, not a bank's or card's: listed, not counted.
+      [`e2e-fee-t-${stamp}-8`, chk, '2026-05-01', -5_000, 'APARTMENT LATE FEE', 'fees'],
+      // Money in filed as fees that is not a fee coming back.
+      [`e2e-fee-t-${stamp}-9`, chk, '2026-05-06', 30_000, 'OVERDRAFT PROTECTION FROM SAVINGS', 'fees'],
     ];
     for (const [id, acct, date, cents, desc, cat] of rows) txn.run(id, acct, date, cents, desc, cat);
     db.prepare('UPDATE User SET paymentAccountId = ? WHERE id = ?').run(chk, uid);
@@ -82,7 +88,7 @@ test.describe('fees you paid (DECISIONS #796)', () => {
 
     const card = page.getByTestId('bank-fees-card');
     await expect(card).toBeVisible();
-    await expect(card.getByTestId('bank-fees-lead')).toHaveText('No bank fees counted in the last 12 months.');
+    await expect(card.getByTestId('bank-fees-lead')).toHaveText('No bank or card fees counted in the last 12 months.');
     await expect(card.getByTestId('bank-fees-kinds')).toHaveCount(0);
     // The zero's basis is one tap away.
     await expect(card.getByTestId('bank-fees-rule')).toBeHidden();
@@ -91,7 +97,7 @@ test.describe('fees you paid (DECISIONS #796)', () => {
     await expect(card.getByTestId('bank-fees-rule')).toContainText('Fees & Charges, ATM Fee or Late Fee');
   });
 
-  test('a reader’s own fees: by kind, net of the refund, interest left out, a row one tap away', async ({ page }) => {
+  test('a reader’s own fees: by kind, the refund, the not-counted, interest left out, a row one tap away', async ({ page }) => {
     const email = await signUpThrowaway(page);
     const { lateFeeId } = seed(email);
     await page.goto('/coach');
@@ -99,7 +105,7 @@ test.describe('fees you paid (DECISIONS #796)', () => {
     const card = page.getByTestId('bank-fees-card');
     await expect(card).toBeVisible();
     await expect(card.getByTestId('bank-fees-lead')).toHaveText(
-      'You were charged $122.00 in bank fees (4 charges) in the last 12 months; $34.00 came back, so they cost you $88.00.',
+      'You paid $122.00 in bank and card fees (4 charges) in the last 12 months, and $34.00 in fees came back.',
     );
     const kinds = card.getByTestId('bank-fees-kinds').locator('details');
     await expect(kinds).toHaveCount(3);
@@ -108,7 +114,10 @@ test.describe('fees you paid (DECISIONS #796)', () => {
     await expect(kinds.nth(1).locator('summary')).toHaveText('Late fees — $39.00 (1 charge)');
     await expect(kinds.nth(2).locator('summary')).toHaveText('Monthly account fees — $15.00 (1 charge)');
     await expect(card.getByTestId('bank-fees-given-back').locator('summary')).toHaveText(
-      'Came back — $34.00 (1 refund or reversal)',
+      'Came back — $34.00 (1 fee returned)',
+    );
+    await expect(card.getByTestId('bank-fees-uncounted').locator('summary')).toHaveText(
+      'Filed as fees, not counted — $50.00 (1 charge)',
     );
     await expect(card.getByTestId('bank-fees-left-out')).toContainText(
       'Not counted here: $28.17 of interest and finance charges (1 charge).',
