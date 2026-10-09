@@ -25,6 +25,7 @@ import { describe, expect, it } from 'vitest';
 import { isoDate } from '@/lib/dates';
 import { handoverKey } from '@/lib/engine/account/reconcile-boundary';
 import {
+  ANNUAL_WORDS,
   FEE_KIND_WORDS,
   FEE_WORDS,
   FILLER,
@@ -112,8 +113,25 @@ describe('feeTextWords — the noise a bank adds comes off', () => {
     ['MONTHLY SERVICE FEE AUG-31', ['MONTHLY', 'SERVICE', 'FEE']],
     ['MONTHLY SERVICE FEE AUG31', ['MONTHLY', 'SERVICE', 'FEE']],
     ['OVERDRAFT ITEM FEE-DETAILS: 0812 CORNER STORE', ['OVERDRAFT', 'ITEM', 'FEE']],
+    ['OVERDRAFT ITEM FEE DETAIL: CORNER STORE', ['OVERDRAFT', 'ITEM', 'FEE']],
+    // A bank's name of up to four words after NON-; a fifth word is not a bank's name.
+    ['NON-FIRST NATIONAL BANK TEXAS ATM FEE', ['NON', 'ATM', 'FEE']],
+    ['NON-FIRST NATIONAL BANK OF TEXAS ATM FEE', ['NON', 'FIRST', 'NATIONAL', 'BANK', 'OF', 'TEXAS', 'ATM', 'FEE']],
   ])('%s → %j', (raw, expected) => {
     expect(feeTextWords(raw)).toEqual(expected);
+  });
+});
+
+describe('a month written beside a number is a date, in every spelling (cycle 5, P3-5)', () => {
+  it.each([
+    'JAN', 'JANUARY', 'FEB', 'FEBRUARY', 'MAR', 'MARCH', 'APR', 'APRIL', 'MAY', 'JUN', 'JUNE', 'JUL', 'JULY',
+    'AUG', 'AUGUST', 'SEP', 'SEPT', 'SEPTEMBER', 'OCT', 'OCTOBER', 'NOV', 'NOVEMBER', 'DEC', 'DECEMBER',
+  ])('%s', (month) => {
+    expect(feeTextWords(`MONTHLY SERVICE FEE ${month} 30`)).toEqual(['MONTHLY', 'SERVICE', 'FEE']);
+    expect(feeTextWords(`MONTHLY SERVICE FEE 30 ${month}`)).toEqual(['MONTHLY', 'SERVICE', 'FEE']);
+    // Only beside a number: a month's letters inside another word, or alone, stay.
+    expect(feeTextWords(`${month}X 30 LATE FEE`)).toContain(`${month}X`);
+    expect(feeTextWords(`X${month} 30 LATE FEE`)).toContain(`X${month}`);
   });
 });
 
@@ -180,6 +198,8 @@ describe('feeKindOf — interest and annual phrases first, then the text must be
     ['fees', 'ANNUAL FEE', 'annual'],
     ['fees', 'ANNUAL MEMBERSHIP FEE', 'annual'],
     ['fees', 'ANNUAL FEE AUG 2026', 'annual'],
+    ['fees', 'ANNUAL FEE FOR ACCT', 'annual'],
+    ['fees', 'CLUB ANNUAL FEE', 'unread'],
     // Another business's annual fee is not "the yearly price of keeping a card or account" (cycle 4, P2-5).
     ['fees', 'IRA ANNUAL FEE', 'unread'],
     ['fees', 'HOMEOWNERS ASSN ANNUAL FEE', 'unread'],
@@ -189,6 +209,12 @@ describe('feeKindOf — interest and annual phrases first, then the text must be
     ['fees', 'PLAN INTEREST', 'interest'],
     ['fees', 'INTEREST CHG', 'interest'],
     ['fees', 'MINIMUM INTEREST', 'interest'],
+    // An account's name, not interest (cycle 5, P2-1): the word test lists it, under a true note.
+    ['fees', 'BELOW MINIMUM INTEREST CHECKING BALANCE FEE', 'unread'],
+    ['fees', 'PLAN INTEREST SAVINGS FEE', 'unread'],
+    ['fees', 'MINIMUM INTEREST ACCOUNT FEE', 'unread'],
+    ['fees', 'MINIMUM INTEREST ACCT FEE', 'unread'],
+    ['fees', 'MINIMUM INTEREST BAL FEE', 'unread'],
     ['fees', 'BALANCE TRANSFER INTEREST', 'interest'],
     ['fees', 'PURCHASE INTEREST', 'interest'],
     ['fees', 'INTEREST ON CASH', 'interest'],
@@ -201,7 +227,7 @@ describe('feeKindOf — interest and annual phrases first, then the text must be
     ['fees', 'INTEREST CHARGES', 'interest'],
     ['fees', 'ANNUAL CARD FEE', 'annual'],
     ['fees', 'ANNUAL ACCOUNT FEE', 'annual'],
-    // Interest is read before annual.
+    // An interest phrase beside an annual one is interest.
     ['fees', 'ANNUAL FEE INTEREST CHARGE', 'interest'],
     // Not a bank's or card's fee, by ANY word outside the kind (critic cycles 1–3).
     ['fees', 'HOA MAINTENANCE FEE', 'unread'],
@@ -282,6 +308,8 @@ describe('feeKindOf — interest and annual phrases first, then the text must be
     const sorted = (s: ReadonlySet<string>) => [...s].sort();
     expect(sorted(FEE_WORDS)).toEqual(['CHARGE', 'CHARGES', 'FEE', 'FEES', 'SURCHARGE']);
     expect(sorted(FILLER)).toEqual(['A', 'AN', 'AND', 'ASSESSED', 'FOR', 'OF', 'ON', 'PER', 'POSTED', 'THE']);
+    // Cycle 5, P2-2: an added word here would put a club's annual fee beside "a card or account".
+    expect(sorted(ANNUAL_WORDS)).toEqual(['ACCOUNT', 'ACCT', 'ANNUAL', 'CARD', 'MEMBERSHIP']);
     expect(sorted(GIVEN_BACK_WORDS)).toEqual(
       ['CREDIT', 'CREDITED', 'REBATE', 'REBATED', 'REFUND', 'REFUNDED', 'REFUNDS', 'REIMB', 'REIMBURSED', 'REIMBURSEMENT', 'REV', 'REVERSAL', 'REVERSALS', 'REVERSE', 'REVERSED', 'WAIVE', 'WAIVED', 'WAIVER'],
     );
@@ -836,12 +864,13 @@ describe('findBankFees — edges', () => {
         row('chk', day, 1_200, 'MONTHLY SERVICE FEE REVERSAL', 'fees'),
         row('chk', day, -45_000, 'HOA MAINTENANCE FEE', 'fees'),
         row('chk', day, -1_000, 'FINANCE CHARGE', 'fees'),
+        row('chk', day, -9_500, 'ANNUAL FEE', 'fees'),
         row('chk', day, -900, 'GROCERY', 'groceries'),
       ],
       TODAY,
       { handoverKeys: new Set([handoverKey('chk', day)]) },
     );
-    expect(f.amountsOnHandoverDays).toBe(4);
+    expect(f.amountsOnHandoverDays).toBe(5);
     expect(f.givenBack[0].onHandoverDay).toBe(true);
     expect(f.uncounted[0].onHandoverDay).toBe(true);
   });

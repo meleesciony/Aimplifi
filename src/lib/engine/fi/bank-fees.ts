@@ -66,8 +66,10 @@ export type FeeReading = FeeKind | 'interest' | 'annual' | 'unread';
 
 const COUNTED_SET: ReadonlySet<string> = new Set(COUNTED_FEE_CATEGORY_IDS);
 
+// "<…> INTEREST" never before an account word: "BELOW MINIMUM INTEREST CHECKING BALANCE FEE" is
+// an Interest Checking account's fee, not interest (critic cycle 5, P2-1).
 const INTEREST_RE =
-  /\b(INTEREST (CHARGE[DS]?|CHG|FEE|ON (PURCHASES|CASH|BALANCES?))|(PURCHASE|CASH ADVANCE|BALANCE TRANSFER|PLAN|MINIMUM) INTEREST|FINANCE CHARGES?)\b/;
+  /\b(INTEREST (CHARGE[DS]?|CHG|FEE|ON (PURCHASES|CASH|BALANCES?))|(PURCHASE|CASH ADVANCE|BALANCE TRANSFER|PLAN|MINIMUM) INTEREST(?! (CHECKING|SAVINGS|ACCOUNT|ACCT|BAL))|FINANCE CHARGES?)\b/;
 const ANNUAL_RE = /\bANNUAL (MEMBERSHIP |CARD |ACCOUNT )?FEE\b/;
 
 const words = (s: string): ReadonlySet<string> => new Set(s.split(' '));
@@ -124,7 +126,7 @@ const MONTH_DATE_RES = [
 const NON_BANK_ATM_RE = /\bNON-[A-Z0-9&]+(?:\s+[A-Z0-9&]+){0,3}?(?=\s+ATM\b)/g;
 
 /** The only words an annual fee left out may carry: an annual CARD or ACCOUNT fee, not a club's or an HOA's. */
-const ANNUAL_WORDS = words('ANNUAL MEMBERSHIP CARD ACCOUNT ACCT');
+export const ANNUAL_WORDS = words('ANNUAL MEMBERSHIP CARD ACCOUNT ACCT');
 
 function tokens(s: string): string[] {
   return s

@@ -76,6 +76,8 @@ describe('#796 — the coach hands the fee engine its own basis', () => {
         expect(t).toBeDefined();
         expect(r.rawDescriptor).toBe(t!.rawDescriptor);
         expect(r.categoryId).toBe((t as { categoryId?: string | null }).categoryId ?? null);
+        // The mapped rows, not the raw snapshot: they carry the register's display name (cycle 5, P3-4).
+        expect(typeof r.merchantName).toBe('string');
       }
       // The snapshot's own sets, sentinels and all — never undefined, never a fresh empty set.
       expect(opts?.excludedFlowIds?.has(SENTINEL_EXCLUDED_ID)).toBe(true);
