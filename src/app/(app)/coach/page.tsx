@@ -4,6 +4,7 @@ import { MERCHANT_LINK_CLASS, merchantRegisterHref } from '@/lib/engine/transact
 import { CheckCircle2, Eye, ShieldCheck, TrendingUp } from 'lucide-react';
 import { auth } from '@/auth';
 import { AutomationBlueprintCard } from '@/components/coach/automation-blueprint-card';
+import { BankFeesCard } from '@/components/coach/bank-fees-card';
 import { FICard } from '@/components/coach/fi-card';
 import { CurrencyExclusionBanner } from '@/components/finance/currency-exclusion-banner';
 import { COACH_OPPORTUNITIES_ID } from '@/components/dashboard/today-feed-copy';
@@ -345,6 +346,10 @@ export default async function CoachPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* #796 — the fees the reader's banks charged, by kind, net of what came back. Its own
+          card, not a "Worth a look" row: nothing on that list's cut sums reads it. */}
+      <BankFeesCard fees={data.bankFees} />
 
       {savingsGoals.length > 0 ? (
         <details className="rounded-xl border bg-card" data-testid="coach-goals-saved">

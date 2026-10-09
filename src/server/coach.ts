@@ -20,6 +20,7 @@ import {
   type DrawdownCounterfactual,
 } from '@/lib/engine/fi/drawdown';
 import { feeDrag, type FeeDrag } from '@/lib/engine/fi/fee-drag';
+import { findBankFees, type BankFees } from '@/lib/engine/fi/bank-fees';
 import { idleCash, type IdleCash } from '@/lib/engine/fi/idle-cash';
 import { classifyDebts, nextDollar, type NextDollarPlan } from '@/lib/engine/fi/next-dollar';
 import {
@@ -209,6 +210,12 @@ export interface CoachData {
     feeDrag: FeeDrag | null;
   };
   opportunities: Opportunity[];
+  /**
+   * #796 — the bank fees in the last 12 months of records, by kind, net of what came back.
+   * Its own engine, deliberately NOT an `Opportunity` kind: none of the cut sums, the radar
+   * cut-walk, Ask's "what to cut" total or the Today feed read it.
+   */
+  bankFees: BankFees;
   /**
    * P.1 radiation — what acting on `opportunities` does to the standing FI
    * walk. Engine result, never copy: /coach and Ask both render through
@@ -820,6 +827,12 @@ export async function getCoachData(
       }),
     },
     opportunities,
+    // #796: the same rows, loan-payment exclusions and handover days every other coach
+    // figure reads — one basis (`countsInFlows`), one snapshot.
+    bankFees: findBankFees(txns, isoDate(today), {
+      excludedFlowIds: snap.loanPaymentFlowExclusions?.excludeIds,
+      handoverKeys,
+    }),
     unusualCharges,
     incomePauses,
     signature,

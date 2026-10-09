@@ -94,3 +94,4 @@ expected value to match the code.
 - [§Investment & Savings is never spending (DECISIONS #789 / #792)](../tests/edge-cases/investment-and-savings-is-not-spending.md)
 - [§Money you set aside — measured savings against the plan's savings line (DECISIONS #790)](../tests/edge-cases/measured-savings.md)
 - [§A card payment counts once it leaves checking (DECISIONS #791)](../tests/edge-cases/card-payment-in-transit.md)
+- [§Fees you paid — bank fees by kind, net of what came back (DECISIONS #796)](../tests/edge-cases/bank-fees.md)

@@ -657,6 +657,8 @@ export const PAGE_RETURNS = {
   budgets: { path: '/budgets', label: 'your budget' },
   reports: { path: '/reports', label: 'your reports' },
   trends: { path: '/trends', label: 'your trends' },
+  // #796: the fee rows on /coach open their transaction; the way back is /coach.
+  coach: { path: '/coach', label: 'your coach' },
 } as const;
 
 /** The wire-token vocabulary of {@link PAGE_RETURNS} — a closed union, so a
